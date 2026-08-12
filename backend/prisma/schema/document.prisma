@@ -1,0 +1,36 @@
+// ─────────────────────────────────────────────
+// STORED DOCUMENT
+// Replaces public Supabase URLs with secure, private bucket storage.
+// ─────────────────────────────────────────────
+
+enum DocumentCategory {
+  RESUME
+  PHOTO
+  ASSET
+  POST_HIRE
+  VAULT_201
+}
+
+model StoredDocument {
+  id              Int                @id @default(autoincrement())
+  ownerId         String             // UUID of the uploading user
+  owner           User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  category        DocumentCategory
+  originalName    String             // Original filename from upload
+  mimeType        String             // Validated MIME type
+  sizeBytes       Int                // File size
+  sha256          String             // SHA-256 hash of file content
+  storageBucket   String             // Supabase storage bucket name
+  storagePath     String             // Path within bucket
+  uploadedAt      DateTime           @default(now())
+  deletedAt       DateTime?          // Soft delete
+
+  // Optional back-references
+  applicationId   Int?
+  application     Application?       @relation(fields: [applicationId], references: [id])
+  profileId       Int?
+  profile         ApplicantProfile?  @relation(fields: [profileId], references: [id])
+
+  @@index([ownerId, category])
+  @@index([sha256])
+}

@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    // What version of JavaScript to output
+    "target": "ES2022",
+
+    // NodeNext = modern Node.js module system (ESM-aware)
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    // Where compiled .js files go (for production builds)
+    "outDir": "./dist",
+
+    // Where TypeScript source files live
+    "rootDir": ".",
+
+    // Strict mode catches more bugs at compile time
+    "strict": true,
+
+    // Lets you import CommonJS modules cleanly (e.g. import express from 'express')
+    "esModuleInterop": true,
+
+    // Skip type-checking inside node_modules (faster)
+    "skipLibCheck": true,
+
+    // Keeps code readable in stack traces
+    "sourceMap": true
+  },
+  "include": [
+    "server.ts",
+    "prisma.config.ts",
+    "src/**/*"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

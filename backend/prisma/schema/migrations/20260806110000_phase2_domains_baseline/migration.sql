@@ -1,0 +1,29 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- BASELINE MIGRATION: Phase 2 Domains
+-- 
+-- These tables and columns were applied to the Supabase database manually
+-- during Phase 2 development (before Prisma migration tracking was set up
+-- for these models). This file serves as the authoritative baseline record.
+--
+-- No DDL is executed here — the migration is marked as applied via:
+--   npx prisma migrate resolve --applied 20260806110000_phase2_domains_baseline
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Phase 2 tables already applied to DB:
+--   Client, ManpowerRequest, Deployment (DeploymentStatus enum),
+--   RecruiterDecision, ComplianceRequirement,
+--   StoredDocument (DocumentCategory enum),
+--   NotificationOutbox
+--
+-- Phase 2 columns already applied to DB:
+--   ApplicantProfile.hasConsentedToAi
+--   JobPosting.mrfId
+--   ApplicationStatus enum + DEPLOYED variant
+--
+-- Phase 2 foreign keys, indexes, and unique constraints already applied.
+--
+-- Notification.link column (renamed from linkUrl) already applied.
+--
+-- This baseline contains no executable SQL so that re-applying it
+-- against the live database is a safe no-op.
+SELECT 1;

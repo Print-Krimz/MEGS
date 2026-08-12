@@ -1,0 +1,96 @@
+// ─────────────────────────────────────────────
+// CLIENT, MANPOWER REQUEST (MRF), DEPLOYMENT
+// ─────────────────────────────────────────────
+
+model Client {
+  id           Int      @id @default(autoincrement())
+  name         String
+  industry     String?
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  address      String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  manpowerRequests ManpowerRequest[]
+  deployments      Deployment[]
+}
+
+model ManpowerRequest {
+  id                     Int       @id @default(autoincrement())
+  clientId               Int
+  client                 Client    @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  title                  String
+  description            String?
+  headcount              Int       @default(1)
+  location               String?
+  targetFillDate         DateTime?
+  priority               String    @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  requiredSkills         String?
+  requiredExperience     String?
+  requiredEducation      String?
+  requiredCertifications String?
+  status                 String    @default("OPEN") // OPEN, FILLED, CANCELLED
+  createdById            String
+  createdBy              User      @relation("MRFCreatedBy", fields: [createdById], references: [id])
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  jobPostings JobPosting[]
+  deployments Deployment[]
+}
+
+enum DeploymentStatus {
+  PENDING_ORIENTATION
+  READY
+  DISPATCHED
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+model Deployment {
+  id            Int              @id @default(autoincrement())
+  applicationId Int
+  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  clientId      Int
+  client        Client           @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  mrfId         Int?
+  mrf           ManpowerRequest? @relation(fields: [mrfId], references: [id])
+  status        DeploymentStatus @default(PENDING_ORIENTATION)
+  site          String?
+  contractStart DateTime?
+  contractEnd   DateTime?
+  notes         String?
+  createdById   String
+  createdBy     User             @relation("DeploymentCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  statusHistory DeploymentStatusHistory[]
+
+  @@index([applicationId])
+  @@index([clientId, status])
+}
+
+// ─────────────────────────────────────────────
+// DEPLOYMENT STATUS HISTORY
+// Immutable audit trail of every deployment status transition.
+// Each transition records actor, reason, and timestamps.
+// ─────────────────────────────────────────────
+
+model DeploymentStatusHistory {
+  id           Int               @id @default(autoincrement())
+  deploymentId Int
+  deployment   Deployment        @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  fromStatus   DeploymentStatus?
+  toStatus     DeploymentStatus
+  changedById  String
+  changedBy    User              @relation("DeploymentHistoryActor", fields: [changedById], references: [id])
+  reason       String?
+  createdAt    DateTime          @default(now())
+
+  @@index([deploymentId, createdAt])
+}

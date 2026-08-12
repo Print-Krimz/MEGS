@@ -1,0 +1,114 @@
+// ─────────────────────────────────────────────
+// USER
+// Every person who logs in — applicants AND staff.
+// Auth data only. Personal details go in ApplicantProfile.
+// ─────────────────────────────────────────────
+
+model User {
+  // UUID from Supabase auth.users — synced on registration, not auto-generated here
+  id    String @id
+  email String @unique
+
+  role Role @default(APPLICANT)
+
+  // Soft delete — deactivate instead of erase
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  applicantProfile ApplicantProfile?
+  applications     Application[]
+  jobPostings      JobPosting[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+  scoringConfigurationsCreated CandidateScoringConfiguration[] @relation("ScoringConfigurationCreatedBy")
+  scoringConfigurationsActivated CandidateScoringConfiguration[] @relation("ScoringConfigurationActivatedBy")
+  storedDocuments StoredDocument[]
+  createdMRFs ManpowerRequest[] @relation("MRFCreatedBy")
+  recruiterDecisions RecruiterDecision[] @relation("DecisionActor")
+  reviewedComplianceRequirements ComplianceRequirement[] @relation("ComplianceReviewer")
+  createdDeployments Deployment[] @relation("DeploymentCreatedBy")
+  outboxNotifications NotificationOutbox[] @relation("OutboxRecipient")
+  deploymentStatusHistory DeploymentStatusHistory[] @relation("DeploymentHistoryActor")
+}
+
+// ─────────────────────────────────────────────
+// POLICY
+// System-wide key-value settings managed by Admin.
+// e.g. key="ai_score_threshold" value="70"
+// ─────────────────────────────────────────────
+
+model Policy {
+  id          Int     @id @default(autoincrement())
+  key         String  @unique
+  value       String
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOG
+// Immutable record of every important action.
+// Never updated. Never deleted.
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id     Int    @id @default(autoincrement())
+  userId String? // UUID — matches User.id from Supabase Auth
+  user   User?  @relation(fields: [userId], references: [id])
+
+  action   String  // e.g. "LOGIN", "APPLY_JOB", "UPDATE_STATUS"
+  entity   String? // e.g. "Application", "User"
+  entityId Int?    // ID of the affected record
+  details  String? // JSON string for extra context
+
+  createdAt DateTime @default(now())
+  @@index([action, createdAt])
+  // No updatedAt — audit logs are never modified
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATION
+// Alerts sent to users (e.g., status updates, interview schedules).
+// ─────────────────────────────────────────────
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    String   // UUID of the recipient
+  user      User     @relation(fields: [userId], references: [id])
+  
+  title     String
+  message   String
+  type      String   // e.g., "INFO", "SUCCESS", "WARNING"
+  isRead    Boolean  @default(false)
+  link      String?  // Optional URL to redirect to when clicked
+  
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATION OUTBOX
+// Outbox pattern for email notifications
+// ─────────────────────────────────────────────
+
+model NotificationOutbox {
+  id             Int       @id @default(autoincrement())
+  recipientId    String
+  recipient      User      @relation("OutboxRecipient", fields: [recipientId], references: [id])
+  subject        String
+  body           String
+  channel        String    @default("EMAIL")
+  status         String    @default("PENDING") // PENDING, SENT, FAILED
+  attempts       Int       @default(0)
+  lastError      String?
+  idempotencyKey String    @unique
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([status, createdAt])
+}
+

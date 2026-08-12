@@ -1,0 +1,219 @@
+// ─────────────────────────────────────────────
+// APPLICANT PROFILE
+// Extended personal info — only for APPLICANT role users.
+// Separated from User so staff accounts stay clean.
+// ─────────────────────────────────────────────
+
+model ApplicantProfile {
+  id     Int    @id @default(autoincrement())
+  userId String @unique // UUID — matches User.id from Supabase Auth
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Personal Details
+  firstName    String
+  middleName   String?
+  lastName     String
+  mobileNumber String
+  gender       String
+  province     String
+  city         String
+  dateOfBirth  DateTime
+  birthPlace   String
+  nationality  String
+  civilStatus  String
+  height       Float?
+  weight       Float?
+  religion     String?
+  address      String
+
+  // Preferred work locations (e.g. "Makati, Taguig, Remote")
+  preferredWorkLocations String?
+  // Optional coordinates are stored only for a future approved distance policy.
+  // V1 scoring continues to use normalized city, province, and preferred areas.
+  latitude  Float?
+  longitude Float?
+
+  // Government IDs
+  pagibig    String?
+  philhealth String?
+  sss        String?
+  tin        String?
+
+  // Photo stored in Supabase Storage — we only save the file URL here
+  photoUrl String?
+
+  // Centralized Default Resume — system remembers the last resume uploaded
+  resumeUrl String?
+
+  // Professional Summary (required)
+  professionalSummary String
+
+  // Emergency Contact
+  emergencyContactName         String?
+  emergencyContactRelationship String?
+  emergencyContactPhone        String?
+  emergencyContactAddress      String?
+
+  // Additional free-form notes
+  additionalNotes String?
+
+  // Soft delete
+  isActive Boolean @default(true)
+
+  // AI Consent
+  hasConsentedToAi Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations — one profile has many of each
+  workExperiences     WorkExperience[]
+  educations          Education[]
+  skills              ApplicantSkill[]
+  trainings           TrainingCertification[]
+  assets              Asset[]
+  characterReferences CharacterReference[]
+  candidateFeatureProfile CandidateFeatureProfile?
+  scoringRevalidationTasks ScoringRevalidationTask[]
+  storedDocuments StoredDocument[]
+}
+
+// ─────────────────────────────────────────────
+// WORK EXPERIENCE
+// One profile → many past jobs
+// ─────────────────────────────────────────────
+
+model WorkExperience {
+  id                 Int              @id @default(autoincrement())
+  applicantProfileId Int
+  applicantProfile   ApplicantProfile @relation(fields: [applicantProfileId], references: [id])
+
+  company   String
+  roleTitle String
+  location  String?
+  startDate DateTime
+  endDate   DateTime? // null when isCurrent is true
+  isCurrent Boolean   @default(false)
+  summary   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// EDUCATION
+// One profile → many education records
+// ─────────────────────────────────────────────
+
+model Education {
+  id                 Int              @id @default(autoincrement())
+  applicantProfileId Int
+  applicantProfile   ApplicantProfile @relation(fields: [applicantProfileId], references: [id])
+
+  school       String
+  degree       String?
+  fieldOfStudy String?
+  startDate    DateTime?
+  endDate      DateTime?
+  notes        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// SKILL
+// A reusable lookup table of skill names.
+// Stored once, shared across many applicants.
+// ─────────────────────────────────────────────
+
+model Skill {
+  id   Int    @id @default(autoincrement())
+  name String @unique // e.g. "JavaScript", "Project Management"
+
+  applicants ApplicantSkill[]
+}
+
+// ─────────────────────────────────────────────
+// APPLICANT SKILL — Junction Table (Many-to-Many)
+// One applicant has many skills.
+// One skill belongs to many applicants.
+// The composite @@id prevents duplicate rows.
+// ─────────────────────────────────────────────
+
+model ApplicantSkill {
+  applicantProfileId Int
+  skillId            Int
+
+  applicantProfile ApplicantProfile @relation(fields: [applicantProfileId], references: [id])
+  skill            Skill            @relation(fields: [skillId], references: [id])
+
+  @@id([applicantProfileId, skillId])
+}
+
+// ─────────────────────────────────────────────
+// TRAINING & CERTIFICATION
+// One profile → many certifications
+// ─────────────────────────────────────────────
+
+model TrainingCertification {
+  id                 Int              @id @default(autoincrement())
+  applicantProfileId Int
+  applicantProfile   ApplicantProfile @relation(fields: [applicantProfileId], references: [id])
+
+  title          String
+  provider       String?
+  completionDate DateTime?
+  certificateNo  String?
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// ASSET
+// Uploaded files attached to an applicant profile (IDs, certificates, etc.)
+// The actual file lives in Supabase Storage; we store only the URL.
+// ─────────────────────────────────────────────
+
+model Asset {
+  id                 Int              @id @default(autoincrement())
+  applicantProfileId Int
+  applicantProfile   ApplicantProfile @relation(fields: [applicantProfileId], references: [id])
+
+  label   String  // e.g. "Valid ID", "NBI Clearance"
+  fileUrl String  // Supabase Storage URL
+  notes   String?
+  documentType String?
+  verificationState AssetVerificationState @default(UNVERIFIED)
+  expiresAt DateTime?
+  verifiedBy String?
+  verifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([documentType, verificationState])
+  @@index([applicantProfileId])
+}
+
+// ─────────────────────────────────────────────
+// CHARACTER REFERENCE
+// One profile → many references
+// ─────────────────────────────────────────────
+
+model CharacterReference {
+  id                 Int              @id @default(autoincrement())
+  applicantProfileId Int
+  applicantProfile   ApplicantProfile @relation(fields: [applicantProfileId], references: [id])
+
+  name         String
+  relationship String?
+  phone        String?
+  email        String?
+  notes        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

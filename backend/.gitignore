@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Environment variables — NEVER commit this file
+.env
+
+# Prisma generated client
+# (it gets regenerated via `npx prisma generate`)
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/

@@ -1,0 +1,47 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  // We are using PostgreSQL hosted on Supabase.
+  // In Prisma 7, the connection URL is no longer set here.
+  // It is configured in prisma.config.ts instead.
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum Role {
+  APPLICANT
+  TALENT_ACQUISITION
+  ADMINISTRATOR
+}
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+enum ApplicationStatus {
+  SUBMITTED         // Applicant just applied
+  PARSING           // Gemini API is processing the resume
+  MATCHED           // Resume matched the job requirements
+  TALENT_POOL       // Did not match — pooled for future roles
+  INITIAL_SCREENING // First interview stage
+  FINAL_INTERVIEW   // Final interview stage
+  HIRED             // Offer accepted
+  ONBOARDING        // Currently being onboarded
+  DEPLOYED          // Candidate is actively deployed
+  BACKOUT           // Candidate withdrew
+  ARCHIVED          // Discarded / no longer active
+}
+
+enum InterviewType {
+  INITIAL_SCREENING
+  FINAL_INTERVIEW
+}

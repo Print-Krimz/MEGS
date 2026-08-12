@@ -1,0 +1,154 @@
+enum CandidateScoringConfigurationScope {
+  GLOBAL
+}
+
+enum CandidateScoringConfigurationStatus {
+  ACTIVE
+  SUPERSEDED
+}
+
+enum CandidateScoringDimension {
+  SKILLS
+  EXPERIENCE
+  LOCATION
+  COMPLIANCE
+  EDUCATION_CERTIFICATIONS
+}
+
+enum CandidateScoreStatus {
+  CALCULATED
+  STALE
+  FAILED
+}
+
+enum ScoringRevalidationTaskStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ScoringRevalidationTarget {
+  CONFIGURATION
+  JOB_POSTING
+  APPLICATION
+  APPLICANT_PROFILE
+}
+
+enum AssetVerificationState {
+  UNVERIFIED
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+model CandidateScoringConfiguration {
+  id              Int                                 @id @default(autoincrement())
+  scope           CandidateScoringConfigurationScope  @default(GLOBAL)
+  status          CandidateScoringConfigurationStatus @default(ACTIVE)
+  version         Int                                 @unique
+  revision        Int                                 @default(1)
+  knnSettings     Json
+  createdById     String?
+  activatedById   String?
+  activatedAt     DateTime                            @default(now())
+  supersededAt    DateTime?
+  createdAt       DateTime                            @default(now())
+
+  createdBy       User?                               @relation("ScoringConfigurationCreatedBy", fields: [createdById], references: [id])
+  activatedBy     User?                               @relation("ScoringConfigurationActivatedBy", fields: [activatedById], references: [id])
+  weights         CandidateScoringWeight[]
+  candidateScores CandidateScore[]
+  tasks           ScoringRevalidationTask[]
+
+  @@index([scope, status])
+}
+
+model CandidateScoringWeight {
+  id              Int                           @id @default(autoincrement())
+  configurationId Int
+  dimension       CandidateScoringDimension
+  weight          Decimal                       @db.Decimal(9, 4)
+
+  configuration   CandidateScoringConfiguration @relation(fields: [configurationId], references: [id], onDelete: Restrict)
+
+  @@unique([configurationId, dimension])
+}
+
+model CandidateScore {
+  id                        Int                           @id @default(autoincrement())
+  applicationId             Int
+  jobPostingId              Int
+  configurationId           Int
+  status                    CandidateScoreStatus          @default(CALCULATED)
+  skillsScore               Decimal                       @db.Decimal(5, 2)
+  experienceScore           Decimal                       @db.Decimal(5, 2)
+  locationScore             Decimal                       @db.Decimal(5, 2)
+  complianceScore           Decimal                       @db.Decimal(5, 2)
+  educationCertificationScore Decimal                    @db.Decimal(5, 2)
+  finalFitScore             Decimal                       @db.Decimal(5, 2)
+  knnSimilarity             Decimal?                      @db.Decimal(6, 5)
+  explanation               Json
+  featureSchemaVersion      String
+  extractionVersion         String
+  calculationVersion        String
+  calculatedAt              DateTime                      @default(now())
+  staleAt                   DateTime?
+  createdAt                 DateTime                      @default(now())
+
+  application               Application                   @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  jobPosting                JobPosting                    @relation(fields: [jobPostingId], references: [id], onDelete: Restrict)
+  configuration             CandidateScoringConfiguration @relation(fields: [configurationId], references: [id], onDelete: Restrict)
+
+  @@index([applicationId, jobPostingId, configurationId, calculatedAt(sort: Desc)])
+  @@index([jobPostingId, status, calculatedAt(sort: Desc)])
+}
+
+model CandidateFeatureProfile {
+  id                      Int                         @id @default(autoincrement())
+  applicantProfileId      Int                         @unique
+  rawFeatures             Json
+  sparseTfidf             Json?
+  embedding               Unsupported("vector(384)")?
+  normalizedCity          String?
+  normalizedProvince      String?
+  normalizedPreferredAreas String[]        @default([])
+  vocabularyVersion       String
+  featureSchemaVersion    String
+  extractionVersion       String
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  applicantProfile        ApplicantProfile @relation(fields: [applicantProfileId], references: [id], onDelete: Restrict)
+
+  @@index([featureSchemaVersion, updatedAt])
+}
+
+model ScoringRevalidationTask {
+  id                      String                           @id @default(uuid())
+  target                  ScoringRevalidationTarget
+  applicationId           Int?
+  jobPostingId            Int?
+  applicantProfileId      Int?
+  configurationId         Int
+  configurationVersion    Int
+  dedupeKey               String                           @unique
+  status                  ScoringRevalidationTaskStatus    @default(PENDING)
+  leaseExpiresAt          DateTime?
+  claimedBy               String?
+  claimedAt               DateTime?
+  attempts                Int                              @default(0)
+  lastError               String?
+  progressCompleted       Int                              @default(0)
+  progressTotal           Int                              @default(0)
+  completedAt             DateTime?
+  createdAt               DateTime                         @default(now())
+  updatedAt               DateTime                         @updatedAt
+
+  application             Application?                     @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  jobPosting              JobPosting?                      @relation(fields: [jobPostingId], references: [id], onDelete: Restrict)
+  applicantProfile        ApplicantProfile?                @relation(fields: [applicantProfileId], references: [id], onDelete: Restrict)
+  configuration           CandidateScoringConfiguration    @relation(fields: [configurationId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+}

@@ -1,0 +1,181 @@
+// ─────────────────────────────────────────────
+// JOB POSTING
+// Created and managed by Talent Acquisition staff.
+// Applicants browse and apply to these.
+// ─────────────────────────────────────────────
+
+model JobPosting {
+  id         Int    @id @default(autoincrement())
+  postedById String // UUID — matches User.id from Supabase Auth
+  postedBy   User   @relation(fields: [postedById], references: [id])
+
+  title        String
+  description  String
+  requirements String    // Gemini API compares the resume against this text
+  location     String?
+  // Nullable until a separate location-data policy supplies coordinates.
+  latitude     Float?
+  longitude    Float?
+  status       JobStatus @default(OPEN)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  mrfId Int?
+  mrf   ManpowerRequest? @relation(fields: [mrfId], references: [id])
+
+  applications Application[]
+  candidateScores CandidateScore[]
+  scoringRevalidationTasks ScoringRevalidationTask[]
+}
+
+// ─────────────────────────────────────────────
+// APPLICATION
+// The bridge between an Applicant and a Job Posting.
+// This is the most important table in the system.
+// ─────────────────────────────────────────────
+
+model Application {
+  id           Int        @id @default(autoincrement())
+  userId       String     // UUID — matches User.id from Supabase Auth
+  user         User       @relation(fields: [userId], references: [id])
+  jobPostingId Int
+  jobPosting   JobPosting @relation(fields: [jobPostingId], references: [id])
+
+  status    ApplicationStatus @default(SUBMITTED)
+  resumeUrl String?           // Supabase Storage URL of uploaded resume
+  aiScore   Float?            // 0–100 score returned by Gemini API
+  aiSummary String?           // Gemini's parsed summary of the resume
+
+  // Soft delete / archive
+  isArchived Boolean   @default(false)
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  interviews        Interview[]
+  postHireDocuments PostHireDocument[]
+  vault201          Vault201?
+  candidateScores   CandidateScore[]
+  scoringRevalidationTasks ScoringRevalidationTask[]
+  storedDocuments StoredDocument[]
+  recruiterDecisions RecruiterDecision[]
+  complianceRequirements ComplianceRequirement[]
+  deployments Deployment[]
+}
+
+// ─────────────────────────────────────────────
+// INTERVIEW
+// One application can have multiple interview stages.
+// Tracks the 7-day compliance window.
+// ─────────────────────────────────────────────
+
+model Interview {
+  id            Int         @id @default(autoincrement())
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id])
+
+  type        InterviewType
+  scheduledAt DateTime?
+  conductedAt DateTime?
+  result      String?   // "PASS" | "FAIL" | "PENDING"
+  notes       String?
+
+  // 7-day compliance — TA must act within 7 days of interview
+  complianceDeadline DateTime?
+  isCompliant        Boolean?
+
+  // Soft delete
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// POST-HIRE DOCUMENT
+// Documents submitted by applicant after receiving a job offer.
+// ─────────────────────────────────────────────
+
+model PostHireDocument {
+  id            Int         @id @default(autoincrement())
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id])
+
+  label   String
+  fileUrl String  // Supabase Storage URL
+  notes   String?
+
+  // Soft delete
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// VAULT 201
+// The official digital employee record created after hiring.
+// One application → one vault entry (never deleted).
+// ─────────────────────────────────────────────
+
+model Vault201 {
+  id            Int         @id @default(autoincrement())
+  applicationId Int         @unique // One application = one employee record
+  application   Application @relation(fields: [applicationId], references: [id])
+
+  employeeId String?   // Internal employee number assigned by HR
+  startDate  DateTime?
+  department String?
+  position   String?
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// RECRUITER DECISION
+// Audit trail of status transitions with actor and reason
+// ─────────────────────────────────────────────
+
+model RecruiterDecision {
+  id            Int         @id @default(autoincrement())
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  actorId       String
+  actor         User        @relation("DecisionActor", fields: [actorId], references: [id])
+  fromStatus    String
+  toStatus      String
+  reason        String?
+  createdAt     DateTime    @default(now())
+
+  @@index([applicationId, createdAt])
+}
+
+// ─────────────────────────────────────────────
+// COMPLIANCE REQUIREMENT
+// Pre-employment checklist with review status
+// ─────────────────────────────────────────────
+
+model ComplianceRequirement {
+  id            Int         @id @default(autoincrement())
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  documentLabel String
+  isRequired    Boolean     @default(true)
+  deadline      DateTime?
+  documentId    Int?
+  reviewStatus  String      @default("PENDING") // PENDING, SUBMITTED, APPROVED, REJECTED, EXPIRED
+  reviewedById  String?
+  reviewedBy    User?       @relation("ComplianceReviewer", fields: [reviewedById], references: [id])
+  reviewNotes   String?
+  reviewedAt    DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([applicationId, reviewStatus])
+}
+
