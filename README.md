@@ -1,4 +1,4 @@
-# MEGS - Manpower Enterprise Growth System
+# MEGS 
 
 Backend service for the MEGS Recruitment, Applicant Tracking, and Talent Acquisition platform.
 
