@@ -1,6 +1,5 @@
 import { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
-import { createHash } from "node:crypto";
 import { calculateAndPersistCandidateScore } from "./candidate-scoring.service.js";
 import { getActiveScoringConfiguration } from "./scoring-configuration.service.js";
 import { CandidateFeatureInput } from "./scoring.types.js";
@@ -8,7 +7,7 @@ import { normalizeComplianceDocumentType } from "./scoring.dimensions.js";
 import { generateEmbedding } from "./embedding.service.js";
 
 export const FEATURE_SCHEMA_VERSION = "candidate-feature-v1";
-export const VOCABULARY_VERSION = "xenova-mini-lm-v1";
+const VOCABULARY_VERSION = "xenova-mini-lm-v1";
 export const EXTRACTION_VERSION = "deterministic-v1";
 
 const normalizeLocation = (value: string | null | undefined) =>
@@ -19,7 +18,7 @@ const splitAreas = (value: string | null | undefined) =>
 
 const yearsBetween = (start: Date, end: Date) => Math.max(0, (end.getTime() - start.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 
-export const featureDocument = (features: CandidateFeatureInput) => [
+const featureDocument = (features: CandidateFeatureInput) => [
   ...features.skills,
   ...features.roleExperience,
   ...features.education,
@@ -27,7 +26,7 @@ export const featureDocument = (features: CandidateFeatureInput) => [
   ...features.complianceDocuments,
 ].join(" ");
 
-export const buildCandidateFeatureInput = (profile: {
+const buildCandidateFeatureInput = (profile: {
   skills: Array<{ skill: { name: string } }>;
   workExperiences: Array<{ roleTitle: string; summary: string | null; startDate: Date; endDate: Date | null; isCurrent: boolean }>;
   educations: Array<{ degree: string | null; fieldOfStudy: string | null; notes: string | null }>;
@@ -94,7 +93,7 @@ export const rebuildCandidateFeatureProfile = async (applicantProfileId: number)
       WHERE id = ${record.id}
     `;
   } catch (err) {
-    // If running in isolated unit test without pgvector DB, gracefully bypass raw vector update
+    // Graceful bypass in environments without pgvector
   }
 
   return record;
@@ -123,106 +122,170 @@ const resolveKnnOptions = (
   };
 };
 
-const publicCandidate = (application: {
+const publicCandidateFromProfile = (profile: {
   id: number;
-  status: string;
-  user: {
-    id: string;
-    email: string;
-    applicantProfile: {
-      firstName: string | null;
-      lastName: string | null;
-      city: string | null;
-      province: string | null;
-    } | null;
+  firstName: string;
+  lastName: string;
+  city: string;
+  province: string;
+  user: { id: string; email: string };
+  skills?: Array<{ skill: { name: string } }>;
+  workExperiences?: Array<{ roleTitle: string; startDate: Date; endDate: Date | null; isCurrent: boolean }>;
+  talentPoolMembership?: {
+    status: string;
+    availability: string;
+    lastContactedAt: Date | null;
+    notes?: string | null;
+  } | null;
+}) => {
+  const currentWork = profile.workExperiences?.find((w) => w.isCurrent) ?? profile.workExperiences?.[0];
+  return {
+    id: profile.user.id,
+    applicantProfileId: profile.id,
+    email: profile.user.email,
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    city: profile.city,
+    province: profile.province,
+    currentRole: currentWork?.roleTitle ?? null,
+    skills: profile.skills?.map((s) => s.skill.name) ?? [],
+    availability: profile.talentPoolMembership?.availability ?? "UNKNOWN",
+    talentPoolStatus: profile.talentPoolMembership?.status ?? "ACTIVE",
+    lastContactedAt: profile.talentPoolMembership?.lastContactedAt ?? null,
   };
-}) => ({
-  id: application.user.id,
-  email: application.user.email,
-  applicationId: application.id,
-  status: application.status,
-  firstName: application.user.applicantProfile?.firstName ?? null,
-  lastName: application.user.applicantProfile?.lastName ?? null,
-  city: application.user.applicantProfile?.city ?? null,
-  province: application.user.applicantProfile?.province ?? null,
-});
+};
 
+/**
+ * Discovers eligible talent pool candidates for a target Job/MRF.
+ * Uses authoritative requirements from JobPosting and MRF.
+ * Does not overwrite or corrupt historical CandidateScores of other applications.
+ */
 export const discoverTalentPoolForJob = async (jobPostingId: number, requested: TalentPoolOptions = {}) => {
   const [configuration, job] = await Promise.all([
     getActiveScoringConfiguration(),
-    prisma.jobPosting.findUniqueOrThrow({ where: { id: jobPostingId } }),
+    prisma.jobPosting.findUniqueOrThrow({
+      where: { id: jobPostingId },
+      include: { mrf: true },
+    }),
   ]);
-  const options = {
-    includeArchived: requested.includeArchived ?? configuration.knnSettings.includeArchived,
-    excludeRejected: configuration.knnSettings.excludeRejected,
-    excludeCurrentlyHired: configuration.knnSettings.excludeCurrentlyHired,
-  };
+
   const knn = resolveKnnOptions(configuration, requested);
-  const jobText = `${job.title} ${job.requirements}`;
+  
+  // Prefer authoritative MRF + JobPosting requirements
+  const jobText = [
+    job.title,
+    job.description,
+    job.requirements,
+    job.mrf?.requiredSkills,
+    job.mrf?.requiredExperience,
+    job.mrf?.requiredEducation,
+    job.mrf?.requiredCertifications,
+  ].filter(Boolean).join(" ");
+
   const jobEmbedding = await generateEmbedding(jobText);
   const vectorStr = `[${jobEmbedding.join(",")}]`;
 
-  const excludedStatuses = [
-    ...(options.excludeRejected ? ["BACKOUT"] : []),
-    ...(options.excludeCurrentlyHired ? ["HIRED", "ONBOARDING"] : []),
-  ];
-
-  let rawResults: Array<{ applicationId: number; similarity: number }> = [];
+  let rawResults: Array<{ applicantProfileId: number; similarity: number }> = [];
   try {
     rawResults = await prisma.$queryRaw`
       SELECT 
-        a."id" AS "applicationId",
+        ap."id" AS "applicantProfileId",
         (1 - (cfp."embedding" <=> ${vectorStr}::vector)) AS "similarity"
       FROM "CandidateFeatureProfile" cfp
       JOIN "ApplicantProfile" ap ON ap."id" = cfp."applicantProfileId"
       JOIN "User" u ON u."id" = ap."userId"
-      JOIN "Application" a ON a."userId" = u."id"
+      JOIN "TalentPoolMembership" tpm ON tpm."applicantProfileId" = ap."id"
       WHERE 
         cfp."embedding" IS NOT NULL
-        ${options.includeArchived ? Prisma.sql`` : Prisma.sql`AND a."isArchived" = false`}
-        ${excludedStatuses.length ? Prisma.sql`AND a."status"::text NOT IN (${Prisma.join(excludedStatuses)})` : Prisma.sql``}
+        AND tpm."status" = 'ACTIVE'
+        AND tpm."availability" != 'UNAVAILABLE'
+        AND ap."hasConsentedToAi" = true
+        AND ap."isActive" = true
+        AND u."isActive" = true
+        AND NOT EXISTS (
+          SELECT 1 FROM "Application" app_hired
+          WHERE app_hired."userId" = u."id"
+            AND app_hired."status" IN ('HIRED', 'ONBOARDING')
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM "Deployment" dep
+          JOIN "Application" dep_app ON dep."applicationId" = dep_app."id"
+          WHERE dep_app."userId" = u."id"
+            AND dep."status" NOT IN ('ENDED', 'CANCELLED')
+        )
         AND (1 - (cfp."embedding" <=> ${vectorStr}::vector)) >= ${knn.minimumSimilarity}
-      ORDER BY (1 - (cfp."embedding" <=> ${vectorStr}::vector)) DESC, a."id" ASC
+      ORDER BY (1 - (cfp."embedding" <=> ${vectorStr}::vector)) DESC, ap."id" ASC
       LIMIT ${knn.k}
     `;
   } catch (err) {
     // Fallback for mocked unit test environments without real pgvector Postgres
-    const apps = await prisma.application.findMany({
+    const members = await prisma.talentPoolMembership.findMany({
       where: {
-        ...(options.includeArchived ? {} : { isArchived: false }),
-        ...(excludedStatuses.length ? { status: { notIn: excludedStatuses as any } } : {}),
-        user: { applicantProfile: { isNot: null } },
+        status: "ACTIVE",
+        availability: { not: "UNAVAILABLE" },
+        applicantProfile: {
+          hasConsentedToAi: true,
+          isActive: true,
+          user: {
+            isActive: true,
+            applications: {
+              none: {
+                OR: [
+                  { status: { in: ["HIRED", "ONBOARDING"] } },
+                  { deployments: { some: { status: { notIn: ["ENDED", "CANCELLED"] } } } },
+                ],
+              },
+            },
+          },
+        },
       },
-      orderBy: { id: "asc" },
       take: knn.k,
-      include: { user: { select: { id: true, email: true, applicantProfile: { include: { candidateFeatureProfile: true } } } } },
+      select: { applicantProfileId: true },
     });
-    rawResults = apps.map((app) => ({ applicationId: app.id, similarity: 0.85 }));
+    rawResults = members.map((m) => ({ applicantProfileId: m.applicantProfileId, similarity: 0.85 }));
   }
 
-  const ranked = await Promise.all(
+  const items = await Promise.all(
     rawResults.map(async (result, index) => {
       const similarity = Number(result.similarity);
-      const score = await calculateAndPersistCandidateScore(result.applicationId, jobPostingId, similarity);
-      const application = await prisma.application.findUniqueOrThrow({
-        where: { id: result.applicationId },
-        include: { user: { include: { applicantProfile: true } } },
+      const applicantProfile = await prisma.applicantProfile.findUniqueOrThrow({
+        where: { id: result.applicantProfileId },
+        include: {
+          user: { select: { id: true, email: true } },
+          skills: { include: { skill: true } },
+          workExperiences: { orderBy: { startDate: "desc" } },
+          talentPoolMembership: true,
+        },
       });
-      return { candidate: publicCandidate(application as any), similarity, knnRank: index + 1, score };
+
+      return {
+        candidate: publicCandidateFromProfile(applicantProfile as any),
+        similarity,
+        knnRank: index + 1,
+      };
     })
   );
 
-  ranked.sort((left, right) => right.score.finalFitScore - left.score.finalFitScore || left.candidate.applicationId - right.candidate.applicationId);
-  return { items: ranked };
+  return { items };
 };
 
-export const findSimilarCandidates = async (sourceApplicationId: number, requested: TalentPoolOptions = {}) => {
-  const source = await prisma.application.findUniqueOrThrow({
-    where: { id: sourceApplicationId },
-    include: { jobPosting: true, user: { select: { applicantProfile: { include: { candidateFeatureProfile: true } } } } },
+/**
+ * Finds similar candidates in the talent pool based on another candidate's profile.
+ */
+export const findSimilarCandidates = async (sourceApplicationOrProfileId: number, requested: TalentPoolOptions = {}) => {
+  let applicantProfileId = sourceApplicationOrProfileId;
+  const app = await prisma.application.findUnique({
+    where: { id: sourceApplicationOrProfileId },
+    include: { user: { include: { applicantProfile: true } } },
   });
-  const profile = source.user.applicantProfile;
-  if (!profile) throw new Error("Source candidate has no profile.");
+  if (app?.user?.applicantProfile) {
+    applicantProfileId = app.user.applicantProfile.id;
+  }
+
+  const profile = await prisma.applicantProfile.findUniqueOrThrow({
+    where: { id: applicantProfileId },
+    include: { candidateFeatureProfile: true },
+  });
 
   const configuration = await getActiveScoringConfiguration();
   const knn = resolveKnnOptions(configuration, requested);
@@ -231,123 +294,363 @@ export const findSimilarCandidates = async (sourceApplicationId: number, request
   const sourceEmbedding = await generateEmbedding(doc);
   const vectorStr = `[${sourceEmbedding.join(",")}]`;
 
-  const options = {
-    includeArchived: requested.includeArchived ?? configuration.knnSettings.includeArchived,
-    excludeRejected: configuration.knnSettings.excludeRejected,
-    excludeCurrentlyHired: configuration.knnSettings.excludeCurrentlyHired,
-  };
-  const excludedStatuses = [
-    ...(options.excludeRejected ? ["BACKOUT"] : []),
-    ...(options.excludeCurrentlyHired ? ["HIRED", "ONBOARDING"] : []),
-  ];
-
-  let rawResults: Array<{ applicationId: number; similarity: number }> = [];
+  let rawResults: Array<{ applicantProfileId: number; similarity: number }> = [];
   try {
     rawResults = await prisma.$queryRaw`
       SELECT 
-        a."id" AS "applicationId",
+        ap."id" AS "applicantProfileId",
         (1 - (cfp."embedding" <=> ${vectorStr}::vector)) AS "similarity"
       FROM "CandidateFeatureProfile" cfp
       JOIN "ApplicantProfile" ap ON ap."id" = cfp."applicantProfileId"
       JOIN "User" u ON u."id" = ap."userId"
-      JOIN "Application" a ON a."userId" = u."id"
+      JOIN "TalentPoolMembership" tpm ON tpm."applicantProfileId" = ap."id"
       WHERE 
         cfp."embedding" IS NOT NULL
-        AND a."id" != ${sourceApplicationId}
-        ${options.includeArchived ? Prisma.sql`` : Prisma.sql`AND a."isArchived" = false`}
-        ${excludedStatuses.length ? Prisma.sql`AND a."status"::text NOT IN (${Prisma.join(excludedStatuses)})` : Prisma.sql``}
+        AND ap."id" != ${applicantProfileId}
+        AND tpm."status" = 'ACTIVE'
+        AND tpm."availability" != 'UNAVAILABLE'
+        AND ap."hasConsentedToAi" = true
+        AND ap."isActive" = true
+        AND u."isActive" = true
+        AND NOT EXISTS (
+          SELECT 1 FROM "Application" app_hired
+          WHERE app_hired."userId" = u."id"
+            AND app_hired."status" IN ('HIRED', 'ONBOARDING')
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM "Deployment" dep
+          JOIN "Application" dep_app ON dep."applicationId" = dep_app."id"
+          WHERE dep_app."userId" = u."id"
+            AND dep."status" NOT IN ('ENDED', 'CANCELLED')
+        )
         AND (1 - (cfp."embedding" <=> ${vectorStr}::vector)) >= ${knn.minimumSimilarity}
-      ORDER BY (1 - (cfp."embedding" <=> ${vectorStr}::vector)) DESC, a."id" ASC
+      ORDER BY (1 - (cfp."embedding" <=> ${vectorStr}::vector)) DESC, ap."id" ASC
       LIMIT ${knn.k}
     `;
   } catch (err) {
-    const apps = await prisma.application.findMany({
+    const members = await prisma.talentPoolMembership.findMany({
       where: {
-        id: { not: sourceApplicationId },
-        ...(options.includeArchived ? {} : { isArchived: false }),
-        ...(excludedStatuses.length ? { status: { notIn: excludedStatuses as any } } : {}),
-        user: { applicantProfile: { isNot: null } },
+        applicantProfileId: { not: applicantProfileId },
+        status: "ACTIVE",
+        availability: { not: "UNAVAILABLE" },
+        applicantProfile: {
+          hasConsentedToAi: true,
+          isActive: true,
+        },
       },
-      orderBy: { id: "asc" },
       take: knn.k,
-      include: { user: { select: { id: true, email: true, applicantProfile: { include: { candidateFeatureProfile: true } } } } },
+      select: { applicantProfileId: true },
     });
-    rawResults = apps.map((app) => ({ applicationId: app.id, similarity: 0.85 }));
+    rawResults = members.map((m) => ({ applicantProfileId: m.applicantProfileId, similarity: 0.85 }));
   }
 
   const items = await Promise.all(
     rawResults.map(async (result, index) => {
-      const similarity = Number(result.similarity);
-      const score = await calculateAndPersistCandidateScore(result.applicationId, source.jobPostingId, similarity);
-      const application = await prisma.application.findUniqueOrThrow({
-        where: { id: result.applicationId },
-        include: { user: { include: { applicantProfile: true } } },
+      const applicantProfile = await prisma.applicantProfile.findUniqueOrThrow({
+        where: { id: result.applicantProfileId },
+        include: {
+          user: { select: { id: true, email: true } },
+          skills: { include: { skill: true } },
+          workExperiences: { orderBy: { startDate: "desc" } },
+          talentPoolMembership: true,
+        },
       });
-      return { candidate: publicCandidate(application as any), similarity, knnRank: index + 1, score };
+      return {
+        candidate: publicCandidateFromProfile(applicantProfile as any),
+        similarity: Number(result.similarity),
+        knnRank: index + 1,
+      };
     })
   );
 
-  items.sort((left, right) => right.score.finalFitScore - left.score.finalFitScore || left.candidate.applicationId - right.candidate.applicationId);
   return { items };
 };
 
+/**
+ * Semantic text search across eligible Talent Pool candidates.
+ */
 export const searchTalentPoolByText = async (text: string, requested: TalentPoolOptions = {}) => {
   const configuration = await getActiveScoringConfiguration();
   const knn = resolveKnnOptions(configuration, requested);
   const queryEmbedding = await generateEmbedding(text);
   const vectorStr = `[${queryEmbedding.join(",")}]`;
 
-  const options = {
-    includeArchived: requested.includeArchived ?? configuration.knnSettings.includeArchived,
-    excludeRejected: configuration.knnSettings.excludeRejected,
-    excludeCurrentlyHired: configuration.knnSettings.excludeCurrentlyHired,
-  };
-  const excludedStatuses = [
-    ...(options.excludeRejected ? ["BACKOUT"] : []),
-    ...(options.excludeCurrentlyHired ? ["HIRED", "ONBOARDING"] : []),
-  ];
-
-  let rawResults: Array<{ applicationId: number; similarity: number }> = [];
+  let rawResults: Array<{ applicantProfileId: number; similarity: number }> = [];
   try {
     rawResults = await prisma.$queryRaw`
       SELECT 
-        a."id" AS "applicationId",
+        ap."id" AS "applicantProfileId",
         (1 - (cfp."embedding" <=> ${vectorStr}::vector)) AS "similarity"
       FROM "CandidateFeatureProfile" cfp
       JOIN "ApplicantProfile" ap ON ap."id" = cfp."applicantProfileId"
       JOIN "User" u ON u."id" = ap."userId"
-      JOIN "Application" a ON a."userId" = u."id"
+      JOIN "TalentPoolMembership" tpm ON tpm."applicantProfileId" = ap."id"
       WHERE 
         cfp."embedding" IS NOT NULL
-        ${options.includeArchived ? Prisma.sql`` : Prisma.sql`AND a."isArchived" = false`}
-        ${excludedStatuses.length ? Prisma.sql`AND a."status"::text NOT IN (${Prisma.join(excludedStatuses)})` : Prisma.sql``}
+        AND tpm."status" = 'ACTIVE'
+        AND tpm."availability" != 'UNAVAILABLE'
+        AND ap."hasConsentedToAi" = true
+        AND ap."isActive" = true
+        AND u."isActive" = true
+        AND NOT EXISTS (
+          SELECT 1 FROM "Application" app_hired
+          WHERE app_hired."userId" = u."id"
+            AND app_hired."status" IN ('HIRED', 'ONBOARDING')
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM "Deployment" dep
+          JOIN "Application" dep_app ON dep."applicationId" = dep_app."id"
+          WHERE dep_app."userId" = u."id"
+            AND dep."status" NOT IN ('ENDED', 'CANCELLED')
+        )
         AND (1 - (cfp."embedding" <=> ${vectorStr}::vector)) >= ${knn.minimumSimilarity}
-      ORDER BY (1 - (cfp."embedding" <=> ${vectorStr}::vector)) DESC, a."id" ASC
+      ORDER BY (1 - (cfp."embedding" <=> ${vectorStr}::vector)) DESC, ap."id" ASC
       LIMIT ${knn.k}
     `;
   } catch (err) {
-    const apps = await prisma.application.findMany({
+    const members = await prisma.talentPoolMembership.findMany({
       where: {
-        ...(options.includeArchived ? {} : { isArchived: false }),
-        ...(excludedStatuses.length ? { status: { notIn: excludedStatuses as any } } : {}),
-        user: { applicantProfile: { isNot: null } },
+        status: "ACTIVE",
+        availability: { not: "UNAVAILABLE" },
+        applicantProfile: {
+          hasConsentedToAi: true,
+          isActive: true,
+        },
       },
-      orderBy: { id: "asc" },
       take: knn.k,
-      include: { user: { select: { id: true, email: true, applicantProfile: { include: { candidateFeatureProfile: true } } } } },
+      select: { applicantProfileId: true },
     });
-    rawResults = apps.map((app) => ({ applicationId: app.id, similarity: 0.85 }));
+    rawResults = members.map((m) => ({ applicantProfileId: m.applicantProfileId, similarity: 0.85 }));
   }
 
   const items = await Promise.all(
     rawResults.map(async (result, index) => {
-      const application = await prisma.application.findUniqueOrThrow({
-        where: { id: result.applicationId },
-        include: { user: { include: { applicantProfile: true } } },
+      const applicantProfile = await prisma.applicantProfile.findUniqueOrThrow({
+        where: { id: result.applicantProfileId },
+        include: {
+          user: { select: { id: true, email: true } },
+          skills: { include: { skill: true } },
+          workExperiences: { orderBy: { startDate: "desc" } },
+          talentPoolMembership: true,
+        },
       });
-      return { candidate: publicCandidate(application as any), similarity: Number(result.similarity), knnRank: index + 1 };
+      return {
+        candidate: publicCandidateFromProfile(applicantProfile as any),
+        similarity: Number(result.similarity),
+        knnRank: index + 1,
+      };
     })
   );
 
   return { items, retrievalOnly: true };
+};
+
+/**
+ * Recruiter action: Explicitly adds a candidate to the Talent Pool.
+ */
+export const addToTalentPool = async (input: {
+  applicantProfileId: number;
+  addedById: string;
+  sourceApplicationId?: number;
+  availability?: "AVAILABLE" | "UNAVAILABLE" | "UNKNOWN";
+  notes?: string;
+}) => {
+  await prisma.applicantProfile.findUniqueOrThrow({
+    where: { id: input.applicantProfileId },
+  });
+
+  const membership = await prisma.talentPoolMembership.upsert({
+    where: { applicantProfileId: input.applicantProfileId },
+    create: {
+      applicantProfileId: input.applicantProfileId,
+      sourceApplicationId: input.sourceApplicationId ?? null,
+      status: "ACTIVE",
+      availability: input.availability ?? "AVAILABLE",
+      addedById: input.addedById,
+      notes: input.notes ?? null,
+    },
+    update: {
+      sourceApplicationId: input.sourceApplicationId ?? undefined,
+      status: "ACTIVE",
+      availability: input.availability ?? "AVAILABLE",
+      addedById: input.addedById,
+      notes: input.notes ?? undefined,
+    },
+    include: {
+      applicantProfile: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          user: { select: { id: true, email: true } },
+        },
+      },
+    },
+  });
+
+  return membership;
+};
+
+/**
+ * Recruiter action: Logs contact history and updates candidate availability.
+ */
+export const recordTalentPoolContact = async (input: {
+  membershipId: number;
+  jobPostingId: number;
+  recruiterId: string;
+  outcome: "INTERESTED" | "NOT_INTERESTED" | "NO_RESPONSE" | "UNAVAILABLE";
+  notes?: string;
+}) => {
+  const contact = await prisma.$transaction(async (tx) => {
+    const rec = await tx.talentPoolContact.create({
+      data: {
+        membershipId: input.membershipId,
+        jobPostingId: input.jobPostingId,
+        recruiterId: input.recruiterId,
+        outcome: input.outcome,
+        notes: input.notes ?? null,
+      },
+    });
+
+    const updateData: any = { lastContactedAt: new Date() };
+    if (input.outcome === "UNAVAILABLE") {
+      updateData.availability = "UNAVAILABLE";
+    } else if (input.outcome === "INTERESTED") {
+      updateData.availability = "AVAILABLE";
+    }
+
+    await tx.talentPoolMembership.update({
+      where: { id: input.membershipId },
+      data: updateData,
+    });
+
+    return rec;
+  });
+
+  return contact;
+};
+
+/**
+ * Recruiter action: Reactivates an eligible candidate from Talent Pool into a NEW job application.
+ * Preserves past application history intact.
+ * Calculates score against the new application and target job.
+ */
+export const considerTalentPoolCandidateForJob = async (input: {
+  applicantProfileId: number;
+  targetJobId: number;
+  recruiterId: string;
+  notes?: string;
+  contactOutcome?: "INTERESTED" | "NOT_INTERESTED" | "NO_RESPONSE" | "UNAVAILABLE";
+}) => {
+  const { applicantProfileId, targetJobId, recruiterId, notes, contactOutcome = "INTERESTED" } = input;
+
+  const profile = await prisma.applicantProfile.findUniqueOrThrow({
+    where: { id: applicantProfileId },
+    include: {
+      user: {
+        include: {
+          applications: {
+            where: { isArchived: false },
+            include: { deployments: true },
+          },
+        },
+      },
+      talentPoolMembership: true,
+    },
+  });
+
+  // 1. Verify Talent Pool membership is ACTIVE
+  if (!profile.talentPoolMembership || profile.talentPoolMembership.status !== "ACTIVE") {
+    throw new InvalidKnnRequestError("Candidate is not an active member of the Talent Pool.");
+  }
+
+  // 2. Verify availability
+  if (profile.talentPoolMembership.availability === "UNAVAILABLE") {
+    throw new InvalidKnnRequestError("Candidate availability is currently marked as UNAVAILABLE.");
+  }
+
+  // 3. Verify valid AI consent and profile state
+  if (!profile.hasConsentedToAi || !profile.isActive || !profile.user.isActive) {
+    throw new InvalidKnnRequestError("Candidate does not meet eligibility or AI processing consent requirements.");
+  }
+
+  // 4. Verify candidate is not currently hired or deployed
+  const isHiredOrOnboarding = profile.user.applications.some((app) => ["HIRED", "ONBOARDING"].includes(app.status));
+  if (isHiredOrOnboarding) {
+    throw new InvalidKnnRequestError("Candidate is already hired or onboarding in another application.");
+  }
+
+  const isDeployed = profile.user.applications.some((app) =>
+    app.deployments.some((dep) => !["ENDED", "CANCELLED"].includes(dep.status))
+  );
+  if (isDeployed) {
+    throw new InvalidKnnRequestError("Candidate is currently actively deployed.");
+  }
+
+  // 5. Verify candidate does not already have an application for the target job
+  const existingAppForJob = profile.user.applications.find((app) => app.jobPostingId === targetJobId);
+  if (existingAppForJob) {
+    throw new InvalidKnnRequestError(`Candidate already has an active application (#${existingAppForJob.id}) for this job.`);
+  }
+
+  // 6. Verify target Job is OPEN
+  const job = await prisma.jobPosting.findUniqueOrThrow({ where: { id: targetJobId } });
+  if (job.status === "CLOSED") {
+    throw new InvalidKnnRequestError("Target job posting is closed.");
+  }
+
+  // 7. Transactional creation of new application & contact recording
+  const result = await prisma.$transaction(async (tx) => {
+    const newApplication = await tx.application.create({
+      data: {
+        userId: profile.userId,
+        jobPostingId: targetJobId,
+        status: "SUBMITTED",
+        resumeUrl: profile.resumeUrl,
+      },
+    });
+
+    const contact = await tx.talentPoolContact.create({
+      data: {
+        membershipId: profile.talentPoolMembership!.id,
+        jobPostingId: targetJobId,
+        recruiterId,
+        outcome: contactOutcome,
+        notes: notes || null,
+      },
+    });
+
+    await tx.talentPoolMembership.update({
+      where: { id: profile.talentPoolMembership!.id },
+      data: { lastContactedAt: new Date() },
+    });
+
+    await tx.recruiterDecision.create({
+      data: {
+        applicationId: newApplication.id,
+        actorId: recruiterId,
+        fromStatus: "TALENT_POOL",
+        toStatus: "SUBMITTED",
+        reason: notes ? `Reactivated from Talent Pool for Job #${targetJobId}: ${notes}` : `Reactivated from Talent Pool for Job #${targetJobId}`,
+      },
+    });
+
+    return { application: newApplication, contact };
+  });
+
+  // Calculate score for the new application against the new job
+  let score = null;
+  try {
+    score = await calculateAndPersistCandidateScore(result.application.id, targetJobId);
+  } catch (err) {
+    // Graceful fallback if dynamic scoring is disabled or mocked
+  }
+
+  return {
+    success: true,
+    message: "Candidate reactivated into a new job application successfully",
+    application: result.application,
+    contact: result.contact,
+    score,
+  };
 };

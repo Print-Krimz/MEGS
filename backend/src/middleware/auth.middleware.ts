@@ -27,7 +27,14 @@ export const authenticateJWT = async (
 
   const dbUser = await prisma.user.findUnique({
     where: { id: data.user.id },
-    select: { id: true, email: true, role: true, isActive: true },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      isActive: true,
+      accountStatus: true,
+      mustChangePassword: true,
+    },
   });
 
   if (!dbUser) {
@@ -35,8 +42,13 @@ export const authenticateJWT = async (
     return;
   }
 
-  if (!dbUser.isActive) {
+  if (!dbUser.isActive || dbUser.accountStatus === "DEACTIVATED") {
     sendError(res, "Account has been deactivated", 403);
+    return;
+  }
+
+  if (dbUser.accountStatus === "INVITED") {
+    sendError(res, "Account setup has not been completed", 403);
     return;
   }
 
@@ -44,7 +56,27 @@ export const authenticateJWT = async (
     id: dbUser.id,
     email: dbUser.email,
     role: dbUser.role,
+    mustChangePassword: dbUser.mustChangePassword,
+    accountStatus: dbUser.accountStatus,
   };
+
+  // Enforce password change before any other action except password change or logout
+  if (dbUser.mustChangePassword) {
+    const isAllowedPath =
+      req.path.endsWith("/change-password") ||
+      req.path.endsWith("/logout") ||
+      req.originalUrl?.includes("/api/auth/change-password") ||
+      req.originalUrl?.includes("/api/auth/logout");
+
+    if (!isAllowedPath) {
+      res.status(403).json({
+        success: false,
+        message: "You must change your password before proceeding",
+        mustChangePassword: true,
+      });
+      return;
+    }
+  }
 
   next();
 };

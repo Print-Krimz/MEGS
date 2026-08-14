@@ -6,7 +6,6 @@ import authRoutes from "./src/routes/core/auth.routes.js";
 import { authenticateJWT } from "./src/middleware/auth.middleware.js";
 import { sendSuccess } from "./src/utils/response.js";
 import { startEmailWorker } from "./src/workers/email.worker.js";
-import { scoringFlags } from "./src/utils/scoring-flags.js";
 
 const app = express();
 
@@ -45,6 +44,9 @@ app.use("/api/notifications", notificationRoutes);
 
 import documentRoutes from "./src/routes/core/documents.routes.js";
 app.use("/api/documents", documentRoutes);
+
+import employeeRoutes from "./src/routes/employee/employee.routes.js";
+app.use("/api/employees", employeeRoutes);
 
 const PORT = process.env.PORT ?? 3000;
 

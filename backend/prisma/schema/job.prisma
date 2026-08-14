@@ -27,6 +27,7 @@ model JobPosting {
   applications Application[]
   candidateScores CandidateScore[]
   scoringRevalidationTasks ScoringRevalidationTask[]
+  talentPoolContacts TalentPoolContact[]
 }
 
 // ─────────────────────────────────────────────
@@ -57,13 +58,17 @@ model Application {
   // Relations
   interviews        Interview[]
   postHireDocuments PostHireDocument[]
-  vault201          Vault201?
+  hiredEmployee     Employee?   @relation("OriginatingApplication")
   candidateScores   CandidateScore[]
   scoringRevalidationTasks ScoringRevalidationTask[]
   storedDocuments StoredDocument[]
   recruiterDecisions RecruiterDecision[]
   complianceRequirements ComplianceRequirement[]
   deployments Deployment[]
+  clientEndorsements ClientEndorsement[]
+  talentPoolMembershipsSourced TalentPoolMembership[] @relation("SourceApplication")
+
+  @@unique([userId, jobPostingId])
 }
 
 // ─────────────────────────────────────────────
@@ -95,6 +100,28 @@ model Interview {
 }
 
 // ─────────────────────────────────────────────
+// CLIENT ENDORSEMENT
+// Evaluation and feedback from client between Initial Screening and Final Interview
+// ─────────────────────────────────────────────
+
+model ClientEndorsement {
+  id            Int         @id @default(autoincrement())
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  clientId      Int
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  outcome       String      @default("PENDING") // PENDING, ENDORSED, DECLINED
+  endorsedById  String?
+  endorsedBy    User?       @relation("EndorsementActor", fields: [endorsedById], references: [id])
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([applicationId, outcome])
+  @@index([clientId, outcome])
+}
+
+// ─────────────────────────────────────────────
 // POST-HIRE DOCUMENT
 // Documents submitted by applicant after receiving a job offer.
 // ─────────────────────────────────────────────
@@ -110,27 +137,6 @@ model PostHireDocument {
 
   // Soft delete
   isActive Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// ─────────────────────────────────────────────
-// VAULT 201
-// The official digital employee record created after hiring.
-// One application → one vault entry (never deleted).
-// ─────────────────────────────────────────────
-
-model Vault201 {
-  id            Int         @id @default(autoincrement())
-  applicationId Int         @unique // One application = one employee record
-  application   Application @relation(fields: [applicationId], references: [id])
-
-  employeeId String?   // Internal employee number assigned by HR
-  startDate  DateTime?
-  department String?
-  position   String?
-  notes      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -173,6 +179,7 @@ model ComplianceRequirement {
   reviewedBy    User?       @relation("ComplianceReviewer", fields: [reviewedById], references: [id])
   reviewNotes   String?
   reviewedAt    DateTime?
+  expiresAt     DateTime?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 

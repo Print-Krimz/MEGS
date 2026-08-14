@@ -106,6 +106,7 @@ export const generateDeploymentReportPDF = async (requestedBy: { id: string; ema
     include: {
       client: { select: { name: true } },
       mrf: { select: { title: true } },
+      employee: { select: { user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
       application: { select: { user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
     },
   });
@@ -129,9 +130,10 @@ export const generateDeploymentReportPDF = async (requestedBy: { id: string; ema
 
     doc.fontSize(10);
     for (const dep of deployments) {
-      const name = dep.application.user.applicantProfile
-        ? `${dep.application.user.applicantProfile.firstName} ${dep.application.user.applicantProfile.lastName}`
-        : dep.application.user.email;
+      const user = dep.employee?.user || dep.application?.user;
+      const name = user?.applicantProfile
+        ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
+        : user?.email || "Unknown";
       doc.text(`#${dep.id} | ${dep.client.name} | ${name} | ${dep.status} | ${dep.site || "N/A"} | ${safeFormatDate(dep.contractStart)}`);
     }
 
@@ -146,6 +148,7 @@ export const generateDeploymentReportXLSX = async (requestedBy: { id: string; em
     include: {
       client: { select: { name: true } },
       mrf: { select: { title: true } },
+      employee: { select: { user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
       application: { select: { user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
     },
   });
@@ -165,9 +168,10 @@ export const generateDeploymentReportXLSX = async (requestedBy: { id: string; em
   ];
 
   for (const dep of deployments) {
-    const name = dep.application.user.applicantProfile
-      ? `${dep.application.user.applicantProfile.firstName} ${dep.application.user.applicantProfile.lastName}`
-      : dep.application.user.email;
+    const user = dep.employee?.user || dep.application?.user;
+    const name = user?.applicantProfile
+      ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
+      : user?.email || "Unknown";
     sheet.addRow({
       id: dep.id,
       client: dep.client.name,

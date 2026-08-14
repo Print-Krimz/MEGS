@@ -8,7 +8,7 @@ let workerInterval: NodeJS.Timeout | null = null;
 
 let isProcessing = false;
 
-export const processPendingEmails = async () => {
+const processPendingEmails = async () => {
   if (isProcessing) return;
   isProcessing = true;
   try {
@@ -73,7 +73,7 @@ export const startEmailWorker = () => {
   }, POLL_INTERVAL_MS);
 };
 
-export const stopEmailWorker = () => {
+const stopEmailWorker = () => {
   if (workerInterval) {
     clearInterval(workerInterval);
     workerInterval = null;

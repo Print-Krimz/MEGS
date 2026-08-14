@@ -40,7 +40,7 @@ const decimalToBasisPoints = (value: number): number | null => {
   return Math.round(value * 10_000);
 };
 
-export const validateScoringConfiguration = (
+const validateScoringConfiguration = (
   input: ScoringConfigurationInput,
 ): { weights: ScoringWeights; knnSettings: KnnSettings } => {
   const errors: Array<{ field: string; code: string; message: string }> = [];
@@ -87,7 +87,7 @@ export const validateScoringConfiguration = (
   return { weights: { ...supplied }, knnSettings };
 };
 
-export const defaultScoringConfiguration = () =>
+const defaultScoringConfiguration = () =>
   validateScoringConfiguration({ weights: { ...DEFAULT_WEIGHTS }, knnSettings: { ...DEFAULT_KNN_SETTINGS } });
 
 let cachedActiveConfig: any = null;

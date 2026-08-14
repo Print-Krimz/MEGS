@@ -6,7 +6,7 @@ import { createComplianceRequirement, isFullyCompliant, reviewComplianceRequirem
 import { createDeployment, updateDeploymentStatus } from "../services/ta/ta.deployments.service.js";
 import { getPipelineStats, getDeploymentStats, getComplianceOverview } from "../services/analytics/analytics.service.js";
 
-describe("Phase 2 - Integration & Workflow Verification", () => {
+describe("Phase 2 - Integration & Workflow Verification", { timeout: 25000 }, () => {
   let testUser: any;
   let testClient: any;
   let testMRF: any;

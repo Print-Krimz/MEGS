@@ -11,17 +11,11 @@ export const adminSchema = {
       isActive: z.boolean(),
     }),
   }),
-  createPolicy: z.object({
+  inviteTA: z.object({
     body: z.object({
-      key: z.string().min(1, "Key is required"),
-      value: z.string().min(1, "Value is required"),
-      description: z.string().optional(),
-    }),
-  }),
-  updatePolicy: z.object({
-    body: z.object({
-      value: z.string().min(1, "Value is required"),
-      description: z.string().optional(),
+      email: z.string().email("Invalid email format"),
+      firstName: z.string().min(1, "First name is required").optional(),
+      lastName: z.string().min(1, "Last name is required").optional(),
     }),
   }),
 };

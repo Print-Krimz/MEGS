@@ -5,13 +5,13 @@ import { EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION, rebuildCandidateFeatureProf
 import { getActiveScoringConfiguration } from "./scoring-configuration.service.js";
 import { calculateFitDimensions, clampScore } from "./scoring.dimensions.js";
 
-export type CompletedOrStaleCandidateScore = {
+type CompletedOrStaleCandidateScore = {
   applicationId: number;
   configurationId: number;
   status: string;
 };
 
-export const selectCurrentOrFallbackScores = <T extends CompletedOrStaleCandidateScore>(
+const selectCurrentOrFallbackScores = <T extends CompletedOrStaleCandidateScore>(
   rows: T[],
   activeConfigurationId: number,
 ) => {

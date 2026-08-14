@@ -2,17 +2,16 @@ import PQueue from "p-queue";
 import prisma from "../utils/prisma.js";
 import { analyzeResume } from "../utils/gemini.js";
 
-// Handle CommonJS export variations in ESM runtime
-const _pdfMod = require("pdf-parse");
+import pdfParseModule from "pdf-parse";
 const pdfParse: (buf: Buffer) => Promise<{ text: string }> =
-  typeof _pdfMod === "function" ? _pdfMod : (_pdfMod.default ?? _pdfMod);
+  typeof pdfParseModule === "function" ? pdfParseModule : ((pdfParseModule as any)?.default ?? pdfParseModule);
 
 // Concurrency 1 prevents rate limit exhaustion against Gemini API
 const queue = new PQueue({ concurrency: 1 });
 
 const MATCH_SCORE_THRESHOLD = 60;
 
-const processResumeJob = async (applicationId: number): Promise<void> => {
+export const processResumeJob = async (applicationId: number): Promise<void> => {
   console.log(`[Worker] Starting analysis for application #${applicationId}`);
 
   const application = await prisma.application.findUnique({
@@ -22,7 +21,20 @@ const processResumeJob = async (applicationId: number): Promise<void> => {
       status: true,
       resumeUrl: true,
       jobPosting: {
-        select: { title: true, requirements: true },
+        select: {
+          title: true,
+          requirements: true,
+          mrf: {
+            select: {
+              title: true,
+              requiredSkills: true,
+              requiredExperience: true,
+              requiredEducation: true,
+              requiredCertifications: true,
+              description: true,
+            },
+          },
+        },
       },
     },
   });
@@ -38,7 +50,7 @@ const processResumeJob = async (applicationId: number): Promise<void> => {
       where: { id: applicationId },
       data: {
         aiSummary: "Analysis failed: No resume was attached to this application.",
-        status: "TALENT_POOL",
+        status: "NEEDS_ATTENTION",
       },
     });
     return;
@@ -65,10 +77,24 @@ const processResumeJob = async (applicationId: number): Promise<void> => {
       where: { id: applicationId },
       data: {
         aiSummary: `Analysis failed: Could not read the resume file. (${err.message})`,
-        status: "TALENT_POOL",
+        status: "NEEDS_ATTENTION",
       },
     });
     return;
+  }
+
+  // Synthesize authoritative MRF requirements if linked
+  let compositeRequirements = application.jobPosting.requirements;
+  if (application.jobPosting.mrf) {
+    const mrf = application.jobPosting.mrf;
+    const mrfParts = [];
+    if (mrf.requiredSkills) mrfParts.push(`Required Skills: ${mrf.requiredSkills}`);
+    if (mrf.requiredExperience) mrfParts.push(`Required Experience: ${mrf.requiredExperience}`);
+    if (mrf.requiredEducation) mrfParts.push(`Required Education: ${mrf.requiredEducation}`);
+    if (mrf.requiredCertifications) mrfParts.push(`Required Certifications: ${mrf.requiredCertifications}`);
+    if (mrfParts.length > 0) {
+      compositeRequirements = `${compositeRequirements}\n\n[MRF Authoritative Requirements]:\n${mrfParts.join("\n")}`;
+    }
   }
 
   let analysis;
@@ -76,23 +102,23 @@ const processResumeJob = async (applicationId: number): Promise<void> => {
     analysis = await analyzeResume(
       resumeText,
       application.jobPosting.title,
-      application.jobPosting.requirements
+      compositeRequirements
     );
     console.log(`[Worker] Gemini returned score ${analysis.score} for application #${applicationId}`);
   } catch (err: any) {
     console.error(`[Worker] Gemini analysis failed for #${applicationId}:`, err.message);
-    // Reset to SUBMITTED so TA can trigger manual re-try
     await prisma.application.update({
       where: { id: applicationId },
       data: {
-        status: "SUBMITTED",
+        status: "NEEDS_ATTENTION",
         aiSummary: `Analysis failed: Gemini API error. (${err.message})`,
       },
     });
     return;
   }
 
-  const nextStatus = analysis.score >= MATCH_SCORE_THRESHOLD ? "MATCHED" : "TALENT_POOL";
+  // AI is advisory only. Both high and low scores move to REVIEW for human TA evaluation.
+  const nextStatus = "REVIEW";
 
   await prisma.application.update({
     where: { id: applicationId },
@@ -107,8 +133,28 @@ const processResumeJob = async (applicationId: number): Promise<void> => {
     },
   });
 
+  try {
+    const app = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { userId: true },
+    });
+    if (app && application.status !== nextStatus) {
+      await prisma.recruiterDecision.create({
+        data: {
+          applicationId,
+          actorId: app.userId,
+          fromStatus: application.status,
+          toStatus: nextStatus,
+          reason: `AI resume analysis completed (Score: ${analysis.score}/100)`,
+        },
+      });
+    }
+  } catch {
+    // Non-blocking decision recording
+  }
+
   console.log(
-    `[Worker] ✅ Application #${applicationId} scored ${analysis.score}/100 → moved to ${nextStatus}`
+    `[Worker] ✅ Application #${applicationId} scored ${analysis.score}/100 → moved to REVIEW`
   );
 };
 

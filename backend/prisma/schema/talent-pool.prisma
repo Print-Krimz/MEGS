@@ -1,0 +1,66 @@
+// ─────────────────────────────────────────────
+// TALENT POOL & RECRUITER CONTACTS
+// Reusable recruiter-managed candidate pool
+// ─────────────────────────────────────────────
+
+enum TalentPoolStatus {
+  ACTIVE
+  PLACED
+  INACTIVE
+}
+
+enum CandidateAvailability {
+  AVAILABLE
+  UNAVAILABLE
+  UNKNOWN
+}
+
+enum TalentPoolContactOutcome {
+  INTERESTED
+  NOT_INTERESTED
+  NO_RESPONSE
+  UNAVAILABLE
+}
+
+model TalentPoolMembership {
+  id                  Int                   @id @default(autoincrement())
+  applicantProfileId  Int                   @unique
+  applicantProfile    ApplicantProfile      @relation(fields: [applicantProfileId], references: [id], onDelete: Restrict)
+
+  sourceApplicationId Int?
+  sourceApplication   Application?          @relation("SourceApplication", fields: [sourceApplicationId], references: [id], onDelete: SetNull)
+
+  status              TalentPoolStatus      @default(ACTIVE)
+  availability        CandidateAvailability @default(UNKNOWN)
+
+  addedById           String
+  addedBy             User                  @relation("PoolAddedBy", fields: [addedById], references: [id])
+  addedAt             DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  lastContactedAt     DateTime?
+  notes               String?
+
+  contacts            TalentPoolContact[]
+
+  @@index([status, availability])
+}
+
+model TalentPoolContact {
+  id           Int                      @id @default(autoincrement())
+  membershipId Int
+  membership   TalentPoolMembership     @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  jobPostingId Int
+  jobPosting   JobPosting               @relation(fields: [jobPostingId], references: [id], onDelete: Restrict)
+
+  recruiterId  String
+  recruiter    User                     @relation("ContactRecruiter", fields: [recruiterId], references: [id])
+
+  outcome      TalentPoolContactOutcome
+  notes        String?
+  contactedAt  DateTime                 @default(now())
+
+  @@index([membershipId, contactedAt(sort: Desc)])
+  @@index([jobPostingId])
+}

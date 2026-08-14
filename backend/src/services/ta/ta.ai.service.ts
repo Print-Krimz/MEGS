@@ -17,15 +17,13 @@ export const queueApplicationAnalysis = async (applicationId: number) => {
   if (application.isArchived) throw new Error("Cannot analyze an archived application");
   if (!application.resumeUrl) throw new Error("This application has no resume attached");
 
-  const queueableStatuses = ["SUBMITTED", "MATCHED", "TALENT_POOL"];
+  const queueableStatuses = ["SUBMITTED", "REVIEW", "NEEDS_ATTENTION", "MATCHED", "TALENT_POOL"];
   if (!queueableStatuses.includes(application.status)) {
     throw new Error(`Cannot analyze an application with status: ${application.status}. Eligible statuses: ${queueableStatuses.join(", ")}`);
   }
 
-  await prisma.application.update({
-    where: { id: applicationId },
-    data: { status: "PARSING" },
-  });
+  const { updateTAApplicationStatus } = await import("./ta.applications.service.js");
+  await updateTAApplicationStatus(applicationId, "PARSING", undefined, "Queued for AI resume parsing");
 
   enqueueResumeAnalysis(applicationId);
 

@@ -45,7 +45,7 @@ export const uploadPostHireDocument = async (req: Request, res: Response): Promi
   }
 };
 
-// POST /api/ta/applications/:id/hire - Finalize hiring and generate employee Vault201 record
+// POST /api/ta/applications/:id/hire - Finalize hiring and generate Employee record
 export const completeHiring = async (req: Request, res: Response): Promise<void> => {
   try {
     const applicationId = parseInt(req.params.id as string);
@@ -56,14 +56,14 @@ export const completeHiring = async (req: Request, res: Response): Promise<void>
     const result = await executeHiring(applicationId, req.body, req.user!.id);
     
     logAudit(req.user!.id, "CANDIDATE_HIRED", "Application", applicationId, {
-      vault201Id: result.vault201.id,
-      employeeId: req.body.employeeId
+      employeeId: result.employee.id,
+      employeeNumber: result.employee.employeeNumber,
     });
 
-    sendSuccess(res, "Candidate successfully HIRED and Vault201 created", result, 201);
+    sendSuccess(res, "Candidate successfully HIRED and Employee record created", result, 201);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 
-                       error.message.includes("Cannot hire") || error.message.includes("already has") ? 400 : 500;
+                       error.message.includes("Cannot hire") || error.message.includes("already") ? 400 : 500;
     sendError(res, "Failed to complete hiring process: " + error.message, statusCode);
   }
 };

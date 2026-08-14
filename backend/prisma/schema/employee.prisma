@@ -1,0 +1,64 @@
+// ─────────────────────────────────────────────
+// EMPLOYEE & EMPLOYMENT EVENTS DOMAIN
+// The authoritative boundary between Candidate and Employee.
+// ─────────────────────────────────────────────
+
+enum EmploymentStatus {
+  ACTIVE
+  INACTIVE
+  SEPARATED
+  AVAILABLE_FOR_REDEPLOYMENT
+}
+
+enum EmploymentEventType {
+  HIRED
+  DEPLOYED
+  ASSIGNMENT_ENDED
+  REDEPLOYED
+  STATUS_CHANGE
+  SEPARATED
+}
+
+model Employee {
+  id                      Int                @id @default(autoincrement())
+  userId                  String             @unique // 1 Candidate (User) = 0 or 1 Employee
+  user                    User               @relation("UserEmployee", fields: [userId], references: [id], onDelete: Restrict)
+
+  employeeNumber          String             @unique // e.g., "EMP-2026-0001"
+  status                  EmploymentStatus   @default(ACTIVE)
+  hireDate                DateTime           @default(now())
+  department              String?
+  position                String?
+  notes                   String?
+
+  // Originating Application that led to initial hiring
+  originatingApplicationId Int?              @unique
+  originatingApplication   Application?      @relation("OriginatingApplication", fields: [originatingApplicationId], references: [id], onDelete: SetNull)
+
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+
+  deployments             Deployment[]
+  employmentEvents        EmploymentEvent[]
+
+  @@index([status])
+  @@index([employeeNumber])
+}
+
+model EmploymentEvent {
+  id            Int                 @id @default(autoincrement())
+  employeeId    Int
+  employee      Employee            @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  eventType     EmploymentEventType
+  description   String
+  effectiveDate DateTime            @default(now())
+  metadata      Json?
+
+  actorId       String?
+  actor         User?               @relation("EmploymentEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  createdAt     DateTime            @default(now())
+
+  @@index([employeeId, effectiveDate(sort: Desc)])
+}

@@ -70,15 +70,13 @@ export const updateInterviewResult = async (applicationId: number, interviewId: 
 
   let applicationUpdateMessage = "";
   if (result === "NO_SHOW") {
-    await prisma.application.update({
-      where: { id: applicationId },
-      data: {
-        status: "ARCHIVED",
-        isArchived: true,
-        archivedAt: new Date(),
-      },
-    });
-    applicationUpdateMessage = " Application automatically moved to ARCHIVED due to NO_SHOW.";
+    const { archiveTAApplication } = await import("./ta.applications.service.js");
+    try {
+      await archiveTAApplication(applicationId, undefined, "Interview NO_SHOW auto-archive");
+      applicationUpdateMessage = " Application automatically moved to ARCHIVED due to NO_SHOW.";
+    } catch (err: any) {
+      applicationUpdateMessage = ` Could not auto-archive application: ${err.message}`;
+    }
   }
 
   return { updatedInterview, applicationUpdateMessage };

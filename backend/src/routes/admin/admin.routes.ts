@@ -7,14 +7,8 @@ import {
   listUsers,
   updateUserRole,
   updateUserStatus,
+  inviteTAHandler,
 } from '../../controllers/admin/admin.users.controller.js';
-
-import {
-  listPolicies,
-  createPolicy,
-  updatePolicy,
-  deletePolicy,
-} from '../../controllers/admin/admin.policies.controller.js';
 
 import { listAuditLogs } from '../../controllers/admin/admin.audit.controller.js';
 import {
@@ -35,15 +29,11 @@ router.use(requireRole("ADMINISTRATOR"));
 
 // User & Role Management
 router.get("/users", listUsers);
+router.post("/invite-ta", validate(adminSchema.inviteTA), inviteTAHandler);
 router.patch("/users/:id/role", validate(adminSchema.updateUserRole), updateUserRole);
 router.patch("/users/:id/status", validate(adminSchema.updateUserStatus), updateUserStatus);
 
-// System Policies & Dynamic Scoring Config
-router.get("/policies", listPolicies);
-router.post("/policies", validate(adminSchema.createPolicy), createPolicy);
-router.patch("/policies/:key", validate(adminSchema.updatePolicy), updatePolicy);
-router.delete("/policies/:key", deletePolicy);
-
+// Dynamic Scoring Config
 router.get("/candidate-scoring/configuration", getConfiguration);
 router.post("/candidate-scoring/configuration/validate", validateConfiguration);
 router.put("/candidate-scoring/configuration", updateConfiguration);

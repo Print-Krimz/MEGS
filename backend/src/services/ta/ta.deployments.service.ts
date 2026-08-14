@@ -14,7 +14,8 @@ const ALLOWED_DEPLOYMENT_TRANSITIONS: Record<string, string[]> = {
 export const createDeployment = async (
   createdById: string,
   data: {
-    applicationId: number;
+    applicationId?: number;
+    employeeId?: number;
     clientId: number;
     mrfId?: number;
     site?: string;
@@ -23,32 +24,71 @@ export const createDeployment = async (
     notes?: string;
   }
 ) => {
-  const application = await prisma.application.findUnique({
-    where: { id: data.applicationId },
-    select: { id: true, status: true },
-  });
+  let empId = data.employeeId;
+  let application: any = null;
 
-  if (!application) throw new Error("Application not found");
-  if (application.status !== "ONBOARDING" && application.status !== "HIRED" && application.status !== "DEPLOYED") {
-    throw new Error("Application must be in ONBOARDING or HIRED status to deploy.");
+  if (data.applicationId) {
+    application = await prisma.application.findUnique({
+      where: { id: data.applicationId },
+      include: { hiredEmployee: true, user: true },
+    });
+
+    if (!application) throw new Error("Application not found");
+    if (
+      application.status !== "COMPLIANCE" &&
+      application.status !== "ONBOARDING" &&
+      application.status !== "HIRED" &&
+      application.status !== "DEPLOYED"
+    ) {
+      throw new Error("Application must be in COMPLIANCE, ONBOARDING or HIRED status to deploy.");
+    }
+
+    // Compliance check
+    const compliant = await isFullyCompliant(data.applicationId);
+    if (!compliant) {
+      throw new Error("Cannot deploy candidate. All required compliance documents must be APPROVED.");
+    }
+
+    if (!empId) {
+      if (application.hiredEmployee) {
+        empId = application.hiredEmployee.id;
+      } else {
+        // Find existing employee by user
+        let emp = await prisma.employee.findUnique({
+          where: { userId: application.userId },
+        });
+        if (!emp) {
+          emp = await prisma.employee.create({
+            data: {
+              userId: application.userId,
+              employeeNumber: `EMP-${new Date().getFullYear()}-${String(application.id).padStart(4, "0")}`,
+              originatingApplicationId: application.id,
+              status: "ACTIVE",
+            },
+          });
+        }
+        empId = emp.id;
+      }
+    }
   }
 
-  // Compliance check
-  const compliant = await isFullyCompliant(data.applicationId);
-  if (!compliant) {
-    throw new Error("Cannot deploy candidate. All required compliance documents must be APPROVED.");
+  if (!empId) {
+    throw new Error("Employee ID or Application ID is required to create a deployment.");
   }
+
+  const employee = await prisma.employee.findUnique({ where: { id: empId } });
+  if (!employee) throw new Error("Employee not found");
 
   // Active deployment check
   const existingActive = await prisma.deployment.findFirst({
     where: {
-      applicationId: data.applicationId,
+      employeeId: empId,
       status: { notIn: ["ENDED", "CANCELLED"] },
     },
   });
 
   if (existingActive) {
-    throw new Error("Application already has an active deployment.");
+    throw new Error("Employee already has an active deployment.");
   }
 
   const client = await prisma.client.findUnique({ where: { id: data.clientId } });
@@ -61,7 +101,8 @@ export const createDeployment = async (
 
   const deployment = await prisma.deployment.create({
     data: {
-      applicationId: data.applicationId,
+      employeeId: empId,
+      applicationId: data.applicationId || employee.originatingApplicationId || null,
       clientId: data.clientId,
       mrfId: data.mrfId || null,
       createdById,
@@ -72,7 +113,7 @@ export const createDeployment = async (
       status: "PENDING_ORIENTATION",
     },
     include: {
-      application: {
+      employee: {
         include: {
           user: {
             select: {
@@ -88,21 +129,63 @@ export const createDeployment = async (
     },
   });
 
-  // Update application status to DEPLOYED
-  await prisma.application.update({
-    where: { id: data.applicationId },
-    data: { status: "DEPLOYED" },
-  });
-
-  await prisma.recruiterDecision.create({
+  // Record deployment status history
+  await prisma.deploymentStatusHistory.create({
     data: {
-      applicationId: data.applicationId,
-      actorId: createdById,
-      fromStatus: application.status,
-      toStatus: "DEPLOYED",
-      reason: data.notes || "Candidate deployed to client site",
+      deploymentId: deployment.id,
+      toStatus: "PENDING_ORIENTATION",
+      changedById: createdById,
+      reason: data.notes || "Deployment created",
     },
   });
+
+  // Record EmploymentEvent
+  await prisma.employmentEvent.create({
+    data: {
+      employeeId: empId,
+      eventType: "DEPLOYED",
+      description: `Deployed to ${client.name}${data.site ? ` (${data.site})` : ""}`,
+      effectiveDate: data.contractStart ? new Date(data.contractStart) : new Date(),
+      actorId: createdById,
+      metadata: {
+        deploymentId: deployment.id,
+        clientId: client.id,
+        clientName: client.name,
+      },
+    },
+  });
+
+  if (application && application.status !== "DEPLOYED") {
+    await prisma.application.update({
+      where: { id: application.id },
+      data: { status: "DEPLOYED" },
+    });
+
+    await prisma.recruiterDecision.create({
+      data: {
+        applicationId: application.id,
+        actorId: createdById,
+        fromStatus: application.status,
+        toStatus: "DEPLOYED",
+        reason: data.notes || "Candidate deployed to client site",
+      },
+    });
+
+    // Mark TalentPoolMembership as PLACED
+    const appWithProfile = await prisma.application.findUnique({
+      where: { id: application.id },
+      include: { user: { select: { applicantProfile: { select: { id: true } } } } },
+    });
+    if (appWithProfile?.user?.applicantProfile) {
+      await prisma.talentPoolMembership.updateMany({
+        where: { applicantProfileId: appWithProfile.user.applicantProfile.id },
+        data: {
+          status: "PLACED",
+          availability: "UNAVAILABLE",
+        },
+      });
+    }
+  }
 
   return deployment;
 };
@@ -129,7 +212,13 @@ export const updateDeploymentStatus = async (
       ...(notes ? { notes } : {}),
     },
     include: {
-      application: { select: { id: true, status: true } },
+      employee: {
+        select: {
+          id: true,
+          employeeNumber: true,
+          status: true,
+        },
+      },
       client: { select: { id: true, name: true } },
     },
   });
@@ -143,7 +232,7 @@ export const listDeployments = async (clientId?: number, status?: string) => {
   return await prisma.deployment.findMany({
     where,
     include: {
-      application: {
+      employee: {
         include: {
           user: {
             select: {
@@ -152,6 +241,10 @@ export const listDeployments = async (clientId?: number, status?: string) => {
               applicantProfile: { select: { firstName: true, lastName: true, mobileNumber: true } },
             },
           },
+        },
+      },
+      application: {
+        include: {
           jobPosting: { select: { id: true, title: true } },
         },
       },
@@ -167,7 +260,7 @@ export const getDeploymentDetails = async (id: number) => {
   const deployment = await prisma.deployment.findUnique({
     where: { id },
     include: {
-      application: {
+      employee: {
         include: {
           user: {
             select: {
@@ -176,15 +269,19 @@ export const getDeploymentDetails = async (id: number) => {
               applicantProfile: true,
             },
           },
+        },
+      },
+      application: {
+        include: {
           jobPosting: true,
           complianceRequirements: true,
           postHireDocuments: true,
-          vault201: true,
         },
       },
       client: true,
       mrf: true,
       createdBy: { select: { id: true, email: true } },
+      statusHistory: { orderBy: { createdAt: "asc" } },
     },
   });
 

@@ -56,7 +56,7 @@ describe('Phase 3 — DB Constraint Verification', () => {
     expect(applied.length).toBeGreaterThanOrEqual(7);
 
     // The P3 constraints migration must be present and applied
-    const p3 = rows.find(r => r.migration_name === '20260806130000_p3_constraints_and_history');
+    const p3 = applied.find(r => r.migration_name === '20260806130000_p3_constraints_and_history');
     expect(p3).toBeDefined();
     expect(p3?.finished_at).not.toBeNull();
   });
@@ -99,6 +99,7 @@ describe('Phase 3 — DB Constraint Verification', () => {
     await expect(
       prisma.deployment.create({
         data: {
+          employeeId: existing.employeeId,
           applicationId: existing.applicationId,
           clientId: existing.clientId,
           status: 'PENDING_ORIENTATION',

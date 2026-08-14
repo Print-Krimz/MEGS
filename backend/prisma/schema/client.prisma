@@ -14,8 +14,10 @@ model Client {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  manpowerRequests ManpowerRequest[]
-  deployments      Deployment[]
+  manpowerRequests    ManpowerRequest[]
+  deployments         Deployment[]
+  endorsements        ClientEndorsement[]
+  complianceTemplates MRFComplianceTemplate[]
 }
 
 model ManpowerRequest {
@@ -32,14 +34,35 @@ model ManpowerRequest {
   requiredExperience     String?
   requiredEducation      String?
   requiredCertifications String?
+  salaryRangeMin         Float?
+  salaryRangeMax         Float?
+  employmentType         String?   // FULL_TIME, PART_TIME, CONTRACT, PROJECT_BASED
+  workArrangement        String?   // ONSITE, REMOTE, HYBRID
+  complianceRequirements String?   // JSON array string of required documents
   status                 String    @default("OPEN") // OPEN, FILLED, CANCELLED
   createdById            String
   createdBy              User      @relation("MRFCreatedBy", fields: [createdById], references: [id])
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  jobPostings JobPosting[]
-  deployments Deployment[]
+  jobPostings         JobPosting[]
+  deployments         Deployment[]
+  complianceTemplates MRFComplianceTemplate[]
+}
+
+model MRFComplianceTemplate {
+  id            Int              @id @default(autoincrement())
+  mrfId         Int?
+  mrf           ManpowerRequest? @relation(fields: [mrfId], references: [id], onDelete: Cascade)
+  clientId      Int?
+  client        Client?          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  documentLabel String
+  isRequired    Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([mrfId])
+  @@index([clientId])
 }
 
 enum DeploymentStatus {
@@ -53,8 +76,10 @@ enum DeploymentStatus {
 
 model Deployment {
   id            Int              @id @default(autoincrement())
-  applicationId Int
-  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  employeeId    Int
+  employee      Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  applicationId Int?
+  application   Application?     @relation(fields: [applicationId], references: [id], onDelete: SetNull)
   clientId      Int
   client        Client           @relation(fields: [clientId], references: [id], onDelete: Restrict)
   mrfId         Int?
@@ -71,6 +96,7 @@ model Deployment {
 
   statusHistory DeploymentStatusHistory[]
 
+  @@index([employeeId])
   @@index([applicationId])
   @@index([clientId, status])
 }

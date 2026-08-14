@@ -30,12 +30,16 @@ enum JobStatus {
 enum ApplicationStatus {
   SUBMITTED         // Applicant just applied
   PARSING           // Gemini API is processing the resume
+  REVIEW            // AI analysis completed, awaiting TA review
+  NEEDS_ATTENTION   // Parsing or scoring error, requires manual intervention
   MATCHED           // Resume matched the job requirements
   TALENT_POOL       // Did not match — pooled for future roles
   INITIAL_SCREENING // First interview stage
+  CLIENT_ENDORSEMENT // Client endorsement evaluation stage
   FINAL_INTERVIEW   // Final interview stage
-  HIRED             // Offer accepted
-  ONBOARDING        // Currently being onboarded
+  HIRED             // Offer accepted / hired as employee
+  ONBOARDING        // Legacy state
+  COMPLIANCE        // Pre-employment compliance document verification stage
   DEPLOYED          // Candidate is actively deployed
   BACKOUT           // Candidate withdrew
   ARCHIVED          // Discarded / no longer active

@@ -3,7 +3,8 @@ import { sendSuccess, sendError } from '../../utils/response.js';
 import {
   fetchAllUsers,
   changeUserRole,
-  changeUserStatus
+  changeUserStatus,
+  inviteTA,
 } from '../../services/admin/admin.service.js';
 
 // GET /api/admin/users - List users and applicant profiles
@@ -13,6 +14,20 @@ export const listUsers = async (req: Request, res: Response): Promise<void> => {
     sendSuccess(res, "Users retrieved successfully", users);
   } catch (error: any) {
     sendError(res, error.message, 500);
+  }
+};
+
+// POST /api/admin/invite-ta - Admin invites a new Talent Acquisition specialist
+export const inviteTAHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const adminId = req.user!.id;
+    const { email, firstName, lastName } = req.body;
+
+    const result = await inviteTA(adminId, email, firstName, lastName);
+    sendSuccess(res, result.message, result.user, 201);
+  } catch (error: any) {
+    const statusCode = error.message.includes("already exists") ? 409 : 400;
+    sendError(res, error.message, statusCode);
   }
 };
 
@@ -48,3 +63,4 @@ export const updateUserStatus = async (req: Request, res: Response): Promise<voi
     sendError(res, error.message, statusCode);
   }
 };
+

@@ -40,4 +40,22 @@ export const candidateScoringSchema = {
     text: z.string().trim().min(2).max(10_000).optional(),
     k: z.number().int().min(1).max(100).optional(),
   }).refine((value) => Boolean(value.jobId || value.candidateId || value.text), { message: "Provide jobId, candidateId, or text." }),
+  addToTalentPool: z.object({
+    applicantProfileId: z.number().int().positive(),
+    sourceApplicationId: z.number().int().positive().optional(),
+    availability: z.enum(["AVAILABLE", "UNAVAILABLE", "UNKNOWN"]).optional(),
+    notes: z.string().trim().max(1000).optional(),
+  }).strict(),
+  recordContact: z.object({
+    membershipId: z.number().int().positive(),
+    jobPostingId: z.number().int().positive(),
+    outcome: z.enum(["INTERESTED", "NOT_INTERESTED", "NO_RESPONSE", "UNAVAILABLE"]),
+    notes: z.string().trim().max(1000).optional(),
+  }).strict(),
+  considerForJob: z.object({
+    applicantProfileId: z.number().int().positive(),
+    targetJobId: z.number().int().positive(),
+    notes: z.string().trim().max(1000).optional(),
+    contactOutcome: z.enum(["INTERESTED", "NOT_INTERESTED", "NO_RESPONSE", "UNAVAILABLE"]).optional(),
+  }).strict(),
 };

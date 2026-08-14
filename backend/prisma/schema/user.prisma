@@ -14,6 +14,12 @@ model User {
   // Soft delete — deactivate instead of erase
   isActive Boolean @default(true)
 
+  // Account Status & Setup
+  accountStatus String @default("ACTIVE")
+  mustChangePassword Boolean @default(false)
+  invitedAt DateTime?
+  invitedBy String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -28,26 +34,15 @@ model User {
   storedDocuments StoredDocument[]
   createdMRFs ManpowerRequest[] @relation("MRFCreatedBy")
   recruiterDecisions RecruiterDecision[] @relation("DecisionActor")
+  endorsedCandidates ClientEndorsement[] @relation("EndorsementActor")
   reviewedComplianceRequirements ComplianceRequirement[] @relation("ComplianceReviewer")
   createdDeployments Deployment[] @relation("DeploymentCreatedBy")
   outboxNotifications NotificationOutbox[] @relation("OutboxRecipient")
   deploymentStatusHistory DeploymentStatusHistory[] @relation("DeploymentHistoryActor")
-}
-
-// ─────────────────────────────────────────────
-// POLICY
-// System-wide key-value settings managed by Admin.
-// e.g. key="ai_score_threshold" value="70"
-// ─────────────────────────────────────────────
-
-model Policy {
-  id          Int     @id @default(autoincrement())
-  key         String  @unique
-  value       String
-  description String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  talentPoolMembershipsAdded TalentPoolMembership[] @relation("PoolAddedBy")
+  talentPoolContacts TalentPoolContact[] @relation("ContactRecruiter")
+  employee Employee? @relation("UserEmployee")
+  employmentEventsCreated EmploymentEvent[] @relation("EmploymentEventActor")
 }
 
 // ─────────────────────────────────────────────

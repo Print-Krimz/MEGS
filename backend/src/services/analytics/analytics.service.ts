@@ -37,7 +37,7 @@ export const getTimeToFillStats = async (mrfId?: number) => {
   let count = 0;
 
   const records = deployments.map((d) => {
-    const startDate = d.mrf?.createdAt || d.application.createdAt;
+    const startDate = d.mrf?.createdAt || d.application?.createdAt || d.createdAt;
     const endDate = d.createdAt;
     const diffMs = endDate.getTime() - startDate.getTime();
     const days = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));

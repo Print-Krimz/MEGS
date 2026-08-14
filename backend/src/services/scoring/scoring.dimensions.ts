@@ -1,13 +1,13 @@
 import type { CandidateFeatureInput, JobFeatureInput, ScoringDimension } from "./scoring.types.js";
 
-export const tokenize = (text: string): string[] =>
+const tokenize = (text: string): string[] =>
   text
     .toLocaleLowerCase("en-US")
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .match(/[a-z0-9+#.]{2,}/g) ?? [];
 
-export type DimensionResult = {
+type DimensionResult = {
   dimension: ScoringDimension;
   score: number;
   explanation: {
@@ -16,13 +16,13 @@ export type DimensionResult = {
   };
 };
 
-export type DimensionCalculator = (candidate: CandidateFeatureInput, job: JobFeatureInput) => DimensionResult;
+type DimensionCalculator = (candidate: CandidateFeatureInput, job: JobFeatureInput) => DimensionResult;
 
 export const clampScore = (value: number) => Math.round(Math.max(0, Math.min(100, value)) * 100) / 100;
 
-export const normalizedSet = (values: string[]) => new Set(values.flatMap(tokenize));
+const normalizedSet = (values: string[]) => new Set(values.flatMap(tokenize));
 
-export const overlapPercent = (candidate: Set<string>, target: Set<string>, unknownScore = 50) => {
+const overlapPercent = (candidate: Set<string>, target: Set<string>, unknownScore = 50) => {
   if (!target.size) return unknownScore;
   if (!candidate.size) return 0;
   let matches = 0;
@@ -62,7 +62,7 @@ export const normalizeComplianceDocumentType = (label: string, documentType?: st
   return null;
 };
 
-export const isProtectedComplianceDocument = (label: string, documentType?: string | null) =>
+const isProtectedComplianceDocument = (label: string, documentType?: string | null) =>
   protectedDocumentPattern.test(`${documentType ?? ""} ${label}`);
 
 const requiredDocuments = (job: { requirements: string; requiredComplianceDocuments?: string[] }) => {
@@ -71,7 +71,7 @@ const requiredDocuments = (job: { requirements: string; requiredComplianceDocume
   return normalizedSet(inferred);
 };
 
-export const calculateComplianceDimension: DimensionCalculator = (candidate, job) => {
+const calculateComplianceDimension: DimensionCalculator = (candidate, job) => {
   const target = requiredDocuments(job);
   const documents = normalizedSet(candidate.complianceDocuments);
   return {
@@ -83,7 +83,7 @@ export const calculateComplianceDimension: DimensionCalculator = (candidate, job
 
 // ─── INDIVIDUAL DIMENSION CALCULATORS ─────────────────────────────────
 
-export const calculateSkillsDimension: DimensionCalculator = (candidate, job) => {
+const calculateSkillsDimension: DimensionCalculator = (candidate, job) => {
   const requiredSkills = normalizedSet(job.requiredSkills?.length ? job.requiredSkills : [job.title, job.requirements]);
   const candidateSkills = normalizedSet(candidate.skills);
   return {
@@ -98,7 +98,7 @@ const requiredYearsFromText = (requirements: string) => {
   return match ? Number(match[1]) : null;
 };
 
-export const calculateExperienceDimension: DimensionCalculator = (candidate, job) => {
+const calculateExperienceDimension: DimensionCalculator = (candidate, job) => {
   const requiredYears = job.requiredYearsExperience ?? requiredYearsFromText(job.requirements);
   const missingMandatory = requiredYears !== null && candidate.yearsExperience === null;
   return {
@@ -111,7 +111,7 @@ export const calculateExperienceDimension: DimensionCalculator = (candidate, job
 const normalizeLocation = (value: string | null | undefined) =>
   value?.toLocaleLowerCase("en-US").replace(/[^a-z0-9]+/g, " ").trim() || "";
 
-export const calculateLocationDimension: DimensionCalculator = (candidate, job) => {
+const calculateLocationDimension: DimensionCalculator = (candidate, job) => {
   const target = normalizeLocation(job.location);
   const locations = new Set([candidate.city, candidate.province, ...candidate.preferredAreas].filter((value): value is string => Boolean(value)));
   const missingMandatory = Boolean(target) && locations.size === 0;
@@ -122,7 +122,7 @@ export const calculateLocationDimension: DimensionCalculator = (candidate, job) 
   };
 };
 
-export const calculateEducationCertificationsDimension: DimensionCalculator = (candidate, job) => {
+const calculateEducationCertificationsDimension: DimensionCalculator = (candidate, job) => {
   const target = normalizedSet([...(job.requiredEducation ?? []), ...(job.requiredCertifications ?? [])]);
   const credentials = normalizedSet([...candidate.education, ...candidate.certifications]);
   return {

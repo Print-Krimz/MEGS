@@ -1,39 +1,41 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-const host = process.env.SMTP_HOST;
-const port = parseInt(process.env.SMTP_PORT || "587", 10);
-const user = process.env.SMTP_USER;
-const pass = process.env.SMTP_PASS;
-export const fromAddress = process.env.SMTP_FROM || "no-reply@cap2-recruitment.com";
+const resendApiKey = process.env.RESEND_API_KEY;
+export const fromAddress = process.env.EMAIL_FROM || "MEGS Recruitment <onboarding@resend.dev>";
 
-let transporter: nodemailer.Transporter;
-
-if (host && user && pass) {
-  transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-  });
-} else {
-  // Mock transporter for development/test when SMTP environment variables are not configured
-  transporter = nodemailer.createTransport({
-    jsonTransport: true,
-  });
+let resend: Resend | null = null;
+if (resendApiKey) {
+  resend = new Resend(resendApiKey);
 }
 
 export const sendMail = async (to: string, subject: string, text: string, html?: string) => {
   try {
-    const info = await transporter.sendMail({
+    if (!resend) {
+      console.log(`\n📧 [DEV EMAIL LOG] Resend API key not configured.`);
+      console.log(`   To: ${to}`);
+      console.log(`   From: ${fromAddress}`);
+      console.log(`   Subject: ${subject}`);
+      console.log(`   Body: ${text}\n`);
+      return { success: true, messageId: "dev-mock-id" };
+    }
+
+    const { data, error } = await resend.emails.send({
       from: fromAddress,
       to,
       subject,
       text,
       html: html || text,
     });
-    return { success: true, messageId: info.messageId };
+
+    if (error) {
+      console.error("[Resend] Failed to send email:", error.message);
+      throw new Error(error.message);
+    }
+
+    return { success: true, messageId: data?.id };
   } catch (error: any) {
-    console.error("[Mailer] Failed to send email:", error.message);
+    console.error("[Mailer] Email sending error:", error.message);
     throw error;
   }
 };
+

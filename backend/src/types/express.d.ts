@@ -9,6 +9,8 @@ declare global {
         id: string;   // Supabase UUID
         email: string;
         role: string;
+        mustChangePassword?: boolean;
+        accountStatus?: string;
       };
     }
   }
