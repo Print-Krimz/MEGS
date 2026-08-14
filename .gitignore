@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 */node_modules/
+.worktrees/
 
 # Environment Variables — NEVER COMMIT
 .env
