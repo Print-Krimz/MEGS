@@ -172,6 +172,7 @@ export interface TalentPoolMatchResult {
   candidate: ApplicantProfile & {
     user?: { email: string };
     membershipId?: number;
+    applicantProfileId?: number;
   };
   similarity: number;
   knnRank: number;
