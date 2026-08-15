@@ -32,8 +32,8 @@ const buildCandidateFeatureInput = (profile: {
   educations: Array<{ degree: string | null; fieldOfStudy: string | null; notes: string | null }>;
   trainings: Array<{ title: string; provider: string | null; notes: string | null }>;
   assets: Array<{ label: string; documentType: string | null; verificationState: string }>;
-  city: string;
-  province: string;
+  city: string | null;
+  province: string | null;
   preferredWorkLocations: string | null;
 }): CandidateFeatureInput => {
   const experience = profile.workExperiences.reduce((total, item) => total + yearsBetween(item.startDate, item.isCurrent ? new Date() : item.endDate ?? item.startDate), 0);
@@ -132,6 +132,7 @@ const publicCandidateFromProfile = (profile: {
   skills?: Array<{ skill: { name: string } }>;
   workExperiences?: Array<{ roleTitle: string; startDate: Date; endDate: Date | null; isCurrent: boolean }>;
   talentPoolMembership?: {
+    id: number;
     status: string;
     availability: string;
     lastContactedAt: Date | null;
@@ -142,6 +143,7 @@ const publicCandidateFromProfile = (profile: {
   return {
     id: profile.user.id,
     applicantProfileId: profile.id,
+    membershipId: profile.talentPoolMembership?.id ?? undefined,
     email: profile.user.email,
     firstName: profile.firstName,
     lastName: profile.lastName,
@@ -199,7 +201,6 @@ export const discoverTalentPoolForJob = async (jobPostingId: number, requested: 
         cfp."embedding" IS NOT NULL
         AND tpm."status" = 'ACTIVE'
         AND tpm."availability" != 'UNAVAILABLE'
-        AND ap."hasConsentedToAi" = true
         AND ap."isActive" = true
         AND u."isActive" = true
         AND NOT EXISTS (
@@ -224,7 +225,6 @@ export const discoverTalentPoolForJob = async (jobPostingId: number, requested: 
         status: "ACTIVE",
         availability: { not: "UNAVAILABLE" },
         applicantProfile: {
-          hasConsentedToAi: true,
           isActive: true,
           user: {
             isActive: true,
@@ -309,7 +309,6 @@ export const findSimilarCandidates = async (sourceApplicationOrProfileId: number
         AND ap."id" != ${applicantProfileId}
         AND tpm."status" = 'ACTIVE'
         AND tpm."availability" != 'UNAVAILABLE'
-        AND ap."hasConsentedToAi" = true
         AND ap."isActive" = true
         AND u."isActive" = true
         AND NOT EXISTS (
@@ -334,7 +333,6 @@ export const findSimilarCandidates = async (sourceApplicationOrProfileId: number
         status: "ACTIVE",
         availability: { not: "UNAVAILABLE" },
         applicantProfile: {
-          hasConsentedToAi: true,
           isActive: true,
         },
       },
@@ -389,7 +387,6 @@ export const searchTalentPoolByText = async (text: string, requested: TalentPool
         cfp."embedding" IS NOT NULL
         AND tpm."status" = 'ACTIVE'
         AND tpm."availability" != 'UNAVAILABLE'
-        AND ap."hasConsentedToAi" = true
         AND ap."isActive" = true
         AND u."isActive" = true
         AND NOT EXISTS (
@@ -413,7 +410,6 @@ export const searchTalentPoolByText = async (text: string, requested: TalentPool
         status: "ACTIVE",
         availability: { not: "UNAVAILABLE" },
         applicantProfile: {
-          hasConsentedToAi: true,
           isActive: true,
         },
       },
@@ -569,9 +565,9 @@ export const considerTalentPoolCandidateForJob = async (input: {
     throw new InvalidKnnRequestError("Candidate availability is currently marked as UNAVAILABLE.");
   }
 
-  // 3. Verify valid AI consent and profile state
-  if (!profile.hasConsentedToAi || !profile.isActive || !profile.user.isActive) {
-    throw new InvalidKnnRequestError("Candidate does not meet eligibility or AI processing consent requirements.");
+  // 3. Verify valid profile state
+  if (!profile.isActive || !profile.user.isActive) {
+    throw new InvalidKnnRequestError("Candidate does not meet eligibility requirements.");
   }
 
   // 4. Verify candidate is not currently hired or deployed

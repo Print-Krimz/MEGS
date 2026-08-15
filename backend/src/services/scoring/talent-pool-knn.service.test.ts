@@ -72,7 +72,6 @@ const profile = (id: number, skills: string[], options: any = {}) => ({
   lastName: String(id),
   city: "Makati",
   province: "Metro Manila",
-  hasConsentedToAi: options.hasConsentedToAi ?? true,
   isActive: options.isActive ?? true,
   resumeUrl: `https://example.com/resumes/${id}.pdf`,
   user: {
@@ -136,6 +135,7 @@ describe("Talent Pool Redesign - KNN Retrieval & Eligibility", () => {
       candidate: {
         id: "user-10",
         applicantProfileId: 10,
+        membershipId: 1000,
         email: "candidate-10@example.com",
         firstName: "Candidate",
         lastName: "10",
