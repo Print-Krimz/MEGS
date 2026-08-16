@@ -2,6 +2,7 @@
 node_modules/
 */node_modules/
 .worktrees/
+worktrees/
 
 # Environment Variables — NEVER COMMIT
 .env
