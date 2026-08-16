@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MEGS Flowcharts Hub — TA, Applicant &amp; Admin</title>
+  <style>
+    :root {
+      --bg-primary: #0b0f19;
+      --bg-secondary: #131b2e;
+      --bg-card: #1e293b;
+      --border-color: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --accent-purple: #c084fc;
+      --accent-amber: #fbbf24;
+      --accent-green: #34d399;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background-color: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1.25rem 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .brand-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-title .badge {
+      font-size: 0.75rem;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: white;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-top: 0.2rem;
+    }
+
+    .actions-bar {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.55rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      background-color: #334155;
+      border-color: #64748b;
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      border-color: #60a5fa;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #1d4ed8, #2563eb);
+      border-color: #93c5fd;
+    }
+
+    .tabs-container {
+      display: flex;
+      background-color: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 2rem;
+      overflow-x: auto;
+      gap: 0.5rem;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      color: var(--text-muted);
+      padding: 1rem 1.25rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+    }
+
+    .tab-btn.active-applicant {
+      color: var(--accent-blue);
+      border-bottom-color: var(--accent-blue);
+    }
+
+    .tab-btn.active-ta {
+      color: var(--accent-purple);
+      border-bottom-color: var(--accent-purple);
+    }
+
+    .tab-btn.active-admin {
+      color: var(--accent-amber);
+      border-bottom-color: var(--accent-amber);
+    }
+
+    .tab-btn.active-all {
+      color: var(--accent-green);
+      border-bottom-color: var(--accent-green);
+    }
+
+    main {
+      flex: 1;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 1440px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .flowchart-wrapper {
+      width: 100%;
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .flowchart-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .flowchart-meta h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .flowchart-meta p {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 0.25rem;
+    }
+
+    .flowchart-canvas {
+      width: 100%;
+      min-height: 650px;
+      max-height: 850px;
+      overflow: auto;
+      background-color: #0b0f19;
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 1.5rem;
+    }
+
+    .flowchart-canvas img,
+    .flowchart-canvas svg {
+      width: 100%;
+      max-width: 1050px;
+      height: auto;
+      display: block;
+    }
+
+    .legend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+      width: 100%;
+    }
+
+    .legend-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+    }
+
+    .legend-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .legend-card ul {
+      list-style-type: none;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .legend-card li strong {
+      color: var(--text-main);
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border-color);
+      background-color: var(--bg-secondary);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div>
+      <div class="brand-title">
+        MEGS Recruitment Platform
+        <span class="badge">Architecture &amp; Process</span>
+      </div>
+      <div class="subtitle">Downloadable flowcharts for Applicant, Talent Acquisition (TA), and Administrator</div>
+    </div>
+    <div class="actions-bar">
+      <button class="btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+      <a class="btn btn-primary" id="btnDownloadSvg" href="applicant_flowchart.svg" download="applicant_flowchart.svg">⬇️ Download Current SVG</a>
+      <button class="btn" id="btnDownloadPng" onclick="downloadCurrentAsPng()">🖼️ Download Current PNG</button>
+    </div>
+  </header>
+
+  <!-- NAVIGATION TABS -->
+  <nav class="tabs-container">
+    <button class="tab-btn active-applicant" id="tabApplicant" onclick="switchTab('applicant')">
+      👤 Applicant Flowchart
+    </button>
+    <button class="tab-btn" id="tabTA" onclick="switchTab('ta')">
+      🎯 Talent Acquisition (TA) Flowchart
+    </button>
+    <button class="tab-btn" id="tabAdmin" onclick="switchTab('admin')">
+      ⚙️ Administrator Flowchart
+    </button>
+    <button class="tab-btn" id="tabIntegrated" onclick="switchTab('integrated')">
+      🌐 Integrated 3-Role Swimlane
+    </button>
+  </nav>
+
+  <!-- MAIN CONTENT AREA -->
+  <main>
+    <div class="flowchart-wrapper">
+      <div class="flowchart-toolbar">
+        <div class="flowchart-meta">
+          <h2 id="chartTitle">👤 Applicant Flowchart</h2>
+          <p id="chartDesc">Registration, profile builder, resume upload, AI parsing, screening, compliance, and deployment.</p>
+        </div>
+        <div class="actions-bar">
+          <a class="btn" id="directLink" href="applicant_flowchart.svg" target="_blank">🔍 Open Vector in New Tab</a>
+        </div>
+      </div>
+
+      <div class="flowchart-canvas" id="canvasContainer">
+        <img id="activeChartImg" src="applicant_flowchart.svg" alt="MEGS Flowchart" />
+      </div>
+    </div>
+
+    <!-- ROLE DETAILS -->
+    <div class="legend-grid">
+      <div class="legend-card" style="border-left: 4px solid var(--accent-blue);">
+        <h3 style="color: var(--accent-blue);">👤 Applicant Lifecycle</h3>
+        <ul>
+          <li><strong>Registration:</strong> Supabase Auth &amp; email verification.</li>
+          <li><strong>Profile &amp; Assets:</strong> Profile details, skills &amp; resume upload.</li>
+          <li><strong>Applications:</strong> Job search &amp; AI-assisted application tracking.</li>
+          <li><strong>Compliance:</strong> Govt IDs, NBI clearance &amp; medical upload.</li>
+        </ul>
+      </div>
+
+      <div class="legend-card" style="border-left: 4px solid var(--accent-purple);">
+        <h3 style="color: var(--accent-purple);">🎯 Talent Acquisition (TA)</h3>
+        <ul>
+          <li><strong>Job Postings:</strong> Create &amp; publish job openings from MRFs.</li>
+          <li><strong>Sourcing:</strong> Inbound review + KNN vector talent pool search.</li>
+          <li><strong>Screening:</strong> AI score evaluation &amp; initial interviews.</li>
+          <li><strong>Endorsement:</strong> Client submissions &amp; deployment activation.</li>
+        </ul>
+      </div>
+
+      <div class="legend-card" style="border-left: 4px solid var(--accent-amber);">
+        <h3 style="color: var(--accent-amber);">⚙️ Administrator</h3>
+        <ul>
+          <li><strong>Users &amp; Roles:</strong> Staff accounts, permissions &amp; access.</li>
+          <li><strong>AI &amp; Scoring:</strong> Configure weights &amp; feature toggles.</li>
+          <li><strong>Clients &amp; MRFs:</strong> Register clients &amp; approve requisitions.</li>
+          <li><strong>Audit &amp; KPIs:</strong> Immutable logs, hiring speed &amp; reports.</li>
+        </ul>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    MEGS Recruitment Management System • Process Documentation &amp; Workflow Specifications
+  </footer>
+
+  <script>
+    const charts = {
+      applicant: {
+        title: "👤 Applicant Flowchart",
+        desc: "Candidate lifecycle: registration, profile setup, AI parsing, screening, compliance, and deployment.",
+        file: "applicant_flowchart.svg",
+        tabClass: "active-applicant"
+      },
+      ta: {
+        title: "🎯 Talent Acquisition (TA) Flowchart",
+        desc: "Recruiter pipeline: job posting, sourcing, AI match scoring, screening, client endorsement, and deployment.",
+        file: "ta_flowchart.svg",
+        tabClass: "active-ta"
+      },
+      admin: {
+        title: "⚙️ Administrator Flowchart",
+        desc: "System governance: users & roles, AI scoring setup, client & MRF approvals, audit logs, and reports.",
+        file: "admin_flowchart.svg",
+        tabClass: "active-admin"
+      },
+      integrated: {
+        title: "🌐 Integrated Multi-Role Swimlane",
+        desc: "End-to-end recruitment process showing Applicant, TA, and Admin collaboration.",
+        file: "integrated_system_flowchart.svg",
+        tabClass: "active-all"
+      }
+    };
+
+    let currentRole = 'applicant';
+
+    function switchTab(role) {
+      currentRole = role;
+      const data = charts[role];
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.className = 'tab-btn';
+      });
+      const activeBtnId = role === 'applicant' ? 'tabApplicant' :
+                          role === 'ta' ? 'tabTA' :
+                          role === 'admin' ? 'tabAdmin' : 'tabIntegrated';
+      document.getElementById(activeBtnId).classList.add(data.tabClass);
+
+      document.getElementById('chartTitle').innerText = data.title;
+      document.getElementById('chartDesc').innerText = data.desc;
+      
+      const img = document.getElementById('activeChartImg');
+      img.src = data.file;
+      
+      const btnSvg = document.getElementById('btnDownloadSvg');
+      btnSvg.href = data.file;
+      btnSvg.download = data.file;
+
+      const directLink = document.getElementById('directLink');
+      directLink.href = data.file;
+    }
+
+    function downloadCurrentAsPng() {
+      const data = charts[currentRole];
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = function() {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || 1200;
+        canvas.height = img.naturalHeight || 1500;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#0b0f19";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+
+        const a = document.createElement("a");
+        a.download = data.file.replace(".svg", ".png");
+        a.href = canvas.toDataURL("image/png");
+        a.click();
+      };
+      img.src = data.file;
+    }
+  </script>
+</body>
+</html>
