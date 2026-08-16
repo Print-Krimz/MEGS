@@ -47,7 +47,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-// POST /api/auth/forgot-password - Generates secure link & sends via Resend (generic response)
+// POST /api/auth/forgot-password - Generates secure link & sends via email (generic response)
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
   const { email } = req.body;
 

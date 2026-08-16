@@ -24,6 +24,7 @@ describe("scoring configuration activation", () => {
           version: 2,
           revision: 1,
           knnSettings: DEFAULT_KNN_SETTINGS,
+          matchThreshold: 75,
           weights: Object.entries(DEFAULT_WEIGHTS).map(([dimension, weight]) => ({ dimension, weight })),
         }),
       },
@@ -31,8 +32,8 @@ describe("scoring configuration activation", () => {
     };
     mocks.prisma.$transaction.mockImplementation(async (callback: (client: typeof tx) => unknown) => callback(tx));
 
-    await expect(updateScoringConfiguration("admin-1", 1, { weights: DEFAULT_WEIGHTS, knnSettings: DEFAULT_KNN_SETTINGS }))
-      .resolves.toMatchObject({ id: 2, version: 2, status: "ACTIVE" });
+    await expect(updateScoringConfiguration("admin-1", 1, { weights: DEFAULT_WEIGHTS, knnSettings: DEFAULT_KNN_SETTINGS, matchThreshold: 75 }))
+      .resolves.toMatchObject({ id: 2, version: 2, status: "ACTIVE", matchThreshold: 75 });
 
     expect(tx.candidateScore.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { configurationId: 1, status: "CALCULATED" },

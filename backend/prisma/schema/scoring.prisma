@@ -49,6 +49,7 @@ model CandidateScoringConfiguration {
   version         Int                                 @unique
   revision        Int                                 @default(1)
   knnSettings     Json
+  matchThreshold  Int                                 @default(60)
   createdById     String?
   activatedById   String?
   activatedAt     DateTime                            @default(now())

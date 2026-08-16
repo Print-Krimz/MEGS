@@ -21,20 +21,69 @@ export const upload = multer({
 
 // Uploads buffer to Supabase bucket and registers a StoredDocument metadata record.
 // Returns internal download proxy route rather than exposing direct bucket URL.
+const verifiedBuckets = new Set<string>();
+
+export const ensureBucketExists = async (bucket: string): Promise<void> => {
+  if (verifiedBuckets.has(bucket)) return;
+  try {
+    const { data: buckets, error: listErr } = await supabase.storage.listBuckets();
+    if (!listErr) {
+      const exists = (buckets || []).some((b) => (b.id || b.name) === bucket);
+      if (!exists) {
+        await supabase.storage.createBucket(bucket, {
+          public: false,
+          fileSizeLimit: 10 * 1024 * 1024,
+          allowedMimeTypes: [
+            "application/pdf",
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          ],
+        });
+      }
+      verifiedBuckets.add(bucket);
+    }
+  } catch (err) {
+    console.warn(`[Storage] Auto-bucket provisioning warning for '${bucket}':`, err);
+  }
+};
+
 export const uploadFileToSupabase = async (
   bucket: string,
   folder: string,
   file: Express.Multer.File
 ): Promise<string> => {
+  await ensureBucketExists(bucket);
+
   const extension = file.originalname.split(".").pop();
   const filename = `${folder}/${uuidv4()}.${extension}`;
 
-  const { data, error } = await supabase.storage
+  let { data, error } = await supabase.storage
     .from(bucket)
     .upload(filename, file.buffer, {
       contentType: file.mimetype,
       upsert: false,
     });
+
+  // Self-healing: If bucket was not found, attempt explicit creation and retry once
+  if (error && (error.message?.toLowerCase().includes("bucket not found") || (error as any).statusCode === "404")) {
+    console.warn(`[Storage] Bucket '${bucket}' not found during upload. Auto-creating and retrying...`);
+    await supabase.storage.createBucket(bucket, {
+      public: false,
+      fileSizeLimit: 10 * 1024 * 1024,
+    });
+    verifiedBuckets.add(bucket);
+
+    const retryResult = await supabase.storage
+      .from(bucket)
+      .upload(filename, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
+    data = retryResult.data;
+    error = retryResult.error;
+  }
 
   if (error) {
     console.error("Supabase Storage Error:", error);

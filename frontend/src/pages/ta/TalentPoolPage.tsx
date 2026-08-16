@@ -88,8 +88,8 @@ export const TalentPoolPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Talent Pool & Semantic KNN Matching"
-        description="Search past applicants and rediscovery candidates using Xenova vector embeddings and cosine similarity"
+        title="Talent Pool & Candidate Matching"
+        description="Search past applicants, pre-screened talent, and redeployment candidates across qualifications and experience"
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },
           { label: "Talent Pool" },
@@ -124,14 +124,14 @@ export const TalentPoolPage: React.FC = () => {
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
           <Sparkles className="w-4 h-4 text-teal-600" />
           <h3 className="text-xs font-mono font-bold uppercase text-slate-800">
-            Vector Cosine Similarity Candidate Search
+            Candidate Search & Match
           </h3>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
           <div className="sm:col-span-6">
             <Input
-              label="Natural Language Query / Skills"
+              label="Search by Skills, Keywords, or Qualifications"
               placeholder="e.g. Electrician with TESDA NC II, industrial machinery repair, Laguna area"
               value={searchText}
               error={validationError || undefined}
@@ -159,7 +159,7 @@ export const TalentPoolPage: React.FC = () => {
 
           <div className="sm:col-span-2">
             <Select
-              label="Depth (k)"
+              label="Max Results"
               value={searchK}
               onChange={(e) => setSearchK(Number(e.target.value))}
               options={[
@@ -225,8 +225,8 @@ export const TalentPoolPage: React.FC = () => {
       ) : results.length > 0 ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-            <span>Found {results.length} semantic matches</span>
-            <span>Sorted by Cosine Similarity</span>
+            <span>Found {results.length} matching candidates</span>
+            <span>Sorted by Match Score</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -316,7 +316,7 @@ export const TalentPoolPage: React.FC = () => {
           <Sparkles className="w-8 h-8 text-teal-600 mx-auto" />
           <h4 className="text-sm font-bold text-slate-900">Search Candidate Talent Pool</h4>
           <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-            Use the search bar above to run semantic vector queries across past applicants and pre-screened talent records.
+            Use the search bar above to find matching profiles across past applicants and pre-screened candidate records.
           </p>
         </div>
       )}

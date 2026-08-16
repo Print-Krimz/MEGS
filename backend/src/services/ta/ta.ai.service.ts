@@ -10,28 +10,37 @@ export const queueApplicationAnalysis = async (applicationId: number) => {
       status: true,
       resumeUrl: true,
       isArchived: true,
+      jobPostingId: true,
     },
   });
 
   if (!application) throw new Error("Application not found");
   if (application.isArchived) throw new Error("Cannot analyze an archived application");
   if (!application.resumeUrl) throw new Error("This application has no resume attached");
+  if (application.status === "BACKOUT") throw new Error("Cannot analyze an application that has backed out");
 
-  const queueableStatuses = ["SUBMITTED", "REVIEW", "NEEDS_ATTENTION", "MATCHED", "TALENT_POOL"];
-  if (!queueableStatuses.includes(application.status)) {
-    throw new Error(`Cannot analyze an application with status: ${application.status}. Eligible statuses: ${queueableStatuses.join(", ")}`);
+  // Only transition to PARSING if the application is in an initial un-reviewed status
+  const transitionToParsingStatuses = ["SUBMITTED", "NEEDS_ATTENTION", "MATCHED"];
+  if (transitionToParsingStatuses.includes(application.status)) {
+    const { updateTAApplicationStatus } = await import("./ta.applications.service.js");
+    await updateTAApplicationStatus(applicationId, "PARSING", undefined, "Queued for AI resume parsing");
   }
 
-  const { updateTAApplicationStatus } = await import("./ta.applications.service.js");
-  await updateTAApplicationStatus(applicationId, "PARSING", undefined, "Queued for AI resume parsing");
-
   enqueueResumeAnalysis(applicationId);
+
+  // Trigger candidate scoring revalidation in background
+  if (application.jobPostingId) {
+    const { revalidateApplication } = await import("../scoring/scoring-configuration.service.js");
+    void revalidateApplication(applicationId, application.jobPostingId).catch((err) =>
+      console.error("[AI Service] Failed to revalidate candidate score:", err)
+    );
+  }
 
   const queueStatus = getQueueStatus();
 
   return {
     applicationId,
-    status: "PARSING",
+    status: transitionToParsingStatuses.includes(application.status) ? "PARSING" : application.status,
     queueSize: queueStatus.size,
   };
 };

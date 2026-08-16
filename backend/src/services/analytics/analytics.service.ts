@@ -25,7 +25,7 @@ export const getTimeToFillStats = async (mrfId?: number) => {
   const deployments = await prisma.deployment.findMany({
     where: {
       ...(mrfId ? { mrfId } : {}),
-      status: { in: ["ACTIVE", "DISPATCHED", "READY"] },
+      status: { in: ["ACTIVE", "READY_FOR_DEPLOYMENT"] },
     },
     include: {
       mrf: { select: { id: true, title: true, createdAt: true } },

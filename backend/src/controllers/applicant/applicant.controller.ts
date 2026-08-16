@@ -16,8 +16,7 @@ import {
   addAssetService,
   deleteAssetService,
   updateProfilePhotoService,
-  updateProfileResumeService,
-  setAiConsentService
+  updateProfileResumeService
 } from '../../services/applicant/applicant.service.js';
 
 // Profile CRUD (scoped to authenticated user req.user.id)
@@ -26,7 +25,7 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
     const profile = await getApplicantProfile(req.user!.id);
     sendSuccess(res, "Profile retrieved", profile);
   } catch (error: any) {
-    sendError(res, error.message, 404);
+    sendError(res, error.message, 500);
   }
 };
 
@@ -172,15 +171,15 @@ export const uploadPhoto = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
-// Central Resume (Requires prior AI consent)
+// Central Resume
 export const uploadResume = async (req: Request, res: Response): Promise<void> => {
   try {
     const file = req.file;
     if (!file) { sendError(res, "No file provided", 400); return; }
 
     const profile = await getApplicantProfile(req.user!.id);
-    if (!profile.hasConsentedToAi) {
-      sendError(res, "You must consent to AI processing before uploading a resume.", 403);
+    if (!profile) {
+      sendError(res, "Profile not found. Please create your profile first.", 400);
       return;
     }
 
@@ -190,21 +189,6 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 500;
     sendError(res, error.message, statusCode);
-  }
-};
-
-// AI Consent Status
-export const setAiConsent = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { consent } = req.body;
-    if (typeof consent !== "boolean") {
-      sendError(res, "Consent must be a boolean value", 400);
-      return;
-    }
-    const updated = await setAiConsentService(req.user!.id, consent);
-    sendSuccess(res, "AI consent updated", { hasConsentedToAi: updated.hasConsentedToAi });
-  } catch (error: any) {
-    sendError(res, error.message, 400);
   }
 };
 

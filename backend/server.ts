@@ -12,16 +12,46 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Public health check
-app.get("/", (_req, res) => {
+// Public health check & browser auth forwarder
+app.get("/", (req, res) => {
+  if (req.accepts("html") && !req.xhr && req.headers["sec-fetch-dest"] === "document") {
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    return res.send(`<!DOCTYPE html>
+<html>
+  <head><title>Redirecting to MEGS...</title></head>
+  <body>
+    <script>
+      const targetPath = window.location.hash.includes("type=recovery") ? "/reset-password" : window.location.pathname;
+      window.location.replace("${frontendUrl}" + targetPath + window.location.search + window.location.hash);
+    </script>
+    <p>Redirecting to MEGS... <a href="${frontendUrl}">Click here if not redirected automatically.</a></p>
+  </body>
+</html>`);
+  }
   res.json({
     success: true,
     message: "Recruitment Management System API is running ✅",
   });
 });
 
+app.get("/reset-password", (_req, res) => {
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  res.send(`<!DOCTYPE html>
+<html>
+  <head><title>Redirecting to Set Password...</title></head>
+  <body>
+    <script>
+      window.location.replace("${frontendUrl}/reset-password" + window.location.search + window.location.hash);
+    </script>
+    <p>Redirecting to Set Password... <a href="${frontendUrl}/reset-password">Click here if not redirected.</a></p>
+  </body>
+</html>`);
+});
+
 app.use("/api/auth", authRoutes);
 
+import configRoutes from "./src/routes/core/config.routes.js";
+app.use("/api/config", configRoutes);
 // Auth verification endpoint: GET /api/me (Bearer <token>)
 app.get("/api/me", authenticateJWT, (req, res) => {
   sendSuccess(res, "Token is valid", { user: req.user });

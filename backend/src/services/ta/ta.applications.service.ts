@@ -7,32 +7,80 @@ import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.co
 
 // Authoritative State Machine governing valid applicant pipeline stage transitions
 export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  SUBMITTED:          ["PARSING", "REVIEW", "NEEDS_ATTENTION", "BACKOUT", "ARCHIVED"],
-  PARSING:            ["REVIEW", "NEEDS_ATTENTION", "ARCHIVED"],
+  SUBMITTED:          ["PARSING", "REVIEW", "MATCHED", "NEEDS_ATTENTION", "BACKOUT", "ARCHIVED"],
+  PARSING:            ["REVIEW", "MATCHED", "NEEDS_ATTENTION", "ARCHIVED"],
   REVIEW:             ["INITIAL_SCREENING", "MATCHED", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  NEEDS_ATTENTION:    ["PARSING", "REVIEW", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  MATCHED:            ["INITIAL_SCREENING", "TALENT_POOL", "ARCHIVED"],
+  NEEDS_ATTENTION:    ["PARSING", "REVIEW", "MATCHED", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
+  MATCHED:            ["INITIAL_SCREENING", "REVIEW", "TALENT_POOL", "ARCHIVED"],
   TALENT_POOL:        ["INITIAL_SCREENING", "ARCHIVED"],
   INITIAL_SCREENING:  ["CLIENT_ENDORSEMENT", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
   CLIENT_ENDORSEMENT: ["FINAL_INTERVIEW", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
   FINAL_INTERVIEW:    ["HIRED", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  HIRED:              ["COMPLIANCE", "ONBOARDING", "BACKOUT"],
-  ONBOARDING:         ["COMPLIANCE", "DEPLOYED", "BACKOUT"],
-  COMPLIANCE:         ["DEPLOYED", "BACKOUT"],
+  HIRED:              ["COMPLIANCE", "ONBOARDING", "BACKOUT", "ARCHIVED"],
+  ONBOARDING:         ["COMPLIANCE", "DEPLOYED", "BACKOUT", "ARCHIVED"],
+  COMPLIANCE:         ["DEPLOYED", "BACKOUT", "ARCHIVED"],
   DEPLOYED:           ["ARCHIVED"],
   BACKOUT:            [],
   ARCHIVED:           [],
 };
 
-export const listTAApplications = async (status?: string, jobPostingId?: string) => {
+export interface ListTAApplicationsOptions {
+  status?: string;
+  jobPostingId?: string;
+  search?: string;
+  isArchived?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export const listTAApplications = async (
+  statusOrOptions?: string | ListTAApplicationsOptions,
+  legacyJobPostingId?: string
+) => {
+  const options: ListTAApplicationsOptions =
+    typeof statusOrOptions === "object" && statusOrOptions !== null
+      ? statusOrOptions
+      : {
+          status: statusOrOptions,
+          jobPostingId: legacyJobPostingId,
+        };
+
+  const { status, jobPostingId, search, isArchived, page, limit } = options;
   const dynamicScoring = scoringFlags.dynamicCandidateScoringEnabled();
   const configuration = dynamicScoring ? await getActiveScoringConfiguration() : null;
+
+  const where: any = {};
+  if (status) {
+    where.status = status as ApplicationStatus;
+  }
+  if (jobPostingId) {
+    where.jobPostingId = parseInt(jobPostingId, 10);
+  }
+  if (isArchived !== undefined) {
+    where.isArchived = Boolean(isArchived);
+  } else if (!status) {
+    where.isArchived = false;
+  }
+
+  if (search && search.trim()) {
+    const q = search.trim();
+    where.OR = [
+      { user: { email: { contains: q, mode: "insensitive" } } },
+      { user: { applicantProfile: { firstName: { contains: q, mode: "insensitive" } } } },
+      { user: { applicantProfile: { lastName: { contains: q, mode: "insensitive" } } } },
+      { jobPosting: { title: { contains: q, mode: "insensitive" } } },
+    ];
+  }
+
+  const total = await prisma.application.count({ where });
+
+  const take = limit ? Math.max(1, limit) : undefined;
+  const skip = page && limit ? Math.max(0, (page - 1) * limit) : undefined;
+
   const applications = await prisma.application.findMany({
-    where: {
-      ...(status ? { status: status as ApplicationStatus } : {}),
-      ...(jobPostingId ? { jobPostingId: parseInt(jobPostingId, 10) } : {}),
-      ...(status ? {} : { isArchived: false }),
-    },
+    where,
+    ...(take ? { take } : {}),
+    ...(skip ? { skip } : {}),
     orderBy: dynamicScoring ? { createdAt: "desc" } : [
       { aiScore: { sort: "desc", nulls: "last" } },
       { createdAt: "desc" },
@@ -63,14 +111,24 @@ export const listTAApplications = async (status?: string, jobPostingId?: string)
       } : {}),
     },
   });
-  if (!configuration) return applications;
-  return applications
-    .map((application) => {
-      const score = application.candidateScores.find((candidateScore) => candidateScore.jobPostingId === application.jobPosting.id) ?? null;
-      const { candidateScores, ...rest } = application;
-      return { ...rest, candidateFitScore: score ? Number(score.finalFitScore) : null, candidateFitScoreCalculatedAt: score?.calculatedAt ?? null, candidateScoringConfigurationVersion: configuration.version };
-    })
-    .sort((left, right) => (right.candidateFitScore ?? -1) - (left.candidateFitScore ?? -1) || right.createdAt.getTime() - left.createdAt.getTime());
+
+  const formatted = configuration
+    ? applications
+        .map((application) => {
+          const score = application.candidateScores?.find((candidateScore) => candidateScore.jobPostingId === application.jobPosting.id) ?? null;
+          const { candidateScores, ...rest } = application;
+          return { ...rest, candidateFitScore: score ? Number(score.finalFitScore) : null, candidateFitScoreCalculatedAt: score?.calculatedAt ?? null, candidateScoringConfigurationVersion: configuration.version };
+        })
+        .sort((left, right) => (right.candidateFitScore ?? -1) - (left.candidateFitScore ?? -1) || right.createdAt.getTime() - left.createdAt.getTime())
+    : applications;
+
+  return {
+    data: formatted,
+    total,
+    page: page || 1,
+    limit: limit || total,
+    totalPages: limit ? Math.max(1, Math.ceil(total / limit)) : 1,
+  };
 };
 
 export const getTAApplication = async (id: number) => {
@@ -107,13 +165,46 @@ export const getTAApplication = async (id: number) => {
       complianceRequirements: {
         orderBy: { createdAt: "asc" },
       },
+      candidateScores: {
+        orderBy: { calculatedAt: "desc" },
+        take: 1,
+      },
+      hiredEmployee: {
+        select: {
+          id: true,
+          employeeNumber: true,
+          status: true,
+          department: true,
+          position: true,
+          hireDate: true,
+        },
+      },
     },
   });
 
   if (!application) throw new Error("Application not found");
 
+  const candidateScores = application.candidateScores?.map((score) => ({
+    id: score.id,
+    applicationId: score.applicationId,
+    jobPostingId: score.jobPostingId,
+    configurationId: score.configurationId,
+    status: score.status,
+    calculatedAt: score.calculatedAt,
+    skillsScore: Number(score.skillsScore),
+    experienceScore: Number(score.experienceScore),
+    locationScore: Number(score.locationScore),
+    complianceScore: Number(score.complianceScore),
+    educationCertificationScore: Number(score.educationCertificationScore),
+    finalFitScore: Number(score.finalFitScore),
+    knnSimilarity: score.knnSimilarity !== null ? Number(score.knnSimilarity) : null,
+    explanation: score.explanation,
+  }));
+
   return {
     ...application,
+    candidateFitScore: candidateScores?.[0] ? candidateScores[0].finalFitScore : null,
+    candidateScores,
     user: {
       ...application.user,
       applicantProfile: application.user.applicantProfile
@@ -211,7 +302,10 @@ export const updateTAApplicationStatus = async (
   // Execute status update
   const updated = await prisma.application.update({
     where: { id },
-    data: { status },
+    data: {
+      status,
+      ...(status === "ARCHIVED" ? { isArchived: true, archivedAt: new Date() } : {}),
+    },
     select: { id: true, status: true, updatedAt: true },
   });
 
@@ -276,6 +370,115 @@ export const updateTAApplicationStatus = async (
           availability: "UNAVAILABLE",
         },
       });
+    }
+
+    // Ensure Candidate (User) is provisioned into the Digital 201 Employee roster
+    let emp = await prisma.employee.findUnique({
+      where: { userId: application.userId },
+    });
+
+    if (!emp) {
+      const appDetails = await prisma.application.findUnique({
+        where: { id },
+        include: { jobPosting: { select: { title: true, location: true } } },
+      });
+      const generatedEmployeeNumber = `EMP-${new Date().getFullYear()}-${String(id).padStart(4, "0")}`;
+      emp = await prisma.employee.create({
+        data: {
+          userId: application.userId,
+          employeeNumber: generatedEmployeeNumber,
+          department: "Operations",
+          position: appDetails?.jobPosting?.title || "Specialist",
+          hireDate: new Date(),
+          originatingApplicationId: id,
+          notes: reason || "Hired via TA recruitment pipeline",
+          status: "ACTIVE",
+        },
+      });
+
+      await prisma.employmentEvent.create({
+        data: {
+          employeeId: emp.id,
+          eventType: "HIRED",
+          description: reason || `Hired for position ${appDetails?.jobPosting?.title || "Specialist"}`,
+          effectiveDate: new Date(),
+          actorId: resolvedActorId,
+          metadata: {
+            applicationId: id,
+            position: appDetails?.jobPosting?.title || "Specialist",
+            employeeNumber: emp.employeeNumber,
+          },
+        },
+      });
+    }
+
+    // If entering DEPLOYED, ensure active or scheduled Deployment record exists
+    if (status === "DEPLOYED") {
+      const existingDeployment = await prisma.deployment.findFirst({
+        where: {
+          employeeId: emp.id,
+          status: { notIn: ["ENDED", "CANCELLED"] },
+        },
+      });
+
+      if (!existingDeployment) {
+        const appWithJob = await prisma.application.findUnique({
+          where: { id },
+          include: {
+            jobPosting: {
+              select: {
+                location: true,
+                mrfId: true,
+                mrf: { select: { clientId: true } },
+              },
+            },
+          },
+        });
+
+        let clientId = appWithJob?.jobPosting?.mrf?.clientId;
+        if (!clientId) {
+          const firstClient = await prisma.client.findFirst({ select: { id: true } });
+          clientId = firstClient?.id || 1;
+        }
+
+        const deployment = await prisma.deployment.create({
+          data: {
+            employeeId: emp.id,
+            applicationId: id,
+            clientId,
+            mrfId: appWithJob?.jobPosting?.mrfId || null,
+            createdById: resolvedActorId,
+            site: appWithJob?.jobPosting?.location || "Main Client Site",
+            contractStart: new Date(),
+            notes: reason || "Deployed via TA recruitment pipeline",
+            status: "READY_FOR_DEPLOYMENT",
+          },
+        });
+
+        await prisma.deploymentStatusHistory.create({
+          data: {
+            deploymentId: deployment.id,
+            toStatus: "READY_FOR_DEPLOYMENT",
+            changedById: resolvedActorId,
+            reason: reason || "Auto-created on DEPLOYED stage transition",
+          },
+        });
+
+        await prisma.employmentEvent.create({
+          data: {
+            employeeId: emp.id,
+            eventType: "DEPLOYED",
+            description: `Deployed to site (${appWithJob?.jobPosting?.location || "Main Client Site"})`,
+            effectiveDate: new Date(),
+            actorId: resolvedActorId,
+            metadata: {
+              deploymentId: deployment.id,
+              clientId,
+              site: appWithJob?.jobPosting?.location || "Main Client Site",
+            },
+          },
+        });
+      }
     }
   }
 
@@ -360,4 +563,44 @@ export const restoreTAApplication = async (id: number, actorId?: string, reason?
   return updated;
 };
 
+/**
+ * Automatically categorizes a candidate based on their AI score if they are in the pre-screening phase.
+ * Prevents downward progression if the candidate has already advanced to an interview or beyond.
+ */
+export const applyScoreCategorization = async (applicationId: number, score: number, customThreshold?: number) => {
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { id: true, status: true }
+  });
 
+  if (!application) return;
+
+  const preScreeningStatuses = ["SUBMITTED", "PARSING", "NEEDS_ATTENTION", "REVIEW", "MATCHED"];
+  
+  if (!preScreeningStatuses.includes(application.status)) {
+    return; // Do not overwrite advanced statuses
+  }
+
+  let threshold: number = typeof customThreshold === "number" ? customThreshold : 60;
+  if (customThreshold === undefined) {
+    try {
+      const activeConfig = await getActiveScoringConfiguration();
+      if (typeof activeConfig?.matchThreshold === "number") {
+        threshold = activeConfig.matchThreshold;
+      }
+    } catch {
+      threshold = 60;
+    }
+  }
+
+  const nextStatus = score >= threshold ? "MATCHED" : "REVIEW";
+
+  if (application.status !== nextStatus) {
+    await updateTAApplicationStatus(
+      applicationId, 
+      nextStatus, 
+      undefined, 
+      `AI Score (${score}) resulted in categorization: ${nextStatus}`
+    );
+  }
+};

@@ -67,6 +67,7 @@ import {
 import {
   recordEndorsementHandler,
   listEndorsementsHandler,
+  updateEndorsementHandler,
 } from '../../controllers/ta/ta.endorsement.controller.js';
 
 import {
@@ -138,6 +139,7 @@ router.get("/applications/:id/decisions", getRecruiterDecisionsHandler);
 // Client Endorsement
 router.post("/applications/:id/endorse", validate(taSchema.endorseCandidate), recordEndorsementHandler);
 router.get("/applications/:id/endorsements", listEndorsementsHandler);
+router.patch("/applications/:id/endorsements/:endorsementId", validate(taSchema.updateEndorsement), updateEndorsementHandler);
 
 // AI Resume Scoring
 router.post("/applications/:id/analyze", analyzeApplication);

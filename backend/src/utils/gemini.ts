@@ -57,8 +57,10 @@ Be objective. Base your score only on the resume content vs the stated requireme
 Respond with valid JSON only. Do not include markdown or any text outside the JSON object.
 `.trim();
 
+  const modelName = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
+
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+    model: modelName,
     contents: prompt,
     config: {
       responseMimeType: "application/json",

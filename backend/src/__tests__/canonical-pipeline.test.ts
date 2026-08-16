@@ -82,11 +82,14 @@ describe("Canonical Hiring Pipeline & State Machine", () => {
   afterAll(async () => {
     // Clean up
     if (testApp?.id) {
+      await prisma.deploymentStatusHistory.deleteMany({ where: { deployment: { applicationId: testApp.id } } });
+      await prisma.employmentEvent.deleteMany({ where: { employee: { userId: testUser?.id } } });
       await prisma.recruiterDecision.deleteMany({ where: { applicationId: testApp.id } });
       await prisma.complianceRequirement.deleteMany({ where: { applicationId: testApp.id } });
       await prisma.interview.deleteMany({ where: { applicationId: testApp.id } });
       await prisma.clientEndorsement.deleteMany({ where: { applicationId: testApp.id } });
       await prisma.deployment.deleteMany({ where: { applicationId: testApp.id } });
+      await prisma.employee.deleteMany({ where: { userId: testUser?.id } });
       await prisma.application.deleteMany({ where: { id: testApp.id } });
     }
     if (testJob?.id) await prisma.jobPosting.deleteMany({ where: { id: testJob.id } });
@@ -100,6 +103,9 @@ describe("Canonical Hiring Pipeline & State Machine", () => {
     }
     if (testClient?.id) await prisma.client.deleteMany({ where: { id: testClient.id } });
     if (testUser?.id) {
+      await prisma.employmentEvent.deleteMany({ where: { employee: { userId: testUser.id } } });
+      await prisma.deployment.deleteMany({ where: { employee: { userId: testUser.id } } });
+      await prisma.employee.deleteMany({ where: { userId: testUser.id } });
       await prisma.notification.deleteMany({ where: { userId: testUser.id } });
       await prisma.applicantProfile.deleteMany({ where: { userId: testUser.id } });
       await prisma.user.deleteMany({ where: { id: testUser.id } });
@@ -289,5 +295,42 @@ describe("Canonical Hiring Pipeline & State Machine", () => {
     expect(toStatuses).toContain("HIRED");
     expect(toStatuses).toContain("COMPLIANCE");
     expect(toStatuses).toContain("DEPLOYED");
+  });
+
+  afterAll(async () => {
+    try {
+      const userIds = [testTA?.id, testUser?.id].filter(Boolean);
+      if (testApp?.id) {
+        await prisma.deploymentStatusHistory.deleteMany({ where: { deployment: { applicationId: testApp.id } } });
+        await prisma.deployment.deleteMany({ where: { applicationId: testApp.id } });
+        await prisma.complianceRequirement.deleteMany({ where: { applicationId: testApp.id } });
+        await prisma.clientEndorsement.deleteMany({ where: { applicationId: testApp.id } });
+        await prisma.recruiterDecision.deleteMany({ where: { applicationId: testApp.id } });
+        await prisma.interview.deleteMany({ where: { applicationId: testApp.id } });
+        await prisma.employee.deleteMany({ where: { userId: testUser?.id } });
+        await prisma.application.delete({ where: { id: testApp.id } });
+      }
+      if (testJob?.id) {
+        await prisma.jobPosting.delete({ where: { id: testJob.id } });
+      }
+      if (testMrf?.id) {
+        await prisma.mRFComplianceTemplate.deleteMany({ where: { mrfId: testMrf.id } });
+        await prisma.manpowerRequest.delete({ where: { id: testMrf.id } });
+      }
+      if (testClient?.id) {
+        await prisma.client.delete({ where: { id: testClient.id } });
+      }
+      if (testUser?.id) {
+        await prisma.applicantProfile.deleteMany({ where: { userId: testUser.id } });
+        await prisma.user.delete({ where: { id: testUser.id } });
+      }
+      if (testTA?.id) {
+        await prisma.user.delete({ where: { id: testTA.id } });
+      }
+    } catch {
+      // Best-effort cleanup
+    } finally {
+      await prisma.$disconnect();
+    }
   });
 });

@@ -1,0 +1,74 @@
+{
+  "role": "APPLICANT",
+  "email": "test2@gmail.com",
+  "dashboardHeader": "Welcome back, Candidate",
+  "rbacAdminRedirect": "http://localhost:5173/forbidden",
+  "rbacTaRedirect": "http://localhost:5173/forbidden",
+  "consoleErrors": [],
+  "networkFailures": [
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:5173/api/notifications/stream",
+      "failure": "net::ERR_ABORTED"
+    }
+  ]
+}

@@ -109,14 +109,164 @@ export const fetchMyApplications = async (userId: string) => {
   return await prisma.application.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      status: true,
-      resumeUrl: true,
-      isArchived: true,
-      createdAt: true,
-      jobPosting: { select: { id: true, title: true, location: true } },
+    include: {
+      jobPosting: {
+        select: {
+          id: true,
+          title: true,
+          location: true,
+          description: true,
+          requirements: true,
+          status: true,
+          createdAt: true,
+        },
+      },
+      interviews: {
+        where: { isActive: true },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          type: true,
+          scheduledAt: true,
+          conductedAt: true,
+          result: true,
+          notes: true,
+          complianceDeadline: true,
+          isCompliant: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
+      complianceRequirements: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          documentLabel: true,
+          isRequired: true,
+          documentId: true,
+          reviewStatus: true,
+          deadline: true,
+          reviewNotes: true,
+          reviewedAt: true,
+          expiresAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
     },
   });
+};
+
+export const fetchApplicationDetails = async (applicationId: number, userId: string) => {
+  const application = await prisma.application.findFirst({
+    where: { id: applicationId, userId },
+    include: {
+      jobPosting: {
+        select: {
+          id: true,
+          title: true,
+          location: true,
+          description: true,
+          requirements: true,
+          status: true,
+          createdAt: true,
+        },
+      },
+      interviews: {
+        where: { isActive: true },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          type: true,
+          scheduledAt: true,
+          conductedAt: true,
+          result: true,
+          notes: true,
+          complianceDeadline: true,
+          isCompliant: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
+      complianceRequirements: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          documentLabel: true,
+          isRequired: true,
+          documentId: true,
+          reviewStatus: true,
+          deadline: true,
+          reviewNotes: true,
+          reviewedAt: true,
+          expiresAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
+    },
+  });
+
+  if (!application) {
+    throw new Error("Application not found");
+  }
+
+  return application;
+};
+
+import { uploadAndStoreDocument } from '../document/document.service.js';
+
+export const uploadApplicantComplianceDocument = async (
+  userId: string,
+  requirementId: number,
+  file: Express.Multer.File
+) => {
+  const requirement = await prisma.complianceRequirement.findUnique({
+    where: { id: requirementId },
+    include: { application: { select: { id: true, userId: true } } },
+  });
+
+  if (!requirement) {
+    throw new Error("Compliance requirement not found");
+  }
+
+  if (requirement.application.userId !== userId) {
+    throw new Error("Unauthorized to upload document for this compliance requirement");
+  }
+
+  if (!file) {
+    throw new Error("Document file is required");
+  }
+
+  // Upload to secure documents bucket with category VAULT_201
+  await uploadAndStoreDocument(
+    userId,
+    "VAULT_201",
+    file,
+    requirement.applicationId
+  );
+
+  // Retrieve newly created StoredDocument ID
+  const latestDoc = await prisma.storedDocument.findFirst({
+    where: { ownerId: userId, applicationId: requirement.applicationId },
+    orderBy: { uploadedAt: "desc" },
+  });
+
+  const updated = await prisma.complianceRequirement.update({
+    where: { id: requirementId },
+    data: {
+      documentId: latestDoc?.id || null,
+      reviewStatus: "SUBMITTED",
+    },
+  });
+
+  sendNotification(
+    userId,
+    "Compliance Document Uploaded",
+    `Your document for "${requirement.documentLabel}" has been submitted for verification.`,
+    "INFO"
+  );
+
+  return updated;
 };
 

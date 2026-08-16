@@ -13,18 +13,18 @@ model ApplicantProfile {
   firstName    String
   middleName   String?
   lastName     String
-  mobileNumber String
-  gender       String
-  province     String
-  city         String
-  dateOfBirth  DateTime
-  birthPlace   String
-  nationality  String
-  civilStatus  String
+  mobileNumber String?
+  gender       String?
+  province     String?
+  city         String?
+  dateOfBirth  DateTime?
+  birthPlace   String?
+  nationality  String?
+  civilStatus  String?
   height       Float?
   weight       Float?
   religion     String?
-  address      String
+  address      String?
 
   // Preferred work locations (e.g. "Makati, Taguig, Remote")
   preferredWorkLocations String?
@@ -45,8 +45,8 @@ model ApplicantProfile {
   // Centralized Default Resume — system remembers the last resume uploaded
   resumeUrl String?
 
-  // Professional Summary (required)
-  professionalSummary String
+  // Professional Summary
+  professionalSummary String?
 
   // Emergency Contact
   emergencyContactName         String?
@@ -60,8 +60,6 @@ model ApplicantProfile {
   // Soft delete
   isActive Boolean @default(true)
 
-  // AI Consent
-  hasConsentedToAi Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

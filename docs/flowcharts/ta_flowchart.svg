@@ -1,0 +1,206 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1050 1420" width="100%" height="100%" style="background-color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="taHeaderGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+    <linearGradient id="stepGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="aiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b" />
+      <stop offset="100%" stop-color="#312e81" />
+    </linearGradient>
+    <linearGradient id="successGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="decisionGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4c1d95" />
+      <stop offset="100%" stop-color="#6d28d9" />
+    </linearGradient>
+    <linearGradient id="endorseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0369a1" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    
+    <!-- Shadows & Glows -->
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
+    <filter id="accentGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#a855f7" flood-opacity="0.6" />
+    </filter>
+
+    <!-- Arrow Markers -->
+    <marker id="arrowTA" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#c084fc" />
+    </marker>
+    <marker id="arrowSuccess" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#34d399" />
+    </marker>
+    <marker id="arrowAlt" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8" />
+    </marker>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="1050" height="1420" fill="#0b0f19" />
+  
+  <!-- Subtle Grid Lines -->
+  <pattern id="gridTA" width="40" height="40" patternUnits="userSpaceOnUse">
+    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.75" opacity="0.6"/>
+  </pattern>
+  <rect width="1050" height="1420" fill="url(#gridTA)" />
+
+  <!-- HEADER -->
+  <g transform="translate(50, 40)">
+    <rect x="0" y="0" width="950" height="90" rx="16" fill="url(#stepGrad)" stroke="#a855f7" stroke-width="1.5" filter="url(#cardShadow)" />
+    <rect x="0" y="0" width="10" height="90" rx="4" fill="url(#taHeaderGrad)" />
+    
+    <text x="35" y="42" fill="#f8fafc" font-size="24" font-weight="bold" letter-spacing="0.5">MEGS RECRUITMENT PLATFORM</text>
+    <text x="35" y="68" fill="#c084fc" font-size="16" font-weight="600">TALENT ACQUISITION (TA) PIPELINE &amp; WORKFLOW</text>
+    
+    <rect x="740" y="28" width="180" height="34" rx="8" fill="#581c87" fill-opacity="0.4" stroke="#c084fc" stroke-width="1"/>
+    <text x="830" y="50" fill="#e9d5ff" font-size="13" font-weight="600" text-anchor="middle">ROLE: TALENT ACQUISITION</text>
+  </g>
+
+  <!-- FLOWCHART STEPS -->
+
+  <!-- STEP 1: Requisition Intake & Job Creation -->
+  <g transform="translate(315, 160)">
+    <rect x="0" y="0" width="420" height="80" rx="12" fill="url(#stepGrad)" stroke="#a855f7" stroke-width="1.5" filter="url(#cardShadow)"/>
+    <circle cx="35" cy="40" r="18" fill="#7c3aed" />
+    <text x="35" y="46" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">1</text>
+    <text x="70" y="32" fill="#f1f5f9" font-size="15" font-weight="bold">Requisition Intake &amp; Job Posting</text>
+    <text x="70" y="52" fill="#94a3b8" font-size="12">Receive Approved Manpower Request Form (MRF)</text>
+    <text x="70" y="68" fill="#94a3b8" font-size="12">Create &amp; Publish Job Postings (Status: <tspan fill="#a855f7">OPEN</tspan>)</text>
+  </g>
+
+  <!-- Arrow 1 -> 2 -->
+  <path d="M 525 240 L 525 275" stroke="#c084fc" stroke-width="2" marker-end="url(#arrowTA)" />
+
+  <!-- STEP 2: Sourcing Channels (Split inbound vs talent pool) -->
+  <g transform="translate(180, 275)">
+    <!-- Sub-Box Left: Inbound Applications -->
+    <rect x="0" y="0" width="320" height="85" rx="10" fill="url(#stepGrad)" stroke="#475569" stroke-width="1.5" />
+    <text x="20" y="30" fill="#f8fafc" font-size="14" font-weight="bold">📥 Inbound Pipeline</text>
+    <text x="20" y="52" fill="#94a3b8" font-size="12">Direct portal applications</text>
+    <text x="20" y="70" fill="#94a3b8" font-size="12">Status: <tspan fill="#38bdf8" font-weight="bold">SUBMITTED</tspan> ➔ <tspan fill="#818cf8" font-weight="bold">REVIEW</tspan></text>
+
+    <!-- Sub-Box Right: KNN Talent Pool Sourcing -->
+    <rect x="370" y="0" width="320" height="85" rx="10" fill="url(#stepGrad)" stroke="#475569" stroke-width="1.5" />
+    <text x="390" y="30" fill="#f8fafc" font-size="14" font-weight="bold">🔍 Proactive Sourcing</text>
+    <text x="390" y="52" fill="#94a3b8" font-size="12">KNN pgvector semantic matching</text>
+    <text x="390" y="70" fill="#94a3b8" font-size="12">Re-engage past <tspan fill="#f59e0b" font-weight="bold">TALENT_POOL</tspan> candidates</text>
+  </g>
+
+  <!-- Convergence to Step 3 -->
+  <path d="M 340 360 L 340 395 L 525 395 L 525 410" stroke="#c084fc" stroke-width="1.5" />
+  <path d="M 710 360 L 710 395 L 525 395" stroke="#c084fc" stroke-width="1.5" />
+  <path d="M 525 395 L 525 415" stroke="#c084fc" stroke-width="2" marker-end="url(#arrowTA)" />
+
+  <!-- STEP 3: AI Scoring Review -->
+  <g transform="translate(275, 415)">
+    <rect x="0" y="0" width="500" height="90" rx="14" fill="url(#aiGrad)" stroke="#818cf8" stroke-width="1.5" filter="url(#cardShadow)"/>
+    <circle cx="40" cy="45" r="18" fill="#4f46e5" />
+    <text x="40" y="51" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">2</text>
+    <text x="75" y="32" fill="#e0e7ff" font-size="15" font-weight="bold">Inspect AI Match Score Breakdown</text>
+    <text x="75" y="54" fill="#c7d2fe" font-size="12">Evaluate Skills Score • Experience Match • Location Radius</text>
+    <text x="75" y="72" fill="#94a3b8" font-size="12">Semantic Similarity Index • Trigger Manual Score Recalculation</text>
+  </g>
+
+  <!-- Arrow 3 -> 4 Decision -->
+  <path d="M 525 505 L 525 540" stroke="#c084fc" stroke-width="2" marker-end="url(#arrowTA)" />
+
+  <!-- STEP 4: Recruiter Screening Decision Diamond -->
+  <g transform="translate(345, 540)">
+    <polygon points="180,0 360,55 180,110 0,55" fill="url(#decisionGrad)" stroke="#c084fc" stroke-width="1.5" filter="url(#cardShadow)" />
+    <text x="180" y="48" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">Screening Qualification</text>
+    <text x="180" y="68" fill="#e9d5ff" font-size="13" font-weight="bold" text-anchor="middle">Decision</text>
+  </g>
+
+  <!-- Decision Left: Pool or Reject -->
+  <path d="M 345 595 L 140 595 L 140 660" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowAlt)" />
+  <rect x="165" y="575" width="130" height="20" rx="4" fill="#1e293b" />
+  <text x="230" y="589" fill="#94a3b8" font-size="11" font-weight="bold" text-anchor="middle">Below Threshold</text>
+
+  <g transform="translate(40, 660)">
+    <rect x="0" y="0" width="200" height="85" rx="10" fill="#1e293b" stroke="#64748b" stroke-width="1.5" />
+    <text x="100" y="28" fill="#f8fafc" font-size="13" font-weight="bold" text-anchor="middle">Talent Pool / Archive</text>
+    <text x="100" y="48" fill="#f59e0b" font-size="11" font-weight="bold" text-anchor="middle">TALENT_POOL / ARCHIVED</text>
+    <text x="100" y="68" fill="#64748b" font-size="11" text-anchor="middle">Automated pool notification</text>
+  </g>
+
+  <!-- Decision Down: Match & Initial Screen -->
+  <path d="M 525 650 L 525 685" stroke="#34d399" stroke-width="2" marker-end="url(#arrowSuccess)" />
+  <rect x="535" y="655" width="95" height="20" rx="4" fill="#064e3b" />
+  <text x="582" y="669" fill="#6ee7b7" font-size="11" font-weight="bold" text-anchor="middle">Qualified</text>
+
+  <!-- STEP 5: Conduct Initial Screening Interview -->
+  <g transform="translate(315, 685)">
+    <rect x="0" y="0" width="420" height="85" rx="12" fill="url(#stepGrad)" stroke="#a855f7" stroke-width="1.5" filter="url(#cardShadow)"/>
+    <circle cx="35" cy="42" r="18" fill="#7c3aed" />
+    <text x="35" y="48" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">3</text>
+    <text x="70" y="30" fill="#f1f5f9" font-size="15" font-weight="bold">Conduct Initial Screening</text>
+    <text x="70" y="50" fill="#94a3b8" font-size="12">Schedule &amp; Interview Candidate (<tspan fill="#c084fc">INITIAL_SCREENING</tspan>)</text>
+    <text x="70" y="68" fill="#94a3b8" font-size="12">Log Recruiter Decision, Score Rating &amp; Qualitative Notes</text>
+  </g>
+
+  <!-- Arrow 5 -> 6 -->
+  <path d="M 525 770 L 525 805" stroke="#c084fc" stroke-width="2" marker-end="url(#arrowTA)" />
+
+  <!-- STEP 6: Client Endorsement & Final Interview -->
+  <g transform="translate(315, 805)">
+    <rect x="0" y="0" width="420" height="90" rx="12" fill="url(#endorseGrad)" stroke="#38bdf8" stroke-width="1.5" filter="url(#cardShadow)"/>
+    <circle cx="35" cy="45" r="18" fill="#0284c7" />
+    <text x="35" y="51" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">4</text>
+    <text x="70" y="32" fill="#ffffff" font-size="15" font-weight="bold">Client Endorsement &amp; Final Interview</text>
+    <text x="70" y="52" fill="#bae6fd" font-size="12">Endorse Candidate Profile to Client (<tspan fill="#ffffff" font-weight="bold">CLIENT_ENDORSEMENT</tspan>)</text>
+    <text x="70" y="70" fill="#e0f2fe" font-size="12">Coordinate Client Schedule (<tspan fill="#ffffff" font-weight="bold">FINAL_INTERVIEW</tspan>)</text>
+  </g>
+
+  <!-- Arrow 6 -> 7 -->
+  <path d="M 525 895 L 525 930" stroke="#c084fc" stroke-width="2" marker-end="url(#arrowTA)" />
+
+  <!-- STEP 7: Compliance Document Verification -->
+  <g transform="translate(315, 930)">
+    <rect x="0" y="0" width="420" height="90" rx="12" fill="url(#stepGrad)" stroke="#a855f7" stroke-width="1.5" filter="url(#cardShadow)"/>
+    <circle cx="35" cy="45" r="18" fill="#7c3aed" />
+    <text x="35" y="51" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">5</text>
+    <text x="70" y="32" fill="#f1f5f9" font-size="15" font-weight="bold">Verify Pre-Employment Compliance</text>
+    <text x="70" y="52" fill="#94a3b8" font-size="12">Review Govt IDs (SSS, PhilHealth, Pag-IBIG, TIN)</text>
+    <text x="70" y="70" fill="#94a3b8" font-size="12">Validate NBI Clearance &amp; Medical Exam (<tspan fill="#c084fc">COMPLIANCE</tspan>)</text>
+  </g>
+
+  <!-- Arrow 7 -> 8 -->
+  <path d="M 525 1020 L 525 1055" stroke="#c084fc" stroke-width="2" marker-end="url(#arrowTA)" />
+
+  <!-- STEP 8: Create Deployment & Hire -->
+  <g transform="translate(315, 1055)">
+    <rect x="0" y="0" width="420" height="90" rx="12" fill="url(#stepGrad)" stroke="#34d399" stroke-width="1.5" filter="url(#cardShadow)"/>
+    <circle cx="35" cy="45" r="18" fill="#059669" />
+    <text x="35" y="51" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">6</text>
+    <text x="70" y="32" fill="#f1f5f9" font-size="15" font-weight="bold">Create Deployment &amp; Onboard</text>
+    <text x="70" y="52" fill="#94a3b8" font-size="12">Assign Deployment Details: Client, Start Date, Rate</text>
+    <text x="70" y="70" fill="#94a3b8" font-size="12">Generate Employee ID &amp; Set Status to <tspan fill="#34d399" font-weight="bold">HIRED</tspan></text>
+  </g>
+
+  <!-- Arrow 8 -> 9 -->
+  <path d="M 525 1145 L 525 1180" stroke="#34d399" stroke-width="2" marker-end="url(#arrowSuccess)" />
+
+  <!-- STEP 9: Active Deployment -->
+  <g transform="translate(295, 1180)">
+    <rect x="0" y="0" width="460" height="95" rx="14" fill="url(#successGrad)" stroke="#34d399" stroke-width="2" filter="url(#accentGlow)"/>
+    <circle cx="45" cy="47" r="22" fill="#059669" />
+    <text x="45" y="54" fill="#ffffff" font-size="20" text-anchor="middle">✓</text>
+    <text x="85" y="36" fill="#ecfdf5" font-size="17" font-weight="bold">Active Project Deployment</text>
+    <text x="85" y="58" fill="#a7f3d0" font-size="13">Status: <tspan font-weight="bold" fill="#ffffff">DEPLOYED</tspan> • Handed over to Client Operations</text>
+    <text x="85" y="78" fill="#d1fae5" font-size="12">Status History Tracked • Outbox Automated Notification Sent</text>
+  </g>
+
+  <!-- FOOTER -->
+  <text x="525" y="1370" fill="#475569" font-size="12" text-anchor="middle">MEGS Recruitment Management System • Flowchart 2 of 3: Talent Acquisition Workflow</text>
+</svg>

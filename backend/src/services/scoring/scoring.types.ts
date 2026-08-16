@@ -22,6 +22,7 @@ export type KnnSettings = {
 export type ScoringConfigurationInput = {
   weights: ScoringWeights;
   knnSettings?: Partial<KnnSettings>;
+  matchThreshold?: number;
 };
 
 export type SparseVector = ReadonlyMap<string, number>;

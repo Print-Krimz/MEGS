@@ -102,7 +102,7 @@ describe('Phase 3 — DB Constraint Verification', () => {
           employeeId: existing.employeeId,
           applicationId: existing.applicationId,
           clientId: existing.clientId,
-          status: 'PENDING_ORIENTATION',
+          status: 'READY_FOR_DEPLOYMENT',
           createdById: actorId,
         },
       })

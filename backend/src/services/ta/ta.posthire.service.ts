@@ -63,6 +63,11 @@ export const executeHiring = async (
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
     include: {
+      jobPosting: {
+        include: {
+          mrf: true,
+        },
+      },
       hiredEmployee: true,
       user: { select: { applicantProfile: { select: { id: true } } } },
     },
@@ -72,8 +77,20 @@ export const executeHiring = async (
   if (application.isArchived) throw new Error("Cannot hire an archived application");
   if (application.hiredEmployee) throw new Error("This application has already produced an employee record");
 
+  const resolvedDepartment =
+    department ||
+    application.jobPosting?.mrf?.title ||
+    "General";
+
+
+  const resolvedPosition =
+    position ||
+    application.jobPosting?.title ||
+    application.jobPosting?.mrf?.title ||
+    "Specialist";
+
   // Enforce required passed FINAL_INTERVIEW unless already in post-interview stage
-  const isPostInterview = ["HIRED", "ONBOARDING", "COMPLIANCE"].includes(application.status);
+  const isPostInterview = ["HIRED", "ONBOARDING", "COMPLIANCE", "DEPLOYED"].includes(application.status);
   if (!isPostInterview) {
     const finalInterview = await prisma.interview.findFirst({
       where: { applicationId, type: "FINAL_INTERVIEW", result: { in: ["PASS", "PASSED"] }, isActive: true },
@@ -97,17 +114,18 @@ export const executeHiring = async (
     `EMP-${new Date().getFullYear()}-${String(application.id).padStart(4, "0")}`;
 
   const result = await prisma.$transaction(async (tx) => {
+    const nextStatus = application.status === "DEPLOYED" ? "DEPLOYED" : "HIRED";
     const app = await tx.application.update({
       where: { id: applicationId },
-      data: { status: "HIRED" },
+      data: { status: nextStatus },
     });
 
     const employee = await tx.employee.create({
       data: {
         userId: application.userId,
         employeeNumber: generatedEmployeeNumber,
-        department,
-        position,
+        department: resolvedDepartment,
+        position: resolvedPosition,
         hireDate: startDate ? new Date(startDate) : new Date(),
         originatingApplicationId: applicationId,
         notes,

@@ -35,8 +35,16 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
   let clientB: any;
   let mrfA: any;
   let mrfB: any;
+  let cand3: any;
+  let app3: any;
 
   beforeAll(async () => {
+    // 0. Clean up any static test employee numbers from prior test runs
+    await prisma.deploymentStatusHistory.deleteMany({ where: { deployment: { employee: { employeeNumber: { in: ["EMP-2026-0001", "EMP-2026-0002"] } } } } });
+    await prisma.employmentEvent.deleteMany({ where: { employee: { employeeNumber: { in: ["EMP-2026-0001", "EMP-2026-0002"] } } } });
+    await prisma.deployment.deleteMany({ where: { employee: { employeeNumber: { in: ["EMP-2026-0001", "EMP-2026-0002"] } } } });
+    await prisma.employee.deleteMany({ where: { employeeNumber: { in: ["EMP-2026-0001", "EMP-2026-0002"] } } });
+
     // 1. Create TA User
     taUser = await prisma.user.create({
       data: {
@@ -66,7 +74,6 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
             civilStatus: "Married",
             address: "Block 1 Lot 2, Sample Village",
             professionalSummary: "Warehouse Operations Supervisor with 6 years experience",
-            hasConsentedToAi: true,
             workExperiences: {
               create: [
                 {
@@ -115,7 +122,6 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
             civilStatus: "Single",
             address: "456 Greenfield St",
             professionalSummary: "Forklift Operator and Inventory Specialist",
-            hasConsentedToAi: true,
           },
         },
       },
@@ -185,33 +191,6 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
       headcount: 1,
       priority: "NORMAL",
     });
-  });
-
-  afterAll(async () => {
-    try {
-      const userIds = [taUser?.id, applicantUser1?.id, applicantUser2?.id].filter(Boolean);
-      const clientIds = [clientA?.id, clientB?.id].filter(Boolean);
-      const jobIds = [jobPosting1?.id, jobPosting2?.id].filter(Boolean);
-
-      // Clean up in reverse dependency order
-      await prisma.employmentEvent.deleteMany({ where: { actorId: { in: userIds } } });
-      await prisma.deploymentStatusHistory.deleteMany({ where: { changedById: { in: userIds } } });
-      await prisma.deployment.deleteMany({ where: { clientId: { in: clientIds } } });
-      await prisma.employee.deleteMany({ where: { userId: { in: userIds } } });
-      await prisma.complianceRequirement.deleteMany({ where: { application: { userId: { in: userIds } } } });
-      await prisma.recruiterDecision.deleteMany({ where: { actorId: { in: userIds } } });
-      await prisma.interview.deleteMany({ where: { application: { userId: { in: userIds } } } });
-      await prisma.application.deleteMany({ where: { userId: { in: userIds } } });
-      await prisma.jobPosting.deleteMany({ where: { id: { in: jobIds } } });
-      await prisma.manpowerRequest.deleteMany({ where: { clientId: { in: clientIds } } });
-      await prisma.client.deleteMany({ where: { id: { in: clientIds } } });
-      await prisma.workExperience.deleteMany({ where: { applicantProfile: { userId: { in: userIds } } } });
-      await prisma.education.deleteMany({ where: { applicantProfile: { userId: { in: userIds } } } });
-      await prisma.applicantProfile.deleteMany({ where: { userId: { in: userIds } } });
-      await prisma.user.deleteMany({ where: { id: { in: userIds } } });
-    } catch (e) {
-      // Best effort cleanup
-    }
   });
 
   // ── TEST 1: Candidate Lifecycle Isolation ───────────────────────────────────
@@ -398,7 +377,7 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
   // ── TEST 8: Transaction Safety on Hire Failure ──────────────────────────────
   it("TEST-8: Failed Employee creation does not leave Application marked HIRED", async () => {
     // Create candidate 3
-    const cand3 = await prisma.user.create({
+    cand3 = await prisma.user.create({
       data: {
         id: `cand-3-${Date.now()}`,
         email: `cand3-${Date.now()}@example.com`,
@@ -417,13 +396,12 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
             civilStatus: "Single",
             address: "789 Cavite Road",
             professionalSummary: "Tester",
-            hasConsentedToAi: true,
           },
         },
       },
     });
 
-    const app3 = await prisma.application.create({
+    app3 = await prisma.application.create({
       data: {
         userId: cand3.id,
         jobPostingId: jobPosting1.id,
@@ -455,5 +433,96 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
       where: { userId: cand3.id },
     });
     expect(checkedEmp).toBeNull();
+  });
+
+  afterAll(async () => {
+    try {
+      const userIds = [taUser?.id, applicantUser1?.id, applicantUser2?.id, cand3?.id].filter(Boolean);
+      const appIds = [application1?.id, application2?.id, app3?.id].filter(Boolean);
+      const clientIds = [clientA?.id, clientB?.id].filter(Boolean);
+      const jobIds = [jobPosting1?.id, jobPosting2?.id].filter(Boolean);
+
+      await prisma.deploymentStatusHistory.deleteMany({
+        where: {
+          OR: [
+            { deployment: { clientId: { in: clientIds } } },
+            { changedById: { in: userIds } },
+          ],
+        },
+      });
+      await prisma.deployment.deleteMany({
+        where: {
+          OR: [
+            { clientId: { in: clientIds } },
+            { createdById: { in: userIds } },
+            { employee: { userId: { in: userIds } } },
+          ],
+        },
+      });
+      await prisma.employmentEvent.deleteMany({
+        where: {
+          OR: [
+            { employee: { userId: { in: userIds } } },
+            { actorId: { in: userIds } },
+          ],
+        },
+      });
+      await prisma.employee.deleteMany({ where: { userId: { in: userIds } } });
+      await prisma.complianceRequirement.deleteMany({ where: { applicationId: { in: appIds } } });
+      await prisma.recruiterDecision.deleteMany({
+        where: {
+          OR: [
+            { applicationId: { in: appIds } },
+            { actorId: { in: userIds } },
+          ],
+        },
+      });
+      await prisma.interview.deleteMany({ where: { applicationId: { in: appIds } } });
+      await prisma.application.deleteMany({
+        where: {
+          OR: [
+            { userId: { in: userIds } },
+            { jobPostingId: { in: jobIds } },
+          ],
+        },
+      });
+      await prisma.jobPosting.deleteMany({
+        where: {
+          OR: [
+            { postedById: { in: userIds } },
+            { id: { in: jobIds } },
+          ],
+        },
+      });
+      await prisma.mRFComplianceTemplate.deleteMany({
+        where: {
+          OR: [
+            { mrf: { createdById: { in: userIds } } },
+            { clientId: { in: clientIds } },
+          ],
+        },
+      });
+      await prisma.manpowerRequest.deleteMany({
+        where: {
+          OR: [
+            { createdById: { in: userIds } },
+            { clientId: { in: clientIds } },
+          ],
+        },
+      });
+      if (clientIds.length > 0) {
+        await prisma.client.deleteMany({ where: { id: { in: clientIds } } });
+      }
+      await prisma.workExperience.deleteMany({ where: { applicantProfile: { userId: { in: userIds } } } });
+      await prisma.education.deleteMany({ where: { applicantProfile: { userId: { in: userIds } } } });
+      await prisma.applicantSkill.deleteMany({ where: { applicantProfile: { userId: { in: userIds } } } });
+      await prisma.candidateFeatureProfile.deleteMany({ where: { applicantProfile: { userId: { in: userIds } } } });
+      await prisma.applicantProfile.deleteMany({ where: { userId: { in: userIds } } });
+      await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+    } catch {
+      // Best-effort cleanup
+    } finally {
+      await prisma.$disconnect();
+    }
   });
 });

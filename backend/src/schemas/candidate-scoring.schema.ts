@@ -22,10 +22,12 @@ export const candidateScoringSchema = {
     expectedRevision: z.number().int().min(1),
     weights,
     knnSettings: knnSettings.optional(),
+    matchThreshold: z.number().int().min(0).max(100).optional(),
   }).strict(),
   validateConfiguration: z.object({
     weights,
     knnSettings: knnSettings.optional(),
+    matchThreshold: z.number().int().min(0).max(100).optional(),
   }).strict(),
   restoreDefaults: z.object({ expectedRevision: z.number().int().min(1) }).strict(),
   cursorQuery: z.object({ cursor: z.coerce.number().int().positive().optional(), limit: z.coerce.number().int().min(1).max(100).default(25) }),

@@ -67,6 +67,12 @@ export const taSchema = {
       notes: z.string().optional(),
     }),
   }),
+  updateEndorsement: z.object({
+    body: z.object({
+      outcome: z.enum(["PENDING", "ENDORSED", "DECLINED"]),
+      notes: z.string().optional(),
+    }),
+  }),
   createComplianceTemplate: z.object({
     body: z.object({
       documentLabel: z.string().min(1, "Document label is required"),

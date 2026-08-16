@@ -3,12 +3,10 @@ import { DeploymentStatus } from "@prisma/client";
 import { isFullyCompliant } from "./ta.compliance.service.js";
 
 const ALLOWED_DEPLOYMENT_TRANSITIONS: Record<string, string[]> = {
-  PENDING_ORIENTATION: ["READY", "CANCELLED"],
-  READY:               ["DISPATCHED", "CANCELLED"],
-  DISPATCHED:          ["ACTIVE", "CANCELLED"],
-  ACTIVE:              ["ENDED", "CANCELLED"],
-  ENDED:               [],
-  CANCELLED:           [],
+  READY_FOR_DEPLOYMENT: ["ACTIVE", "CANCELLED"],
+  ACTIVE:               ["ENDED"],
+  ENDED:                [],
+  CANCELLED:            [],
 };
 
 export const createDeployment = async (
@@ -30,7 +28,15 @@ export const createDeployment = async (
   if (data.applicationId) {
     application = await prisma.application.findUnique({
       where: { id: data.applicationId },
-      include: { hiredEmployee: true, user: true },
+      include: {
+        hiredEmployee: true,
+        user: true,
+        jobPosting: {
+          include: {
+            mrf: true,
+          },
+        },
+      },
     });
 
     if (!application) throw new Error("Application not found");
@@ -91,26 +97,38 @@ export const createDeployment = async (
     throw new Error("Employee already has an active deployment.");
   }
 
-  const client = await prisma.client.findUnique({ where: { id: data.clientId } });
+  const resolvedClientId = data.clientId || application?.jobPosting?.mrf?.clientId;
+  if (!resolvedClientId) {
+    throw new Error("Client ID is required for deployment.");
+  }
+
+  const client = await prisma.client.findUnique({ where: { id: resolvedClientId } });
   if (!client) throw new Error("Client not found");
 
-  if (data.mrfId) {
-    const mrf = await prisma.manpowerRequest.findUnique({ where: { id: data.mrfId } });
+  const resolvedMrfId = data.mrfId || application?.jobPosting?.mrfId || null;
+  if (resolvedMrfId) {
+    const mrf = await prisma.manpowerRequest.findUnique({ where: { id: resolvedMrfId } });
     if (!mrf) throw new Error("Manpower Request not found");
   }
+
+  const resolvedSite =
+    data.site ||
+    application?.jobPosting?.mrf?.location ||
+    application?.jobPosting?.location ||
+    null;
 
   const deployment = await prisma.deployment.create({
     data: {
       employeeId: empId,
       applicationId: data.applicationId || employee.originatingApplicationId || null,
-      clientId: data.clientId,
-      mrfId: data.mrfId || null,
+      clientId: resolvedClientId,
+      mrfId: resolvedMrfId,
       createdById,
-      site: data.site || null,
+      site: resolvedSite,
       contractStart: data.contractStart ? new Date(data.contractStart) : null,
       contractEnd: data.contractEnd ? new Date(data.contractEnd) : null,
       notes: data.notes || null,
-      status: "PENDING_ORIENTATION",
+      status: "READY_FOR_DEPLOYMENT",
     },
     include: {
       employee: {
@@ -133,7 +151,7 @@ export const createDeployment = async (
   await prisma.deploymentStatusHistory.create({
     data: {
       deploymentId: deployment.id,
-      toStatus: "PENDING_ORIENTATION",
+      toStatus: "READY_FOR_DEPLOYMENT",
       changedById: createdById,
       reason: data.notes || "Deployment created",
     },

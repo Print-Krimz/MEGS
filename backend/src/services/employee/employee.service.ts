@@ -383,7 +383,7 @@ export const createEmployeeDeployment = async (
         contractStart: data.contractStart ? new Date(data.contractStart) : null,
         contractEnd: data.contractEnd ? new Date(data.contractEnd) : null,
         notes: data.notes || null,
-        status: "PENDING_ORIENTATION",
+        status: "READY_FOR_DEPLOYMENT",
       },
       include: {
         employee: {
@@ -406,7 +406,7 @@ export const createEmployeeDeployment = async (
     await tx.deploymentStatusHistory.create({
       data: {
         deploymentId: deployment.id,
-        toStatus: "PENDING_ORIENTATION",
+        toStatus: "READY_FOR_DEPLOYMENT",
         changedById: createdById,
         reason: data.notes || "Deployment initiated",
       },

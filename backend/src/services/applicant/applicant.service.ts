@@ -19,7 +19,7 @@ export const getApplicantProfile = async (userId: string) => {
     },
   });
 
-  if (!profile) throw new Error("Profile not found. Please create your profile first.");
+  if (!profile) return null;
 
   return {
     ...profile,
@@ -28,40 +28,80 @@ export const getApplicantProfile = async (userId: string) => {
 };
 
 export const upsertApplicantProfile = async (userId: string, data: any) => {
-  const profileData = {
-    firstName: data.firstName,
-    middleName: data.middleName,
-    lastName: data.lastName,
-    mobileNumber: data.mobileNumber,
-    gender: data.gender,
-    province: data.province,
-    city: data.city,
-    dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : new Date(),
-    birthPlace: data.birthPlace,
-    nationality: data.nationality,
-    civilStatus: data.civilStatus,
-    height: data.height,
-    weight: data.weight,
-    religion: data.religion,
-    address: data.address,
-    preferredWorkLocations: data.preferredWorkLocations,
-    pagibig: data.pagibig,
-    philhealth: data.philhealth,
-    sss: data.sss,
-    tin: data.tin,
-    professionalSummary: data.professionalSummary,
-    emergencyContactName: data.emergencyContactName,
-    emergencyContactRelationship: data.emergencyContactRelationship,
-    emergencyContactPhone: data.emergencyContactPhone,
-    emergencyContactAddress: data.emergencyContactAddress,
-    additionalNotes: data.additionalNotes,
-  };
+  const sanitizeString = (val: any) => (val !== undefined && val !== null ? String(val).trim() || null : undefined);
+  const sanitizeNumber = (val: any) => (val !== undefined && val !== null && val !== "" && !isNaN(Number(val)) ? Number(val) : val === null ? null : undefined);
+  const sanitizeDate = (val: any) => (val ? new Date(val) : val === null ? null : undefined);
 
-  const profile = await prisma.applicantProfile.upsert({
-    where: { userId },
-    update: profileData,
-    create: { userId, ...profileData },
-  });
+  const updateData: Record<string, any> = {};
+  if (data.firstName !== undefined) updateData.firstName = String(data.firstName).trim();
+  if (data.lastName !== undefined) updateData.lastName = String(data.lastName).trim();
+  if (data.middleName !== undefined) updateData.middleName = sanitizeString(data.middleName);
+  if (data.mobileNumber !== undefined) updateData.mobileNumber = sanitizeString(data.mobileNumber);
+  if (data.gender !== undefined) updateData.gender = sanitizeString(data.gender);
+  if (data.province !== undefined) updateData.province = sanitizeString(data.province);
+  if (data.city !== undefined) updateData.city = sanitizeString(data.city);
+  if (data.dateOfBirth !== undefined) updateData.dateOfBirth = sanitizeDate(data.dateOfBirth);
+  if (data.birthPlace !== undefined) updateData.birthPlace = sanitizeString(data.birthPlace);
+  if (data.nationality !== undefined) updateData.nationality = sanitizeString(data.nationality);
+  if (data.civilStatus !== undefined) updateData.civilStatus = sanitizeString(data.civilStatus);
+  if (data.height !== undefined) updateData.height = sanitizeNumber(data.height);
+  if (data.weight !== undefined) updateData.weight = sanitizeNumber(data.weight);
+  if (data.religion !== undefined) updateData.religion = sanitizeString(data.religion);
+  if (data.address !== undefined) updateData.address = sanitizeString(data.address);
+  if (data.preferredWorkLocations !== undefined) updateData.preferredWorkLocations = sanitizeString(data.preferredWorkLocations);
+  if (data.pagibig !== undefined) updateData.pagibig = sanitizeString(data.pagibig);
+  if (data.philhealth !== undefined) updateData.philhealth = sanitizeString(data.philhealth);
+  if (data.sss !== undefined) updateData.sss = sanitizeString(data.sss);
+  if (data.tin !== undefined) updateData.tin = sanitizeString(data.tin);
+  if (data.professionalSummary !== undefined) updateData.professionalSummary = sanitizeString(data.professionalSummary);
+  if (data.emergencyContactName !== undefined) updateData.emergencyContactName = sanitizeString(data.emergencyContactName);
+  if (data.emergencyContactRelationship !== undefined) updateData.emergencyContactRelationship = sanitizeString(data.emergencyContactRelationship);
+  if (data.emergencyContactPhone !== undefined) updateData.emergencyContactPhone = sanitizeString(data.emergencyContactPhone);
+  if (data.emergencyContactAddress !== undefined) updateData.emergencyContactAddress = sanitizeString(data.emergencyContactAddress);
+  if (data.additionalNotes !== undefined) updateData.additionalNotes = sanitizeString(data.additionalNotes);
+
+  const existing = await prisma.applicantProfile.findUnique({ where: { userId } });
+
+  let profile;
+  if (existing) {
+    profile = await prisma.applicantProfile.update({
+      where: { userId },
+      data: updateData,
+    });
+  } else {
+    profile = await prisma.applicantProfile.create({
+      data: {
+        userId,
+        firstName: updateData.firstName || "",
+        lastName: updateData.lastName || "",
+        middleName: updateData.middleName ?? null,
+        mobileNumber: updateData.mobileNumber ?? null,
+        gender: updateData.gender ?? null,
+        province: updateData.province ?? null,
+        city: updateData.city ?? null,
+        dateOfBirth: updateData.dateOfBirth ?? null,
+        birthPlace: updateData.birthPlace ?? null,
+        nationality: updateData.nationality ?? null,
+        civilStatus: updateData.civilStatus ?? null,
+        height: updateData.height ?? null,
+        weight: updateData.weight ?? null,
+        religion: updateData.religion ?? null,
+        address: updateData.address ?? null,
+        preferredWorkLocations: updateData.preferredWorkLocations ?? null,
+        pagibig: updateData.pagibig ?? null,
+        philhealth: updateData.philhealth ?? null,
+        sss: updateData.sss ?? null,
+        tin: updateData.tin ?? null,
+        professionalSummary: updateData.professionalSummary ?? null,
+        emergencyContactName: updateData.emergencyContactName ?? null,
+        emergencyContactRelationship: updateData.emergencyContactRelationship ?? null,
+        emergencyContactPhone: updateData.emergencyContactPhone ?? null,
+        emergencyContactAddress: updateData.emergencyContactAddress ?? null,
+        additionalNotes: updateData.additionalNotes ?? null,
+      },
+    });
+  }
+
   queueProfileRevalidation(profile.id);
   return profile;
 };
@@ -260,16 +300,5 @@ export const updateProfileResumeService = async (userId: string, resumeUrl: stri
     data: { resumeUrl },
   });
   queueProfileRevalidation(profile.id);
-  return updated;
-};
-
-export const setAiConsentService = async (userId: string, consent: boolean) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
-
-  const updated = await prisma.applicantProfile.update({
-    where: { id: profile.id },
-    data: { hasConsentedToAi: consent },
-  });
   return updated;
 };

@@ -28,13 +28,20 @@ const selectCurrentOrFallbackScores = <T extends CompletedOrStaleCandidateScore>
 };
 
 const serializeScore = (score: any) => ({
+  id: score.id,
   applicationId: score.applicationId,
   jobPostingId: score.jobPostingId,
-  configurationVersion: score.configuration.version,
+  configurationVersion: score.configuration?.version ?? score.configurationVersion,
+  configurationId: score.configurationId,
   status: score.status,
   calculatedAt: score.calculatedAt,
+  skillsScore: Number(score.skillsScore),
+  experienceScore: Number(score.experienceScore),
+  locationScore: Number(score.locationScore),
+  complianceScore: Number(score.complianceScore),
+  educationCertificationScore: Number(score.educationCertificationScore),
   finalFitScore: Number(score.finalFitScore),
-  knnSimilarity: score.knnSimilarity === null ? null : Number(score.knnSimilarity),
+  knnSimilarity: score.knnSimilarity === null || score.knnSimilarity === undefined ? null : Number(score.knnSimilarity),
   breakdown: {
     skills: Number(score.skillsScore),
     experience: Number(score.experienceScore),
@@ -107,6 +114,10 @@ export const calculateAndPersistCandidateScore = async (
       },
       include: { configuration: { select: { version: true } } },
     });
+
+  const { applyScoreCategorization } = await import("../ta/ta.applications.service.js");
+  await applyScoreCategorization(applicationId, finalFitScore);
+
   return serializeScore(score);
 };
 

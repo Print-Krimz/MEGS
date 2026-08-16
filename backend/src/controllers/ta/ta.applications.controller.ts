@@ -12,9 +12,16 @@ import {
 // GET /api/ta/applications - List and filter applications across postings
 export const listApplications = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status, jobPostingId } = req.query;
-    const applications = await listTAApplications(status as string, jobPostingId as string);
-    sendSuccess(res, "Applications retrieved", applications);
+    const { status, jobPostingId, jobId, search, isArchived, page, limit } = req.query;
+    const result = await listTAApplications({
+      status: status as string,
+      jobPostingId: (jobPostingId || jobId) as string,
+      search: search as string,
+      isArchived: isArchived !== undefined ? isArchived === "true" : undefined,
+      page: page ? parseInt(page as string, 10) : undefined,
+      limit: limit ? parseInt(limit as string, 10) : undefined,
+    });
+    sendSuccess(res, "Applications retrieved", result);
   } catch (error: any) {
     sendError(res, error.message, 500);
   }

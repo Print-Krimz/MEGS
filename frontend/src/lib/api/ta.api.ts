@@ -235,6 +235,16 @@ export const taApi = {
   recordEndorsement: (applicationId: number | string, data: EndorseCandidateDto) =>
     api.post<ClientEndorsement>(`/api/ta/applications/${applicationId}/endorse`, data),
 
+  updateEndorsement: (
+    applicationId: number | string,
+    endorsementId: number | string,
+    data: { outcome: "PENDING" | "ENDORSED" | "DECLINED"; notes?: string }
+  ) =>
+    api.patch<ClientEndorsement>(
+      `/api/ta/applications/${applicationId}/endorsements/${endorsementId}`,
+      data
+    ),
+
   listEndorsements: (applicationId: number | string) =>
     api.get<ClientEndorsement[]>(`/api/ta/applications/${applicationId}/endorsements`),
 
@@ -320,9 +330,10 @@ export const taApi = {
   getComplianceOverview: () =>
     api.get<ComplianceAnalytics>("/api/ta/analytics/compliance"),
 
-  exportPipelineReport: (format: "csv" | "xlsx" | "json" = "json") =>
-    api.get<any>(`/api/ta/reports/pipeline?format=${format}`),
+  exportPipelineReport: (format: "pdf" | "xlsx" = "pdf") =>
+    api.blob(`/api/ta/reports/pipeline?format=${format}`),
 
-  exportDeploymentReport: (format: "csv" | "xlsx" | "json" = "json") =>
-    api.get<any>(`/api/ta/reports/deployments?format=${format}`),
+  exportDeploymentReport: (format: "pdf" | "xlsx" = "pdf") =>
+    api.blob(`/api/ta/reports/deployments?format=${format}`),
+
 };

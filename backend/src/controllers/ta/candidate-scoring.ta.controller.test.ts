@@ -34,6 +34,7 @@ import {
   addCandidateToPool,
   considerCandidateForJob,
   getTalentPool,
+  rankCandidates,
   recordContact,
   searchTalentPool,
 } from "./candidate-scoring.ta.controller.js";
@@ -159,6 +160,25 @@ describe("TA talent-pool controller", () => {
       "Application",
       250,
       { targetJobId: 8 }
+    );
+  });
+
+  it("triggers candidate pool re-scoring and returns rankedCount in data payload", async () => {
+    mocks.enqueue.mockResolvedValueOnce(5);
+    const res = response();
+
+    await rankCandidates(
+      { params: { jobId: "8" }, user: { id: "ta-1" } } as any,
+      res as any
+    );
+
+    expect(mocks.enqueue).toHaveBeenCalledWith(8);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        data: { rankedCount: 5 },
+      })
     );
   });
 });

@@ -17,7 +17,19 @@ import { scoringFlags } from '../../utils/scoring-flags.js';
 import { logAudit } from '../../utils/audit.js';
 
 const handle = (res: Response, error: unknown) => {
-  if (error instanceof ZodError) return res.status(422).json({ success: false, message: "Invalid talent-pool request", code: "INVALID_REQUEST", errors: error.issues.map((issue) => ({ field: issue.path.join("."), code: "INVALID_VALUE", message: issue.message })) });
+  if (error instanceof ZodError) {
+    const firstMessage = error.issues[0]?.message || "Invalid talent-pool request";
+    return res.status(422).json({
+      success: false,
+      message: firstMessage,
+      code: "INVALID_REQUEST",
+      errors: error.issues.map((issue) => ({
+        field: issue.path.join("."),
+        code: "INVALID_VALUE",
+        message: issue.message,
+      })),
+    });
+  }
   if (error instanceof InvalidKnnRequestError) return res.status(422).json({ success: false, message: error.message, code: error.code });
   return sendError(res, error instanceof Error ? error.message : "Unable to process talent-pool request", 500);
 };
@@ -36,8 +48,8 @@ export const rankCandidates = async (req: Request, res: Response) => {
   try {
     if (!requireDynamicScoring(res)) return;
     const { jobId } = candidateScoringSchema.rankJobParams.parse(req.params);
-    await revalidateJobScoring(jobId);
-    return sendSuccess(res, "Job candidate pool re-scoring completed successfully", null, 200);
+    const rankedCount = await revalidateJobScoring(jobId);
+    return sendSuccess(res, "Job candidate pool re-scoring completed successfully", { rankedCount: rankedCount ?? 0 }, 200);
   } catch (error) { handle(res, error); }
 };
 

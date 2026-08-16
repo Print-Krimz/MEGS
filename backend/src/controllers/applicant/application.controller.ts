@@ -4,7 +4,9 @@ import {
   fetchOpenJobs,
   fetchJobDetails,
   submitApplicationService,
-  fetchMyApplications
+  fetchMyApplications,
+  fetchApplicationDetails,
+  uploadApplicantComplianceDocument
 } from '../../services/applicant/application.service.js';
 import { getApplicantProfile } from '../../services/applicant/applicant.service.js';
 
@@ -44,8 +46,8 @@ export const applyToJob = async (req: Request, res: Response): Promise<void> => 
     }
 
     const profile = await getApplicantProfile(req.user!.id);
-    if (!profile.hasConsentedToAi) {
-      sendError(res, "You must consent to AI processing before submitting an application.", 403);
+    if (!profile) {
+      sendError(res, "Profile not found. Please complete your profile first.", 400);
       return;
     }
 
@@ -65,5 +67,47 @@ export const getMyApplications = async (req: Request, res: Response): Promise<vo
     sendSuccess(res, "Applications retrieved", applications);
   } catch (error: any) {
     sendError(res, error.message, 500);
+  }
+};
+
+// GET /api/applicant-jobs/applications/:id - Specific application detail
+export const getMyApplicationDetails = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const applicationId = parseInt(req.params.id as string, 10);
+    if (isNaN(applicationId)) {
+      sendError(res, "Invalid application ID", 400);
+      return;
+    }
+    const application = await fetchApplicationDetails(applicationId, req.user!.id);
+    sendSuccess(res, "Application details retrieved", application);
+  } catch (error: any) {
+    const status = error.message.includes("not found") ? 404 : 500;
+    sendError(res, error.message, status);
+  }
+};
+
+// POST /api/applicant/applications/compliance/:requirementId/upload - Upload compliance document
+export const uploadComplianceDocumentHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requirementId = parseInt(req.params.requirementId as string, 10);
+    if (isNaN(requirementId)) {
+      sendError(res, "Invalid compliance requirement ID", 400);
+      return;
+    }
+
+    if (!req.file) {
+      sendError(res, "File upload is required", 400);
+      return;
+    }
+
+    const updated = await uploadApplicantComplianceDocument(
+      req.user!.id,
+      requirementId,
+      req.file
+    );
+    sendSuccess(res, "Compliance document uploaded successfully", updated);
+  } catch (error: any) {
+    const status = error.message.includes("not found") ? 404 : error.message.includes("Unauthorized") ? 403 : 400;
+    sendError(res, error.message, status);
   }
 };

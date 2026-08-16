@@ -45,7 +45,6 @@ describe("Phase 2 - Integration & Workflow Verification", { timeout: 25000 }, ()
             civilStatus: "Single",
             address: "123 Main St",
             professionalSummary: "Experienced full stack developer",
-            hasConsentedToAi: true,
           },
         },
       },
@@ -57,7 +56,10 @@ describe("Phase 2 - Integration & Workflow Verification", { timeout: 25000 }, ()
     // Cleanup created records in reverse order
     try {
       if (testApplication) {
+        await prisma.deploymentStatusHistory.deleteMany({ where: { deployment: { applicationId: testApplication.id } } });
         await prisma.deployment.deleteMany({ where: { applicationId: testApplication.id } });
+        await prisma.employmentEvent.deleteMany({ where: { employee: { userId: testApplicant?.id } } });
+        await prisma.employee.deleteMany({ where: { userId: testApplicant?.id } });
         await prisma.complianceRequirement.deleteMany({ where: { applicationId: testApplication.id } });
         await prisma.recruiterDecision.deleteMany({ where: { applicationId: testApplication.id } });
         await prisma.interview.deleteMany({ where: { applicationId: testApplication.id } });
@@ -73,14 +75,17 @@ describe("Phase 2 - Integration & Workflow Verification", { timeout: 25000 }, ()
         await prisma.client.delete({ where: { id: testClient.id } });
       }
       if (testApplicant) {
+        await prisma.candidateFeatureProfile.deleteMany({ where: { applicantProfile: { userId: testApplicant.id } } });
         await prisma.applicantProfile.deleteMany({ where: { userId: testApplicant.id } });
         await prisma.user.delete({ where: { id: testApplicant.id } });
       }
       if (testUser) {
         await prisma.user.delete({ where: { id: testUser.id } });
       }
-    } catch (err) {
+    } catch {
       // Cleanup best effort
+    } finally {
+      await prisma.$disconnect();
     }
   });
 
@@ -162,10 +167,10 @@ describe("Phase 2 - Integration & Workflow Verification", { timeout: 25000 }, ()
     });
 
     expect(deployment.id).toBeDefined();
-    expect(deployment.status).toBe("PENDING_ORIENTATION");
+    expect(deployment.status).toBe("READY_FOR_DEPLOYMENT");
 
-    const updated = await updateDeploymentStatus(deployment.id, "READY");
-    expect(updated.status).toBe("READY");
+    const updated = await updateDeploymentStatus(deployment.id, "ACTIVE");
+    expect(updated.status).toBe("ACTIVE");
   });
 
   it("P2-06: Analytics statistics calculation", async () => {

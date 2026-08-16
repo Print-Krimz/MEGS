@@ -11,8 +11,7 @@ import {
   addTraining, deleteTraining,
   addReference, deleteReference,
   addAsset, deleteAsset,
-  uploadPhoto, uploadResume,
-  setAiConsent
+  uploadPhoto, uploadResume
 } from '../../controllers/applicant/applicant.controller.js';
 
 const router = Router();
@@ -41,6 +40,5 @@ router.post("/profile/assets", upload.single("file"), validate(applicantSchema.a
 router.delete("/profile/assets/:id", deleteAsset);
 router.post("/profile/photo", upload.single("file"), uploadPhoto);
 router.post("/profile/resume", upload.single("file"), uploadResume);
-router.post("/profile/consent", setAiConsent);
 
 export default router;

@@ -122,6 +122,7 @@ describe("MEGS End-to-End Canonical Recruitment Pipeline", () => {
       await prisma.clientEndorsement.deleteMany({ where: { applicationId: application.id } });
       await prisma.interview.deleteMany({ where: { applicationId: application.id } });
       await prisma.recruiterDecision.deleteMany({ where: { applicationId: application.id } });
+      await prisma.candidateScore.deleteMany({ where: { applicationId: application.id } });
       await prisma.application.deleteMany({ where: { id: application.id } });
     }
     if (jobPosting?.id) await prisma.jobPosting.deleteMany({ where: { id: jobPosting.id } });
@@ -330,7 +331,7 @@ describe("MEGS End-to-End Canonical Recruitment Pipeline", () => {
     });
 
     expect(deployment).toBeDefined();
-    expect(deployment.status).toBe("PENDING_ORIENTATION");
+    expect(deployment.status).toBe("READY_FOR_DEPLOYMENT");
 
     // Verify application status is now DEPLOYED
     const updatedApp = await prisma.application.findUnique({
@@ -354,5 +355,42 @@ describe("MEGS End-to-End Canonical Recruitment Pipeline", () => {
     expect(transitions).toContain("FINAL_INTERVIEW -> HIRED");
     expect(transitions).toContain("HIRED -> COMPLIANCE");
     expect(transitions).toContain("COMPLIANCE -> DEPLOYED");
+  });
+
+  afterAll(async () => {
+    try {
+      const userIds = [taUser?.id, applicantUser?.id].filter(Boolean);
+      if (application?.id) {
+        await prisma.deploymentStatusHistory.deleteMany({ where: { deployment: { applicationId: application.id } } });
+        await prisma.deployment.deleteMany({ where: { applicationId: application.id } });
+        await prisma.complianceRequirement.deleteMany({ where: { applicationId: application.id } });
+        await prisma.clientEndorsement.deleteMany({ where: { applicationId: application.id } });
+        await prisma.recruiterDecision.deleteMany({ where: { applicationId: application.id } });
+        await prisma.interview.deleteMany({ where: { applicationId: application.id } });
+        await prisma.employee.deleteMany({ where: { userId: applicantUser?.id } });
+        await prisma.application.delete({ where: { id: application.id } });
+      }
+      if (jobPosting?.id) {
+        await prisma.jobPosting.delete({ where: { id: jobPosting.id } });
+      }
+      if (mrf?.id) {
+        await prisma.mRFComplianceTemplate.deleteMany({ where: { mrfId: mrf.id } });
+        await prisma.manpowerRequest.delete({ where: { id: mrf.id } });
+      }
+      if (client?.id) {
+        await prisma.client.delete({ where: { id: client.id } });
+      }
+      if (applicantUser?.id) {
+        await prisma.applicantProfile.deleteMany({ where: { userId: applicantUser.id } });
+        await prisma.user.delete({ where: { id: applicantUser.id } });
+      }
+      if (taUser?.id) {
+        await prisma.user.delete({ where: { id: taUser.id } });
+      }
+    } catch {
+      // Best-effort cleanup
+    } finally {
+      await prisma.$disconnect();
+    }
   });
 });

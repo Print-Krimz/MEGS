@@ -26,6 +26,8 @@ export const DEFAULT_KNN_SETTINGS: KnnSettings = {
   excludeCurrentlyHired: true,
 };
 
+export const DEFAULT_MATCH_THRESHOLD = 60;
+
 export class InvalidScoringConfigurationError extends Error {
   readonly code = "INVALID_CONFIGURATION";
   constructor(readonly errors: Array<{ field: string; code: string; message: string }>) {
@@ -42,7 +44,7 @@ const decimalToBasisPoints = (value: number): number | null => {
 
 const validateScoringConfiguration = (
   input: ScoringConfigurationInput,
-): { weights: ScoringWeights; knnSettings: KnnSettings } => {
+): { weights: ScoringWeights; knnSettings: KnnSettings; matchThreshold: number } => {
   const errors: Array<{ field: string; code: string; message: string }> = [];
   const supplied = input?.weights;
   let total = 0;
@@ -83,12 +85,17 @@ const validateScoringConfiguration = (
     }
   }
 
+  const matchThreshold = input?.matchThreshold !== undefined ? input.matchThreshold : DEFAULT_MATCH_THRESHOLD;
+  if (!Number.isInteger(matchThreshold) || matchThreshold < 0 || matchThreshold > 100) {
+    errors.push({ field: "matchThreshold", code: "INVALID_MATCH_THRESHOLD", message: "matchThreshold must be an integer between 0 and 100." });
+  }
+
   if (errors.length) throw new InvalidScoringConfigurationError(errors);
-  return { weights: { ...supplied }, knnSettings };
+  return { weights: { ...supplied }, knnSettings, matchThreshold };
 };
 
 const defaultScoringConfiguration = () =>
-  validateScoringConfiguration({ weights: { ...DEFAULT_WEIGHTS }, knnSettings: { ...DEFAULT_KNN_SETTINGS } });
+  validateScoringConfiguration({ weights: { ...DEFAULT_WEIGHTS }, knnSettings: { ...DEFAULT_KNN_SETTINGS }, matchThreshold: DEFAULT_MATCH_THRESHOLD });
 
 let cachedActiveConfig: any = null;
 
@@ -105,6 +112,7 @@ const serialize = (configuration: any) => ({
   revision: configuration.revision,
   weights: Object.fromEntries(configuration.weights.map((weight: any) => [weight.dimension, Number(weight.weight)])),
   knnSettings: configuration.knnSettings,
+  matchThreshold: configuration.matchThreshold ?? DEFAULT_MATCH_THRESHOLD,
   createdAt: configuration.createdAt,
   activatedAt: configuration.activatedAt,
   createdBy: configuration.createdBy ? { id: configuration.createdBy.id, email: configuration.createdBy.email } : null,
@@ -129,6 +137,7 @@ export const getActiveScoringConfiguration = async () => {
           version: 1,
           revision: 1,
           knnSettings: DEFAULT_KNN_SETTINGS,
+          matchThreshold: DEFAULT_MATCH_THRESHOLD,
           weights: { create: SCORING_DIMENSIONS.map((dimension: ScoringDimension) => ({ dimension, weight: new Prisma.Decimal(DEFAULT_WEIGHTS[dimension]) })) },
         },
         include,
@@ -166,6 +175,7 @@ const activateConfiguration = async (actorId: string, expectedRevision: number, 
         version: (latest._max.version ?? 0) + 1,
         revision: 1,
         knnSettings: validated.knnSettings,
+        matchThreshold: validated.matchThreshold,
         createdById: actorId,
         activatedById: actorId,
         weights: { create: SCORING_DIMENSIONS.map((dimension: ScoringDimension) => ({ dimension, weight: new Prisma.Decimal(validated.weights[dimension]) })) },
@@ -183,7 +193,7 @@ export const updateScoringConfiguration = (actorId: string, expectedRevision: nu
   activateConfiguration(actorId, expectedRevision, input);
 
 export const restoreDefaultScoringConfiguration = (actorId: string, expectedRevision: number) =>
-  activateConfiguration(actorId, expectedRevision, { weights: DEFAULT_WEIGHTS, knnSettings: DEFAULT_KNN_SETTINGS });
+  activateConfiguration(actorId, expectedRevision, { weights: DEFAULT_WEIGHTS, knnSettings: DEFAULT_KNN_SETTINGS, matchThreshold: DEFAULT_MATCH_THRESHOLD });
 
 export const listScoringConfigurationHistory = async (cursor?: number, limit = 25) => {
   const configurations = await prisma.candidateScoringConfiguration.findMany({
@@ -209,7 +219,11 @@ const revalidationQueue = new PQueue({ concurrency: 5 });
 export const revalidateConfiguration = async (configurationId: number) => {
   const applications = await prisma.application.findMany({ select: { id: true, jobPostingId: true } });
   await revalidationQueue.addAll(applications.map((app) => async () => {
-    await calculateAndPersistCandidateScore(app.id, app.jobPostingId, undefined, { forceNewCalculation: true, configurationId });
+    try {
+      await calculateAndPersistCandidateScore(app.id, app.jobPostingId, undefined, { forceNewCalculation: true, configurationId });
+    } catch (err: any) {
+      console.warn(`[Scoring] Failed to revalidate score for application ${app.id}: ${err.message}`);
+    }
   }));
 };
 
@@ -217,8 +231,13 @@ export const revalidateJobScoring = async (jobPostingId: number) => {
   const configuration = await prisma.candidateScoringConfiguration.findFirstOrThrow({ where: { scope: "GLOBAL", status: "ACTIVE" } });
   const applications = await prisma.application.findMany({ where: { jobPostingId }, select: { id: true } });
   await revalidationQueue.addAll(applications.map((app) => async () => {
-    await calculateAndPersistCandidateScore(app.id, jobPostingId, undefined, { forceNewCalculation: true, configurationId: configuration.id });
+    try {
+      await calculateAndPersistCandidateScore(app.id, jobPostingId, undefined, { forceNewCalculation: true, configurationId: configuration.id });
+    } catch (err: any) {
+      console.warn(`[Scoring] Failed to revalidate score for application ${app.id} on job ${jobPostingId}: ${err.message}`);
+    }
   }));
+  return applications.length;
 };
 
 export const revalidateApplication = async (applicationId: number, jobPostingId: number) => {
@@ -232,7 +251,11 @@ export const revalidateApplicantProfile = async (applicantProfileId: number) => 
   const profile = await prisma.applicantProfile.findUniqueOrThrow({ where: { id: applicantProfileId }, select: { userId: true } });
   const applications = await prisma.application.findMany({ where: { userId: profile.userId }, select: { id: true, jobPostingId: true } });
   await revalidationQueue.addAll(applications.map((app) => async () => {
-    await calculateAndPersistCandidateScore(app.id, app.jobPostingId, undefined, { forceNewCalculation: true, configurationId: configuration.id });
+    try {
+      await calculateAndPersistCandidateScore(app.id, app.jobPostingId, undefined, { forceNewCalculation: true, configurationId: configuration.id });
+    } catch (err: any) {
+      console.warn(`[Scoring] Failed to revalidate score for application ${app.id}: ${err.message}`);
+    }
   }));
 };
 

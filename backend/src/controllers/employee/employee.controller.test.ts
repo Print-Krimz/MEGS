@@ -141,7 +141,7 @@ describe("Employee & Digital 201 Controller Unit Tests", () => {
   describe("POST /api/employees/:id/deployments", () => {
     it("creates deployment for employee and returns 201", async () => {
       const res = mockResponse();
-      const mockDeployment: any = { id: 10, employeeId: 1, clientId: 5, status: "PENDING_ORIENTATION" };
+      const mockDeployment: any = { id: 10, employeeId: 1, clientId: 5, status: "READY_FOR_DEPLOYMENT" };
       vi.mocked(createEmployeeDeployment).mockResolvedValue(mockDeployment);
 
       const req: any = {

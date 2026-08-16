@@ -66,12 +66,13 @@ model MRFComplianceTemplate {
 }
 
 enum DeploymentStatus {
-  PENDING_ORIENTATION
-  READY
-  DISPATCHED
+  READY_FOR_DEPLOYMENT
   ACTIVE
   ENDED
   CANCELLED
+  PENDING_ORIENTATION
+  READY
+  DISPATCHED
 }
 
 model Deployment {
@@ -84,7 +85,7 @@ model Deployment {
   client        Client           @relation(fields: [clientId], references: [id], onDelete: Restrict)
   mrfId         Int?
   mrf           ManpowerRequest? @relation(fields: [mrfId], references: [id])
-  status        DeploymentStatus @default(PENDING_ORIENTATION)
+  status        DeploymentStatus @default(READY_FOR_DEPLOYMENT)
   site          String?
   contractStart DateTime?
   contractEnd   DateTime?

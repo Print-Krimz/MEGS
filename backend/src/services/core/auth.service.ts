@@ -96,8 +96,10 @@ export const requestPasswordReset = async (email: string) => {
     message: "If an account exists for this email, a password reset link has been sent.",
   };
 
+  const emailLower = email.toLowerCase();
+
   try {
-    const dbUser = await prisma.user.findUnique({ where: { email } });
+    const dbUser = await prisma.user.findUnique({ where: { email: emailLower } });
     if (!dbUser || !dbUser.isActive) {
       return GENERIC_RESPONSE;
     }
@@ -105,7 +107,11 @@ export const requestPasswordReset = async (email: string) => {
     // Generate link server-side without sending via Supabase's rate-limited mailer
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "recovery",
-      email,
+      email: emailLower,
+      options: {
+        // Ensure it redirects to the frontend, not the backend
+        redirectTo: process.env.FRONTEND_URL || "http://localhost:5173/reset-password",
+      },
     });
 
     if (error || !data?.properties?.action_link) {
@@ -130,14 +136,22 @@ export const requestPasswordReset = async (email: string) => {
 
     const textBody = `MEGS Password Reset:\n\nPlease use the following link to reset your password:\n${resetLink}\n\nThis link is single-use and will expire shortly.`;
 
-    await sendMail(email, "Password Reset Request - MEGS", textBody, htmlBody);
-    logAudit(dbUser.id, "PASSWORD_RESET_REQUESTED", "User", dbUser.id, { email });
+    try {
+      await sendMail(emailLower, "Password Reset Request - MEGS", textBody, htmlBody);
+      logAudit(dbUser.id, "PASSWORD_RESET_REQUESTED", "User", dbUser.id, { email: emailLower });
+    } catch (mailError) {
+      console.error("[Auth] Failed to send reset email:", mailError);
+      throw new Error("Failed to deliver the reset email. Please try again later.");
+    }
 
     return {
       ...GENERIC_RESPONSE,
       ...(process.env.NODE_ENV !== "production" ? { debugResetLink: resetLink } : {}),
     };
   } catch (err: any) {
+    if (err.message === "Failed to deliver the reset email. Please try again later.") {
+      throw err;
+    }
     console.error("[Auth] Error in requestPasswordReset:", err);
     return GENERIC_RESPONSE;
   }
