@@ -1,11 +1,13 @@
-import React from "react";
+import React, { useId } from "react";
 import { Search, X } from "lucide-react";
 import { Input } from "../ui/Input";
+import { ComboBox } from "../ui/ComboBox";
 import { cn } from "../../lib/utils";
 
 export interface FilterOption {
   value: string;
   label: string;
+  subtitle?: string;
 }
 
 export interface FilterConfig {
@@ -13,9 +15,11 @@ export interface FilterConfig {
   label: string;
   options: FilterOption[];
   placeholder?: string;
+  searchable?: boolean;
 }
 
 export interface SearchFiltersProps {
+  searchLabel?: string;
   searchPlaceholder?: string;
   searchValue?: string;
   onSearchChange?: (val: string) => void;
@@ -28,6 +32,7 @@ export interface SearchFiltersProps {
 }
 
 export const SearchFilters: React.FC<SearchFiltersProps> = ({
+  searchLabel = "Search records",
   searchPlaceholder = "Search records...",
   searchValue = "",
   onSearchChange,
@@ -38,6 +43,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
   actions,
   className,
 }) => {
+  const idPrefix = useId();
   const hasActiveFilters =
     Boolean(searchValue) ||
     Object.values(filterValues).some((val) => val && val !== "ALL");
@@ -54,7 +60,11 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
         {/* Search Bar */}
         {onSearchChange && (
           <div className="w-full sm:w-64 md:w-80">
+            <label htmlFor={`${idPrefix}-search`} className="sr-only">
+              {searchLabel}
+            </label>
             <Input
+              id={`${idPrefix}-search`}
               type="text"
               placeholder={searchPlaceholder}
               value={searchValue}
@@ -65,7 +75,8 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                   <button
                     type="button"
                     onClick={() => onSearchChange("")}
-                    className="p-0.5 text-slate-400 hover:text-slate-700"
+                    aria-label={`Clear ${searchLabel.toLowerCase()}`}
+                    className="p-2 text-slate-500 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -75,21 +86,45 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
           </div>
         )}
 
-        {/* Custom Filter Dropdowns */}
+        {/* Custom Filter Dropdowns / Combo Boxes */}
         {filters.map((filter) => (
-          <div key={filter.key} className="w-full sm:w-auto min-w-[140px]">
-            <select
-              value={filterValues[filter.key] || ""}
-              onChange={(e) => onFilterChange?.(filter.key, e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-700 focus:border-teal-700 transition-colors cursor-pointer"
-            >
-              <option value="">{filter.placeholder || (filter.label.endsWith("s") ? `All ${filter.label}` : `All ${filter.label}s`)}</option>
-              {filter.options.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+          <div key={filter.key} className="w-full sm:w-auto min-w-[150px]">
+            <label htmlFor={`${idPrefix}-${filter.key}`} className="sr-only">
+              {filter.label}
+            </label>
+            {filter.searchable ? (
+              <ComboBox
+                id={`${idPrefix}-${filter.key}`}
+                size="sm"
+                placeholder={filter.placeholder || `All ${filter.label}s`}
+                value={filterValues[filter.key] || ""}
+                onChange={(val) => onFilterChange?.(filter.key, val || "")}
+                options={[
+                  { value: "", label: filter.placeholder || `All ${filter.label}s` },
+                  ...filter.options,
+                ]}
+                clearable={Boolean(filterValues[filter.key])}
+              />
+            ) : (
+              <select
+                id={`${idPrefix}-${filter.key}`}
+                value={filterValues[filter.key] || ""}
+                onChange={(e) => onFilterChange?.(filter.key, e.target.value)}
+                className="w-full min-h-10 px-3 py-2 text-sm border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-offset-1 focus:border-teal-700 transition-colors cursor-pointer"
+              >
+                <option value="">
+                  {filter.placeholder ||
+                    (filter.label.endsWith("s")
+                      ? `All ${filter.label}`
+                      : `All ${filter.label}s`)}
                 </option>
-              ))}
-            </select>
+                {filter.options.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         ))}
 
@@ -98,7 +133,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
           <button
             type="button"
             onClick={onReset}
-            className="text-xs text-rose-700 hover:text-rose-900 flex items-center gap-1 font-mono uppercase tracking-wider select-none px-2 py-1"
+            className="min-h-10 text-sm text-rose-700 hover:text-rose-900 flex items-center gap-1 font-medium select-none px-2 py-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-700"
           >
             <X className="w-3.5 h-3.5" />
             <span>Reset Filters</span>
@@ -108,7 +143,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
 
       {/* Extra Action Buttons slot */}
       {actions && (
-        <div className="flex items-center gap-2 shrink-0 self-end lg:self-center">
+        <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto justify-end sm:justify-start lg:self-center">
           {actions}
         </div>
       )}

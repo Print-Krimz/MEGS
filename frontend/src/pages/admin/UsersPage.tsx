@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
+import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
 import {
   PageHeader,
@@ -19,7 +20,10 @@ import {
   Shield,
   ShieldCheck,
   Mail,
+  KeyRound,
+  AlertTriangle,
 } from "lucide-react";
+import { notify } from "../../lib/feedback";
 
 export const UsersPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -30,18 +34,20 @@ export const UsersPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  // Invite Modal
+  // Modals state
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFirstName, setInviteFirstName] = useState("");
   const [inviteLastName, setInviteLastName] = useState("");
 
-  // Role Modal
   const [roleModalUser, setRoleModalUser] = useState<{ id: string; email: string; currentRole: Role } | null>(null);
   const [targetRole, setTargetRole] = useState<Role>(Role.TALENT_ACQUISITION);
 
-  // Status Modal
   const [statusModalUser, setStatusModalUser] = useState<{ id: string; email: string; isActive: boolean } | null>(null);
+  const [mfaModalUser, setMfaModalUser] = useState<{ id: string; email: string } | null>(null);
+  const [resendModalUser, setResendModalUser] = useState<{ id: string; email: string } | null>(null);
+  const [cancelModalUser, setCancelModalUser] = useState<{ id: string; email: string } | null>(null);
+
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const usersQuery = useQuery({
@@ -59,40 +65,97 @@ export const UsersPage: React.FC = () => {
       setInviteEmail("");
       setInviteFirstName("");
       setInviteLastName("");
+      const msg = "Invitation sent! The TA specialist has been emailed a secure, single-use activation link.";
       setFeedback({
         type: "success",
-        message: "Invitation sent! The TA specialist has been provisioned with temporary setup credentials.",
+        message: msg,
       });
+      notify.success("Invitation Sent", msg);
     },
     onError: (err: any) => {
       setFeedback({
         type: "error",
         message: "Failed to send invitation: " + err.message,
       });
+      notify.error("Invitation Failed", err);
+    },
+  });
+
+  const resendInviteMutation = useMutation({
+    mutationFn: (userId: string) => adminApi.resendTAInvitation(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
+      setResendModalUser(null);
+      notify.success("Invitation Resent", "A new secure single-use invitation link has been dispatched.");
+    },
+    onError: (err: any) => {
+      notify.error("Resend Failed", err);
+    },
+  });
+
+  const cancelInviteMutation = useMutation({
+    mutationFn: (userId: string) => adminApi.cancelTAInvitation(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
+      setCancelModalUser(null);
+      notify.success("Invitation Cancelled", "The pending invitation has been revoked.");
+    },
+    onError: (err: any) => {
+      notify.error("Cancellation Failed", err);
     },
   });
 
   const updateRoleMutation = useMutation({
     mutationFn: ({ id, role }: { id: string; role: Role }) =>
       adminApi.updateUserRole(id, role),
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
       setRoleModalUser(null);
+      notify.success("Security Role Updated", `User role changed to ${vars.role}.`);
+    },
+    onError: (err: any) => {
+      notify.error("Role Update Failed", err);
     },
   });
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       adminApi.updateUserStatus(id, isActive),
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
       setStatusModalUser(null);
+      notify.success(
+        "Account Status Updated",
+        `User account ${vars.isActive ? "reactivated" : "deactivated"} successfully.`
+      );
+    },
+    onError: (err: any) => {
+      notify.error("Status Update Failed", err);
+    },
+  });
+
+  const resetMfaMutation = useMutation({
+    mutationFn: (userId: string) => authApi.resetUserMfa(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
+      setMfaModalUser(null);
+      notify.success(
+        "MFA Reset Successfully",
+        "The staff member will be prompted to re-enroll their authenticator app on their next sign-in."
+      );
+    },
+    onError: (err: any) => {
+      notify.error("MFA Reset Failed", err);
     },
   });
 
   const users = usersQuery.data || [];
+
 
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
@@ -133,7 +196,7 @@ export const UsersPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="User Access & Role Administration"
+        title="User access"
         description="Manage system accounts, provision Talent Acquisition credentials, and configure role assignments"
         breadcrumbs={[
           { label: "Admin Operations", href: "/admin" },
@@ -146,7 +209,7 @@ export const UsersPage: React.FC = () => {
             leftIcon={<UserPlus className="w-3.5 h-3.5" />}
             onClick={() => setInviteModalOpen(true)}
           >
-            Invite TA Specialist
+            Add TA Specialist
           </Button>
         }
       />
@@ -266,45 +329,92 @@ export const UsersPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-3.5 py-2.5">
-                        <span
-                          className={`text-[10px] font-mono font-bold px-2 py-0.5 border uppercase ${
-                            u.isActive
-                              ? "bg-emerald-50 text-emerald-950 border-emerald-300"
-                              : "bg-rose-50 text-rose-950 border-rose-300"
-                          }`}
-                        >
-                          {u.isActive ? "ACTIVE" : "DEACTIVATED"}
-                        </span>
+                        {!u.isActive || u.accountStatus === "DEACTIVATED" ? (
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 border uppercase bg-rose-50 text-rose-950 border-rose-300">
+                            DISABLED
+                          </span>
+                        ) : u.accountStatus === "PENDING" || u.accountStatus === "INVITED" ? (
+                          <span
+                            className={`text-[10px] font-mono font-bold px-2 py-0.5 border uppercase ${
+                              u.invitationStatus === "EXPIRED"
+                                ? "bg-amber-50 text-amber-950 border-amber-300"
+                                : "bg-blue-50 text-blue-950 border-blue-300"
+                            }`}
+                          >
+                            {u.invitationStatus === "EXPIRED" ? "EXPIRED INVITATION" : "PENDING INVITATION"}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 border uppercase bg-emerald-50 text-emerald-950 border-emerald-300">
+                            ACTIVE
+                          </span>
+                        )}
                       </td>
                       <td className="px-3.5 py-2.5 text-slate-600 text-[11px]">
                         {formatDate(u.createdAt)}
                       </td>
                       <td className="px-3.5 py-2.5 text-right font-sans">
                         <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={isSelf}
-                            onClick={() => {
-                              setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
-                              setTargetRole(u.role);
-                            }}
-                            title={isSelf ? "Cannot change your own role" : "Change Role"}
-                          >
-                            Role
-                          </Button>
-                          <Button
-                            variant={u.isActive ? "ghost" : "primary"}
-                            size="sm"
-                            disabled={isSelf}
-                            onClick={() =>
-                              setStatusModalUser({ id: u.id, email: u.email, isActive: u.isActive })
-                            }
-                            title={isSelf ? "Cannot deactivate yourself" : "Toggle Status"}
-                            className={u.isActive ? "text-rose-600 hover:text-rose-800" : ""}
-                          >
-                            {u.isActive ? "Deactivate" : "Activate"}
-                          </Button>
+                          {u.accountStatus === "PENDING" || u.accountStatus === "INVITED" ? (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setResendModalUser({ id: u.id, email: u.email })}
+                                title="Resend secure activation link"
+                                className="text-teal-700 hover:text-teal-900 border-teal-300 hover:bg-teal-50"
+                              >
+                                Resend
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setCancelModalUser({ id: u.id, email: u.email })}
+                                title="Cancel pending invitation"
+                                className="text-rose-600 hover:text-rose-800"
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={isSelf}
+                                onClick={() => {
+                                  setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
+                                  setTargetRole(u.role);
+                                }}
+                                title={isSelf ? "Cannot change your own role" : "Change Role"}
+                              >
+                                Role
+                              </Button>
+                              {u.role !== Role.APPLICANT && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={isSelf}
+                                  onClick={() => setMfaModalUser({ id: u.id, email: u.email })}
+                                  title={isSelf ? "Cannot reset your own MFA from here" : "Reset Staff Two-Factor Authentication"}
+                                  className="text-amber-700 hover:text-amber-900 border-amber-300 hover:bg-amber-50"
+                                >
+                                  Reset MFA
+                                </Button>
+                              )}
+                              <Button
+                                variant={u.isActive ? "ghost" : "primary"}
+                                size="sm"
+                                disabled={isSelf}
+                                onClick={() =>
+                                  setStatusModalUser({ id: u.id, email: u.email, isActive: u.isActive })
+                                }
+                                title={isSelf ? "Cannot deactivate yourself" : "Toggle Status"}
+                                className={u.isActive ? "text-rose-600 hover:text-rose-800" : ""}
+                              >
+                                {u.isActive ? "Deactivate" : "Activate"}
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -331,7 +441,7 @@ export const UsersPage: React.FC = () => {
       <Dialog
         open={inviteModalOpen}
         onClose={() => setInviteModalOpen(false)}
-        title="Invite Talent Acquisition Specialist"
+        title="Add Talent Acquisition Specialist"
         description="Provision an internal TA recruiter account with temporary setup credentials"
       >
         <form
@@ -353,7 +463,7 @@ export const UsersPage: React.FC = () => {
             onChange={(e) => setInviteEmail(e.target.value)}
             required
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="First Name"
               placeholder="e.g. Maria"
@@ -367,8 +477,8 @@ export const UsersPage: React.FC = () => {
               onChange={(e) => setInviteLastName(e.target.value)}
             />
           </div>
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setInviteModalOpen(false)}>
+          <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setInviteModalOpen(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
@@ -376,9 +486,10 @@ export const UsersPage: React.FC = () => {
               size="sm"
               type="submit"
               loading={inviteMutation.isPending}
-              leftIcon={<Mail className="w-3.5 h-3.5" />}
+              leftIcon={<UserPlus className="w-3.5 h-3.5" />}
+              className="w-full sm:w-auto"
             >
-              Send Invite
+              Add
             </Button>
           </div>
         </form>
@@ -402,14 +513,15 @@ export const UsersPage: React.FC = () => {
               { value: Role.APPLICANT, label: "APPLICANT (Standard Candidate)" },
             ]}
           />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setRoleModalUser(null)}>
+          <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setRoleModalUser(null)} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
               variant="primary"
               size="sm"
               loading={updateRoleMutation.isPending}
+              className="w-full sm:w-auto"
               onClick={() => {
                 if (roleModalUser) {
                   updateRoleMutation.mutate({ id: roleModalUser.id, role: targetRole });
@@ -435,14 +547,15 @@ export const UsersPage: React.FC = () => {
               ? "Deactivating this account will prevent the user from logging in or performing system actions."
               : "Reactivating will restore login access with previous security roles."}
           </p>
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setStatusModalUser(null)}>
+          <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setStatusModalUser(null)} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
               variant={statusModalUser?.isActive ? "danger" : "primary"}
               size="sm"
               loading={updateStatusMutation.isPending}
+              className="w-full sm:w-auto"
               onClick={() => {
                 if (statusModalUser) {
                   updateStatusMutation.mutate({
@@ -457,6 +570,108 @@ export const UsersPage: React.FC = () => {
           </div>
         </div>
       </Dialog>
+
+      {/* Reset MFA Modal */}
+      <Dialog
+        open={Boolean(mfaModalUser)}
+        onClose={() => setMfaModalUser(null)}
+        title="Reset Two-Factor Authentication"
+        description={`Reset MFA security configuration for ${mfaModalUser?.email}`}
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2.5 text-xs text-amber-900">
+            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              This action will <strong>delete all enrolled authenticator factors</strong> and <strong>invalidate all emergency backup codes</strong> for this staff account. The user will be required to configure a new authenticator app upon their next login.
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setMfaModalUser(null)} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              loading={resetMfaMutation.isPending}
+              leftIcon={<KeyRound className="w-3.5 h-3.5" />}
+              className="w-full sm:w-auto"
+              onClick={() => {
+                if (mfaModalUser) {
+                  resetMfaMutation.mutate(mfaModalUser.id);
+                }
+              }}
+            >
+              Confirm MFA Reset
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Resend Invitation Modal */}
+      <Dialog
+        open={Boolean(resendModalUser)}
+        onClose={() => setResendModalUser(null)}
+        title="Resend Talent Acquisition Invitation"
+        description={`Dispatch a fresh single-use activation link to ${resendModalUser?.email}`}
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Resending the invitation will <strong>generate a fresh 48-hour activation link</strong> and invalidate any previously sent invitation links for this user.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setResendModalUser(null)} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={resendInviteMutation.isPending}
+              leftIcon={<Mail className="w-3.5 h-3.5" />}
+              className="w-full sm:w-auto"
+              onClick={() => {
+                if (resendModalUser) {
+                  resendInviteMutation.mutate(resendModalUser.id);
+                }
+              }}
+            >
+              Resend Invitation Link
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Cancel Invitation Modal */}
+      <Dialog
+        open={Boolean(cancelModalUser)}
+        onClose={() => setCancelModalUser(null)}
+        title="Cancel Pending Invitation"
+        description={`Revoke invitation for ${cancelModalUser?.email}`}
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Are you sure you want to cancel this pending invitation? The activation link will immediately become invalid and the pending account will be removed.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setCancelModalUser(null)} className="w-full sm:w-auto">
+              Keep Invitation
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              loading={cancelInviteMutation.isPending}
+              className="w-full sm:w-auto"
+              onClick={() => {
+                if (cancelModalUser) {
+                  cancelInviteMutation.mutate(cancelModalUser.id);
+                }
+              }}
+            >
+              Revoke Invitation
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 };
+

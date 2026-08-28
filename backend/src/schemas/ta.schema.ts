@@ -43,33 +43,30 @@ export const taSchema = {
       notes: z.string().optional(),
     }),
   }),
+  recordInterview: z.object({
+    body: z.object({
+      type: z.string().min(1, "Type is required"),
+      result: z.string().min(1, "Result is required"),
+      conductedAt: z.string().optional().nullable(),
+      notes: z.string().optional(),
+    }),
+  }),
   uploadPostHireDocument: z.object({
     body: z.object({
       label: z.string().min(1, "Label is required"),
       notes: z.string().optional(),
     }),
   }),
-  completeHiring: z.object({
-    body: z.object({
-      employeeId: z.string().optional(),
-      employeeNumber: z.string().optional(),
-      department: z.string().optional(),
-      position: z.string().optional(),
-      startDate: z.string().optional(),
-      notes: z.string().optional(),
-      reason: z.string().optional(),
-    }),
-  }),
   endorseCandidate: z.object({
     body: z.object({
-      clientId: z.number().int().positive("clientId must be a positive integer"),
-      outcome: z.enum(["PENDING", "ENDORSED", "DECLINED"]),
+      clientId: z.number().int().positive("clientId must be a positive integer").optional(),
+      outcome: z.enum(["PENDING", "APPROVED", "DECLINED", "ENDORSED"]).optional().default("PENDING"),
       notes: z.string().optional(),
     }),
   }),
   updateEndorsement: z.object({
     body: z.object({
-      outcome: z.enum(["PENDING", "ENDORSED", "DECLINED"]),
+      outcome: z.enum(["PENDING", "APPROVED", "DECLINED", "ENDORSED"]),
       notes: z.string().optional(),
     }),
   }),

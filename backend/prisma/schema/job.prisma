@@ -13,6 +13,7 @@ model JobPosting {
   description  String
   requirements String    // Gemini API compares the resume against this text
   location     String?
+  imageUrl     String?
   // Nullable until a separate location-data policy supplies coordinates.
   latitude     Float?
   longitude    Float?

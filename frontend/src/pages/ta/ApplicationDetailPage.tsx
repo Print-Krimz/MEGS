@@ -11,13 +11,12 @@ import {
   ErrorState,
   DocumentPreviewModal,
 } from "../../components/common";
-import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
-import { formatDate, formatDateTime, getApplicationStatusMeta } from "../../lib/utils";
+import { Button, Dialog, Input, Select, Textarea, ComboBox } from "../../components/ui";
+import { formatDate, formatDateTime, getApplicationStatusMeta, extractDocumentId } from "../../lib/utils";
+import { COMPLIANCE_201_PRESETS } from "../../lib/hr-constants";
 import {
   ApplicationStatus,
   InterviewType,
-  PIPELINE_FILTER_STAGES,
-  ALLOWED_STAGE_TRANSITIONS,
 } from "../../lib/types/enums";
 import type { Interview } from "../../lib/types/application.types";
 import {
@@ -40,6 +39,7 @@ import {
   Eye,
   XCircle,
 } from "lucide-react";
+import { notify } from "../../lib/feedback";
 
 
 
@@ -51,7 +51,8 @@ type TabKey =
   | "endorsements"
   | "compliance"
   | "timeline"
-  | "hiring";
+  | "hiring"
+  | "similar";
 
 export const ApplicationDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -66,6 +67,7 @@ export const ApplicationDetailPage: React.FC = () => {
     "compliance",
     "timeline",
     "hiring",
+    "similar",
   ];
 
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
@@ -88,11 +90,6 @@ export const ApplicationDetailPage: React.FC = () => {
   };
 
   // Modals state
-  const [stageModalOpen, setStageModalOpen] = useState(false);
-  const [selectedStage, setSelectedStage] = useState<ApplicationStatus>(ApplicationStatus.INITIAL_SCREENING);
-  const [stageReason, setStageReason] = useState("");
-  const [stageError, setStageError] = useState<string | null>(null);
-
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("Qualifications Mismatch");
   const [rejectNotes, setRejectNotes] = useState("");
@@ -109,19 +106,23 @@ export const ApplicationDetailPage: React.FC = () => {
   const [interviewOutcomeNotes, setInterviewOutcomeNotes] = useState("");
 
   const [endorseModalOpen, setEndorseModalOpen] = useState(false);
-  const [endorseClientId, setEndorseClientId] = useState<number>(0);
-  const [endorseOutcome, setEndorseOutcome] = useState<"PENDING" | "ENDORSED" | "DECLINED">("PENDING");
+  const [manualClientId, setManualClientId] = useState<number | null>(null);
+  const [endorseOutcome, setEndorseOutcome] = useState<"PENDING" | "APPROVED" | "DECLINED" | "ENDORSED">("PENDING");
   const [endorseNotes, setEndorseNotes] = useState("");
 
   const [updateEndorsementModalOpen, setUpdateEndorsementModalOpen] = useState(false);
   const [selectedEndorsementId, setSelectedEndorsementId] = useState<number | null>(null);
   const [selectedEndorsementClientName, setSelectedEndorsementClientName] = useState("");
-  const [updateEndorsementOutcome, setUpdateEndorsementOutcome] = useState<"PENDING" | "ENDORSED" | "DECLINED">("ENDORSED");
+  const [updateEndorsementOutcome, setUpdateEndorsementOutcome] = useState<"PENDING" | "APPROVED" | "DECLINED" | "ENDORSED">("APPROVED");
   const [updateEndorsementNotes, setUpdateEndorsementNotes] = useState("");
 
   const [complianceModalOpen, setComplianceModalOpen] = useState(false);
   const [complianceDocLabel, setComplianceDocLabel] = useState("");
   const [complianceDeadline, setComplianceDeadline] = useState("");
+
+  const [editDeadlineModalOpen, setEditDeadlineModalOpen] = useState(false);
+  const [editDeadlineReqId, setEditDeadlineReqId] = useState<number | null>(null);
+  const [editDeadlineDate, setEditDeadlineDate] = useState("");
 
   const [reviewReqId, setReviewReqId] = useState<number | null>(null);
   const [reviewReqStatus, setReviewReqStatus] = useState<"APPROVED" | "REJECTED">("APPROVED");
@@ -135,15 +136,12 @@ export const ApplicationDetailPage: React.FC = () => {
     requirementStatus?: string;
   } | null>(null);
 
-
-  const [hireModalOpen, setHireModalOpen] = useState(false);
-  const [hireEmployeeNumber, setHireEmployeeNumber] = useState("");
-  const [hireDepartment, setHireDepartment] = useState("");
-  const [hirePosition, setHirePosition] = useState("");
-
   const [deployModalOpen, setDeployModalOpen] = useState(false);
   const [deployClientId, setDeployClientId] = useState<number>(0);
   const [deploySite, setDeploySite] = useState("");
+  const [deployContractStart, setDeployContractStart] = useState("");
+  const [deployContractEnd, setDeployContractEnd] = useState("");
+  const [deployNotes, setDeployNotes] = useState("");
 
   // Queries
   const applicationQuery = useQuery({
@@ -163,6 +161,12 @@ export const ApplicationDetailPage: React.FC = () => {
     queryFn: taApi.listClients,
   });
 
+  const similarCandidatesQuery = useQuery({
+    queryKey: ["ta", "application", applicationId, "similar"],
+    queryFn: () => taApi.getSimilarCandidates(applicationId),
+    enabled: activeTab === "similar" && Boolean(applicationId),
+  });
+
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Mutations
@@ -172,20 +176,20 @@ export const ApplicationDetailPage: React.FC = () => {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      setStageModalOpen(false);
-      setStageError(null);
+      const msg = `Candidate stage moved to ${getApplicationStatusMeta(vars.status).label}.`;
       setFeedback({
         type: "success",
-        message: `Candidate stage moved to ${getApplicationStatusMeta(vars.status).label}.`,
+        message: msg,
       });
+      notify.success("Pipeline Stage Updated", msg);
     },
     onError: (err: any) => {
       const errMsg = err?.message || "Failed to update candidate pipeline stage.";
-      setStageError(errMsg);
       setFeedback({
         type: "error",
         message: "Failed to advance stage: " + errMsg,
       });
+      notify.error("Stage Update Failed", err);
     },
   });
 
@@ -198,10 +202,12 @@ export const ApplicationDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
       setRejectModalOpen(false);
       setRejectNotes("");
+      const msg = `Candidate has been moved to ${getApplicationStatusMeta(vars.status).label}.`;
       setFeedback({
         type: "success",
-        message: `Candidate has been moved to ${getApplicationStatusMeta(vars.status).label}.`,
+        message: msg,
       });
+      notify.success("Candidate Status Updated", msg);
     },
     onError: (err: any) => {
       const errMsg = err?.message || "Failed to reject candidate.";
@@ -209,33 +215,59 @@ export const ApplicationDetailPage: React.FC = () => {
         type: "error",
         message: "Failed to reject candidate: " + errMsg,
       });
+      notify.error("Status Update Failed", err);
     },
   });
 
   const updateInterviewStatusMutation = useMutation({
-    mutationFn: (data: { interviewId: number; result: "PASS" | "FAIL" | "NO_SHOW"; notes?: string; conductedAt?: string }) =>
-      taApi.updateInterviewStatus(applicationId, data.interviewId, {
-        result: data.result,
-        notes: data.notes,
-        conductedAt: data.conductedAt || new Date().toISOString(),
-      }),
+    mutationFn: (data: {
+      interviewId?: number;
+      type?: InterviewType;
+      result: "PASS" | "FAIL" | "NO_SHOW";
+      notes?: string;
+      conductedAt?: string;
+    }) => {
+      if (data.interviewId) {
+        return taApi.updateInterviewStatus(applicationId, data.interviewId, {
+          result: data.result,
+          notes: data.notes,
+          conductedAt: data.conductedAt || new Date().toISOString(),
+        });
+      } else {
+        return taApi.recordInterviewDirectly(applicationId, {
+          type:
+            data.type ||
+            (app?.status === ApplicationStatus.FINAL_INTERVIEW
+              ? InterviewType.FINAL_INTERVIEW
+              : InterviewType.INITIAL_SCREENING),
+          result: data.result,
+          notes: data.notes,
+          conductedAt: data.conductedAt || new Date().toISOString(),
+        });
+      }
+    },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["applicant"] });
       setInterviewOutcomeModalOpen(false);
       setSelectedInterviewForOutcome(null);
       setInterviewOutcomeNotes("");
-      setStageError(null);
+      const msg = `Interview evaluation recorded as ${vars.result}.`;
       setFeedback({
         type: "success",
-        message: `Interview marked as ${vars.result}.`,
+        message: msg,
       });
+      notify.success("Evaluation Result Logged", msg);
     },
     onError: (err: any) => {
       setFeedback({
         type: "error",
         message: "Failed to update interview: " + (err.message || "An error occurred"),
       });
+      notify.error("Interview Update Failed", err);
     },
   });
 
@@ -243,10 +275,13 @@ export const ApplicationDetailPage: React.FC = () => {
     mutationFn: () => taApi.analyzeApplication(applicationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
-      setFeedback({ type: "success", message: "Candidate assessment and match score updated successfully." });
+      const msg = "Candidate assessment and match score updated successfully.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("AI Assessment Refreshed", msg);
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to refresh candidate assessment: " + err.message });
+      notify.error("Assessment Failed", err);
     },
   });
 
@@ -255,45 +290,53 @@ export const ApplicationDetailPage: React.FC = () => {
       taApi.scheduleInterview(applicationId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
+      queryClient.invalidateQueries({ queryKey: ["applicant"] });
       setInterviewModalOpen(false);
       setInterviewDate("");
       setInterviewNotes("");
-      setFeedback({ type: "success", message: "Interview scheduled successfully." });
+      const msg = "Interview scheduled successfully.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Interview Scheduled", msg);
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to schedule interview: " + err.message });
+      notify.error("Scheduling Failed", err);
     },
   });
 
   const endorseMutation = useMutation({
-    mutationFn: (data: { clientId: number; outcome: "PENDING" | "ENDORSED" | "DECLINED"; notes?: string }) =>
+    mutationFn: (data: { clientId: number; outcome?: "PENDING" | "APPROVED" | "DECLINED" | "ENDORSED"; notes?: string }) =>
       taApi.recordEndorsement(applicationId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      setEndorseClientId(0);
       setEndorseOutcome("PENDING");
       setEndorseNotes("");
       setEndorseModalOpen(false);
+      const msg = "Candidate endorsed to client successfully. Candidate pipeline stage updated to Client Endorsement.";
       setFeedback({
         type: "success",
-        message: "Client endorsement recorded successfully. Candidate pipeline stage updated to Client Endorsement.",
+        message: msg,
       });
+      notify.success("Client Endorsement Submitted", msg);
     },
     onError: (err: any) => {
       setFeedback({
         type: "error",
         message: "Failed to record endorsement: " + (err?.response?.data?.message || err.message),
       });
+      notify.error("Endorsement Failed", err);
     },
   });
 
   const updateEndorsementMutation = useMutation({
     mutationFn: (data: {
       endorsementId: number;
-      outcome: "PENDING" | "ENDORSED" | "DECLINED";
+      outcome: "PENDING" | "APPROVED" | "DECLINED" | "ENDORSED";
       notes?: string;
     }) =>
       taApi.updateEndorsement(applicationId, data.endorsementId, {
@@ -302,20 +345,31 @@ export const ApplicationDetailPage: React.FC = () => {
       }),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
       setUpdateEndorsementModalOpen(false);
       setSelectedEndorsementId(null);
       setUpdateEndorsementNotes("");
+      const outcomeLabel =
+        vars.outcome === "APPROVED"
+          ? "Approved by Client"
+          : vars.outcome === "DECLINED"
+          ? "Declined by Client"
+          : "Pending Client Review";
+      const msg = `Client acceptance recorded as ${outcomeLabel}.`;
       setFeedback({
         type: "success",
-        message: `Client endorsement decision updated to ${vars.outcome}.`,
+        message: msg,
       });
+      notify.success("Client Acceptance Saved", msg);
     },
     onError: (err: any) => {
       setFeedback({
         type: "error",
         message: "Failed to update client endorsement: " + (err?.message || "An error occurred"),
       });
+      notify.error("Update Failed", err);
     },
   });
 
@@ -327,10 +381,13 @@ export const ApplicationDetailPage: React.FC = () => {
       setComplianceModalOpen(false);
       setComplianceDocLabel("");
       setComplianceDeadline("");
-      setFeedback({ type: "success", message: "Compliance requirement added." });
+      const msg = "Compliance requirement added.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Requirement Added", msg);
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to add compliance requirement: " + err.message });
+      notify.error("Addition Failed", err);
     },
   });
 
@@ -341,36 +398,53 @@ export const ApplicationDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       setReviewReqId(null);
       setReviewReqNotes("");
-      setFeedback({ type: "success", message: "Compliance requirement review saved." });
+      const msg = "Compliance requirement review saved.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Review Saved", msg);
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to review requirement: " + err.message });
+      notify.error("Review Failed", err);
     },
   });
 
-  const hireMutation = useMutation({
-    mutationFn: (data: { employeeNumber?: string; department?: string; position?: string }) =>
-      taApi.completeHiring(applicationId, data),
+  const updateDeadlineMutation = useMutation({
+    mutationFn: ({ id, deadline }: { id: number; deadline: string | null }) =>
+      taApi.updateComplianceRequirementDeadline(id, deadline),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
-      setHireModalOpen(false);
-      setFeedback({ type: "success", message: "Candidate successfully hired! Digital 201 personnel record created." });
+      setEditDeadlineModalOpen(false);
+      setEditDeadlineReqId(null);
+      setEditDeadlineDate("");
+      const msg = "Compliance requirement deadline updated.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Deadline Updated", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to complete hiring: " + err.message });
+      setFeedback({ type: "error", message: "Failed to update deadline: " + err.message });
+      notify.error("Update Failed", err);
     },
   });
 
   const deployMutation = useMutation({
-    mutationFn: (data: { clientId: number; site?: string }) =>
-      taApi.createDeployment(applicationId, data),
+    mutationFn: (data: {
+      clientId: number;
+      site?: string;
+      contractStart?: string;
+      contractEnd?: string;
+      notes?: string;
+    }) => taApi.createDeployment(applicationId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       setDeployModalOpen(false);
-      setFeedback({ type: "success", message: "Deployment created and activated." });
+      setDeployNotes("");
+      const msg = "Workforce deployment successfully created and activated.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Deployment Activated", msg);
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to create deployment: " + err.message });
+      notify.error("Deployment Failed", err);
     },
   });
 
@@ -423,6 +497,13 @@ export const ApplicationDetailPage: React.FC = () => {
   const decisions = decisionsQuery.data || [];
   const clients = clientsQuery.data || [];
 
+  const latestEndorsement = (app.clientEndorsements && app.clientEndorsements.length > 0) ? app.clientEndorsements[0] : null;
+
+  // Linked Client & MRF from Application hierarchy or past endorsement
+  const linkedClient = app.jobPosting?.mrf?.client || latestEndorsement?.client;
+  const linkedClientId = linkedClient?.id || app.jobPosting?.mrf?.clientId || latestEndorsement?.clientId || 0;
+  const linkedClientName = linkedClient?.name || (clients.find((c) => c.id === linkedClientId)?.name) || "";
+
   // Stage transition prerequisite checks
   const hasPassedScreening = (app.interviews || []).some(
     (i) => i.type === "INITIAL_SCREENING" && (i.result === "PASS" || i.result === "PASSED") && i.isActive !== false
@@ -431,9 +512,9 @@ export const ApplicationDetailPage: React.FC = () => {
     (i) => i.type === "INITIAL_SCREENING" && (!i.result || i.result === "PENDING" || i.result === "SCHEDULED") && i.isActive !== false
   );
 
-  const hasClientEndorsement = (app.clientEndorsements || []).some(
-    (e) => e.outcome === "ENDORSED"
-  );
+  const isPendingClientReview = latestEndorsement?.outcome === "PENDING";
+  const isClientDeclined = latestEndorsement?.outcome === "DECLINED";
+  const isClientApproved = latestEndorsement?.outcome === "APPROVED" || latestEndorsement?.outcome === "ENDORSED";
 
   const hasPassedFinalInterview = (app.interviews || []).some(
     (i) => i.type === "FINAL_INTERVIEW" && (i.result === "PASS" || i.result === "PASSED") && i.isActive !== false
@@ -450,23 +531,49 @@ export const ApplicationDetailPage: React.FC = () => {
     app.status === ApplicationStatus.ARCHIVED ||
     app.status === ApplicationStatus.BACKOUT ||
     app.status === ApplicationStatus.DEPLOYED;
-  const canAdvance = (ALLOWED_STAGE_TRANSITIONS[app.status] || []).length > 0;
   const canReject = !isTerminal;
-  const canScheduleInterview = (
+
+  // Stage-bound contextual action booleans
+  const isPreScreeningOrScreening = (
     [
+      ApplicationStatus.SUBMITTED,
+      ApplicationStatus.PARSING,
       ApplicationStatus.REVIEW,
-      ApplicationStatus.NEEDS_ATTENTION,
       ApplicationStatus.MATCHED,
-      ApplicationStatus.TALENT_POOL,
+      ApplicationStatus.NEEDS_ATTENTION,
       ApplicationStatus.INITIAL_SCREENING,
-      ApplicationStatus.CLIENT_ENDORSEMENT,
-      ApplicationStatus.FINAL_INTERVIEW,
     ] as ApplicationStatus[]
   ).includes(app.status);
-  const canEndorse =
+
+  const canScheduleInitialInterview =
+    isPreScreeningOrScreening && !hasPassedScreening && !pendingScreeningInterview && !isTerminal;
+  const canRecordInitialInterview =
+    isPreScreeningOrScreening && Boolean(pendingScreeningInterview) && !isTerminal;
+  const canAdvanceToClientEndorsement =
     hasPassedScreening &&
-    (app.status === ApplicationStatus.INITIAL_SCREENING ||
-      app.status === ApplicationStatus.CLIENT_ENDORSEMENT);
+    (app.status === ApplicationStatus.INITIAL_SCREENING || isPreScreeningOrScreening) &&
+    !isTerminal;
+
+  const isClientEndorsementStage = app.status === ApplicationStatus.CLIENT_ENDORSEMENT;
+
+  const isFinalInterviewStage = app.status === ApplicationStatus.FINAL_INTERVIEW;
+  const canRecordClientEvaluation =
+    isFinalInterviewStage && !hasPassedFinalInterview && !isTerminal;
+  const canScheduleFinalInterview =
+    isFinalInterviewStage && !hasPassedFinalInterview && !pendingFinalInterview && !isTerminal;
+  const canAdvanceToCompliance =
+    isFinalInterviewStage && hasPassedFinalInterview && !isTerminal;
+
+  const isComplianceStage = app.status === ApplicationStatus.COMPLIANCE;
+  const canDeployCandidate =
+    isComplianceStage &&
+    !hasUnapprovedMandatoryCompliance &&
+    !isTerminal;
+
+  const totalCompReqs = app.complianceRequirements?.length || 0;
+  const approvedCompReqs = (app.complianceRequirements || []).filter((r) => r.reviewStatus === "APPROVED").length;
+  const submittedCompReqs = (app.complianceRequirements || []).filter((r) => r.reviewStatus === "SUBMITTED").length;
+  const missingCompReqs = (app.complianceRequirements || []).filter((r) => !r.documentId && r.reviewStatus !== "APPROVED").length;
 
   const tabs: { id: TabKey; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: "overview", label: "Candidate Profile", icon: User },
@@ -476,7 +583,8 @@ export const ApplicationDetailPage: React.FC = () => {
     { id: "endorsements", label: `Endorsements (${app.clientEndorsements?.length || 0})`, icon: Building2 },
     { id: "compliance", label: `201 Compliance (${app.complianceRequirements?.length || 0})`, icon: ShieldCheck },
     { id: "timeline", label: `Decision Audit (${decisions.length})`, icon: History },
-    { id: "hiring", label: "Hiring & Deployment", icon: Truck },
+    { id: "hiring", label: "Personnel & Deployment", icon: Truck },
+    { id: "similar", label: "Similar in Pool", icon: Sparkles },
   ];
 
   return (
@@ -522,20 +630,6 @@ export const ApplicationDetailPage: React.FC = () => {
                 Reject Candidate
               </Button>
             )}
-            {canAdvance && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  const allowed = ALLOWED_STAGE_TRANSITIONS[app.status] || [];
-                  setSelectedStage(allowed.length > 0 ? allowed[0] : app.status);
-                  setStageError(null);
-                  setStageModalOpen(true);
-                }}
-              >
-                Advance Stage
-              </Button>
-            )}
           </div>
         }
       />
@@ -576,43 +670,192 @@ export const ApplicationDetailPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {canScheduleInterview && (
+          <div className="flex flex-wrap items-center gap-2">
+            {/* INITIAL_SCREENING Actions */}
+            {canScheduleInitialInterview && (
               <Button
-                variant="outline"
+                variant="primary"
                 size="sm"
                 leftIcon={<Calendar className="w-3.5 h-3.5" />}
                 onClick={() => {
-                  if (
-                    hasPassedScreening &&
-                    (app.status === ApplicationStatus.CLIENT_ENDORSEMENT ||
-                      app.status === ApplicationStatus.FINAL_INTERVIEW)
-                  ) {
-                    setInterviewType(InterviewType.FINAL_INTERVIEW);
-                  } else {
-                    setInterviewType(InterviewType.INITIAL_SCREENING);
-                  }
+                  setInterviewType(InterviewType.INITIAL_SCREENING);
                   setInterviewModalOpen(true);
                 }}
               >
-                Schedule Interview
+                Schedule Initial Interview
               </Button>
             )}
-            {canEndorse && (
+            {canRecordInitialInterview && (
+              <>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    setSelectedInterviewForOutcome(pendingScreeningInterview || null);
+                    setInterviewOutcomeResult("PASS");
+                    setInterviewOutcomeNotes(pendingScreeningInterview?.notes || "");
+                    setInterviewOutcomeModalOpen(true);
+                  }}
+                >
+                  Record Screening Result
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Calendar className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    setInterviewType(InterviewType.INITIAL_SCREENING);
+                    setInterviewModalOpen(true);
+                  }}
+                >
+                  Reschedule
+                </Button>
+              </>
+            )}
+            {canAdvanceToClientEndorsement && (
               <Button
-                variant="outline"
+                variant="primary"
                 size="sm"
                 leftIcon={<Building2 className="w-3.5 h-3.5" />}
-                onClick={() => setEndorseModalOpen(true)}
+                onClick={() => {
+                  setEndorseOutcome("PENDING");
+                  setEndorseNotes("");
+                  setEndorseModalOpen(true);
+                }}
               >
-                Client Endorse
+                Endorse to Client
               </Button>
+            )}
+
+            {/* STAGE 2: CLIENT_ENDORSEMENT Stage Actions */}
+            {isClientEndorsementStage && (
+              <>
+                {!latestEndorsement && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Building2 className="w-3.5 h-3.5" />}
+                    onClick={() => {
+                      setEndorseOutcome("PENDING");
+                      setEndorseNotes("");
+                      setEndorseModalOpen(true);
+                    }}
+                  >
+                    Endorse to Client
+                  </Button>
+                )}
+                {latestEndorsement && isPendingClientReview && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Building2 className="w-3.5 h-3.5" />}
+                    onClick={() => {
+                      setSelectedEndorsementId(latestEndorsement.id);
+                      setSelectedEndorsementClientName(latestEndorsement.client?.name || linkedClientName);
+                      setUpdateEndorsementOutcome("APPROVED");
+                      setUpdateEndorsementNotes(latestEndorsement.notes || "");
+                      setUpdateEndorsementModalOpen(true);
+                    }}
+                  >
+                    Record Client Acceptance
+                  </Button>
+                )}
+                {latestEndorsement && (isClientApproved || isClientDeclined) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<Building2 className="w-3.5 h-3.5" />}
+                    onClick={() => {
+                      setSelectedEndorsementId(latestEndorsement.id);
+                      setSelectedEndorsementClientName(latestEndorsement.client?.name || linkedClientName);
+                      setUpdateEndorsementOutcome(latestEndorsement.outcome as any);
+                      setUpdateEndorsementNotes(latestEndorsement.notes || "");
+                      setUpdateEndorsementModalOpen(true);
+                    }}
+                  >
+                    Update Client Acceptance
+                  </Button>
+                )}
+              </>
+            )}
+
+            {/* FINAL_INTERVIEW Actions */}
+            {canRecordClientEvaluation && (
+              <>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    setSelectedInterviewForOutcome(pendingFinalInterview || null);
+                    setInterviewOutcomeResult("PASS");
+                    setInterviewOutcomeNotes(pendingFinalInterview?.notes || "");
+                    setInterviewOutcomeModalOpen(true);
+                  }}
+                >
+                  Record Client Result
+                </Button>
+                {canScheduleFinalInterview && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<Calendar className="w-3.5 h-3.5" />}
+                    onClick={() => {
+                      setInterviewType(InterviewType.FINAL_INTERVIEW);
+                      setInterviewModalOpen(true);
+                    }}
+                  >
+                    Schedule Client Interview
+                  </Button>
+                )}
+              </>
+            )}
+            {canAdvanceToCompliance && (
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<ShieldCheck className="w-3.5 h-3.5" />}
+                loading={updateStatusMutation.isPending}
+                onClick={() => {
+                  updateStatusMutation.mutate({
+                    status: ApplicationStatus.COMPLIANCE,
+                    reason: "Client accepted candidate for employment",
+                  });
+                }}
+              >
+                Advance to 201 Compliance
+              </Button>
+            )}
+
+            {/* COMPLIANCE / DEPLOYED Actions */}
+            {isComplianceStage && (
+              <>
+                {canDeployCandidate ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Truck className="w-3.5 h-3.5" />}
+                    onClick={() => {
+                      setDeployClientId(linkedClientId || latestEndorsement?.clientId || 0);
+                      setDeploySite(app.jobPosting?.location || (app.jobPosting?.mrf as any)?.location || (linkedClient as any)?.address || "");
+                      setDeployModalOpen(true);
+                    }}
+                  >
+                    Deploy Candidate
+                  </Button>
+                ) : (
+                  <span className="text-[11px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded">
+                    Pending Mandatory Clearances
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
 
-        {/* Canonical Stepper */}
-        <div className="py-1">
+        {/* Pipeline Stepper Visualizer */}
+        <div className="pt-2">
           <PipelineIndicator currentStatus={app.status} />
         </div>
       </div>
@@ -620,7 +863,7 @@ export const ApplicationDetailPage: React.FC = () => {
       {/* Main Tabs Container */}
       <div className="bg-white border border-slate-300 overflow-hidden">
         {/* Navigation Tabs Header */}
-        <div className="flex items-center border-b border-slate-300 overflow-x-auto bg-slate-100 divide-x divide-slate-300">
+        <div className="flex items-center border-b border-slate-300 overflow-x-auto bg-slate-100 divide-x divide-slate-300 no-scrollbar">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -647,7 +890,7 @@ export const ApplicationDetailPage: React.FC = () => {
         </div>
 
         {/* Tab Body */}
-        <div className="p-6">
+        <div className="p-3.5 sm:p-6">
           {/* TAB 1: OVERVIEW & CANDIDATE PROFILE */}
           {activeTab === "overview" && (
             <div className="space-y-6">
@@ -916,15 +1159,21 @@ export const ApplicationDetailPage: React.FC = () => {
                   {app.resumeUrl || profile?.resumeUrl ? (
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-mono text-slate-600">CV Document on file</span>
-                      <a
-                        href={app.resumeUrl || profile?.resumeUrl || "#"}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const docId = extractDocumentId(app.resumeUrl || profile?.resumeUrl);
+                          setPreviewDocState({
+                            open: true,
+                            documentId: docId,
+                            title: "Application Resume (CV)",
+                          });
+                        }}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                         <span>Open Resume (PDF)</span>
-                      </a>
+                      </button>
                     </div>
                   ) : (
                     <p className="text-xs text-slate-400">No resume attached to this application.</p>
@@ -949,15 +1198,21 @@ export const ApplicationDetailPage: React.FC = () => {
                           <span className="text-[11px] text-slate-400 font-mono">Profile Avatar</span>
                         </div>
                       </div>
-                      <a
-                        href={profile.photoUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const docId = extractDocumentId(profile.photoUrl);
+                          setPreviewDocState({
+                            open: true,
+                            documentId: docId,
+                            title: "Identification Photo",
+                          });
+                        }}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                         <span>Inspect Full Photo</span>
-                      </a>
+                      </button>
                     </div>
                   ) : (
                     <p className="text-xs text-slate-400">No profile photo on file.</p>
@@ -968,7 +1223,7 @@ export const ApplicationDetailPage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 4: INTERVIEWS & SLA */}
+          {/* TAB 4: INTERVIEWS */}
           {activeTab === "interviews" && (
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -978,19 +1233,11 @@ export const ApplicationDetailPage: React.FC = () => {
                     Track candidate interviews, evaluate outcomes, and log recruiter feedback
                   </p>
                 </div>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => setInterviewModalOpen(true)}
-                >
-                  Schedule Interview
-                </Button>
               </div>
 
               {!app.interviews || app.interviews.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">
-                  No interviews scheduled yet. Click "Schedule Interview" to initiate candidate assessment.
+                  No interviews scheduled yet. Click "Schedule Interview" in the stage banner above to initiate candidate assessment.
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
@@ -1084,14 +1331,6 @@ export const ApplicationDetailPage: React.FC = () => {
                     Candidate presentations to client hiring managers and endorsement decisions
                   </p>
                 </div>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => setEndorseModalOpen(true)}
-                >
-                  New Endorsement
-                </Button>
               </div>
 
               {!app.clientEndorsements || app.clientEndorsements.length === 0 ? (
@@ -1105,12 +1344,18 @@ export const ApplicationDetailPage: React.FC = () => {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-slate-900">{end.client?.name || "Client"}</span>
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                            end.outcome === "ENDORSED" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" :
-                            end.outcome === "DECLINED" ? "bg-rose-50 text-rose-800 border border-rose-200" :
-                            "bg-amber-50 text-amber-800 border border-amber-200"
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                            end.outcome === "APPROVED" || end.outcome === "ENDORSED"
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              : end.outcome === "DECLINED"
+                              ? "bg-rose-50 text-rose-800 border-rose-200"
+                              : "bg-amber-50 text-amber-800 border-amber-200"
                           }`}>
-                            {end.outcome}
+                            {end.outcome === "APPROVED" || end.outcome === "ENDORSED"
+                              ? "APPROVED (Client Accepted)"
+                              : end.outcome === "DECLINED"
+                              ? "DECLINED (Client Rejected)"
+                              : "PENDING (Under Review)"}
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-400 font-mono">Endorsed on {formatDate(end.createdAt)}</div>
@@ -1129,7 +1374,7 @@ export const ApplicationDetailPage: React.FC = () => {
                             setUpdateEndorsementModalOpen(true);
                           }}
                         >
-                          Update Client Decision
+                          Update Client Acceptance
                         </Button>
                       </div>
                     </div>
@@ -1142,26 +1387,55 @@ export const ApplicationDetailPage: React.FC = () => {
           {/* TAB 6: 201 COMPLIANCE CHECKLIST */}
           {activeTab === "compliance" && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div className="space-y-0.5">
-                  <h3 className="text-sm font-bold text-slate-900">Pre-Employment 201 Compliance Checklist</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-900">Pre-Employment 201 Compliance Checklist</h3>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
+                      Auto-Generated
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-500">
-                    Mandatory clearances (NBI, SSS, PhilHealth, Pag-IBIG, Medical) required before deployment
+                    Standard statutory clearances (NBI, SSS, PhilHealth, Pag-IBIG, Medical, Contract) required before field deployment
                   </p>
                 </div>
                 <Button
-                  variant="primary"
+                  variant="outline"
                   size="sm"
                   leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => setComplianceModalOpen(true)}
+                  onClick={() => {
+                    setComplianceDocLabel("");
+                    setComplianceDeadline(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+                    setComplianceModalOpen(true);
+                  }}
                 >
-                  Add Requirement
+                  Add Custom Requirement
                 </Button>
+              </div>
+
+              {/* Compliance Status Progress Counters */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 p-3 rounded-lg text-xs font-mono">
+                <div className="space-y-0.5">
+                  <span className="text-slate-400 uppercase text-[10px] block">Total Required</span>
+                  <span className="text-sm font-bold text-slate-900">{totalCompReqs} Documents</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-emerald-600 uppercase text-[10px] block">Approved</span>
+                  <span className="text-sm font-bold text-emerald-700">{approvedCompReqs} / {totalCompReqs}</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-blue-600 uppercase text-[10px] block">Under Review</span>
+                  <span className="text-sm font-bold text-blue-700">{submittedCompReqs}</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-amber-600 uppercase text-[10px] block">Awaiting Upload</span>
+                  <span className="text-sm font-bold text-amber-700">{missingCompReqs}</span>
+                </div>
               </div>
 
               {!app.complianceRequirements || app.complianceRequirements.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">
-                  No compliance requirements active on this application.
+                  No compliance requirements generated yet. Standard checklist is created automatically upon hiring.
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
@@ -1171,22 +1445,76 @@ export const ApplicationDetailPage: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-slate-900">{req.documentLabel}</span>
                           {req.isRequired && (
-                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700">
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
                               MANDATORY
                             </span>
                           )}
                           <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                            req.reviewStatus === "APPROVED" ? "bg-emerald-50 text-emerald-800" :
-                            req.reviewStatus === "REJECTED" ? "bg-rose-50 text-rose-800" :
-                            "bg-slate-100 text-slate-700"
+                            req.reviewStatus === "APPROVED" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" :
+                            req.reviewStatus === "REJECTED" ? "bg-rose-50 text-rose-800 border border-rose-200" :
+                            req.reviewStatus === "SUBMITTED" ? "bg-blue-50 text-blue-800 border border-blue-200" :
+                            "bg-slate-100 text-slate-700 border border-slate-200"
                           }`}>
-                            {req.reviewStatus}
+                            {req.reviewStatus === "SUBMITTED" ? "UNDER REVIEW" : req.reviewStatus}
                           </span>
                         </div>
-                        {req.deadline && (
-                          <div className="text-[11px] text-slate-400 font-mono">Deadline: {formatDate(req.deadline)}</div>
-                        )}
-                        {req.reviewNotes && <p className="text-xs text-slate-500 italic">Reviewer: {req.reviewNotes}</p>}
+                        {(() => {
+                          const now = new Date();
+                          const deadlineDate = req.deadline ? new Date(req.deadline) : null;
+                          const isOverdue = deadlineDate && deadlineDate < now && req.reviewStatus !== "APPROVED";
+                          const diffDays = deadlineDate ? Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                          const isDueSoon = diffDays !== null && diffDays >= 0 && diffDays <= 3 && req.reviewStatus !== "APPROVED";
+
+                          if (!deadlineDate) {
+                            return (
+                              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
+                                <span>No deadline set</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditDeadlineReqId(req.id);
+                                    setEditDeadlineDate(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+                                    setEditDeadlineModalOpen(true);
+                                  }}
+                                  className="text-teal-600 hover:underline text-[10px] ml-1 cursor-pointer font-sans"
+                                >
+                                  + Set Deadline
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="flex items-center flex-wrap gap-1.5 text-[11px] font-mono">
+                              <span className={isOverdue ? "text-rose-600 font-bold" : isDueSoon ? "text-amber-700 font-bold" : "text-slate-500"}>
+                                Deadline: {formatDate(req.deadline)}
+                              </span>
+                              {isOverdue && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                                  OVERDUE
+                                </span>
+                              )}
+                              {isDueSoon && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                  DUE IN {diffDays} {diffDays === 1 ? "DAY" : "DAYS"}
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditDeadlineReqId(req.id);
+                                  setEditDeadlineDate(new Date(req.deadline!).toISOString().split('T')[0]);
+                                  setEditDeadlineModalOpen(true);
+                                }}
+                                className="text-slate-400 hover:text-teal-600 text-[10px] underline ml-1 cursor-pointer font-sans"
+                                title="Adjust or extend deadline"
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          );
+                        })()}
+                        {req.reviewNotes && <p className="text-xs text-slate-500 italic">Reviewer note: {req.reviewNotes}</p>}
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -1244,8 +1572,8 @@ export const ApplicationDetailPage: React.FC = () => {
                           </>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                              Missing
+                            <span className="text-[11px] font-mono text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              Awaiting Upload
                             </span>
                             <Button
                               variant="outline"
@@ -1315,316 +1643,283 @@ export const ApplicationDetailPage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 8: HIRING & DEPLOYMENT */}
+          {/* TAB 8: PERSONNEL & DEPLOYMENT */}
           {activeTab === "hiring" && (
             <div className="space-y-6">
               <div className="border-b border-slate-100 pb-3">
-                <h3 className="text-sm font-bold text-slate-900">Post-Hire Onboarding & Field Deployment</h3>
+                <h3 className="text-sm font-bold text-slate-900">Digital 201 Personnel & Workforce Deployment</h3>
                 <p className="text-xs text-slate-500">
-                  Generate digital 201 personnel records and create active site deployment assignments
+                  Provisioned employee profile, statutory compliance standing, and site deployment assignments
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Card 1: Digital 201 Employee Profile */}
                 <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                  <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-800 uppercase">
-                    <UserCheck className="w-4 h-4 text-teal-600" />
-                    <span>Complete Hiring (Generate 201 Record)</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-800 uppercase">
+                      <UserCheck className="w-4 h-4 text-teal-600" />
+                      <span>Digital 201 Personnel Profile</span>
+                    </div>
+                    {app.hiredEmployee && (
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
+                        {app.hiredEmployee.status || "ACTIVE"}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Once the candidate passes final interview and meets pre-employment requirements, click below to transition candidate into employee status.
-                  </p>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={Boolean(app.hiredEmployee) || !hasPassedFinalInterview}
-                    onClick={() => {
-                      setHirePosition(app.jobPosting?.title || "");
-                      setHireDepartment(app.jobPosting?.location || "Operations");
-                      setHireModalOpen(true);
-                    }}
-                  >
-                    {app.hiredEmployee ? "Candidate Already Hired" : "Complete Hiring Workflow"}
-                  </Button>
-                  {!hasPassedFinalInterview && !app.hiredEmployee && (
-                    <p className="text-[11px] font-mono text-amber-700 mt-1">
-                      ⚠️ Candidate must complete and PASS Final Interview before hiring.
-                    </p>
-                  )}
-                  {app.hiredEmployee && (
-                    <p className="text-[11px] font-mono text-teal-700 mt-1">
-                      ✅ Digital 201 Record Active ({app.hiredEmployee.employeeNumber}).
-                    </p>
+                  {app.hiredEmployee ? (
+                    <div className="space-y-2 text-xs font-mono">
+                      <div className="flex justify-between py-1 border-b border-slate-200">
+                        <span className="text-slate-500">Employee Number:</span>
+                        <span className="font-bold text-slate-900">{app.hiredEmployee.employeeNumber}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-200">
+                        <span className="text-slate-500">Position / Designation:</span>
+                        <span className="font-semibold text-slate-900">{app.hiredEmployee.position || app.jobPosting?.title || "Specialist"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-200">
+                        <span className="text-slate-500">Department:</span>
+                        <span className="text-slate-800">{app.hiredEmployee.department || "Operations"}</span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-slate-500">Hire / Provision Date:</span>
+                        <span className="text-slate-800">{app.hiredEmployee.hireDate ? formatDate(app.hiredEmployee.hireDate) : "Recently Provisioned"}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-white border border-slate-200 rounded text-xs space-y-1.5">
+                      <p className="text-slate-600 leading-relaxed font-sans">
+                        Digital 201 Personnel profile and statutory compliance requirements are <strong>automatically provisioned</strong> when candidate completes Client Evaluation and enters the <strong>201 Compliance</strong> stage.
+                      </p>
+                    </div>
                   )}
                 </div>
 
+                {/* Card 2: Site Deployment Status & Action */}
                 <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                  <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-800 uppercase">
-                    <Truck className="w-4 h-4 text-emerald-600" />
-                    <span>Assign Deployment Site</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-800 uppercase">
+                      <Truck className="w-4 h-4 text-emerald-600" />
+                      <span>Workforce Site Deployment</span>
+                    </div>
+                    {app.status === ApplicationStatus.DEPLOYED && (
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        DEPLOYED
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Deploy candidate to client location under an active Manpower Request (MRF).
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={
-                      !app.hiredEmployee ||
-                      hasUnapprovedMandatoryCompliance ||
-                      app.status === ApplicationStatus.DEPLOYED
-                    }
-                    onClick={() => {
-                      const approvedEndorsement = app.clientEndorsements?.find((e) => e.outcome === "ENDORSED");
-                      if (approvedEndorsement?.clientId) {
-                        setDeployClientId(approvedEndorsement.clientId);
-                      }
-                      setDeploySite(app.jobPosting?.location || "");
-                      setDeployModalOpen(true);
-                    }}
-                  >
-                    {app.status === ApplicationStatus.DEPLOYED
-                      ? "Currently Deployed"
-                      : "Deploy to Client Site"}
-                  </Button>
-                  {!app.hiredEmployee && (
-                    <p className="text-[11px] font-mono text-slate-500 mt-1">
-                      ℹ️ Complete hiring workflow first to create employee record.
-                    </p>
-                  )}
-                  {app.hiredEmployee && hasUnapprovedMandatoryCompliance && (
-                    <p className="text-[11px] font-mono text-amber-700 mt-1">
-                      ⚠️ All mandatory 201 compliance clearances must be APPROVED before deployment.
-                    </p>
+                  {app.deployments && app.deployments.length > 0 ? (
+                    <div className="space-y-2 text-xs font-mono">
+                      {app.deployments.map((dep) => (
+                        <div key={dep.id} className="p-3 bg-white border border-slate-200 rounded space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-900">{dep.client?.name || linkedClientName}</span>
+                            <StatusBadge status={dep.status} size="sm" />
+                          </div>
+                          <div className="text-[11px] text-slate-600">Site Location: {dep.site || "Client Assigned Location"}</div>
+                          {dep.contractStart && (
+                            <div className="text-[11px] text-slate-500">Contract Start: {formatDate(dep.contractStart)}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-xs text-slate-600 leading-relaxed font-sans">
+                        Deploys compliant candidate to the linked client work site under the active requisition MRF.
+                      </p>
+                      {canDeployCandidate && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          leftIcon={<Truck className="w-3.5 h-3.5" />}
+                          onClick={() => {
+                            setDeployClientId(linkedClientId || latestEndorsement?.clientId || 0);
+                            setDeploySite(app.jobPosting?.location || (app.jobPosting?.mrf as any)?.location || (linkedClient as any)?.address || "");
+                            setDeployModalOpen(true);
+                          }}
+                        >
+                          Deploy Candidate to Site
+                        </Button>
+                      )}
+                      {!canDeployCandidate && isComplianceStage && (
+                        <p className="text-[11px] font-mono text-amber-700 bg-amber-50 p-2.5 rounded border border-amber-200">
+                          ⚠️ All mandatory 201 compliance clearances must be APPROVED before deployment can be activated.
+                        </p>
+                      )}
+                      {!canDeployCandidate && !isComplianceStage && app.status !== ApplicationStatus.DEPLOYED && (
+                        <p className="text-[11px] font-mono text-slate-500 bg-white p-2.5 rounded border border-slate-200">
+                          ℹ️ Candidate must reach and complete 201 Compliance before deployment.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB 9: SIMILAR CANDIDATES IN TALENT POOL */}
+          {activeTab === "similar" && (
+            <div className="space-y-6">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Similar Talent Pool Candidates</h3>
+                  <p className="text-xs text-slate-500">
+                    Pre-screened and archived talent with matching skill and experience vector embeddings
+                  </p>
+                </div>
+                <Link to="/ta/talent-pool">
+                  <Button variant="outline" size="sm" rightIcon={<ExternalLink className="w-3 h-3" />}>
+                    Open Talent Pool
+                  </Button>
+                </Link>
+              </div>
+
+              {similarCandidatesQuery.isLoading ? (
+                <LoadingState variant="cards" />
+              ) : similarCandidatesQuery.isError ? (
+                <ErrorState error={similarCandidatesQuery.error} onRetry={() => similarCandidatesQuery.refetch()} />
+              ) : (similarCandidatesQuery.data || []).length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <Sparkles className="w-6 h-6 text-teal-600 mx-auto" />
+                  <h4 className="text-xs font-mono font-bold uppercase text-slate-800">
+                    No Similar Talent Pool Candidates Found
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    No other candidate profiles in the talent pool closely match this applicant's vector embeddings.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(similarCandidatesQuery.data || []).map((res) => {
+                    const c = res.candidate;
+                    const simPercent = Math.round((res.similarity || 0) * 100);
+
+                    return (
+                      <div
+                        key={c.id}
+                        className="p-4 rounded-xl border border-slate-200 hover:border-teal-300 transition-colors bg-white flex flex-col justify-between space-y-3 shadow-xs"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-bold text-slate-900">
+                                  {c.firstName} {c.lastName}
+                                </h4>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                  {c.availability}
+                                </span>
+                              </div>
+                              <div className="text-xs text-slate-500 font-mono mt-0.5">
+                                {c.email}
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-50 text-teal-900 border border-teal-200 text-xs font-mono font-bold">
+                                <Sparkles className="w-3 h-3 text-teal-600" />
+                                <span>{simPercent}% Match</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          {c.currentRole && (
+                            <div className="text-xs text-slate-700 font-medium flex items-center gap-1.5">
+                              <span>{c.currentRole}</span>
+                            </div>
+                          )}
+
+                          {(c.city || c.province) && (
+                            <div className="text-xs text-slate-600 flex items-center gap-1.5 font-mono">
+                              <span>{[c.city, c.province].filter(Boolean).join(", ")}</span>
+                            </div>
+                          )}
+
+                          {c.skills && c.skills.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {c.skills.slice(0, 5).map((s: any, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold"
+                                >
+                                  {typeof s === "string" ? s : s.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+                          <Link to="/ta/talent-pool">
+                            <Button variant="outline" size="sm" rightIcon={<ArrowLeft className="w-3 h-3 rotate-180" />}>
+                              View in Talent Pool
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Stage Advance Modal */}
-      <Dialog
-        open={stageModalOpen}
-        onClose={() => setStageModalOpen(false)}
-        title="Advance Candidate Pipeline Stage"
-        description={`Transition ${candidateName} to next hiring milestone`}
-      >
-        <div className="space-y-4">
-          {(ALLOWED_STAGE_TRANSITIONS[app.status]?.length ?? 0) === 0 ? (
-            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs font-mono">
-              Candidate is in a terminal status ({app.status}). No further stage transitions are permitted.
-            </div>
-          ) : (
-            <Select
-              label="New Recruitment Stage"
-              value={selectedStage}
-              onChange={(e) => {
-                setSelectedStage(e.target.value as ApplicationStatus);
-                setStageError(null);
-              }}
-              options={(ALLOWED_STAGE_TRANSITIONS[app.status] || PIPELINE_FILTER_STAGES).map((s) => ({
-                value: s,
-                label: getApplicationStatusMeta(s).label,
-              }))}
-            />
-          )}
 
-          {/* Stage Prerequisite Guidance */}
-          {selectedStage === ApplicationStatus.HIRED && !hasPassedFinalInterview && (
-            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded space-y-2">
-              <div className="font-semibold flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Final Interview Prerequisite Required</span>
-              </div>
-              <p className="text-amber-800 leading-relaxed">
-                Advancing to <strong>Hired</strong> requires a passed Final Interview record in the system.
-                {pendingFinalInterview
-                  ? " The scheduled Final Interview is currently Pending."
-                  : " No Final Interview has been scheduled or passed yet."}
-              </p>
-              {pendingFinalInterview && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-white border-amber-300 text-amber-900 hover:bg-amber-100"
-                  loading={updateInterviewStatusMutation.isPending}
-                  onClick={() => {
-                    updateInterviewStatusMutation.mutate({
-                      interviewId: pendingFinalInterview.id,
-                      result: "PASS",
-                      notes: stageReason || "Passed final interview assessment",
-                    });
-                  }}
-                >
-                  Mark Final Interview as Passed
-                </Button>
-              )}
-            </div>
-          )}
 
-          {selectedStage === ApplicationStatus.HIRED && hasPassedFinalInterview && (
-            <div className="p-3 bg-teal-50 border border-teal-200 text-teal-900 text-xs rounded space-y-2">
-              <div className="font-semibold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
-                <span>Digital 201 Personnel Record Provisioning</span>
-              </div>
-              <p className="text-teal-800 leading-relaxed">
-                Advancing to <strong>Hired</strong> will generate the candidate's Digital 201 Employee Record in Personnel. You can also specify custom employee numbers, department, and designation.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-white border-teal-300 text-teal-900 hover:bg-teal-100"
-                onClick={() => {
-                  setStageModalOpen(false);
-                  setHireModalOpen(true);
-                }}
-              >
-                Open Detailed 201 Hiring Form
-              </Button>
-            </div>
-          )}
-
-          {selectedStage === ApplicationStatus.CLIENT_ENDORSEMENT && !hasPassedScreening && (
-            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded space-y-2">
-              <div className="font-semibold flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Screening Prerequisite Required</span>
-              </div>
-              <p className="text-amber-800 leading-relaxed">
-                Advancing to <strong>Client Endorsement</strong> requires a passed Initial Screening interview.
-                {pendingScreeningInterview
-                  ? " The Initial Screening interview is currently Pending."
-                  : " No Initial Screening interview has been recorded yet."}
-              </p>
-              {pendingScreeningInterview && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-white border-amber-300 text-amber-900 hover:bg-amber-100"
-                  loading={updateInterviewStatusMutation.isPending}
-                  onClick={() => {
-                    updateInterviewStatusMutation.mutate({
-                      interviewId: pendingScreeningInterview.id,
-                      result: "PASS",
-                      notes: stageReason || "Passed initial screening interview",
-                    });
-                  }}
-                >
-                  Mark Screening as Passed
-                </Button>
-              )}
-            </div>
-          )}
-
-          {selectedStage === ApplicationStatus.FINAL_INTERVIEW && !hasClientEndorsement && (
-            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded space-y-1">
-              <div className="font-semibold flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Client Endorsement Required</span>
-              </div>
-              <p className="text-amber-800 leading-relaxed">
-                Advancing to <strong>Final Interview</strong> requires an endorsed client presentation (Outcome: <strong>ENDORSED</strong>). Please record a client endorsement first.
-              </p>
-            </div>
-          )}
-
-          {selectedStage === ApplicationStatus.DEPLOYED && hasUnapprovedMandatoryCompliance && (
-            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded space-y-1">
-              <div className="font-semibold flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Compliance Prerequisite Required</span>
-              </div>
-              <p className="text-amber-800 leading-relaxed">
-                Deployment requires all mandatory pre-employment compliance documents to be uploaded and <strong>APPROVED</strong>.
-              </p>
-            </div>
-          )}
-
-          {selectedStage === ApplicationStatus.DEPLOYED && !hasUnapprovedMandatoryCompliance && (
-            <div className="p-3 bg-teal-50 border border-teal-200 text-teal-900 text-xs rounded space-y-2">
-              <div className="font-semibold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
-                <span>Workforce Site Deployment Setup</span>
-              </div>
-              <p className="text-teal-800 leading-relaxed">
-                Advancing to <strong>Deployed</strong> will activate site deployment. You can also specify client account, site location, and contract duration.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-white border-teal-300 text-teal-900 hover:bg-teal-100"
-                onClick={() => {
-                  setStageModalOpen(false);
-                  setDeployModalOpen(true);
-                }}
-              >
-                Open Site Deployment Form
-              </Button>
-            </div>
-          )}
-
-          {stageError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-mono rounded flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <div className="font-bold">Stage Transition Error</div>
-                <div>{stageError}</div>
-              </div>
-            </div>
-          )}
-
-          <Textarea
-            label="Recruiter Decision Rationale"
-            placeholder="Document interview feedback or assessment justification"
-            value={stageReason}
-            onChange={(e) => setStageReason(e.target.value)}
-            rows={3}
-          />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setStageModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              loading={updateStatusMutation.isPending}
-              onClick={() =>
-                updateStatusMutation.mutate({
-                  status: selectedStage,
-                  reason: stageReason || undefined,
-                })
-              }
-            >
-              Confirm Transition
-            </Button>
-          </div>
-        </div>
-      </Dialog>
 
       {/* Record Interview Result Modal */}
       <Dialog
         open={interviewOutcomeModalOpen}
         onClose={() => setInterviewOutcomeModalOpen(false)}
-        title="Record Interview Assessment"
-        description={`Record outcome for ${selectedInterviewForOutcome?.type?.replace(/_/g, " ") || "Interview"}`}
+        title={
+          app?.status === ApplicationStatus.FINAL_INTERVIEW
+            ? "Record Client Final Evaluation"
+            : "Record Interview Assessment"
+        }
+        description={
+          app?.status === ApplicationStatus.FINAL_INTERVIEW
+            ? `Record client evaluation decision for ${candidateName}`
+            : `Record outcome for ${selectedInterviewForOutcome?.type?.replace(/_/g, " ") || "Initial Screening"}`
+        }
       >
         <div className="space-y-4">
           <Select
-            label="Interview Outcome / Result"
+            label={
+              app?.status === ApplicationStatus.FINAL_INTERVIEW
+                ? "Client Evaluation Decision / Result"
+                : "Interview Outcome / Result"
+            }
             value={interviewOutcomeResult}
             onChange={(e) => setInterviewOutcomeResult(e.target.value as "PASS" | "FAIL" | "NO_SHOW")}
-            options={[
-              { value: "PASS", label: "PASS — Candidate Meets Technical & Behavioral Requirements" },
-              { value: "FAIL", label: "FAIL — Candidate Does Not Qualify" },
-              { value: "NO_SHOW", label: "NO SHOW — Candidate Did Not Attend (Auto-archive)" },
-            ]}
+            options={
+              app?.status === ApplicationStatus.FINAL_INTERVIEW
+                ? [
+                    { value: "PASS", label: "PASS — Client Accepts / Selected for Hire" },
+                    { value: "FAIL", label: "FAIL — Client Rejected Candidate" },
+                    { value: "NO_SHOW", label: "NO SHOW — Candidate Did Not Attend Client Evaluation" },
+                  ]
+                : [
+                    { value: "PASS", label: "PASS — Candidate Meets Technical & Behavioral Requirements" },
+                    { value: "FAIL", label: "FAIL — Candidate Does Not Qualify" },
+                    { value: "NO_SHOW", label: "NO SHOW — Candidate Did Not Attend (Auto-archive)" },
+                  ]
+            }
           />
           <Textarea
-            label="Evaluation Notes & Interviewer Remarks"
-            placeholder="Document technical competencies, communication skills, or panel remarks"
+            label={
+              app?.status === ApplicationStatus.FINAL_INTERVIEW
+                ? "Client Feedback & Decision Notes"
+                : "Evaluation Notes & Interviewer Remarks"
+            }
+            placeholder={
+              app?.status === ApplicationStatus.FINAL_INTERVIEW
+                ? "Document client interview feedback, agreed salary, or remarks"
+                : "Document technical competencies, communication skills, or panel remarks"
+            }
             value={interviewOutcomeNotes}
             onChange={(e) => setInterviewOutcomeNotes(e.target.value)}
             rows={3}
@@ -1638,16 +1933,20 @@ export const ApplicationDetailPage: React.FC = () => {
               size="sm"
               loading={updateInterviewStatusMutation.isPending}
               onClick={() => {
-                if (selectedInterviewForOutcome) {
-                  updateInterviewStatusMutation.mutate({
-                    interviewId: selectedInterviewForOutcome.id,
-                    result: interviewOutcomeResult,
-                    notes: interviewOutcomeNotes,
-                  });
-                }
+                const targetType =
+                  selectedInterviewForOutcome?.type ||
+                  (app?.status === ApplicationStatus.FINAL_INTERVIEW
+                    ? InterviewType.FINAL_INTERVIEW
+                    : InterviewType.INITIAL_SCREENING);
+                updateInterviewStatusMutation.mutate({
+                  interviewId: selectedInterviewForOutcome?.id,
+                  type: targetType,
+                  result: interviewOutcomeResult,
+                  notes: interviewOutcomeNotes,
+                });
               }}
             >
-              Save Result
+              {app?.status === ApplicationStatus.FINAL_INTERVIEW ? "Save Evaluation Result" : "Save Result"}
             </Button>
           </div>
         </div>
@@ -1657,19 +1956,24 @@ export const ApplicationDetailPage: React.FC = () => {
       <Dialog
         open={interviewModalOpen}
         onClose={() => setInterviewModalOpen(false)}
-        title="Schedule Candidate Interview"
-        description="Book initial screening or final technical assessment"
+        title={interviewType === InterviewType.INITIAL_SCREENING ? "Schedule Initial Screening Interview" : "Schedule Final Technical Interview"}
+        description={`Book ${interviewType === InterviewType.INITIAL_SCREENING ? "initial screening" : "final technical / client"} interview for ${candidateName}`}
       >
         <div className="space-y-4">
-          <Select
-            label="Interview Type"
-            value={interviewType}
-            onChange={(e) => setInterviewType(e.target.value as InterviewType)}
-            options={[
-              { value: InterviewType.INITIAL_SCREENING, label: "Initial Screening Interview" },
-              { value: InterviewType.FINAL_INTERVIEW, label: "Final Technical / Client Interview" },
-            ]}
-          />
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1">
+            <span className="text-slate-500 font-mono text-[10px] uppercase block">Interview Milestone:</span>
+            <div className="font-bold font-mono text-slate-900 text-sm flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-teal-600" />
+              <span>
+                {interviewType === InterviewType.INITIAL_SCREENING
+                  ? "Initial Screening Interview"
+                  : "Final Technical / Client Interview"}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 font-mono">
+              7-Day Compliance SLA begins upon scheduling.
+            </p>
+          </div>
           <Input
             label="Scheduled Date & Time"
             type="datetime-local"
@@ -1711,32 +2015,57 @@ export const ApplicationDetailPage: React.FC = () => {
       <Dialog
         open={endorseModalOpen}
         onClose={() => setEndorseModalOpen(false)}
-        title="Record Client Endorsement"
-        description="Submit candidate for client review and endorsement decision"
+        title="Endorse Candidate to Client"
+        description={`Forward ${candidateName} to client hiring team for evaluation`}
+        overflowVisible
       >
         <div className="space-y-4">
+          {linkedClientId ? (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
+              <span className="text-slate-500 font-mono text-[10px] uppercase block">
+                Target Client (Auto-Linked from Requisition MRF):
+              </span>
+              <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-teal-600" />
+                <span>{linkedClientName}</span>
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono">
+                Position: {app.jobPosting?.title || "Specialist"}
+                {app.jobPosting?.mrf?.title ? ` • MRF: ${app.jobPosting.mrf.title}` : ""}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <ComboBox
+                label="Select Target Client Account"
+                placeholder="Search verified corporate client..."
+                leftIcon={<Building2 className="w-3.5 h-3.5 text-slate-400" />}
+                value={manualClientId ? String(manualClientId) : ""}
+                onChange={(val) => setManualClientId(Number(val) || null)}
+                options={clients.map((c) => ({
+                  value: String(c.id),
+                  label: c.name,
+                  subtitle: `${c.industry || "General"} • ${c.address || "Philippines"}`,
+                }))}
+                helperText="Requisition is not linked to an MRF. Select client manually to proceed."
+                required
+              />
+            </div>
+          )}
+
           <Select
-            label="Target Client"
-            value={endorseClientId}
-            onChange={(e) => setEndorseClientId(Number(e.target.value))}
-            options={[
-              { value: 0, label: "Select a client..." },
-              ...clients.map((c) => ({ value: c.id, label: c.name })),
-            ]}
-          />
-          <Select
-            label="Endorsement Outcome"
+            label="Initial Endorsement Status"
             value={endorseOutcome}
             onChange={(e) => setEndorseOutcome(e.target.value as any)}
             options={[
-              { value: "PENDING", label: "PENDING (Under Client Review)" },
-              { value: "ENDORSED", label: "ENDORSED (Approved by Client)" },
-              { value: "DECLINED", label: "DECLINED (Client Rejected)" },
+              { value: "PENDING", label: "PENDING — Under Client Review" },
+              { value: "APPROVED", label: "APPROVED — Client Accepted Candidate" },
+              { value: "DECLINED", label: "DECLINED — Client Rejected Candidate" },
             ]}
           />
           <Textarea
-            label="Endorsement Notes"
-            placeholder="Client coordinator feedback..."
+            label="Endorsement Notes / Profile Summary"
+            placeholder="Key screening strengths, communication skills, or coordinator remarks for client..."
             value={endorseNotes}
             onChange={(e) => setEndorseNotes(e.target.value)}
             rows={2}
@@ -1748,43 +2077,59 @@ export const ApplicationDetailPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              disabled={!endorseClientId}
+              disabled={!(linkedClientId || manualClientId)}
               loading={endorseMutation.isPending}
-              onClick={() =>
+              onClick={() => {
+                const targetClientId = linkedClientId || manualClientId;
+                if (!targetClientId) return;
                 endorseMutation.mutate({
-                  clientId: endorseClientId,
+                  clientId: targetClientId,
                   outcome: endorseOutcome,
                   notes: endorseNotes || undefined,
-                })
-              }
+                });
+              }}
             >
-              Record Endorsement
+              Submit Endorsement to Client
             </Button>
           </div>
         </div>
       </Dialog>
 
-      {/* Update Client Decision Modal */}
+      {/* Update Client Acceptance Modal */}
       <Dialog
         open={updateEndorsementModalOpen}
         onClose={() => setUpdateEndorsementModalOpen(false)}
-        title="Update Client Endorsement Decision"
-        description={`Record client hiring manager decision for ${selectedEndorsementClientName}`}
+        title="Record Client Acceptance"
+        description={`Record evaluation feedback and acceptance status from ${selectedEndorsementClientName || linkedClientName}`}
       >
         <div className="space-y-4">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
+            <span className="text-slate-500 font-mono text-[10px] uppercase block">
+              Target Client & Requisition:
+            </span>
+            <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 text-teal-600" />
+              <span>{selectedEndorsementClientName || linkedClientName}</span>
+            </div>
+            <div className="text-[11px] text-slate-500 font-mono">
+              Position: {app.jobPosting?.title || "Specialist"}
+              {app.jobPosting?.mrf?.title ? ` • MRF: ${app.jobPosting.mrf.title}` : ""}
+            </div>
+          </div>
+
           <Select
-            label="Client Decision Outcome"
+            label="Client Acceptance Outcome"
             value={updateEndorsementOutcome}
             onChange={(e) => setUpdateEndorsementOutcome(e.target.value as any)}
             options={[
-              { value: "PENDING", label: "PENDING (Under Review)" },
-              { value: "ENDORSED", label: "APPROVED / ENDORSED (Client Accepted for Final Stage)" },
-              { value: "DECLINED", label: "REJECTED / DECLINED (Client Passed on Candidate)" },
+              { value: "PENDING", label: "PENDING — Under Client Review" },
+              { value: "APPROVED", label: "APPROVED — Client Accepted Candidate" },
+              { value: "DECLINED", label: "DECLINED — Client Rejected Candidate" },
             ]}
           />
           <Textarea
             label="Client Feedback / Evaluation Notes"
-            placeholder="Feedback from client hiring manager regarding qualifications, fit, or interview availability..."
+            placeholder="Feedback from client hiring manager regarding qualifications, technical fit, or interview schedule..."
             value={updateEndorsementNotes}
             onChange={(e) => setUpdateEndorsementNotes(e.target.value)}
             rows={3}
@@ -1807,33 +2152,116 @@ export const ApplicationDetailPage: React.FC = () => {
                 }
               }}
             >
-              Save Decision
+              Save Client Acceptance
             </Button>
           </div>
         </div>
       </Dialog>
 
-      {/* Add Compliance Modal */}
+      {/* Add Custom Compliance Modal */}
       <Dialog
         open={complianceModalOpen}
         onClose={() => setComplianceModalOpen(false)}
-        title="Add Pre-Employment 201 Requirement"
-        description="Assign required clearance document for candidate submission"
+        title="Add Custom Compliance Requirement"
+        description="Assign an exceptional or role-specific clearance not covered by the standard 201 checklist."
+        overflowVisible
       >
         <div className="space-y-4">
-          <Input
-            label="Document Label / Clearance Type"
-            placeholder="e.g. NBI Clearance, SSS Static Form, Medical Fit to Work"
-            value={complianceDocLabel}
-            onChange={(e) => setComplianceDocLabel(e.target.value)}
-            required
-          />
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
+            <span className="text-slate-500 font-mono text-[10px] uppercase block">
+              Standard 201 Checklist Notice:
+            </span>
+            <p className="text-slate-600">
+              Government IDs, NBI Clearance, Medical Exam, SSS, PhilHealth, Pag-IBIG, and Contracts are auto-generated. Use this form only for unique role/client requirements.
+            </p>
+          </div>
+
+          {/* Quick preset selector buttons */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-slate-700">Quick Presets / Templates</label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                "Driver's License (Professional)",
+                "PRC Board License",
+                "5-Panel Drug Test Certificate",
+                "Academic Transcript (TOR)",
+                "Certificate of Employment (COE)",
+                "Trade Skill Certification",
+              ].map((preset) => {
+                const isAlreadyAdded = (app.complianceRequirements || []).some(
+                  (r) => r.documentLabel.toLowerCase().trim() === preset.toLowerCase().trim()
+                );
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    disabled={isAlreadyAdded}
+                    onClick={() => setComplianceDocLabel(preset)}
+                    className={`text-[11px] font-mono px-2 py-1 rounded border transition-colors ${
+                      isAlreadyAdded
+                        ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed line-through"
+                        : complianceDocLabel === preset
+                        ? "bg-teal-600 text-white border-teal-600"
+                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    {preset} {isAlreadyAdded && "(Already Added)"}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <ComboBox
+              label="Document Label / Requirement Name"
+              placeholder="Search standard 201 clearance or type custom name..."
+              value={complianceDocLabel}
+              onChange={(val) => setComplianceDocLabel(val || "")}
+              options={COMPLIANCE_201_PRESETS.map((p) => ({
+                value: p.label,
+                label: p.label,
+                subtitle: p.description,
+                badge: p.category,
+                disabled: (app.complianceRequirements || []).some(
+                  (r) => r.documentLabel.toLowerCase().trim() === p.label.toLowerCase().trim()
+                ),
+              }))}
+              allowCustom
+              required
+            />
+            {(() => {
+              const trimmed = complianceDocLabel.trim().toLowerCase();
+              const isDuplicate = (app.complianceRequirements || []).some(
+                (r) => r.documentLabel.toLowerCase().trim() === trimmed
+              );
+              const hasBundleDelimiters = complianceDocLabel.includes(",") || complianceDocLabel.includes(";");
+
+              if (isDuplicate) {
+                return (
+                  <p className="text-xs text-rose-600 font-mono mt-1">
+                    ⚠️ This requirement already exists in the candidate's compliance checklist.
+                  </p>
+                );
+              }
+              if (hasBundleDelimiters) {
+                return (
+                  <p className="text-xs text-amber-600 font-mono mt-1">
+                    ⚠️ Please enter a single document name rather than combining multiple items.
+                  </p>
+                );
+              }
+              return null;
+            })()}
+          </div>
+
           <Input
             label="Submission Deadline (Optional)"
             type="date"
             value={complianceDeadline}
             onChange={(e) => setComplianceDeadline(e.target.value)}
           />
+
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setComplianceModalOpen(false)}>
               Cancel
@@ -1841,17 +2269,114 @@ export const ApplicationDetailPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              disabled={!complianceDocLabel.trim()}
+              disabled={
+                !complianceDocLabel.trim() ||
+                (app.complianceRequirements || []).some(
+                  (r) => r.documentLabel.toLowerCase().trim() === complianceDocLabel.trim().toLowerCase()
+                ) ||
+                complianceDocLabel.includes(",") ||
+                complianceDocLabel.includes(";")
+              }
               loading={addComplianceMutation.isPending}
               onClick={() =>
                 addComplianceMutation.mutate({
-                  documentLabel: complianceDocLabel,
+                  documentLabel: complianceDocLabel.trim(),
                   deadline: complianceDeadline ? new Date(complianceDeadline).toISOString() : undefined,
                   isRequired: true,
                 })
               }
             >
-              Add Requirement
+              Add Custom Requirement
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Edit Compliance Deadline Modal */}
+      <Dialog
+        open={editDeadlineModalOpen}
+        onClose={() => {
+          setEditDeadlineModalOpen(false);
+          setEditDeadlineReqId(null);
+        }}
+        title="Adjust Compliance Deadline"
+        description="Set or extend the submission target date for this clearance requirement."
+      >
+        <div className="space-y-4">
+          {(() => {
+            const selectedReq = app.complianceRequirements?.find((r) => r.id === editDeadlineReqId);
+            return (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1">
+                <span className="text-slate-400 font-mono text-[10px] uppercase block">Selected Requirement</span>
+                <span className="font-bold text-slate-900 block">{selectedReq?.documentLabel}</span>
+                {selectedReq?.deadline && (
+                  <span className="text-slate-500 font-mono text-[11px] block">
+                    Current Deadline: {formatDate(selectedReq.deadline)}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
+
+          <Input
+            label="Target Submission Deadline"
+            type="date"
+            value={editDeadlineDate}
+            onChange={(e) => setEditDeadlineDate(e.target.value)}
+            required
+          />
+
+          <div className="space-y-1.5">
+            <span className="text-[10px] text-slate-500 font-mono uppercase block">Quick Extend SLA</span>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { label: "+3 Days", days: 3 },
+                { label: "+7 Days", days: 7 },
+                { label: "+14 Days", days: 14 },
+                { label: "+30 Days", days: 30 },
+              ].map((opt) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + opt.days);
+                    setEditDeadlineDate(d.toISOString().split("T")[0]);
+                  }}
+                  className="text-[11px] font-mono px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 rounded border border-slate-300 transition-colors"
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditDeadlineModalOpen(false);
+                setEditDeadlineReqId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!editDeadlineDate || !editDeadlineReqId}
+              loading={updateDeadlineMutation.isPending}
+              onClick={() => {
+                if (editDeadlineReqId) {
+                  updateDeadlineMutation.mutate({
+                    id: editDeadlineReqId,
+                    deadline: editDeadlineDate ? new Date(editDeadlineDate).toISOString() : null,
+                  });
+                }
+              }}
+            >
+              Save Deadline
             </Button>
           </div>
         </div>
@@ -1965,78 +2490,96 @@ export const ApplicationDetailPage: React.FC = () => {
         isActionLoading={reviewComplianceMutation.isPending}
       />
 
-      {/* Complete Hire Modal */}
-      <Dialog
-        open={hireModalOpen}
-
-        onClose={() => setHireModalOpen(false)}
-        title="Complete Hiring & Onboarding"
-        description="Convert candidate into active employee and create Digital 201 file"
-      >
-        <div className="space-y-4">
-          <Input
-            label="Employee Identification Number"
-            placeholder="e.g. EMP-2026-0042"
-            value={hireEmployeeNumber}
-            onChange={(e) => setHireEmployeeNumber(e.target.value)}
-          />
-          <Input
-            label="Assigned Department"
-            placeholder="e.g. Operations / Logistics"
-            value={hireDepartment}
-            onChange={(e) => setHireDepartment(e.target.value)}
-          />
-          <Input
-            label="Designation / Position"
-            placeholder="e.g. Warehouse Inventory Supervisor"
-            value={hirePosition}
-            onChange={(e) => setHirePosition(e.target.value)}
-          />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setHireModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              loading={hireMutation.isPending}
-              onClick={() =>
-                hireMutation.mutate({
-                  employeeNumber: hireEmployeeNumber || undefined,
-                  department: hireDepartment || undefined,
-                  position: hirePosition || undefined,
-                })
-              }
-            >
-              Complete Hiring
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-
       {/* Deploy Modal */}
       <Dialog
         open={deployModalOpen}
         onClose={() => setDeployModalOpen(false)}
-        title="Create Site Deployment"
-        description="Deploy hired employee to client location"
+        title="Activate Workforce Site Deployment"
+        description={`Deploy ${candidateName} to client work location`}
+        overflowVisible
       >
         <div className="space-y-4">
-          <Select
-            label="Client Account"
-            value={deployClientId}
-            onChange={(e) => setDeployClientId(Number(e.target.value))}
-            options={[
-              { value: 0, label: "Select client..." },
-              ...clients.map((c) => ({ value: c.id, label: c.name })),
-            ]}
-          />
-          <Input
+          {linkedClientId ? (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
+              <span className="text-slate-500 font-mono text-[10px] uppercase block">
+                Assigned Client (Auto-Linked):
+              </span>
+              <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-teal-600" />
+                <span>{linkedClientName || `Client #${linkedClientId}`}</span>
+              </div>
+              {app.jobPosting?.title && (
+                <div className="text-[11px] text-slate-500 font-mono">
+                  Position: {app.jobPosting.title}
+                  {app.jobPosting?.mrf?.title ? ` • MRF: ${app.jobPosting.mrf.title}` : ""}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <ComboBox
+                label="Select Target Client Account *"
+                placeholder="Search verified corporate client..."
+                leftIcon={<Building2 className="w-3.5 h-3.5 text-slate-400" />}
+                value={deployClientId ? String(deployClientId) : ""}
+                onChange={(val) => setDeployClientId(Number(val) || 0)}
+                options={clients.map((c) => ({
+                  value: String(c.id),
+                  label: c.name,
+                  subtitle: `${c.industry || "General"} • ${c.address || "Philippines"}`,
+                }))}
+                helperText="Requisition is not linked to an MRF client. Select client manually to activate deployment."
+                required
+              />
+            </div>
+          )}
+
+          <ComboBox
             label="Deployment Site / Location"
-            placeholder="e.g. Calamba Facility Plant 2"
+            placeholder="Select inherited site or specify custom location..."
             value={deploySite}
-            onChange={(e) => setDeploySite(e.target.value)}
+            onChange={(val) => setDeploySite(val || "")}
+            options={Array.from(
+              new Set(
+                [
+                  (app.jobPosting?.mrf as any)?.location,
+                  app.jobPosting?.location,
+                  (linkedClient as any)?.address,
+                  clients.find((c) => c.id === (linkedClientId || deployClientId))?.address,
+                ].filter(Boolean) as string[]
+              )
+            ).map((loc) => ({
+              value: loc,
+              label: loc,
+              subtitle: loc === (app.jobPosting?.mrf as any)?.location ? "Inherited from MRF" : "Corporate Facility",
+            }))}
+            allowCustom
+            required
           />
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Contract Start Date (Optional)"
+              type="date"
+              value={deployContractStart}
+              onChange={(e) => setDeployContractStart(e.target.value)}
+            />
+            <Input
+              label="Contract End Date (Optional)"
+              type="date"
+              value={deployContractEnd}
+              onChange={(e) => setDeployContractEnd(e.target.value)}
+            />
+          </div>
+
+          <Textarea
+            label="Deployment Notes / Shift Instructions (Optional)"
+            placeholder="Shift assignment, site supervisor, reporting instructions..."
+            value={deployNotes}
+            onChange={(e) => setDeployNotes(e.target.value)}
+            rows={2}
+          />
+
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setDeployModalOpen(false)}>
               Cancel
@@ -2044,14 +2587,22 @@ export const ApplicationDetailPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              disabled={!deployClientId}
+              disabled={!(linkedClientId || deployClientId) || deployMutation.isPending}
               loading={deployMutation.isPending}
-              onClick={() =>
+              onClick={() => {
+                const targetClientId = linkedClientId || deployClientId;
+                if (!targetClientId) {
+                  notify.error("Client Required", "Please select a target client for this deployment.");
+                  return;
+                }
                 deployMutation.mutate({
-                  clientId: deployClientId,
+                  clientId: targetClientId,
                   site: deploySite || undefined,
-                })
-              }
+                  contractStart: deployContractStart ? new Date(deployContractStart).toISOString() : undefined,
+                  contractEnd: deployContractEnd ? new Date(deployContractEnd).toISOString() : undefined,
+                  notes: deployNotes || undefined,
+                });
+              }}
             >
               Activate Deployment
             </Button>

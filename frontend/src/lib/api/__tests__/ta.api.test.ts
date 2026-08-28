@@ -106,6 +106,126 @@ describe("Talent Acquisition APIs (TDD)", () => {
     });
   });
 
+  describe("taApi - Talent Pool & Candidate Matching", () => {
+    it("searches talent pool by text or criteria and unwraps items payload", async () => {
+      const mockResult = {
+        items: [
+          {
+            candidate: {
+              id: "user-1",
+              applicantProfileId: 10,
+              membershipId: 100,
+              email: "carlos@example.com",
+              firstName: "Carlos",
+              lastName: "Mendoza",
+              city: "Makati",
+              province: "Metro Manila",
+              currentRole: "Senior Engineer",
+              skills: ["TypeScript", "React"],
+              availability: "AVAILABLE",
+              talentPoolStatus: "ACTIVE",
+              lastContactedAt: null,
+            },
+            similarity: 0.92,
+            knnRank: 1,
+          },
+        ],
+      };
+      vi.mocked(api.post).mockResolvedValueOnce(mockResult as any);
+
+      const result = await taApi.searchTalentPool({ text: "TypeScript", k: 10 });
+      expect(api.post).toHaveBeenCalledWith("/api/ta/talent-pool/search", { text: "TypeScript", k: 10 });
+      expect(result).toEqual(mockResult.items);
+    });
+
+    it("retrieves talent pool matches for a specific job requisition", async () => {
+      const mockResult = {
+        items: [
+          {
+            candidate: { id: "user-1", applicantProfileId: 10, email: "carlos@example.com" },
+            similarity: 0.88,
+            knnRank: 1,
+          },
+        ],
+      };
+      vi.mocked(api.get).mockResolvedValueOnce(mockResult as any);
+
+      const result = await taApi.getJobTalentPool(10);
+      expect(api.get).toHaveBeenCalledWith("/api/ta/jobs/10/talent-pool");
+      expect(result).toEqual(mockResult.items);
+    });
+
+    it("retrieves similar talent pool candidates for a source application/candidate", async () => {
+      const mockResult = {
+        items: [
+          {
+            candidate: { id: "user-2", applicantProfileId: 20, email: "maria@example.com" },
+            similarity: 0.85,
+            knnRank: 1,
+          },
+        ],
+      };
+      vi.mocked(api.get).mockResolvedValueOnce(mockResult as any);
+
+      const result = await taApi.getSimilarCandidates(5);
+      expect(api.get).toHaveBeenCalledWith("/api/ta/candidates/5/similar");
+      expect(result).toEqual(mockResult.items);
+    });
+
+    it("adds candidate to talent pool", async () => {
+      const mockMembership = { id: 1, applicantProfileId: 10, status: "ACTIVE", availability: "AVAILABLE" };
+      vi.mocked(api.post).mockResolvedValueOnce(mockMembership as any);
+
+      const result = await taApi.addCandidateToPool({ applicantProfileId: 10, notes: "Strong candidate" });
+      expect(api.post).toHaveBeenCalledWith("/api/ta/talent-pool/members", { applicantProfileId: 10, notes: "Strong candidate" });
+      expect(result).toEqual(mockMembership);
+    });
+
+    it("records talent pool contact outcome with positive jobPostingId", async () => {
+      const mockContact = { id: 50, membershipId: 100, jobPostingId: 10, outcome: "INTERESTED" };
+      vi.mocked(api.post).mockResolvedValueOnce(mockContact as any);
+
+      const result = await taApi.recordContact({
+        membershipId: 100,
+        jobPostingId: 10,
+        outcome: "INTERESTED",
+        notes: "Candidate confirmed interest",
+      });
+      expect(api.post).toHaveBeenCalledWith("/api/ta/talent-pool/contacts", {
+        membershipId: 100,
+        jobPostingId: 10,
+        outcome: "INTERESTED",
+        notes: "Candidate confirmed interest",
+      });
+      expect(result).toEqual(mockContact);
+    });
+
+    it("reactivates candidate into new job application via considerCandidateForJob", async () => {
+      const mockReactivation = {
+        success: true,
+        message: "Candidate reactivated into a new job application successfully",
+        application: { id: 250, jobPostingId: 10, status: "SUBMITTED" },
+        contact: { id: 50, outcome: "INTERESTED" },
+        score: { finalFitScore: 91 },
+      };
+      vi.mocked(api.post).mockResolvedValueOnce(mockReactivation as any);
+
+      const result = await taApi.considerCandidateForJob({
+        applicantProfileId: 10,
+        targetJobId: 10,
+        notes: "Reactivating for Warehouse Lead",
+        contactOutcome: "INTERESTED",
+      });
+      expect(api.post).toHaveBeenCalledWith("/api/ta/talent-pool/consider", {
+        applicantProfileId: 10,
+        targetJobId: 10,
+        notes: "Reactivating for Warehouse Lead",
+        contactOutcome: "INTERESTED",
+      });
+      expect(result).toEqual(mockReactivation);
+    });
+  });
+
   describe("employeesApi - Digital 201 & Deployment Management", () => {
     it("lists employees with status filtering", async () => {
       const mockEmployees = [{ id: 1, employeeNumber: "EMP-2026-001" }];

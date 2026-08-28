@@ -11,7 +11,7 @@ export interface LoadingStateProps {
 export const LoadingState: React.FC<LoadingStateProps> = ({
   variant = "table",
   rows = 5,
-  message = "Loading operational data...",
+  message = "Loading information…",
   className,
 }) => {
   if (variant === "spinner") {

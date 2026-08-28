@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  getApplicationStatusMeta,
+  getApplicationStatusPresentation,
   getDeploymentStatusMeta,
   getEmploymentStatusMeta,
   cn,
@@ -9,6 +9,7 @@ import {
 export interface StatusBadgeProps {
   status?: string | null;
   type?: "application" | "deployment" | "employment" | "raw";
+  audience?: "applicant" | "staff";
   className?: string;
   size?: "sm" | "md";
 }
@@ -16,31 +17,31 @@ export interface StatusBadgeProps {
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
   type = "application",
+  audience = "staff",
   className,
   size = "md",
 }) => {
   let meta = { label: status || "Unknown", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
 
   if (type === "application") {
-    meta = getApplicationStatusMeta(status);
+    meta = getApplicationStatusPresentation(status, audience);
   } else if (type === "deployment") {
     meta = getDeploymentStatusMeta(status);
   } else if (type === "employment") {
     meta = getEmploymentStatusMeta(status);
   }
 
-  const sizeClass = size === "sm" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]";
+  const sizeClass = size === "sm" ? "px-2 py-0.5 text-xs" : "px-2.5 py-1 text-xs";
 
   return (
     <span
       className={cn(
-        "inline-flex items-center font-mono font-bold uppercase border tracking-wider select-none shrink-0",
+        "inline-flex items-center rounded-full font-medium border select-none shrink-0",
         sizeClass,
         meta.badgeClass,
         className
       )}
     >
-      <span className="w-1.5 h-1.5 bg-current mr-1.5 opacity-80 shrink-0" />
       <span className="truncate">{meta.label}</span>
     </span>
   );

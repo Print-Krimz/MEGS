@@ -8,7 +8,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import prisma from "../utils/prisma.js";
-import { executeHiring } from "../services/ta/ta.posthire.service.js";
+import { updateTAApplicationStatus } from "../services/ta/ta.applications.service.js";
 import {
   getDigital201ByEmployeeId,
   getDigital201ByUserId,
@@ -152,7 +152,16 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
       data: {
         userId: applicantUser1.id,
         jobPostingId: jobPosting1.id,
-        status: "ONBOARDING",
+        status: "FINAL_INTERVIEW",
+      },
+    });
+
+    await prisma.interview.create({
+      data: {
+        applicationId: application1.id,
+        type: "FINAL_INTERVIEW",
+        result: "PASS",
+        scheduledAt: new Date(),
       },
     });
 
@@ -219,34 +228,32 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
   });
 
   // ── TEST 3: Hiring Process Creates Exactly One Employee & History Event ──────
-  it("TEST-3: Valid hiring creates exactly one Employee and records a HIRED event", async () => {
+  it("TEST-3: Transition to COMPLIANCE creates exactly one Employee and records a HIRED event", async () => {
     // Add compliance requirements
     const compReq = await createComplianceRequirement(application1.id, "NBI Clearance", true);
     await reviewComplianceRequirement(compReq.id, taUser.id, "APPROVED", "Clear");
 
-    const hireResult = await executeHiring(
+    const updatedApp = await updateTAApplicationStatus(
       application1.id,
-      {
-        employeeNumber: "EMP-2026-0001",
-        department: "Logistics",
-        position: "Warehouse Supervisor",
-        startDate: new Date("2026-09-01"),
-        notes: "Offered and accepted package A",
-        reason: "Met all technical and compliance requirements",
-      },
-      taUser.id
+      "COMPLIANCE",
+      taUser.id,
+      "Met all technical and compliance requirements"
     );
 
-    expect(hireResult.application.status).toBe("HIRED");
-    expect(hireResult.employee).toBeDefined();
-    expect(hireResult.employee.employeeNumber).toBe("EMP-2026-0001");
-    expect(hireResult.employee.status).toBe("ACTIVE");
-    expect(hireResult.employee.userId).toBe(applicantUser1.id);
-    expect(hireResult.employee.originatingApplicationId).toBe(application1.id);
+    const employee = await prisma.employee.findUnique({
+      where: { userId: applicantUser1.id },
+    });
+
+    expect(updatedApp.status).toBe("COMPLIANCE");
+    expect(employee).toBeDefined();
+    expect(employee?.employeeNumber).toBeDefined();
+    expect(employee?.status).toBe("ACTIVE");
+    expect(employee?.userId).toBe(applicantUser1.id);
+    expect(employee?.originatingApplicationId).toBe(application1.id);
 
     // Verify EmploymentEvent created
     const events = await prisma.employmentEvent.findMany({
-      where: { employeeId: hireResult.employee.id },
+      where: { employeeId: employee!.id },
     });
     expect(events.length).toBeGreaterThanOrEqual(1);
     expect(events[0].eventType).toBe("HIRED");
@@ -259,22 +266,25 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
       data: {
         userId: applicantUser1.id,
         jobPostingId: jobPosting2.id,
-        status: "ONBOARDING",
+        status: "FINAL_INTERVIEW",
       },
     });
 
-    // Attempting to hire again as a new employee must throw error
-    await expect(
-      executeHiring(
-        newApp.id,
-        {
-          employeeNumber: "EMP-2026-0002",
-          department: "Supply Chain",
-          position: "Inventory Lead",
-        },
-        taUser.id
-      )
-    ).rejects.toThrow(/already exists as an employee/i);
+    await prisma.interview.create({
+      data: {
+        applicationId: newApp.id,
+        type: "FINAL_INTERVIEW",
+        result: "PASS",
+        scheduledAt: new Date(),
+      },
+    });
+
+    // Advancing second application to COMPLIANCE does not duplicate employee row
+    await updateTAApplicationStatus(newApp.id, "COMPLIANCE", taUser.id);
+    const employees = await prisma.employee.findMany({
+      where: { userId: applicantUser1.id },
+    });
+    expect(employees.length).toBe(1);
   });
 
   // ── TEST 5: Digital 201 Aggregation ─────────────────────────────────────────
@@ -288,7 +298,7 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
 
     // Verify aggregated structure
     expect(digital201.employee.id).toBe(employee!.id);
-    expect(digital201.employee.employeeNumber).toBe("EMP-2026-0001");
+    expect(digital201.employee.employeeNumber).toBeDefined();
     expect(digital201.candidate.id).toBe(applicantUser1.id);
     expect(digital201.candidate.profile.firstName).toBe("Juan");
     expect(digital201.candidate.profile.lastName).toBe("Dela Cruz");
@@ -374,8 +384,8 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
     expect(activeEmployees.length).toBeGreaterThanOrEqual(1);
   });
 
-  // ── TEST 8: Transaction Safety on Hire Failure ──────────────────────────────
-  it("TEST-8: Failed Employee creation does not leave Application marked HIRED", async () => {
+  // ── TEST 8: Gating Safety on Missing Passed Interview ──────────────────────────────
+  it("TEST-8: Missing passed final interview prevents moving to COMPLIANCE", async () => {
     // Create candidate 3
     cand3 = await prisma.user.create({
       data: {
@@ -405,28 +415,20 @@ describe("Digital 201 & Employee Lifecycle Verification", { timeout: 25000 }, ()
       data: {
         userId: cand3.id,
         jobPostingId: jobPosting1.id,
-        status: "ONBOARDING",
+        status: "FINAL_INTERVIEW",
       },
     });
 
-    // Pass duplicate employeeNumber that already exists ("EMP-2026-0001")
+    // Without passed final interview, moving to COMPLIANCE throws
     await expect(
-      executeHiring(
-        app3.id,
-        {
-          employeeNumber: "EMP-2026-0001", // duplicate!
-          department: "IT",
-          position: "Dev",
-        },
-        taUser.id
-      )
-    ).rejects.toThrow();
+      updateTAApplicationStatus(app3.id, "COMPLIANCE", taUser.id)
+    ).rejects.toThrow(/Client final evaluation result must be PASS/);
 
-    // Verify Application status was rolled back and is NOT HIRED
+    // Verify Application status was not updated to COMPLIANCE
     const checkedApp = await prisma.application.findUnique({
       where: { id: app3.id },
     });
-    expect(checkedApp?.status).toBe("ONBOARDING");
+    expect(checkedApp?.status).toBe("FINAL_INTERVIEW");
 
     // Verify no partial Employee record was created
     const checkedEmp = await prisma.employee.findUnique({

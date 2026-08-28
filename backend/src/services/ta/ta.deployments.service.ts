@@ -1,6 +1,8 @@
 import prisma from "../../utils/prisma.js";
 import { DeploymentStatus } from "@prisma/client";
 import { isFullyCompliant } from "./ta.compliance.service.js";
+import { logAudit } from "../../utils/audit.js";
+import { sendNotification } from "../../utils/notification.js";
 
 const ALLOWED_DEPLOYMENT_TRANSITIONS: Record<string, string[]> = {
   READY_FOR_DEPLOYMENT: ["ACTIVE", "CANCELLED"],
@@ -14,7 +16,7 @@ export const createDeployment = async (
   data: {
     applicationId?: number;
     employeeId?: number;
-    clientId: number;
+    clientId?: number;
     mrfId?: number;
     site?: string;
     contractStart?: string | Date;
@@ -35,6 +37,10 @@ export const createDeployment = async (
           include: {
             mrf: true,
           },
+        },
+        clientEndorsements: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
         },
       },
     });
@@ -97,9 +103,12 @@ export const createDeployment = async (
     throw new Error("Employee already has an active deployment.");
   }
 
-  const resolvedClientId = data.clientId || application?.jobPosting?.mrf?.clientId;
+  const resolvedClientId =
+    data.clientId ||
+    application?.jobPosting?.mrf?.clientId ||
+    application?.clientEndorsements?.[0]?.clientId;
   if (!resolvedClientId) {
-    throw new Error("Client ID is required for deployment.");
+    throw new Error("Client ID is required for deployment. Please select a client.");
   }
 
   const client = await prisma.client.findUnique({ where: { id: resolvedClientId } });
@@ -205,15 +214,41 @@ export const createDeployment = async (
     }
   }
 
+  void logAudit(createdById, "DEPLOYMENT_CREATED", "Deployment", deployment.id, {
+    deploymentId: deployment.id,
+    clientId: resolvedClientId,
+    clientName: client.name,
+    site: resolvedSite,
+    employeeId: empId,
+  });
+
+  const candidateUserId = deployment.employee?.user?.id || application?.userId;
+  if (candidateUserId) {
+    void sendNotification(
+      candidateUserId,
+      "Deployment Scheduled",
+      `Your deployment record has been created for site: ${resolvedSite || "Main Site"}.`,
+      "SUCCESS",
+      `/app/profile`
+    );
+  }
+
   return deployment;
 };
 
 export const updateDeploymentStatus = async (
   id: number,
   status: DeploymentStatus,
-  notes?: string
+  notes?: string,
+  actorId?: string
 ) => {
-  const deployment = await prisma.deployment.findUnique({ where: { id } });
+  const deployment = await prisma.deployment.findUnique({
+    where: { id },
+    include: {
+      client: { select: { name: true } },
+      employee: { select: { userId: true } },
+    },
+  });
   if (!deployment) throw new Error("Deployment not found");
 
   const currentStatus = deployment.status;
@@ -223,7 +258,7 @@ export const updateDeploymentStatus = async (
     throw new Error(`Cannot transition deployment from ${currentStatus} to ${status}. Allowed: ${allowed.length ? allowed.join(", ") : "none"}`);
   }
 
-  return await prisma.deployment.update({
+  const updated = await prisma.deployment.update({
     where: { id },
     data: {
       status,
@@ -233,6 +268,7 @@ export const updateDeploymentStatus = async (
       employee: {
         select: {
           id: true,
+          userId: true,
           employeeNumber: true,
           status: true,
         },
@@ -240,6 +276,26 @@ export const updateDeploymentStatus = async (
       client: { select: { id: true, name: true } },
     },
   });
+
+  void logAudit(actorId || null, "DEPLOYMENT_STATUS_UPDATED", "Deployment", id, {
+    deploymentId: id,
+    previousStatus: currentStatus,
+    status,
+    clientName: deployment.client?.name,
+    notes,
+  });
+
+  if (deployment.employee?.userId) {
+    void sendNotification(
+      deployment.employee.userId,
+      "Deployment Update",
+      `Your deployment status has been updated to ${status.replace(/_/g, " ")}.`,
+      "INFO",
+      `/app/profile`
+    );
+  }
+
+  return updated;
 };
 
 export const listDeployments = async (clientId?: number, status?: string) => {
@@ -306,3 +362,109 @@ export const getDeploymentDetails = async (id: number) => {
   if (!deployment) throw new Error("Deployment not found");
   return deployment;
 };
+
+export const signDeploymentContract = async (
+  id: number,
+  party: "WORKER" | "CLIENT",
+  actorId: string,
+  notes?: string
+) => {
+  const deployment = await prisma.deployment.findUnique({
+    where: { id },
+    include: {
+      client: true,
+      employee: { include: { user: true } },
+    },
+  });
+  if (!deployment) throw new Error("Deployment not found");
+
+  const now = new Date();
+  const isWorker = party === "WORKER";
+  const isClient = party === "CLIENT";
+
+  const workerSigned = isWorker ? true : deployment.workerSigned;
+  const workerSignedAt = isWorker ? now : deployment.workerSignedAt;
+  const clientSigned = isClient ? true : deployment.clientSigned;
+  const clientSignedAt = isClient ? now : deployment.clientSignedAt;
+
+  const fullySigned = Boolean(workerSigned && clientSigned);
+  const contractStatus = fullySigned
+    ? "FULLY_EXECUTED"
+    : workerSigned
+    ? "WORKER_SIGNED"
+    : clientSigned
+    ? "CLIENT_SIGNED"
+    : "PENDING_SIGNATURES";
+
+  const updated = await prisma.deployment.update({
+    where: { id },
+    data: {
+      workerSigned,
+      workerSignedAt,
+      clientSigned,
+      clientSignedAt,
+      contractStatus,
+      ...(notes ? { notes } : {}),
+    },
+    include: {
+      employee: {
+        include: {
+          user: { select: { id: true, email: true, applicantProfile: true } },
+        },
+      },
+      client: true,
+      mrf: true,
+    },
+  });
+
+  void logAudit(actorId, "DEPLOYMENT_CONTRACT_SIGNED", "Deployment", id, {
+    deploymentId: id,
+    party,
+    contractStatus,
+    workerSigned,
+    clientSigned,
+    notes,
+  });
+
+  if (deployment.employee?.userId) {
+    void sendNotification(
+      deployment.employee.userId,
+      "Contract Signed",
+      `Deployment contract has been signed by ${party === "WORKER" ? "Candidate" : "Client Partner"}. Status: ${contractStatus}`,
+      "SUCCESS",
+      `/app/profile`
+    );
+  }
+
+  return updated;
+};
+
+export const updateDeploymentContract = async (
+  id: number,
+  data: {
+    contractDocumentUrl?: string;
+    contractTerms?: string;
+    contractStatus?: string;
+  },
+  actorId: string
+) => {
+  const deployment = await prisma.deployment.findUnique({ where: { id } });
+  if (!deployment) throw new Error("Deployment not found");
+
+  const updated = await prisma.deployment.update({
+    where: { id },
+    data: {
+      ...(data.contractDocumentUrl !== undefined && { contractDocumentUrl: data.contractDocumentUrl }),
+      ...(data.contractTerms !== undefined && { contractTerms: data.contractTerms }),
+      ...(data.contractStatus !== undefined && { contractStatus: data.contractStatus }),
+    },
+  });
+
+  void logAudit(actorId, "DEPLOYMENT_CONTRACT_UPDATED", "Deployment", id, {
+    deploymentId: id,
+    ...data,
+  });
+
+  return updated;
+};
+

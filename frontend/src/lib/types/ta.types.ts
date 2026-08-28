@@ -106,8 +106,8 @@ export interface UpdateInterviewResultDto {
 }
 
 export interface EndorseCandidateDto {
-  clientId: number;
-  outcome: "PENDING" | "ENDORSED" | "DECLINED";
+  clientId?: number;
+  outcome?: "PENDING" | "APPROVED" | "DECLINED" | "ENDORSED";
   notes?: string;
 }
 
@@ -168,14 +168,41 @@ export interface TalentPoolSearchDto {
   k?: number;
 }
 
+export interface TalentPoolCandidate {
+  id: string; // User ID
+  applicantProfileId: number;
+  membershipId?: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  city?: string | null;
+  province?: string | null;
+  currentRole?: string | null;
+  skills: string[];
+  availability: CandidateAvailability;
+  talentPoolStatus: TalentPoolStatus;
+  lastContactedAt?: string | null;
+}
+
 export interface TalentPoolMatchResult {
-  candidate: ApplicantProfile & {
-    user?: { email: string };
-    membershipId?: number;
-    applicantProfileId?: number;
-  };
+  candidate: TalentPoolCandidate;
   similarity: number;
   knnRank: number;
+}
+
+export interface ConsiderCandidateForJobDto {
+  applicantProfileId: number;
+  targetJobId: number;
+  notes?: string;
+  contactOutcome?: TalentPoolContactOutcome;
+}
+
+export interface ConsiderForJobResult {
+  success: boolean;
+  message: string;
+  application: any;
+  contact: TalentPoolContact;
+  score?: any;
 }
 
 export interface HireCandidateDto {

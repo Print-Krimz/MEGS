@@ -6,8 +6,11 @@ import { Input, Button } from "../../components/ui";
 import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
-import { ApiError } from "../../lib/api/client";
-import { LogIn, AlertCircle, ArrowLeft } from "lucide-react";
+import { LogIn, AlertCircle } from "lucide-react";
+import { notify, formatErrorMessage } from "../../lib/feedback";
+import { MfaChallengeModal } from "../../components/auth/MfaChallengeModal";
+import { MfaSetupModal } from "../../components/auth/MfaSetupModal";
+import type { LoginResponse } from "../../lib/types/auth.types";
 
 const loginSchema = z.object({
   email: z.string().trim().min(1, "Email is required").email("Please enter a valid email address"),
@@ -24,6 +27,18 @@ export const LoginPage: React.FC = () => {
     password: "",
   });
 
+  const [mfaChallenge, setMfaChallenge] = useState<{
+    factorId: string;
+    challengeId: string;
+    tempToken: string;
+    email: string;
+  } | null>(null);
+
+  const [mfaSetup, setMfaSetup] = useState<{
+    tempToken: string;
+    email: string;
+  } | null>(null);
+
   React.useEffect(() => {
     if (search?.email && !formData.email) {
       setFormData((prev) => ({ ...prev, email: search.email || "" }));
@@ -33,41 +48,62 @@ export const LoginPage: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
 
+  const handleFinalSuccess = (data: LoginResponse) => {
+    login(data);
+    notify.success("Signed in", "Welcome back.");
+
+    if (data.user.mustChangePassword) {
+      navigate({ to: "/change-password" });
+      return;
+    }
+
+    // Safe internal redirect validation against open redirects
+    if (
+      search?.redirect &&
+      search.redirect.startsWith("/") &&
+      !search.redirect.startsWith("//") &&
+      search.redirect !== "/login"
+    ) {
+      window.location.href = search.redirect;
+      return;
+    }
+
+    if (data.user.role === Role.ADMINISTRATOR) {
+      navigate({ to: "/admin" });
+    } else if (data.user.role === Role.TALENT_ACQUISITION) {
+      navigate({ to: "/ta" });
+    } else {
+      navigate({ to: "/app" });
+    }
+  };
+
   const loginMutation = useMutation({
     mutationFn: authApi.login,
     onSuccess: (data) => {
-      login(data);
-
-      if (data.user.mustChangePassword) {
-        navigate({ to: "/change-password" });
+      if (data.mfaRequired && data.factorId && data.challengeId && data.tempToken) {
+        setMfaChallenge({
+          factorId: data.factorId,
+          challengeId: data.challengeId,
+          tempToken: data.tempToken,
+          email: formData.email,
+        });
         return;
       }
 
-      // Safe internal redirect validation against open redirects
-      if (
-        search?.redirect &&
-        search.redirect.startsWith("/") &&
-        !search.redirect.startsWith("//") &&
-        search.redirect !== "/login"
-      ) {
-        window.location.href = search.redirect;
+      if (data.mfaSetupRequired && data.tempToken) {
+        setMfaSetup({
+          tempToken: data.tempToken,
+          email: formData.email,
+        });
         return;
       }
 
-      if (data.user.role === Role.ADMINISTRATOR) {
-        navigate({ to: "/admin" });
-      } else if (data.user.role === Role.TALENT_ACQUISITION) {
-        navigate({ to: "/ta" });
-      } else {
-        navigate({ to: "/app" });
-      }
+      handleFinalSuccess(data);
     },
     onError: (err) => {
-      if (err instanceof ApiError) {
-        setServerError(err.message);
-      } else {
-        setServerError("Failed to sign in. Please verify your credentials and network connection.");
-      }
+      const formatted = formatErrorMessage(err);
+      setServerError(formatted);
+      notify.error("Sign In Failed", err);
     },
   });
 
@@ -107,11 +143,11 @@ export const LoginPage: React.FC = () => {
     <div className="space-y-6">
       {/* Title */}
       <div className="space-y-1 text-center sm:text-left">
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-          Sign In
+        <h2 className="text-xl font-semibold text-slate-900 tracking-tight">
+          Sign in
         </h2>
         <p className="text-xs text-slate-500">
-          Enter your authorized credentials to access the recruitment workspace.
+          Use your email address and password to continue.
         </p>
       </div>
 
@@ -146,7 +182,6 @@ export const LoginPage: React.FC = () => {
               to="/forgot-password"
               search={formData.email.trim() ? { email: formData.email.trim() } : undefined}
               className="text-xs text-teal-700 hover:text-teal-900 font-medium hover:underline"
-              tabIndex={-1}
             >
               Forgot password?
             </Link>
@@ -175,27 +210,46 @@ export const LoginPage: React.FC = () => {
         </Button>
       </form>
 
-      {/* Register & Back Link Footer */}
-      <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-600 space-y-2">
-        <div>
-          Applying for job opportunities?{" "}
-          <Link
-            to="/register"
-            className="font-semibold text-teal-700 hover:text-teal-900 hover:underline"
-          >
-            Create Candidate Account
-          </Link>
-        </div>
-        <div>
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 hover:underline font-mono"
-          >
-            <ArrowLeft className="w-3 h-3" />
-            <span>Return to Landing Page</span>
-          </Link>
-        </div>
+      {/* Register Link Footer */}
+      <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-600">
+        Applying for job opportunities?{" "}
+        <Link
+          to="/register"
+          className="font-semibold text-teal-700 hover:text-teal-900 hover:underline"
+        >
+          Create applicant account
+        </Link>
       </div>
+
+      {/* MFA Challenge Modal */}
+      {mfaChallenge && (
+        <MfaChallengeModal
+          open={!!mfaChallenge}
+          onClose={() => setMfaChallenge(null)}
+          tempToken={mfaChallenge.tempToken}
+          factorId={mfaChallenge.factorId}
+          challengeId={mfaChallenge.challengeId}
+          email={mfaChallenge.email}
+          onSuccess={(data) => {
+            setMfaChallenge(null);
+            handleFinalSuccess(data);
+          }}
+        />
+      )}
+
+      {/* MFA Setup Modal (First-time Admin/Staff Login) */}
+      {mfaSetup && (
+        <MfaSetupModal
+          open={!!mfaSetup}
+          onClose={() => setMfaSetup(null)}
+          tempToken={mfaSetup.tempToken}
+          email={mfaSetup.email}
+          onSuccess={(data) => {
+            setMfaSetup(null);
+            handleFinalSuccess(data);
+          }}
+        />
+      )}
     </div>
   );
 };

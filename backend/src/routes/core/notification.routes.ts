@@ -8,6 +8,7 @@ import {
   listNotifications,
   getUnreadCount,
   markAsRead,
+  markAllAsRead,
 } from '../../controllers/core/notification.controller.js';
 
 const router = Router();
@@ -17,6 +18,7 @@ router.use(authenticateJWT);
 router.get("/stream", streamNotifications);
 router.get("/", validate(notificationSchema.listNotifications), listNotifications);
 router.get("/unread-count", getUnreadCount);
+router.patch("/read-all", markAllAsRead);
 router.patch("/:id/read", validate(notificationSchema.markAsRead), markAsRead);
 
 export default router;

@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import prisma from "../utils/prisma.js";
 import { updateTAApplicationStatus } from "../services/ta/ta.applications.service.js";
-import { executeHiring } from "../services/ta/ta.posthire.service.js";
 import { createComplianceRequirement, reviewComplianceRequirement } from "../services/ta/ta.compliance.service.js";
 
 describe("Hiring & Deployment Invariants & Auto-Provisioning", { timeout: 25000 }, () => {
@@ -139,9 +138,9 @@ describe("Hiring & Deployment Invariants & Auto-Provisioning", { timeout: 25000 
     }
   });
 
-  it("TEST-INV-1: updateTAApplicationStatus to HIRED automatically creates Employee and EmploymentEvent", async () => {
-    const res = await updateTAApplicationStatus(app1.id, "HIRED", taUser.id, "Passed technical panel");
-    expect(res.status).toBe("HIRED");
+  it("TEST-INV-1: updateTAApplicationStatus to COMPLIANCE automatically creates Employee and EmploymentEvent", async () => {
+    const res = await updateTAApplicationStatus(app1.id, "COMPLIANCE", taUser.id, "Passed technical panel");
+    expect(res.status).toBe("COMPLIANCE");
 
     const employee = await prisma.employee.findUnique({
       where: { userId: applicant1.id },

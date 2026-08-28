@@ -9,7 +9,12 @@ import {
   EmptyState,
 } from "../../components/common";
 import { Button, Dialog, Input } from "../../components/ui";
+import { ComboBox } from "../../components/ui/ComboBox";
 import { formatDate } from "../../lib/utils";
+import {
+  PHILIPPINE_REGIONS_AND_PROVINCES,
+  getCitiesForProvince,
+} from "../../lib/geo-data";
 import {
   Building2,
   Plus,
@@ -18,18 +23,24 @@ import {
   Phone,
   Briefcase,
   Truck,
+  MapPin,
 } from "lucide-react";
+import { notify } from "../../lib/feedback";
 
 export const ClientsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const [name, setName] = useState("");
+  const [tradeName, setTradeName] = useState("");
   const [industry, setIndustry] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
-  const [address, setAddress] = useState("");
+  const [street, setStreet] = useState("");
+  const [province, setProvince] = useState("");
+  const [city, setCity] = useState("");
+  const [postalCode, setPostalCode] = useState("");
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
@@ -38,15 +49,23 @@ export const ClientsPage: React.FC = () => {
 
   const createClientMutation = useMutation({
     mutationFn: taApi.createClient,
-    onSuccess: () => {
+    onSuccess: (newClient) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "clients"] });
       setCreateModalOpen(false);
       setName("");
+      setTradeName("");
       setIndustry("");
       setContactName("");
       setContactEmail("");
       setContactPhone("");
-      setAddress("");
+      setStreet("");
+      setProvince("");
+      setCity("");
+      setPostalCode("");
+      notify.success("Client Account Created", `Account '${newClient?.name || name}' registered.`);
+    },
+    onError: (err: any) => {
+      notify.error("Creation Failed", err);
     },
   });
 
@@ -106,6 +125,11 @@ export const ClientsPage: React.FC = () => {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h3 className="text-base font-bold text-slate-900">{c.name}</h3>
+                    {c.tradeName && (
+                      <div className="text-xs text-teal-700 font-mono font-medium">
+                        Trade / Brand: {c.tradeName}
+                      </div>
+                    )}
                     <div className="text-xs text-slate-500 font-mono">
                       Industry: {c.industry || "General Commercial"}
                     </div>
@@ -129,14 +153,24 @@ export const ClientsPage: React.FC = () => {
                   )}
                   {c.contactEmail && (
                     <div className="flex items-center gap-1.5 text-slate-500 font-mono">
-                      <Mail className="w-3.5 h-3.5 text-slate-400" />
+                      <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span>{c.contactEmail}</span>
                     </div>
                   )}
                   {c.contactPhone && (
                     <div className="flex items-center gap-1.5 text-slate-500 font-mono">
-                      <Phone className="w-3.5 h-3.5 text-slate-400" />
+                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span>{c.contactPhone}</span>
+                    </div>
+                  )}
+                  {(c.street || c.city || c.province || c.address) && (
+                    <div className="flex items-start gap-1.5 text-slate-600">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">
+                        {c.street || c.city || c.province
+                          ? [c.street, c.city, c.province, c.postalCode].filter(Boolean).join(", ")
+                          : c.address}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -190,35 +224,49 @@ export const ClientsPage: React.FC = () => {
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         title="Add Corporate Client Account"
-        description="Register a new business client partner"
+        description="Register a new business client partner with structured corporate & address details"
       >
         <form
           onSubmit={(e) => {
             e.preventDefault();
             createClientMutation.mutate({
               name,
+              tradeName: tradeName || undefined,
               industry: industry || undefined,
               contactName: contactName || undefined,
               contactEmail: contactEmail || undefined,
               contactPhone: contactPhone || undefined,
-              address: address || undefined,
+              street: street || undefined,
+              province: province || undefined,
+              city: city || undefined,
+              postalCode: postalCode || undefined,
             });
           }}
           className="space-y-4"
         >
-          <Input
-            label="Client Business / Corporate Name"
-            placeholder="e.g. Acme Industrial Services Corp."
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Registered Legal Corporate Name"
+              placeholder="e.g. Acme Industrial Services Corp."
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+            <Input
+              label="Trade Name / Operating Brand"
+              placeholder="e.g. Acme Logistics (Optional)"
+              value={tradeName}
+              onChange={(e) => setTradeName(e.target.value)}
+            />
+          </div>
+
           <Input
             label="Industry / Sector"
             placeholder="e.g. Manufacturing, Logistics, Food Processing"
             value={industry}
             onChange={(e) => setIndustry(e.target.value)}
           />
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Contact Person Full Name"
@@ -240,12 +288,52 @@ export const ClientsPage: React.FC = () => {
             value={contactEmail}
             onChange={(e) => setContactEmail(e.target.value)}
           />
-          <Input
-            label="Corporate / Facility Address"
-            placeholder="e.g. Light Industry & Science Park II, Calamba, Laguna"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-          />
+
+          <div className="pt-2 border-t border-slate-100 space-y-3">
+            <div className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
+              Facility / Corporate Address
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ComboBox
+                label="Province / Region"
+                placeholder="Select or enter province..."
+                value={province}
+                onChange={(val) => {
+                  setProvince(val);
+                  setCity("");
+                }}
+                options={PHILIPPINE_REGIONS_AND_PROVINCES.map((p) => ({ value: p, label: p }))}
+                allowCustom
+              />
+              <ComboBox
+                label="City / Municipality"
+                placeholder={province ? "Select city..." : "Select province first"}
+                value={city}
+                onChange={setCity}
+                options={getCitiesForProvince(province).map((c) => ({ value: c, label: c }))}
+                allowCustom
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2">
+                <Input
+                  label="Street / Building Address"
+                  placeholder="e.g. Bldg 4, Light Industry & Science Park II"
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
+                />
+              </div>
+              <div>
+                <Input
+                  label="Postal Code"
+                  placeholder="e.g. 4027"
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setCreateModalOpen(false)}>
               Cancel

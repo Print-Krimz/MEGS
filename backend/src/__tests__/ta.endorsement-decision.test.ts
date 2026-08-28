@@ -86,7 +86,7 @@ describe("Phase 2: Client Endorsement & Decision Workflow", () => {
     }
   });
 
-  it("creates a PENDING endorsement and updates client decision to ENDORSED", async () => {
+  it("creates a PENDING endorsement and updates client decision to APPROVED", async () => {
     testApp = await prisma.application.create({
       data: {
         userId: testUser.id,
@@ -105,39 +105,133 @@ describe("Phase 2: Client Endorsement & Decision Workflow", () => {
       },
     });
 
+    // Auto-derives client from JobPosting -> MRF -> Client
     const endorsement = await recordClientEndorsement(
       testApp.id,
-      testClient.id,
+      undefined,
       "PENDING",
       testTA.id,
       "Candidate submitted to client for technical review"
     );
 
     expect(endorsement.outcome).toBe("PENDING");
+    expect(endorsement.clientId).toBe(testClient.id);
 
     // Cannot advance to FINAL_INTERVIEW while outcome is PENDING
     await expect(
       updateTAApplicationStatus(testApp.id, "FINAL_INTERVIEW", testTA.id)
-    ).rejects.toThrow(/Client endorsement.*required/);
+    ).rejects.toThrow(/Client endorsement approval \(outcome: APPROVED\) is required/);
 
-    // Update endorsement decision to ENDORSED
+    // Update endorsement decision to APPROVED
     const updatedEndorsement = await updateClientEndorsement(
       testApp.id,
       endorsement.id,
-      "ENDORSED",
+      "APPROVED",
       testTA.id,
-      "Client reviewed and approved candidate for final interview"
+      "Client reviewed and accepted candidate for final interview"
     );
 
-    expect(updatedEndorsement.outcome).toBe("ENDORSED");
+    expect(updatedEndorsement.outcome).toBe("APPROVED");
 
-    // Now candidate can advance to FINAL_INTERVIEW
-    const advanced = await updateTAApplicationStatus(
-      testApp.id,
-      "FINAL_INTERVIEW",
+    // Candidate has automatically transitioned to FINAL_INTERVIEW
+    const currentApp = await prisma.application.findUnique({ where: { id: testApp.id } });
+    expect(currentApp?.status).toBe("FINAL_INTERVIEW");
+  }, 25000);
+
+  it("blocks advancement to FINAL_INTERVIEW when client decision is DECLINED", async () => {
+    const declinedUser = await prisma.user.create({
+      data: {
+        id: `declined-user-${Date.now()}`,
+        email: `declined-${Date.now()}@example.com`,
+        role: "APPLICANT",
+      },
+    });
+
+    const declinedApp = await prisma.application.create({
+      data: {
+        userId: declinedUser.id,
+        jobPostingId: testJob.id,
+        status: "INITIAL_SCREENING",
+      },
+    });
+
+    await prisma.interview.create({
+      data: {
+        applicationId: declinedApp.id,
+        type: "INITIAL_SCREENING",
+        result: "PASS",
+        scheduledAt: new Date(),
+      },
+    });
+
+    const endorsement = await recordClientEndorsement(
+      declinedApp.id,
+      undefined,
+      "DECLINED",
       testTA.id,
-      "Client approved candidate"
+      "Client rejected candidate profile"
     );
-    expect(advanced.status).toBe("FINAL_INTERVIEW");
-  });
+
+    expect(endorsement.outcome).toBe("DECLINED");
+
+    await expect(
+      updateTAApplicationStatus(declinedApp.id, "FINAL_INTERVIEW", testTA.id)
+    ).rejects.toThrow(/Client endorsement approval \(outcome: APPROVED\) is required/);
+
+    // Cleanup
+    await prisma.notification.deleteMany({ where: { userId: declinedUser.id } });
+    await prisma.clientEndorsement.deleteMany({ where: { applicationId: declinedApp.id } });
+    await prisma.recruiterDecision.deleteMany({ where: { applicationId: declinedApp.id } });
+    await prisma.interview.deleteMany({ where: { applicationId: declinedApp.id } });
+    await prisma.application.delete({ where: { id: declinedApp.id } });
+    await prisma.user.delete({ where: { id: declinedUser.id } });
+  }, 25000);
+
+  it("rejects endorsement if application is missing a linked MRF or Client relationship", async () => {
+    const unlinkedUser = await prisma.user.create({
+      data: {
+        id: `unlinked-user-${Date.now()}`,
+        email: `unlinked-${Date.now()}@example.com`,
+        role: "APPLICANT",
+      },
+    });
+
+    const unlinkedJob = await prisma.jobPosting.create({
+      data: {
+        postedById: testTA.id,
+        title: "Unlinked Job",
+        description: "No MRF linked",
+        requirements: "General",
+        status: "OPEN",
+      },
+    });
+
+    const unlinkedApp = await prisma.application.create({
+      data: {
+        userId: unlinkedUser.id,
+        jobPostingId: unlinkedJob.id,
+        status: "INITIAL_SCREENING",
+      },
+    });
+
+    await prisma.interview.create({
+      data: {
+        applicationId: unlinkedApp.id,
+        type: "INITIAL_SCREENING",
+        result: "PASS",
+        scheduledAt: new Date(),
+      },
+    });
+
+    await expect(
+      recordClientEndorsement(unlinkedApp.id, undefined, "PENDING", testTA.id)
+    ).rejects.toThrow(/Application requisition is missing a linked Job Posting, MRF, or Client relationship/);
+
+    // Cleanup
+    await prisma.notification.deleteMany({ where: { userId: unlinkedUser.id } });
+    await prisma.interview.deleteMany({ where: { applicationId: unlinkedApp.id } });
+    await prisma.application.delete({ where: { id: unlinkedApp.id } });
+    await prisma.jobPosting.delete({ where: { id: unlinkedJob.id } });
+    await prisma.user.delete({ where: { id: unlinkedUser.id } });
+  }, 25000);
 });

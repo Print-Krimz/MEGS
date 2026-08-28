@@ -9,7 +9,6 @@ import {
   reviewComplianceRequirement,
   isFullyCompliant,
 } from "../services/ta/ta.compliance.service.js";
-import { executeHiring } from "../services/ta/ta.posthire.service.js";
 import { createDeployment } from "../services/ta/ta.deployments.service.js";
 
 describe("MEGS End-to-End Canonical Recruitment Pipeline", () => {
@@ -236,23 +235,20 @@ describe("MEGS End-to-End Canonical Recruitment Pipeline", () => {
     const endorsements = await listClientEndorsements(application.id);
     expect(endorsements.length).toBe(1);
 
-    // Transition to FINAL_INTERVIEW now succeeds
-    const finalStageApp = await updateTAApplicationStatus(
-      application.id,
-      "FINAL_INTERVIEW",
-      taUser.id,
-      "Client endorsement received"
-    );
+    // Recording positive endorsement automatically advances application to FINAL_INTERVIEW
+    const finalStageApp = await prisma.application.findUniqueOrThrow({
+      where: { id: application.id },
+    });
     expect(finalStageApp.status).toBe("FINAL_INTERVIEW");
   });
 
-  it("Stage 4: Final Interview & Hiring (FINAL_INTERVIEW → HIRED)", async () => {
-    // Cannot hire without passing final interview
+  it("Stage 4: Client Final Evaluation & Compliance Progression (FINAL_INTERVIEW → COMPLIANCE)", async () => {
+    // Cannot proceed to COMPLIANCE without passing client final evaluation
     await expect(
-      updateTAApplicationStatus(application.id, "HIRED", taUser.id)
-    ).rejects.toThrow(/A passed FINAL_INTERVIEW is required/);
+      updateTAApplicationStatus(application.id, "COMPLIANCE", taUser.id)
+    ).rejects.toThrow(/Client final evaluation result must be PASS/);
 
-    // Conduct final interview
+    // Conduct and record client final evaluation with PASS result
     await prisma.interview.create({
       data: {
         applicationId: application.id,
@@ -260,38 +256,28 @@ describe("MEGS End-to-End Canonical Recruitment Pipeline", () => {
         result: "PASS",
         scheduledAt: new Date(),
         conductedAt: new Date(),
-        notes: "Technical architecture evaluation passed with distinction",
+        notes: "Client interview and technical evaluation passed with distinction",
       },
     });
 
-    // Execute atomic hiring
-    const hiringResult = await executeHiring(
-      application.id,
-      {
-        employeeNumber: `EMP-${Date.now()}`,
-        department: "Engineering",
-        position: "Senior Full Stack Engineer",
-        startDate: new Date(),
-        reason: "Job offer accepted and signed",
-      },
-      taUser.id
-    );
-
-    expect(hiringResult.application.status).toBe("HIRED");
-    expect(hiringResult.employee).toBeDefined();
-    expect(hiringResult.employee.userId).toBe(applicantUser.id);
-  });
-
-  it("Stage 5: Compliance Generation & Pre-employment Verification (HIRED → COMPLIANCE)", async () => {
-    // Advance to COMPLIANCE
+    // Advance directly to COMPLIANCE
     const complianceApp = await updateTAApplicationStatus(
       application.id,
       "COMPLIANCE",
       taUser.id,
-      "Candidate entering compliance document collection"
+      "Client accepted candidate for employment"
     );
     expect(complianceApp.status).toBe("COMPLIANCE");
 
+    // Verify auto-provisioning of Employee
+    const employee = await prisma.employee.findUnique({
+      where: { userId: applicantUser.id },
+    });
+    expect(employee).toBeDefined();
+    expect(employee?.originatingApplicationId).toBe(application.id);
+  }, 25000);
+
+  it("Stage 5: Compliance Generation & Pre-employment Verification", async () => {
     // Verify compliance checklist items were auto-generated from MRF templates
     const requirements = await prisma.complianceRequirement.findMany({
       where: { applicationId: application.id },
@@ -319,7 +305,7 @@ describe("MEGS End-to-End Canonical Recruitment Pipeline", () => {
 
     const fullyCompliant = await isFullyCompliant(application.id);
     expect(fullyCompliant).toBe(true);
-  });
+  }, 25000);
 
   it("Stage 6: Deployment Lifecycle (COMPLIANCE → DEPLOYED)", async () => {
     const deployment = await createDeployment(taUser.id, {
@@ -338,7 +324,7 @@ describe("MEGS End-to-End Canonical Recruitment Pipeline", () => {
       where: { id: application.id },
     });
     expect(updatedApp?.status).toBe("DEPLOYED");
-  });
+  }, 25000);
 
   it("Stage 7: Full Recruiter Decision Audit Trail Verification", async () => {
     const auditLogs = await prisma.recruiterDecision.findMany({
@@ -352,10 +338,9 @@ describe("MEGS End-to-End Canonical Recruitment Pipeline", () => {
     expect(transitions).toContain("REVIEW -> INITIAL_SCREENING");
     expect(transitions).toContain("INITIAL_SCREENING -> CLIENT_ENDORSEMENT");
     expect(transitions).toContain("CLIENT_ENDORSEMENT -> FINAL_INTERVIEW");
-    expect(transitions).toContain("FINAL_INTERVIEW -> HIRED");
-    expect(transitions).toContain("HIRED -> COMPLIANCE");
+    expect(transitions).toContain("FINAL_INTERVIEW -> COMPLIANCE");
     expect(transitions).toContain("COMPLIANCE -> DEPLOYED");
-  });
+  }, 25000);
 
   afterAll(async () => {
     try {

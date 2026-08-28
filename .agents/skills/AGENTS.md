@@ -7,9 +7,9 @@ Before creating sub-agents, evaluate whether the task can be cleanly separated.
 Available specialist roles:
 
 - Backend Agent
-- Frontend Agent
+- Frontend Agent (HCI Guidelines: `frontend-hci`)
 - AI/RAG Agent
-- Reviewer/QA Agent
+- Reviewer/QA Agent (HCI 10-Point Review Checklist)
 
 Only use sub-agents when:
 
@@ -26,6 +26,7 @@ Rules:
 - Give sub-agents only relevant context and files.
 - Require concise handoff summaries.
 - Integrate work through the main agent.
-- Verify the implementation before declaring completion.
+- Verify the implementation before declaring completion (including the 10-point HCI review checklist).
 - Prefer simple, readable solutions over unnecessary abstractions.
+- Strictly avoid AI-generated UI slop and redundant microcopy.
 - Do not overengineer the capstone.

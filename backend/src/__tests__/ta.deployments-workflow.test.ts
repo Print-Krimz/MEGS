@@ -62,12 +62,15 @@ describe("TA Site Deployment Status Workflow & State Machine", () => {
         where: { employeeId: testEmployee.id },
       });
       await prisma.employee.delete({ where: { id: testEmployee.id } });
+      await prisma.notification.deleteMany({ where: { userId: testEmployee.userId } }).catch(() => {});
+      await prisma.user.delete({ where: { id: testEmployee.userId } }).catch(() => {});
     }
     if (testClient) {
       await prisma.client.delete({ where: { id: testClient.id } });
     }
     if (testUser) {
-      await prisma.user.delete({ where: { id: testUser.id } });
+      await prisma.notification.deleteMany({ where: { userId: testUser.id } }).catch(() => {});
+      await prisma.user.delete({ where: { id: testUser.id } }).catch(() => {});
     }
   });
 
@@ -159,6 +162,7 @@ describe("TA Site Deployment Status Workflow & State Machine", () => {
     await prisma.employmentEvent.deleteMany({ where: { employeeId: newEmp.id } });
     await prisma.deployment.delete({ where: { id: deployment.id } });
     await prisma.employee.delete({ where: { id: newEmp.id } });
+    await prisma.notification.deleteMany({ where: { userId: newEmpUser.id } }).catch(() => {});
     await prisma.user.delete({ where: { id: newEmpUser.id } });
-  });
+  }, 15000);
 });

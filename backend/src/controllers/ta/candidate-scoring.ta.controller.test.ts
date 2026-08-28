@@ -33,6 +33,7 @@ vi.mock("../../utils/audit.js", () => ({ logAudit: mocks.audit }));
 import {
   addCandidateToPool,
   considerCandidateForJob,
+  getSimilarCandidates,
   getTalentPool,
   rankCandidates,
   recordContact,
@@ -180,5 +181,21 @@ describe("TA talent-pool controller", () => {
         data: { rankedCount: 5 },
       })
     );
+  });
+
+  it("retrieves similar candidates for an application/candidate ID and logs audit", async () => {
+    const result = { items: [] };
+    mocks.similar.mockResolvedValueOnce(result);
+    const res = response();
+
+    await getSimilarCandidates(
+      { params: { candidateId: "5" }, query: {}, user: { id: "ta-1" } } as any,
+      res as any
+    );
+
+    expect(mocks.similar).toHaveBeenCalledWith(5, expect.any(Object));
+    expect(res.status).not.toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, data: result }));
+    expect(mocks.audit).toHaveBeenCalledWith("ta-1", "KNN_SIMILAR_CANDIDATES_QUERY", "Application", 5, {});
   });
 });

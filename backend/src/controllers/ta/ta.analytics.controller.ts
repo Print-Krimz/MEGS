@@ -5,6 +5,12 @@ import {
   getTimeToFillStats,
   getDeploymentStats,
   getComplianceOverview,
+  getTAOverviewStats,
+  getRecruitmentActivityTrend,
+  getAdminFunnelAnalytics,
+  getTAPendingActions,
+  getAnalyticsFilterOptions,
+  AnalyticsFilterDto,
 } from "../../services/analytics/analytics.service.js";
 import {
   generatePipelineReportPDF,
@@ -12,6 +18,72 @@ import {
   generateDeploymentReportPDF,
   generateDeploymentReportXLSX,
 } from "../../services/analytics/export.service.js";
+
+function extractTAFilters(query: any): AnalyticsFilterDto {
+  return {
+    range: query.range as any,
+    startDate: query.startDate as string,
+    endDate: query.endDate as string,
+    mrfId: query.mrfId ? parseInt(query.mrfId as string, 10) : undefined,
+    jobPostingId: query.jobPostingId ? parseInt(query.jobPostingId as string, 10) : undefined,
+    stage: query.stage as string,
+  };
+}
+
+export const getTAOverviewHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const filters = extractTAFilters(req.query);
+    const stats = await getTAOverviewStats(req.user!.id, filters);
+    sendSuccess(res, "TA overview metrics retrieved", stats);
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+export const getTAActivityTrendHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const filters = extractTAFilters(req.query);
+    const trend = await getRecruitmentActivityTrend(filters, {
+      role: req.user!.role,
+      userId: req.user!.id,
+    });
+    sendSuccess(res, "TA recruitment activity trend retrieved", trend);
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+export const getTAPipelineFunnelHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const filters = extractTAFilters(req.query);
+    const funnel = await getAdminFunnelAnalytics({
+      ...filters,
+      recruiterId: req.user!.id,
+    });
+    sendSuccess(res, "TA pipeline funnel analytics retrieved", funnel);
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+export const getTAPendingActionsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const filters = extractTAFilters(req.query);
+    const actions = await getTAPendingActions(req.user!.id, filters);
+    sendSuccess(res, "TA pending action items retrieved", actions);
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+export const getTAFilterOptionsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const options = await getAnalyticsFilterOptions("TALENT_ACQUISITION", req.user!.id);
+    sendSuccess(res, "TA analytics filter options retrieved", options);
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
 
 export const getPipelineStatsHandler = async (_req: Request, res: Response): Promise<void> => {
   try {
@@ -54,15 +126,16 @@ export const getComplianceOverviewHandler = async (_req: Request, res: Response)
 export const exportPipelineReportHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const format = (req.query.format as string || "pdf").toLowerCase();
+    const filters = extractTAFilters(req.query);
     const user = req.user!;
 
     if (format === "xlsx") {
-      const buffer = await generatePipelineReportXLSX(user);
+      const buffer = await generatePipelineReportXLSX(user, filters);
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename="pipeline-report-${Date.now()}.xlsx"`);
       res.send(buffer);
     } else {
-      const buffer = await generatePipelineReportPDF(user);
+      const buffer = await generatePipelineReportPDF(user, filters);
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="pipeline-report-${Date.now()}.pdf"`);
       res.send(buffer);
@@ -75,15 +148,16 @@ export const exportPipelineReportHandler = async (req: Request, res: Response): 
 export const exportDeploymentReportHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const format = (req.query.format as string || "pdf").toLowerCase();
+    const filters = extractTAFilters(req.query);
     const user = req.user!;
 
     if (format === "xlsx") {
-      const buffer = await generateDeploymentReportXLSX(user);
+      const buffer = await generateDeploymentReportXLSX(user, filters);
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename="deployment-report-${Date.now()}.xlsx"`);
       res.send(buffer);
     } else {
-      const buffer = await generateDeploymentReportPDF(user);
+      const buffer = await generateDeploymentReportPDF(user, filters);
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="deployment-report-${Date.now()}.pdf"`);
       res.send(buffer);

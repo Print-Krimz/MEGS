@@ -30,6 +30,13 @@ export interface Deployment {
   contractStart?: string | null;
   contractEnd?: string | null;
   notes?: string | null;
+  contractDocumentUrl?: string | null;
+  contractStatus?: string | null;
+  workerSigned?: boolean;
+  workerSignedAt?: string | null;
+  clientSigned?: boolean;
+  clientSignedAt?: string | null;
+  contractTerms?: string | null;
   createdById: string;
   createdAt: string;
   updatedAt: string;

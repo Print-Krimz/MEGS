@@ -6,6 +6,8 @@ export interface User {
   role: Role;
   isActive: boolean;
   accountStatus: string;
+  invitationStatus?: string;
+  invitationExpiresAt?: string | null;
   mustChangePassword: boolean;
   invitedAt?: string | null;
   invitedBy?: string | null;
@@ -19,17 +21,79 @@ export interface User {
   } | null;
 }
 
+export interface InvitationDetailsResponse {
+  valid: boolean;
+  email: string;
+  maskedEmail: string;
+  role: Role;
+  expiresAt: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
 }
 
 export interface LoginResponse {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  user: User;
+  mfaRequired?: boolean;
+  mfaSetupRequired?: boolean;
+  factorId?: string;
+  challengeId?: string;
+  tempToken?: string;
+}
+
+export interface MfaEnrollResponse {
+  factorId: string;
+  type: string;
+  qrCode: string;
+  secret: string;
+  uri: string;
+}
+
+export interface VerifyMfaEnrollRequest {
+  token: string;
+  factorId: string;
+  code: string;
+}
+
+export interface VerifyMfaEnrollResponse {
+  message: string;
+  recoveryCodes: string[];
   access_token: string;
-  refresh_token: string;
-  expires_in: number;
+  refresh_token?: string;
+  expires_in?: number;
   user: User;
 }
+
+export interface VerifyMfaLoginRequest {
+  token: string;
+  factorId: string;
+  challengeId: string;
+  code: string;
+}
+
+export interface VerifyMfaRecoveryRequest {
+  token: string;
+  recoveryCode: string;
+}
+
+export interface MfaStatusResponse {
+  isEnrolled: boolean;
+  verifiedFactor?: {
+    id: string;
+    friendly_name?: string;
+    factor_type: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+  } | null;
+  allFactors: any[];
+}
+
 
 export interface RegisterRequest {
   email: string;
@@ -40,6 +104,30 @@ export interface RegisterResponse {
   id: string;
   email: string;
   role: Role;
+  accountStatus: string;
+  message?: string;
+}
+
+export type OtpPurpose = "REGISTRATION" | "PASSWORD_RESET";
+
+export interface VerifyOtpRequest {
+  email: string;
+  otp: string;
+  purpose: OtpPurpose;
+}
+
+export interface VerifyOtpResponse {
+  message: string;
+  resetToken?: string;
+}
+
+export interface ResendOtpRequest {
+  email: string;
+  purpose: OtpPurpose;
+}
+
+export interface ResendOtpResponse {
+  message: string;
 }
 
 export interface ForgotPasswordRequest {

@@ -6,8 +6,8 @@ import { Input, Button } from "../../components/ui";
 import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
-import { ApiError } from "../../lib/api/client";
 import { KeyRound, AlertCircle, ShieldAlert } from "lucide-react";
+import { notify, formatErrorMessage } from "../../lib/feedback";
 
 const changePasswordSchema = z
   .object({
@@ -41,6 +41,7 @@ export const ChangePasswordPage: React.FC = () => {
     mutationFn: authApi.changePassword,
     onSuccess: async () => {
       await refreshUser();
+      notify.success("Password Updated", "Your security password has been changed successfully.");
 
       if (user?.role === Role.ADMINISTRATOR) {
         navigate({ to: "/admin" });
@@ -51,11 +52,9 @@ export const ChangePasswordPage: React.FC = () => {
       }
     },
     onError: (err) => {
-      if (err instanceof ApiError) {
-        setServerError(err.message);
-      } else {
-        setServerError("Failed to update password. Please check your current password.");
-      }
+      const formatted = formatErrorMessage(err);
+      setServerError(formatted);
+      notify.error("Password Update Failed", err);
     },
   });
 

@@ -1,9 +1,10 @@
 import prisma from '../../utils/prisma.js';
 import { uploadFileToSupabase } from '../../middleware/upload.middleware.js';
 import { logAudit } from '../../utils/audit.js';
-import { sendNotification } from '../../utils/notification.js';
+import { sendNotification, sendRoleNotification } from '../../utils/notification.js';
 import { enqueueResumeAnalysis } from '../../workers/resume.worker.js';
 import { revalidateApplication } from "../scoring/scoring-configuration.service.js";
+import { ensureApplicantProfile, updateProfileResumeService } from './applicant.service.js';
 
 export const fetchOpenJobs = async () => {
   return await prisma.jobPosting.findMany({
@@ -13,6 +14,7 @@ export const fetchOpenJobs = async () => {
       id: true,
       title: true,
       location: true,
+      imageUrl: true,
       status: true,
       createdAt: true,
       _count: { select: { applications: true } },
@@ -23,14 +25,20 @@ export const fetchOpenJobs = async () => {
 export const fetchJobDetails = async (jobId: number, userId: string) => {
   const job = await prisma.jobPosting.findUnique({
     where: { id: jobId },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      requirements: true,
-      location: true,
-      status: true,
-      createdAt: true,
+    include: {
+      mrf: {
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              tradeName: true,
+              industry: true,
+              address: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -41,7 +49,21 @@ export const fetchJobDetails = async (jobId: number, userId: string) => {
     where: { userId, jobPostingId: jobId },
   });
 
-  return { ...job, alreadyApplied: !!existingApplication };
+  return {
+    ...job,
+    client: job.mrf?.client
+      ? {
+          id: job.mrf.client.id,
+          name: job.mrf.client.name,
+          companyName: job.mrf.client.name,
+          tradeName: job.mrf.client.tradeName,
+          industry: job.mrf.client.industry,
+          address: job.mrf.client.address,
+        }
+      : null,
+    alreadyApplied: !!existingApplication,
+    applicationId: existingApplication?.id,
+  };
 };
 
 // Submits job application using uploaded resume or falls back to profile default resume
@@ -58,18 +80,15 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
   let resolvedResumeUrl: string | null = null;
 
   if (file) {
-    const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-    if (!profile) throw new Error("Please create your profile before applying");
+    await ensureApplicantProfile(userId);
     try {
-      resolvedResumeUrl = await uploadFileToSupabase("applicant-assets", profile.id.toString(), file);
+      resolvedResumeUrl = await uploadFileToSupabase("applicant-assets", userId, file);
+      await updateProfileResumeService(userId, resolvedResumeUrl);
     } catch (err: any) {
       throw new Error(`File upload failed: ${err.message}`);
     }
   } else {
-    const profile = await prisma.applicantProfile.findUnique({
-      where: { userId },
-      select: { resumeUrl: true },
-    });
+    const profile = await ensureApplicantProfile(userId);
     if (!profile?.resumeUrl) {
       throw new Error("No resume found. Please upload a default resume to your profile first, or attach one to this application.");
     }
@@ -93,7 +112,22 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     resumeUsed: file ? "custom" : "default",
   });
 
-  sendNotification(userId, "Application Received", `Your application for job #${jobId} has been submitted successfully.`, "SUCCESS");
+  sendNotification(
+    userId,
+    "Application Received",
+    `Your application for "${job.title}" has been submitted successfully.`,
+    "SUCCESS",
+    `/app/applications/${application.id}`
+  );
+
+  void sendRoleNotification(
+    "TALENT_ACQUISITION",
+    "New Candidate Application",
+    `New application received for "${job.title}".`,
+    "INFO",
+    `/ta/applications/${application.id}`,
+    userId
+  );
 
   return {
     id: application.id,
@@ -264,7 +298,17 @@ export const uploadApplicantComplianceDocument = async (
     userId,
     "Compliance Document Uploaded",
     `Your document for "${requirement.documentLabel}" has been submitted for verification.`,
-    "INFO"
+    "INFO",
+    `/app/applications/${requirement.applicationId}`
+  );
+
+  void sendRoleNotification(
+    "TALENT_ACQUISITION",
+    "Compliance Document Submitted",
+    `A compliance document for "${requirement.documentLabel}" was uploaded and is ready for verification.`,
+    "INFO",
+    `/ta/compliance`,
+    userId
   );
 
   return updated;

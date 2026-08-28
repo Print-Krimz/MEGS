@@ -1,0 +1,379 @@
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { adminApi } from "../../lib/api/admin.api";
+import {
+  PageHeader,
+  LoadingState,
+  ErrorState,
+} from "../../components/common";
+import {
+  AnalyticsFilterBar,
+  RecruitmentActivityChart,
+  RecruitmentFunnel,
+  BottlenecksWidget,
+  ApplicationsByJobChart,
+} from "../../components/analytics";
+import { Button, Select } from "../../components/ui";
+import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
+import {
+  Users,
+  UserCheck,
+  Sparkles,
+  Building2,
+  FileCheck2,
+  Send,
+  FileSpreadsheet,
+  Download,
+} from "lucide-react";
+
+export const AdminAnalyticsPage: React.FC = () => {
+  const [filters, setFilters] = useState<AnalyticsFilterState>({
+    range: "30d",
+  });
+  const [exportFormat, setExportFormat] = useState<"pdf" | "xlsx">("pdf");
+  const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  // 1. Filter Options Metadata
+  const filterOptionsQuery = useQuery({
+    queryKey: ["admin", "analytics", "filter-options"],
+    queryFn: adminApi.getFilterOptions,
+    staleTime: 60 * 1000,
+  });
+
+  // 2. Organization-Wide KPI Stats
+  const overviewQuery = useQuery({
+    queryKey: ["admin", "analytics", "overview", filters],
+    queryFn: () => adminApi.getOverviewStats(filters),
+  });
+
+  // 3. Daily Recruitment Activity Trend
+  const activityTrendQuery = useQuery({
+    queryKey: ["admin", "analytics", "activity", filters],
+    queryFn: () => adminApi.getActivityTrend(filters),
+  });
+
+  // 4. Recruitment Funnel & Conversions
+  const funnelQuery = useQuery({
+    queryKey: ["admin", "analytics", "funnel", filters],
+    queryFn: () => adminApi.getFunnelAnalytics(filters),
+  });
+
+  // 5. Bottleneck Aging Telemetry
+  const bottlenecksQuery = useQuery({
+    queryKey: ["admin", "analytics", "bottlenecks", filters],
+    queryFn: () => adminApi.getBottlenecks(filters),
+  });
+
+  // 6. Applications by Job Demand
+  const jobDemandsQuery = useQuery({
+    queryKey: ["admin", "analytics", "job-demands", filters],
+    queryFn: () => adminApi.getJobDemands(filters),
+  });
+
+  const isLoading =
+    overviewQuery.isLoading ||
+    activityTrendQuery.isLoading ||
+    funnelQuery.isLoading ||
+    bottlenecksQuery.isLoading;
+
+  const isError =
+    overviewQuery.isError ||
+    activityTrendQuery.isError ||
+    funnelQuery.isError ||
+    bottlenecksQuery.isError;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Organization Recruitment Analytics"
+          description="Loading real-time recruitment metrics..."
+        />
+        <LoadingState variant="cards" />
+        <LoadingState variant="table" rows={4} />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Organization Recruitment Analytics"
+          description="Recruitment metrics & bottleneck telemetry"
+        />
+        <ErrorState
+          error={
+            overviewQuery.error ||
+            activityTrendQuery.error ||
+            funnelQuery.error ||
+            bottlenecksQuery.error
+          }
+          onRetry={() => {
+            overviewQuery.refetch();
+            activityTrendQuery.refetch();
+            funnelQuery.refetch();
+            bottlenecksQuery.refetch();
+            jobDemandsQuery.refetch();
+          }}
+        />
+      </div>
+    );
+  }
+
+  const overview = overviewQuery.data;
+  const activity = activityTrendQuery.data;
+  const funnel = funnelQuery.data;
+  const bottlenecks = bottlenecksQuery.data || [];
+  const jobDemands = jobDemandsQuery.data || [];
+  const options = filterOptionsQuery.data;
+
+  const handleExportPipeline = async () => {
+    try {
+      setExportError(null);
+      setDownloadingReport("pipeline");
+      const blob = await adminApi.exportPipelineReport(exportFormat, filters);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `admin_pipeline_report_${new Date().toISOString().substring(0, 10)}.${exportFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setExportError("Failed to export pipeline report: " + err.message);
+    } finally {
+      setDownloadingReport(null);
+    }
+  };
+
+  const handleExportDeployments = async () => {
+    try {
+      setExportError(null);
+      setDownloadingReport("deployments");
+      const blob = await adminApi.exportDeploymentReport(exportFormat, filters);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `admin_deployment_report_${new Date().toISOString().substring(0, 10)}.${exportFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setExportError("Failed to export deployment report: " + err.message);
+    } finally {
+      setDownloadingReport(null);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title="Organization Recruitment Reports"
+        description="Company-wide recruitment velocity, daily activity telemetry, stage conversion funnel, and bottleneck aging analysis"
+        breadcrumbs={[
+          { label: "Admin Operations", href: "/admin" },
+          { label: "Reports" },
+        ]}
+      />
+
+      {exportError && (
+        <div className="p-3 border-l-4 border-rose-600 bg-rose-50 border border-slate-300 text-rose-900 text-xs font-mono flex items-center justify-between">
+          <span>{exportError}</span>
+          <button
+            onClick={() => setExportError(null)}
+            className="text-slate-400 hover:text-slate-700 font-bold ml-4"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Reusable Relational Filter Ribbon */}
+      <AnalyticsFilterBar
+        filters={filters}
+        onChange={setFilters}
+        options={options}
+        showClientFilter={true}
+        showRecruiterFilter={true}
+      />
+
+      {/* Row 1: 6 Core Organization KPI Cards */}
+      <div className="border border-slate-300 bg-white grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 divide-y md:divide-y-0 divide-x divide-slate-300">
+        {/* Total Applications */}
+        <div className="p-3.5">
+          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
+            Total Applications
+          </div>
+          <div className="text-2xl font-bold font-mono text-slate-950 mt-0.5 tabular-nums">
+            {overview?.totalApplications ?? 0}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
+            <Users className="w-3 h-3 text-slate-400 shrink-0" />
+            <span>Intake volume</span>
+          </div>
+        </div>
+
+        {/* Active Candidates */}
+        <div className="p-3.5">
+          <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-wider">
+            Active Candidates
+          </div>
+          <div className="text-2xl font-bold font-mono text-teal-950 mt-0.5 tabular-nums">
+            {overview?.activeCandidates ?? 0}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
+            <UserCheck className="w-3 h-3 text-teal-700 shrink-0" />
+            <span>In active pipeline</span>
+          </div>
+        </div>
+
+        {/* Talent Pool Candidates */}
+        <div className="p-3.5">
+          <div className="text-[10px] font-mono font-bold text-purple-800 uppercase tracking-wider">
+            Talent Pool
+          </div>
+          <div className="text-2xl font-bold font-mono text-purple-950 mt-0.5 tabular-nums">
+            {overview?.talentPoolCandidates ?? 0}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
+            <Sparkles className="w-3 h-3 text-purple-700 shrink-0" />
+            <span>Sourced & reactivatable</span>
+          </div>
+        </div>
+
+        {/* Client Endorsements */}
+        <div className="p-3.5">
+          <div className="text-[10px] font-mono font-bold text-blue-800 uppercase tracking-wider">
+            Client Endorsements
+          </div>
+          <div className="text-2xl font-bold font-mono text-blue-950 mt-0.5 tabular-nums">
+            {overview?.clientEndorsements ?? 0}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
+            <Building2 className="w-3 h-3 text-blue-700 shrink-0" />
+            <span>Presented to clients</span>
+          </div>
+        </div>
+
+        {/* Candidates in Compliance */}
+        <div className="p-3.5">
+          <div className="text-[10px] font-mono font-bold text-amber-800 uppercase tracking-wider">
+            In 201 Compliance
+          </div>
+          <div className="text-2xl font-bold font-mono text-amber-950 mt-0.5 tabular-nums">
+            {overview?.candidatesInCompliance ?? 0}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
+            <FileCheck2 className="w-3 h-3 text-amber-700 shrink-0" />
+            <span>Pre-employment 201</span>
+          </div>
+        </div>
+
+        {/* Total Deployments */}
+        <div className="p-3.5">
+          <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase tracking-wider">
+            Total Deployments
+          </div>
+          <div className="text-2xl font-bold font-mono text-emerald-950 mt-0.5 tabular-nums">
+            {overview?.totalDeployments ?? 0}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
+            <Send className="w-3 h-3 text-emerald-700 shrink-0" />
+            <span>Deployed personnel</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 2: Prominent Daily Recruitment Activity Trend Graph */}
+      <RecruitmentActivityChart
+        data={activity}
+        title="Organization Recruitment Activity Trend"
+        subtitle="Daily breakdown of candidate intake, initial interviews, client endorsements, final interviews, compliance clearances, and site deployments"
+      />
+
+      {/* Row 3: Funnel & Requisition Demand Distribution */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <RecruitmentFunnel data={funnel} />
+        <ApplicationsByJobChart data={jobDemands} />
+      </div>
+
+      {/* Row 4: Bottleneck Aging Analysis */}
+      <BottlenecksWidget bottlenecks={bottlenecks} />
+
+      {/* Row 5: Executive Report Export Center */}
+      <div className="border border-slate-300 bg-white">
+        <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="w-4 h-4 text-teal-700" />
+              <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
+                Recruitment Report Export Center
+              </h3>
+            </div>
+            <p className="text-[11px] text-slate-500 font-sans">
+              Download filtered records for audits, compliance evaluations, and executive reports
+            </p>
+          </div>
+
+          <div className="w-48">
+            <Select
+              label=""
+              value={exportFormat}
+              onChange={(e) => setExportFormat(e.target.value as "pdf" | "xlsx")}
+              options={[
+                { value: "pdf", label: "PDF Document (.pdf)" },
+                { value: "xlsx", label: "Excel Spreadsheet (.xlsx)" },
+              ]}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-300">
+          <div className="p-4 flex items-center justify-between gap-4">
+            <div>
+              <div className="font-bold font-mono uppercase text-slate-900 text-xs">
+                Organization Pipeline Report
+              </div>
+              <div className="text-[11px] text-slate-500 font-sans">
+                Filtered candidate applications, stages & match evaluations
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Download className="w-3.5 h-3.5" />}
+              loading={downloadingReport === "pipeline"}
+              onClick={handleExportPipeline}
+            >
+              Export Report
+            </Button>
+          </div>
+
+          <div className="p-4 flex items-center justify-between gap-4">
+            <div>
+              <div className="font-bold font-mono uppercase text-slate-900 text-xs">
+                Organization Deployment Report
+              </div>
+              <div className="text-[11px] text-slate-500 font-sans">
+                Client assignments, sites & contract periods
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Download className="w-3.5 h-3.5" />}
+              loading={downloadingReport === "deployments"}
+              onClick={handleExportDeployments}
+            >
+              Export Report
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

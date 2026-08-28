@@ -61,8 +61,8 @@ export const TADashboard: React.FC = () => {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Talent Acquisition Operations"
-          description="Real-time recruitment pipeline oversight and action queue"
+          title="Recruitment overview"
+          description="Loading your recruitment work..."
         />
         <LoadingState variant="cards" />
         <LoadingState variant="table" rows={5} />
@@ -79,8 +79,8 @@ export const TADashboard: React.FC = () => {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Talent Acquisition Operations"
-          description="Real-time recruitment pipeline oversight"
+          title="Recruitment overview"
+          description="Your recruitment work"
         />
         <ErrorState
           error={
@@ -112,9 +112,9 @@ export const TADashboard: React.FC = () => {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Talent Acquisition Operations"
-        description="Recruitment funnel oversight, 7-day interview SLA monitors, and candidate action queue"
-        breadcrumbs={[{ label: "TA Portal" }]}
+        title="Recruitment overview"
+        description="See active applications, interviews that need attention, and current job openings."
+        breadcrumbs={[{ label: "Recruitment" }]}
         actions={
           <div className="flex items-center gap-2">
             <Link to="/ta/talent-pool">
@@ -162,8 +162,8 @@ export const TADashboard: React.FC = () => {
       )}
 
       {/* Unified 4-Segment Operational Metrics Ribbon */}
-      <div className="border border-slate-300 bg-white grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 divide-x divide-slate-300">
-        <div className="p-3.5">
+      <div className="border border-slate-300 bg-slate-300 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px">
+        <div className="p-3 sm:p-3.5 bg-white">
           <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
             Active Candidates
           </div>
@@ -171,12 +171,12 @@ export const TADashboard: React.FC = () => {
             {totalActive}
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-            <Users className="w-3 h-3 text-slate-400" />
+            <Users className="w-3 h-3 text-slate-400 shrink-0" />
             <span>Across all recruitment stages</span>
           </div>
         </div>
 
-        <div className="p-3.5">
+        <div className="p-3 sm:p-3.5 bg-white">
           <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-wider">
             Open Requisitions
           </div>
@@ -184,12 +184,12 @@ export const TADashboard: React.FC = () => {
             {openJobs.length}
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-            <Briefcase className="w-3 h-3 text-teal-700" />
+            <Briefcase className="w-3 h-3 text-teal-700 shrink-0" />
             <span>Active client job openings</span>
           </div>
         </div>
 
-        <div className="p-3.5">
+        <div className="p-3 sm:p-3.5 bg-white">
           <div className="text-[10px] font-mono font-bold text-blue-800 uppercase tracking-wider">
             Interview SLA Health
           </div>
@@ -198,12 +198,12 @@ export const TADashboard: React.FC = () => {
             <span className="text-xs text-slate-400 font-normal"> / {slaData?.summary?.total || 0}</span>
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-            <Calendar className="w-3 h-3 text-blue-700" />
+            <Calendar className="w-3 h-3 text-blue-700 shrink-0" />
             <span>{slaBreached} overdue interviews</span>
           </div>
         </div>
 
-        <div className="p-3.5">
+        <div className="p-3 sm:p-3.5 bg-white">
           <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase tracking-wider">
             Active Deployments
           </div>
@@ -211,7 +211,7 @@ export const TADashboard: React.FC = () => {
             {activeDeployments.length}
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-            <Truck className="w-3 h-3 text-emerald-700" />
+            <Truck className="w-3 h-3 text-emerald-700 shrink-0" />
             <span>On-site client personnel</span>
           </div>
         </div>
@@ -236,13 +236,12 @@ export const TADashboard: React.FC = () => {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 divide-x divide-y sm:divide-y-0 divide-slate-300">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-slate-300">
           {[
             { label: "Submitted", status: ApplicationStatus.SUBMITTED },
             { label: "Screening", status: ApplicationStatus.INITIAL_SCREENING },
             { label: "Endorsement", status: ApplicationStatus.CLIENT_ENDORSEMENT },
             { label: "Final Interview", status: ApplicationStatus.FINAL_INTERVIEW },
-            { label: "Hired", status: ApplicationStatus.HIRED },
             { label: "201 Compliance", status: ApplicationStatus.COMPLIANCE },
             { label: "Deployed", status: ApplicationStatus.DEPLOYED },
           ].map((stage) => {
@@ -251,7 +250,7 @@ export const TADashboard: React.FC = () => {
               <Link
                 key={stage.status}
                 to="/ta/applications"
-                className="p-3 bg-white hover:bg-teal-50/60 transition-colors text-center block group"
+                className="p-2.5 sm:p-3 bg-white hover:bg-teal-50/60 transition-colors text-center block group"
               >
                 <div className="text-xl font-bold font-mono text-slate-900 group-hover:text-teal-900 tabular-nums">
                   {count}
@@ -428,7 +427,7 @@ export const TADashboard: React.FC = () => {
                   </div>
                   <div>
                     <div className="text-xs font-bold font-mono text-slate-900 group-hover:text-emerald-900 uppercase">
-                      Analytics & Reports
+                      Reports
                     </div>
                     <div className="text-[10px] text-slate-500">Time-to-fill & export tools</div>
                   </div>

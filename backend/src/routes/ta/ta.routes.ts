@@ -27,13 +27,12 @@ import {
   listInterviews,
   scheduleInterview,
   updateInterviewStatus,
+  recordInterviewDirectly,
   checkInterviewCompliance,
 } from '../../controllers/ta/ta.interviews.controller.js';
 
 import {
-  startOnboarding,
   uploadPostHireDocument,
-  completeHiring,
 } from '../../controllers/ta/ta.posthire.controller.js';
 import {
   addCandidateToPool,
@@ -75,6 +74,7 @@ import {
   listRequirementsHandler,
   submitDocumentHandler,
   reviewRequirementHandler,
+  updateRequirementDeadlineHandler,
 } from '../../controllers/ta/ta.compliance.controller.js';
 
 import {
@@ -82,6 +82,8 @@ import {
   updateDeploymentStatusHandler,
   listDeploymentsHandler,
   getDeploymentDetailsHandler,
+  signDeploymentContractHandler,
+  updateDeploymentContractHandler,
 } from '../../controllers/ta/ta.deployments.controller.js';
 
 import {
@@ -91,12 +93,17 @@ import {
   getComplianceOverviewHandler,
   exportPipelineReportHandler,
   exportDeploymentReportHandler,
+  getTAOverviewHandler,
+  getTAActivityTrendHandler,
+  getTAPipelineFunnelHandler,
+  getTAPendingActionsHandler,
+  getTAFilterOptionsHandler,
 } from '../../controllers/ta/ta.analytics.controller.js';
 
 const router = Router();
 
 router.use(authenticateJWT);
-router.use(requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"));
+router.use(requireRole("TALENT_ACQUISITION"));
 
 // Client & MRF Management
 router.get("/clients", listClientsHandler);
@@ -148,6 +155,7 @@ router.post("/applications/:id/analyze", analyzeApplication);
 router.get("/compliance/interviews", checkInterviewCompliance);
 router.get("/applications/:id/interviews", listInterviews);
 router.post("/applications/:id/interviews", validate(taSchema.scheduleInterview), scheduleInterview);
+router.post("/applications/:id/interviews/record", validate(taSchema.recordInterview), recordInterviewDirectly);
 router.patch("/applications/:id/interviews/:interviewId/status", validate(taSchema.updateInterviewStatus), updateInterviewStatus);
 
 // Compliance Checklist
@@ -155,14 +163,24 @@ router.post("/applications/:id/compliance", createRequirementHandler);
 router.get("/applications/:id/compliance", listRequirementsHandler);
 router.post("/compliance/:requirementId/submit", submitDocumentHandler);
 router.patch("/compliance/:requirementId/review", reviewRequirementHandler);
+router.patch("/compliance/:requirementId/deadline", updateRequirementDeadlineHandler);
 
 // Deployment Lifecycle
 router.post("/applications/:id/deploy", createDeploymentHandler);
 router.patch("/deployments/:id/status", updateDeploymentStatusHandler);
+router.post("/deployments/:id/sign-contract", signDeploymentContractHandler);
+router.patch("/deployments/:id/contract", updateDeploymentContractHandler);
 router.get("/deployments", listDeploymentsHandler);
 router.get("/deployments/:id", getDeploymentDetailsHandler);
 
 // Analytics & Reports
+router.get("/analytics/overview", getTAOverviewHandler);
+router.get("/analytics/activity", getTAActivityTrendHandler);
+router.get("/analytics/pipeline-funnel", getTAPipelineFunnelHandler);
+router.get("/analytics/pending-actions", getTAPendingActionsHandler);
+router.get("/analytics/filters", getTAFilterOptionsHandler);
+
+// Legacy Analytics endpoints (preserved)
 router.get("/analytics/pipeline", getPipelineStatsHandler);
 router.get("/analytics/time-to-fill", getTimeToFillStatsHandler);
 router.get("/analytics/deployments", getDeploymentStatsHandler);
@@ -171,8 +189,6 @@ router.get("/reports/pipeline", exportPipelineReportHandler);
 router.get("/reports/deployments", exportDeploymentReportHandler);
 
 // Post-Hire & Vault 201
-router.patch("/applications/:id/onboard", startOnboarding);
 router.post("/applications/:id/documents", upload.single("file"), validate(taSchema.uploadPostHireDocument), uploadPostHireDocument);
-router.post("/applications/:id/hire", validate(taSchema.completeHiring), completeHiring);
 
 export default router;

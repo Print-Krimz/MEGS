@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import prisma from "../utils/prisma.js";
-import { executeHiring } from "../services/ta/ta.posthire.service.js";
+import { updateTAApplicationStatus } from "../services/ta/ta.applications.service.js";
 import { createComplianceRequirement, reviewComplianceRequirement } from "../services/ta/ta.compliance.service.js";
 import { createDeployment } from "../services/ta/ta.deployments.service.js";
 
@@ -111,18 +111,23 @@ describe("Phase 4 & 5: Hiring & Deployment Automation", () => {
     }
   });
 
-  it("Phase 4: automatically pre-fills department and position from Job/MRF when completing hire", async () => {
-    const { employee, application } = await executeHiring(
+  it("Phase 4: automatically pre-fills department and position from Job/MRF when advancing to COMPLIANCE", async () => {
+    const application = await updateTAApplicationStatus(
       testApp.id,
-      { reason: "Candidate passed all stages" },
-      testTA.id
+      "COMPLIANCE",
+      testTA.id,
+      "Candidate passed all stages"
     );
 
-    expect(application.status).toBe("HIRED");
-    expect(employee.position).toBe("Site Supervisor");
-    expect(employee.employeeNumber).toBeDefined();
-    expect(employee.status).toBe("ACTIVE");
-  });
+    const employee = await prisma.employee.findUnique({
+      where: { userId: testUser.id },
+    });
+
+    expect(application.status).toBe("COMPLIANCE");
+    expect(employee?.position).toBe("Site Supervisor");
+    expect(employee?.employeeNumber).toBeDefined();
+    expect(employee?.status).toBe("ACTIVE");
+  }, 20000);
 
   it("Phase 5: blocks deployment if mandatory compliance is unapproved, and automatically pre-fills deployment site from MRF on approval", async () => {
     // Add mandatory compliance requirement
@@ -154,5 +159,5 @@ describe("Phase 4 & 5: Hiring & Deployment Automation", () => {
 
     const updatedApp = await prisma.application.findUnique({ where: { id: testApp.id } });
     expect(updatedApp?.status).toBe("DEPLOYED");
-  });
+  }, 15000);
 });

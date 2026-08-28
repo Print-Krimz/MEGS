@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
 import { ScoringDimension, ScoringWeights } from "./scoring.types.js";
 import { EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION, rebuildCandidateFeatureProfile, readFeatureInput } from "./talent-pool-knn.service.js";
-import { getActiveScoringConfiguration } from "./scoring-configuration.service.js";
+import { getActiveScoringConfiguration, DEFAULT_WEIGHTS } from "./scoring-configuration.service.js";
 import { calculateFitDimensions, clampScore } from "./scoring.dimensions.js";
 
 type CompletedOrStaleCandidateScore = {
@@ -81,18 +81,32 @@ export const calculateAndPersistCandidateScore = async (
   ]);
   const profileId = application.user.applicantProfile?.id;
   if (!profileId) throw new Error("Candidate profile is required before a deterministic score can be calculated.");
-  const featureProfile = await rebuildCandidateFeatureProfile(profileId);
+  let featureProfile = await prisma.candidateFeatureProfile.findUnique({
+    where: { applicantProfileId: profileId },
+  });
+  if (!featureProfile) {
+    featureProfile = await rebuildCandidateFeatureProfile(profileId);
+  }
+  if (!featureProfile) {
+    throw new Error("Candidate feature profile could not be loaded or created.");
+  }
   const candidate = readFeatureInput(featureProfile.rawFeatures);
   const dimensionCalculation = calculateFitDimensions(candidate, { title: job.title, requirements: job.requirements, location: job.location });
   const dimensions = dimensionCalculation.scores;
-  const weights = active.weights as ScoringWeights;
-  const finalFitScore = clampScore(Object.entries(dimensions).reduce((sum, [dimension, raw]) => sum + raw * weights[dimension as ScoringDimension] / 100, 0));
+  const weights = (active.weights || {}) as Partial<ScoringWeights>;
+  const rawFitScore = Object.entries(dimensions).reduce((sum, [dimension, raw]) => {
+    const rawWeight = Number(weights[dimension as ScoringDimension]);
+    const dimWeight = Number.isFinite(rawWeight) ? rawWeight : (DEFAULT_WEIGHTS[dimension as ScoringDimension] ?? 0);
+    const rawScore = typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
+    return sum + (rawScore * dimWeight) / 100;
+  }, 0);
+  const finalFitScore = clampScore(Number.isFinite(rawFitScore) ? rawFitScore : 0);
   const explanation = {
     version: "fit-score-v1",
     missingMandatory: dimensionCalculation.missingMandatory,
     dimensions,
     dimensionExplanations: dimensionCalculation.explanations,
-    weights,
+    weights: active.weights,
     protectedAttributesExcluded: true,
   };
   const score = await prisma.candidateScore.create({

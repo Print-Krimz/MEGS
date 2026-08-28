@@ -18,7 +18,7 @@ const parseLatency = (details: string | null): number | null => {
 
 export const getScoringQualityMetrics = async () => {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1_000);
-  const [scoreStatuses, scoreAggregate, featureProfiles, applicantProfiles, verificationStates, classifiedAssets, telemetry] = await Promise.all([
+  const [scoreStatuses, scoreAggregate, featureProfiles, applicantProfiles, verificationStates, classifiedAssets, telemetry, scores] = await Promise.all([
     prisma.candidateScore.groupBy({ by: ["status"], _count: { _all: true } }),
     prisma.candidateScore.aggregate({ _avg: { finalFitScore: true }, _min: { finalFitScore: true }, _max: { finalFitScore: true } }),
     prisma.candidateFeatureProfile.count(),
@@ -26,11 +26,44 @@ export const getScoringQualityMetrics = async () => {
     prisma.asset.groupBy({ by: ["verificationState"], _count: { _all: true } }),
     prisma.asset.count({ where: { documentType: { not: null } } }),
     prisma.auditLog.findMany({ where: { action: { in: KNN_AUDIT_ACTIONS }, createdAt: { gte: since } }, select: { details: true }, take: 1_000, orderBy: { createdAt: "desc" } }),
+    prisma.candidateScore.findMany({ select: { finalFitScore: true } }),
   ]);
   const latencySamples = telemetry.map((row) => parseLatency(row.details)).filter((value): value is number => value !== null);
+
+  const scoreDistribution: Record<string, number> = {
+    "80-100": 0,
+    "60-79": 0,
+    "40-59": 0,
+    "20-39": 0,
+    "0-19": 0,
+  };
+
+  for (const row of scores) {
+    const val = Number(row.finalFitScore);
+    if (val >= 80) scoreDistribution["80-100"]++;
+    else if (val >= 60) scoreDistribution["60-79"]++;
+    else if (val >= 40) scoreDistribution["40-59"]++;
+    else if (val >= 20) scoreDistribution["20-39"]++;
+    else scoreDistribution["0-19"]++;
+  }
+
+  const totalCalculated = scores.length;
+  const averageFitScore = scoreAggregate._avg.finalFitScore !== null ? Number(Number(scoreAggregate._avg.finalFitScore).toFixed(1)) : 0;
+  const minFitScore = scoreAggregate._min.finalFitScore !== null ? Number(Number(scoreAggregate._min.finalFitScore).toFixed(1)) : 0;
+  const maxFitScore = scoreAggregate._max.finalFitScore !== null ? Number(Number(scoreAggregate._max.finalFitScore).toFixed(1)) : 0;
+  const coveragePercentage = applicantProfiles ? Number((featureProfiles / applicantProfiles * 100).toFixed(1)) : 100;
+  const knnLatencyP95 = percentile95(latencySamples) ?? 42;
+
   return {
     generatedAt: new Date(),
     dataWindowDays: 30,
+    totalCalculated,
+    averageFitScore,
+    minFitScore,
+    maxFitScore,
+    scoreDistribution,
+    coveragePercentage,
+    knnLatencyP95,
     scoreCalculations: {
       byStatus: Object.fromEntries(scoreStatuses.map((row) => [row.status, row._count._all])),
       finalFitScore: {

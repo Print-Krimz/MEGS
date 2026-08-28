@@ -5,6 +5,8 @@ import {
   updateDeploymentStatus,
   listDeployments,
   getDeploymentDetails,
+  signDeploymentContract,
+  updateDeploymentContract,
 } from "../../services/ta/ta.deployments.service.js";
 
 export const createDeploymentHandler = async (req: Request, res: Response): Promise<void> => {
@@ -12,14 +14,16 @@ export const createDeploymentHandler = async (req: Request, res: Response): Prom
     const applicationId = parseInt(req.params.id as string, 10);
     const { clientId, mrfId, site, contractStart, contractEnd, notes } = req.body;
 
-    if (isNaN(applicationId) || !clientId) {
-      sendError(res, "applicationId and clientId are required", 400);
+    if (isNaN(applicationId)) {
+      sendError(res, "Valid applicationId is required", 400);
       return;
     }
 
+    const parsedClientId = clientId ? parseInt(clientId, 10) : undefined;
+
     const deployment = await createDeployment(req.user!.id, {
       applicationId,
-      clientId: parseInt(clientId, 10),
+      clientId: parsedClientId,
       mrfId: mrfId ? parseInt(mrfId, 10) : undefined,
       site,
       contractStart,
@@ -74,6 +78,40 @@ export const getDeploymentDetailsHandler = async (req: Request, res: Response): 
 
     const deployment = await getDeploymentDetails(id);
     sendSuccess(res, "Deployment details retrieved successfully", deployment);
+  } catch (error: any) {
+    const status = error.message.includes("not found") ? 404 : 400;
+    sendError(res, error.message, status);
+  }
+};
+
+export const signDeploymentContractHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    const { party, notes } = req.body;
+
+    if (isNaN(id) || !party || !["WORKER", "CLIENT"].includes(party)) {
+      sendError(res, "Valid deployment ID and party ('WORKER' or 'CLIENT') are required", 400);
+      return;
+    }
+
+    const updated = await signDeploymentContract(id, party, req.user!.id, notes);
+    sendSuccess(res, `Contract signed for ${party.toLowerCase()}`, updated);
+  } catch (error: any) {
+    const status = error.message.includes("not found") ? 404 : 400;
+    sendError(res, error.message, status);
+  }
+};
+
+export const updateDeploymentContractHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) {
+      sendError(res, "Invalid deployment ID", 400);
+      return;
+    }
+
+    const updated = await updateDeploymentContract(id, req.body, req.user!.id);
+    sendSuccess(res, "Deployment contract updated successfully", updated);
   } catch (error: any) {
     const status = error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, status);

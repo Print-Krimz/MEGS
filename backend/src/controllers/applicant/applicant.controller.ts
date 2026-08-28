@@ -16,13 +16,15 @@ import {
   addAssetService,
   deleteAssetService,
   updateProfilePhotoService,
-  updateProfileResumeService
+  updateProfileResumeService,
+  processResumeExtractionService,
+  applyExtractedProfileService
 } from '../../services/applicant/applicant.service.js';
 
 // Profile CRUD (scoped to authenticated user req.user.id)
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
   try {
-    const profile = await getApplicantProfile(req.user!.id);
+    const profile = await getApplicantProfile(req.user!.id, req.user!.role);
     sendSuccess(res, "Profile retrieved", profile);
   } catch (error: any) {
     sendError(res, error.message, 500);
@@ -171,24 +173,82 @@ export const uploadPhoto = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
-// Central Resume
+// Central Resume & AI Extraction
 export const uploadResume = async (req: Request, res: Response): Promise<void> => {
   try {
     const file = req.file;
     if (!file) { sendError(res, "No file provided", 400); return; }
 
-    const profile = await getApplicantProfile(req.user!.id);
-    if (!profile) {
-      sendError(res, "Profile not found. Please create your profile first.", 400);
-      return;
+    const resumeUrl = await uploadFileToSupabase("applicant-assets", req.user!.id, file);
+    await updateProfileResumeService(req.user!.id, resumeUrl);
+    const { extractedData, extractionStatus } = await processResumeExtractionService(file.buffer);
+
+    let finalProfile: any = null;
+    if (extractedData) {
+      try {
+        await applyExtractedProfileService(req.user!.id, {
+          personalDetails: {
+            firstName: extractedData.firstName,
+            middleName: extractedData.middleName,
+            lastName: extractedData.lastName,
+            mobileNumber: extractedData.mobileNumber,
+            gender: extractedData.gender,
+            province: extractedData.province,
+            city: extractedData.city,
+            dateOfBirth: extractedData.dateOfBirth,
+            birthPlace: extractedData.birthPlace,
+            nationality: extractedData.nationality,
+            civilStatus: extractedData.civilStatus,
+            religion: extractedData.religion,
+            height: extractedData.height,
+            weight: extractedData.weight,
+            address: extractedData.address,
+            preferredWorkLocations: extractedData.preferredWorkLocations,
+            professionalSummary: extractedData.professionalSummary,
+          },
+          workExperiences: extractedData.workExperiences?.map((we) => ({
+            company: we.company,
+            roleTitle: we.roleTitle,
+            location: we.location,
+            startDate: we.startDate || new Date().toISOString().split("T")[0],
+            endDate: we.endDate,
+            isCurrent: we.isCurrent,
+            summary: we.summary,
+          })),
+          educations: extractedData.educations,
+          skills: extractedData.skills,
+          trainings: extractedData.trainings,
+          characterReferences: extractedData.characterReferences,
+          overwriteExistingPersonal: false,
+        });
+      } catch (applyErr: any) {
+        console.warn("[Resume Auto-Fill] Failed to auto-apply extracted details:", applyErr.message);
+      }
     }
 
-    const resumeUrl = await uploadFileToSupabase("applicant-assets", req.user!.id, file);
-    const updatedProfile = await updateProfileResumeService(req.user!.id, resumeUrl);
-    sendSuccess(res, "Default resume uploaded successfully", updatedProfile);
+    finalProfile = await getApplicantProfile(req.user!.id);
+
+    sendSuccess(res, "Resume uploaded and profile auto-filled successfully", {
+      profile: finalProfile,
+      resumeUrl,
+      extractedData,
+      extractionStatus,
+    });
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 500;
     sendError(res, error.message, statusCode);
   }
 };
+
+// Apply Extracted Resume Data to Profile
+export const applyExtractedProfile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const updatedProfile = await applyExtractedProfileService(req.user!.id, req.body);
+    sendSuccess(res, "Extracted profile details applied successfully", updatedProfile);
+  } catch (error: any) {
+    const statusCode = error.message.includes("not found") ? 404 : 400;
+    sendError(res, error.message, statusCode);
+  }
+};
+
 

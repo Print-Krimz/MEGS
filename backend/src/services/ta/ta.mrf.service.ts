@@ -1,4 +1,6 @@
 import prisma from "../../utils/prisma.js";
+import { logAudit } from "../../utils/audit.js";
+import { sendRoleNotification } from "../../utils/notification.js";
 
 export const listMRFs = async (clientId?: number, status?: string) => {
   const where: any = {};
@@ -45,7 +47,7 @@ export const createMRF = async (
   const client = await prisma.client.findUnique({ where: { id: data.clientId } });
   if (!client) throw new Error("Client not found");
 
-  return await prisma.manpowerRequest.create({
+  const mrf = await prisma.manpowerRequest.create({
     data: {
       clientId: data.clientId,
       createdById,
@@ -70,6 +72,24 @@ export const createMRF = async (
       complianceTemplates: true,
     },
   });
+
+  void logAudit(createdById, "MRF_CREATED", "ManpowerRequest", mrf.id, {
+    mrfId: mrf.id,
+    title: mrf.title,
+    clientName: client.name,
+    headcount: mrf.headcount,
+  });
+
+  void sendRoleNotification(
+    "ADMINISTRATOR",
+    "New Manpower Request (MRF)",
+    `MRF "${mrf.title}" created for ${client.name}. Headcount: ${mrf.headcount}.`,
+    "INFO",
+    `/admin/mrfs/${mrf.id}`,
+    createdById
+  );
+
+  return mrf;
 };
 
 export const getMRFDetails = async (id: number) => {
@@ -121,14 +141,15 @@ export const updateMRF = async (
     workArrangement?: string;
     complianceRequirements?: string;
     status?: string;
-  }
+  },
+  actorId?: string
 ) => {
   const updateData: any = { ...data };
   if (data.targetFillDate) {
     updateData.targetFillDate = new Date(data.targetFillDate);
   }
 
-  return await prisma.manpowerRequest.update({
+  const updated = await prisma.manpowerRequest.update({
     where: { id },
     data: updateData,
     include: {
@@ -136,6 +157,15 @@ export const updateMRF = async (
       complianceTemplates: true,
     },
   });
+
+  void logAudit(actorId || null, "MRF_UPDATED", "ManpowerRequest", id, {
+    mrfId: id,
+    title: updated.title,
+    clientName: updated.client?.name,
+    status: updated.status,
+  });
+
+  return updated;
 };
 
 export const addMRFComplianceTemplate = async (

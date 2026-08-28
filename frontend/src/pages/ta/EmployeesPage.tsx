@@ -60,7 +60,7 @@ export const EmployeesPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Personnel & Digital 201 Records"
+        title="Employee records (201)"
         description="Comprehensive employee roster, redeployment pool management, and historical personnel archives"
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },

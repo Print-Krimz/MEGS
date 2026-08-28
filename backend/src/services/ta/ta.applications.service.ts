@@ -4,20 +4,19 @@ import { sendNotification } from '../../utils/notification.js';
 import { scoringFlags } from '../../utils/scoring-flags.js';
 import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.service.js";
 import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
+import { logAudit } from '../../utils/audit.js';
 
 // Authoritative State Machine governing valid applicant pipeline stage transitions
 export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  SUBMITTED:          ["PARSING", "REVIEW", "MATCHED", "NEEDS_ATTENTION", "BACKOUT", "ARCHIVED"],
-  PARSING:            ["REVIEW", "MATCHED", "NEEDS_ATTENTION", "ARCHIVED"],
+  SUBMITTED:          ["PARSING", "REVIEW", "MATCHED", "INITIAL_SCREENING", "NEEDS_ATTENTION", "BACKOUT", "ARCHIVED"],
+  PARSING:            ["REVIEW", "MATCHED", "INITIAL_SCREENING", "NEEDS_ATTENTION", "ARCHIVED"],
   REVIEW:             ["INITIAL_SCREENING", "MATCHED", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  NEEDS_ATTENTION:    ["PARSING", "REVIEW", "MATCHED", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
+  NEEDS_ATTENTION:    ["PARSING", "REVIEW", "MATCHED", "INITIAL_SCREENING", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
   MATCHED:            ["INITIAL_SCREENING", "REVIEW", "TALENT_POOL", "ARCHIVED"],
-  TALENT_POOL:        ["INITIAL_SCREENING", "ARCHIVED"],
+  TALENT_POOL:        ["ARCHIVED"],
   INITIAL_SCREENING:  ["CLIENT_ENDORSEMENT", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
   CLIENT_ENDORSEMENT: ["FINAL_INTERVIEW", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  FINAL_INTERVIEW:    ["HIRED", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  HIRED:              ["COMPLIANCE", "ONBOARDING", "BACKOUT", "ARCHIVED"],
-  ONBOARDING:         ["COMPLIANCE", "DEPLOYED", "BACKOUT", "ARCHIVED"],
+  FINAL_INTERVIEW:    ["COMPLIANCE", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
   COMPLIANCE:         ["DEPLOYED", "BACKOUT", "ARCHIVED"],
   DEPLOYED:           ["ARCHIVED"],
   BACKOUT:            [],
@@ -136,7 +135,30 @@ export const getTAApplication = async (id: number) => {
     where: { id },
     include: {
       jobPosting: {
-        select: { id: true, title: true, requirements: true, location: true, status: true, mrfId: true },
+        select: {
+          id: true,
+          title: true,
+          requirements: true,
+          location: true,
+          status: true,
+          mrfId: true,
+          mrf: {
+            select: {
+              id: true,
+              title: true,
+              clientId: true,
+              client: {
+                select: {
+                  id: true,
+                  name: true,
+                  industry: true,
+                  contactName: true,
+                  contactEmail: true,
+                },
+              },
+            },
+          },
+        },
       },
       user: {
         select: {
@@ -169,6 +191,10 @@ export const getTAApplication = async (id: number) => {
         orderBy: { calculatedAt: "desc" },
         take: 1,
       },
+      deployments: {
+        include: { client: true },
+        orderBy: { createdAt: "desc" },
+      },
       hiredEmployee: {
         select: {
           id: true,
@@ -183,6 +209,20 @@ export const getTAApplication = async (id: number) => {
   });
 
   if (!application) throw new Error("Application not found");
+
+  // Auto-backfill 7-day SLA deadline for any legacy requirements that lacked one
+  if (application.complianceRequirements?.length) {
+    for (const req of application.complianceRequirements) {
+      if (!req.deadline) {
+        const autoDeadline = new Date(req.createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+        req.deadline = autoDeadline;
+        void prisma.complianceRequirement.update({
+          where: { id: req.id },
+          data: { deadline: autoDeadline },
+        }).catch(() => {});
+      }
+    }
+  }
 
   const candidateScores = application.candidateScores?.map((score) => ({
     id: score.id,
@@ -263,31 +303,51 @@ export const updateTAApplicationStatus = async (
     }
   }
 
-  // Pre-transition rule: CLIENT_ENDORSEMENT -> FINAL_INTERVIEW requires ENDORSED client endorsement
+  // Pre-transition rule: CLIENT_ENDORSEMENT -> FINAL_INTERVIEW requires APPROVED client endorsement
   if (status === "FINAL_INTERVIEW") {
     const endorsement = await prisma.clientEndorsement.findFirst({
       where: {
         applicationId: id,
-        outcome: "ENDORSED",
+        outcome: { in: ["APPROVED", "ENDORSED"] },
       },
     });
     if (!endorsement) {
-      throw new Error("Cannot move to FINAL_INTERVIEW. Client endorsement (outcome: ENDORSED) is required.");
+      throw new Error("Cannot move to FINAL_INTERVIEW. Client endorsement approval (outcome: APPROVED) is required.");
     }
   }
 
-  // Pre-transition rule: FINAL_INTERVIEW -> HIRED requires PASS final interview
-  if (status === "HIRED") {
-    const finalInterview = await prisma.interview.findFirst({
-      where: {
-        applicationId: id,
-        type: "FINAL_INTERVIEW",
-        result: { in: ["PASS", "PASSED"] },
-        isActive: true,
-      },
-    });
-    if (!finalInterview) {
-      throw new Error("Cannot move to HIRED. A passed FINAL_INTERVIEW is required.");
+  // Pre-transition rule: FINAL_INTERVIEW -> COMPLIANCE requires PASS from client final evaluation
+  if (status === "COMPLIANCE") {
+    if (currentStatus === "FINAL_INTERVIEW") {
+      const passedClientEval = await prisma.interview.findFirst({
+        where: {
+          applicationId: id,
+          type: "FINAL_INTERVIEW",
+          result: { in: ["PASS", "PASSED"] },
+          isActive: true,
+        },
+      });
+      if (!passedClientEval) {
+        throw new Error("Cannot move to COMPLIANCE. Client final evaluation result must be PASS.");
+      }
+    } else if (currentStatus === "CLIENT_ENDORSEMENT") {
+      const endorsement = await prisma.clientEndorsement.findFirst({
+        where: {
+          applicationId: id,
+          outcome: { in: ["APPROVED", "ENDORSED"] },
+        },
+      });
+      const passedClientEval = await prisma.interview.findFirst({
+        where: {
+          applicationId: id,
+          type: "FINAL_INTERVIEW",
+          result: { in: ["PASS", "PASSED"] },
+          isActive: true,
+        },
+      });
+      if (!endorsement && !passedClientEval) {
+        throw new Error("Cannot move to COMPLIANCE. Client acceptance or passed evaluation is required.");
+      }
     }
   }
 
@@ -321,8 +381,36 @@ export const updateTAApplicationStatus = async (
     },
   });
 
-  // Post-transition hook: Generate compliance requirements when entering COMPLIANCE or HIRED
-  if (status === "COMPLIANCE" || status === "HIRED") {
+  void prisma.application
+    .findUnique({
+      where: { id },
+      include: {
+        jobPosting: { select: { title: true } },
+        user: {
+          select: {
+            email: true,
+            applicantProfile: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+    })
+    .then((appInfo) => {
+      const applicantName = appInfo?.user?.applicantProfile
+        ? `${appInfo.user.applicantProfile.firstName || ""} ${appInfo.user.applicantProfile.lastName || ""}`.trim()
+        : appInfo?.user?.email;
+      void logAudit(resolvedActorId, "APPLICATION_STATUS_UPDATED", "Application", id, {
+        fromStatus: currentStatus,
+        toStatus: status,
+        reason: reason || null,
+        jobTitle: appInfo?.jobPosting?.title,
+        applicantName,
+        applicantEmail: appInfo?.user?.email,
+      });
+    })
+    .catch(() => {});
+
+  // Post-transition hook: Generate compliance requirements when entering COMPLIANCE
+  if (status === "COMPLIANCE") {
     try {
       await generateComplianceRequirementsFromMRF(id);
     } catch (err: any) {
@@ -357,7 +445,7 @@ export const updateTAApplicationStatus = async (
         },
       });
     }
-  } else if (status === "HIRED" || status === "DEPLOYED") {
+  } else if (status === "COMPLIANCE" || status === "DEPLOYED") {
     const appWithProfile = await prisma.application.findUnique({
       where: { id },
       include: { user: { select: { applicantProfile: { select: { id: true } } } } },
@@ -482,12 +570,41 @@ export const updateTAApplicationStatus = async (
     }
   }
 
-  sendNotification(
+  const getCandidateStatusMessage = (statusStr: string) => {
+    switch (statusStr) {
+      case "TALENT_POOL":
+        return "You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications.";
+      case "REVIEW":
+        return "Your application is currently under review.";
+      case "INITIAL_SCREENING":
+        return "Your application has advanced to Initial Screening.";
+      case "CLIENT_ENDORSEMENT":
+        return "Your application has been endorsed for client review.";
+      case "FINAL_INTERVIEW":
+        return "Your application has advanced to Final Interview.";
+      case "COMPLIANCE":
+        return "Employment documents (201) are needed. Please submit the requested documents.";
+      case "DEPLOYED":
+        return "You have been placed at your work site. Your employee record is ready.";
+      case "ARCHIVED":
+        return "Your application consideration has concluded.";
+      default:
+        return `Your application has been updated to ${statusStr.toLowerCase().replace(/_/g, " ")}.`;
+    }
+  };
+
+  const notificationMessage = getCandidateStatusMessage(status);
+
+  await sendNotification(
     application.userId,
     "Application Update",
-    `Your application has been moved to ${status.replace("_", " ")}.`,
-    "INFO"
+    notificationMessage,
+    "INFO",
+    `/app/applications/${application.id}`
   );
+
+
+
 
   return updated;
 };
@@ -533,6 +650,12 @@ export const archiveTAApplication = async (id: number, actorId?: string, reason?
     },
   });
 
+  void logAudit(actorId || application.userId, "APPLICATION_STATUS_UPDATED", "Application", id, {
+    fromStatus,
+    toStatus: "ARCHIVED",
+    reason: reason || "Application archived",
+  });
+
   return updated;
 };
 
@@ -558,6 +681,12 @@ export const restoreTAApplication = async (id: number, actorId?: string, reason?
       toStatus: "SUBMITTED",
       reason: reason || "Application restored to SUBMITTED",
     },
+  });
+
+  void logAudit(actorId || application.userId, "APPLICATION_STATUS_UPDATED", "Application", id, {
+    fromStatus: "ARCHIVED",
+    toStatus: "SUBMITTED",
+    reason: reason || "Application restored to SUBMITTED",
   });
 
   return updated;

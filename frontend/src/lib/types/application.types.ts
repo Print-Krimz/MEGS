@@ -5,6 +5,7 @@ import type {
 } from "./enums";
 import type { ApplicantProfile } from "./applicant.types";
 import type { User } from "./auth.types";
+import type { Deployment } from "./employee.types";
 
 export interface JobPosting {
   id: number;
@@ -13,10 +14,23 @@ export interface JobPosting {
   description: string;
   requirements: string;
   location?: string | null;
+  imageUrl?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   status: JobStatus;
   mrfId?: number | null;
+  mrf?: {
+    id: number;
+    title: string;
+    clientId: number;
+    client?: {
+      id: number;
+      name: string;
+      industry?: string | null;
+      contactName?: string | null;
+      contactEmail?: string | null;
+    } | null;
+  } | null;
   createdAt: string;
   updatedAt: string;
   postedBy?: User;
@@ -45,7 +59,7 @@ export interface ClientEndorsement {
   id: number;
   applicationId: number;
   clientId: number;
-  outcome: "PENDING" | "ENDORSED" | "DECLINED";
+  outcome: "PENDING" | "APPROVED" | "DECLINED" | "ENDORSED";
   endorsedById?: string | null;
   notes?: string | null;
   createdAt: string;
@@ -145,6 +159,7 @@ export interface Application {
   candidateScores?: CandidateScore[];
   postHireDocuments?: PostHireDocument[];
   recruiterDecisions?: RecruiterDecision[];
+  deployments?: Deployment[];
   hiredEmployee?: {
     id: number;
     employeeNumber: string;

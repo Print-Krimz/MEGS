@@ -63,19 +63,28 @@ frontend/src/
 
 ---
 
-## 4. UI/UX & Design Principles (Anti-AI-Slop)
+## 4. UI/UX & Human-Computer Interaction (HCI) Principles
 
 The product is an **Industrial Utilitarian** operational tool used daily by recruiters and HR personnel.
 
-### Visual Rules
+> [!IMPORTANT]
+> All frontend development and code reviews must adhere to the dedicated [Frontend HCI Guidelines](../../skills/frontend-hci/SKILL.md).
+
+### Core HCI Rules & Anti-AI-Slop Directives
 - **Information Density:** High information density with comfortable whitespace. Emphasize data tables, filters, and status over large decorative empty cards.
 - **No Decorative AI Fluff:** No unnecessary rainbow gradients, excessive glassmorphism, floating random blur blobs, or giant marketing hero cards in operational dashboards.
+- **Plain User Language:** Avoid IT/database/engineering jargon in user-facing UI. Use clear, natural HR terms.
+- **Recognition Over Recall:** Keep context visible (e.g. show job title with requisition ID); do not require users to remember codes or hidden flows.
+- **Smart Automation & Efficiency:** Minimize clicks and manual input. Prefer searchable comboboxes, auto-fill from linked records, and sensible defaults.
+- **Icon Discipline:** Never use generic or decorative icons. If plain text communicates the action more clearly, use text.
 - **Semantic Status Badges:** Status badges must always include clear text labels alongside semantic colors (e.g., `SUBMITTED`, `INITIAL_SCREENING`, `CLIENT_ENDORSEMENT`, `FINAL_INTERVIEW`, `HIRED`, `COMPLIANCE`, `DEPLOYED`).
 - **State Handling:** Every screen must explicitly handle 4 states:
   1. **Loading:** Skeletons or subdued spinners.
   2. **Error:** Helpful error messages with retry options.
   3. **Empty:** Clear explanation and direct actionable CTA.
   4. **Success / Data:** High-density, accessible tabular and card views.
+- **Error Prevention & Recovery:** Use input constraints and confirmation modals on destructive actions. Make recovery straightforward.
+- **Accessibility:** Meet WCAG 2.1 AA standards, full keyboard navigation, explicit focus indicators, and semantic HTML.
 
 ---
 
@@ -86,3 +95,9 @@ The frontend must strictly mirror the backend canonical hiring pipeline:
 
 - Never expose UI buttons that allow invalid stage-skipping.
 - Display score breakdowns and AI advisory summaries transparently alongside recruiter override controls.
+
+---
+
+## 6. Pre-Implementation HCI Checklist
+
+Before completing any frontend UI change, verify against the 10-point HCI review checklist defined in [Frontend HCI Guidelines](../../skills/frontend-hci/SKILL.md#10-the-10-point-hci-review-checklist).

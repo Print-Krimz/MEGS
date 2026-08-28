@@ -41,9 +41,11 @@ async function main() {
 
   const adminEmail = process.env.ADMIN_EMAIL || "admin@megs-recruitment.com";
   const adminPassword = process.env.ADMIN_PASSWORD || "AdminPassword123!";
+  const adminName = process.env.ADMIN_NAME || "System Administrator";
 
   const taEmail = process.env.TA_EMAIL || "ta@megs-recruitment.com";
   const taPassword = process.env.TA_PASSWORD || "TAPassword123!";
+  const taName = process.env.TA_NAME || "Talent Acquisition";
 
   const { data: listData } = await supabase.auth.admin.listUsers();
 
@@ -55,14 +57,14 @@ async function main() {
     await supabase.auth.admin.updateUserById(adminAuthId, {
       password: adminPassword,
       email_confirm: true,
-      user_metadata: { role: "ADMINISTRATOR", name: "System Administrator" },
+      user_metadata: { role: "ADMINISTRATOR", name: adminName },
     });
   } else {
     const { data: createData, error } = await supabase.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
       email_confirm: true,
-      user_metadata: { role: "ADMINISTRATOR", name: "System Administrator" },
+      user_metadata: { role: "ADMINISTRATOR", name: adminName },
     });
     if (error || !createData.user) throw new Error(`Failed to create admin: ${error?.message}`);
     adminAuthId = createData.user.id;
@@ -88,6 +90,15 @@ async function main() {
   });
   console.log(`✅ Bootstrapped Administrator account: ${adminEmail}`);
 
+  const args = process.argv.slice(2);
+  const adminOnly = args.includes("--admin-only") || process.env.SEED_ADMIN_ONLY === "true";
+
+  if (adminOnly) {
+    console.log("⚡ Admin-only mode enabled: skipping TA account and auxiliary seed.");
+    console.log("✅ Admin-only seed process completed successfully.");
+    return;
+  }
+
   // 2. Seed/Sync Talent Acquisition
   let taAuthId: string;
   const existingTa = listData?.users.find((u) => u.email?.toLowerCase() === taEmail.toLowerCase());
@@ -96,14 +107,14 @@ async function main() {
     await supabase.auth.admin.updateUserById(taAuthId, {
       password: taPassword,
       email_confirm: true,
-      user_metadata: { role: "TALENT_ACQUISITION", name: "Talent Acquisition" },
+      user_metadata: { role: "TALENT_ACQUISITION", name: taName },
     });
   } else {
     const { data: createData, error } = await supabase.auth.admin.createUser({
       email: taEmail,
       password: taPassword,
       email_confirm: true,
-      user_metadata: { role: "TALENT_ACQUISITION", name: "Talent Acquisition" },
+      user_metadata: { role: "TALENT_ACQUISITION", name: taName },
     });
     if (error || !createData.user) throw new Error(`Failed to create TA: ${error?.message}`);
     taAuthId = createData.user.id;

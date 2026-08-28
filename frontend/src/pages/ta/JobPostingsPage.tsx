@@ -9,17 +9,20 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
+  JobImage,
 } from "../../components/common";
-import { Button, Dialog, Input, Textarea } from "../../components/ui";
+import { Button, Dialog, Input, Textarea, ComboBox } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { JobStatus } from "../../lib/types/enums";
 import {
   Briefcase,
   Plus,
-  Sparkles,
   MapPin,
   Users,
+  FileSpreadsheet,
 } from "lucide-react";
+
+import { notify } from "../../lib/feedback";
 
 export const JobPostingsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -29,8 +32,10 @@ export const JobPostingsPage: React.FC = () => {
   const pageSize = 8;
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
+  const [selectedMrfId, setSelectedMrfId] = useState<number | null>(null);
   const [formTitle, setFormTitle] = useState("");
   const [formLocation, setFormLocation] = useState("");
+  const [formImageUrl, setFormImageUrl] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formRequirements, setFormRequirements] = useState("");
 
@@ -43,15 +48,54 @@ export const JobPostingsPage: React.FC = () => {
       }),
   });
 
+  const mrfsQuery = useQuery({
+    queryKey: ["ta", "mrfs"],
+    queryFn: () => taApi.listMRFs(),
+    enabled: createModalOpen,
+  });
+
+  const mrfs = mrfsQuery.data || [];
+
+  const handleSelectMRF = (val: string) => {
+    const id = Number(val) || null;
+    setSelectedMrfId(id);
+    if (id) {
+      const chosen = mrfs.find((m) => m.id === id);
+      if (chosen) {
+        setFormTitle(chosen.title || "");
+        setFormLocation(chosen.location || "");
+        setFormDescription(chosen.description || "");
+        setFormRequirements(chosen.requiredSkills || "");
+      }
+    }
+  };
+
   const createJobMutation = useMutation({
-    mutationFn: taApi.createJob,
-    onSuccess: () => {
+    mutationFn: async (payload: any) => {
+      const created = await taApi.createJob(payload);
+      if (selectedMrfId && created?.id) {
+        try {
+          await taApi.linkJobToMRF(selectedMrfId, created.id);
+        } catch {
+          // Non-blocking link error
+        }
+      }
+      return created;
+    },
+    onSuccess: (newJob) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
       setCreateModalOpen(false);
+      setSelectedMrfId(null);
       setFormTitle("");
       setFormLocation("");
+      setFormImageUrl("");
       setFormDescription("");
       setFormRequirements("");
+      notify.success("Job Requisition Created", `Requisition #${newJob?.id || ""} created successfully.`);
+    },
+    onError: (err: any) => {
+      notify.error("Creation Failed", err);
     },
   });
 
@@ -78,8 +122,8 @@ export const JobPostingsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Job Postings & Requisitions"
-        description="Manage active job postings, candidate evaluations, and recruitment allocations"
+        title="Job openings"
+        description="Create and publish job postings, set criteria, and monitor incoming applicants"
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },
           { label: "Job Postings" },
@@ -98,6 +142,7 @@ export const JobPostingsPage: React.FC = () => {
 
       {/* Filter Bar */}
       <SearchFilters
+        searchPlaceholder="Search requisitions by title, location..."
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
@@ -148,14 +193,17 @@ export const JobPostingsPage: React.FC = () => {
                 className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-teal-300 transition-colors"
               >
                 <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                        {job.title}
-                      </h3>
-                      <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2 mt-1">
-                        <MapPin className="w-3 h-3 text-slate-400" />
-                        <span>{job.location || "Philippines"}</span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <JobImage src={job.imageUrl} alt={job.title} size="md" />
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                          {job.title}
+                        </h3>
+                        <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2 mt-1">
+                          <MapPin className="w-3 h-3 text-slate-400" />
+                          <span>{job.location || "Philippines"}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -198,9 +246,9 @@ export const JobPostingsPage: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        leftIcon={<Sparkles className="w-3.5 h-3.5 text-teal-600" />}
+                        leftIcon={<Briefcase className="w-3.5 h-3.5 text-teal-600" />}
                       >
-                        Candidate Matches
+                        View Job
                       </Button>
                     </Link>
                   </div>
@@ -235,13 +283,32 @@ export const JobPostingsPage: React.FC = () => {
             createJobMutation.mutate({
               title: formTitle,
               location: formLocation || undefined,
+              imageUrl: formImageUrl || undefined,
               description: formDescription,
               requirements: formRequirements,
+              mrfId: selectedMrfId || undefined,
               status: JobStatus.OPEN,
             });
           }}
           className="space-y-4"
         >
+          {/* Optional MRF Auto-Population Selector */}
+          <ComboBox
+            label="Link to Manpower Request (MRF) (Optional)"
+            placeholder="Search open client MRFs to auto-fill requisition..."
+            leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-slate-400" />}
+            value={selectedMrfId ? String(selectedMrfId) : ""}
+            onChange={handleSelectMRF}
+            options={mrfs.map((m) => ({
+              value: String(m.id),
+              label: `${m.title} (MRF #${m.id})`,
+              subtitle: `Client: ${m.client?.name || "Corporate Account"} • ${m.location || "Nationwide"} • ${m.headcount} pax`,
+              badge: m.status,
+            }))}
+            helperText="Selecting an MRF auto-fills title, location, description, and qualifications"
+            emptyText="No open Manpower Requests found"
+          />
+
           <Input
             label="Job Requisition Title"
             placeholder="e.g. Senior Electrician / Line Specialist"
@@ -249,12 +316,20 @@ export const JobPostingsPage: React.FC = () => {
             onChange={(e) => setFormTitle(e.target.value)}
             required
           />
-          <Input
-            label="Workplace Location"
-            placeholder="e.g. Batangas City Facility"
-            value={formLocation}
-            onChange={(e) => setFormLocation(e.target.value)}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Workplace Location"
+              placeholder="e.g. Batangas City Facility"
+              value={formLocation}
+              onChange={(e) => setFormLocation(e.target.value)}
+            />
+            <Input
+              label="Job / Company Image URL (Optional)"
+              placeholder="https://example.com/company-banner.jpg"
+              value={formImageUrl}
+              onChange={(e) => setFormImageUrl(e.target.value)}
+            />
+          </div>
           <Textarea
             label="Job Description & Responsibilities"
             placeholder="Describe role responsibilities..."

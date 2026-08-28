@@ -1,13 +1,44 @@
 import prisma from '../../utils/prisma.js';
 import { revalidateApplicantProfile } from "../scoring/scoring-configuration.service.js";
 import { normalizeComplianceDocumentType } from "../scoring/scoring.dimensions.js";
+import { resolveDocumentSignedUrl } from "../document/document.service.js";
+// @ts-ignore
+import pdfParseModule from "pdf-parse/lib/pdf-parse.js";
+const pdfParse: (buf: Buffer) => Promise<{ text: string }> =
+  typeof pdfParseModule === "function" ? pdfParseModule : ((pdfParseModule as any)?.default ?? pdfParseModule);
+import { extractResumeProfileData, type ExtractedProfileData } from "../../utils/gemini.js";
 
 const queueProfileRevalidation = (profileId: number) => {
-  void revalidateApplicantProfile(profileId).catch((error) => console.error("[Scoring] failed to queue profile revalidation", error));
+  try {
+    const res = revalidateApplicantProfile(profileId);
+    if (res && typeof res.catch === "function") {
+      void res.catch((error) => console.error("[Scoring] failed to queue profile revalidation", error));
+    }
+  } catch {
+    // scoring queue revalidation is advisory
+  }
 };
 
-export const getApplicantProfile = async (userId: string) => {
-  const profile = await prisma.applicantProfile.findUnique({
+export const ensureApplicantProfile = async (userId: string) => {
+  let profile = await prisma.applicantProfile.findUnique({
+    where: { userId },
+  });
+
+  if (!profile) {
+    profile = await prisma.applicantProfile.create({
+      data: {
+        userId,
+        firstName: "",
+        lastName: "",
+      },
+    });
+  }
+
+  return profile;
+};
+
+export const getApplicantProfile = async (userId: string, requesterRole: string = "APPLICANT") => {
+  let profile = await prisma.applicantProfile.findUnique({
     where: { userId },
     include: {
       workExperiences: true,
@@ -19,10 +50,39 @@ export const getApplicantProfile = async (userId: string) => {
     },
   });
 
+  if (!profile && requesterRole === "APPLICANT") {
+    profile = await prisma.applicantProfile.create({
+      data: {
+        userId,
+        firstName: "",
+        lastName: "",
+      },
+      include: {
+        workExperiences: true,
+        educations: true,
+        skills: { include: { skill: true } },
+        trainings: true,
+        assets: true,
+        characterReferences: true,
+      },
+    });
+  }
+
   if (!profile) return null;
+
+  let photoUrl = profile.photoUrl;
+  if (profile.photoUrl) {
+    try {
+      const resolved = await resolveDocumentSignedUrl(profile.photoUrl, userId, requesterRole);
+      if (resolved) photoUrl = resolved;
+    } catch {
+      // fallback to stored photoUrl
+    }
+  }
 
   return {
     ...profile,
+    photoUrl,
     skills: profile.skills.map((s) => s.skill.name),
   };
 };
@@ -107,8 +167,7 @@ export const upsertApplicantProfile = async (userId: string, data: any) => {
 };
 
 export const addWorkExperienceService = async (userId: string, data: any) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   const experience = await prisma.workExperience.create({
     data: {
@@ -127,8 +186,7 @@ export const addWorkExperienceService = async (userId: string, data: any) => {
 };
 
 export const deleteWorkExperienceService = async (userId: string, id: number) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   await prisma.workExperience.deleteMany({
     where: { id, applicantProfileId: profile.id },
@@ -137,8 +195,7 @@ export const deleteWorkExperienceService = async (userId: string, id: number) =>
 };
 
 export const addEducationService = async (userId: string, data: any) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   const education = await prisma.education.create({
     data: {
@@ -156,8 +213,7 @@ export const addEducationService = async (userId: string, data: any) => {
 };
 
 export const deleteEducationService = async (userId: string, id: number) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   await prisma.education.deleteMany({
     where: { id, applicantProfileId: profile.id },
@@ -167,8 +223,7 @@ export const deleteEducationService = async (userId: string, id: number) => {
 
 // Atomically syncs applicant skill associations and registers new unique skill tags
 export const updateSkillsService = async (userId: string, skillNames: string[]) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   await prisma.$transaction(async (tx) => {
     await tx.applicantSkill.deleteMany({ where: { applicantProfileId: profile.id } });
@@ -200,8 +255,7 @@ const txGetSkills = async (profileId: number) => {
 };
 
 export const addTrainingService = async (userId: string, data: any) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   const training = await prisma.trainingCertification.create({
     data: {
@@ -218,8 +272,7 @@ export const addTrainingService = async (userId: string, data: any) => {
 };
 
 export const deleteTrainingService = async (userId: string, id: number) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   await prisma.trainingCertification.deleteMany({
     where: { id, applicantProfileId: profile.id },
@@ -228,8 +281,7 @@ export const deleteTrainingService = async (userId: string, id: number) => {
 };
 
 export const addReferenceService = async (userId: string, data: any) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   return await prisma.characterReference.create({
     data: {
@@ -244,8 +296,7 @@ export const addReferenceService = async (userId: string, data: any) => {
 };
 
 export const deleteReferenceService = async (userId: string, id: number) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   await prisma.characterReference.deleteMany({
     where: { id, applicantProfileId: profile.id },
@@ -253,8 +304,7 @@ export const deleteReferenceService = async (userId: string, id: number) => {
 };
 
 export const addAssetService = async (userId: string, fileUrl: string, data: any) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   const asset = await prisma.asset.create({
     data: {
@@ -270,8 +320,7 @@ export const addAssetService = async (userId: string, fileUrl: string, data: any
 };
 
 export const deleteAssetService = async (userId: string, id: number) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   await prisma.asset.deleteMany({
     where: { id, applicantProfileId: profile.id },
@@ -280,25 +329,360 @@ export const deleteAssetService = async (userId: string, id: number) => {
 };
 
 export const updateProfilePhotoService = async (userId: string, photoUrl: string) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   const updated = await prisma.applicantProfile.update({
     where: { id: profile.id },
     data: { photoUrl },
   });
-  queueProfileRevalidation(profile.id);
-  return updated;
+  queueProfileRevalidation(updated.id);
+
+  let resolvedPhotoUrl = photoUrl;
+  try {
+    const resolved = await resolveDocumentSignedUrl(photoUrl, userId, "APPLICANT");
+    if (resolved) resolvedPhotoUrl = resolved;
+  } catch {
+    // fallback
+  }
+
+  return {
+    ...updated,
+    photoUrl: resolvedPhotoUrl,
+  };
 };
 
 export const updateProfileResumeService = async (userId: string, resumeUrl: string) => {
-  const profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) throw new Error("Profile not found");
+  const profile = await ensureApplicantProfile(userId);
 
   const updated = await prisma.applicantProfile.update({
     where: { id: profile.id },
     data: { resumeUrl },
   });
-  queueProfileRevalidation(profile.id);
+  queueProfileRevalidation(updated.id);
   return updated;
 };
+
+// Extracts candidate profile information from a resume PDF buffer
+export const processResumeExtractionService = async (
+  buffer: Buffer
+): Promise<{ extractedData: ExtractedProfileData | null; extractionStatus: "SUCCESS" | "UNAVAILABLE" }> => {
+  try {
+    const parsed = await pdfParse(buffer);
+    const text = parsed?.text ? parsed.text.trim() : "";
+    if (!text) {
+      return { extractedData: null, extractionStatus: "UNAVAILABLE" };
+    }
+
+    const extracted = await extractResumeProfileData(text);
+    return { extractedData: extracted, extractionStatus: "SUCCESS" };
+  } catch (err: any) {
+    console.warn("[Resume Parser] Text extraction or Gemini analysis unavailable:", err.message);
+    return { extractedData: null, extractionStatus: "UNAVAILABLE" };
+  }
+};
+
+export interface ApplyExtractedProfileDto {
+  personalDetails?: {
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    mobileNumber?: string;
+    gender?: string;
+    province?: string;
+    city?: string;
+    dateOfBirth?: string;
+    birthPlace?: string;
+    nationality?: string;
+    civilStatus?: string;
+    religion?: string;
+    height?: number | string;
+    weight?: number | string;
+    address?: string;
+    preferredWorkLocations?: string;
+    professionalSummary?: string;
+  };
+  overwriteExistingPersonal?: boolean;
+  workExperiences?: Array<{
+    company: string;
+    roleTitle: string;
+    location?: string;
+    startDate: string;
+    endDate?: string | null;
+    isCurrent?: boolean;
+    summary?: string;
+  }>;
+  educations?: Array<{
+    school: string;
+    degree?: string;
+    fieldOfStudy?: string;
+    startDate?: string | null;
+    endDate?: string | null;
+    notes?: string;
+  }>;
+  skills?: string[];
+  trainings?: Array<{
+    title: string;
+    provider?: string;
+    completionDate?: string | null;
+    certificateNo?: string;
+    notes?: string;
+  }>;
+  characterReferences?: Array<{
+    name: string;
+    relationship?: string;
+    company?: string;
+    phone?: string;
+    email?: string;
+    notes?: string;
+  }>;
+}
+
+// Atomically and non-destructively applies extracted resume data into the candidate's profile
+export const applyExtractedProfileService = async (
+  userId: string,
+  payload: ApplyExtractedProfileDto
+) => {
+  let profile = await prisma.applicantProfile.findUnique({ where: { userId } });
+  if (!profile) {
+    profile = await prisma.applicantProfile.create({
+      data: {
+        userId,
+        firstName: payload.personalDetails?.firstName || "",
+        lastName: payload.personalDetails?.lastName || "",
+      },
+    });
+  }
+
+  const sanitizeString = (val: any) => (val !== undefined && val !== null ? String(val).trim() || null : undefined);
+  const sanitizeNumber = (val: any) => (val !== undefined && val !== null && val !== "" && !isNaN(Number(val)) ? Number(val) : val === null ? null : undefined);
+  const sanitizeDate = (val: any) => (val ? new Date(val) : val === null ? null : undefined);
+
+  // 1. Personal Details Merge (Non-destructive unless overwriteExistingPersonal is true)
+  if (payload.personalDetails) {
+    const updateData: Record<string, any> = {};
+    const personal = payload.personalDetails;
+    const overwrite = Boolean(payload.overwriteExistingPersonal);
+
+    const fieldsToProcess: (keyof typeof personal)[] = [
+      "firstName",
+      "middleName",
+      "lastName",
+      "mobileNumber",
+      "gender",
+      "province",
+      "city",
+      "birthPlace",
+      "nationality",
+      "civilStatus",
+      "religion",
+      "address",
+      "preferredWorkLocations",
+      "professionalSummary",
+    ];
+
+    for (const field of fieldsToProcess) {
+      const incomingVal = sanitizeString(personal[field]);
+      if (incomingVal !== undefined && incomingVal !== null) {
+        const existingVal = (profile as any)[field];
+        const isExistingEmpty = existingVal === null || existingVal === undefined || String(existingVal).trim() === "";
+        if (overwrite || isExistingEmpty) {
+          updateData[field] = incomingVal;
+        }
+      }
+    }
+
+    if (personal.dateOfBirth) {
+      const incomingDob = sanitizeDate(personal.dateOfBirth);
+      const isDobEmpty = !profile.dateOfBirth;
+      if (incomingDob && (overwrite || isDobEmpty)) {
+        updateData.dateOfBirth = incomingDob;
+      }
+    }
+
+    if (personal.height !== undefined && personal.height !== null) {
+      const incomingHeight = sanitizeNumber(personal.height);
+      const isHeightEmpty = profile.height === null || profile.height === undefined;
+      if (incomingHeight !== undefined && (overwrite || isHeightEmpty)) {
+        updateData.height = incomingHeight;
+      }
+    }
+
+    if (personal.weight !== undefined && personal.weight !== null) {
+      const incomingWeight = sanitizeNumber(personal.weight);
+      const isWeightEmpty = profile.weight === null || profile.weight === undefined;
+      if (incomingWeight !== undefined && (overwrite || isWeightEmpty)) {
+        updateData.weight = incomingWeight;
+      }
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await prisma.applicantProfile.update({
+        where: { id: profile.id },
+        data: updateData,
+      });
+    }
+  }
+
+  // 2. Work Experiences Deduplication & Import
+  if (payload.workExperiences && payload.workExperiences.length > 0) {
+    const existingExps = await prisma.workExperience.findMany({
+      where: { applicantProfileId: profile.id },
+      select: { company: true, roleTitle: true },
+    });
+
+    for (const exp of payload.workExperiences) {
+      const companyNorm = exp.company.trim().toLowerCase();
+      const roleNorm = exp.roleTitle.trim().toLowerCase();
+      const exists = existingExps.some(
+        (e) => e.company.trim().toLowerCase() === companyNorm && e.roleTitle.trim().toLowerCase() === roleNorm
+      );
+
+      if (!exists) {
+        await prisma.workExperience.create({
+          data: {
+            applicantProfileId: profile.id,
+            company: exp.company.trim(),
+            roleTitle: exp.roleTitle.trim(),
+            location: sanitizeString(exp.location),
+            startDate: exp.startDate ? new Date(exp.startDate) : new Date(),
+            endDate: exp.endDate ? new Date(exp.endDate) : null,
+            isCurrent: Boolean(exp.isCurrent),
+            summary: sanitizeString(exp.summary),
+          },
+        });
+      }
+    }
+  }
+
+  // 3. Educations Deduplication & Import
+  if (payload.educations && payload.educations.length > 0) {
+    const existingEdus = await prisma.education.findMany({
+      where: { applicantProfileId: profile.id },
+      select: { school: true, degree: true },
+    });
+
+    for (const edu of payload.educations) {
+      const schoolNorm = edu.school.trim().toLowerCase();
+      const degreeNorm = (edu.degree || "").trim().toLowerCase();
+      const exists = existingEdus.some(
+        (e) => e.school.trim().toLowerCase() === schoolNorm && (e.degree || "").trim().toLowerCase() === degreeNorm
+      );
+
+      if (!exists) {
+        await prisma.education.create({
+          data: {
+            applicantProfileId: profile.id,
+            school: edu.school.trim(),
+            degree: sanitizeString(edu.degree) || "Degree / Certificate",
+            fieldOfStudy: sanitizeString(edu.fieldOfStudy) || "General",
+            startDate: edu.startDate ? new Date(edu.startDate) : null,
+            endDate: edu.endDate ? new Date(edu.endDate) : null,
+            notes: sanitizeString(edu.notes),
+          },
+        });
+      }
+    }
+  }
+
+  // 4. Skills Deduplication & Import
+  if (payload.skills && payload.skills.length > 0) {
+    const currentSkills = await prisma.applicantSkill.findMany({
+      where: { applicantProfileId: profile.id },
+      include: { skill: true },
+    });
+    const existingSkillNames = new Set(currentSkills.map((s) => s.skill.name.trim().toLowerCase()));
+
+    for (const skillName of payload.skills) {
+      const normalized = skillName.trim().toLowerCase();
+      if (normalized && !existingSkillNames.has(normalized)) {
+        let skill = await prisma.skill.findUnique({ where: { name: normalized } });
+        if (!skill) {
+          skill = await prisma.skill.create({ data: { name: normalized } });
+        }
+        await prisma.applicantSkill.create({
+          data: { applicantProfileId: profile.id, skillId: skill.id },
+        });
+        existingSkillNames.add(normalized);
+      }
+    }
+  }
+
+  // 5. Trainings & Certifications Deduplication & Import
+  if (payload.trainings && payload.trainings.length > 0) {
+    const existingTrainings = await prisma.trainingCertification.findMany({
+      where: { applicantProfileId: profile.id },
+      select: { title: true },
+    });
+
+    for (const training of payload.trainings) {
+      const titleNorm = training.title.trim().toLowerCase();
+      const exists = existingTrainings.some(
+        (t) => t.title.trim().toLowerCase() === titleNorm
+      );
+
+      if (!exists) {
+        await prisma.trainingCertification.create({
+          data: {
+            applicantProfileId: profile.id,
+            title: training.title.trim(),
+            provider: sanitizeString(training.provider),
+            completionDate: training.completionDate ? new Date(training.completionDate) : null,
+            certificateNo: sanitizeString(training.certificateNo),
+            notes: sanitizeString(training.notes),
+          },
+        });
+      }
+    }
+  }
+
+  // 6. Character References Deduplication & Import
+  if (payload.characterReferences && payload.characterReferences.length > 0) {
+    const existingRefs = (await prisma.characterReference.findMany({
+      where: { applicantProfileId: profile.id },
+      select: { name: true, phone: true, email: true },
+    })) || [];
+
+    for (const ref of payload.characterReferences) {
+      if (!ref || !ref.name || !ref.name.trim()) continue;
+      const nameNorm = ref.name.trim().toLowerCase();
+      const phoneNorm = (ref.phone || "").trim().toLowerCase();
+      const emailNorm = (ref.email || "").trim().toLowerCase();
+
+      const exists = existingRefs.some((r) => {
+        const exName = r.name.trim().toLowerCase();
+        const exPhone = (r.phone || "").trim().toLowerCase();
+        const exEmail = (r.email || "").trim().toLowerCase();
+
+        if (exName === nameNorm) {
+          if (phoneNorm && exPhone && phoneNorm === exPhone) return true;
+          if (emailNorm && exEmail && emailNorm === exEmail) return true;
+          if (!phoneNorm && !emailNorm && !exPhone && !exEmail) return true;
+        }
+        return false;
+      });
+
+      if (!exists) {
+        let relationship = sanitizeString(ref.relationship);
+        const company = sanitizeString(ref.company);
+        if (company) {
+          relationship = relationship ? `${relationship} at ${company}` : company;
+        }
+
+        await prisma.characterReference.create({
+          data: {
+            applicantProfileId: profile.id,
+            name: ref.name.trim(),
+            relationship: relationship ?? null,
+            phone: sanitizeString(ref.phone) ?? null,
+            email: sanitizeString(ref.email) ?? null,
+            notes: sanitizeString(ref.notes) ?? null,
+          },
+        });
+      }
+    }
+  }
+
+  queueProfileRevalidation(profile.id);
+  return await getApplicantProfile(userId);
+};
+

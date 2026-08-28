@@ -11,9 +11,9 @@
 
 ### Specialist Roles
 - **Backend Agent:** Express 5, TypeScript, Prisma 7.8, Supabase SSR/Auth, Postgres, AI Scoring pipelines.
-- **Frontend Agent:** React 19, Vite, TanStack Query/Router/Table, Tailwind CSS v4, Zod validation.
+- **Frontend Agent:** React 19, Vite, TanStack Query/Router/Table, Tailwind CSS v4, Zod validation, HCI guidelines ([`.agents/skills/frontend-hci/SKILL.md`](.agents/skills/frontend-hci/SKILL.md)).
 - **AI/RAG Agent:** Gemini API, Xenova embeddings, pgvector cosine similarity, scoring revalidation.
-- **Reviewer/QA Agent:** Security audits, deterministic contract checks, integration tests.
+- **Reviewer/QA Agent:** Security audits, deterministic contract checks, integration tests, 10-point HCI UI/UX checklist.
 
 ### Sub-Agent Rules
 - Do not spawn agents unnecessarily.
@@ -28,4 +28,5 @@
 
 - **Simplicity First:** Prefer straightforward, readable, maintainable solutions over complex abstractions or overengineered patterns.
 - **Source of Truth:** The backend schema and API contracts are authoritative. The frontend visualizes and operates against backend state.
-- **Verification Before Completion:** Always verify changes through type checking, test suites, or explicit file inspection before marking tasks complete.
+- **HCI Usability Standard:** Prioritize clarity, simplicity, consistency, usability, and accessibility. Never introduce AI-generated UI slop, redundant microcopy, or technical jargon into end-user interfaces.
+- **Verification Before Completion:** Always verify changes through type checking, test suites, or explicit file inspection and the 10-point HCI checklist before marking tasks complete.

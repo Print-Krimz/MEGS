@@ -113,5 +113,34 @@ describe("useRealtimeNotifications Hook Suite", () => {
 
     expect(result.current.activeToasts).toEqual([]);
   });
+
+  it("invalidates both notifications and applicant queries upon receiving real-time SSE event", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    renderHook(() => useRealtimeNotifications(), {
+      wrapper: ({ children }: { children: React.ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+
+    act(() => {
+      if (mockFetchEventSourceOnMessage) {
+        mockFetchEventSourceOnMessage({
+          data: JSON.stringify({
+            id: 202,
+            title: "Compliance Approved",
+            message: "Your NBI clearance was approved.",
+            createdAt: "2026-08-16T00:00:00Z",
+          }),
+        });
+      }
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["notifications"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["applicant"] });
+  });
 });
 

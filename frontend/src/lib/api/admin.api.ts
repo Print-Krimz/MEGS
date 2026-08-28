@@ -4,6 +4,7 @@ import type {
   CandidateScoringConfiguration,
   UpdateScoringConfigDto,
   AuditLog,
+  AuditLogQueryFilters,
   RevalidationStatusResponse,
   QualityMetricsResponse,
 } from "../types/admin.types";
@@ -15,11 +16,29 @@ export interface InviteTADto {
   lastName?: string;
 }
 
-export interface AuditLogQueryFilters {
-  action?: string;
-  userId?: string;
-  entity?: string;
-  limit?: number;
+import type {
+  AdminOverviewStats,
+  RecruitmentActivityTrend,
+  FunnelAnalytics,
+  BottleneckItem,
+  JobDemandItem,
+  AnalyticsFilterOptions,
+  AnalyticsFilterState,
+} from "../types/analytics.types";
+
+function buildAnalyticsQueryString(filters?: Partial<AnalyticsFilterState>): string {
+  if (!filters) return "";
+  const params = new URLSearchParams();
+  if (filters.range) params.append("range", filters.range);
+  if (filters.startDate) params.append("startDate", filters.startDate);
+  if (filters.endDate) params.append("endDate", filters.endDate);
+  if (filters.clientId) params.append("clientId", String(filters.clientId));
+  if (filters.mrfId) params.append("mrfId", String(filters.mrfId));
+  if (filters.jobPostingId) params.append("jobPostingId", String(filters.jobPostingId));
+  if (filters.stage) params.append("stage", filters.stage);
+  if (filters.recruiterId) params.append("recruiterId", filters.recruiterId);
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
 }
 
 export const adminApi = {
@@ -31,6 +50,12 @@ export const adminApi = {
 
   inviteTA: (data: InviteTADto) =>
     api.post<User>("/api/admin/invite-ta", data),
+
+  resendTAInvitation: (id: string) =>
+    api.post<User>(`/api/admin/users/${id}/resend-invite`, {}),
+
+  cancelTAInvitation: (id: string) =>
+    api.post<{ message: string }>(`/api/admin/users/${id}/cancel-invite`, {}),
 
   updateUserRole: (id: string, role: Role) =>
     api.patch<User>(`/api/admin/users/${id}/role`, { role }),
@@ -90,8 +115,52 @@ export const adminApi = {
     if (filters?.action) params.append("action", filters.action);
     if (filters?.userId) params.append("userId", filters.userId);
     if (filters?.entity) params.append("entity", filters.entity);
+    if (filters?.category) params.append("category", filters.category);
+    if (filters?.search) params.append("search", filters.search);
+    if (filters?.startDate) params.append("startDate", filters.startDate);
+    if (filters?.endDate) params.append("endDate", filters.endDate);
     if (filters?.limit) params.append("limit", String(filters.limit));
     const qs = params.toString();
     return api.get<AuditLog[]>(`/api/admin/audit-logs${qs ? `?${qs}` : ""}`);
   },
+
+  // -------------------------------------------------------------
+  // 4. Recruitment Analytics
+  // -------------------------------------------------------------
+  getOverviewStats: (filters?: Partial<AnalyticsFilterState>) =>
+    api.get<AdminOverviewStats>(`/api/admin/analytics/overview${buildAnalyticsQueryString(filters)}`),
+
+  getActivityTrend: (filters?: Partial<AnalyticsFilterState>) =>
+    api.get<RecruitmentActivityTrend>(`/api/admin/analytics/activity${buildAnalyticsQueryString(filters)}`),
+
+  getFunnelAnalytics: (filters?: Partial<AnalyticsFilterState>) =>
+    api.get<FunnelAnalytics>(`/api/admin/analytics/funnel${buildAnalyticsQueryString(filters)}`),
+
+  getBottlenecks: (filters?: Partial<AnalyticsFilterState>) =>
+    api.get<BottleneckItem[]>(`/api/admin/analytics/bottlenecks${buildAnalyticsQueryString(filters)}`),
+
+  getJobDemands: (filters?: Partial<AnalyticsFilterState>) =>
+    api.get<JobDemandItem[]>(`/api/admin/analytics/jobs${buildAnalyticsQueryString(filters)}`),
+
+  getFilterOptions: () =>
+    api.get<AnalyticsFilterOptions>("/api/admin/analytics/filters"),
+
+  // -------------------------------------------------------------
+  // 5. Manpower Request (MRF) Oversight
+  // -------------------------------------------------------------
+  getMRFDetails: (id: string | number) =>
+    api.get<any>(`/api/admin/mrfs/${id}`),
+
+  exportPipelineReport: (format: "pdf" | "xlsx" = "pdf", filters?: Partial<AnalyticsFilterState>) => {
+    const qs = buildAnalyticsQueryString(filters);
+    const filterParams = qs.startsWith("?") ? qs.substring(1) : qs;
+    return api.blob(`/api/admin/reports/pipeline?format=${format}${filterParams ? `&${filterParams}` : ""}`);
+  },
+
+  exportDeploymentReport: (format: "pdf" | "xlsx" = "pdf", filters?: Partial<AnalyticsFilterState>) => {
+    const qs = buildAnalyticsQueryString(filters);
+    const filterParams = qs.startsWith("?") ? qs.substring(1) : qs;
+    return api.blob(`/api/admin/reports/deployments?format=${format}${filterParams ? `&${filterParams}` : ""}`);
+  },
 };
+

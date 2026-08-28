@@ -121,7 +121,6 @@ describe("Phase 1: Workflow State Machine & Candidate Rejection", () => {
       "INITIAL_SCREENING",
       "CLIENT_ENDORSEMENT",
       "FINAL_INTERVIEW",
-      "HIRED",
       "COMPLIANCE",
       "DEPLOYED",
     ];
@@ -130,4 +129,83 @@ describe("Phase 1: Workflow State Machine & Candidate Rejection", () => {
       expect(ALLOWED_TRANSITIONS[state]).toContain("ARCHIVED");
     }
   });
+
+  it("ensures ALLOWED_TRANSITIONS for TALENT_POOL only allows ARCHIVED to prevent progression in old application", () => {
+    expect(ALLOWED_TRANSITIONS.TALENT_POOL).toEqual(["ARCHIVED"]);
+  });
+
+  it("sends candidate-friendly notification without internal HR jargon when moving to TALENT_POOL", async () => {
+    const freshUser = await prisma.user.create({
+      data: {
+        id: `cand-pool-${Date.now()}`,
+        email: `cand-pool-${Date.now()}@example.com`,
+        role: "APPLICANT",
+        applicantProfile: {
+          create: {
+            firstName: "Pool",
+            lastName: "Candidate",
+            mobileNumber: "09222222222",
+          },
+        },
+      },
+    });
+
+    const freshJob = await prisma.jobPosting.create({
+      data: {
+        postedById: testTA.id,
+        mrfId: testMrf.id,
+        title: "Logistics Specialist",
+        description: "Logistics",
+        requirements: "Logistics",
+        status: "OPEN",
+      },
+    });
+
+    const candidateApp = await prisma.application.create({
+      data: {
+        userId: freshUser.id,
+        jobPostingId: freshJob.id,
+        status: "INITIAL_SCREENING",
+      },
+    });
+
+    const updated = await updateTAApplicationStatus(
+      candidateApp.id,
+      "TALENT_POOL",
+      testTA.id,
+      "Candidate profile preserved for future matching"
+    );
+
+    expect(updated.status).toBe("TALENT_POOL");
+
+    // Fetch the notification created for the candidate
+    const notification = await prisma.notification.findFirst({
+      where: {
+        userId: freshUser.id,
+        title: "Application Update",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    expect(notification).toBeDefined();
+    expect(notification?.message).toBe(
+      "You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications."
+    );
+    expect(notification?.message).not.toContain("Talent Pool");
+
+    // Cleanup
+    const profile = await prisma.applicantProfile.findUnique({ where: { userId: freshUser.id } });
+    if (profile) {
+      await prisma.talentPoolMembership.deleteMany({ where: { applicantProfileId: profile.id } });
+    }
+    await prisma.recruiterDecision.deleteMany({ where: { applicationId: candidateApp.id } });
+    await prisma.application.deleteMany({ where: { id: candidateApp.id } });
+    await prisma.notification.deleteMany({ where: { userId: freshUser.id } });
+    await prisma.jobPosting.deleteMany({ where: { id: freshJob.id } });
+    await prisma.applicantProfile.deleteMany({ where: { userId: freshUser.id } });
+    await prisma.user.deleteMany({ where: { id: freshUser.id } });
+  });
+
 });
+
+

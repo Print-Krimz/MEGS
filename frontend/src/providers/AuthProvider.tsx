@@ -32,12 +32,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [fetchSession]);
 
   const login = useCallback((data: LoginResponse) => {
-    localStorage.setItem("access_token", data.access_token);
+    if (data.access_token) {
+      localStorage.setItem("access_token", data.access_token);
+    }
     if (data.refresh_token) {
       localStorage.setItem("refresh_token", data.refresh_token);
     }
     setUser(data.user);
   }, []);
+
 
   const logout = useCallback(async () => {
     try {

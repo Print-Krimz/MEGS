@@ -10,17 +10,12 @@ import {
   LoadingState,
   ErrorState,
 } from "../../components/common";
-import { Button } from "../../components/ui";
-import { formatDate } from "../../lib/utils";
+import { formatDate, getTimeBasedGreeting } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
 import {
   Briefcase,
-  UserCheck,
-  Clock,
   CheckCircle2,
   AlertCircle,
-  FileText,
-  ArrowRight,
 } from "lucide-react";
 
 export const ApplicantDashboard: React.FC = () => {
@@ -79,20 +74,19 @@ export const ApplicantDashboard: React.FC = () => {
   const totalApps = applications.length;
   const activeApps = applications.filter(
     (a) =>
-      a.status !== ApplicationStatus.HIRED &&
       a.status !== ApplicationStatus.DEPLOYED &&
       a.status !== ApplicationStatus.ARCHIVED &&
-      a.status !== ApplicationStatus.BACKOUT
+      a.status !== ApplicationStatus.BACKOUT &&
+      a.status !== ApplicationStatus.TALENT_POOL
   ).length;
   const interviewApps = applications.filter(
     (a) =>
       a.status === ApplicationStatus.INITIAL_SCREENING ||
+      a.status === ApplicationStatus.CLIENT_ENDORSEMENT ||
       a.status === ApplicationStatus.FINAL_INTERVIEW
   ).length;
-  const hiredApps = applications.filter(
-    (a) =>
-      a.status === ApplicationStatus.HIRED ||
-      a.status === ApplicationStatus.DEPLOYED
+  const placedApps = applications.filter(
+    (a) => a.status === ApplicationStatus.DEPLOYED
   ).length;
 
   // Profile readiness checklist
@@ -105,21 +99,19 @@ export const ApplicantDashboard: React.FC = () => {
   return (
     <div className="space-y-5">
       <PageHeader
-        title={`Welcome back, ${profile?.firstName || "Candidate"}`}
-        description="Monitor application progress, interview schedules, and job matches"
-        breadcrumbs={[{ label: "Applicant Portal" }]}
+        title={getTimeBasedGreeting(profile?.firstName)}
+        description="See where each application stands and what to do next."
+        breadcrumbs={[{ label: "My career" }]}
         actions={
           <div className="flex gap-2">
-            <Link to="/app/jobs">
-              <Button variant="outline" size="sm" leftIcon={<Briefcase className="w-3.5 h-3.5" />}>
-                Browse Jobs
-              </Button>
+            <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+              Browse jobs
             </Link>
-            <Link to="/app/profile">
-              <Button variant="primary" size="sm" leftIcon={<UserCheck className="w-3.5 h-3.5" />}>
-                Update Profile
-              </Button>
-            </Link>
+            {readinessPercent === 100 && (
+              <Link to="/app/profile" className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+                Update profile
+              </Link>
+            )}
           </div>
         }
       />
@@ -131,18 +123,16 @@ export const ApplicantDashboard: React.FC = () => {
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-                <h3 className="text-xs font-mono font-bold text-amber-950 uppercase tracking-wider">
-                  Profile Completeness ({readinessPercent}%)
+                <h3 className="text-base font-semibold text-amber-950">
+                  Complete your profile ({readinessPercent}%)
                 </h3>
               </div>
-                <p className="text-xs text-amber-800 leading-relaxed font-sans">
-                  Complete your profile and upload your resume to improve your job match results and interview eligibility.
+                <p className="text-sm text-amber-800 leading-relaxed">
+                  Add the missing details so recruiters have the information they need when reviewing your applications.
                 </p>
             </div>
-            <Link to="/app/profile" className="shrink-0">
-              <Button variant="primary" size="sm">
-                Complete Profile
-              </Button>
+            <Link to="/app/profile" className="inline-flex min-h-11 shrink-0 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+              Complete profile
             </Link>
           </div>
 
@@ -182,56 +172,52 @@ export const ApplicantDashboard: React.FC = () => {
       )}
 
       {/* Unified 4-Segment Operational Metrics Ribbon */}
-      <div className="border border-slate-300 bg-white grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 divide-x divide-slate-300">
-        <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-            Total Submissions
+      <div className="border border-slate-300 bg-slate-300 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-px">
+        <div className="p-3 sm:p-3.5 bg-white">
+          <div className="text-sm font-medium text-slate-600">
+            Applications
           </div>
           <div className="text-2xl font-bold font-mono text-slate-950 mt-0.5 tabular-nums">
             {totalApps}
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-            <FileText className="w-3 h-3 text-slate-400" />
-            <span>Lifetime applications</span>
+          <div className="text-sm text-slate-500 mt-0.5">
+            All applications
           </div>
         </div>
 
-        <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-wider">
-            Active in Pipeline
+        <div className="p-3 sm:p-3.5 bg-white">
+          <div className="text-sm font-medium text-teal-800">
+            In progress
           </div>
           <div className="text-2xl font-bold font-mono text-teal-950 mt-0.5 tabular-nums">
             {activeApps}
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-            <Clock className="w-3 h-3 text-teal-700" />
-            <span>Under review / processing</span>
+          <div className="text-sm text-slate-500 mt-0.5">
+            Still being considered
           </div>
         </div>
 
-        <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-blue-800 uppercase tracking-wider">
-            Interview Stage
+        <div className="p-3 sm:p-3.5 bg-white">
+          <div className="text-sm font-medium text-blue-800">
+            Interviews
           </div>
           <div className="text-2xl font-bold font-mono text-blue-950 mt-0.5 tabular-nums">
             {interviewApps}
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-            <Clock className="w-3 h-3 text-blue-700" />
-            <span>Initial / Final interviews</span>
+          <div className="text-sm text-slate-500 mt-0.5">
+            Interview activity
           </div>
         </div>
 
-        <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase tracking-wider">
-            Hired / Deployed
+        <div className="p-3 sm:p-3.5 bg-white">
+          <div className="text-sm font-medium text-emerald-800">
+            Placed
           </div>
           <div className="text-2xl font-bold font-mono text-emerald-950 mt-0.5 tabular-nums">
-            {hiredApps}
+            {placedApps}
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-            <CheckCircle2 className="w-3 h-3 text-emerald-700" />
-            <span>Successful placements</span>
+          <div className="text-sm text-slate-500 mt-0.5">
+            Work placement
           </div>
         </div>
       </div>
@@ -241,14 +227,12 @@ export const ApplicantDashboard: React.FC = () => {
         <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-slate-700" />
-            <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
+            <h3 className="text-base font-semibold text-slate-900">
               Recent Applications
             </h3>
           </div>
-          <Link to="/app/applications">
-            <Button variant="ghost" size="sm" rightIcon={<ArrowRight className="w-3 h-3" />}>
-              View All ({applications.length})
-            </Button>
+          <Link to="/app/applications" className="inline-flex min-h-11 items-center px-3 text-sm font-medium text-teal-800 hover:text-teal-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700">
+            View all ({applications.length})
           </Link>
         </div>
 
@@ -256,13 +240,11 @@ export const ApplicantDashboard: React.FC = () => {
           <div className="p-6">
             <EmptyState
               icon={<Briefcase className="w-5 h-5" />}
-              title="No active applications"
-              description="Explore open manpower requisitions and apply directly with your candidate profile."
-              action={
-                <Link to="/app/jobs">
-                  <Button variant="primary" size="sm">
-                    Browse Open Jobs
-                  </Button>
+            title="No applications yet"
+            description="Explore current jobs and apply when you find a role that suits you."
+            action={
+                <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+                  Browse jobs
                 </Link>
               }
             />
@@ -276,22 +258,20 @@ export const ApplicantDashboard: React.FC = () => {
               >
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-xs font-bold text-slate-950 font-mono uppercase">
-                      {app.jobPosting?.title || "Job Requisition"}
+                    <span className="text-sm font-semibold text-slate-950">
+                      {app.jobPosting?.title || "Job opening"}
                     </span>
-                    <StatusBadge status={app.status} size="sm" />
+                    <StatusBadge status={app.status} audience="applicant" size="sm" />
                   </div>
-                  <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-3 font-mono">
+                  <div className="text-sm text-slate-500 flex flex-wrap items-center gap-3">
                     <span>Applied: {formatDate(app.createdAt)}</span>
                     {app.jobPosting?.location && <span>• {app.jobPosting.location}</span>}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Link to="/app/applications">
-                    <Button variant="outline" size="sm" rightIcon={<ArrowRight className="w-3 h-3" />}>
-                      Track Status
-                    </Button>
+                  <Link to="/app/applications" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+                    Track status
                   </Link>
                 </div>
               </div>
@@ -306,14 +286,12 @@ export const ApplicantDashboard: React.FC = () => {
           <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-teal-700" />
-              <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
-                Featured Job Requisitions
+              <h3 className="text-base font-semibold text-slate-900">
+                Jobs you may like
               </h3>
             </div>
-            <Link to="/app/jobs">
-              <Button variant="ghost" size="sm" rightIcon={<ArrowRight className="w-3 h-3" />}>
-                Job Board →
-              </Button>
+            <Link to="/app/jobs" className="inline-flex min-h-11 items-center px-3 text-sm font-medium text-teal-800 hover:text-teal-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700">
+              Browse jobs
             </Link>
           </div>
 
@@ -325,17 +303,17 @@ export const ApplicantDashboard: React.FC = () => {
               >
                 <div className="space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
-                    <h4 className="text-xs font-bold font-mono uppercase text-slate-950 hover:text-teal-800">
+                    <h4 className="text-base font-semibold text-slate-950 hover:text-teal-800">
                       {job.title}
                     </h4>
-                    <span className="text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 border border-slate-300 bg-slate-100 text-slate-700">
+                    <span className="text-xs font-medium px-2 py-1 rounded-full border border-slate-300 bg-slate-100 text-slate-700">
                       Open
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 line-clamp-2 leading-normal">
                     {job.description}
                   </p>
-                  <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
+                  <div className="text-sm text-slate-500 flex items-center gap-2">
                     <span>{job.location || "Philippines"}</span>
                     <span>•</span>
                     <span>Posted {formatDate(job.createdAt)}</span>
@@ -343,13 +321,9 @@ export const ApplicantDashboard: React.FC = () => {
                 </div>
 
                 <div className="pt-3 mt-3 border-t border-slate-200 flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-teal-800 font-mono">
-                    Competitive Compensation
-                  </span>
-                  <Link to="/app/jobs">
-                    <Button variant="outline" size="sm">
-                      Apply
-                    </Button>
+                  <span className="text-sm text-slate-600">Review the role details</span>
+                  <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+                    View jobs
                   </Link>
                 </div>
               </div>

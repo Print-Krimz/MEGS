@@ -8,12 +8,19 @@ import {
   ErrorState,
 } from "../../components/common";
 import { Button, Dialog, Input } from "../../components/ui";
+import { ComboBox } from "../../components/ui/ComboBox";
 import { formatDate } from "../../lib/utils";
+import {
+  PHILIPPINE_REGIONS_AND_PROVINCES,
+  getCitiesForProvince,
+} from "../../lib/geo-data";
 import {
   ArrowLeft,
   Edit,
   Plus,
+  MapPin,
 } from "lucide-react";
+import { notify } from "../../lib/feedback";
 
 export const ClientDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -21,11 +28,15 @@ export const ClientDetailPage: React.FC = () => {
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editName, setEditName] = useState("");
+  const [editTradeName, setEditTradeName] = useState("");
   const [editIndustry, setEditIndustry] = useState("");
   const [editContactName, setEditContactName] = useState("");
   const [editContactEmail, setEditContactEmail] = useState("");
   const [editContactPhone, setEditContactPhone] = useState("");
-  const [editAddress, setEditAddress] = useState("");
+  const [editStreet, setEditStreet] = useState("");
+  const [editProvince, setEditProvince] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editPostalCode, setEditPostalCode] = useState("");
 
   const clientQuery = useQuery({
     queryKey: ["ta", "client", clientId],
@@ -49,7 +60,12 @@ export const ClientDetailPage: React.FC = () => {
     mutationFn: (data: any) => taApi.updateClient(clientId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "client", clientId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "clients"] });
       setEditModalOpen(false);
+      notify.success("Client Updated", "Client profile details saved successfully.");
+    },
+    onError: (err: any) => {
+      notify.error("Update Failed", err);
     },
   });
 
@@ -59,12 +75,16 @@ export const ClientDetailPage: React.FC = () => {
 
   React.useEffect(() => {
     if (client) {
-      setEditName(client.name);
+      setEditName(client.name || "");
+      setEditTradeName(client.tradeName || "");
       setEditIndustry(client.industry || "");
       setEditContactName(client.contactName || "");
       setEditContactEmail(client.contactEmail || "");
       setEditContactPhone(client.contactPhone || "");
-      setEditAddress(client.address || "");
+      setEditStreet(client.street || "");
+      setEditProvince(client.province || "");
+      setEditCity(client.city || "");
+      setEditPostalCode(client.postalCode || "");
     }
   }, [client]);
 
@@ -122,9 +142,16 @@ export const ClientDetailPage: React.FC = () => {
 
       {/* Account Profile Card */}
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-          Corporate Information
-        </h3>
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
+            Corporate Information
+          </h3>
+          {client.tradeName && (
+            <span className="text-xs font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 font-bold">
+              Brand: {client.tradeName}
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
           <div>
             <span className="text-slate-400 font-mono block">Industry Sector</span>
@@ -141,6 +168,19 @@ export const ClientDetailPage: React.FC = () => {
             </span>
           </div>
         </div>
+        {(client.street || client.city || client.province || client.address) && (
+          <div className="pt-2 border-t border-slate-100 flex items-start gap-2 text-xs text-slate-700">
+            <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-mono text-[10px] uppercase text-slate-400 block">Facility / Registered Address</span>
+              <span>
+                {client.street || client.city || client.province
+                  ? [client.street, client.city, client.province, client.postalCode].filter(Boolean).join(", ")
+                  : client.address}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Grid: Active MRFs & Deployments */}
@@ -239,27 +279,39 @@ export const ClientDetailPage: React.FC = () => {
             e.preventDefault();
             updateClientMutation.mutate({
               name: editName,
+              tradeName: editTradeName || undefined,
               industry: editIndustry || undefined,
               contactName: editContactName || undefined,
               contactEmail: editContactEmail || undefined,
               contactPhone: editContactPhone || undefined,
-              address: editAddress || undefined,
+              street: editStreet || undefined,
+              province: editProvince || undefined,
+              city: editCity || undefined,
+              postalCode: editPostalCode || undefined,
             });
           }}
           className="space-y-4"
         >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Registered Legal Corporate Name"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              required
+            />
+            <Input
+              label="Trade Name / Operating Brand"
+              placeholder="e.g. Acme Logistics"
+              value={editTradeName}
+              onChange={(e) => setEditTradeName(e.target.value)}
+            />
+          </div>
           <Input
-            label="Client Name"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            required
-          />
-          <Input
-            label="Industry"
+            label="Industry / Sector"
             value={editIndustry}
             onChange={(e) => setEditIndustry(e.target.value)}
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Contact Person"
               value={editContactName}
@@ -272,15 +324,57 @@ export const ClientDetailPage: React.FC = () => {
             />
           </div>
           <Input
-            label="Contact Email"
+            label="Official Contact Email"
+            type="email"
             value={editContactEmail}
             onChange={(e) => setEditContactEmail(e.target.value)}
           />
-          <Input
-            label="Corporate Address"
-            value={editAddress}
-            onChange={(e) => setEditAddress(e.target.value)}
-          />
+
+          <div className="pt-2 border-t border-slate-100 space-y-3">
+            <div className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
+              Facility / Corporate Address
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ComboBox
+                label="Province / Region"
+                placeholder="Select or enter province..."
+                value={editProvince}
+                onChange={(val) => {
+                  setEditProvince(val);
+                  setEditCity("");
+                }}
+                options={PHILIPPINE_REGIONS_AND_PROVINCES.map((p) => ({ value: p, label: p }))}
+                allowCustom
+              />
+              <ComboBox
+                label="City / Municipality"
+                placeholder={editProvince ? "Select city..." : "Select province first"}
+                value={editCity}
+                onChange={setEditCity}
+                options={getCitiesForProvince(editProvince).map((c) => ({ value: c, label: c }))}
+                allowCustom
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2">
+                <Input
+                  label="Street / Building Address"
+                  placeholder="e.g. Bldg 4, Light Industry Park"
+                  value={editStreet}
+                  onChange={(e) => setEditStreet(e.target.value)}
+                />
+              </div>
+              <div>
+                <Input
+                  label="Postal Code"
+                  placeholder="e.g. 4027"
+                  value={editPostalCode}
+                  onChange={(e) => setEditPostalCode(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setEditModalOpen(false)}>
               Cancel

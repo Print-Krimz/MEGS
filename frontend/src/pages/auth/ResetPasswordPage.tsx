@@ -4,8 +4,8 @@ import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { Input, Button } from "../../components/ui";
 import { authApi } from "../../lib/api/auth.api";
-import { ApiError } from "../../lib/api/client";
 import { LockKeyhole, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
+import { notify, formatErrorMessage } from "../../lib/feedback";
 
 const resetPasswordSchema = z
   .object({
@@ -52,13 +52,12 @@ export const ResetPasswordPage: React.FC = () => {
     mutationFn: authApi.resetPassword,
     onSuccess: () => {
       setIsSuccess(true);
+      notify.success("Password Reset Complete", "Your new password has been saved.");
     },
     onError: (err) => {
-      if (err instanceof ApiError) {
-        setServerError(err.message);
-      } else {
-        setServerError("Failed to reset password. The link or token may have expired.");
-      }
+      const formatted = formatErrorMessage(err);
+      setServerError(formatted);
+      notify.error("Password Reset Failed", err);
     },
   });
 

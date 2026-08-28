@@ -48,19 +48,45 @@ export interface UpdateScoringConfigDto {
   matchThreshold?: number;
 }
 
+export type AuditCategory =
+  | "Authentication"
+  | "User Management"
+  | "Recruitment"
+  | "Talent Pool"
+  | "Configuration"
+  | "Compliance"
+  | "Deployment"
+  | "Security";
+
 export interface AuditLog {
   id: number;
   userId?: string | null;
   action: string;
   entity?: string | null;
-  entityId?: string | null;
+  entityId?: string | number | null;
   details?: string | null;
+  ipAddress?: string | null;
   createdAt: string;
   user?: {
     id: string;
     email: string;
     role: string;
+    applicantProfile?: {
+      firstName?: string;
+      lastName?: string;
+    } | null;
   } | null;
+}
+
+export interface AuditLogQueryFilters {
+  action?: string;
+  userId?: string;
+  entity?: string;
+  category?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
 }
 
 export interface RevalidationStatusResponse {

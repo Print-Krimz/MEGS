@@ -127,3 +127,37 @@ export const getDocumentPreview = async (documentId: number, requesterId: string
   };
 };
 
+// Resolves stored document route or ID to a secure short-lived signed URL (default 900s / 15m)
+export const resolveDocumentSignedUrl = async (
+  urlOrPath: string | null | undefined,
+  requesterId: string,
+  requesterRole: string = "APPLICANT",
+  expiresInSeconds: number = 900
+): Promise<string | null> => {
+  if (!urlOrPath) return null;
+  if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
+    return urlOrPath;
+  }
+  const match = urlOrPath.match(/\/api\/documents\/(\d+)/);
+  const docId = match ? parseInt(match[1], 10) : parseInt(urlOrPath, 10);
+  if (!isNaN(docId)) {
+    try {
+      const doc = await prisma.storedDocument.findUnique({ where: { id: docId } });
+      if (!doc) return urlOrPath;
+      if (doc.ownerId !== requesterId && requesterRole !== "TALENT_ACQUISITION" && requesterRole !== "ADMINISTRATOR") {
+        return urlOrPath;
+      }
+      const { data, error } = await supabase.storage
+        .from(doc.storageBucket)
+        .createSignedUrl(doc.storagePath, expiresInSeconds);
+      if (!error && data?.signedUrl) {
+        return data.signedUrl;
+      }
+    } catch {
+      return urlOrPath;
+    }
+  }
+  return urlOrPath;
+};
+
+

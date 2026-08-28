@@ -5,6 +5,7 @@ import {
   listComplianceRequirements,
   submitDocumentForRequirement,
   reviewComplianceRequirement,
+  updateComplianceRequirementDeadline,
 } from "../../services/ta/ta.compliance.service.js";
 
 export const createRequirementHandler = async (req: Request, res: Response): Promise<void> => {
@@ -73,6 +74,27 @@ export const reviewRequirementHandler = async (req: Request, res: Response): Pro
       reviewNotes
     );
     sendSuccess(res, "Compliance review updated", updated);
+  } catch (error: any) {
+    sendError(res, error.message, 400);
+  }
+};
+
+export const updateRequirementDeadlineHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requirementId = parseInt(req.params.requirementId as string, 10);
+    const { deadline } = req.body;
+
+    if (isNaN(requirementId)) {
+      sendError(res, "Invalid requirement ID", 400);
+      return;
+    }
+
+    const updated = await updateComplianceRequirementDeadline(
+      requirementId,
+      deadline,
+      req.user?.id
+    );
+    sendSuccess(res, "Compliance requirement deadline updated", updated);
   } catch (error: any) {
     sendError(res, error.message, 400);
   }

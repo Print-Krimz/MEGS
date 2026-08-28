@@ -13,6 +13,7 @@ import { Button, Dialog, Select, Textarea } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
 import { ShieldCheck } from "lucide-react";
+import { notify } from "../../lib/feedback";
 
 export const CompliancePage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -40,10 +41,7 @@ export const CompliancePage: React.FC = () => {
     : applicationsQuery.data?.data || [];
 
   const complianceApps = rawApps.filter(
-    (a) =>
-      a.status === ApplicationStatus.COMPLIANCE ||
-      a.status === ApplicationStatus.HIRED ||
-      a.status === ApplicationStatus.ONBOARDING
+    (a) => a.status === ApplicationStatus.COMPLIANCE
   );
 
   const totalQueuePages = Math.max(1, Math.ceil(complianceApps.length / queuePageSize));
@@ -55,14 +53,17 @@ export const CompliancePage: React.FC = () => {
   const reviewComplianceMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: { reviewStatus: "APPROVED" | "REJECTED"; reviewNotes?: string } }) =>
       taApi.reviewComplianceRequirement(id, data),
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta"] });
       setReviewReqId(null);
       setReviewNotes("");
-      setFeedback({ type: "success", message: "Compliance document review recorded." });
+      const msg = `Compliance document requirement marked as ${vars.data.reviewStatus}.`;
+      setFeedback({ type: "success", message: msg });
+      notify.success("Compliance Review Saved", msg);
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to record compliance review: " + err.message });
+      notify.error("Review Failed", err);
     },
   });
 
@@ -97,7 +98,7 @@ export const CompliancePage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="201 Pre-Employment Compliance Tracking"
+        title="Employment documents (201)"
         description="Verify government clearances (NBI, SSS, PhilHealth, Pag-IBIG, Medical) prior to field site deployment"
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },

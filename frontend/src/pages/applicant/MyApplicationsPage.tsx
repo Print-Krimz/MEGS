@@ -14,7 +14,7 @@ import {
 import { Button } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
-import { Briefcase, ArrowRight, Calendar, FileText, CheckCircle2 } from "lucide-react";
+import { Briefcase, Calendar, FileText, CheckCircle2, Sparkles } from "lucide-react";
 
 export const MyApplicationsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -46,11 +46,7 @@ export const MyApplicationsPage: React.FC = () => {
       );
     }
     if (statusFilter === "COMPLIANCE") {
-      return (
-        app.status === ApplicationStatus.HIRED ||
-        app.status === ApplicationStatus.COMPLIANCE ||
-        app.status === ApplicationStatus.ONBOARDING
-      );
+      return app.status === ApplicationStatus.COMPLIANCE;
     }
     if (statusFilter === "DEPLOYED") {
       return app.status === ApplicationStatus.DEPLOYED;
@@ -72,7 +68,7 @@ export const MyApplicationsPage: React.FC = () => {
   );
 
   const filterTabs = [
-    { key: "ALL", label: "All Submissions", count: allApplications.length },
+    { key: "ALL", label: "All applications", count: allApplications.length },
     {
       key: "ACTIVE",
       label: "In Review",
@@ -96,12 +92,9 @@ export const MyApplicationsPage: React.FC = () => {
     },
     {
       key: "COMPLIANCE",
-      label: "Pre-Employment / 201",
+      label: "Employment documents (201)",
       count: allApplications.filter(
-        (a) =>
-          a.status === ApplicationStatus.HIRED ||
-          a.status === ApplicationStatus.COMPLIANCE ||
-          a.status === ApplicationStatus.ONBOARDING
+        (a) => a.status === ApplicationStatus.COMPLIANCE
       ).length,
     },
     {
@@ -114,17 +107,15 @@ export const MyApplicationsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Application Status Tracker"
-        description="Monitor real-time status progression, scheduled interviews, and compliance requirements"
+        title="My applications"
+        description="See your application progress, interviews, and next steps."
         breadcrumbs={[
-          { label: "Applicant Portal", href: "/app" },
+          { label: "My career", href: "/app" },
           { label: "Applications" },
         ]}
         actions={
-          <Link to="/app/jobs">
-            <Button variant="primary" size="sm" leftIcon={<Briefcase className="w-3.5 h-3.5" />}>
-              Find More Jobs
-            </Button>
+          <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+            Explore jobs
           </Link>
         }
       />
@@ -139,7 +130,7 @@ export const MyApplicationsPage: React.FC = () => {
               setStatusFilter(tab.key);
               setPage(1);
             }}
-            className={`px-3 py-1.5 text-xs font-mono font-bold uppercase transition-colors flex items-center gap-2 ${
+            className={`min-h-11 px-3 py-2 text-sm font-medium transition-colors flex items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
               statusFilter === tab.key
                 ? "bg-teal-700 text-white border border-teal-800"
                 : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50"
@@ -147,7 +138,7 @@ export const MyApplicationsPage: React.FC = () => {
           >
             <span>{tab.label}</span>
             <span
-              className={`px-1.5 py-0.2 text-[10px] rounded-full ${
+              className={`px-1.5 py-0.5 text-xs rounded-full ${
                 statusFilter === tab.key ? "bg-teal-900 text-teal-100" : "bg-slate-100 text-slate-600"
               }`}
             >
@@ -168,13 +159,11 @@ export const MyApplicationsPage: React.FC = () => {
         <div className="bg-white border border-slate-300 p-6">
           <EmptyState
             icon={<Briefcase className="w-5 h-5" />}
-            title="No applications submitted yet"
-            description="You haven't applied to any job requisitions. Browse open positions to submit your candidate profile."
+            title="No applications yet"
+            description="Explore current jobs and apply when a role suits you."
             action={
-              <Link to="/app/jobs">
-                <Button variant="primary" size="sm">
-                  Browse Open Positions
-                </Button>
+              <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+                Explore jobs
               </Link>
             }
           />
@@ -194,7 +183,7 @@ export const MyApplicationsPage: React.FC = () => {
                   setPage(1);
                 }}
               >
-                Show All Submissions
+                Show all applications
               </Button>
             }
           />
@@ -210,12 +199,12 @@ export const MyApplicationsPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2.5">
-                    <h3 className="text-sm font-bold font-mono uppercase text-slate-950">
-                      {app.jobPosting?.title || "Job Requisition"}
+                    <h3 className="text-base font-semibold text-slate-950">
+                      {app.jobPosting?.title || "Job opening"}
                     </h3>
-                    <StatusBadge status={app.status} size="sm" />
+                    <StatusBadge status={app.status} audience="applicant" size="sm" />
                   </div>
-                  <div className="text-[11px] text-slate-500 font-mono flex flex-wrap items-center gap-3">
+                  <div className="text-sm text-slate-500 flex flex-wrap items-center gap-3">
                     <span>Submitted: {formatDate(app.createdAt)}</span>
                     {app.jobPosting?.location && <span>• {app.jobPosting.location}</span>}
                   </div>
@@ -224,68 +213,82 @@ export const MyApplicationsPage: React.FC = () => {
                 <Link
                   to="/app/applications/$applicationId"
                   params={{ applicationId: String(app.id) }}
+                  className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
                 >
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                  >
-                    View Details
-                  </Button>
+                  View details
                 </Link>
               </div>
 
               {/* Hiring Pipeline Visual Progression */}
               <div className="px-1 py-1">
-                <PipelineIndicator currentStatus={app.status} />
+                <PipelineIndicator currentStatus={app.status} audience="applicant" />
               </div>
 
               {/* Status Specific Action / Alert Bar */}
               {(app.status === ApplicationStatus.INITIAL_SCREENING ||
                 app.status === ApplicationStatus.FINAL_INTERVIEW) && (
-                <div className="p-3 bg-blue-50 border-l-4 border-blue-700 border border-slate-300 flex items-center justify-between gap-3 text-xs text-blue-950 font-mono">
+                <div className="p-3 bg-blue-50 border-l-4 border-blue-700 border border-slate-300 flex items-center justify-between gap-3 text-sm text-blue-950">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-blue-700 shrink-0" />
                     <span>
-                      Interview Scheduled / In Progress. Check your email or notifications for meeting link and coordinator notes.
+                      An interview is scheduled or in progress. Check your notifications for details.
                     </span>
                   </div>
                   <Link
                     to="/app/applications/$applicationId"
                     params={{ applicationId: String(app.id) }}
                   >
-                    <span className="font-bold text-blue-800 hover:underline shrink-0 uppercase">
-                      Schedule Details →
+                    <span className="font-medium text-blue-800 hover:underline shrink-0">
+                      View details
                     </span>
                   </Link>
                 </div>
               )}
 
               {app.status === ApplicationStatus.COMPLIANCE && (
-                <div className="p-3 bg-amber-50 border-l-4 border-amber-600 border border-slate-300 flex items-center justify-between gap-3 text-xs text-amber-950 font-mono">
+                <div className="p-3 bg-amber-50 border-l-4 border-amber-600 border border-slate-300 flex items-center justify-between gap-3 text-sm text-amber-950">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-amber-700 shrink-0" />
                     <span>
-                      Pre-Employment 201 Compliance Checklist active. Please submit required government clearances.
+                      Employment documents (201) are needed. Please submit the documents requested for you.
                     </span>
                   </div>
                   <Link
                     to="/app/applications/$applicationId"
                     params={{ applicationId: String(app.id) }}
                   >
-                    <span className="font-bold text-amber-900 hover:underline shrink-0 uppercase">
-                      Submit Clearances →
+                    <span className="font-medium text-amber-900 hover:underline shrink-0">
+                      Submit documents
                     </span>
                   </Link>
                 </div>
               )}
 
               {app.status === ApplicationStatus.DEPLOYED && (
-                <div className="p-3 bg-emerald-50 border-l-4 border-emerald-700 border border-slate-300 flex items-center gap-2 text-xs text-emerald-950 font-mono">
+                <div className="p-3 bg-emerald-50 border-l-4 border-emerald-700 border border-slate-300 flex items-center gap-2 text-sm text-emerald-950">
                   <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
                   <span>
-                    Successfully Deployed to client site. Active manpower record generated.
+                    You have been placed at your work site. Your employee record is ready.
                   </span>
+                </div>
+              )}
+
+              {app.status === ApplicationStatus.TALENT_POOL && (
+                <div className="p-3 bg-violet-50 border-l-4 border-violet-700 border border-slate-300 flex items-center justify-between gap-3 text-sm text-violet-950">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-violet-700 shrink-0" />
+                    <span>
+                      You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications.
+                    </span>
+                  </div>
+                  <Link
+                    to="/app/applications/$applicationId"
+                    params={{ applicationId: String(app.id) }}
+                  >
+                    <span className="font-medium text-violet-900 hover:underline shrink-0">
+                      View details
+                    </span>
+                  </Link>
                 </div>
               )}
             </div>

@@ -9,6 +9,7 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
+  JobImage,
 } from "../../components/common";
 import { Button } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
@@ -52,11 +53,11 @@ export const JobsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Job Openings & Requisitions"
-        description="Explore active recruitment opportunities and submit your candidacy"
+        title="Explore jobs"
+        description="Browse current opportunities and apply when a role suits you."
         breadcrumbs={[
-          { label: "Applicant Portal", href: "/app" },
-          { label: "Job Board" },
+          { label: "My career", href: "/app" },
+          { label: "Explore jobs" },
         ]}
       />
 
@@ -94,7 +95,7 @@ export const JobsPage: React.FC = () => {
         <div className="bg-white border border-slate-300 p-6">
           <EmptyState
             icon={<Briefcase className="w-5 h-5" />}
-            title="No matching job requisitions found"
+            title="No matching jobs found"
             description="Try clearing search filters or check back later as new positions are posted daily."
             action={
               <Button
@@ -117,15 +118,18 @@ export const JobsPage: React.FC = () => {
               >
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-0.5">
-                      <h3 className="text-xs font-bold font-mono uppercase text-slate-950 leading-snug">
-                        {job.title}
-                      </h3>
-                      <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 font-mono">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-slate-400" />
-                          <span>{job.location || "Philippines"}</span>
-                        </span>
+                    <div className="flex items-start gap-3">
+                      <JobImage src={job.imageUrl} alt={job.title} size="md" />
+                      <div className="space-y-0.5">
+                        <h3 className="text-xs font-bold font-mono uppercase text-slate-950 leading-snug">
+                          {job.title}
+                        </h3>
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 font-mono">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-slate-400" />
+                            <span>{job.location || "Philippines"}</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <span className="shrink-0 text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 bg-emerald-50 text-emerald-900 border border-emerald-300">

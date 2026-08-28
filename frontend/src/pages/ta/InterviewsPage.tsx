@@ -19,6 +19,7 @@ import {
   ExternalLink,
   ShieldAlert,
 } from "lucide-react";
+import { notify } from "../../lib/feedback";
 
 export const InterviewsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -59,11 +60,16 @@ export const InterviewsPage: React.FC = () => {
         conductedAt: new Date().toISOString(),
         notes,
       }),
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", String(vars.applicationId)] });
       setResultModalOpen(false);
       setTargetInterview(null);
       setResultNotes("");
+      notify.success("Interview Outcome Recorded", `Interview marked as ${vars.result}.`);
+    },
+    onError: (err: any) => {
+      notify.error("Update Failed", err);
     },
   });
 
@@ -120,7 +126,7 @@ export const InterviewsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Interview Schedules & 7-Day SLA Compliance"
+        title="Interview schedule"
         description="Monitor interview screening deadlines, SLA adherence, and assessment evaluations"
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },

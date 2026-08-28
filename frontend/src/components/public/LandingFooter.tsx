@@ -1,5 +1,5 @@
 import React from "react";
-import { Mail, Phone, User, BriefcaseBusiness, ShieldCheck } from "lucide-react";
+import { Mail, Phone, User, ShieldCheck } from "lucide-react";
 import { scrollToSection } from "../../lib/scrollToSection";
 
 export const LandingFooter: React.FC = () => {
@@ -12,18 +12,13 @@ export const LandingFooter: React.FC = () => {
           
           {/* Company Summary Column */}
           <div className="lg:col-span-5 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-teal-800 text-white flex items-center justify-center font-mono font-bold text-base border border-teal-700">
-                <BriefcaseBusiness className="w-4 h-4 text-teal-100" />
-              </div>
-              <div>
-                <span className="font-bold text-white font-mono text-sm tracking-tight block">
-                  MAR EMPLOYMENT FOR GOOD SERVICES INC.
-                </span>
-                <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
-                  Established May 1997
-                </span>
-              </div>
+            <div>
+              <span className="font-bold text-white font-mono text-sm sm:text-base tracking-tight block">
+                MAR EMPLOYMENT FOR GOOD SERVICES INC.
+              </span>
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block mt-0.5">
+                Established May 1997
+              </span>
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed max-w-md">

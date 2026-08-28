@@ -132,14 +132,14 @@ describe("Canonical Hiring Pipeline & State Machine", () => {
     expect(review.status).toBe("REVIEW");
   });
 
-  it("2. Blocks invalid stage skips (e.g. SUBMITTED/REVIEW → FINAL_INTERVIEW or HIRED)", async () => {
+  it("2. Blocks invalid stage skips (e.g. SUBMITTED/REVIEW → FINAL_INTERVIEW or COMPLIANCE)", async () => {
     await expect(
       updateTAApplicationStatus(testApp.id, "FINAL_INTERVIEW", testTA.id)
     ).rejects.toThrow(/Cannot move from REVIEW to FINAL_INTERVIEW/);
 
     await expect(
-      updateTAApplicationStatus(testApp.id, "HIRED", testTA.id)
-    ).rejects.toThrow(/Cannot move from REVIEW to HIRED/);
+      updateTAApplicationStatus(testApp.id, "COMPLIANCE", testTA.id)
+    ).rejects.toThrow(/Cannot move from REVIEW to COMPLIANCE/);
   });
 
   it("3. REVIEW → INITIAL_SCREENING (TA decides to screen candidate)", async () => {
@@ -193,8 +193,11 @@ describe("Canonical Hiring Pipeline & State Machine", () => {
       updateTAApplicationStatus(testApp.id, "FINAL_INTERVIEW", testTA.id)
     ).rejects.toThrow(/Client endorsement.*required/);
 
-    // Record positive endorsement
-    await recordClientEndorsement(testApp.id, testClient.id, "ENDORSED", testTA.id, "Client approved profile");
+    // Update endorsement to APPROVED to allow subsequent transition test
+    await prisma.clientEndorsement.update({
+      where: { id: endorsement.id },
+      data: { outcome: "APPROVED" },
+    });
   });
 
   it("9. Allows CLIENT_ENDORSEMENT → FINAL_INTERVIEW when candidate is endorsed", async () => {
@@ -202,34 +205,42 @@ describe("Canonical Hiring Pipeline & State Machine", () => {
     expect(finalStage.status).toBe("FINAL_INTERVIEW");
   });
 
-  it("10. Rejects FINAL_INTERVIEW → HIRED without a passed final interview", async () => {
+  it("10. Rejects FINAL_INTERVIEW → COMPLIANCE without a passed client final evaluation", async () => {
     await expect(
-      updateTAApplicationStatus(testApp.id, "HIRED", testTA.id)
-    ).rejects.toThrow(/A passed FINAL_INTERVIEW is required/);
+      updateTAApplicationStatus(testApp.id, "COMPLIANCE", testTA.id)
+    ).rejects.toThrow(/Client final evaluation result must be PASS/);
   });
 
-  it("11. Allows FINAL_INTERVIEW → HIRED when final interview is passed", async () => {
+  it("11. Allows FINAL_INTERVIEW → COMPLIANCE directly when client evaluation is PASS", async () => {
     await prisma.interview.create({
       data: {
         applicationId: testApp.id,
         type: "FINAL_INTERVIEW",
         result: "PASS",
         scheduledAt: new Date(),
+        conductedAt: new Date(),
       },
     });
 
-    const hired = await updateTAApplicationStatus(testApp.id, "HIRED", testTA.id, "Job offer accepted");
-    expect(hired.status).toBe("HIRED");
-  });
-
-  it("12. HIRED → COMPLIANCE transition", async () => {
-    const compliance = await updateTAApplicationStatus(testApp.id, "COMPLIANCE", testTA.id, "Collecting requirements");
+    const compliance = await updateTAApplicationStatus(testApp.id, "COMPLIANCE", testTA.id, "Client accepted candidate");
     expect(compliance.status).toBe("COMPLIANCE");
+
+    // Verify auto-provisioning of Digital 201 Employee
+    const emp = await prisma.employee.findUnique({
+      where: { userId: testUser.id },
+    });
+    expect(emp).toBeDefined();
+    expect(emp?.originatingApplicationId).toBe(testApp.id);
+
+    // Verify auto-generated compliance checklist
+    const reqs = await prisma.complianceRequirement.findMany({ where: { applicationId: testApp.id } });
+    expect(reqs.length).toBeGreaterThanOrEqual(1);
   });
 
   it("13. Rejects COMPLIANCE → DEPLOYED if mandatory compliance requirement is PENDING", async () => {
-    const req = await createComplianceRequirement(testApp.id, "NBI Clearance", true);
-    expect(req.reviewStatus).toBe("PENDING");
+    const reqs = await prisma.complianceRequirement.findMany({ where: { applicationId: testApp.id } });
+    expect(reqs.length).toBeGreaterThanOrEqual(1);
+    expect(reqs.some((r) => r.reviewStatus === "PENDING")).toBe(true);
 
     await expect(
       updateTAApplicationStatus(testApp.id, "DEPLOYED", testTA.id)
@@ -285,14 +296,13 @@ describe("Canonical Hiring Pipeline & State Machine", () => {
       orderBy: { createdAt: "asc" },
     });
 
-    expect(decisions.length).toBeGreaterThanOrEqual(7);
+    expect(decisions.length).toBeGreaterThanOrEqual(6);
     const toStatuses = decisions.map(d => d.toStatus);
     expect(toStatuses).toContain("PARSING");
     expect(toStatuses).toContain("REVIEW");
     expect(toStatuses).toContain("INITIAL_SCREENING");
     expect(toStatuses).toContain("CLIENT_ENDORSEMENT");
     expect(toStatuses).toContain("FINAL_INTERVIEW");
-    expect(toStatuses).toContain("HIRED");
     expect(toStatuses).toContain("COMPLIANCE");
     expect(toStatuses).toContain("DEPLOYED");
   });

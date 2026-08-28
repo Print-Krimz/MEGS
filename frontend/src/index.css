@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* Core Industrial Palette */
+  /* Calm professional HR palette */
   --color-primary: #0f766e;
   --color-primary-hover: #0d9488;
   --color-primary-light: #ccfbf1;
@@ -35,23 +35,22 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  /* Radius - Industrial Utilitarian (Zero Radius) */
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
+  /* Reserved rounding supports grouping without decorative card styling. */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
 
-  /* Shadows - Minimal / Border Driven */
+  /* Borders provide most separation; shadows are reserved for overlays. */
   --shadow-2xs: none;
   --shadow-xs: none;
   --shadow-sm: none;
   --shadow-card: none;
-  --shadow-dropdown: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-modal: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-dropdown: 0 8px 18px rgb(15 23 42 / 0.12);
+  --shadow-modal: 0 16px 32px rgb(15 23 42 / 0.18);
 }
 
-/* Smooth Gliding Scroll */
+/* Respect motion preferences for non-essential movement. */
 html {
-  scroll-behavior: smooth;
   scroll-padding-top: 5rem;
 }
 
@@ -66,23 +65,26 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Subtle Gliding Transition Helpers */
-.glide-hover {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
-}
-.glide-hover:hover {
-  transform: translateY(-2px);
-}
-
 /* Tabular numbers for all dense data */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
 
-/* Compact operational scrollbar */
+/* Compact scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 ::-webkit-scrollbar-track {
   background: transparent;

@@ -4,7 +4,8 @@ import { notificationEmitter } from '../../utils/notification.js';
 import {
   getNotificationsService,
   getUnreadCountService,
-  markAsReadService
+  markAsReadService,
+  markAllAsReadService,
 } from '../../services/core/notification.service.js';
 
 // GET /api/notifications/stream - Real-time SSE channel for incoming user notifications
@@ -42,12 +43,13 @@ export const streamNotifications = (req: Request, res: Response): void => {
 export const listNotifications = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { limit = 20, cursor } = req.query;
+    const { limit = 20, cursor, isRead } = req.query;
 
     const take = parseInt(String(limit), 10) || 20;
     const cursorId = cursor ? parseInt(String(cursor), 10) : undefined;
+    const filterIsRead = String(isRead) === "true" ? true : String(isRead) === "false" ? false : undefined;
 
-    const notifications = await getNotificationsService(userId, take, cursorId);
+    const notifications = await getNotificationsService(userId, take, cursorId, filterIsRead);
 
     sendSuccess(res, "Notifications retrieved", notifications);
   } catch (error: any) {
@@ -78,5 +80,16 @@ export const markAsRead = async (req: Request, res: Response): Promise<void> => 
     const statusCode = error.message.includes("not found") ? 404 :
                        error.message.includes("Unauthorized") ? 403 : 500;
     sendError(res, error.message, statusCode);
+  }
+};
+
+// PATCH /api/notifications/read-all - Mark all unread notifications as read
+export const markAllAsRead = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const result = await markAllAsReadService(userId);
+    sendSuccess(res, "All notifications marked as read", result);
+  } catch (error: any) {
+    sendError(res, error.message, 500);
   }
 };

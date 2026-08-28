@@ -38,7 +38,6 @@ export const PIPELINE_FILTER_STAGES: ApplicationStatus[] = [
   ApplicationStatus.INITIAL_SCREENING,
   ApplicationStatus.CLIENT_ENDORSEMENT,
   ApplicationStatus.FINAL_INTERVIEW,
-  ApplicationStatus.HIRED,
   ApplicationStatus.COMPLIANCE,
   ApplicationStatus.DEPLOYED,
   ApplicationStatus.BACKOUT,
@@ -85,7 +84,6 @@ export const ALLOWED_STAGE_TRANSITIONS: Record<string, ApplicationStatus[]> = {
     ApplicationStatus.ARCHIVED,
   ],
   TALENT_POOL: [
-    ApplicationStatus.INITIAL_SCREENING,
     ApplicationStatus.ARCHIVED,
   ],
   INITIAL_SCREENING: [
@@ -101,19 +99,8 @@ export const ALLOWED_STAGE_TRANSITIONS: Record<string, ApplicationStatus[]> = {
     ApplicationStatus.ARCHIVED,
   ],
   FINAL_INTERVIEW: [
-    ApplicationStatus.HIRED,
+    ApplicationStatus.COMPLIANCE,
     ApplicationStatus.TALENT_POOL,
-    ApplicationStatus.BACKOUT,
-    ApplicationStatus.ARCHIVED,
-  ],
-  HIRED: [
-    ApplicationStatus.COMPLIANCE,
-    ApplicationStatus.BACKOUT,
-    ApplicationStatus.ARCHIVED,
-  ],
-  ONBOARDING: [
-    ApplicationStatus.COMPLIANCE,
-    ApplicationStatus.DEPLOYED,
     ApplicationStatus.BACKOUT,
     ApplicationStatus.ARCHIVED,
   ],

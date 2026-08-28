@@ -63,8 +63,11 @@ export function useRealtimeNotifications() {
           const data = JSON.parse(event.data);
           if (data.type === "CONNECTED" || !data.id) return;
 
-          // Invalidate queries to refresh counts and list
+          // Invalidate queries to refresh counts, list, and live portal states
           queryClient.invalidateQueries({ queryKey: ["notifications"] });
+          queryClient.invalidateQueries({ queryKey: ["applicant"] });
+          queryClient.invalidateQueries({ queryKey: ["ta"] });
+          queryClient.invalidateQueries({ queryKey: ["admin"] });
 
           // Trigger live toast notification
           const newToast: RealtimeToast = {

@@ -8,7 +8,6 @@ import {
   fetchApplicationDetails,
   uploadApplicantComplianceDocument
 } from '../../services/applicant/application.service.js';
-import { getApplicantProfile } from '../../services/applicant/applicant.service.js';
 
 // GET /api/applicant-jobs/jobs - Browse active job postings
 export const getOpenJobs = async (req: Request, res: Response): Promise<void> => {
@@ -42,12 +41,6 @@ export const applyToJob = async (req: Request, res: Response): Promise<void> => 
     const jobId = parseInt(req.params.id as string, 10);
     if (isNaN(jobId)) {
       sendError(res, "Invalid job ID", 400);
-      return;
-    }
-
-    const profile = await getApplicantProfile(req.user!.id);
-    if (!profile) {
-      sendError(res, "Profile not found. Please complete your profile first.", 400);
       return;
     }
 

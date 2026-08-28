@@ -12,20 +12,19 @@ import {
   ErrorState,
   EmptyState,
 } from "../../components/common";
-import { Button, Dialog, Select, Textarea } from "../../components/ui";
+import { Button, Dialog, Textarea } from "../../components/ui";
 import { formatDate, getApplicationStatusMeta } from "../../lib/utils";
 import {
   ApplicationStatus,
   PIPELINE_FILTER_STAGES,
-  ALLOWED_STAGE_TRANSITIONS,
 } from "../../lib/types/enums";
 import {
   Users,
   Eye,
   Archive,
   RotateCcw,
-  CheckCircle2,
 } from "lucide-react";
+import { notify } from "../../lib/feedback";
 
 export const ApplicationsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -36,12 +35,7 @@ export const ApplicationsPage: React.FC = () => {
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [showArchived, setShowArchived] = useState(false);
 
-  // Modal states for status update and archive
-  const [statusModalApp, setStatusModalApp] = useState<{ id: number; currentStatus: ApplicationStatus; name: string } | null>(null);
-  const [newStatus, setNewStatus] = useState<ApplicationStatus>(ApplicationStatus.INITIAL_SCREENING);
-  const [statusReason, setStatusReason] = useState("");
-  const [stageError, setStageError] = useState<string | null>(null);
-
+  // Modal states for archive
   const [archiveModalApp, setArchiveModalApp] = useState<{ id: number; name: string; isArchived: boolean } | null>(null);
   const [archiveReason, setArchiveReason] = useState("");
 
@@ -66,26 +60,6 @@ export const ApplicationsPage: React.FC = () => {
   });
 
   // Mutations
-  const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status, reason }: { id: number; status: ApplicationStatus; reason?: string }) =>
-      taApi.updateApplicationStatus(id, { status, reason }),
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
-      setStatusModalApp(null);
-      setStatusReason("");
-      setStageError(null);
-      setFeedback({
-        type: "success",
-        message: `Application moved to ${getApplicationStatusMeta(vars.status).label}.`,
-      });
-    },
-    onError: (err: any) => {
-      const msg = err?.message || "Failed to update pipeline stage.";
-      setStageError(msg);
-      setFeedback({ type: "error", message: msg });
-    },
-  });
 
   const archiveMutation = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
@@ -94,10 +68,13 @@ export const ApplicationsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       setArchiveModalApp(null);
       setArchiveReason("");
-      setFeedback({ type: "success", message: "Application archived successfully." });
+      const msg = "Application archived successfully.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Application Archived", msg);
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to archive application: " + err.message });
+      notify.error("Archive Failed", err);
     },
   });
 
@@ -108,10 +85,13 @@ export const ApplicationsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       setArchiveModalApp(null);
       setArchiveReason("");
-      setFeedback({ type: "success", message: "Application restored to pipeline." });
+      const msg = "Application restored to pipeline.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Application Restored", msg);
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to restore application: " + err.message });
+      notify.error("Restore Failed", err);
     },
   });
 
@@ -126,10 +106,10 @@ export const ApplicationsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Candidate Applications Pipeline"
-        description="Track candidate applications, match evaluations, and recruitment pipeline stages"
+        title="Applications"
+        description="Review applications, see their current stage, and continue the next hiring action."
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
+          { label: "Recruitment", href: "/ta" },
           { label: "Applications" },
         ]}
         actions={
@@ -189,8 +169,8 @@ export const ApplicationsPage: React.FC = () => {
         filters={[
           {
             key: "status",
-            label: "Pipeline Stage",
-            placeholder: "All Pipeline Stages",
+            label: "Application stage",
+            placeholder: "All application stages",
             options: PIPELINE_FILTER_STAGES.map((s) => ({
               value: s,
               label: getApplicationStatusMeta(s).label,
@@ -198,11 +178,13 @@ export const ApplicationsPage: React.FC = () => {
           },
           {
             key: "jobId",
-            label: "Job Requisition",
-            placeholder: "All Job Requisitions",
+            label: "Job opening",
+            placeholder: "All job openings",
+            searchable: true,
             options: jobs.map((j) => ({
               value: String(j.id),
               label: j.title,
+              subtitle: `Reference ${j.id} • ${j.location || "Philippines"}`,
             })),
           },
         ]}
@@ -244,13 +226,59 @@ export const ApplicationsPage: React.FC = () => {
         </div>
       ) : (
         <div className="bg-white border border-slate-300 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="divide-y divide-slate-200 md:hidden">
+            {applications.map((app) => {
+              const p = app.user?.applicantProfile;
+              const candidateName = p
+                ? `${p.firstName} ${p.lastName}`
+                : app.user?.email || "Candidate";
+
+              return (
+                <article key={app.id} className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="font-semibold text-slate-950">{candidateName}</h2>
+                      <p className="mt-0.5 break-words text-sm text-slate-600">{app.jobPosting?.title || "Job opening"}</p>
+                    </div>
+                    <StatusBadge status={app.status} />
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                    <div>
+                      <dt className="text-slate-500">Match score</dt>
+                      <dd className="mt-0.5"><ScoreBadge score={app.candidateFitScore ?? app.candidateScores?.[0]?.finalFitScore ?? app.aiScore} size="sm" /></dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Applied</dt>
+                      <dd className="mt-0.5 text-slate-800">{formatDate(app.createdAt)}</dd>
+                    </div>
+                  </dl>
+                  <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+                    <Link
+                      to="/ta/applications/$applicationId"
+                      params={{ applicationId: String(app.id) }}
+                      className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+                    >
+                      View application
+                    </Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setArchiveModalApp({ id: app.id, name: candidateName, isArchived: Boolean(app.isArchived) })}
+                    >
+                      {app.isArchived ? "Restore" : "Archive"}
+                    </Button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-100 text-slate-700 font-mono uppercase text-[10px] border-b border-slate-300">
                 <tr>
-                  <th className="px-3.5 py-2.5 font-bold">Candidate / Applicant</th>
-                  <th className="px-3.5 py-2.5 font-bold">Target Position</th>
-                  <th className="px-3.5 py-2.5 font-bold">Current Stage</th>
+                  <th className="px-3.5 py-2.5 font-bold">Applicant</th>
+                  <th className="px-3.5 py-2.5 font-bold">Job opening</th>
+                  <th className="px-3.5 py-2.5 font-bold">Current stage</th>
                   <th className="px-3.5 py-2.5 font-bold text-center">Match Score</th>
                   <th className="px-3.5 py-2.5 font-bold">Submission Date</th>
                   <th className="px-3.5 py-2.5 font-bold text-right">Actions</th>
@@ -273,7 +301,7 @@ export const ApplicationsPage: React.FC = () => {
                       </td>
                       <td className="px-3.5 py-2.5">
                         <div className="font-semibold text-slate-900">
-                          {app.jobPosting?.title || "Requisition"}
+                          {app.jobPosting?.title || "Job opening"}
                         </div>
                         <div className="text-[10px] text-slate-500 font-mono">
                           {app.jobPosting?.location || "Philippines"}
@@ -304,44 +332,22 @@ export const ApplicationsPage: React.FC = () => {
                             >
                               View Details
                             </Button>
-                          </Link>
-
-                          {!app.isArchived ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const allowed = ALLOWED_STAGE_TRANSITIONS[app.status] || [];
-                                  setStatusModalApp({
-                                    id: app.id,
-                                    currentStatus: app.status,
-                                    name: candidateName,
-                                  });
-                                  setNewStatus(allowed.length > 0 ? allowed[0] : app.status);
-                                  setStageError(null);
-                                }}
-                                title="Update Stage"
-                              >
-                                Stage
-                              </Button>
-
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  setArchiveModalApp({
-                                    id: app.id,
-                                    name: candidateName,
-                                    isArchived: false,
-                                  })
-                                }
-                                title="Archive Application"
-                                className="text-slate-400 hover:text-slate-700"
-                              >
-                                <Archive className="w-3.5 h-3.5" />
-                              </Button>
-                            </>
+                          </Link>                          {!app.isArchived ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                setArchiveModalApp({
+                                  id: app.id,
+                                  name: candidateName,
+                                  isArchived: false,
+                                })
+                              }
+                              title="Archive Application"
+                              className="text-slate-400 hover:text-slate-700"
+                            >
+                              <Archive className="w-3.5 h-3.5" />
+                            </Button>
                           ) : (
                             <Button
                               variant="ghost"
@@ -349,10 +355,10 @@ export const ApplicationsPage: React.FC = () => {
                               leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
                               onClick={() =>
                                 setArchiveModalApp({
-                                    id: app.id,
-                                    name: candidateName,
-                                    isArchived: true,
-                                  })
+                                  id: app.id,
+                                  name: candidateName,
+                                  isArchived: true,
+                                })
                               }
                               title="Restore Application"
                             >
@@ -380,128 +386,6 @@ export const ApplicationsPage: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Update Pipeline Stage Modal */}
-      <Dialog
-        open={Boolean(statusModalApp)}
-        onClose={() => {
-          setStatusModalApp(null);
-          setStageError(null);
-        }}
-        title="Update Recruitment Stage"
-        description={`Advance or change pipeline stage for ${statusModalApp?.name}`}
-      >
-        <div className="space-y-4">
-          {statusModalApp && (ALLOWED_STAGE_TRANSITIONS[statusModalApp.currentStatus]?.length ?? 0) === 0 ? (
-            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs font-mono">
-              Candidate is in a terminal status ({statusModalApp.currentStatus}). No further stage transitions are permitted.
-            </div>
-          ) : (
-            <Select
-              label="Target Pipeline Stage"
-              value={newStatus}
-              onChange={(e) => {
-                setNewStatus(e.target.value as ApplicationStatus);
-                setStageError(null);
-              }}
-              options={(
-                (statusModalApp && ALLOWED_STAGE_TRANSITIONS[statusModalApp.currentStatus]) ||
-                PIPELINE_FILTER_STAGES
-              ).map((s) => ({
-                value: s,
-                label: getApplicationStatusMeta(s).label,
-              }))}
-            />
-          )}
-
-          {newStatus === ApplicationStatus.HIRED && (
-            <div className="p-3 bg-teal-50 border border-teal-200 text-teal-900 text-xs rounded space-y-1.5">
-              <div className="font-semibold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
-                <span>Digital 201 Personnel Record Provisioning</span>
-              </div>
-              <p className="text-teal-800 leading-relaxed">
-                Confirming will advance stage to <strong>Hired</strong> and auto-generate the candidate's Digital 201 Employee Record in Personnel.
-              </p>
-              {statusModalApp && (
-                <Link
-                  to="/ta/applications/$applicationId"
-                  params={{ applicationId: String(statusModalApp.id) }}
-                >
-                  <span className="text-teal-700 underline hover:text-teal-900 font-mono text-[11px] block mt-1">
-                    Open candidate profile to specify custom employee number & department →
-                  </span>
-                </Link>
-              )}
-            </div>
-          )}
-
-          {newStatus === ApplicationStatus.DEPLOYED && (
-            <div className="p-3 bg-teal-50 border border-teal-200 text-teal-900 text-xs rounded space-y-1.5">
-              <div className="font-semibold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
-                <span>Workforce Site Deployment Setup</span>
-              </div>
-              <p className="text-teal-800 leading-relaxed">
-                Confirming will advance stage to <strong>Deployed</strong> and create an active site deployment assignment.
-              </p>
-              {statusModalApp && (
-                <Link
-                  to="/ta/applications/$applicationId"
-                  params={{ applicationId: String(statusModalApp.id) }}
-                >
-                  <span className="text-teal-700 underline hover:text-teal-900 font-mono text-[11px] block mt-1">
-                    Open candidate profile to configure client account & site assignment →
-                  </span>
-                </Link>
-              )}
-            </div>
-          )}
-
-          {stageError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-mono rounded">
-              {stageError}
-            </div>
-          )}
-
-          <Textarea
-            label="Recruiter Decision Rationale (Optional)"
-            placeholder="e.g. Passed initial screening interview, endorsed to client manager"
-            value={statusReason}
-            onChange={(e) => setStatusReason(e.target.value)}
-            rows={3}
-          />
-
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setStatusModalApp(null);
-                setStageError(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              loading={updateStatusMutation.isPending}
-              onClick={() => {
-                if (statusModalApp) {
-                  updateStatusMutation.mutate({
-                    id: statusModalApp.id,
-                    status: newStatus,
-                    reason: statusReason || undefined,
-                  });
-                }
-              }}
-            >
-              Confirm Stage Update
-            </Button>
-          </div>
-        </div>
-      </Dialog>
 
       {/* Archive / Restore Modal */}
       <Dialog

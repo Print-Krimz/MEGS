@@ -67,8 +67,8 @@ describe("Candidate Categorization (AI Score)", () => {
     expect(prisma.application.update).not.toHaveBeenCalled();
   });
 
-  it("should NOT move candidates in CLIENT_ENDORSEMENT, FINAL_INTERVIEW, HIRED, COMPLIANCE backward", async () => {
-    for (const advancedStatus of ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "HIRED", "COMPLIANCE", "DEPLOYED"]) {
+  it("should NOT move candidates in CLIENT_ENDORSEMENT, FINAL_INTERVIEW, COMPLIANCE backward", async () => {
+    for (const advancedStatus of ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "DEPLOYED"]) {
       setupMockApp(advancedStatus);
       await applyScoreCategorization(1, 20);
       expect(prisma.application.update).not.toHaveBeenCalled();

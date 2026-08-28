@@ -47,7 +47,7 @@ export const authenticateJWT = async (
     return;
   }
 
-  if (dbUser.accountStatus === "INVITED") {
+  if (dbUser.accountStatus === "PENDING" || dbUser.accountStatus === "INVITED") {
     sendError(res, "Account setup has not been completed", 403);
     return;
   }

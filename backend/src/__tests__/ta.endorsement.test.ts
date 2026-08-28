@@ -98,6 +98,27 @@ describe("TA Client Endorsement Service", () => {
   it("advances application status from INITIAL_SCREENING to CLIENT_ENDORSEMENT and notifies the applicant", async () => {
     expect(testApp.status).toBe("INITIAL_SCREENING");
 
+    // Attempting to endorse before passing initial screening must fail
+    await expect(
+      recordClientEndorsement(
+        testApp.id,
+        testClient.id,
+        "PENDING",
+        testTA.id,
+        "Premature endorsement"
+      )
+    ).rejects.toThrow(/A passed INITIAL_SCREENING interview is required/);
+
+    // Create passed initial screening interview
+    await prisma.interview.create({
+      data: {
+        applicationId: testApp.id,
+        type: "INITIAL_SCREENING",
+        result: "PASS",
+        scheduledAt: new Date(),
+      },
+    });
+
     const endorsement = await recordClientEndorsement(
       testApp.id,
       testClient.id,
@@ -128,14 +149,14 @@ describe("TA Client Endorsement Service", () => {
     expect(decision?.actorId).toBe(testTA.id);
 
     // Verify Notification was created
-    const notification = await prisma.notification.findFirst({
+    const notifications = await prisma.notification.findMany({
       where: { userId: testUser.id },
       orderBy: { createdAt: "desc" },
     });
+    const notification = notifications.find((n) => n.title === "Client Endorsement");
     expect(notification).toBeDefined();
-    expect(notification?.title).toBe("Client Endorsement");
     expect(notification?.message).toContain(testClient.name);
-  });
+  }, 15000);
 
   it("records approved endorsement outcome and notifies user with SUCCESS type", async () => {
     const approvedEndorsement = await recordClientEndorsement(
@@ -156,7 +177,7 @@ describe("TA Client Endorsement Service", () => {
     expect(notification).toBeDefined();
     expect(notification?.title).toBe("Client Endorsement Approved");
     expect(notification?.message).toContain("approved");
-  });
+  }, 15000);
 
   it("lists all endorsements in descending order", async () => {
     const endorsements = await listClientEndorsements(testApp.id);

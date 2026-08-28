@@ -6,6 +6,7 @@ import {
   PageHeader,
   LoadingState,
   ErrorState,
+  JobImage,
 } from "../../components/common";
 import { Button, Dialog } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
@@ -18,8 +19,9 @@ import {
   AlertCircle,
   FileText,
   Briefcase,
-  ArrowLeft,
 } from "lucide-react";
+
+import { notify, formatErrorMessage } from "../../lib/feedback";
 
 export const JobDetailPage: React.FC = () => {
   const navigate = useNavigate();
@@ -42,6 +44,10 @@ export const JobDetailPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
       setSubmissionSuccess(true);
+      notify.success("Application Submitted", "Your candidacy has been received and is now being reviewed.");
+    },
+    onError: (err) => {
+      notify.error("Application Failed", err);
     },
   });
 
@@ -59,7 +65,7 @@ export const JobDetailPage: React.FC = () => {
   if (jobQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Job Requisition Details" description="Loading position..." />
+        <PageHeader title="Job details" description="Loading position…" />
         <LoadingState variant="detail" />
       </div>
     );
@@ -68,7 +74,7 @@ export const JobDetailPage: React.FC = () => {
   if (jobQuery.isError || !jobQuery.data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Job Requisition Details" description="Position details" />
+        <PageHeader title="Job details" description="Position details" />
         <ErrorState error={jobQuery.error} onRetry={() => jobQuery.refetch()} />
       </div>
     );
@@ -80,22 +86,16 @@ export const JobDetailPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title={job.title}
-        description={`Requisition #${job.id} • ${job.location || "Philippines"}`}
+        description={job.location || "Philippines"}
         breadcrumbs={[
-          { label: "Applicant Portal", href: "/app" },
-          { label: "Job Board", href: "/app/jobs" },
+          { label: "My career", href: "/app" },
+          { label: "Explore jobs", href: "/app/jobs" },
           { label: job.title },
         ]}
         actions={
-          <div className="flex items-center gap-2">
-            <Link to="/app/jobs">
-              <Button
-                variant="outline"
-                size="md"
-                leftIcon={<ArrowLeft className="w-4 h-4" />}
-              >
-                Back to Jobs
-              </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+              Back to jobs
             </Link>
             {job.alreadyApplied ? (
               <Button
@@ -104,7 +104,7 @@ export const JobDetailPage: React.FC = () => {
                 disabled
                 leftIcon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}
               >
-                Application Submitted
+                Application submitted
               </Button>
             ) : (
               <Button
@@ -113,7 +113,7 @@ export const JobDetailPage: React.FC = () => {
                 leftIcon={<Send className="w-4 h-4" />}
                 onClick={() => setApplyModalOpen(true)}
               >
-                Apply for Position
+                Apply for this job
               </Button>
             )}
           </div>
@@ -137,7 +137,7 @@ export const JobDetailPage: React.FC = () => {
           {job.requirements && (
             <div className="bg-white border border-slate-300 p-4 space-y-3">
               <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-2">
-                Job Requirements & Qualifications
+                What you need for this role
               </h3>
               <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-line font-sans">
                 {job.requirements}
@@ -149,9 +149,15 @@ export const JobDetailPage: React.FC = () => {
         {/* Sidebar Metadata Card */}
         <div className="space-y-4">
           <div className="bg-white border border-slate-300 p-4 space-y-3">
-            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700 border-b border-slate-200 pb-2">
-              Requisition Details
-            </h3>
+            <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
+              <JobImage src={job.imageUrl} alt={job.title} size="md" />
+              <div>
+                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">
+                  Job details
+                </h3>
+                <div className="text-[10px] font-mono text-slate-400">REQ #{job.id}</div>
+              </div>
+            </div>
 
             <div className="space-y-3 text-xs">
               <div className="flex items-start gap-2.5">
@@ -173,7 +179,7 @@ export const JobDetailPage: React.FC = () => {
               <div className="flex items-start gap-2.5">
                 <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-slate-900 uppercase font-mono text-[10px]">Requisition Posted</div>
+                  <div className="font-medium text-slate-700 text-sm">Posted</div>
                   <div className="text-slate-700 font-mono">{formatDate(job.createdAt)}</div>
                 </div>
               </div>
@@ -197,7 +203,7 @@ export const JobDetailPage: React.FC = () => {
                   className="w-full"
                   onClick={() => setApplyModalOpen(true)}
                 >
-                  Submit Candidacy
+                  Submit application
                 </Button>
               )}
             </div>
@@ -269,12 +275,18 @@ export const JobDetailPage: React.FC = () => {
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) setCustomResume(file);
+                      if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                          notify.error("File Too Large", "Maximum PDF upload size is 5 MB. Please select a smaller file.");
+                          return;
+                        }
+                        setCustomResume(file);
+                      }
                     }}
                   />
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-xs">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>{customResume ? "Replace PDF" : "Attach Tailored Resume (PDF)"}</span>
+                    <span>{customResume ? "Replace PDF" : "Attach Tailored Resume (PDF up to 5 MB)"}</span>
                   </span>
                 </label>
                 {customResume && (
@@ -293,7 +305,7 @@ export const JobDetailPage: React.FC = () => {
               <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2 text-xs text-rose-800">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>
-                  {applyMutation.error?.message || "Failed to submit application. Please try again."}
+                  {formatErrorMessage(applyMutation.error)}
                 </span>
               </div>
             )}

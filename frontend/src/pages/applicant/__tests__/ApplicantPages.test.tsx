@@ -3,16 +3,48 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ApplicantDashboard } from "../ApplicantDashboard";
-import { JobsPage } from "../JobsPage";
-import { NotificationsPage } from "../NotificationsPage";
+import { ApplicationDetailPage } from "../ApplicationDetailPage";
+import { MyApplicationsPage } from "../MyApplicationsPage";
 import { applicantApi } from "../../../lib/api/applicant.api";
 import { applicantJobsApi } from "../../../lib/api/applicant-jobs.api";
-import { notificationApi } from "../../../lib/api/notification.api";
 import { ApplicationStatus, JobStatus } from "../../../lib/types/enums";
 
-vi.mock("../../../lib/api/applicant.api");
-vi.mock("../../../lib/api/applicant-jobs.api");
-vi.mock("../../../lib/api/notification.api");
+vi.mock("../../../lib/api/applicant.api", () => ({
+  applicantApi: {
+    getProfile: vi.fn(),
+    upsertProfile: vi.fn(),
+    addWorkExperience: vi.fn(),
+    deleteWorkExperience: vi.fn(),
+    addEducation: vi.fn(),
+    deleteEducation: vi.fn(),
+    addSkill: vi.fn(),
+    deleteSkill: vi.fn(),
+    addTraining: vi.fn(),
+    deleteTraining: vi.fn(),
+    addReference: vi.fn(),
+    deleteReference: vi.fn(),
+  },
+}));
+
+vi.mock("../../../lib/api/applicant-jobs.api", () => ({
+  applicantJobsApi: {
+    getJobs: vi.fn(),
+    getJobDetail: vi.fn(),
+    applyForJob: vi.fn(),
+    getMyApplications: vi.fn(),
+    getApplicationDetail: vi.fn(),
+  },
+}));
+
+vi.mock("../../../lib/api/notification.api", () => ({
+  notificationApi: {
+    getUnreadCount: vi.fn().mockResolvedValue({ count: 0 }),
+    getNotifications: vi.fn().mockResolvedValue([]),
+    markAsRead: vi.fn().mockResolvedValue({ id: 1, isRead: true }),
+    markAllAsRead: vi.fn().mockResolvedValue({ count: 0 }),
+  },
+}));
+
 vi.mock("../../../hooks/useAuth", () => ({
   useAuth: () => ({
     user: { id: "u1", email: "maria@example.com", role: "APPLICANT" },
@@ -100,52 +132,143 @@ describe("Applicant Interface Components", () => {
 
     renderWithClient(<ApplicantDashboard />);
 
-    expect(await screen.findByText("Welcome back, Maria")).toBeDefined();
+    expect(await screen.findByRole("heading", { name: /Maria/i })).toBeDefined();
     expect(screen.getByText("Warehouse Inventory Clerk")).toBeDefined();
-    expect(screen.getByText("Total Submissions")).toBeDefined();
+    expect(screen.getByText("Applications")).toBeDefined();
   });
 
-  it("renders JobsPage with job requisition cards", async () => {
-    vi.mocked(applicantJobsApi.getJobs).mockResolvedValueOnce([
-      {
-        id: 301,
+  it("renders ApplicationDetailPage with candidate-friendly Future Opportunities wording and supporting message when status is TALENT_POOL", async () => {
+    vi.mocked(applicantJobsApi.getApplicationDetail).mockResolvedValueOnce({
+      id: 101,
+      jobPostingId: 201,
+      userId: "u1",
+      status: ApplicationStatus.TALENT_POOL,
+      isArchived: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      jobPosting: {
+        id: 201,
         postedById: "ta-1",
-        title: "Site Security Officer",
-        location: "Batangas City",
-        requirements: "Valid security guard license",
-        description: "Enforce safety and site access protocols",
+        title: "Logistics Specialist",
+        location: "Laguna Technopark",
+        requirements: "Logistics experience",
+        description: "Oversee warehouse logistics and distribution",
         status: JobStatus.OPEN,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
-    ]);
+      complianceRequirements: [],
+      interviews: [],
+    } as any);
 
-    renderWithClient(<JobsPage />);
+    renderWithClient(<ApplicationDetailPage />);
 
-    expect(await screen.findByText("Site Security Officer")).toBeDefined();
-    expect(screen.getByText("Enforce safety and site access protocols")).toBeDefined();
+    // Must show Future Opportunities badge / banner
+    const badges = await screen.findAllByText("Future Opportunities");
+    expect(badges.length).toBeGreaterThan(0);
+    // Must not show Talent Pool
+    expect(screen.queryByText(/^Talent Pool$/i)).toBeNull();
+
+    // Must show the candidate-friendly supporting message
+    expect(
+      await screen.findByText(
+        "You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications."
+      )
+    ).toBeDefined();
   });
 
-  it("renders NotificationsPage with active notifications", async () => {
-    vi.mocked(notificationApi.getNotifications).mockResolvedValueOnce([
+  it("renders MyApplicationsPage with Future Opportunities badge for pooled applications", async () => {
+    vi.mocked(applicantJobsApi.getMyApplications).mockResolvedValueOnce([
       {
         id: 101,
+        jobPostingId: 201,
         userId: "u1",
-        title: "Initial Interview Scheduled",
-        message: "Your interview with Talent Acquisition is scheduled for Monday 10:00 AM.",
-        type: "INTERVIEW_SCHEDULED",
-        isRead: false,
+        status: ApplicationStatus.TALENT_POOL,
+        isArchived: false,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        jobPosting: {
+          id: 201,
+          postedById: "ta-1",
+          title: "Senior Forklift Operator",
+          location: "Calamba, Laguna",
+          requirements: "Heavy equipment license",
+          description: "Operate forklift safely",
+          status: JobStatus.OPEN,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
       },
     ]);
 
-    renderWithClient(<NotificationsPage />);
+    renderWithClient(<MyApplicationsPage />);
 
-    expect(await screen.findByText("Initial Interview Scheduled")).toBeDefined();
+    // Must show Future Opportunities badge / banner
+    const badges = await screen.findAllByText("Future Opportunities");
+    expect(badges.length).toBeGreaterThan(0);
+    expect(screen.queryByText(/^Talent Pool$/i)).toBeNull();
+    expect(screen.getByText("Senior Forklift Operator")).toBeDefined();
+
+    // Must show supporting message on the application card
     expect(
-      screen.getByText(
-        "Your interview with Talent Acquisition is scheduled for Monday 10:00 AM."
+      await screen.findByText(
+        "You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications."
       )
     ).toBeDefined();
+  });
+
+
+  it("renders ApplicantDashboard displaying Future Opportunities without counting TALENT_POOL as in-progress", async () => {
+    vi.mocked(applicantApi.getProfile).mockResolvedValueOnce({
+      id: 1,
+      userId: "u1",
+      firstName: "Maria",
+      lastName: "Santos",
+      mobileNumber: "09181234567",
+      isActive: true,
+      skills: [],
+      workExperiences: [],
+      educations: [],
+      trainings: [],
+      characterReferences: [],
+      assets: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    vi.mocked(applicantJobsApi.getMyApplications).mockResolvedValueOnce([
+      {
+        id: 101,
+        jobPostingId: 201,
+        userId: "u1",
+        status: ApplicationStatus.TALENT_POOL,
+        isArchived: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        jobPosting: {
+          id: 201,
+          postedById: "ta-1",
+          title: "Warehouse Inventory Clerk",
+          location: "Calamba, Laguna",
+          requirements: "High school graduate",
+          description: "Responsible for inventory counts",
+          status: JobStatus.OPEN,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    ]);
+
+    vi.mocked(applicantJobsApi.getJobs).mockResolvedValueOnce([]);
+
+    renderWithClient(<ApplicantDashboard />);
+
+    // Badge on dashboard must show Future Opportunities
+    expect(await screen.findByText("Future Opportunities")).toBeDefined();
+    expect(screen.queryByText(/^Talent Pool$/i)).toBeNull();
+
+    // Verify counter displays
+    expect(screen.getAllByText("1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("0").length).toBeGreaterThan(0);
   });
 });

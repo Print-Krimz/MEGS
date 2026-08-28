@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     },
     jobPosting: {
       findUniqueOrThrow: vi.fn(),
+      findUnique: vi.fn(),
     },
     candidateScoringConfiguration: {
       findFirst: vi.fn(),
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     },
     applicantProfile: {
       findUniqueOrThrow: vi.fn(),
+      findUnique: vi.fn(),
     },
     candidateFeatureProfile: {
       upsert: vi.fn(),
@@ -58,6 +60,7 @@ vi.mock("./scoring-configuration.service.js", () => ({
 
 import {
   discoverTalentPoolForJob,
+  findSimilarCandidates,
   InvalidKnnRequestError,
   searchTalentPoolByText,
   considerTalentPoolCandidateForJob,
@@ -94,7 +97,7 @@ const profile = (id: number, skills: string[], options: any = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.configuration.mockResolvedValue({ id: 1, knnSettings: { ...DEFAULT_KNN_SETTINGS, minimumSimilarity: 0 } });
-  mocks.prisma.jobPosting.findUniqueOrThrow.mockResolvedValue({
+  const openJob = {
     id: 8,
     title: "TypeScript developer",
     description: "Build robust backend services",
@@ -104,7 +107,9 @@ beforeEach(() => {
       requiredExperience: "3+ years",
     },
     status: "OPEN",
-  });
+  };
+  mocks.prisma.jobPosting.findUniqueOrThrow.mockResolvedValue(openJob);
+  mocks.prisma.jobPosting.findUnique.mockResolvedValue(openJob);
 });
 
 describe("Talent Pool Redesign - KNN Retrieval & Eligibility", () => {
@@ -117,7 +122,7 @@ describe("Talent Pool Redesign - KNN Retrieval & Eligibility", () => {
 
   it("queries pgvector for eligible candidates and returns candidate details with advisory similarity", async () => {
     mocks.prisma.$queryRaw.mockResolvedValueOnce([{ applicantProfileId: 10, similarity: 0.92 }]);
-    mocks.prisma.applicantProfile.findUniqueOrThrow.mockResolvedValueOnce(
+    mocks.prisma.applicantProfile.findUnique.mockResolvedValueOnce(
       profile(10, ["TypeScript", "Node.js", "React"])
     );
 
@@ -153,7 +158,7 @@ describe("Talent Pool Redesign - KNN Retrieval & Eligibility", () => {
 
   it("text search returns eligible pool candidates with advisory rank", async () => {
     mocks.prisma.$queryRaw.mockResolvedValueOnce([{ applicantProfileId: 10, similarity: 0.88 }]);
-    mocks.prisma.applicantProfile.findUniqueOrThrow.mockResolvedValueOnce(
+    mocks.prisma.applicantProfile.findUnique.mockResolvedValueOnce(
       profile(10, ["TypeScript", "Node.js"])
     );
 
@@ -162,6 +167,77 @@ describe("Talent Pool Redesign - KNN Retrieval & Eligibility", () => {
     expect(result.retrievalOnly).toBe(true);
     expect(result.items).toHaveLength(1);
     expect(result.items[0].similarity).toBe(0.88);
+  });
+
+  it("findSimilarCandidates returns empty items if application exists but applicant has no profile", async () => {
+    mocks.prisma.application.findUnique.mockResolvedValueOnce({
+      id: 5,
+      user: { id: "user-5", applicantProfile: null },
+    });
+
+    const result = await findSimilarCandidates(5);
+    expect(result).toEqual({ items: [] });
+    expect(mocks.prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("findSimilarCandidates returns empty items if application does not exist and applicant profile does not exist", async () => {
+    mocks.prisma.application.findUnique.mockResolvedValueOnce(null);
+    mocks.prisma.applicantProfile.findUnique.mockResolvedValueOnce(null);
+
+    const result = await findSimilarCandidates(999);
+    expect(result).toEqual({ items: [] });
+    expect(mocks.prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("findSimilarCandidates finds similar candidates given an application ID with profile", async () => {
+    const candidateProfile = profile(10, ["TypeScript", "Node.js"]);
+    mocks.prisma.application.findUnique.mockResolvedValueOnce({
+      id: 5,
+      user: {
+        id: "user-10",
+        applicantProfile: {
+          ...candidateProfile,
+          candidateFeatureProfile: {
+            rawFeatures: {
+              skills: ["TypeScript", "Node.js"],
+              roleExperience: [],
+              education: [],
+              certifications: [],
+              complianceDocuments: [],
+            },
+          },
+        },
+      },
+    });
+    mocks.prisma.$queryRaw.mockResolvedValueOnce([{ applicantProfileId: 20, similarity: 0.95 }]);
+    mocks.prisma.applicantProfile.findUnique.mockResolvedValueOnce(profile(20, ["TypeScript", "React"]));
+
+    const result = await findSimilarCandidates(5);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].similarity).toBe(0.95);
+    expect(result.items[0].candidate.applicantProfileId).toBe(20);
+  });
+
+  it("findSimilarCandidates filters out missing/deleted profiles in raw results safely", async () => {
+    const candidateProfile = profile(10, ["TypeScript", "Node.js"]);
+    mocks.prisma.application.findUnique.mockResolvedValueOnce(null);
+    mocks.prisma.applicantProfile.findUnique.mockResolvedValueOnce({
+      ...candidateProfile,
+      candidateFeatureProfile: {
+        rawFeatures: {
+          skills: ["TypeScript"],
+          roleExperience: [],
+          education: [],
+          certifications: [],
+          complianceDocuments: [],
+        },
+      },
+    });
+    mocks.prisma.$queryRaw.mockResolvedValueOnce([{ applicantProfileId: 30, similarity: 0.9 }]);
+    mocks.prisma.applicantProfile.findUnique.mockResolvedValueOnce(null); // Deleted profile
+
+    const result = await findSimilarCandidates(10);
+    expect(result.items).toEqual([]);
   });
 });
 
@@ -174,7 +250,7 @@ describe("Talent Pool Redesign - Consider for Job Workflow", () => {
       deployments: [],
     };
 
-    mocks.prisma.applicantProfile.findUniqueOrThrow.mockResolvedValueOnce(
+    mocks.prisma.applicantProfile.findUnique.mockResolvedValueOnce(
       profile(10, ["TypeScript", "Node.js"], {
         applications: [historicalApp],
       })
@@ -234,7 +310,7 @@ describe("Talent Pool Redesign - Consider for Job Workflow", () => {
   });
 
   it("rejects reactivation if candidate already has an active application for target job", async () => {
-    mocks.prisma.applicantProfile.findUniqueOrThrow.mockResolvedValueOnce(
+    mocks.prisma.applicantProfile.findUnique.mockResolvedValueOnce(
       profile(10, ["TypeScript"], {
         applications: [{ id: 150, jobPostingId: 8, status: "INITIAL_SCREENING", deployments: [] }],
       })
@@ -250,7 +326,7 @@ describe("Talent Pool Redesign - Consider for Job Workflow", () => {
   });
 
   it("rejects reactivation if candidate is actively deployed", async () => {
-    mocks.prisma.applicantProfile.findUniqueOrThrow.mockResolvedValueOnce(
+    mocks.prisma.applicantProfile.findUnique.mockResolvedValueOnce(
       profile(10, ["TypeScript"], {
         applications: [
           {
@@ -273,7 +349,7 @@ describe("Talent Pool Redesign - Consider for Job Workflow", () => {
   });
 
   it("rejects reactivation if candidate is marked UNAVAILABLE", async () => {
-    mocks.prisma.applicantProfile.findUniqueOrThrow.mockResolvedValueOnce(
+    mocks.prisma.applicantProfile.findUnique.mockResolvedValueOnce(
       profile(10, ["TypeScript"], {
         membership: {
           id: 1000,
@@ -331,7 +407,7 @@ describe("Talent Pool Redesign - Recruiter Contact & Pool Management", () => {
   });
 
   it("adds candidate to talent pool", async () => {
-    mocks.prisma.applicantProfile.findUniqueOrThrow.mockResolvedValueOnce({ id: 10 });
+    mocks.prisma.applicantProfile.findUnique.mockResolvedValueOnce({ id: 10 });
     mocks.prisma.talentPoolMembership.upsert.mockResolvedValueOnce({
       id: 100,
       applicantProfileId: 10,

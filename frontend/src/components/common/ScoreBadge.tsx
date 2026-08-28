@@ -1,12 +1,10 @@
 import React from "react";
-import { Sparkles } from "lucide-react";
 import { formatScore, cn } from "../../lib/utils";
 import { useGlobalConfig } from "../../lib/config";
 
 export interface ScoreBadgeProps {
   score?: number | string | null;
   threshold?: number;
-  showIcon?: boolean;
   size?: "sm" | "md" | "lg";
   className?: string;
 }
@@ -14,7 +12,6 @@ export interface ScoreBadgeProps {
 export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
   score,
   threshold,
-  showIcon = true,
   size = "md",
   className,
 }) => {
@@ -55,7 +52,6 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
       )}
       title={`Job Match Score: ${formatScore(num)} / 100`}
     >
-      {showIcon && <Sparkles className="w-3 h-3 opacity-80 shrink-0" />}
       <span>{formatScore(num)}</span>
       <span className="text-[9px] font-normal opacity-70 font-mono">/100</span>
     </span>

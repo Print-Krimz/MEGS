@@ -25,6 +25,7 @@ vi.mock("../../../lib/api/admin.api", () => ({
         id: "admin-1",
         email: "admin@megs.ph",
         role: "ADMINISTRATOR",
+        accountStatus: "ACTIVE",
         isActive: true,
         createdAt: "2026-08-01T00:00:00Z",
       },
@@ -32,10 +33,15 @@ vi.mock("../../../lib/api/admin.api", () => ({
         id: "ta-1",
         email: "recruiter@megs.ph",
         role: "TALENT_ACQUISITION",
+        accountStatus: "PENDING",
+        invitationStatus: "PENDING",
         isActive: true,
         createdAt: "2026-08-05T00:00:00Z",
       },
     ]),
+    inviteTA: vi.fn(),
+    resendTAInvitation: vi.fn(),
+    cancelTAInvitation: vi.fn(),
     getScoringConfig: vi.fn().mockResolvedValue({
       id: 1,
       version: 1,
@@ -102,6 +108,7 @@ vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({}),
 }));
 
+
 function renderWithClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -112,40 +119,47 @@ function renderWithClient(ui: React.ReactElement) {
 describe("Admin Interface Pages Suite", () => {
   it("renders AdminDashboard with telemetry and scoring matrix", async () => {
     renderWithClient(<AdminDashboard />);
-    expect(await screen.findByText("System Administration & Governance")).toBeDefined();
+    expect(await screen.findByText("Administration overview")).toBeDefined();
     expect(await screen.findByText("Registered Accounts")).toBeDefined();
-    expect(await screen.findByText("SCORING_CONFIG_ACTIVATED")).toBeDefined();
+    expect(await screen.findByText("Scoring Configuration Activated")).toBeDefined();
   });
 
-  it("renders UsersPage with user list and action buttons", async () => {
+  it("renders UsersPage with user list, invitation status badges, and action buttons", async () => {
     renderWithClient(<UsersPage />);
-    expect(await screen.findByText("User Access & Role Administration")).toBeDefined();
+    expect(await screen.findByText("User access")).toBeDefined();
     expect(await screen.findByText("admin@megs.ph")).toBeDefined();
     expect(await screen.findByText("recruiter@megs.ph")).toBeDefined();
+    expect(await screen.findByText("PENDING INVITATION")).toBeDefined();
+    expect(await screen.findByRole("button", { name: /Resend/i })).toBeDefined();
+    expect(await screen.findByRole("button", { name: /Cancel/i })).toBeDefined();
   });
 
   it("renders ScoringConfigPage with dimension sliders and validation", async () => {
     renderWithClient(<ScoringConfigPage />);
-    expect(await screen.findByText("Candidate Match Scoring Configuration")).toBeDefined();
+    expect(await screen.findByText("Candidate matching settings")).toBeDefined();
     expect(await screen.findByText("1. Skills & Technical Competencies")).toBeDefined();
     expect(await screen.findByText("Talent Discovery & Match Parameters")).toBeDefined();
   });
 
-  it("renders ScoringQualityPage with histogram and telemetry", async () => {
+  it("renders ScoringQualityPage with histogram, telemetry, and action buttons", async () => {
     renderWithClient(<ScoringQualityPage />);
-    expect(await screen.findByText("Candidate Match Quality & Analytics")).toBeDefined();
+    expect(await screen.findByText("Candidate matching quality")).toBeDefined();
     expect(await screen.findByText("Candidate Match Score Distribution")).toBeDefined();
+    expect(screen.getByRole("button", { name: /Refresh/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /Configure Weights/i })).toBeDefined();
   });
 
   it("renders RevalidationQueuePage with background worker counts", async () => {
     renderWithClient(<RevalidationQueuePage />);
-    expect(await screen.findByText("Candidate Score Reassessment Queue")).toBeDefined();
-    expect(await screen.findByText("Pending in Queue")).toBeDefined();
+    expect(await screen.findByText("Score update queue")).toBeDefined();
   });
 
-  it("renders AuditLogsPage with filterable audit ledger", async () => {
+  it("renders AuditLogsPage with filterable audit ledger and human-readable labels", async () => {
     renderWithClient(<AuditLogsPage />);
-    expect(await screen.findByText("Security & Administrative Audit Logs")).toBeDefined();
-    expect(await screen.findByText("SCORING_CONFIG_ACTIVATED")).toBeDefined();
+    expect(await screen.findByText("Activity log")).toBeDefined();
+    const actions = await screen.findAllByText("Scoring Configuration Activated");
+    expect(actions.length).toBeGreaterThan(0);
+    const categories = await screen.findAllByText("Configuration");
+    expect(categories.length).toBeGreaterThan(0);
   });
 });

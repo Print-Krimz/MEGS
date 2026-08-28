@@ -125,11 +125,11 @@ describe("Phase 2 - Integration & Workflow Verification", { timeout: 25000 }, ()
       data: {
         userId: testApplicant.id,
         jobPostingId: testJob.id,
-        status: "ONBOARDING",
+        status: "COMPLIANCE",
       },
     });
 
-    // Create a passed final interview to satisfy HIRED/ONBOARDING prerequisite
+    // Create a passed final interview to satisfy COMPLIANCE prerequisite
     testInterview = await prisma.interview.create({
       data: {
         applicationId: testApplication.id,

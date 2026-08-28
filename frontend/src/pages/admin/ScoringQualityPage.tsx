@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
 import {
@@ -6,8 +7,11 @@ import {
   LoadingState,
   ErrorState,
 } from "../../components/common";
+import { Button } from "../../components/ui";
 import {
   BarChart3,
+  RotateCcw,
+  Sliders,
 } from "lucide-react";
 
 export const ScoringQualityPage: React.FC = () => {
@@ -23,6 +27,7 @@ export const ScoringQualityPage: React.FC = () => {
         <LoadingState variant="cards" />
         <LoadingState variant="table" rows={4} />
       </div>
+
     );
   }
 
@@ -37,16 +42,44 @@ export const ScoringQualityPage: React.FC = () => {
 
   const m = qualityQuery.data;
   const dist = m.scoreDistribution || {};
+  const totalCalculated = m.totalCalculated ?? 0;
+  const avgFit = Number.isFinite(Number(m.averageFitScore)) ? Number(m.averageFitScore) : 0;
+  const minFit = Number.isFinite(Number(m.minFitScore)) ? Number(m.minFitScore) : 0;
+  const maxFit = Number.isFinite(Number(m.maxFitScore)) ? Number(m.maxFitScore) : 0;
+  const coverage = Number.isFinite(Number(m.coveragePercentage)) ? Number(m.coveragePercentage) : 100;
+  const p95Latency = m.knnLatencyP95 || 42;
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Candidate Match Quality & Analytics"
+        title="Candidate matching quality"
         description="Distribution breakdown of candidate match scores, qualification benchmarks, and assessment system response time"
         breadcrumbs={[
           { label: "Admin Operations", href: "/admin" },
           { label: "Scoring Quality & Metrics" },
         ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<RotateCcw className={`w-3.5 h-3.5 ${qualityQuery.isFetching ? "animate-spin" : ""}`} />}
+              onClick={() => qualityQuery.refetch()}
+              disabled={qualityQuery.isFetching}
+            >
+              Refresh
+            </Button>
+            <Link to="/admin/scoring">
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<Sliders className="w-3.5 h-3.5" />}
+              >
+                Configure Weights
+              </Button>
+            </Link>
+          </div>
+        }
       />
 
       {/* 4 Core Metrics Ribbon */}
@@ -56,7 +89,7 @@ export const ScoringQualityPage: React.FC = () => {
             Total Scored Profiles
           </div>
           <div className="text-2xl font-bold font-mono text-slate-950 mt-0.5 tabular-nums">
-            {m.totalCalculated}
+            {totalCalculated}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
             Evaluated applications
@@ -68,10 +101,10 @@ export const ScoringQualityPage: React.FC = () => {
             Average Fit Score
           </div>
           <div className="text-2xl font-bold font-mono text-teal-950 mt-0.5 tabular-nums">
-            {Number(m.averageFitScore).toFixed(1)}%
+            {avgFit.toFixed(1)}%
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
-            Min: {Number(m.minFitScore).toFixed(0)}% • Max: {Number(m.maxFitScore).toFixed(0)}%
+            Min: {minFit.toFixed(0)}% • Max: {maxFit.toFixed(0)}%
           </div>
         </div>
 
@@ -80,7 +113,7 @@ export const ScoringQualityPage: React.FC = () => {
             Processed Profiles
           </div>
           <div className="text-2xl font-bold font-mono text-blue-950 mt-0.5 tabular-nums">
-            {Number(m.coveragePercentage || 100).toFixed(0)}%
+            {coverage.toFixed(0)}%
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
             Profiles indexed for matching
@@ -92,7 +125,7 @@ export const ScoringQualityPage: React.FC = () => {
             Match Calculation Time (P95)
           </div>
           <div className="text-2xl font-bold font-mono text-emerald-950 mt-0.5 tabular-nums">
-            {m.knnLatencyP95 || 42} <span className="text-xs text-slate-400 font-normal">ms</span>
+            {p95Latency} <span className="text-xs text-slate-400 font-normal">ms</span>
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
             Average matching speed
@@ -118,7 +151,7 @@ export const ScoringQualityPage: React.FC = () => {
             { range: "0% - 19% (Unmatched)", key: "0-19", color: "bg-rose-600" },
           ].map((bucket) => {
             const count = dist[bucket.key] || 0;
-            const percentage = m.totalCalculated > 0 ? (count / m.totalCalculated) * 100 : 0;
+            const percentage = totalCalculated > 0 ? (count / totalCalculated) * 100 : 0;
 
             return (
               <div key={bucket.key} className="space-y-1 text-xs">
@@ -131,7 +164,7 @@ export const ScoringQualityPage: React.FC = () => {
                 <div className="w-full bg-slate-100 border border-slate-200 h-2 overflow-hidden">
                   <div
                     className={`${bucket.color} h-2 transition-all`}
-                    style={{ width: `${Math.max(percentage, 1)}%` }}
+                    style={{ width: `${Math.max(percentage, count > 0 ? 2 : 0)}%` }}
                   />
                 </div>
               </div>
@@ -146,7 +179,11 @@ export const ScoringQualityPage: React.FC = () => {
           Scoring Guidelines & Evaluation Consistency
         </h4>
         <p className="text-xs text-slate-600 leading-relaxed font-sans">
-          Candidate match scores are calculated across standardized recruitment criteria including skills, experience, location, pre-employment compliance, and educational background. Evaluation weights can be adjusted dynamically in <span className="font-mono text-teal-900 font-bold">Scoring Configuration</span> to match specific hiring requirements.
+          Candidate match scores are calculated across standardized recruitment criteria including skills, experience, location, pre-employment compliance, and educational background. Evaluation weights can be adjusted dynamically in{" "}
+          <Link to="/admin/scoring" className="font-mono text-teal-900 font-bold underline hover:text-teal-700">
+            Scoring Configuration
+          </Link>{" "}
+          to match specific hiring requirements.
         </p>
       </div>
     </div>

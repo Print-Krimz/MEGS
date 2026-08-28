@@ -43,6 +43,8 @@ model User {
   talentPoolContacts TalentPoolContact[] @relation("ContactRecruiter")
   employee Employee? @relation("UserEmployee")
   employmentEventsCreated EmploymentEvent[] @relation("EmploymentEventActor")
+  mfaRecoveryCodes UserMfaRecoveryCode[]
+  invitations UserInvitation[]
 }
 
 // ─────────────────────────────────────────────
@@ -105,5 +107,74 @@ model NotificationOutbox {
   createdAt      DateTime  @default(now())
 
   @@index([status, createdAt])
+}
+
+// ─────────────────────────────────────────────
+// AUTH OTP & PASSWORD RESET SESSIONS
+// ─────────────────────────────────────────────
+
+model AuthOtp {
+  id          Int      @id @default(autoincrement())
+  email       String
+  otpHash     String
+  purpose     String   // "REGISTRATION" | "PASSWORD_RESET"
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(5)
+  expiresAt   DateTime
+  isUsed      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([email, purpose, isUsed])
+}
+
+model PasswordResetSession {
+  id        String   @id @default(uuid())
+  userId    String
+  email     String
+  tokenHash String   @unique
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([tokenHash, isUsed])
+}
+
+// ─────────────────────────────────────────────
+// MFA RECOVERY CODES
+// Single-use hashed backup codes for staff TOTP MFA
+// ─────────────────────────────────────────────
+
+model UserMfaRecoveryCode {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  isUsed    Boolean   @default(false)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, isUsed])
+}
+
+// ─────────────────────────────────────────────
+// USER INVITATIONS (TA ONBOARDING)
+// Single-use hashed invitation tokens with explicit expiration
+// ─────────────────────────────────────────────
+
+model UserInvitation {
+  id               String    @id @default(uuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email            String
+  tokenHash        String    @unique
+  expiresAt        DateTime
+  isUsed           Boolean   @default(false)
+  usedAt           DateTime?
+  createdByAdminId String
+  createdAt        DateTime  @default(now())
+
+  @@index([tokenHash, isUsed])
+  @@index([email, isUsed])
+  @@index([userId, isUsed])
 }
 

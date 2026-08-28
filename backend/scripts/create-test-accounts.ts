@@ -14,13 +14,13 @@ const accountsToCreate: AccountSetupConfig[] = [
     email: process.env.ADMIN_EMAIL || "admin@megs-recruitment.com",
     password: process.env.ADMIN_PASSWORD || "AdminPassword123!",
     role: "ADMINISTRATOR",
-    name: "System Administrator",
+    name: process.env.ADMIN_NAME || "System Administrator",
   },
   {
     email: process.env.TA_EMAIL || "ta@megs-recruitment.com",
     password: process.env.TA_PASSWORD || "TAPassword123!",
     role: "TALENT_ACQUISITION",
-    name: "Talent Acquisition Lead",
+    name: process.env.TA_NAME || "Talent Acquisition Lead",
   },
 ];
 

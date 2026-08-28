@@ -52,7 +52,7 @@ export const RevalidationQueuePage: React.FC = () => {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Candidate Score Reassessment Queue"
+        title="Score update queue"
         description="Track candidate score recalculations when scoring weights or candidate profiles are updated"
         breadcrumbs={[
           { label: "Admin Operations", href: "/admin" },

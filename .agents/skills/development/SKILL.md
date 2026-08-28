@@ -77,6 +77,9 @@ When instructions conflict across layers:
 The application pipeline follows strict linear stages enforced by the backend transition state machine:
 `SUBMITTED` → `INITIAL_SCREENING` → `CLIENT_ENDORSEMENT` → `FINAL_INTERVIEW` → `HIRED` → `COMPLIANCE` → `DEPLOYED` (with terminal paths `REJECTED`, `WITHDRAWN`, `TALENT_POOL`).
 
+### 5. Frontend HCI & Usability Standards
+- **HCI Principles:** Adhere strictly to the [`frontend-hci`](../frontend-hci/SKILL.md) skill guidelines. Enforce plain language, recognition over recall, error prevention, anti-AI-slop visual restraint, and the 10-point HCI review checklist on all frontend implementations.
+
 ---
 
 ## 4. Engineering Principles

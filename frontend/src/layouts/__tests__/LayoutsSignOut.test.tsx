@@ -31,7 +31,11 @@ vi.mock("../../hooks/useRealtimeNotifications", () => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to }: any) => <a href={to}>{children}</a>,
+  Link: ({ children, to, activeOptions, activeProps: _activeProps, ...props }: any) => (
+    <a href={to} data-exact={activeOptions?.exact ? "true" : "false"} {...props}>
+      {children}
+    </a>
+  ),
   Outlet: () => <div data-testid="outlet-content">Child Content</div>,
   useNavigate: () => vi.fn(),
 }));
@@ -51,6 +55,20 @@ describe("Layout Sign Out Warnings", () => {
   });
 
   describe("AdminLayout", () => {
+    it("renders navigation items with exact active options to prevent parent route active state bleed", () => {
+      renderWithClient(<AdminLayout />);
+
+      const scoreQualityLinks = screen.getAllByRole("link", { name: /Score quality/i });
+      expect(scoreQualityLinks.length).toBeGreaterThan(0);
+      expect(scoreQualityLinks[0].getAttribute("href")).toBe("/admin/scoring/quality");
+      expect(scoreQualityLinks[0].getAttribute("data-exact")).toBe("true");
+
+      const scoreSettingsLinks = screen.getAllByRole("link", { name: /Candidate score settings/i });
+      expect(scoreSettingsLinks.length).toBeGreaterThan(0);
+      expect(scoreSettingsLinks[0].getAttribute("href")).toBe("/admin/scoring");
+      expect(scoreSettingsLinks[0].getAttribute("data-exact")).toBe("true");
+    });
+
     it("opens sign out warning when clicking sign out button and triggers logout on confirmation", async () => {
       renderWithClient(<AdminLayout />);
 

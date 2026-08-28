@@ -72,7 +72,7 @@ export const MRFListPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Manpower Requests (MRF)"
+        title="Staffing requests (MRF)"
         description="Client labor requisition orders, target headcount fulfillment, and compliance templates"
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },

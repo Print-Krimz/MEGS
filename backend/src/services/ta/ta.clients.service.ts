@@ -17,20 +17,38 @@ export const listClients = async (isActive?: boolean) => {
 
 export const createClient = async (data: {
   name: string;
+  tradeName?: string;
   industry?: string;
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;
   address?: string;
+  street?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
 }) => {
+  // Construct composite address if individual fields are provided and composite is not
+  let compositeAddress = data.address;
+  if (!compositeAddress && (data.street || data.city || data.province || data.postalCode)) {
+    compositeAddress = [data.street, data.city, data.province, data.postalCode]
+      .filter(Boolean)
+      .join(", ");
+  }
+
   return await prisma.client.create({
     data: {
       name: data.name,
+      tradeName: data.tradeName,
       industry: data.industry,
       contactName: data.contactName,
       contactEmail: data.contactEmail,
       contactPhone: data.contactPhone,
-      address: data.address,
+      address: compositeAddress,
+      street: data.street,
+      city: data.city,
+      province: data.province,
+      postalCode: data.postalCode,
     },
   });
 };
@@ -72,16 +90,31 @@ export const updateClient = async (
   id: number,
   data: {
     name?: string;
+    tradeName?: string;
     industry?: string;
     contactName?: string;
     contactEmail?: string;
     contactPhone?: string;
     address?: string;
+    street?: string;
+    city?: string;
+    province?: string;
+    postalCode?: string;
     isActive?: boolean;
   }
 ) => {
+  let compositeAddress = data.address;
+  if (!compositeAddress && (data.street || data.city || data.province || data.postalCode)) {
+    compositeAddress = [data.street, data.city, data.province, data.postalCode]
+      .filter(Boolean)
+      .join(", ");
+  }
+
   return await prisma.client.update({
     where: { id },
-    data,
+    data: {
+      ...data,
+      ...(compositeAddress !== undefined ? { address: compositeAddress } : {}),
+    },
   });
 };

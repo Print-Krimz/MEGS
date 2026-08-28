@@ -34,3 +34,14 @@ desktop.ini
 npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
+
+# Test and Coverage Outputs
+test-results/
+*/test-results/
+playwright-report/
+*/playwright-report/
+blob-report/
+*/blob-report/
+coverage/
+*/coverage/
+

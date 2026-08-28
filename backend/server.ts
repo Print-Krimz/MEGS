@@ -9,6 +9,8 @@ import { startEmailWorker } from "./src/workers/email.worker.js";
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 app.use(cors());
 app.use(express.json());
 
@@ -78,10 +80,33 @@ app.use("/api/documents", documentRoutes);
 import employeeRoutes from "./src/routes/employee/employee.routes.js";
 app.use("/api/employees", employeeRoutes);
 
+// Global Error Handler (Multer file limits, validation, and runtime exceptions)
+app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!err) return next();
+  if (err.code === "LIMIT_FILE_SIZE" || err.name === "MulterError") {
+    return res.status(400).json({
+      success: false,
+      message: "File size exceeds maximum limit of 5 MB. Please select a smaller file.",
+    });
+  }
+  return res.status(err.status || 400).json({
+    success: false,
+    message: err.message || "An error occurred during request processing.",
+  });
+});
+
 const PORT = process.env.PORT ?? 3000;
 
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("⚠️ [Unhandled Rejection at Promise]", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("⚠️ [Uncaught Exception]", error);
 });
 
 startEmailWorker();

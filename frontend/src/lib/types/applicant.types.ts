@@ -182,3 +182,102 @@ export interface AddAssetDto {
   label: string;
   notes?: string;
 }
+
+export interface ExtractedProfileEducation {
+  school: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  startDate?: string;
+  endDate?: string;
+  notes?: string;
+}
+
+export interface ExtractedProfileExperience {
+  company: string;
+  roleTitle: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  isCurrent?: boolean;
+  summary?: string;
+}
+
+export interface ExtractedProfileTraining {
+  title: string;
+  provider?: string;
+  completionDate?: string;
+  certificateNo?: string;
+  notes?: string;
+}
+
+export interface ExtractedProfileReference {
+  name: string;
+  relationship?: string;
+  company?: string;
+  phone?: string;
+  email?: string;
+  notes?: string;
+}
+
+export interface ExtractedProfileData {
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  email?: string;
+  mobileNumber?: string;
+  dateOfBirth?: string;
+  birthPlace?: string;
+  gender?: string;
+  nationality?: string;
+  civilStatus?: string;
+  religion?: string;
+  height?: number;
+  weight?: number;
+  address?: string;
+  city?: string;
+  province?: string;
+  preferredWorkLocations?: string;
+  professionalSummary?: string;
+  skills?: string[];
+  educations?: ExtractedProfileEducation[];
+  workExperiences?: ExtractedProfileExperience[];
+  trainings?: ExtractedProfileTraining[];
+  characterReferences?: ExtractedProfileReference[];
+}
+
+export interface ResumeUploadResult {
+  profile: ApplicantProfile;
+  resumeUrl: string;
+  extractedData: ExtractedProfileData | null;
+  extractionStatus: "SUCCESS" | "UNAVAILABLE";
+}
+
+export interface ApplyExtractedProfileDto {
+  personalDetails?: {
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    mobileNumber?: string;
+    gender?: string;
+    province?: string;
+    city?: string;
+    dateOfBirth?: string;
+    birthPlace?: string;
+    nationality?: string;
+    civilStatus?: string;
+    religion?: string;
+    height?: number | string;
+    weight?: number | string;
+    address?: string;
+    preferredWorkLocations?: string;
+    professionalSummary?: string;
+  };
+  overwriteExistingPersonal?: boolean;
+  workExperiences?: ExtractedProfileExperience[];
+  educations?: ExtractedProfileEducation[];
+  skills?: string[];
+  trainings?: ExtractedProfileTraining[];
+  characterReferences?: ExtractedProfileReference[];
+}
+
+

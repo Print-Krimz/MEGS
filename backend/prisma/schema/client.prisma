@@ -5,11 +5,16 @@
 model Client {
   id           Int      @id @default(autoincrement())
   name         String
+  tradeName    String?
   industry     String?
   contactName  String?
   contactEmail String?
   contactPhone String?
   address      String?
+  street       String?
+  city         String?
+  province     String?
+  postalCode   String?
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -50,6 +55,10 @@ model ManpowerRequest {
   complianceTemplates MRFComplianceTemplate[]
 }
 
+// ─────────────────────────────────────────────
+// MRF COMPLIANCE TEMPLATE
+// ─────────────────────────────────────────────
+
 model MRFComplianceTemplate {
   id            Int              @id @default(autoincrement())
   mrfId         Int?
@@ -60,10 +69,13 @@ model MRFComplianceTemplate {
   isRequired    Boolean          @default(true)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
-
-  @@index([mrfId])
-  @@index([clientId])
 }
+
+// ─────────────────────────────────────────────
+// DEPLOYMENT
+// Represents the deployment of an employee (candidate who passed)
+// to a client site under a Manpower Request.
+// ─────────────────────────────────────────────
 
 enum DeploymentStatus {
   READY_FOR_DEPLOYMENT
@@ -76,24 +88,31 @@ enum DeploymentStatus {
 }
 
 model Deployment {
-  id            Int              @id @default(autoincrement())
-  employeeId    Int
-  employee      Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  applicationId Int?
-  application   Application?     @relation(fields: [applicationId], references: [id], onDelete: SetNull)
-  clientId      Int
-  client        Client           @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  mrfId         Int?
-  mrf           ManpowerRequest? @relation(fields: [mrfId], references: [id])
-  status        DeploymentStatus @default(READY_FOR_DEPLOYMENT)
-  site          String?
-  contractStart DateTime?
-  contractEnd   DateTime?
-  notes         String?
-  createdById   String
-  createdBy     User             @relation("DeploymentCreatedBy", fields: [createdById], references: [id])
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id                  Int              @id @default(autoincrement())
+  employeeId          Int
+  employee            Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  applicationId       Int?
+  application         Application?     @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  clientId            Int
+  client              Client           @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  mrfId               Int?
+  mrf                 ManpowerRequest? @relation(fields: [mrfId], references: [id])
+  status              DeploymentStatus @default(READY_FOR_DEPLOYMENT)
+  site                String?
+  contractStart       DateTime?
+  contractEnd         DateTime?
+  notes               String?
+  contractDocumentUrl String?
+  contractStatus      String?          @default("PENDING_REVIEW")
+  workerSigned        Boolean          @default(false)
+  workerSignedAt      DateTime?
+  clientSigned        Boolean          @default(false)
+  clientSignedAt      DateTime?
+  contractTerms       String?
+  createdById         String
+  createdBy           User             @relation("DeploymentCreatedBy", fields: [createdById], references: [id])
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
   statusHistory DeploymentStatusHistory[]
 

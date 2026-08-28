@@ -79,4 +79,70 @@ export const applicantSchema = {
       notes: z.string().optional(),
     }),
   }),
+  applyExtractedProfile: z.object({
+    body: z.object({
+      personalDetails: z.object({
+        firstName: z.string().optional(),
+        middleName: z.string().optional().nullable(),
+        lastName: z.string().optional(),
+        mobileNumber: z.string().optional().nullable(),
+        gender: z.string().optional().nullable(),
+        province: z.string().optional().nullable(),
+        city: z.string().optional().nullable(),
+        dateOfBirth: z.string().optional().nullable(),
+        birthPlace: z.string().optional().nullable(),
+        nationality: z.string().optional().nullable(),
+        civilStatus: z.string().optional().nullable(),
+        religion: z.string().optional().nullable(),
+        height: z.union([z.number(), z.string()]).optional().nullable(),
+        weight: z.union([z.number(), z.string()]).optional().nullable(),
+        address: z.string().optional().nullable(),
+        preferredWorkLocations: z.string().optional().nullable(),
+        professionalSummary: z.string().optional().nullable(),
+      }).optional(),
+      overwriteExistingPersonal: z.boolean().optional(),
+      workExperiences: z.array(
+        z.object({
+          company: z.string().min(1),
+          roleTitle: z.string().min(1),
+          location: z.string().optional().nullable(),
+          startDate: z.string(),
+          endDate: z.string().optional().nullable(),
+          isCurrent: z.boolean().optional(),
+          summary: z.string().optional().nullable(),
+        })
+      ).optional(),
+      educations: z.array(
+        z.object({
+          school: z.string().min(1),
+          degree: z.string().optional().nullable(),
+          fieldOfStudy: z.string().optional().nullable(),
+          startDate: z.string().optional().nullable(),
+          endDate: z.string().optional().nullable(),
+          notes: z.string().optional().nullable(),
+        })
+      ).optional(),
+      skills: z.array(z.string()).optional(),
+      trainings: z.array(
+        z.object({
+          title: z.string().min(1),
+          provider: z.string().optional().nullable(),
+          completionDate: z.string().optional().nullable(),
+          certificateNo: z.string().optional().nullable(),
+          notes: z.string().optional().nullable(),
+        })
+      ).optional(),
+      characterReferences: z.array(
+        z.object({
+          name: z.string().min(1),
+          relationship: z.string().optional().nullable(),
+          company: z.string().optional().nullable(),
+          phone: z.string().optional().nullable(),
+          email: z.string().optional().nullable(),
+          notes: z.string().optional().nullable(),
+        })
+      ).optional(),
+    }),
+  }),
 };
+

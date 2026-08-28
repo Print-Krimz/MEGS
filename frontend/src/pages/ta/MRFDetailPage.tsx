@@ -6,9 +6,11 @@ import {
   PageHeader,
   LoadingState,
   ErrorState,
+  ConfirmDialog,
 } from "../../components/common";
-import { Button, Dialog, Input, Select } from "../../components/ui";
+import { Button, Dialog, Select, ComboBox } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
+import { COMPLIANCE_201_PRESETS } from "../../lib/hr-constants";
 import {
   ArrowLeft,
   Plus,
@@ -16,6 +18,7 @@ import {
   ShieldCheck,
   Edit,
 } from "lucide-react";
+import { notify } from "../../lib/feedback";
 
 export const MRFDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -26,6 +29,7 @@ export const MRFDetailPage: React.FC = () => {
 
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [templateLabel, setTemplateLabel] = useState("");
+  const [deleteTemplateTarget, setDeleteTemplateTarget] = useState<{ id: number; label: string } | null>(null);
 
   const [editStatusModalOpen, setEditStatusModalOpen] = useState(false);
   const [editStatus, setEditStatus] = useState<any>("OPEN");
@@ -48,6 +52,10 @@ export const MRFDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "mrf", mrfId] });
       setLinkJobModalOpen(false);
       setSelectedJobId(0);
+      notify.success("Job Requisition Linked", "Job position linked to this MRF successfully.");
+    },
+    onError: (err: any) => {
+      notify.error("Failed to Link Job", err);
     },
   });
 
@@ -58,6 +66,10 @@ export const MRFDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "mrf", mrfId] });
       setTemplateModalOpen(false);
       setTemplateLabel("");
+      notify.success("Compliance Template Added", "Document template requirement added.");
+    },
+    onError: (err: any) => {
+      notify.error("Failed to Add Template", err);
     },
   });
 
@@ -65,6 +77,11 @@ export const MRFDetailPage: React.FC = () => {
     mutationFn: (templateId: number) => taApi.removeMRFComplianceTemplate(templateId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "mrf", mrfId] });
+      setDeleteTemplateTarget(null);
+      notify.success("Template Removed", "Compliance requirement template removed.");
+    },
+    onError: (err: any) => {
+      notify.error("Failed to Remove Template", err);
     },
   });
 
@@ -73,6 +90,10 @@ export const MRFDetailPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "mrf", mrfId] });
       setEditStatusModalOpen(false);
+      notify.success("MRF Status Updated", "Manpower request updated successfully.");
+    },
+    onError: (err: any) => {
+      notify.error("Failed to Update MRF", err);
     },
   });
 
@@ -292,7 +313,7 @@ export const MRFDetailPage: React.FC = () => {
                     <span className="font-medium text-slate-800">{tpl.documentLabel}</span>
                     <button
                       type="button"
-                      onClick={() => removeTemplateMutation.mutate(tpl.id)}
+                      onClick={() => setDeleteTemplateTarget({ id: tpl.id, label: tpl.documentLabel })}
                       className="text-rose-600 hover:text-rose-800 focus:outline-none p-1"
                       title="Remove template"
                     >
@@ -312,31 +333,38 @@ export const MRFDetailPage: React.FC = () => {
         onClose={() => setLinkJobModalOpen(false)}
         title="Link Job Requisition"
         description="Attach an active job posting to this Manpower Request"
+        overflowVisible
+        bodyClassName="min-h-[290px] flex flex-col justify-between"
       >
         <div className="space-y-4">
-          <Select
+          <ComboBox
             label="Select Job Requisition"
-            value={selectedJobId}
-            onChange={(e) => setSelectedJobId(Number(e.target.value))}
-            options={[
-              { value: 0, label: "Select job posting..." },
-              ...jobs.map((j) => ({ value: j.id, label: `${j.title} (#${j.id})` })),
-            ]}
+            placeholder="Search active job requisitions..."
+            value={selectedJobId ? String(selectedJobId) : ""}
+            onChange={(val) => setSelectedJobId(Number(val) || 0)}
+            options={jobs.map((j) => ({
+              value: String(j.id),
+              label: j.title,
+              subtitle: `Requisition #${j.id} • ${j.location || "Philippines"}`,
+              badge: j.status,
+            }))}
+            emptyText="No matching job requisitions found"
+            required
           />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setLinkJobModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={!selectedJobId}
-              loading={linkJobMutation.isPending}
-              onClick={() => linkJobMutation.mutate(selectedJobId)}
-            >
-              Link Job
-            </Button>
-          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 mt-auto">
+          <Button variant="outline" size="sm" onClick={() => setLinkJobModalOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!selectedJobId}
+            loading={linkJobMutation.isPending}
+            onClick={() => linkJobMutation.mutate(selectedJobId)}
+          >
+            Link Job
+          </Button>
         </div>
       </Dialog>
 
@@ -346,34 +374,43 @@ export const MRFDetailPage: React.FC = () => {
         onClose={() => setTemplateModalOpen(false)}
         title="Add Compliance Requirement Template"
         description="Specify clearance required for candidates under this MRF"
+        overflowVisible
+        bodyClassName="min-h-[290px] flex flex-col justify-between"
       >
         <div className="space-y-4">
-          <Input
+          <ComboBox
             label="Document Template Label"
-            placeholder="e.g. NBI Clearance, 5-Panel Drug Test, SSS Static"
+            placeholder="Search statutory clearance or type custom..."
             value={templateLabel}
-            onChange={(e) => setTemplateLabel(e.target.value)}
+            onChange={(val) => setTemplateLabel(val || "")}
+            options={COMPLIANCE_201_PRESETS.map((p) => ({
+              value: p.label,
+              label: p.label,
+              subtitle: p.description,
+              badge: p.category,
+            }))}
+            allowCustom
             required
           />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setTemplateModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={!templateLabel.trim()}
-              loading={addTemplateMutation.isPending}
-              onClick={() =>
-                addTemplateMutation.mutate({
-                  documentLabel: templateLabel,
-                  isRequired: true,
-                })
-              }
-            >
-              Add Template
-            </Button>
-          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 mt-auto">
+          <Button variant="outline" size="sm" onClick={() => setTemplateModalOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!templateLabel.trim()}
+            loading={addTemplateMutation.isPending}
+            onClick={() =>
+              addTemplateMutation.mutate({
+                documentLabel: templateLabel,
+                isRequired: true,
+              })
+            }
+          >
+            Add Template
+          </Button>
         </div>
       </Dialog>
 
@@ -412,6 +449,22 @@ export const MRFDetailPage: React.FC = () => {
           </div>
         </div>
       </Dialog>
+
+      {/* Delete Template Confirm Dialog */}
+      <ConfirmDialog
+        open={Boolean(deleteTemplateTarget)}
+        onClose={() => setDeleteTemplateTarget(null)}
+        loading={removeTemplateMutation.isPending}
+        onConfirm={() => {
+          if (deleteTemplateTarget) {
+            removeTemplateMutation.mutate(deleteTemplateTarget.id);
+          }
+        }}
+        variant="danger"
+        title="Remove Compliance Template"
+        description={`Are you sure you want to remove '${deleteTemplateTarget?.label || "this template"}' from the MRF?`}
+        confirmLabel="Remove Template"
+      />
     </div>
   );
 };

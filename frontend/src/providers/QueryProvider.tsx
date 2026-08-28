@@ -30,9 +30,10 @@ export const QueryProvider: React.FC<QueryProviderProps> = ({ children }) => {
         }),
         defaultOptions: {
           queries: {
-            staleTime: 1000 * 60 * 3, // 3 minutes
+            staleTime: 1000 * 15, // 15 seconds for reactive synchronization
             gcTime: 1000 * 60 * 30, // 30 minutes
-            refetchOnWindowFocus: false,
+            refetchOnWindowFocus: true,
+            refetchOnReconnect: true,
             retry: (failureCount, error) => {
               // Never retry on 4xx client errors
               if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
@@ -51,7 +52,9 @@ export const QueryProvider: React.FC<QueryProviderProps> = ({ children }) => {
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-right" />}
+      {import.meta.env.DEV && import.meta.env.VITE_ENABLE_QUERY_DEVTOOLS === "true" && (
+        <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-right" />
+      )}
     </QueryClientProvider>
   );
 };

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { taApi } from "../../../lib/api/ta.api";
 import { TADashboard } from "../TADashboard";
 import { ApplicationsPage } from "../ApplicationsPage";
 import { JobPostingsPage } from "../JobPostingsPage";
@@ -26,7 +27,6 @@ vi.mock("../../../lib/api/ta.api", () => ({
         INITIAL_SCREENING: 8,
         CLIENT_ENDORSEMENT: 6,
         FINAL_INTERVIEW: 5,
-        HIRED: 4,
         COMPLIANCE: 3,
         DEPLOYED: 2,
       },
@@ -139,6 +139,64 @@ vi.mock("../../../lib/api/ta.api", () => ({
       totalDeployments: 42,
       statusBreakdown: { ACTIVE: 35, READY_FOR_DEPLOYMENT: 7 },
     }),
+    getOverviewStats: vi.fn().mockResolvedValue({
+      myActiveApplications: 18,
+      initialInterviewsPending: 5,
+      readyForEndorsement: 4,
+      pendingClientDecisions: 3,
+      finalInterviewsPending: 2,
+      awaitingCompliance: 4,
+    }),
+    getActivityTrend: vi.fn().mockResolvedValue({
+      dateRange: { startDate: "2026-08-01", endDate: "2026-08-07", days: 7 },
+      series: [
+        {
+          date: "2026-08-01",
+          label: "Aug 1",
+          applicationsReceived: 4,
+          initialInterviewsCompleted: 2,
+          clientEndorsements: 1,
+          finalInterviewsCompleted: 1,
+          candidatesMovedToCompliance: 1,
+          candidatesDeployed: 1,
+        },
+      ],
+      totals: {
+        applicationsReceived: 4,
+        initialInterviewsCompleted: 2,
+        clientEndorsements: 1,
+        finalInterviewsCompleted: 1,
+        candidatesMovedToCompliance: 1,
+        candidatesDeployed: 1,
+      },
+    }),
+    getPipelineFunnel: vi.fn().mockResolvedValue({
+      totalApplications: 18,
+      stages: [
+        { stage: "APPLICATIONS", label: "Applications", count: 18, conversionRate: 100, dropoffRate: 0, overallConversion: 100 },
+        { stage: "INITIAL_SCREENING", label: "Initial Screening", count: 12, conversionRate: 67, dropoffRate: 33, overallConversion: 67 },
+      ],
+    }),
+    getPendingActions: vi.fn().mockResolvedValue([
+      {
+        id: "act-1",
+        type: "INITIAL_INTERVIEW",
+        title: "Schedule Screening",
+        candidateName: "John Doe",
+        jobTitle: "HVAC Specialist",
+        applicationId: 42,
+        urgency: "HIGH",
+        targetUrl: "/ta/interviews",
+        createdAt: new Date().toISOString(),
+      },
+    ]),
+    getFilterOptions: vi.fn().mockResolvedValue({
+      clients: [{ id: 1, name: "Acme Industrial" }],
+      mrfs: [{ id: 10, title: "Batch 1", clientId: 1 }],
+      jobPostings: [{ id: 100, title: "HVAC Specialist", mrfId: 10, postedById: "ta-1" }],
+      recruiters: [],
+      stages: [{ key: "INITIAL_SCREENING", label: "Initial Screening" }],
+    }),
     searchTalentPool: vi.fn().mockResolvedValue([]),
   },
 }));
@@ -183,32 +241,32 @@ function renderWithClient(ui: React.ReactElement) {
 describe("Talent Acquisition Interface Suite", () => {
   it("renders TADashboard with pipeline metrics and action queues", async () => {
     renderWithClient(<TADashboard />);
-    expect(await screen.findByText("Talent Acquisition Operations")).toBeDefined();
+    expect(await screen.findByText("Recruitment overview")).toBeDefined();
     expect(await screen.findByText("Forklift Operator")).toBeDefined();
     expect(await screen.findByText("Juan Dela Cruz")).toBeDefined();
   });
 
   it("renders ApplicationsPage with candidate list and stage filter", async () => {
     renderWithClient(<ApplicationsPage />);
-    expect(await screen.findByText("Candidate Applications Pipeline")).toBeDefined();
-    expect(await screen.findByText("Juan Dela Cruz")).toBeDefined();
+    expect(await screen.findByRole("heading", { name: "Applications" })).toBeDefined();
+    expect((await screen.findAllByText("Juan Dela Cruz")).length).toBeGreaterThan(0);
   });
 
   it("renders JobPostingsPage with requisitions", async () => {
     renderWithClient(<JobPostingsPage />);
-    expect(await screen.findByText("Job Postings & Requisitions")).toBeDefined();
+    expect(await screen.findByText("Job openings")).toBeDefined();
     expect(await screen.findByText("Forklift Operator")).toBeDefined();
   });
 
   it("renders MRFListPage with manpower requisitions", async () => {
     renderWithClient(<MRFListPage />);
-    expect(await screen.findByText("Manpower Requests (MRF)")).toBeDefined();
+    expect(await screen.findByText("Staffing requests (MRF)")).toBeDefined();
     expect(await screen.findByText("20x Line Assemblers")).toBeDefined();
   });
 
   it("renders TalentPoolPage search container and validates empty query", async () => {
     renderWithClient(<TalentPoolPage />);
-    expect(await screen.findByText("Talent Pool & Candidate Matching")).toBeDefined();
+    expect(await screen.findByText("Candidate pool")).toBeDefined();
     expect(await screen.findByText("Search Talent Pool")).toBeDefined();
 
     // Clicking search with empty input shows validation message and does NOT call api
@@ -218,9 +276,56 @@ describe("Talent Acquisition Interface Suite", () => {
     expect(await screen.findByText(/Please enter keywords/i)).toBeDefined();
   });
 
+  it("renders TalentPoolPage search results, candidate card fields, and opens Consider for Job modal", async () => {
+    vi.mocked(taApi.searchTalentPool).mockResolvedValueOnce([
+      {
+        candidate: {
+          id: "cand-1",
+          applicantProfileId: 10,
+          membershipId: 100,
+          email: "carlos.mendoza@example.com",
+          firstName: "Carlos",
+          lastName: "Mendoza",
+          city: "Makati",
+          province: "Metro Manila",
+          currentRole: "Senior TypeScript Engineer",
+          skills: ["TypeScript", "React", "PostgreSQL"],
+          availability: "AVAILABLE" as any,
+          talentPoolStatus: "ACTIVE" as any,
+          lastContactedAt: "2026-08-01T00:00:00Z",
+        },
+        similarity: 0.94,
+        knnRank: 1,
+      },
+    ]);
+
+    renderWithClient(<TalentPoolPage />);
+
+    const input = screen.getByPlaceholderText(/e.g. Electrician with TESDA/i);
+    fireEvent.change(input, { target: { value: "TypeScript" } });
+
+    const searchBtn = screen.getByRole("button", { name: /Search Talent Pool/i });
+    fireEvent.click(searchBtn);
+
+    expect(await screen.findByText("Carlos Mendoza")).toBeDefined();
+    expect(await screen.findByText("carlos.mendoza@example.com")).toBeDefined();
+    expect(await screen.findByText("Senior TypeScript Engineer")).toBeDefined();
+    expect(await screen.findByText("Makati, Metro Manila")).toBeDefined();
+    expect(await screen.findByText("94% Match")).toBeDefined();
+    expect(await screen.findByText("AVAILABLE")).toBeDefined();
+
+    // Click Consider for Job
+    const considerBtn = screen.getByRole("button", { name: /Consider for Job/i });
+    fireEvent.click(considerBtn);
+
+    expect(await screen.findByText("Consider Candidate for Job Requisition")).toBeDefined();
+    expect(await screen.findByText(/Reactivate Carlos Mendoza/i)).toBeDefined();
+  });
+
+
   it("renders InterviewsPage with 7-day SLA compliance tracking", async () => {
     renderWithClient(<InterviewsPage />);
-    expect(await screen.findByText("Interview Schedules & 7-Day SLA Compliance")).toBeDefined();
+    expect(await screen.findByText("Interview schedule")).toBeDefined();
     expect(await screen.findByText("Carlos Mendoza")).toBeDefined();
   });
 
@@ -232,7 +337,7 @@ describe("Talent Acquisition Interface Suite", () => {
 
   it("renders CompliancePage with 201 clearance overview", async () => {
     renderWithClient(<CompliancePage />);
-    expect(await screen.findByText("201 Pre-Employment Compliance Tracking")).toBeDefined();
+    expect(await screen.findByText("Employment documents (201)")).toBeDefined();
     expect(await screen.findByText("Total Clearances Tracked")).toBeDefined();
   });
 
@@ -259,13 +364,14 @@ describe("Talent Acquisition Interface Suite", () => {
 
   it("renders EmployeesPage with personnel and 201 roster", async () => {
     renderWithClient(<EmployeesPage />);
-    expect(await screen.findByText("Personnel & Digital 201 Records")).toBeDefined();
+    expect(await screen.findByText("Employee records (201)")).toBeDefined();
     expect(await screen.findByText("EMP-2026-088")).toBeDefined();
   });
 
-  it("renders AnalyticsPage with pipeline and time-to-fill reports", async () => {
+  it("renders AnalyticsPage with personal workload and telemetry reports", async () => {
     renderWithClient(<AnalyticsPage />);
-    expect(await screen.findByText("Recruitment Analytics & Operations Intelligence")).toBeDefined();
-    expect(await screen.findByText("Avg Time-To-Fill")).toBeDefined();
+    expect(await screen.findByText("Recruitment reports")).toBeDefined();
+    expect(await screen.findByText("My Recruitment Activity Trend")).toBeDefined();
+    expect(await screen.findByText("Recruitment Report Export Center")).toBeDefined();
   });
 });

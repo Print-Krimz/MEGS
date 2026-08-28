@@ -151,35 +151,47 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
     console.log(`[Worker] Gemini returned score ${analysis.score} for application #${applicationId}`);
   } catch (err: any) {
     console.error(`[Worker] Gemini analysis failed for #${applicationId}:`, err.message);
-    await prisma.application.update({
-      where: { id: applicationId },
-      data: {
-        status: "NEEDS_ATTENTION",
-        aiSummary: `Analysis failed: Gemini API error. (${err.message})`,
-      },
-    });
+    try {
+      await prisma.application.update({
+        where: { id: applicationId },
+        data: {
+          status: "NEEDS_ATTENTION",
+          aiSummary: `Analysis failed: Gemini API error. (${err.message})`,
+        },
+      });
+    } catch {
+      // ignore if record was deleted concurrently
+    }
     return;
   }
 
   // Simply save the AI score and summary. The categorization engine will handle state transitions.
-  await prisma.application.update({
-    where: { id: applicationId },
-    data: {
-      aiScore: analysis.score,
-      aiSummary: JSON.stringify({
-        summary: analysis.summary,
-        strengths: analysis.strengths,
-        gaps: analysis.gaps,
-      }),
-    },
-  });
+  try {
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        aiScore: analysis.score,
+        aiSummary: JSON.stringify({
+          summary: analysis.summary,
+          strengths: analysis.strengths,
+          gaps: analysis.gaps,
+        }),
+      },
+    });
 
-  const { applyScoreCategorization } = await import("../services/ta/ta.applications.service.js");
-  await applyScoreCategorization(applicationId, analysis.score);
+    const { applyScoreCategorization } = await import("../services/ta/ta.applications.service.js");
+    await applyScoreCategorization(applicationId, analysis.score);
 
-  console.log(
-    `[Worker] ✅ Application #${applicationId} scored ${analysis.score}/100 and categorized.`
-  );
+    console.log(
+      `[Worker] ✅ Application #${applicationId} scored ${analysis.score}/100 and categorized.`
+    );
+  } catch (saveErr: any) {
+    if (saveErr.code === "P2025") {
+      console.warn(`[Worker] Application #${applicationId} was removed before analysis could be saved.`);
+      return;
+    }
+    throw saveErr;
+  }
 };
 
 export const enqueueResumeAnalysis = (applicationId: number): void => {

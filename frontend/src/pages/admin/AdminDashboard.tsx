@@ -15,7 +15,14 @@ import {
   Sparkles,
   UserPlus,
   ArrowRight,
+  BarChart3,
 } from "lucide-react";
+import {
+  formatAction,
+  getActionCategory,
+  getCategoryBadgeClass,
+  formatTargetEntity,
+} from "../../lib/utils/audit-formatter";
 
 export const AdminDashboard: React.FC = () => {
   const usersQuery = useQuery({
@@ -53,8 +60,8 @@ export const AdminDashboard: React.FC = () => {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="System Administration & Governance"
-          description="Loading system status and configuration data..."
+          title="Administration overview"
+          description="Loading administration information..."
         />
         <LoadingState variant="cards" />
         <LoadingState variant="table" rows={4} />
@@ -72,8 +79,8 @@ export const AdminDashboard: React.FC = () => {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="System Administration & Governance"
-          description="System status and configuration"
+          title="Administration overview"
+          description="Administration information"
         />
         <ErrorState
           error={
@@ -108,14 +115,19 @@ export const AdminDashboard: React.FC = () => {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="System Administration & Governance"
-        description="Overview of user accounts, candidate matching criteria, score recalculations, and security audit logs"
-        breadcrumbs={[{ label: "Admin Operations" }]}
+        title="Administration overview"
+        description="Manage access, matching settings, score updates, and activity."
+        breadcrumbs={[{ label: "Administration" }]}
         actions={
           <div className="flex items-center gap-2">
+            <Link to="/admin/analytics">
+              <Button variant="outline" size="sm" leftIcon={<BarChart3 className="w-3.5 h-3.5 text-teal-700" />}>
+                Reports
+              </Button>
+            </Link>
             <Link to="/admin/users">
               <Button variant="outline" size="sm" leftIcon={<UserPlus className="w-3.5 h-3.5" />}>
-                Invite TA Specialist
+                Add TA Specialist
               </Button>
             </Link>
             <Link to="/admin/scoring">
@@ -262,23 +274,46 @@ export const AdminDashboard: React.FC = () => {
                     <th className="px-3.5 py-2.5 font-bold text-right">Timestamp</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 font-mono">
-                  {logs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-100/70 transition-colors">
-                      <td className="px-3.5 py-2.5 font-bold text-slate-950">
-                        {log.action}
-                      </td>
-                      <td className="px-3.5 py-2.5 text-slate-700 font-sans text-xs">
-                        {log.user?.email || log.userId || "System"}
-                      </td>
-                      <td className="px-3.5 py-2.5 text-slate-700 text-[11px]">
-                        {log.entity ? `${log.entity} #${log.entityId || ""}` : "Global"}
-                      </td>
-                      <td className="px-3.5 py-2.5 text-right text-slate-500 text-[11px]">
-                        {formatDateTime(log.createdAt)}
-                      </td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y divide-slate-200">
+                  {logs.map((log) => {
+                    const category = getActionCategory(log.action);
+                    const formattedAct = formatAction(log.action);
+                    const targetEntity = formatTargetEntity(log);
+                    return (
+                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-3.5 py-2.5">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-bold text-slate-950 font-sans text-xs">
+                              {formattedAct}
+                            </span>
+                            <span
+                              className={`inline-block w-fit px-1.5 py-0.2 text-[9px] font-mono uppercase font-bold rounded-xs border ${getCategoryBadgeClass(
+                                category
+                              )}`}
+                            >
+                              {category}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-slate-700 font-sans text-xs">
+                          {log.user?.email || log.userId || "System"}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-slate-700 font-sans text-xs">
+                          <div className="flex flex-col">
+                            <span>{targetEntity.label}</span>
+                            {targetEntity.secondary && (
+                              <span className="text-[10px] text-slate-400">
+                                {targetEntity.secondary}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                          {formatDateTime(log.createdAt)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

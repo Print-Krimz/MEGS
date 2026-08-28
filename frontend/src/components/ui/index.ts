@@ -4,3 +4,4 @@ export * from "./Select";
 export * from "./Textarea";
 export * from "./Dialog";
 export * from "./Badge";
+export * from "./ComboBox";

@@ -4,6 +4,7 @@ import {
   fetchInterviews,
   scheduleNewInterview,
   updateInterviewResult,
+  recordDirectInterviewResult,
   getInterviewComplianceReport
 } from '../../services/ta/ta.interviews.service.js';
 
@@ -31,7 +32,8 @@ export const scheduleInterview = async (req: Request, res: Response): Promise<vo
       return;
     }
     const { type, scheduledAt, notes } = req.body;
-    const interview = await scheduleNewInterview(applicationId, type, scheduledAt, notes);
+    const actorId = (req as any).user?.id;
+    const interview = await scheduleNewInterview(applicationId, type, scheduledAt, notes, actorId);
     sendSuccess(res, "Interview scheduled", interview);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;
@@ -49,8 +51,34 @@ export const updateInterviewStatus = async (req: Request, res: Response): Promis
       return;
     }
     const { result, conductedAt, notes } = req.body;
-    const { updatedInterview, applicationUpdateMessage } = await updateInterviewResult(applicationId, interviewId, result, conductedAt, notes);
+    const actorId = (req as any).user?.id;
+    const { updatedInterview, applicationUpdateMessage } = await updateInterviewResult(applicationId, interviewId, result, conductedAt, notes, actorId);
     sendSuccess(res, `Interview updated to ${result}.${applicationUpdateMessage}`, updatedInterview);
+  } catch (error: any) {
+    const statusCode = error.message.includes("not found") ? 404 : 400;
+    sendError(res, error.message, statusCode);
+  }
+};
+
+// POST /api/ta/applications/:id/interviews/record - Record interview result directly without forcing prior schedule
+export const recordInterviewDirectly = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const applicationId = parseInt(req.params.id as string);
+    if (isNaN(applicationId)) {
+      sendError(res, "Invalid application ID", 400);
+      return;
+    }
+    const { type, result, conductedAt, notes } = req.body;
+    const actorId = (req as any).user?.id;
+    const { updatedInterview, applicationUpdateMessage } = await recordDirectInterviewResult(
+      applicationId,
+      type,
+      result,
+      conductedAt,
+      notes,
+      actorId
+    );
+    sendSuccess(res, `Interview result recorded as ${result}.${applicationUpdateMessage}`, updatedInterview);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, statusCode);

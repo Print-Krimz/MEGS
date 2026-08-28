@@ -20,7 +20,6 @@ import { RegisterPage } from "./pages/auth/RegisterPage";
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/auth/ResetPasswordPage";
 import { SetupAccountPage } from "./pages/auth/SetupAccountPage";
-import { ComponentGalleryPage } from "./pages/dev/ComponentGalleryPage";
 
 // Applicant Pages
 import { ApplicantDashboard } from "./pages/applicant/ApplicantDashboard";
@@ -53,11 +52,13 @@ import { AnalyticsPage } from "./pages/ta/AnalyticsPage";
 
 // Admin Pages
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
+import { AdminAnalyticsPage } from "./pages/admin/AdminAnalyticsPage";
 import { UsersPage } from "./pages/admin/UsersPage";
 import { ScoringConfigPage } from "./pages/admin/ScoringConfigPage";
 import { ScoringQualityPage } from "./pages/admin/ScoringQualityPage";
 import { RevalidationQueuePage } from "./pages/admin/RevalidationQueuePage";
 import { AuditLogsPage } from "./pages/admin/AuditLogsPage";
+import { AdminMRFDetailPage } from "./pages/admin/AdminMRFDetailPage";
 
 export interface RouterContext {
   auth: AuthContextType;
@@ -158,12 +159,6 @@ export const forbiddenRoute = createRoute({
   component: ForbiddenPage,
 });
 
-export const devGalleryRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/dev",
-  component: ComponentGalleryPage,
-});
-
 // -------------------------------------------------------------
 // 4. Applicant Protected Layout & Child Routes
 // -------------------------------------------------------------
@@ -180,7 +175,7 @@ export const applicantLayoutRoute = createRoute({
     if (context.auth.mustChangePassword) {
       throw redirect({ to: "/change-password" });
     }
-    if (context.auth.user?.role !== Role.APPLICANT && context.auth.user?.role !== Role.ADMINISTRATOR) {
+    if (context.auth.user?.role !== Role.APPLICANT) {
       throw redirect({ to: "/forbidden" });
     }
   },
@@ -245,10 +240,7 @@ export const taLayoutRoute = createRoute({
     if (context.auth.mustChangePassword) {
       throw redirect({ to: "/change-password" });
     }
-    if (
-      context.auth.user?.role !== Role.TALENT_ACQUISITION &&
-      context.auth.user?.role !== Role.ADMINISTRATOR
-    ) {
+    if (context.auth.user?.role !== Role.TALENT_ACQUISITION) {
       throw redirect({ to: "/forbidden" });
     }
   },
@@ -398,6 +390,12 @@ export const adminDashboardRoute = createRoute({
   component: AdminDashboard,
 });
 
+export const adminAnalyticsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/admin/analytics",
+  component: AdminAnalyticsPage,
+});
+
 export const adminUsersRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/admin/users",
@@ -434,13 +432,18 @@ export const adminNotificationsRoute = createRoute({
   component: NotificationsPage,
 });
 
+export const adminMrfDetailRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/admin/mrfs/$mrfId",
+  component: AdminMRFDetailPage,
+});
+
 // -------------------------------------------------------------
 // 7. Route Tree Assembly & Router Creation
 // -------------------------------------------------------------
 const routeTree = rootRoute.addChildren([
   indexRoute,
   forbiddenRoute,
-  devGalleryRoute,
   authLayoutRoute.addChildren([
     loginRoute,
     registerRoute,
@@ -481,12 +484,14 @@ const routeTree = rootRoute.addChildren([
   ]),
   adminLayoutRoute.addChildren([
     adminDashboardRoute,
+    adminAnalyticsRoute,
     adminUsersRoute,
     adminScoringRoute,
     adminScoringQualityRoute,
     adminRevalidationRoute,
     adminAuditRoute,
     adminNotificationsRoute,
+    adminMrfDetailRoute,
   ]),
 ]);
 

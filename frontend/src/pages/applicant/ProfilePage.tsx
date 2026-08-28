@@ -6,6 +6,7 @@ import {
   LoadingState,
   ErrorState,
   ConfirmDialog,
+  DocumentPreviewModal,
 } from "../../components/common";
 import {
   Input,
@@ -14,7 +15,9 @@ import {
   Dialog,
   Select,
 } from "../../components/ui";
-import { formatDate } from "../../lib/utils";
+import { formatDate, extractDocumentId } from "../../lib/utils";
+import { useAuth } from "../../hooks/useAuth";
+import { computeAutoFillDiff } from "../../lib/resume-autofill";
 import {
   User,
   FileText,
@@ -42,6 +45,7 @@ type ProfileTab =
 
 export const ProfilePage: React.FC = () => {
   const queryClient = useQueryClient();
+  const { refreshUser } = useAuth();
 
   const validTabs: ProfileTab[] = [
     "personal",
@@ -79,6 +83,21 @@ export const ProfilePage: React.FC = () => {
   });
 
   const profile = profileQuery.data;
+
+  // Document Preview State
+  const [previewDocState, setPreviewDocState] = useState<{
+    open: boolean;
+    documentId?: number | null;
+    title?: string;
+  } | null>(null);
+
+  // Candidate Photo Error State
+  const [imgError, setImgError] = useState(false);
+  React.useEffect(() => {
+    setImgError(false);
+  }, [profile?.photoUrl]);
+
+  const candidateInitials = `${profile?.firstName?.[0] || ""}${profile?.lastName?.[0] || ""}`.toUpperCase() || "AP";
 
   // Dialog States
   const [expModalOpen, setExpModalOpen] = useState(false);
@@ -126,43 +145,46 @@ export const ProfilePage: React.FC = () => {
   const [skillInput, setSkillInput] = useState("");
   const [skillsList, setSkillsList] = useState<string[]>([]);
 
+  // Auto-Fill & Extraction State
+  const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
+
   // Update local form when data arrives
   React.useEffect(() => {
     if (profile) {
-      setPersonalForm({
-        firstName: profile.firstName || "",
-        lastName: profile.lastName || "",
-        middleName: profile.middleName || "",
-        dateOfBirth: profile.dateOfBirth ? profile.dateOfBirth.substring(0, 10) : "",
-        mobileNumber: profile.mobileNumber || "",
-        gender: profile.gender || "",
-        civilStatus: profile.civilStatus || "",
-        nationality: profile.nationality || "",
-        birthPlace: profile.birthPlace || "",
-        religion: profile.religion || "",
-        height: profile.height !== null && profile.height !== undefined ? String(profile.height) : "",
-        weight: profile.weight !== null && profile.weight !== undefined ? String(profile.weight) : "",
-        address: profile.address || "",
-        province: profile.province || "",
-        city: profile.city || "",
-        preferredWorkLocations: profile.preferredWorkLocations || "",
-        professionalSummary: profile.professionalSummary || "",
-        sss: profile.sss || "",
-        philhealth: profile.philhealth || "",
-        pagibig: profile.pagibig || "",
-        tin: profile.tin || "",
-        emergencyContactName: profile.emergencyContactName || "",
-        emergencyContactPhone: profile.emergencyContactPhone || "",
-        emergencyContactRelationship: profile.emergencyContactRelationship || "",
-        emergencyContactAddress: profile.emergencyContactAddress || "",
-        additionalNotes: profile.additionalNotes || "",
-      });
+      setPersonalForm((prev) => ({
+        firstName: prev.firstName || profile.firstName || "",
+        lastName: prev.lastName || profile.lastName || "",
+        middleName: prev.middleName || profile.middleName || "",
+        dateOfBirth: prev.dateOfBirth || (profile.dateOfBirth ? profile.dateOfBirth.substring(0, 10) : ""),
+        mobileNumber: prev.mobileNumber || profile.mobileNumber || "",
+        gender: prev.gender || profile.gender || "",
+        civilStatus: prev.civilStatus || profile.civilStatus || "",
+        nationality: prev.nationality || profile.nationality || "",
+        birthPlace: prev.birthPlace || profile.birthPlace || "",
+        religion: prev.religion || profile.religion || "",
+        height: prev.height || (profile.height !== null && profile.height !== undefined ? String(profile.height) : ""),
+        weight: prev.weight || (profile.weight !== null && profile.weight !== undefined ? String(profile.weight) : ""),
+        address: prev.address || profile.address || "",
+        province: prev.province || profile.province || "",
+        city: prev.city || profile.city || "",
+        preferredWorkLocations: prev.preferredWorkLocations || profile.preferredWorkLocations || "",
+        professionalSummary: prev.professionalSummary || profile.professionalSummary || "",
+        sss: prev.sss || profile.sss || "",
+        philhealth: prev.philhealth || profile.philhealth || "",
+        pagibig: prev.pagibig || profile.pagibig || "",
+        tin: prev.tin || profile.tin || "",
+        emergencyContactName: prev.emergencyContactName || profile.emergencyContactName || "",
+        emergencyContactPhone: prev.emergencyContactPhone || profile.emergencyContactPhone || "",
+        emergencyContactRelationship: prev.emergencyContactRelationship || profile.emergencyContactRelationship || "",
+        emergencyContactAddress: prev.emergencyContactAddress || profile.emergencyContactAddress || "",
+        additionalNotes: prev.additionalNotes || profile.additionalNotes || "",
+      }));
 
       if (profile.skills) {
         const parsed = profile.skills.map((s: any) =>
           typeof s === "string" ? s : s.name || s.skillName || ""
         ).filter(Boolean);
-        setSkillsList(parsed);
+        setSkillsList((prev) => (prev.length > 0 ? prev : parsed));
       }
     }
   }, [profile]);
@@ -172,8 +194,10 @@ export const ProfilePage: React.FC = () => {
   // Mutations
   const updateProfileMutation = useMutation({
     mutationFn: applicantApi.upsertProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
+    onSuccess: (savedProfile) => {
+      queryClient.setQueryData(["applicant", "profile"], savedProfile);
+      queryClient.invalidateQueries({ queryKey: ["applicant"] });
+      void refreshUser();
       setFeedback({ type: "success", message: "Personal information saved successfully." });
     },
     onError: (err: any) => {
@@ -183,9 +207,70 @@ export const ProfilePage: React.FC = () => {
 
   const uploadResumeMutation = useMutation({
     mutationFn: applicantApi.uploadResume,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
-      setFeedback({ type: "success", message: "Resume uploaded successfully." });
+    onSuccess: (data) => {
+      if (data?.profile) {
+        queryClient.setQueryData(["applicant", "profile"], data.profile);
+      }
+      queryClient.invalidateQueries({ queryKey: ["applicant"] });
+      void refreshUser();
+
+      if (data?.extractedData) {
+        const diff = computeAutoFillDiff(personalForm, data.extractedData);
+
+        // Apply newly auto-filled personal fields
+        setPersonalForm((prev) => ({
+          ...prev,
+          firstName: prev.firstName || data.profile?.firstName || data.extractedData?.firstName || "",
+          middleName: prev.middleName || data.profile?.middleName || data.extractedData?.middleName || "",
+          lastName: prev.lastName || data.profile?.lastName || data.extractedData?.lastName || "",
+          mobileNumber: prev.mobileNumber || data.profile?.mobileNumber || data.extractedData?.mobileNumber || "",
+          dateOfBirth: prev.dateOfBirth || (data.profile?.dateOfBirth ? data.profile.dateOfBirth.substring(0, 10) : "") || data.extractedData?.dateOfBirth || "",
+          birthPlace: prev.birthPlace || data.profile?.birthPlace || data.extractedData?.birthPlace || "",
+          gender: prev.gender || data.profile?.gender || data.extractedData?.gender || "",
+          civilStatus: prev.civilStatus || data.profile?.civilStatus || data.extractedData?.civilStatus || "",
+          nationality: prev.nationality || data.profile?.nationality || data.extractedData?.nationality || "",
+          religion: prev.religion || data.profile?.religion || data.extractedData?.religion || "",
+          height: prev.height || (data.profile?.height !== null && data.profile?.height !== undefined ? String(data.profile.height) : "") || (data.extractedData?.height !== null && data.extractedData?.height !== undefined ? String(data.extractedData.height) : "") || "",
+          weight: prev.weight || (data.profile?.weight !== null && data.profile?.weight !== undefined ? String(data.profile.weight) : "") || (data.extractedData?.weight !== null && data.extractedData?.weight !== undefined ? String(data.extractedData.weight) : "") || "",
+          address: prev.address || data.profile?.address || data.extractedData?.address || "",
+          province: prev.province || data.profile?.province || data.extractedData?.province || "",
+          city: prev.city || data.profile?.city || data.extractedData?.city || "",
+          preferredWorkLocations: prev.preferredWorkLocations || data.profile?.preferredWorkLocations || data.extractedData?.preferredWorkLocations || "",
+          professionalSummary: prev.professionalSummary || data.profile?.professionalSummary || data.extractedData?.professionalSummary || "",
+        }));
+
+        setAutoFilledFields((prev) => {
+          const next = new Set(prev);
+          Object.keys(diff.autoFilledFields).forEach((k) => next.add(k));
+          return next;
+        });
+
+        // Auto-populate skills list if extracted
+        const extractedSkills = data.extractedData.skills;
+        if (extractedSkills && extractedSkills.length > 0) {
+          setSkillsList((prev) => {
+            const combined = [...prev];
+            extractedSkills.forEach((s) => {
+              if (!combined.some((item) => item.toLowerCase() === s.toLowerCase())) {
+                combined.push(s);
+              }
+            });
+            return combined;
+          });
+        }
+
+        setFeedback({
+          type: "success",
+          message: "Resume uploaded and profile details auto-filled successfully. Review and edit any field before saving.",
+        });
+      } else if (data?.extractionStatus === "UNAVAILABLE") {
+        setFeedback({
+          type: "success",
+          message: "Resume uploaded. Automatic profile extraction was unavailable for this file format.",
+        });
+      } else {
+        setFeedback({ type: "success", message: "Resume uploaded successfully." });
+      }
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to upload resume: " + err.message });
@@ -208,6 +293,10 @@ export const ProfilePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setExpModalOpen(false);
+      setFeedback({ type: "success", message: "Work experience added successfully." });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: err?.message || "Failed to add work experience." });
     },
   });
 
@@ -216,6 +305,10 @@ export const ProfilePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setDeleteTarget(null);
+      setFeedback({ type: "success", message: "Work experience entry removed." });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: err?.message || "Failed to delete work experience." });
     },
   });
 
@@ -224,6 +317,10 @@ export const ProfilePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setEduModalOpen(false);
+      setFeedback({ type: "success", message: "Education record added successfully." });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: err?.message || "Failed to add education record." });
     },
   });
 
@@ -232,6 +329,10 @@ export const ProfilePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setDeleteTarget(null);
+      setFeedback({ type: "success", message: "Education record removed." });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: err?.message || "Failed to delete education record." });
     },
   });
 
@@ -239,6 +340,10 @@ export const ProfilePage: React.FC = () => {
     mutationFn: applicantApi.updateSkills,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
+      setFeedback({ type: "success", message: "Skills updated successfully." });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: err?.message || "Failed to update skills." });
     },
   });
 
@@ -247,6 +352,10 @@ export const ProfilePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setTrainingModalOpen(false);
+      setFeedback({ type: "success", message: "Training certification added successfully." });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: err?.message || "Failed to add training certification." });
     },
   });
 
@@ -255,6 +364,10 @@ export const ProfilePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setDeleteTarget(null);
+      setFeedback({ type: "success", message: "Training certification removed." });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: err?.message || "Failed to delete training certification." });
     },
   });
 
@@ -263,6 +376,10 @@ export const ProfilePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setRefModalOpen(false);
+      setFeedback({ type: "success", message: "Character reference added successfully." });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: err?.message || "Failed to add character reference." });
     },
   });
 
@@ -271,6 +388,10 @@ export const ProfilePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setDeleteTarget(null);
+      setFeedback({ type: "success", message: "Character reference removed." });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: err?.message || "Failed to delete character reference." });
     },
   });
 
@@ -279,6 +400,10 @@ export const ProfilePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setAssetModalOpen(false);
+      setFeedback({ type: "success", message: "Document uploaded successfully." });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: err?.message || "Failed to upload document." });
     },
   });
 
@@ -287,6 +412,10 @@ export const ProfilePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setDeleteTarget(null);
+      setFeedback({ type: "success", message: "Document removed." });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: err?.message || "Failed to delete document." });
     },
   });
 
@@ -492,24 +621,30 @@ export const ProfilePage: React.FC = () => {
                     <Input
                       label="First Name"
                       value={personalForm.firstName}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, firstName: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("firstName") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, firstName: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("firstName"); return n; });
+                      }}
                       required
                     />
                     <Input
                       label="Middle Name"
                       value={personalForm.middleName}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, middleName: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("middleName") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, middleName: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("middleName"); return n; });
+                      }}
                     />
                     <Input
                       label="Last Name"
                       value={personalForm.lastName}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, lastName: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("lastName") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, lastName: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("lastName"); return n; });
+                      }}
                       required
                     />
                   </div>
@@ -519,26 +654,32 @@ export const ProfilePage: React.FC = () => {
                       label="Contact Number"
                       placeholder="e.g. 09171234567"
                       value={personalForm.mobileNumber}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, mobileNumber: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("mobileNumber") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, mobileNumber: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("mobileNumber"); return n; });
+                      }}
                       required
                     />
                     <Input
                       label="Date of Birth"
                       type="date"
                       value={personalForm.dateOfBirth}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, dateOfBirth: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("dateOfBirth") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, dateOfBirth: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("dateOfBirth"); return n; });
+                      }}
                     />
                     <Input
                       label="Place of Birth"
                       placeholder="e.g. Quezon City"
                       value={personalForm.birthPlace}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, birthPlace: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("birthPlace") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, birthPlace: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("birthPlace"); return n; });
+                      }}
                     />
                   </div>
                 </div>
@@ -552,9 +693,11 @@ export const ProfilePage: React.FC = () => {
                     <Select
                       label="Gender"
                       value={personalForm.gender}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, gender: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("gender") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, gender: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("gender"); return n; });
+                      }}
                       options={[
                         { value: "", label: "-- Select Gender --" },
                         { value: "Male", label: "Male" },
@@ -566,9 +709,11 @@ export const ProfilePage: React.FC = () => {
                     <Select
                       label="Civil Status"
                       value={personalForm.civilStatus}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, civilStatus: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("civilStatus") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, civilStatus: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("civilStatus"); return n; });
+                      }}
                       options={[
                         { value: "", label: "-- Select Status --" },
                         { value: "Single", label: "Single" },
@@ -582,17 +727,21 @@ export const ProfilePage: React.FC = () => {
                       label="Nationality"
                       placeholder="e.g. Filipino"
                       value={personalForm.nationality}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, nationality: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("nationality") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, nationality: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("nationality"); return n; });
+                      }}
                     />
                     <Input
                       label="Religion"
                       placeholder="e.g. Roman Catholic"
                       value={personalForm.religion}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, religion: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("religion") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, religion: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("religion"); return n; });
+                      }}
                     />
                   </div>
 
@@ -602,29 +751,35 @@ export const ProfilePage: React.FC = () => {
                       type="number"
                       placeholder="e.g. 170"
                       value={personalForm.height}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, height: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("height") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, height: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("height"); return n; });
+                      }}
                     />
                     <Input
                       label="Weight (kg)"
                       type="number"
                       placeholder="e.g. 65"
                       value={personalForm.weight}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, weight: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("weight") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, weight: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("weight"); return n; });
+                      }}
                     />
                     <Input
                       label="Preferred Work Locations"
                       placeholder="e.g. Makati, Taguig, Ortigas, Remote"
                       value={personalForm.preferredWorkLocations}
-                      onChange={(e) =>
+                      helperText={autoFilledFields.has("preferredWorkLocations") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
                         setPersonalForm((prev) => ({
                           ...prev,
                           preferredWorkLocations: e.target.value,
-                        }))
-                      }
+                        }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("preferredWorkLocations"); return n; });
+                      }}
                     />
                   </div>
                 </div>
@@ -638,26 +793,32 @@ export const ProfilePage: React.FC = () => {
                     label="Complete Residential Address"
                     placeholder="House/Unit No., Street, Barangay"
                     value={personalForm.address}
-                    onChange={(e) =>
-                      setPersonalForm((prev) => ({ ...prev, address: e.target.value }))
-                    }
+                    helperText={autoFilledFields.has("address") ? "✓ Extracted from resume" : undefined}
+                    onChange={(e) => {
+                      setPersonalForm((prev) => ({ ...prev, address: e.target.value }));
+                      setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("address"); return n; });
+                    }}
                   />
                   <div className="grid grid-cols-2 gap-4">
                     <Input
                       label="Province / Region"
                       placeholder="e.g. Metro Manila"
                       value={personalForm.province}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, province: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("province") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, province: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("province"); return n; });
+                      }}
                     />
                     <Input
                       label="City / Municipality"
                       placeholder="e.g. Quezon City"
                       value={personalForm.city}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, city: e.target.value }))
-                      }
+                      helperText={autoFilledFields.has("city") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, city: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("city"); return n; });
+                      }}
                     />
                   </div>
                 </div>
@@ -672,12 +833,14 @@ export const ProfilePage: React.FC = () => {
                     rows={3}
                     placeholder="Briefly describe your professional background, core expertise, and career objectives..."
                     value={personalForm.professionalSummary}
-                    onChange={(e) =>
+                    helperText={autoFilledFields.has("professionalSummary") ? "✓ Extracted from resume" : undefined}
+                    onChange={(e) => {
                       setPersonalForm((prev) => ({
                         ...prev,
                         professionalSummary: e.target.value,
-                      }))
-                    }
+                      }));
+                      setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("professionalSummary"); return n; });
+                    }}
                   />
                 </div>
 
@@ -823,7 +986,7 @@ export const ProfilePage: React.FC = () => {
                 <div className="bg-slate-50 border border-slate-300 p-4 space-y-3">
                   <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-900 uppercase">
                     <FileText className="w-3.5 h-3.5 text-teal-700" />
-                    <span>Curriculum Vitae (PDF)</span>
+                    <span>Resume (PDF)</span>
                   </div>
 
                   {profile?.resumeUrl ? (
@@ -834,14 +997,21 @@ export const ProfilePage: React.FC = () => {
                           Resume on file
                         </span>
                       </div>
-                      <a
-                        href={profile.resumeUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs font-bold font-mono text-teal-800 uppercase hover:underline shrink-0"
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs font-bold font-mono text-teal-800 uppercase hover:underline shrink-0 cursor-pointer"
+                        onClick={() =>
+                          setPreviewDocState({
+                            open: true,
+                            documentId: extractDocumentId(profile.resumeUrl),
+                            title: "Resume",
+                          })
+                        }
                       >
                         View PDF
-                      </a>
+                      </Button>
                     </div>
                   ) : (
                     <div className="p-3 border border-dashed border-slate-300 text-center text-xs font-mono text-slate-500 bg-white">
@@ -851,12 +1021,17 @@ export const ProfilePage: React.FC = () => {
 
                   <label className="block">
                     <input
+                      data-testid="resume-autofill-upload-input"
                       type="file"
                       accept=".pdf"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            setFeedback({ type: "error", message: "Maximum resume upload size is 5 MB." });
+                            return;
+                          }
                           const fd = new FormData();
                           fd.append("file", file);
                           uploadResumeMutation.mutate(fd);
@@ -874,9 +1049,12 @@ export const ProfilePage: React.FC = () => {
                         input?.click();
                       }}
                     >
-                      Upload Resume (PDF)
+                      {uploadResumeMutation.isPending ? "Reading Resume..." : "Upload Resume (PDF)"}
                     </Button>
                   </label>
+                  <p className="text-[11px] text-slate-500 font-sans">
+                    Uploading a PDF resume extracts and auto-fills profile details for your review.
+                  </p>
                 </div>
 
                 {/* Photo Box */}
@@ -888,11 +1066,18 @@ export const ProfilePage: React.FC = () => {
 
                   {profile?.photoUrl ? (
                     <div className="flex items-center gap-3">
-                      <img
-                        src={profile.photoUrl}
-                        alt="Profile avatar"
-                        className="w-14 h-14 object-cover border border-slate-400"
-                      />
+                      {!imgError ? (
+                        <img
+                          src={profile.photoUrl}
+                          alt="Profile avatar"
+                          className="w-14 h-14 object-cover border border-slate-400"
+                          onError={() => setImgError(true)}
+                        />
+                      ) : (
+                        <div className="w-14 h-14 bg-slate-200 border border-slate-400 flex items-center justify-center font-bold text-slate-700 font-mono text-base">
+                          {candidateInitials}
+                        </div>
+                      )}
                       <div className="text-xs text-slate-700 font-mono">
                         Active identity photo on file
                       </div>
@@ -1455,6 +1640,14 @@ export const ProfilePage: React.FC = () => {
         title="Delete Qualification Entry"
         description={`Are you sure you want to remove ${deleteTarget?.label || "this record"}? This action cannot be undone.`}
         confirmLabel="Remove Entry"
+      />
+
+      {/* Document Preview Modal */}
+      <DocumentPreviewModal
+        open={Boolean(previewDocState?.open)}
+        onClose={() => setPreviewDocState(null)}
+        documentId={previewDocState?.documentId}
+        title={previewDocState?.title}
       />
     </div>
   );

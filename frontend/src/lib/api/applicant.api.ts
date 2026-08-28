@@ -12,6 +12,8 @@ import type {
   AddEducationDto,
   AddTrainingDto,
   AddReferenceDto,
+  ResumeUploadResult,
+  ApplyExtractedProfileDto,
 } from "../types/applicant.types";
 
 export const applicantApi = {
@@ -83,5 +85,9 @@ export const applicantApi = {
     api.upload<{ photoUrl: string }>("/api/applicants/profile/photo", formData),
 
   uploadResume: (formData: FormData) =>
-    api.upload<{ resumeUrl: string }>("/api/applicants/profile/resume", formData),
+    api.upload<ResumeUploadResult>("/api/applicants/profile/resume", formData),
+
+  applyExtractedProfile: (data: ApplyExtractedProfileDto) =>
+    api.post<ApplicantProfile>("/api/applicants/profile/apply-extracted", data),
 };
+

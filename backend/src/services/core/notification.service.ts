@@ -1,8 +1,16 @@
 import prisma from '../../utils/prisma.js';
 
-export const getNotificationsService = async (userId: string, limit: number, cursor?: number) => {
+export const getNotificationsService = async (
+  userId: string,
+  limit: number,
+  cursor?: number,
+  isRead?: boolean
+) => {
   return await prisma.notification.findMany({
-    where: { userId },
+    where: {
+      userId,
+      ...(isRead !== undefined ? { isRead } : {}),
+    },
     take: limit,
     skip: cursor ? 1 : 0,
     cursor: cursor ? { id: cursor } : undefined,
@@ -25,4 +33,12 @@ export const markAsReadService = async (userId: string, notifId: number) => {
     where: { id: notifId },
     data: { isRead: true },
   });
+};
+
+export const markAllAsReadService = async (userId: string) => {
+  const result = await prisma.notification.updateMany({
+    where: { userId, isRead: false },
+    data: { isRead: true },
+  });
+  return { count: result.count };
 };

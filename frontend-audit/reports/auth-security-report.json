@@ -4,7 +4,7 @@
     "ta": "http://localhost:5173/login?redirect=%2Fta",
     "app": "http://localhost:5173/login?redirect=%2Fapp"
   },
-  "hasInvalidCredentialsText": true,
+  "hasInvalidCredentialsText": false,
   "consoleErrors": [
     {
       "type": "console_error",

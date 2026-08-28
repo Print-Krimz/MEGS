@@ -18,6 +18,7 @@ import {
   History,
   Save,
 } from "lucide-react";
+import { notify } from "../../lib/feedback";
 
 export const ScoringConfigPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -79,10 +80,13 @@ export const ScoringConfigPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "scoring"] });
       queryClient.invalidateQueries({ queryKey: ["config"] });
-      setFeedback({ type: "success", message: "Candidate scoring criteria updated successfully." });
+      const msg = "Candidate scoring criteria updated successfully.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Configuration Saved", msg);
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to update scoring configuration: " + err.message });
+      notify.error("Update Failed", err);
     },
   });
 
@@ -92,10 +96,13 @@ export const ScoringConfigPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "scoring"] });
       queryClient.invalidateQueries({ queryKey: ["config"] });
       setConfirmRestoreOpen(false);
-      setFeedback({ type: "success", message: "Default scoring configuration restored!" });
+      const msg = "Default scoring configuration restored!";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Defaults Restored", msg);
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to restore defaults: " + err.message });
+      notify.error("Restore Failed", err);
     },
   });
 
@@ -164,7 +171,7 @@ export const ScoringConfigPage: React.FC = () => {
   return (
     <div className="space-y-5 max-w-4xl">
       <PageHeader
-        title="Candidate Match Scoring Configuration"
+        title="Candidate matching settings"
         description="Set evaluation criteria weights and match thresholds for candidate scoring"
         breadcrumbs={[
           { label: "Admin Operations", href: "/admin" },
@@ -219,7 +226,7 @@ export const ScoringConfigPage: React.FC = () => {
       )}
 
       {/* Revision Meta Snapshot */}
-      <div className="bg-white border border-slate-300 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+      <div className="bg-white border border-slate-300 p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
         <div>
           <span className="text-slate-500 uppercase font-bold">Active Configuration: </span>
           <span className="font-bold text-slate-950">
@@ -228,7 +235,7 @@ export const ScoringConfigPage: React.FC = () => {
           <span className="text-slate-500"> • Activated: {formatDate(config.activatedAt)}</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-slate-500 uppercase">Weight Total:</span>
           <span
             className={`font-bold px-2 py-0.5 border ${

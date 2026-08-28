@@ -69,7 +69,8 @@ export const updateMRFHandler = async (req: Request, res: Response): Promise<voi
 export const linkJobToMRFHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const mrfId = parseInt(req.params.id as string, 10);
-    const { jobPostingId } = req.body;
+    const rawJobId = req.body.jobPostingId ?? req.body.jobId;
+    const jobPostingId = rawJobId ? parseInt(String(rawJobId), 10) : undefined;
     if (isNaN(mrfId) || !jobPostingId) {
       sendError(res, "Valid mrfId in URL and jobPostingId in body are required", 400);
       return;

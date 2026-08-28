@@ -17,6 +17,7 @@ import { DeploymentStatus, ALLOWED_DEPLOYMENT_TRANSITIONS } from "../../lib/type
 import {
   Truck,
 } from "lucide-react";
+import { notify } from "../../lib/feedback";
 
 export const DeploymentsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -46,10 +47,14 @@ export const DeploymentsPage: React.FC = () => {
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status, notes }: { id: number; status: DeploymentStatus; notes?: string }) =>
       taApi.updateDeploymentStatus(id, { status, notes }),
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
       setStatusModalDeployment(null);
       setStatusNotes("");
+      notify.success("Deployment Status Updated", `Deployment moved to ${getDeploymentStatusMeta(vars.status).label}.`);
+    },
+    onError: (err: any) => {
+      notify.error("Status Update Failed", err);
     },
   });
 
@@ -123,7 +128,12 @@ export const DeploymentsPage: React.FC = () => {
           {
             key: "clientId",
             label: "Client Company",
-            options: clients.map((c) => ({ value: String(c.id), label: c.name })),
+            searchable: true,
+            options: clients.map((c) => ({
+              value: String(c.id),
+              label: c.name,
+              subtitle: `${c.industry || "General"} • ${c.address || "Philippines"}`,
+            })),
           },
         ]}
       />
@@ -189,9 +199,24 @@ export const DeploymentsPage: React.FC = () => {
                       <td className="px-4 py-3">
                         <StatusBadge status={dep.status} />
                       </td>
-                      <td className="px-4 py-3 font-mono text-slate-600 text-[11px]">
-                        {dep.contractStart ? formatDate(dep.contractStart) : "N/A"} —{" "}
-                        {dep.contractEnd ? formatDate(dep.contractEnd) : "Open"}
+                      <td className="px-4 py-3 font-mono text-[11px]">
+                        <div className="text-slate-700">
+                          {dep.contractStart ? formatDate(dep.contractStart) : "N/A"} —{" "}
+                          {dep.contractEnd ? formatDate(dep.contractEnd) : "Open"}
+                        </div>
+                        <div className="mt-0.5">
+                          <span
+                            className={`inline-block px-1.5 py-0.2 rounded text-[9px] uppercase font-bold ${
+                              dep.contractStatus === "FULLY_EXECUTED"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : dep.workerSigned || dep.clientSigned
+                                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                : "bg-slate-100 text-slate-600 border border-slate-200"
+                            }`}
+                          >
+                            {dep.contractStatus ? dep.contractStatus.replace(/_/g, " ") : "PENDING SIGNATURES"}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">

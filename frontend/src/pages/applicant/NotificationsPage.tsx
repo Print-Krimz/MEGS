@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notificationApi } from "../../lib/api/notification.api";
 import {
@@ -9,7 +10,7 @@ import {
   Pagination,
 } from "../../components/common";
 import { Button } from "../../components/ui";
-import { formatRelativeTime } from "../../lib/utils";
+import { formatRelativeTime, formatNotificationMessage } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
 import {
@@ -19,10 +20,13 @@ import {
   Briefcase,
   ShieldCheck,
   Check,
+  ArrowUpRight,
+  ExternalLink,
 } from "lucide-react";
 
 export const NotificationsPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filterUnread, setFilterUnread] = useState(false);
   const [page, setPage] = useState(1);
@@ -40,7 +44,7 @@ export const NotificationsPage: React.FC = () => {
     mutationFn: notificationApi.markAsRead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
     },
   });
 
@@ -48,7 +52,7 @@ export const NotificationsPage: React.FC = () => {
     mutationFn: notificationApi.markAllAsRead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
     },
   });
 
@@ -60,29 +64,29 @@ export const NotificationsPage: React.FC = () => {
   const getHeaderConfig = () => {
     if (user?.role === Role.TALENT_ACQUISITION) {
       return {
-        title: "Operational Notifications",
-        description: "Stay informed on candidate submissions, SLA deadlines, interview schedules, and workflow alerts",
+        title: "Notifications",
+        description: "Stay informed about applications, interview targets (SLA), and important updates.",
         breadcrumbs: [
-          { label: "TA Workspace", href: "/ta" },
+          { label: "Talent acquisition", href: "/ta" },
           { label: "Notifications" },
         ],
       };
     }
     if (user?.role === Role.ADMINISTRATOR) {
       return {
-        title: "System & Operational Notifications",
-        description: "Stay informed on administrative alerts, candidate reassessments, and system notices",
+        title: "Notifications",
+        description: "Stay informed about access, score reviews, and important updates.",
         breadcrumbs: [
-          { label: "Admin Console", href: "/admin" },
+          { label: "Administration", href: "/admin" },
           { label: "Notifications" },
         ],
       };
     }
     return {
-      title: "Candidate Notifications",
-      description: "Stay informed on interview schedules, application stage changes, and compliance notices",
+      title: "Notifications",
+      description: "Stay informed about interviews, application updates, and employment documents.",
       breadcrumbs: [
-        { label: "Applicant Portal", href: "/app" },
+        { label: "My career", href: "/app" },
         { label: "Notifications" },
       ],
     };
@@ -184,23 +188,33 @@ export const NotificationsPage: React.FC = () => {
             {paginatedNotifications.map((n) => (
               <div
                 key={n.id}
-                className={`p-4 flex items-start justify-between gap-4 transition-colors ${
+                onClick={() => {
+                  if (!n.isRead) markReadMutation.mutate(n.id);
+                  if (n.link) navigate({ to: n.link as any });
+                }}
+                className={`p-4 flex items-start justify-between gap-4 transition-colors cursor-pointer ${
                   !n.isRead ? "bg-teal-50/20" : "hover:bg-slate-50/60"
                 }`}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 flex-1">
                   <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 shrink-0 mt-0.5">
                     {getIconForType(n.type)}
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-slate-900">{n.title}</span>
                       {!n.isRead && (
                         <span className="w-2 h-2 rounded-full bg-teal-600 shrink-0" />
                       )}
+                      {n.link && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded">
+                          <span>View Record</span>
+                          <ArrowUpRight className="w-3 h-3" />
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
-                      {n.message}
+                      {formatNotificationMessage(n.message, user?.role)}
                     </p>
                     <div className="text-[10px] text-slate-400 font-mono">
                       {formatRelativeTime(n.createdAt)}
@@ -208,19 +222,40 @@ export const NotificationsPage: React.FC = () => {
                   </div>
                 </div>
 
-                {!n.isRead && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    leftIcon={<Check className="w-3.5 h-3.5" />}
-                    loading={markReadMutation.isPending}
-                    onClick={() => markReadMutation.mutate(n.id)}
-                    title="Mark as read"
-                    className="text-teal-700 hover:text-teal-900 shrink-0"
-                  >
-                    Mark read
-                  </Button>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  {n.link && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      rightIcon={<ExternalLink className="w-3.5 h-3.5" />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!n.isRead) markReadMutation.mutate(n.id);
+                        navigate({ to: n.link as any });
+                      }}
+                      title="Open linked record"
+                      className="text-slate-700 text-xs hidden sm:flex"
+                    >
+                      Open
+                    </Button>
+                  )}
+                  {!n.isRead && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<Check className="w-3.5 h-3.5" />}
+                      loading={markReadMutation.isPending}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        markReadMutation.mutate(n.id);
+                      }}
+                      title="Mark as read"
+                      className="text-teal-700 hover:text-teal-900 shrink-0"
+                    >
+                      Mark read
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

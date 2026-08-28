@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
   PageHeader,
@@ -8,16 +7,22 @@ import {
   ErrorState,
   EmptyState,
 } from "../../components/common";
-import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
+import { Button, Dialog, Input, Select, Textarea, ComboBox } from "../../components/ui";
 import {
   Sparkles,
   Search,
   PhoneCall,
   ArrowRight,
   MapPin,
+  Briefcase,
+  Clock,
+  CheckCircle2,
 } from "lucide-react";
+import { notify } from "../../lib/feedback";
+import { TalentPoolCandidate } from "../../lib/types/ta.types";
 
 export const TalentPoolPage: React.FC = () => {
+  const queryClient = useQueryClient();
   const [searchText, setSearchText] = useState("");
   const [selectedJobId, setSelectedJobId] = useState<number>(0);
   const [searchK, setSearchK] = useState<number>(10);
@@ -30,8 +35,16 @@ export const TalentPoolPage: React.FC = () => {
   const [contactOutcome, setContactOutcome] = useState("INTERESTED");
   const [contactNotes, setContactNotes] = useState("");
   const [contactJobId, setContactJobId] = useState<number>(0);
+  const [contactJobError, setContactJobError] = useState<string | null>(null);
 
-  // Queries
+  // Consider / Reactivation Modal State
+  const [considerModalOpen, setConsiderModalOpen] = useState(false);
+  const [considerCandidate, setConsiderCandidate] = useState<TalentPoolCandidate | null>(null);
+  const [considerJobId, setConsiderJobId] = useState<number>(0);
+  const [considerNotes, setConsiderNotes] = useState("");
+  const [considerOutcome, setConsiderOutcome] = useState<"INTERESTED" | "NOT_INTERESTED" | "NO_RESPONSE" | "UNAVAILABLE">("INTERESTED");
+  const [considerJobError, setConsiderJobError] = useState<string | null>(null);
+
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const jobsQuery = useQuery({
@@ -48,10 +61,34 @@ export const TalentPoolPage: React.FC = () => {
     onSuccess: () => {
       setContactModalOpen(false);
       setContactNotes("");
-      setFeedback({ type: "success", message: "Candidate contact outcome logged successfully." });
+      setContactJobError(null);
+      queryClient.invalidateQueries({ queryKey: ["ta", "talent-pool"] });
+      const msg = "Candidate outreach log saved successfully.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Contact Logged", msg);
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to log contact outcome: " + err.message });
+      notify.error("Logging Failed", err);
+    },
+  });
+
+  const considerCandidateMutation = useMutation({
+    mutationFn: taApi.considerCandidateForJob,
+    onSuccess: (res) => {
+      setConsiderModalOpen(false);
+      setConsiderNotes("");
+      setConsiderJobError(null);
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "talent-pool"] });
+      const fitScoreMsg = res.score?.finalFitScore !== undefined ? ` (Fit Score: ${res.score.finalFitScore}%)` : "";
+      const msg = `Candidate reactivated into Application #${res.application?.id || ""}${fitScoreMsg} for selected job requisition.`;
+      setFeedback({ type: "success", message: msg });
+      notify.success("Candidate Reactivated", msg);
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: "Failed to reactivate candidate: " + err.message });
+      notify.error("Reactivation Failed", err);
     },
   });
 
@@ -85,10 +122,58 @@ export const TalentPoolPage: React.FC = () => {
   const jobs = jobsQuery.data || [];
   const results = searchMutation.data || [];
 
+  const handleOpenContactModal = (c: TalentPoolCandidate) => {
+    setContactMembershipId(c.membershipId || c.applicantProfileId || 0);
+    setContactCandidateName(`${c.firstName} ${c.lastName}`);
+    setContactJobId(jobs[0]?.id || 0);
+    setContactOutcome("INTERESTED");
+    setContactNotes("");
+    setContactJobError(null);
+    setContactModalOpen(true);
+  };
+
+  const handleSaveContact = () => {
+    if (!contactJobId || contactJobId <= 0) {
+      setContactJobError("Please select a target job requisition for this contact record.");
+      return;
+    }
+    setContactJobError(null);
+    recordContactMutation.mutate({
+      membershipId: contactMembershipId,
+      jobPostingId: contactJobId,
+      outcome: contactOutcome,
+      notes: contactNotes || undefined,
+    });
+  };
+
+  const handleOpenConsiderModal = (c: TalentPoolCandidate) => {
+    setConsiderCandidate(c);
+    setConsiderJobId(selectedJobId > 0 ? selectedJobId : jobs[0]?.id || 0);
+    setConsiderOutcome("INTERESTED");
+    setConsiderNotes("");
+    setConsiderJobError(null);
+    setConsiderModalOpen(true);
+  };
+
+  const handleConfirmConsider = () => {
+    if (!considerCandidate) return;
+    if (!considerJobId || considerJobId <= 0) {
+      setConsiderJobError("Please select an active target job requisition.");
+      return;
+    }
+    setConsiderJobError(null);
+    considerCandidateMutation.mutate({
+      applicantProfileId: considerCandidate.applicantProfileId,
+      targetJobId: considerJobId,
+      notes: considerNotes || undefined,
+      contactOutcome: considerOutcome,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Talent Pool & Candidate Matching"
+        title="Candidate pool"
         description="Search past applicants, pre-screened talent, and redeployment candidates across qualifications and experience"
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },
@@ -119,10 +204,10 @@ export const TalentPoolPage: React.FC = () => {
       {/* Semantic Search Box */}
       <form
         onSubmit={handleSearch}
-        className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4"
+        className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 shadow-xs space-y-4"
       >
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-          <Sparkles className="w-4 h-4 text-teal-600" />
+          <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
           <h3 className="text-xs font-mono font-bold uppercase text-slate-800">
             Candidate Search & Match
           </h3>
@@ -143,17 +228,24 @@ export const TalentPoolPage: React.FC = () => {
           </div>
 
           <div className="sm:col-span-4">
-            <Select
+            <ComboBox
               label="Match Against Job (Optional)"
-              value={selectedJobId}
-              onChange={(e) => {
-                setSelectedJobId(Number(e.target.value));
+              placeholder="Search or select job requisition..."
+              value={selectedJobId ? String(selectedJobId) : ""}
+              onChange={(val) => {
+                setSelectedJobId(Number(val) || 0);
                 if (validationError) setValidationError(null);
               }}
               options={[
-                { value: 0, label: "All Job Categories (Keyword Search)" },
-                ...jobs.map((j) => ({ value: j.id, label: j.title })),
+                { value: "", label: "All Job Categories (Keyword Search)" },
+                ...jobs.map((j) => ({
+                  value: String(j.id),
+                  label: j.title,
+                  subtitle: `REQ #${j.id} • ${j.location || "Philippines"}`,
+                  badge: j.status,
+                })),
               ]}
+              clearable={Boolean(selectedJobId)}
             />
           </div>
 
@@ -172,23 +264,25 @@ export const TalentPoolPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex flex-wrap justify-end gap-2 pt-2">
           {(searchText || selectedJobId > 0 || searchMutation.isSuccess || searchMutation.isError) && (
             <Button
               variant="outline"
-              size="md"
+              size="sm"
               type="button"
               onClick={handleReset}
+              className="w-full sm:w-auto"
             >
               Clear Filter
             </Button>
           )}
           <Button
             variant="primary"
-            size="md"
+            size="sm"
             type="submit"
             loading={searchMutation.isPending}
             leftIcon={<Search className="w-3.5 h-3.5" />}
+            className="w-full sm:w-auto"
           >
             Search Talent Pool
           </Button>
@@ -234,6 +328,13 @@ export const TalentPoolPage: React.FC = () => {
               const c = res.candidate;
               const simPercent = Math.round((res.similarity || 0) * 100);
 
+              const availabilityBadgeClass =
+                c.availability === "AVAILABLE"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : c.availability === "UNAVAILABLE"
+                  ? "bg-slate-100 text-slate-600 border-slate-200"
+                  : "bg-amber-50 text-amber-700 border-amber-200";
+
               return (
                 <div
                   key={c.id}
@@ -242,12 +343,18 @@ export const TalentPoolPage: React.FC = () => {
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h4 className="text-sm font-bold text-slate-900">
-                          {c.firstName} {c.lastName}
-                        </h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-bold text-slate-900">
+                            {c.firstName} {c.lastName}
+                          </h4>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${availabilityBadgeClass}`}
+                          >
+                            {c.availability}
+                          </span>
+                        </div>
                         <div className="text-xs text-slate-500 font-mono flex items-center gap-2 mt-0.5">
-                          <span>{c.user?.email || "No email"}</span>
-                          {c.mobileNumber && <span>• {c.mobileNumber}</span>}
+                          <span>{c.email || "No email"}</span>
                         </div>
                       </div>
 
@@ -259,22 +366,23 @@ export const TalentPoolPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {c.address && (
-                      <div className="text-xs text-slate-600 flex items-center gap-1.5 font-mono">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{c.city ? `${c.city}, ${c.province}` : c.address}</span>
+                    {c.currentRole && (
+                      <div className="text-xs text-slate-700 font-medium flex items-center gap-1.5">
+                        <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{c.currentRole}</span>
                       </div>
                     )}
 
-                    {c.professionalSummary && (
-                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                        {c.professionalSummary}
-                      </p>
+                    {(c.city || c.province) && (
+                      <div className="text-xs text-slate-600 flex items-center gap-1.5 font-mono">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{[c.city, c.province].filter(Boolean).join(", ")}</span>
+                      </div>
                     )}
 
                     {c.skills && c.skills.length > 0 && (
                       <div className="flex flex-wrap gap-1 pt-1">
-                        {c.skills.slice(0, 5).map((s: any, idx) => (
+                        {c.skills.slice(0, 6).map((s: any, idx) => (
                           <span
                             key={idx}
                             className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold"
@@ -284,6 +392,13 @@ export const TalentPoolPage: React.FC = () => {
                         ))}
                       </div>
                     )}
+
+                    {c.lastContactedAt && (
+                      <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        <span>Last contacted: {new Date(c.lastContactedAt).toLocaleDateString()}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
@@ -291,20 +406,20 @@ export const TalentPoolPage: React.FC = () => {
                       variant="outline"
                       size="sm"
                       leftIcon={<PhoneCall className="w-3.5 h-3.5 text-slate-600" />}
-                      onClick={() => {
-                        setContactMembershipId(c.membershipId || c.applicantProfileId || 0);
-                        setContactCandidateName(`${c.firstName} ${c.lastName}`);
-                        setContactModalOpen(true);
-                      }}
+                      onClick={() => handleOpenContactModal(c)}
                     >
                       Log Contact
                     </Button>
 
-                    <Link to="/ta/jobs">
-                      <Button variant="primary" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-                        Consider for Job
-                      </Button>
-                    </Link>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                      disabled={c.availability === "UNAVAILABLE"}
+                      onClick={() => handleOpenConsiderModal(c)}
+                    >
+                      Consider for Job
+                    </Button>
                   </div>
                 </div>
               );
@@ -327,31 +442,41 @@ export const TalentPoolPage: React.FC = () => {
         onClose={() => setContactModalOpen(false)}
         title="Log Candidate Contact Outcome"
         description={`Record outreach notes for ${contactCandidateName}`}
+        overflowVisible
       >
         <div className="space-y-4">
-          <Select
-            label="Associated Job Requisition (Optional)"
-            value={contactJobId}
-            onChange={(e) => setContactJobId(Number(e.target.value))}
-            options={[
-              { value: 0, label: "General Re-engagement" },
-              ...jobs.map((j) => ({ value: j.id, label: j.title })),
-            ]}
+          <ComboBox
+            label="Associated Job Requisition *"
+            placeholder="Search target job opening..."
+            value={contactJobId ? String(contactJobId) : ""}
+            error={contactJobError || undefined}
+            onChange={(val) => {
+              setContactJobId(Number(val) || 0);
+              if (contactJobError) setContactJobError(null);
+            }}
+            options={jobs.map((j) => ({
+              value: String(j.id),
+              label: j.title,
+              subtitle: `REQ #${j.id} • ${j.location || "Philippines"}`,
+              badge: j.status,
+            }))}
+            emptyText="No matching job openings found"
+            required
           />
           <Select
-            label="Candidate Response / Outcome"
+            label="Candidate Response / Outcome *"
             value={contactOutcome}
             onChange={(e) => setContactOutcome(e.target.value)}
             options={[
-              { value: "INTERESTED", label: "INTERESTED (Ready for Interview)" },
+              { value: "INTERESTED", label: "INTERESTED (Ready for Role)" },
               { value: "NOT_INTERESTED", label: "NOT INTERESTED (Declined)" },
               { value: "NO_RESPONSE", label: "NO RESPONSE (Unreachable)" },
-              { value: "UNAVAILABLE", label: "UNAVAILABLE (Currently Employed elsewhere)" },
+              { value: "UNAVAILABLE", label: "UNAVAILABLE (Employed elsewhere)" },
             ]}
           />
           <Textarea
-            label="Recruiter Notes"
-            placeholder="Document contact notes, phone conversation details..."
+            label="Recruiter Outreach Notes"
+            placeholder="Document phone conversation notes, availability window, salary expectations..."
             value={contactNotes}
             onChange={(e) => setContactNotes(e.target.value)}
             rows={3}
@@ -364,16 +489,86 @@ export const TalentPoolPage: React.FC = () => {
               variant="primary"
               size="sm"
               loading={recordContactMutation.isPending}
-              onClick={() =>
-                recordContactMutation.mutate({
-                  membershipId: contactMembershipId,
-                  jobPostingId: contactJobId,
-                  outcome: contactOutcome,
-                  notes: contactNotes || undefined,
-                })
-              }
+              onClick={handleSaveContact}
             >
               Save Contact Record
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Consider / Reactivate Candidate for Job Modal */}
+      <Dialog
+        open={considerModalOpen}
+        onClose={() => setConsiderModalOpen(false)}
+        title="Consider Candidate for Job Requisition"
+        description={
+          considerCandidate
+            ? `Reactivate ${considerCandidate.firstName} ${considerCandidate.lastName} into a new job application.`
+            : "Reactivate talent pool candidate into an open requisition."
+        }
+        overflowVisible
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
+            <div className="font-semibold text-slate-800">
+              Candidate: {considerCandidate?.firstName} {considerCandidate?.lastName}
+            </div>
+            <div className="text-slate-500 font-mono">Email: {considerCandidate?.email}</div>
+            {considerCandidate?.currentRole && (
+              <div className="text-slate-600">Current Role: {considerCandidate.currentRole}</div>
+            )}
+          </div>
+
+          <ComboBox
+            label="Target Job Requisition *"
+            placeholder="Search target job requisition..."
+            value={considerJobId ? String(considerJobId) : ""}
+            error={considerJobError || undefined}
+            onChange={(val) => {
+              setConsiderJobId(Number(val) || 0);
+              if (considerJobError) setConsiderJobError(null);
+            }}
+            options={jobs.map((j) => ({
+              value: String(j.id),
+              label: j.title,
+              subtitle: `REQ #${j.id} • ${j.location || "Philippines"}`,
+              badge: j.status,
+            }))}
+            emptyText="No matching job requisitions found"
+            required
+          />
+
+          <Select
+            label="Contact Outcome Initial State"
+            value={considerOutcome}
+            onChange={(e) => setConsiderOutcome(e.target.value as any)}
+            options={[
+              { value: "INTERESTED", label: "INTERESTED (Candidate Confirmed Interest)" },
+              { value: "NO_RESPONSE", label: "NO RESPONSE (Attempting Initial Outreach)" },
+            ]}
+          />
+
+          <Textarea
+            label="Recruiter Reactivation Notes"
+            placeholder="Document why this talent pool candidate is being considered for this specific requisition..."
+            value={considerNotes}
+            onChange={(e) => setConsiderNotes(e.target.value)}
+            rows={3}
+          />
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setConsiderModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={considerCandidateMutation.isPending}
+              onClick={handleConfirmConsider}
+              leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+            >
+              Reactivate & Apply Candidate
             </Button>
           </div>
         </div>

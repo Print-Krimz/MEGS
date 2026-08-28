@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { BriefcaseBusiness, Menu, X, ArrowRight, LogIn } from "lucide-react";
+import { Menu, X, ArrowRight, LogIn } from "lucide-react";
 import { scrollToSection } from "../../lib/scrollToSection";
 
 const navLinks = [
@@ -49,20 +49,15 @@ export const LandingHeader: React.FC = () => {
           <a
             href="#home"
             onClick={(e) => handleNavClick(e, "#home")}
-            className="flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-teal-700 p-1 group"
+            className="flex flex-col focus:outline-none focus:ring-2 focus:ring-teal-700 py-1 group"
             aria-label="MEGS Home"
           >
-            <div className="w-10 h-10 bg-teal-800 text-white flex items-center justify-center font-mono font-bold text-lg border border-teal-900 shrink-0 group-hover:bg-teal-700 transition-colors">
-              <BriefcaseBusiness className="w-5 h-5 text-teal-100" />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-bold text-sm sm:text-base tracking-tight text-slate-900 font-mono leading-tight">
-                MEGS INC.
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 tracking-wider uppercase">
-                Manpower & Recruitment
-              </span>
-            </div>
+            <span className="font-extrabold text-base sm:text-lg tracking-tight text-slate-950 font-mono leading-none group-hover:text-teal-800 transition-colors">
+              MEGS INC.
+            </span>
+            <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 tracking-wider uppercase mt-1">
+              Manpower & Recruitment
+            </span>
           </a>
 
           {/* Desktop Navigation Links with gliding active indicator */}

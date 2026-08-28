@@ -12,7 +12,6 @@ import {
 import { Button } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
 import {
-  ArrowLeft,
   Briefcase,
   Calendar,
   MapPin,
@@ -22,7 +21,10 @@ import {
   ExternalLink,
   AlertCircle,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
+import { ApplicationStatus } from "../../lib/types/enums";
+import { notify } from "../../lib/feedback";
 
 export const ApplicationDetailPage: React.FC = () => {
   const { applicationId } = useParams({ strict: false }) as { applicationId: string };
@@ -41,11 +43,13 @@ export const ApplicationDetailPage: React.FC = () => {
     mutationFn: ({ requirementId, file }: { requirementId: number; file: File }) =>
       applicantJobsApi.uploadComplianceDocument(requirementId, file),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applicant", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["applicant"] });
+      const successMsg = "Document uploaded successfully and submitted for recruiter verification.";
       setFeedback({
         type: "success",
-        message: "Document uploaded successfully and submitted for recruiter verification.",
+        message: successMsg,
       });
+      notify.success("Document Uploaded", successMsg);
       setActiveUploadReqId(null);
     },
     onError: (err: any) => {
@@ -53,6 +57,7 @@ export const ApplicationDetailPage: React.FC = () => {
         type: "error",
         message: "Failed to upload document: " + (err?.message || "An error occurred"),
       });
+      notify.error("Upload Failed", err);
       setActiveUploadReqId(null);
     },
   });
@@ -60,6 +65,11 @@ export const ApplicationDetailPage: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && activeUploadReqId) {
+      if (file.size > 5 * 1024 * 1024) {
+        notify.error("File Too Large", "Maximum upload size is 5 MB. Please select a smaller file.");
+        if (e.target) e.target.value = "";
+        return;
+      }
       uploadMutation.mutate({ requirementId: activeUploadReqId, file });
     }
     // reset input
@@ -69,7 +79,7 @@ export const ApplicationDetailPage: React.FC = () => {
   if (applicationQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Application Details" description="Loading tracking records..." />
+        <PageHeader title="Application details" description="Loading your application…" />
         <LoadingState variant="detail" />
       </div>
     );
@@ -79,8 +89,8 @@ export const ApplicationDetailPage: React.FC = () => {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Application Details"
-          description="Tracking records"
+          title="Application details"
+          description="Application progress"
         />
         {applicationQuery.isError ? (
           <ErrorState
@@ -92,10 +102,8 @@ export const ApplicationDetailPage: React.FC = () => {
             <p className="text-xs text-slate-600">
               This application does not exist or you do not have permission to view it.
             </p>
-            <Link to="/app/applications">
-              <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                Back to Applications
-              </Button>
+            <Link to="/app/applications" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+              Back to applications
             </Link>
           </div>
         )}
@@ -121,17 +129,15 @@ export const ApplicationDetailPage: React.FC = () => {
 
       <PageHeader
         title={job?.title || "Application Details"}
-        description={`Application Reference: #${application.id}`}
+        description="Follow your application progress and upcoming steps."
         breadcrumbs={[
-          { label: "Applicant Portal", href: "/app" },
+          { label: "My career", href: "/app" },
           { label: "Applications", href: "/app/applications" },
           { label: job?.title || "Application Details" },
         ]}
         actions={
-          <Link to="/app/applications">
-            <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-              Back to Tracker
-            </Button>
+          <Link to="/app/applications" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+            Back to applications
           </Link>
         }
       />
@@ -159,20 +165,35 @@ export const ApplicationDetailPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2.5">
-              <span className="text-xs font-mono font-bold uppercase text-slate-600">
-                Current Hiring Stage:
+              <span className="text-sm font-medium text-slate-600">
+                Current status
               </span>
-              <StatusBadge status={application.status} size="sm" />
+              <StatusBadge status={application.status} audience="applicant" size="sm" />
             </div>
-            <div className="text-[11px] text-slate-500 font-mono">
+            <div className="text-sm text-slate-500">
               Submitted on {formatDate(application.createdAt)}
             </div>
           </div>
         </div>
 
+        {/* Supporting message for Future Opportunities */}
+        {application.status === ApplicationStatus.TALENT_POOL && (
+          <div className="p-4 bg-violet-50 border-l-4 border-violet-700 border border-slate-300 space-y-1">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-violet-700 shrink-0" />
+              <h4 className="text-sm font-semibold text-violet-950">
+                Status: Future Opportunities
+              </h4>
+            </div>
+            <p className="text-xs sm:text-sm text-violet-900 leading-relaxed">
+              You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications.
+            </p>
+          </div>
+        )}
+
         {/* Pipeline Stepper */}
         <div className="py-1">
-          <PipelineIndicator currentStatus={application.status} />
+          <PipelineIndicator currentStatus={application.status} audience="applicant" />
         </div>
       </div>
 
@@ -183,8 +204,8 @@ export const ApplicationDetailPage: React.FC = () => {
           <div className="bg-white border border-slate-300">
             <div className="p-3 border-b border-slate-300 flex items-center gap-2 bg-slate-100">
               <Calendar className="w-4 h-4 text-blue-700" />
-              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-900">
-                Scheduled Interviews & Assessments
+              <h3 className="text-base font-semibold text-slate-900">
+                Interviews and assessments
               </h3>
             </div>
 
@@ -226,8 +247,8 @@ export const ApplicationDetailPage: React.FC = () => {
             <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
               <div className="flex items-center gap-2">
                 <FileCheck2 className="w-4 h-4 text-teal-700" />
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-900">
-                  Pre-Employment 201 Compliance Checklist
+                <h3 className="text-base font-semibold text-slate-900">
+                  Employment documents (201)
                 </h3>
               </div>
               <span className="text-[11px] font-mono text-slate-500">
