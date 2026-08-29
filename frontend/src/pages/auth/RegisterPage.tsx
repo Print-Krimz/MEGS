@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
-import { Input, Button } from "../../components/ui";
+import { Input, PasswordInput, Button } from "../../components/ui";
 import { authApi } from "../../lib/api/auth.api";
 import { UserPlus, AlertCircle, CheckCircle2, ArrowRight, ArrowLeft, ShieldCheck, RefreshCw } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
@@ -308,21 +308,19 @@ export const RegisterPage: React.FC = () => {
           required
         />
 
-        <Input
+        <PasswordInput
           label="Password"
-          type="password"
           autoComplete="new-password"
-          placeholder="At least 8 characters"
+          placeholder="Create password"
           value={formData.password}
           onChange={(e) => handleChange("password", e.target.value)}
           error={validationErrors.password}
-          helperText="Minimum 8 characters with letters & numbers"
+          showStrengthIndicator
           required
         />
 
-        <Input
+        <PasswordInput
           label="Confirm Password"
-          type="password"
           autoComplete="new-password"
           placeholder="Re-enter password"
           value={formData.confirmPassword}

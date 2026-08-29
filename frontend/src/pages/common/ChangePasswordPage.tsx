@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
-import { Input, Button } from "../../components/ui";
+import { PasswordInput, Button } from "../../components/ui";
 import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
@@ -97,12 +97,14 @@ export const ChangePasswordPage: React.FC = () => {
     <div className="space-y-6">
       {/* Notice header */}
       <div className="space-y-1 text-center sm:text-left">
-        <div className="flex items-center gap-2 text-amber-700 mb-1">
-          <ShieldAlert className="w-5 h-5 shrink-0" />
-          <span className="text-xs font-mono font-bold uppercase tracking-wider">
-            {mustChangePassword ? "Mandatory Security Requirement" : "Security Update"}
-          </span>
-        </div>
+        {mustChangePassword && (
+          <div className="flex items-center gap-2 text-amber-700 mb-1">
+            <ShieldAlert className="w-4 h-4 shrink-0" />
+            <span className="text-xs font-mono font-bold uppercase tracking-wider">
+              Mandatory Security Requirement
+            </span>
+          </div>
+        )}
         <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
           Update Your Password
         </h2>
@@ -123,9 +125,8 @@ export const ChangePasswordPage: React.FC = () => {
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        <Input
+        <PasswordInput
           label="Current Password"
-          type="password"
           autoComplete="current-password"
           placeholder="Enter current password"
           value={formData.currentPassword}
@@ -134,21 +135,19 @@ export const ChangePasswordPage: React.FC = () => {
           required
         />
 
-        <Input
+        <PasswordInput
           label="New Password"
-          type="password"
           autoComplete="new-password"
-          placeholder="At least 8 characters"
+          placeholder="Enter new password"
           value={formData.newPassword}
           onChange={(e) => handleChange("newPassword", e.target.value)}
           error={validationErrors.newPassword}
-          helperText="Minimum 8 characters with letters & numbers"
+          showStrengthIndicator
           required
         />
 
-        <Input
+        <PasswordInput
           label="Confirm New Password"
-          type="password"
           autoComplete="new-password"
           placeholder="Re-enter new password"
           value={formData.confirmPassword}
@@ -157,16 +156,33 @@ export const ChangePasswordPage: React.FC = () => {
           required
         />
 
-        <Button
-          type="submit"
-          variant="primary"
-          size="md"
-          loading={changeMutation.isPending}
-          leftIcon={<KeyRound className="w-4 h-4" />}
-          className="w-full mt-2"
-        >
-          Save & Proceed
-        </Button>
+        <div className="flex items-center gap-2 pt-2">
+          {!mustChangePassword && (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => {
+                if (user?.role === Role.ADMINISTRATOR) navigate({ to: "/admin" });
+                else if (user?.role === Role.TALENT_ACQUISITION) navigate({ to: "/ta" });
+                else navigate({ to: "/app" });
+              }}
+              className="w-1/3"
+            >
+              Cancel
+            </Button>
+          )}
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            loading={changeMutation.isPending}
+            leftIcon={<KeyRound className="w-4 h-4" />}
+            className={mustChangePassword ? "w-full mt-2" : "flex-1"}
+          >
+            Update Password
+          </Button>
+        </div>
       </form>
     </div>
   );

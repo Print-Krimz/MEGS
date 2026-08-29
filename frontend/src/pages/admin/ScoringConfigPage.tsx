@@ -169,7 +169,7 @@ export const ScoringConfigPage: React.FC = () => {
   const historyItems = historyQuery.data || [];
 
   return (
-    <div className="space-y-5 max-w-4xl">
+    <div className="space-y-5">
       <PageHeader
         title="Candidate matching settings"
         description="Set evaluation criteria weights and match thresholds for candidate scoring"

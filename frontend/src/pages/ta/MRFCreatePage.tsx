@@ -99,7 +99,7 @@ export const MRFCreatePage: React.FC = () => {
   }));
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <PageHeader
         title="Create Manpower Request (MRF)"
         description="Register a client labor requisition order with headcount allocation and compliance templates"

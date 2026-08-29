@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
-import { Input, Button } from "../../components/ui";
+import { Input, PasswordInput, Button } from "../../components/ui";
 import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
@@ -186,9 +186,8 @@ export const LoginPage: React.FC = () => {
               Forgot password?
             </Link>
           </div>
-          <Input
+          <PasswordInput
             id="login-password"
-            type="password"
             autoComplete="current-password"
             placeholder="••••••••"
             value={formData.password}
@@ -217,7 +216,7 @@ export const LoginPage: React.FC = () => {
           to="/register"
           className="font-semibold text-teal-700 hover:text-teal-900 hover:underline"
         >
-          Create applicant account
+          Create account
         </Link>
       </div>
 

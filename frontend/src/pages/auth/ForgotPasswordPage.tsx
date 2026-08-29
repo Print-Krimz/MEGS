@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useSearch } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
-import { Input, Button } from "../../components/ui";
+import { Input, PasswordInput, Button } from "../../components/ui";
 import { authApi } from "../../lib/api/auth.api";
 import {
   KeyRound,
@@ -247,11 +247,10 @@ export const ForgotPasswordPage: React.FC = () => {
 
         {/* New Password Form */}
         <form onSubmit={handlePasswordSubmit} className="space-y-4" noValidate>
-          <Input
+          <PasswordInput
             label="New Password"
-            type="password"
             autoComplete="new-password"
-            placeholder="At least 8 characters"
+            placeholder="Enter new password"
             value={passwordData.password}
             onChange={(e) => {
               setPasswordData((prev) => ({ ...prev, password: e.target.value }));
@@ -260,13 +259,12 @@ export const ForgotPasswordPage: React.FC = () => {
               }
             }}
             error={validationErrors.password}
-            helperText="Minimum 8 characters"
+            showStrengthIndicator
             required
           />
 
-          <Input
+          <PasswordInput
             label="Confirm New Password"
-            type="password"
             autoComplete="new-password"
             placeholder="Re-enter new password"
             value={passwordData.confirmPassword}

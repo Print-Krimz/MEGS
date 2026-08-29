@@ -546,7 +546,7 @@ export const getScoringRevalidationStatus = async () => {
     prisma.scoringRevalidationTask.findMany({
       where: { status: "FAILED" },
       orderBy: { updatedAt: "desc" },
-      take: 20,
+      take: 100,
       include: {
         application: {
           select: {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, Outlet } from "@tanstack/react-router";
 import {
   LayoutDashboard,
@@ -16,10 +16,12 @@ import {
   ChevronRight,
   Menu,
   X,
+  ChevronDown,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
-import { NotificationBell, RealtimeToastContainer, SignOutDialog } from "../components/common";
+import { NotificationBell, RealtimeToastContainer, SignOutDialog, ChangePasswordModal } from "../components/common";
 import { getInitials } from "../lib/utils";
 import { Role } from "../lib/types/enums";
 
@@ -27,7 +29,13 @@ export const TALayout: React.FC = () => {
   const { user } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const accountButtonRef = useRef<HTMLButtonElement>(null);
+  const menuItemsRef = useRef<(HTMLAnchorElement | HTMLButtonElement | null)[]>([]);
 
   const {
     unreadCount,
@@ -38,8 +46,62 @@ export const TALayout: React.FC = () => {
   } = useRealtimeNotifications();
 
   const profile = user?.applicantProfile;
-  const fullName = profile ? `${profile.firstName} ${profile.lastName}` : user?.email || "Recruiter";
-  const initials = getInitials(profile?.firstName, profile?.lastName);
+  const hasProfileName = Boolean(profile?.firstName && profile?.lastName);
+  const fullName = hasProfileName ? `${profile!.firstName} ${profile!.lastName}` : user?.email || "Recruiter";
+  const initials = getInitials(profile?.firstName, profile?.lastName) || "TA";
+
+  // Close account menu on click outside
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    if (accountMenuOpen) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [accountMenuOpen]);
+
+  // Keyboard navigation for account menu
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!accountMenuOpen) return;
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setAccountMenuOpen(false);
+        accountButtonRef.current?.focus();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const items = menuItemsRef.current.filter(Boolean) as (HTMLAnchorElement | HTMLButtonElement)[];
+        if (items.length === 0) return;
+        const currentIndex = items.findIndex((item) => item === document.activeElement);
+        const nextIndex = currentIndex === -1 || currentIndex === items.length - 1 ? 0 : currentIndex + 1;
+        items[nextIndex]?.focus();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const items = menuItemsRef.current.filter(Boolean) as (HTMLAnchorElement | HTMLButtonElement)[];
+        if (items.length === 0) return;
+        const currentIndex = items.findIndex((item) => item === document.activeElement);
+        const prevIndex = currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
+        items[prevIndex]?.focus();
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        const items = menuItemsRef.current.filter(Boolean) as (HTMLAnchorElement | HTMLButtonElement)[];
+        items[0]?.focus();
+      } else if (e.key === "End") {
+        e.preventDefault();
+        const items = menuItemsRef.current.filter(Boolean) as (HTMLAnchorElement | HTMLButtonElement)[];
+        items[items.length - 1]?.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [accountMenuOpen]);
 
   const navSections = [
     {
@@ -134,33 +196,6 @@ export const TALayout: React.FC = () => {
                 </div>
               ))}
             </nav>
-
-            {/* Mobile User Footer */}
-            <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2 overflow-hidden">
-                <div className="w-7 h-7 bg-slate-800 text-teal-400 border border-slate-700 flex items-center justify-center text-xs font-mono font-bold shrink-0">
-                  {initials}
-                </div>
-                <div className="overflow-hidden leading-tight">
-                  <div className="text-xs font-medium text-white truncate">{fullName}</div>
-                  <div className="text-xs text-slate-400 truncate">
-                    {user?.role === Role.ADMINISTRATOR ? "Admin and talent acquisition" : "Recruiter"}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setShowSignOutConfirm(true);
-                }}
-                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
-                title="Sign Out"
-                aria-label="Sign Out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
           </aside>
         </div>
       )}
@@ -229,33 +264,6 @@ export const TALayout: React.FC = () => {
             </div>
           ))}
         </nav>
-
-        {/* User Footer */}
-        <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <div className="w-7 h-7 bg-slate-800 text-teal-400 border border-slate-700 flex items-center justify-center text-xs font-mono font-bold shrink-0">
-              {initials}
-            </div>
-            {!collapsed && (
-              <div className="overflow-hidden leading-tight">
-                <div className="text-xs font-medium text-white truncate">{fullName}</div>
-                <div className="text-xs text-slate-400 truncate">
-                  {user?.role === Role.ADMINISTRATOR ? "Admin and talent acquisition" : "Recruiter"}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowSignOutConfirm(true)}
-            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
-            title="Sign Out"
-            aria-label="Sign Out"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
       </aside>
 
       {/* Sign Out Warning Dialog */}
@@ -290,15 +298,122 @@ export const TALayout: React.FC = () => {
               onMarkAsRead={markAsRead}
               viewAllLink="/ta/notifications"
             />
-            <div className="text-right hidden sm:block">
-              <div className="text-xs font-bold text-slate-900 truncate max-w-[160px]">{fullName}</div>
-              <div className="text-[10px] text-slate-500 font-mono truncate max-w-[160px]">{user?.email}</div>
-            </div>
-            <div className="text-right sm:hidden font-mono text-[10px] font-bold text-slate-900 bg-slate-100 border border-slate-300 px-1.5 py-0.5">
-              {initials}
+
+            {/* Top-Right Account Menu Dropdown */}
+            <div className="relative inline-block text-left pl-2 sm:pl-3 border-l border-slate-300" ref={accountMenuRef}>
+              <button
+                ref={accountButtonRef}
+                id="ta-account-button"
+                type="button"
+                onClick={() => setAccountMenuOpen((prev) => !prev)}
+                className="group min-h-11 flex items-center gap-2 sm:gap-2.5 p-1 sm:px-2 sm:py-1 rounded-md text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-1 cursor-pointer"
+                aria-label={`Account menu for ${fullName}`}
+                aria-haspopup="menu"
+                aria-expanded={accountMenuOpen}
+                aria-controls="ta-account-menu"
+              >
+                <div className="w-7 h-7 bg-slate-800 text-teal-400 border border-slate-700 text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                  {initials}
+                </div>
+                <div className="hidden sm:block text-left leading-tight">
+                  <div className="text-xs font-bold text-slate-900 truncate max-w-[140px]">
+                    {fullName}
+                  </div>
+                  <div className="text-xs text-slate-500 truncate max-w-[140px]">
+                    {user?.role === Role.ADMINISTRATOR ? "Administrator" : "Talent Acquisition"}
+                  </div>
+                </div>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform duration-150 shrink-0 ${
+                    accountMenuOpen ? "rotate-180" : ""
+                  }`}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {accountMenuOpen && (
+                <div
+                  id="ta-account-menu"
+                  role="menu"
+                  aria-labelledby="ta-account-button"
+                  className="absolute right-0 mt-1.5 w-64 bg-white shadow-modal border border-slate-300 z-50 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100"
+                >
+                  {/* User Identity Context Card */}
+                  <div className="p-3 bg-slate-50 border-b border-slate-200">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 bg-slate-800 text-teal-400 border border-slate-700 text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                        {initials}
+                      </div>
+                      <div className="overflow-hidden min-w-0">
+                        {hasProfileName ? (
+                          <>
+                            <div className="text-xs font-bold text-slate-900 truncate">
+                              {fullName}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono truncate">
+                              {user?.email}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-xs font-semibold text-slate-900 font-mono truncate">
+                            {user?.email}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <span className="px-1.5 py-0.5 bg-teal-50 text-teal-800 border border-teal-200 text-[10px] font-mono font-medium">
+                        {user?.role === Role.ADMINISTRATOR ? "Admin & TA Portal" : "Talent Acquisition"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Navigation & Action Items */}
+                  <div className="py-1">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      tabIndex={0}
+                      ref={(el) => { menuItemsRef.current[0] = el; }}
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        setShowChangePasswordModal(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700 text-left cursor-pointer"
+                    >
+                      <Shield className="w-4 h-4 text-slate-500 shrink-0" />
+                      <span className="text-slate-900 font-medium">Account Security</span>
+                    </button>
+                  </div>
+
+                  {/* Sign Out Action */}
+                  <div className="border-t border-slate-200 py-1">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      tabIndex={0}
+                      ref={(el) => { menuItemsRef.current[1] = el; }}
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        setShowSignOutConfirm(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 transition-colors focus-visible:outline-none focus-visible:bg-rose-50 focus-visible:text-rose-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700 text-left cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span className="text-rose-900 font-medium">Sign Out</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
+
+        {/* Account Security / Change Password Dialog */}
+        <ChangePasswordModal
+          open={showChangePasswordModal}
+          onClose={() => setShowChangePasswordModal(false)}
+        />
 
         {/* Content Container */}
         <main className="flex-1 p-3 sm:p-5 lg:p-6 max-w-[1600px] w-full mx-auto min-w-0">
@@ -308,4 +423,3 @@ export const TALayout: React.FC = () => {
     </div>
   );
 };
-

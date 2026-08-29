@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, Outlet } from "@tanstack/react-router";
 import {
   ShieldAlert,
@@ -10,19 +10,71 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Shield,
   Menu,
   X,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
-import { NotificationBell, RealtimeToastContainer, SignOutDialog } from "../components/common";
+import {
+  NotificationBell,
+  RealtimeToastContainer,
+  SignOutDialog,
+  ChangePasswordModal,
+} from "../components/common";
 import { getInitials } from "../lib/utils";
+
+interface NavSection {
+  label: string;
+  items: {
+    to: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[];
+}
+
+const adminNavSections: NavSection[] = [
+  {
+    label: "Overview",
+    items: [
+      { to: "/admin", label: "Dashboard", icon: ShieldAlert },
+      { to: "/admin/analytics", label: "Reports", icon: BarChart3 },
+    ],
+  },
+  {
+    label: "Access & Personnel",
+    items: [
+      { to: "/admin/users", label: "User & role management", icon: Users2 },
+    ],
+  },
+  {
+    label: "AI Scoring & Matching",
+    items: [
+      { to: "/admin/scoring", label: "Candidate score settings", icon: Sliders },
+      { to: "/admin/scoring/quality", label: "Score quality", icon: Activity },
+      { to: "/admin/revalidation", label: "Score review queue", icon: Activity },
+    ],
+  },
+  {
+    label: "Governance & Security",
+    items: [
+      { to: "/admin/audit", label: "Audit logs", icon: History },
+    ],
+  },
+];
 
 export const AdminLayout: React.FC = () => {
   const { user } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const accountButtonRef = useRef<HTMLButtonElement>(null);
+  const menuItemsRef = useRef<(HTMLButtonElement | null)[]>([]);
 
   const {
     unreadCount,
@@ -33,18 +85,58 @@ export const AdminLayout: React.FC = () => {
   } = useRealtimeNotifications();
 
   const profile = user?.applicantProfile;
-  const fullName = profile ? `${profile.firstName} ${profile.lastName}` : user?.email || "Administrator";
-  const initials = getInitials(profile?.firstName, profile?.lastName);
+  const hasProfileName = Boolean(profile?.firstName && profile?.lastName);
+  const fullName = hasProfileName ? `${profile!.firstName} ${profile!.lastName}` : user?.email || "Administrator";
+  const initials = getInitials(profile?.firstName, profile?.lastName) || "AD";
 
-  const adminNav = [
-    { to: "/admin", label: "Overview", icon: ShieldAlert },
-    { to: "/admin/analytics", label: "Reports", icon: BarChart3 },
-    { to: "/admin/users", label: "Users and invitations", icon: Users2 },
-    { to: "/admin/scoring", label: "Candidate score settings", icon: Sliders },
-    { to: "/admin/scoring/quality", label: "Score quality", icon: Activity },
-    { to: "/admin/revalidation", label: "Score review queue", icon: Activity },
-    { to: "/admin/audit", label: "Activity log", icon: History },
-  ];
+  // Close account menu on click outside
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    if (accountMenuOpen) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [accountMenuOpen]);
+
+  // Keyboard navigation for account menu
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!accountMenuOpen) return;
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setAccountMenuOpen(false);
+        accountButtonRef.current?.focus();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const activeIdx = menuItemsRef.current.findIndex((el) => el === document.activeElement);
+        const nextIdx = activeIdx < menuItemsRef.current.length - 1 ? activeIdx + 1 : 0;
+        menuItemsRef.current[nextIdx]?.focus();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const activeIdx = menuItemsRef.current.findIndex((el) => el === document.activeElement);
+        const prevIdx = activeIdx > 0 ? activeIdx - 1 : menuItemsRef.current.length - 1;
+        menuItemsRef.current[prevIdx]?.focus();
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        menuItemsRef.current[0]?.focus();
+      } else if (e.key === "End") {
+        e.preventDefault();
+        menuItemsRef.current[menuItemsRef.current.length - 1]?.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [accountMenuOpen]);
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col lg:flex-row overflow-x-hidden">
@@ -76,54 +168,35 @@ export const AdminLayout: React.FC = () => {
             </div>
 
             {/* Mobile Navigation List */}
-            <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
-              <div className="px-2 pb-2 text-xs font-medium text-slate-400">
-                Administration
-              </div>
-              {adminNav.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    onClick={() => setMobileMenuOpen(false)}
-                    activeOptions={{ exact: true }}
-                    activeProps={{
-                      className: "bg-amber-600/90 text-white font-medium border-l-2 border-amber-300",
-                    }}
-                    className="flex min-h-11 items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:text-white hover:bg-slate-900 transition-colors"
-                  >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                );
-              })}
+            <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+              {adminNavSections.map((section, idx) => (
+                <div key={idx} className="space-y-1">
+                  <div className="px-2 text-xs font-medium text-slate-400">
+                    {section.label}
+                  </div>
+                  <div className="space-y-0.5">
+                    {section.items.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <Link
+                          key={item.to}
+                          to={item.to}
+                          onClick={() => setMobileMenuOpen(false)}
+                          activeOptions={{ exact: true }}
+                          activeProps={{
+                            className: "bg-amber-600/90 text-white font-medium border-l-2 border-amber-300",
+                          }}
+                          className="flex min-h-11 items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:text-white hover:bg-slate-900 transition-colors"
+                        >
+                          <Icon className="w-4 h-4 shrink-0" />
+                          <span className="truncate">{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </nav>
-
-            {/* Mobile User Footer */}
-            <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2 overflow-hidden">
-                <div className="w-7 h-7 bg-amber-950 text-amber-300 border border-amber-800 flex items-center justify-center text-xs font-mono font-bold shrink-0">
-                  {initials}
-                </div>
-                <div className="overflow-hidden leading-tight">
-                  <div className="text-xs font-medium text-white truncate">{fullName}</div>
-                  <div className="text-xs text-amber-300 truncate">Administrator</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setShowSignOutConfirm(true);
-                }}
-                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
-                title="Sign Out"
-                aria-label="Sign Out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
           </aside>
         </div>
       )}
@@ -161,57 +234,37 @@ export const AdminLayout: React.FC = () => {
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
-          {!collapsed && (
-            <div className="px-2 pb-2 text-xs font-medium text-slate-400">
-              Administration
-            </div>
-          )}
-
-          {adminNav.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                activeOptions={{ exact: true }}
-                activeProps={{
-                  className: "bg-amber-600/90 text-white font-medium border-l-2 border-amber-300",
-                }}
-                className="flex min-h-9 items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:text-white hover:bg-slate-900 transition-colors"
-                title={collapsed ? item.label : undefined}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                {!collapsed && <span className="truncate">{item.label}</span>}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* User Footer */}
-        <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <div className="w-7 h-7 bg-amber-950 text-amber-300 border border-amber-800 flex items-center justify-center text-xs font-mono font-bold shrink-0">
-              {initials}
-            </div>
-            {!collapsed && (
-              <div className="overflow-hidden leading-tight">
-                <div className="text-xs font-medium text-white truncate">{fullName}</div>
-                <div className="text-xs text-amber-300 truncate">Administrator</div>
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+          {adminNavSections.map((section, idx) => (
+            <div key={idx} className="space-y-1">
+              {!collapsed && (
+                <div className="px-2 text-xs font-medium text-slate-400">
+                  {section.label}
+                </div>
+              )}
+              <div className="space-y-0.5">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      activeOptions={{ exact: true }}
+                      activeProps={{
+                        className: "bg-amber-600/90 text-white font-medium border-l-2 border-amber-300",
+                      }}
+                      className="flex min-h-9 items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:text-white hover:bg-slate-900 transition-colors"
+                      title={collapsed ? item.label : undefined}
+                    >
+                      <Icon className="w-4 h-4 shrink-0" />
+                      {!collapsed && <span className="truncate">{item.label}</span>}
+                    </Link>
+                  );
+                })}
               </div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowSignOutConfirm(true)}
-            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
-            title="Sign Out"
-            aria-label="Sign Out"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
+            </div>
+          ))}
+        </nav>
       </aside>
 
       {/* Sign Out Warning Dialog */}
@@ -229,7 +282,7 @@ export const AdminLayout: React.FC = () => {
               type="button"
               onClick={() => setMobileMenuOpen(true)}
               className="lg:hidden p-1.5 text-slate-600 hover:text-slate-900 border border-slate-300 hover:bg-slate-50 transition-colors"
-              aria-label="Open menu"
+              aria-label="Open navigation menu"
             >
               <Menu className="w-4 h-4" />
             </button>
@@ -248,17 +301,123 @@ export const AdminLayout: React.FC = () => {
               onMarkAsRead={markAsRead}
               viewAllLink="/admin/notifications"
             />
-            <div className="text-right hidden sm:block">
-              <div className="text-xs font-bold text-slate-900 truncate max-w-[160px]">
-                {profile ? `${profile.firstName} ${profile.lastName}` : "Administrator"}
-              </div>
-              <div className="text-[10px] text-slate-500 font-mono truncate max-w-[160px]">{user?.email}</div>
-            </div>
-            <div className="text-right sm:hidden font-mono text-[10px] font-bold text-amber-900 bg-amber-50 border border-amber-300 px-1.5 py-0.5">
-              {initials}
+
+            {/* Top-Right Account Menu Dropdown */}
+            <div className="relative inline-block text-left pl-2 sm:pl-3 border-l border-slate-300" ref={accountMenuRef}>
+              <button
+                ref={accountButtonRef}
+                id="admin-account-button"
+                type="button"
+                onClick={() => setAccountMenuOpen((prev) => !prev)}
+                className="group min-h-11 flex items-center gap-2 sm:gap-2.5 p-1 sm:px-2 sm:py-1 rounded-md text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-1 cursor-pointer"
+                aria-label={`Account menu for ${fullName}`}
+                aria-haspopup="menu"
+                aria-expanded={accountMenuOpen}
+                aria-controls="admin-account-menu"
+              >
+                <div className="w-7 h-7 bg-amber-950 text-amber-300 border border-amber-800 text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                  {initials}
+                </div>
+                <div className="hidden sm:block text-left leading-tight">
+                  <div className="text-xs font-bold text-slate-900 truncate max-w-[140px]">
+                    {hasProfileName ? fullName : user?.email}
+                  </div>
+                  <div className="text-xs text-amber-700 font-medium truncate max-w-[140px]">
+                    Administrator
+                  </div>
+                </div>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform duration-150 shrink-0 ${
+                    accountMenuOpen ? "rotate-180" : ""
+                  }`}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {accountMenuOpen && (
+                <div
+                  id="admin-account-menu"
+                  role="menu"
+                  aria-labelledby="admin-account-button"
+                  className="absolute right-0 mt-1.5 w-64 bg-white shadow-modal border border-slate-300 z-50 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100"
+                >
+                  {/* User Identity Context Card */}
+                  <div className="p-3 bg-slate-50 border-b border-slate-200">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 bg-amber-950 text-amber-300 border border-amber-800 text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                        {initials}
+                      </div>
+                      <div className="overflow-hidden min-w-0">
+                        {hasProfileName ? (
+                          <>
+                            <div className="text-xs font-bold text-slate-900 truncate">
+                              {fullName}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono truncate">
+                              {user?.email}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-xs font-semibold text-slate-900 font-mono truncate">
+                            {user?.email}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <span className="px-1.5 py-0.5 bg-amber-50 text-amber-900 border border-amber-300 text-[10px] font-mono font-medium">
+                        Administrator
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Navigation & Action Items */}
+                  <div className="py-1">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      tabIndex={0}
+                      ref={(el) => { menuItemsRef.current[0] = el; }}
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        setShowChangePasswordModal(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-600 text-left cursor-pointer"
+                    >
+                      <Shield className="w-4 h-4 text-slate-500 shrink-0" />
+                      <span className="text-slate-900 font-medium">Account Security</span>
+                    </button>
+                  </div>
+
+                  {/* Sign Out Action */}
+                  <div className="border-t border-slate-200 py-1">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      tabIndex={0}
+                      ref={(el) => { menuItemsRef.current[1] = el; }}
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        setShowSignOutConfirm(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 transition-colors focus-visible:outline-none focus-visible:bg-rose-50 focus-visible:text-rose-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-600 text-left cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span className="text-rose-900 font-medium">Sign Out</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
+
+        {/* Account Security / Change Password Dialog */}
+        <ChangePasswordModal
+          open={showChangePasswordModal}
+          onClose={() => setShowChangePasswordModal(false)}
+        />
+
         {/* Content Container */}
         <main className="flex-1 p-3 sm:p-5 lg:p-6 max-w-[1600px] w-full mx-auto min-w-0">
           <Outlet />

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useSearch } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
-import { Input, Button } from "../../components/ui";
+import { Input, PasswordInput, Button } from "../../components/ui";
 import { authApi } from "../../lib/api/auth.api";
 import { LockKeyhole, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
@@ -153,21 +153,19 @@ export const ResetPasswordPage: React.FC = () => {
           />
         )}
 
-        <Input
+        <PasswordInput
           label="New Password"
-          type="password"
           autoComplete="new-password"
-          placeholder="At least 8 characters"
+          placeholder="Enter new password"
           value={formData.password}
           onChange={(e) => handleChange("password", e.target.value)}
           error={validationErrors.password}
-          helperText="Minimum 8 characters"
+          showStrengthIndicator
           required
         />
 
-        <Input
+        <PasswordInput
           label="Confirm New Password"
-          type="password"
           autoComplete="new-password"
           placeholder="Re-enter new password"
           value={formData.confirmPassword}
