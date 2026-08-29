@@ -81,3 +81,28 @@ export const getAdminFilterOptionsHandler = async (req: Request, res: Response):
     sendError(res, error.message, 500);
   }
 };
+
+export const getAdminDashboardSummaryHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const filters = extractFilters(req.query);
+    const [overview, activity, funnel, bottlenecks, jobDemands, filterOptions] = await Promise.all([
+      getAdminOverviewStats(filters),
+      getRecruitmentActivityTrend(filters),
+      getAdminFunnelAnalytics(filters),
+      getAdminBottlenecks(filters),
+      getApplicationsByJobAndMRF(filters),
+      getAnalyticsFilterOptions("ADMINISTRATOR", req.user?.id),
+    ]);
+
+    sendSuccess(res, "Admin unified analytics dashboard retrieved", {
+      overview,
+      activity,
+      funnel,
+      bottlenecks,
+      jobDemands,
+      filterOptions,
+    });
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};

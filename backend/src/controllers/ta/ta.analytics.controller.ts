@@ -85,6 +85,30 @@ export const getTAFilterOptionsHandler = async (req: Request, res: Response): Pr
   }
 };
 
+export const getTADashboardSummaryHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const filters = extractTAFilters(req.query);
+    const userId = req.user!.id;
+    const [overview, activity, funnel, pendingActions, filterOptions] = await Promise.all([
+      getTAOverviewStats(userId, filters),
+      getRecruitmentActivityTrend(filters, { role: req.user!.role, userId }),
+      getAdminFunnelAnalytics({ ...filters, recruiterId: userId }),
+      getTAPendingActions(userId, filters),
+      getAnalyticsFilterOptions("TALENT_ACQUISITION", userId),
+    ]);
+
+    sendSuccess(res, "TA unified analytics dashboard retrieved", {
+      overview,
+      activity,
+      funnel,
+      pendingActions,
+      filterOptions,
+    });
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
 export const getPipelineStatsHandler = async (_req: Request, res: Response): Promise<void> => {
   try {
     const stats = await getPipelineStats();

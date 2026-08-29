@@ -30,9 +30,9 @@ export const QueryProvider: React.FC<QueryProviderProps> = ({ children }) => {
         }),
         defaultOptions: {
           queries: {
-            staleTime: 1000 * 15, // 15 seconds for reactive synchronization
-            gcTime: 1000 * 60 * 30, // 30 minutes
-            refetchOnWindowFocus: true,
+            staleTime: 1000 * 60, // 60 seconds stale time (eliminates redundant rapid refetch bursts)
+            gcTime: 1000 * 60 * 30, // 30 minutes garbage collection
+            refetchOnWindowFocus: false, // Prevent tab-switch refetch storms
             refetchOnReconnect: true,
             retry: (failureCount, error) => {
               // Never retry on 4xx client errors

@@ -116,7 +116,7 @@ export function getApplicationStatusPresentation(
       case ApplicationStatus.NEEDS_ATTENTION:
         return { label: "Action needed", badgeClass: "bg-amber-100 text-amber-800 border-amber-300" };
       case ApplicationStatus.COMPLIANCE:
-        return { label: "Employment documents (201)", badgeClass: "bg-orange-100 text-orange-800 border-orange-300" };
+        return { label: "Requirements", badgeClass: "bg-orange-100 text-orange-800 border-orange-300" };
       case ApplicationStatus.TALENT_POOL:
         return { label: "Future Opportunities", badgeClass: "bg-violet-100 text-violet-800 border-violet-300" };
     }
@@ -140,9 +140,9 @@ export function getApplicationStatusPresentation(
     case ApplicationStatus.FINAL_INTERVIEW:
       return { label: "Final Interview", badgeClass: "bg-sky-100 text-sky-800 border-sky-300" };
     case ApplicationStatus.COMPLIANCE:
-      return { label: "Employment documents (201)", badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
+      return { label: "Requirements", badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
     case ApplicationStatus.DEPLOYED:
-      return { label: "Work placement", badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300" };
+      return { label: "Deployed", badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300" };
     case ApplicationStatus.TALENT_POOL:
       return { label: "Talent Pool", badgeClass: "bg-violet-100 text-violet-800 border-violet-300" };
     case ApplicationStatus.BACKOUT:

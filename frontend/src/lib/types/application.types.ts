@@ -131,6 +131,15 @@ export interface CandidateScore {
   knnSimilarity?: number | string | null;
   explanation?: Record<string, unknown> | null;
   calculatedAt: string;
+  candidate?: {
+    id?: string;
+    email?: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    city?: string | null;
+    province?: string | null;
+    applicationStatus?: string;
+  } | null;
 }
 
 export interface Application {

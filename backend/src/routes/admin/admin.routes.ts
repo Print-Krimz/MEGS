@@ -31,6 +31,7 @@ import {
   getAdminBottlenecksHandler,
   getAdminJobDemandsHandler,
   getAdminFilterOptionsHandler,
+  getAdminDashboardSummaryHandler,
 } from '../../controllers/admin/admin.analytics.controller.js';
 import {
   listMRFsHandler,
@@ -69,6 +70,7 @@ router.get("/candidate-scoring/quality-metrics", getQualityMetrics);
 router.get("/audit-logs", listAuditLogs);
 
 // Recruitment Analytics
+router.get("/analytics/dashboard", getAdminDashboardSummaryHandler);
 router.get("/analytics/overview", getAdminOverviewHandler);
 router.get("/analytics/activity", getAdminActivityTrendHandler);
 router.get("/analytics/funnel", getAdminFunnelHandler);

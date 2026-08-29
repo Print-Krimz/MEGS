@@ -369,6 +369,13 @@ export const JobPostingDetailPage: React.FC = () => {
                     <tbody className="divide-y divide-slate-100 font-mono">
                       {paginatedScores.map((score, idx) => {
                         const globalRank = (candidatePage - 1) * candidatePageSize + idx + 1;
+                        const candidate = score.candidate;
+                        const fullName = [candidate?.firstName, candidate?.lastName]
+                          .filter(Boolean)
+                          .join(" ")
+                          .trim();
+                        const displayName = fullName || candidate?.email || `Application #${score.applicationId}`;
+
                         return (
                           <tr key={score.id} className="hover:bg-slate-50/70 transition-colors">
                             <td className="px-4 py-3 text-center font-bold text-slate-700">
@@ -376,9 +383,10 @@ export const JobPostingDetailPage: React.FC = () => {
                             </td>
                             <td className="px-4 py-3">
                               <div className="font-bold text-slate-900 font-sans">
-                                Application #{score.applicationId}
+                                {displayName}
                               </div>
-                              <div className="text-[11px] text-slate-400">
+                              <div className="text-[11px] text-slate-500 font-mono">
+                                {fullName ? `Application #${score.applicationId} • ` : ""}
                                 Calculated {formatDate(score.calculatedAt)}
                               </div>
                             </td>

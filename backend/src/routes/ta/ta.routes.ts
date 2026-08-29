@@ -98,6 +98,7 @@ import {
   getTAPipelineFunnelHandler,
   getTAPendingActionsHandler,
   getTAFilterOptionsHandler,
+  getTADashboardSummaryHandler,
 } from '../../controllers/ta/ta.analytics.controller.js';
 
 const router = Router();
@@ -174,6 +175,7 @@ router.get("/deployments", listDeploymentsHandler);
 router.get("/deployments/:id", getDeploymentDetailsHandler);
 
 // Analytics & Reports
+router.get("/analytics/dashboard", getTADashboardSummaryHandler);
 router.get("/analytics/overview", getTAOverviewHandler);
 router.get("/analytics/activity", getTAActivityTrendHandler);
 router.get("/analytics/pipeline-funnel", getTAPipelineFunnelHandler);

@@ -217,7 +217,7 @@ export const ApplicantDashboard: React.FC = () => {
             {placedApps}
           </div>
           <div className="text-sm text-slate-500 mt-0.5">
-            Work placement
+            Deployed
           </div>
         </div>
       </div>

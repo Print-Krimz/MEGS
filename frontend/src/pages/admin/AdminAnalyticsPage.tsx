@@ -34,54 +34,15 @@ export const AdminAnalyticsPage: React.FC = () => {
   const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  // 1. Filter Options Metadata
-  const filterOptionsQuery = useQuery({
-    queryKey: ["admin", "analytics", "filter-options"],
-    queryFn: adminApi.getFilterOptions,
+  // Unified Organization Recruitment Analytics Dashboard Query (Single concurrent HTTP request)
+  const dashboardQuery = useQuery({
+    queryKey: ["admin", "analytics", "dashboard", filters],
+    queryFn: () => adminApi.getDashboardSummary(filters),
     staleTime: 60 * 1000,
   });
 
-  // 2. Organization-Wide KPI Stats
-  const overviewQuery = useQuery({
-    queryKey: ["admin", "analytics", "overview", filters],
-    queryFn: () => adminApi.getOverviewStats(filters),
-  });
-
-  // 3. Daily Recruitment Activity Trend
-  const activityTrendQuery = useQuery({
-    queryKey: ["admin", "analytics", "activity", filters],
-    queryFn: () => adminApi.getActivityTrend(filters),
-  });
-
-  // 4. Recruitment Funnel & Conversions
-  const funnelQuery = useQuery({
-    queryKey: ["admin", "analytics", "funnel", filters],
-    queryFn: () => adminApi.getFunnelAnalytics(filters),
-  });
-
-  // 5. Bottleneck Aging Telemetry
-  const bottlenecksQuery = useQuery({
-    queryKey: ["admin", "analytics", "bottlenecks", filters],
-    queryFn: () => adminApi.getBottlenecks(filters),
-  });
-
-  // 6. Applications by Job Demand
-  const jobDemandsQuery = useQuery({
-    queryKey: ["admin", "analytics", "job-demands", filters],
-    queryFn: () => adminApi.getJobDemands(filters),
-  });
-
-  const isLoading =
-    overviewQuery.isLoading ||
-    activityTrendQuery.isLoading ||
-    funnelQuery.isLoading ||
-    bottlenecksQuery.isLoading;
-
-  const isError =
-    overviewQuery.isError ||
-    activityTrendQuery.isError ||
-    funnelQuery.isError ||
-    bottlenecksQuery.isError;
+  const isLoading = dashboardQuery.isLoading;
+  const isError = dashboardQuery.isError;
 
   if (isLoading) {
     return (
@@ -104,30 +65,19 @@ export const AdminAnalyticsPage: React.FC = () => {
           description="Recruitment metrics & bottleneck telemetry"
         />
         <ErrorState
-          error={
-            overviewQuery.error ||
-            activityTrendQuery.error ||
-            funnelQuery.error ||
-            bottlenecksQuery.error
-          }
-          onRetry={() => {
-            overviewQuery.refetch();
-            activityTrendQuery.refetch();
-            funnelQuery.refetch();
-            bottlenecksQuery.refetch();
-            jobDemandsQuery.refetch();
-          }}
+          error={dashboardQuery.error}
+          onRetry={() => dashboardQuery.refetch()}
         />
       </div>
     );
   }
 
-  const overview = overviewQuery.data;
-  const activity = activityTrendQuery.data;
-  const funnel = funnelQuery.data;
-  const bottlenecks = bottlenecksQuery.data || [];
-  const jobDemands = jobDemandsQuery.data || [];
-  const options = filterOptionsQuery.data;
+  const overview = dashboardQuery.data?.overview;
+  const activity = dashboardQuery.data?.activity;
+  const funnel = dashboardQuery.data?.funnel;
+  const bottlenecks = dashboardQuery.data?.bottlenecks || [];
+  const jobDemands = dashboardQuery.data?.jobDemands || [];
+  const options = dashboardQuery.data?.filterOptions;
 
   const handleExportPipeline = async () => {
     try {

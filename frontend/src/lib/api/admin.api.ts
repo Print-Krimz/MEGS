@@ -127,6 +127,16 @@ export const adminApi = {
   // -------------------------------------------------------------
   // 4. Recruitment Analytics
   // -------------------------------------------------------------
+  getDashboardSummary: (filters?: Partial<AnalyticsFilterState>) =>
+    api.get<{
+      overview: AdminOverviewStats;
+      activity: RecruitmentActivityTrend;
+      funnel: FunnelAnalytics;
+      bottlenecks: BottleneckItem[];
+      jobDemands: JobDemandItem[];
+      filterOptions: AnalyticsFilterOptions;
+    }>(`/api/admin/analytics/dashboard${buildAnalyticsQueryString(filters)}`),
+
   getOverviewStats: (filters?: Partial<AnalyticsFilterState>) =>
     api.get<AdminOverviewStats>(`/api/admin/analytics/overview${buildAnalyticsQueryString(filters)}`),
 

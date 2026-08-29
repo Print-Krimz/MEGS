@@ -159,6 +159,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
     queryFn: taApi.listClients,
+    staleTime: 5 * 60 * 1000,
   });
 
   const similarCandidatesQuery = useQuery({

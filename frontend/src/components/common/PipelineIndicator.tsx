@@ -15,8 +15,8 @@ const CANONICAL_STAGES = [
   { id: ApplicationStatus.INITIAL_SCREENING, label: "Initial review" },
   { id: ApplicationStatus.CLIENT_ENDORSEMENT, label: "Client review" },
   { id: ApplicationStatus.FINAL_INTERVIEW, label: "Final interview" },
-  { id: ApplicationStatus.COMPLIANCE, label: "Employment documents (201)" },
-  { id: ApplicationStatus.DEPLOYED, label: "Work placement" },
+  { id: ApplicationStatus.COMPLIANCE, label: "Requirements" },
+  { id: ApplicationStatus.DEPLOYED, label: "Deployed" },
 ];
 
 const TERMINAL_STATUSES: string[] = [

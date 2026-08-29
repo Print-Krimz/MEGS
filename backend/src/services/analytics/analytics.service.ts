@@ -208,13 +208,7 @@ export const getRecruitmentActivityTrend = async (
     appWhere.status = filters.stage as ApplicationStatus;
   }
 
-  // 1. Applications Received
-  const applications = await prisma.application.findMany({
-    where: appWhere,
-    select: { id: true, createdAt: true },
-  });
-
-  // 2. Initial & Final Interviews Completed
+  // 2. Initial & Final Interviews Filter
   const interviewWhere: any = {
     OR: [
       { conductedAt: { gte: start, lte: end } },
@@ -239,12 +233,7 @@ export const getRecruitmentActivityTrend = async (
     };
   }
 
-  const interviews = await prisma.interview.findMany({
-    where: interviewWhere,
-    select: { id: true, type: true, conductedAt: true, createdAt: true, result: true },
-  });
-
-  // 3. Client Endorsements
+  // 3. Client Endorsements Filter
   const endorsementWhere: any = {
     createdAt: { gte: start, lte: end },
   };
@@ -275,12 +264,7 @@ export const getRecruitmentActivityTrend = async (
     endorsementWhere.application = { ...(endorsementWhere.application || {}), status: filters.stage };
   }
 
-  const endorsements = await prisma.clientEndorsement.findMany({
-    where: endorsementWhere,
-    select: { id: true, createdAt: true },
-  });
-
-  // 4. Candidates Moved to Compliance
+  // 4. Candidates Moved to Compliance Filter
   const decisionWhere: any = {
     createdAt: { gte: start, lte: end },
     toStatus: { in: ["COMPLIANCE"] },
@@ -303,12 +287,7 @@ export const getRecruitmentActivityTrend = async (
     decisionWhere.application = { ...(decisionWhere.application || {}), status: filters.stage };
   }
 
-  const complianceDecisions = await prisma.recruiterDecision.findMany({
-    where: decisionWhere,
-    select: { id: true, createdAt: true },
-  });
-
-  // 5. Candidates Deployed
+  // 5. Candidates Deployed Filter
   const deploymentWhere: any = {
     createdAt: { gte: start, lte: end },
   };
@@ -336,10 +315,29 @@ export const getRecruitmentActivityTrend = async (
     deploymentWhere.application = { ...(deploymentWhere.application || {}), status: filters.stage };
   }
 
-  const deployments = await prisma.deployment.findMany({
-    where: deploymentWhere,
-    select: { id: true, createdAt: true },
-  });
+  // Parallelize the 5 independent trend queries across categories
+  const [applications, interviews, endorsements, complianceDecisions, deployments] = await Promise.all([
+    prisma.application.findMany({
+      where: appWhere,
+      select: { id: true, createdAt: true },
+    }),
+    prisma.interview.findMany({
+      where: interviewWhere,
+      select: { id: true, type: true, conductedAt: true, createdAt: true, result: true },
+    }),
+    prisma.clientEndorsement.findMany({
+      where: endorsementWhere,
+      select: { id: true, createdAt: true },
+    }),
+    prisma.recruiterDecision.findMany({
+      where: decisionWhere,
+      select: { id: true, createdAt: true },
+    }),
+    prisma.deployment.findMany({
+      where: deploymentWhere,
+      select: { id: true, createdAt: true },
+    }),
+  ]);
 
   // Aggregate into contiguous date map
   const dailyMap: Record<string, DailyActivityPoint> = {};
@@ -438,24 +436,7 @@ export const getAdminOverviewStats = async (filters: AnalyticsFilterDto = {}): P
     baseWhere.status = filters.stage as ApplicationStatus;
   }
 
-  // Total Applications
-  const totalApplications = await prisma.application.count({ where: baseWhere });
-
-  // Active Candidates (non-archived, non-terminal)
-  const activeCandidates = await prisma.application.count({
-    where: {
-      ...baseWhere,
-      isArchived: false,
-      status: filters.stage ? (filters.stage as ApplicationStatus) : { notIn: [ApplicationStatus.BACKOUT, ApplicationStatus.ARCHIVED, ApplicationStatus.DEPLOYED] },
-    },
-  });
-
-  // Talent Pool Candidates
-  const talentPoolCandidates = await prisma.talentPoolMembership.count({
-    where: { status: "ACTIVE" },
-  });
-
-  // Client Endorsements
+  // Construct filter clauses
   const endoWhere: any = {};
   if (filters.clientId) endoWhere.clientId = filters.clientId;
   if (filters.jobPostingId) {
@@ -470,18 +451,7 @@ export const getAdminOverviewStats = async (filters: AnalyticsFilterDto = {}): P
   if (filters.stage) {
     endoWhere.application = { ...(endoWhere.application || {}), status: filters.stage };
   }
-  const clientEndorsements = await prisma.clientEndorsement.count({ where: endoWhere });
 
-  // Candidates in Compliance
-  const candidatesInCompliance = await prisma.application.count({
-    where: {
-      ...baseWhere,
-      isArchived: false,
-      status: "COMPLIANCE",
-    },
-  });
-
-  // Total Deployments
   const depWhere: any = {};
   if (filters.clientId) depWhere.clientId = filters.clientId;
   if (filters.mrfId) depWhere.mrfId = filters.mrfId;
@@ -491,7 +461,48 @@ export const getAdminOverviewStats = async (filters: AnalyticsFilterDto = {}): P
   if (filters.stage) {
     depWhere.application = { ...(depWhere.application || {}), status: filters.stage };
   }
-  const totalDeployments = await prisma.deployment.count({ where: depWhere });
+
+  // Parallelize all 6 KPI count queries concurrently
+  const [
+    totalApplications,
+    activeCandidates,
+    talentPoolCandidates,
+    clientEndorsements,
+    candidatesInCompliance,
+    totalDeployments,
+  ] = await Promise.all([
+    // Total Applications
+    prisma.application.count({ where: baseWhere }),
+
+    // Active Candidates (non-archived, non-terminal)
+    prisma.application.count({
+      where: {
+        ...baseWhere,
+        isArchived: false,
+        status: filters.stage ? (filters.stage as ApplicationStatus) : { notIn: [ApplicationStatus.BACKOUT, ApplicationStatus.ARCHIVED, ApplicationStatus.DEPLOYED] },
+      },
+    }),
+
+    // Talent Pool Candidates
+    prisma.talentPoolMembership.count({
+      where: { status: "ACTIVE" },
+    }),
+
+    // Client Endorsements
+    prisma.clientEndorsement.count({ where: endoWhere }),
+
+    // Candidates in Compliance
+    prisma.application.count({
+      where: {
+        ...baseWhere,
+        isArchived: false,
+        status: "COMPLIANCE",
+      },
+    }),
+
+    // Total Deployments
+    prisma.deployment.count({ where: depWhere }),
+  ]);
 
   return {
     totalApplications,
@@ -816,64 +827,74 @@ export const getTAOverviewStats = async (
 
   const stageFilter = filters.stage ? (filters.stage as ApplicationStatus) : undefined;
 
-  // My Active Applications
-  const myActiveApplications = await prisma.application.count({
-    where: {
-      jobPosting: jobScope,
-      isArchived: false,
-      status: stageFilter || { notIn: [ApplicationStatus.BACKOUT, ApplicationStatus.ARCHIVED, ApplicationStatus.DEPLOYED] },
-    },
-  });
-
-  // Initial Interviews Pending
-  const initialInterviewsPending = await prisma.application.count({
-    where: {
-      jobPosting: jobScope,
-      isArchived: false,
-      status: stageFilter || { in: ["SUBMITTED", "INITIAL_SCREENING"] },
-    },
-  });
-
-  // Ready for Client Endorsement
-  const readyForEndorsement = await prisma.application.count({
-    where: {
-      jobPosting: jobScope,
-      isArchived: false,
-      status: stageFilter || "INITIAL_SCREENING",
-      interviews: {
-        some: { type: "INITIAL_SCREENING", result: { in: ["PASS", "PASSED"] }, isActive: true },
+  // Parallelize all 6 TA KPI counts concurrently
+  const [
+    myActiveApplications,
+    initialInterviewsPending,
+    readyForEndorsement,
+    pendingClientDecisions,
+    finalInterviewsPending,
+    awaitingCompliance,
+  ] = await Promise.all([
+    // My Active Applications
+    prisma.application.count({
+      where: {
+        jobPosting: jobScope,
+        isArchived: false,
+        status: stageFilter || { notIn: [ApplicationStatus.BACKOUT, ApplicationStatus.ARCHIVED, ApplicationStatus.DEPLOYED] },
       },
-    },
-  });
+    }),
 
-  // Pending Client Decisions
-  const pendingClientDecisions = await prisma.clientEndorsement.count({
-    where: {
-      outcome: "PENDING",
-      OR: [
-        { endorsedById: taUserId },
-        { application: { jobPosting: jobScope, ...(stageFilter ? { status: stageFilter } : {}) } },
-      ],
-    },
-  });
+    // Initial Interviews Pending
+    prisma.application.count({
+      where: {
+        jobPosting: jobScope,
+        isArchived: false,
+        status: stageFilter || { in: ["SUBMITTED", "INITIAL_SCREENING"] },
+      },
+    }),
 
-  // Final Interviews Pending
-  const finalInterviewsPending = await prisma.application.count({
-    where: {
-      jobPosting: jobScope,
-      isArchived: false,
-      status: stageFilter || "FINAL_INTERVIEW",
-    },
-  });
+    // Ready for Client Endorsement
+    prisma.application.count({
+      where: {
+        jobPosting: jobScope,
+        isArchived: false,
+        status: stageFilter || "INITIAL_SCREENING",
+        interviews: {
+          some: { type: "INITIAL_SCREENING", result: { in: ["PASS", "PASSED"] }, isActive: true },
+        },
+      },
+    }),
 
-  // Awaiting Compliance
-  const awaitingCompliance = await prisma.application.count({
-    where: {
-      jobPosting: jobScope,
-      isArchived: false,
-      status: stageFilter || "COMPLIANCE",
-    },
-  });
+    // Pending Client Decisions
+    prisma.clientEndorsement.count({
+      where: {
+        outcome: "PENDING",
+        OR: [
+          { endorsedById: taUserId },
+          { application: { jobPosting: jobScope, ...(stageFilter ? { status: stageFilter } : {}) } },
+        ],
+      },
+    }),
+
+    // Final Interviews Pending
+    prisma.application.count({
+      where: {
+        jobPosting: jobScope,
+        isArchived: false,
+        status: stageFilter || "FINAL_INTERVIEW",
+      },
+    }),
+
+    // Awaiting Compliance
+    prisma.application.count({
+      where: {
+        jobPosting: jobScope,
+        isArchived: false,
+        status: stageFilter || "COMPLIANCE",
+      },
+    }),
+  ]);
 
   return {
     myActiveApplications,
@@ -904,27 +925,76 @@ export const getTAPendingActions = async (
   const includeEndorsements = !stage || stage === "CLIENT_ENDORSEMENT";
   const includeCompliance = !stage || stage === "COMPLIANCE";
 
-  // 1. Initial Interviews requiring action or overdue
-  if (includeInterviews) {
-    const pendingInterviews = (await prisma.interview.findMany({
-      where: {
-        type: "INITIAL_SCREENING",
-        isActive: true,
-        OR: [{ result: "PENDING" }, { result: null }],
-        application: { jobPosting: jobScope, isArchived: false },
-      },
-      include: {
-        application: {
-          include: {
-            jobPosting: { select: { title: true } },
-            user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
+  // Parallelize the 3 pending action categories concurrently
+  const [pendingInterviews, pendingEndorsements, pendingCompliance] = await Promise.all([
+    // 1. Initial Interviews requiring action or overdue
+    includeInterviews
+      ? prisma.interview.findMany({
+          where: {
+            type: "INITIAL_SCREENING",
+            isActive: true,
+            OR: [{ result: "PENDING" }, { result: null }],
+            application: { jobPosting: jobScope, isArchived: false },
           },
-        },
-      },
-      take: 10,
-      orderBy: { createdAt: "asc" },
-    })) || [];
+          include: {
+            application: {
+              include: {
+                jobPosting: { select: { title: true } },
+                user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
+              },
+            },
+          },
+          take: 10,
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([]),
 
+    // 2. Client Endorsements pending feedback
+    includeEndorsements
+      ? prisma.clientEndorsement.findMany({
+          where: {
+            outcome: "PENDING",
+            OR: [
+              { endorsedById: taUserId },
+              { application: { jobPosting: jobScope } },
+            ],
+          },
+          include: {
+            client: { select: { name: true } },
+            application: {
+              include: {
+                jobPosting: { select: { title: true } },
+                user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
+              },
+            },
+          },
+          take: 10,
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([]),
+
+    // 3. Compliance requirements submitted requiring review
+    includeCompliance
+      ? prisma.complianceRequirement.findMany({
+          where: {
+            reviewStatus: "SUBMITTED",
+            application: { jobPosting: jobScope, isArchived: false },
+          },
+          include: {
+            application: {
+              include: {
+                jobPosting: { select: { title: true } },
+                user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
+              },
+            },
+          },
+          take: 10,
+          orderBy: { updatedAt: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  if (includeInterviews && pendingInterviews) {
     for (const iv of pendingInterviews) {
       const profile = iv.application?.user?.applicantProfile;
       const name = profile ? `${profile.firstName} ${profile.lastName}`.trim() : iv.application?.user?.email || "Candidate";
@@ -945,29 +1015,7 @@ export const getTAPendingActions = async (
     }
   }
 
-  // 2. Client Endorsements pending feedback
-  if (includeEndorsements) {
-    const pendingEndorsements = (await prisma.clientEndorsement.findMany({
-      where: {
-        outcome: "PENDING",
-        OR: [
-          { endorsedById: taUserId },
-          { application: { jobPosting: jobScope } },
-        ],
-      },
-      include: {
-        client: { select: { name: true } },
-        application: {
-          include: {
-            jobPosting: { select: { title: true } },
-            user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
-          },
-        },
-      },
-      take: 10,
-      orderBy: { createdAt: "asc" },
-    })) || [];
-
+  if (includeEndorsements && pendingEndorsements) {
     for (const endo of pendingEndorsements) {
       const profile = endo.application?.user?.applicantProfile;
       const name = profile ? `${profile.firstName} ${profile.lastName}`.trim() : endo.application?.user?.email || "Candidate";
@@ -988,25 +1036,7 @@ export const getTAPendingActions = async (
     }
   }
 
-  // 3. Compliance requirements submitted requiring review
-  if (includeCompliance) {
-    const pendingCompliance = (await prisma.complianceRequirement.findMany({
-      where: {
-        reviewStatus: "SUBMITTED",
-        application: { jobPosting: jobScope, isArchived: false },
-      },
-      include: {
-        application: {
-          include: {
-            jobPosting: { select: { title: true } },
-            user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
-          },
-        },
-      },
-      take: 10,
-      orderBy: { updatedAt: "asc" },
-    })) || [];
-
+  if (includeCompliance && pendingCompliance) {
     for (const comp of pendingCompliance) {
       const profile = comp.application?.user?.applicantProfile;
       const name = profile ? `${profile.firstName} ${profile.lastName}`.trim() : comp.application?.user?.email || "Candidate";
@@ -1036,30 +1066,30 @@ export const getAnalyticsFilterOptions = async (
   userRole: string,
   userId?: string
 ): Promise<AnalyticsFilterOptionsResult> => {
-  const clients = await prisma.client.findMany({
-    where: { isActive: true },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
-  const mrfs = await prisma.manpowerRequest.findMany({
-    select: { id: true, title: true, clientId: true },
-    orderBy: { title: "asc" },
-  });
-
-  const jobPostings = await prisma.jobPosting.findMany({
-    select: { id: true, title: true, mrfId: true, postedById: true },
-    orderBy: { title: "asc" },
-  });
-
-  const recruiters = await prisma.user.findMany({
-    where: { role: "TALENT_ACQUISITION", isActive: true },
-    select: {
-      id: true,
-      email: true,
-      applicantProfile: { select: { firstName: true, lastName: true } },
-    },
-  });
+  // Parallelize the 4 filter options queries concurrently
+  const [clients, mrfs, jobPostings, recruiters] = await Promise.all([
+    prisma.client.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.manpowerRequest.findMany({
+      select: { id: true, title: true, clientId: true },
+      orderBy: { title: "asc" },
+    }),
+    prisma.jobPosting.findMany({
+      select: { id: true, title: true, mrfId: true, postedById: true },
+      orderBy: { title: "asc" },
+    }),
+    prisma.user.findMany({
+      where: { role: "TALENT_ACQUISITION", isActive: true },
+      select: {
+        id: true,
+        email: true,
+        applicantProfile: { select: { firstName: true, lastName: true } },
+      },
+    }),
+  ]);
 
   const recruiterOptions = recruiters.map((r) => {
     const name = r.applicantProfile

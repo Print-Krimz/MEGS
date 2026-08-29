@@ -71,45 +71,46 @@ export const listTAApplications = async (
     ];
   }
 
-  const total = await prisma.application.count({ where });
-
   const take = limit ? Math.max(1, limit) : undefined;
   const skip = page && limit ? Math.max(0, (page - 1) * limit) : undefined;
 
-  const applications = await prisma.application.findMany({
-    where,
-    ...(take ? { take } : {}),
-    ...(skip ? { skip } : {}),
-    orderBy: dynamicScoring ? { createdAt: "desc" } : [
-      { aiScore: { sort: "desc", nulls: "last" } },
-      { createdAt: "desc" },
-    ],
-    select: {
-      id: true,
-      status: true,
-      aiScore: true,
-      aiSummary: true,
-      isArchived: true,
-      createdAt: true,
-      jobPosting: { select: { id: true, title: true, location: true } },
-      user: {
-        select: {
-          id: true,
-          email: true,
-          applicantProfile: {
-            select: { firstName: true, lastName: true, mobileNumber: true, city: true, province: true, photoUrl: true },
+  const [total, applications] = await Promise.all([
+    prisma.application.count({ where }),
+    prisma.application.findMany({
+      where,
+      ...(take ? { take } : {}),
+      ...(skip ? { skip } : {}),
+      orderBy: dynamicScoring ? { createdAt: "desc" } : [
+        { aiScore: { sort: "desc", nulls: "last" } },
+        { createdAt: "desc" },
+      ],
+      select: {
+        id: true,
+        status: true,
+        aiScore: true,
+        aiSummary: true,
+        isArchived: true,
+        createdAt: true,
+        jobPosting: { select: { id: true, title: true, location: true } },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            applicantProfile: {
+              select: { firstName: true, lastName: true, mobileNumber: true, city: true, province: true, photoUrl: true },
+            },
           },
         },
+        ...(configuration ? {
+          candidateScores: {
+            where: { configurationId: configuration.id, status: "CALCULATED" },
+            orderBy: { calculatedAt: "desc" },
+            select: { jobPostingId: true, finalFitScore: true, calculatedAt: true },
+          },
+        } : {}),
       },
-      ...(configuration ? {
-        candidateScores: {
-          where: { configurationId: configuration.id, status: "CALCULATED" },
-          orderBy: { calculatedAt: "desc" },
-          select: { jobPostingId: true, finalFitScore: true, calculatedAt: true },
-        },
-      } : {}),
-    },
-  });
+    }),
+  ]);
 
   const formatted = configuration
     ? applications
@@ -210,16 +211,11 @@ export const getTAApplication = async (id: number) => {
 
   if (!application) throw new Error("Application not found");
 
-  // Auto-backfill 7-day SLA deadline for any legacy requirements that lacked one
+  // Compute fallback 7-day SLA deadline in-memory for any legacy requirements lacking one
   if (application.complianceRequirements?.length) {
     for (const req of application.complianceRequirements) {
       if (!req.deadline) {
-        const autoDeadline = new Date(req.createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
-        req.deadline = autoDeadline;
-        void prisma.complianceRequirement.update({
-          where: { id: req.id },
-          data: { deadline: autoDeadline },
-        }).catch(() => {});
+        req.deadline = new Date(req.createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
       }
     }
   }

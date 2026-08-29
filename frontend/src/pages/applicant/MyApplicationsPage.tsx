@@ -92,7 +92,7 @@ export const MyApplicationsPage: React.FC = () => {
     },
     {
       key: "COMPLIANCE",
-      label: "Employment documents (201)",
+      label: "Requirements",
       count: allApplications.filter(
         (a) => a.status === ApplicationStatus.COMPLIANCE
       ).length,

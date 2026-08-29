@@ -360,6 +360,15 @@ export const taApi = {
   // -------------------------------------------------------------
   // 11. Analytics & Operations Intelligence
   // -------------------------------------------------------------
+  getDashboardSummary: (filters?: Partial<AnalyticsFilterState>) =>
+    api.get<{
+      overview: TAOverviewStats;
+      activity: RecruitmentActivityTrend;
+      funnel: FunnelAnalytics;
+      pendingActions: TAPendingActionItem[];
+      filterOptions: AnalyticsFilterOptions;
+    }>(`/api/ta/analytics/dashboard${buildTAAnalyticsQueryString(filters)}`),
+
   getOverviewStats: (filters?: Partial<AnalyticsFilterState>) =>
     api.get<TAOverviewStats>(`/api/ta/analytics/overview${buildTAAnalyticsQueryString(filters)}`),
 

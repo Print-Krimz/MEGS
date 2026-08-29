@@ -159,6 +159,17 @@ export const listRankedCandidates = async (jobPostingId: number, cursor?: number
   const latestRows = selectCurrentOrFallbackScores(rows, active.id)
     .sort((left, right) => Number(right.finalFitScore) - Number(left.finalFitScore) || left.applicationId - right.applicationId);
   const hasMore = latestRows.length > limit;
-  const items = latestRows.slice(0, limit).map((row) => ({ ...serializeScore(row), candidate: row.application.user.applicantProfile ? { id: row.application.user.id, email: row.application.user.email, ...row.application.user.applicantProfile, applicationStatus: row.application.status } : null }));
+  const items = latestRows.slice(0, limit).map((row) => ({
+    ...serializeScore(row),
+    candidate: {
+      id: row.application.user.id,
+      email: row.application.user.email,
+      firstName: row.application.user.applicantProfile?.firstName ?? null,
+      lastName: row.application.user.applicantProfile?.lastName ?? null,
+      city: row.application.user.applicantProfile?.city ?? null,
+      province: row.application.user.applicantProfile?.province ?? null,
+      applicationStatus: row.application.status,
+    },
+  }));
   return { items, nextCursor: hasMore ? latestRows[limit - 1]?.id ?? null : null };
 };

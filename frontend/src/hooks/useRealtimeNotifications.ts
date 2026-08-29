@@ -63,11 +63,15 @@ export function useRealtimeNotifications() {
           const data = JSON.parse(event.data);
           if (data.type === "CONNECTED" || !data.id) return;
 
-          // Invalidate queries to refresh counts, list, and live portal states
+          // Invalidate notification counts and scope invalidation to the user's role
           queryClient.invalidateQueries({ queryKey: ["notifications"] });
-          queryClient.invalidateQueries({ queryKey: ["applicant"] });
-          queryClient.invalidateQueries({ queryKey: ["ta"] });
-          queryClient.invalidateQueries({ queryKey: ["admin"] });
+          if (user.role === "ADMINISTRATOR") {
+            queryClient.invalidateQueries({ queryKey: ["admin"] });
+          } else if (user.role === "TALENT_ACQUISITION") {
+            queryClient.invalidateQueries({ queryKey: ["ta"] });
+          } else if (user.role === "APPLICANT") {
+            queryClient.invalidateQueries({ queryKey: ["applicant"] });
+          }
 
           // Trigger live toast notification
           const newToast: RealtimeToast = {

@@ -33,48 +33,15 @@ export const AnalyticsPage: React.FC = () => {
   const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  // 1. TA Filter Options Metadata (Scoped to TA)
-  const filterOptionsQuery = useQuery({
-    queryKey: ["ta", "analytics", "filter-options"],
-    queryFn: taApi.getFilterOptions,
+  // Unified TA Recruitment Intelligence Dashboard Query (Single concurrent HTTP request)
+  const dashboardQuery = useQuery({
+    queryKey: ["ta", "analytics", "dashboard", filters],
+    queryFn: () => taApi.getDashboardSummary(filters),
     staleTime: 60 * 1000,
   });
 
-  // 2. TA Overview KPI Stats
-  const overviewQuery = useQuery({
-    queryKey: ["ta", "analytics", "overview", filters],
-    queryFn: () => taApi.getOverviewStats(filters),
-  });
-
-  // 3. TA-Scoped Daily Recruitment Activity Trend
-  const activityTrendQuery = useQuery({
-    queryKey: ["ta", "analytics", "activity", filters],
-    queryFn: () => taApi.getActivityTrend(filters),
-  });
-
-  // 4. TA Pipeline Funnel & Stage Progression
-  const funnelQuery = useQuery({
-    queryKey: ["ta", "analytics", "pipeline-funnel", filters],
-    queryFn: () => taApi.getPipelineFunnel(filters),
-  });
-
-  // 5. TA Pending Actions Queue
-  const pendingActionsQuery = useQuery({
-    queryKey: ["ta", "analytics", "pending-actions", filters],
-    queryFn: () => taApi.getPendingActions(filters),
-  });
-
-  const isLoading =
-    overviewQuery.isLoading ||
-    activityTrendQuery.isLoading ||
-    funnelQuery.isLoading ||
-    pendingActionsQuery.isLoading;
-
-  const isError =
-    overviewQuery.isError ||
-    activityTrendQuery.isError ||
-    funnelQuery.isError ||
-    pendingActionsQuery.isError;
+  const isLoading = dashboardQuery.isLoading;
+  const isError = dashboardQuery.isError;
 
   if (isLoading) {
     return (
@@ -97,28 +64,18 @@ export const AnalyticsPage: React.FC = () => {
           description="Personal recruitment pipeline & workload intelligence"
         />
         <ErrorState
-          error={
-            overviewQuery.error ||
-            activityTrendQuery.error ||
-            funnelQuery.error ||
-            pendingActionsQuery.error
-          }
-          onRetry={() => {
-            overviewQuery.refetch();
-            activityTrendQuery.refetch();
-            funnelQuery.refetch();
-            pendingActionsQuery.refetch();
-          }}
+          error={dashboardQuery.error}
+          onRetry={() => dashboardQuery.refetch()}
         />
       </div>
     );
   }
 
-  const overview = overviewQuery.data;
-  const activity = activityTrendQuery.data;
-  const funnel = funnelQuery.data;
-  const actions = pendingActionsQuery.data || [];
-  const options = filterOptionsQuery.data;
+  const overview = dashboardQuery.data?.overview;
+  const activity = dashboardQuery.data?.activity;
+  const funnel = dashboardQuery.data?.funnel;
+  const actions = dashboardQuery.data?.pendingActions || [];
+  const options = dashboardQuery.data?.filterOptions;
 
   const handleExportPipeline = async () => {
     try {
