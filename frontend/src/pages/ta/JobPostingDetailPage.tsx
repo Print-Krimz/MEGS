@@ -247,7 +247,7 @@ export const JobPostingDetailPage: React.FC = () => {
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div className="flex items-start gap-4">
-            <JobImage src={job.imageUrl} alt={job.title} size="lg" />
+            <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="lg" />
             <div className="space-y-1">
               <div className="flex items-center gap-3">
                 <span className="text-xs font-mono font-bold uppercase text-slate-500">Status:</span>

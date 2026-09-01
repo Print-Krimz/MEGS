@@ -111,14 +111,14 @@ export const EmployeeDetailPage: React.FC = () => {
         description={`Employee Number: ${emp.employeeNumber} • Hired ${formatDate(emp.hireDate)}`}
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },
-          { label: "Personnel", href: "/ta/employees" },
+          { label: "Workforce & Placements", href: "/ta/workforce?tab=employees" },
           { label: emp.employeeNumber },
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <Link to="/ta/employees">
+            <Link to="/ta/workforce" search={{ tab: "employees" }}>
               <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                Back to Roster
+                Back to 201 Directory
               </Button>
             </Link>
             <Button
@@ -266,22 +266,36 @@ export const EmployeeDetailPage: React.FC = () => {
         {/* TAB 3: FIELD DEPLOYMENTS */}
         {activeTab === "deployments" && (
           <div className="space-y-4">
-            <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-              Client Site Deployments
-            </h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
+                Client Site Deployments ({deployments.length})
+              </h3>
+              <Link to="/ta/workforce" search={{ tab: "deployments" }}>
+                <span className="text-xs text-teal-700 hover:text-teal-900 font-semibold">
+                  All Workforce Deployments →
+                </span>
+              </Link>
+            </div>
             {deployments.length === 0 ? (
               <p className="text-xs text-slate-400 py-4">No field deployments assigned.</p>
             ) : (
               <div className="divide-y divide-slate-100">
                 {deployments.map((dep) => (
-                  <div key={dep.id} className="py-3 flex items-center justify-between gap-4 text-xs">
+                  <div key={dep.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                     <div className="space-y-0.5">
                       <div className="font-bold text-slate-900">{dep.client?.name || "Client"}</div>
                       <div className="text-[11px] text-slate-500 font-mono">
                         Site: {dep.site || "General Facility"} • Schedule: {dep.contractStart ? formatDate(dep.contractStart) : "N/A"} to {dep.contractEnd ? formatDate(dep.contractEnd) : "Open"}
                       </div>
                     </div>
-                    <StatusBadge status={dep.status} />
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={dep.status} type="deployment" />
+                      <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(dep.id) }}>
+                        <Button variant="outline" size="sm">
+                          View Assignment
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>

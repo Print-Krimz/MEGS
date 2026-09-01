@@ -43,6 +43,22 @@ export interface Deployment {
   employee?: Employee;
   client?: Client;
   mrf?: ManpowerRequest;
+  application?: {
+    id?: number;
+    user?: {
+      id?: string;
+      email?: string;
+      applicantProfile?: {
+        firstName?: string | null;
+        lastName?: string | null;
+        mobileNumber?: string | null;
+      } | null;
+    } | null;
+    jobPosting?: {
+      id?: number;
+      title?: string;
+    } | null;
+  } | null;
   statusHistory?: DeploymentStatusHistory[];
 }
 

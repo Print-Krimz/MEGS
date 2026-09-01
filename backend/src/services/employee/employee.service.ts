@@ -196,21 +196,30 @@ export const listEmployees = async (filters: {
     where.department = { contains: filters.department, mode: "insensitive" };
   }
 
-  if (filters.search) {
-    where.OR = [
-      { employeeNumber: { contains: filters.search, mode: "insensitive" } },
-      { position: { contains: filters.search, mode: "insensitive" } },
-      {
-        user: {
-          applicantProfile: {
-            OR: [
-              { firstName: { contains: filters.search, mode: "insensitive" } },
-              { lastName: { contains: filters.search, mode: "insensitive" } },
-            ],
-          },
-        },
-      },
-    ];
+  if (filters.search && filters.search.trim()) {
+    const q = filters.search.trim();
+    const tokens = q.split(/\s+/).filter(Boolean);
+    if (tokens.length > 1) {
+      where.AND = tokens.map((token) => ({
+        OR: [
+          { employeeNumber: { contains: token, mode: "insensitive" } },
+          { position: { contains: token, mode: "insensitive" } },
+          { department: { contains: token, mode: "insensitive" } },
+          { user: { email: { contains: token, mode: "insensitive" } } },
+          { user: { applicantProfile: { firstName: { contains: token, mode: "insensitive" } } } },
+          { user: { applicantProfile: { lastName: { contains: token, mode: "insensitive" } } } },
+        ],
+      }));
+    } else {
+      where.OR = [
+        { employeeNumber: { contains: q, mode: "insensitive" } },
+        { position: { contains: q, mode: "insensitive" } },
+        { department: { contains: q, mode: "insensitive" } },
+        { user: { email: { contains: q, mode: "insensitive" } } },
+        { user: { applicantProfile: { firstName: { contains: q, mode: "insensitive" } } } },
+        { user: { applicantProfile: { lastName: { contains: q, mode: "insensitive" } } } },
+      ];
+    }
   }
 
   const [total, items] = await Promise.all([

@@ -29,6 +29,25 @@ model JobPosting {
   candidateScores CandidateScore[]
   scoringRevalidationTasks ScoringRevalidationTask[]
   talentPoolContacts TalentPoolContact[]
+  savedBy SavedJob[]
+}
+
+// ─────────────────────────────────────────────
+// SAVED JOB / FAVORITES
+// Candidate bookmarks for job openings to apply later.
+// ─────────────────────────────────────────────
+
+model SavedJob {
+  id           Int        @id @default(autoincrement())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobPostingId Int
+  jobPosting   JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, jobPostingId])
+  @@index([userId])
+  @@index([jobPostingId])
 }
 
 // ─────────────────────────────────────────────
@@ -52,6 +71,17 @@ model Application {
   // Soft delete / archive
   isArchived Boolean   @default(false)
   archivedAt DateTime?
+
+  // Contract Signing & Orientation
+  contractSigned         Boolean   @default(false)
+  contractSignedAt       DateTime?
+  contractDocumentUrl    String?
+  contractNotes          String?
+
+  orientationCompleted   Boolean   @default(false)
+  orientationCompletedAt DateTime?
+  orientationDate        DateTime?
+  orientationNotes       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

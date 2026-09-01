@@ -18,7 +18,7 @@ import {
   FileCheck2,
 } from "lucide-react";
 
-export const EmployeesPage: React.FC = () => {
+export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
@@ -59,14 +59,16 @@ export const EmployeesPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Employee records (201)"
-        description="Comprehensive employee roster, redeployment pool management, and historical personnel archives"
-        breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Personnel & 201" },
-        ]}
-      />
+      {!hideHeader && (
+        <PageHeader
+          title="Employee records (201)"
+          description="Comprehensive employee roster, redeployment pool management, and historical personnel archives"
+          breadcrumbs={[
+            { label: "TA Portal", href: "/ta" },
+            { label: "Personnel & 201" },
+          ]}
+        />
+      )}
 
       {/* Filter Bar */}
       <SearchFilters
@@ -137,7 +139,13 @@ export const EmployeesPage: React.FC = () => {
                         {emp.employeeNumber}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-bold text-slate-900">{empName}</div>
+                        <Link
+                          to="/ta/employees/$employeeId"
+                          params={{ employeeId: String(emp.id) }}
+                          className="font-bold text-slate-900 hover:text-teal-700 hover:underline block"
+                        >
+                          {empName}
+                        </Link>
                         <div className="text-[11px] text-slate-400 font-mono">
                           {emp.user?.email || "No email on record"}
                         </div>

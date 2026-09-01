@@ -43,11 +43,9 @@ import { TalentPoolPage } from "./pages/ta/TalentPoolPage";
 import { InterviewsPage } from "./pages/ta/InterviewsPage";
 import { ClientsPage } from "./pages/ta/ClientsPage";
 import { ClientDetailPage } from "./pages/ta/ClientDetailPage";
-import { CompliancePage } from "./pages/ta/CompliancePage";
-import { DeploymentsPage } from "./pages/ta/DeploymentsPage";
 import { DeploymentDetailPage } from "./pages/ta/DeploymentDetailPage";
-import { EmployeesPage } from "./pages/ta/EmployeesPage";
 import { EmployeeDetailPage } from "./pages/ta/EmployeeDetailPage";
+import { WorkforcePage } from "./pages/ta/WorkforcePage";
 import { AnalyticsPage } from "./pages/ta/AnalyticsPage";
 
 // Admin Pages
@@ -319,16 +317,26 @@ export const taClientDetailRoute = createRoute({
   component: ClientDetailPage,
 });
 
+export interface WorkforceSearch {
+  tab?: "deployments" | "employees" | "clearances";
+}
+
 export const taComplianceRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
   path: "/ta/compliance",
-  component: CompliancePage,
+  beforeLoad: () => {
+    throw redirect({ to: "/ta/workforce", search: { tab: "clearances" } });
+  },
+  component: () => null,
 });
 
 export const taDeploymentsRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
   path: "/ta/deployments",
-  component: DeploymentsPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/ta/workforce", search: { tab: "deployments" } });
+  },
+  component: () => null,
 });
 
 export const taDeploymentDetailRoute = createRoute({
@@ -340,13 +348,29 @@ export const taDeploymentDetailRoute = createRoute({
 export const taEmployeesRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
   path: "/ta/employees",
-  component: EmployeesPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/ta/workforce", search: { tab: "employees" } });
+  },
+  component: () => null,
 });
 
 export const taEmployeeDetailRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
   path: "/ta/employees/$employeeId",
   component: EmployeeDetailPage,
+});
+
+export const taWorkforceRoute = createRoute({
+  getParentRoute: () => taLayoutRoute,
+  path: "/ta/workforce",
+  validateSearch: (search: Record<string, unknown>): WorkforceSearch => {
+    const tab = search.tab;
+    if (tab === "employees" || tab === "clearances" || tab === "deployments") {
+      return { tab };
+    }
+    return { tab: "deployments" };
+  },
+  component: WorkforcePage,
 });
 
 export const taAnalyticsRoute = createRoute({
@@ -479,6 +503,7 @@ const routeTree = rootRoute.addChildren([
     taDeploymentDetailRoute,
     taEmployeesRoute,
     taEmployeeDetailRoute,
+    taWorkforceRoute,
     taAnalyticsRoute,
     taNotificationsRoute,
   ]),

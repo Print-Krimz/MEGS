@@ -120,14 +120,24 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     `/app/applications/${application.id}`
   );
 
-  void sendRoleNotification(
-    "TALENT_ACQUISITION",
-    "New Candidate Application",
-    `New application received for "${job.title}".`,
-    "INFO",
-    `/ta/applications/${application.id}`,
-    userId
-  );
+  if (job.postedById) {
+    void sendNotification(
+      job.postedById,
+      "New Candidate Application",
+      `New application received for "${job.title}".`,
+      "INFO",
+      `/ta/applications/${application.id}`
+    );
+  } else {
+    void sendRoleNotification(
+      "TALENT_ACQUISITION",
+      "New Candidate Application",
+      `New application received for "${job.title}".`,
+      "INFO",
+      `/ta/applications/${application.id}`,
+      userId
+    );
+  }
 
   return {
     id: application.id,
@@ -257,7 +267,15 @@ export const uploadApplicantComplianceDocument = async (
 ) => {
   const requirement = await prisma.complianceRequirement.findUnique({
     where: { id: requirementId },
-    include: { application: { select: { id: true, userId: true } } },
+    include: {
+      application: {
+        select: {
+          id: true,
+          userId: true,
+          jobPosting: { select: { postedById: true } },
+        },
+      },
+    },
   });
 
   if (!requirement) {
@@ -302,14 +320,25 @@ export const uploadApplicantComplianceDocument = async (
     `/app/applications/${requirement.applicationId}`
   );
 
-  void sendRoleNotification(
-    "TALENT_ACQUISITION",
-    "Compliance Document Submitted",
-    `A compliance document for "${requirement.documentLabel}" was uploaded and is ready for verification.`,
-    "INFO",
-    `/ta/compliance`,
-    userId
-  );
+  const jobOwnerId = requirement.application?.jobPosting?.postedById;
+  if (jobOwnerId) {
+    void sendNotification(
+      jobOwnerId,
+      "Compliance Document Submitted",
+      `A compliance document for "${requirement.documentLabel}" was uploaded and is ready for verification.`,
+      "INFO",
+      `/ta/compliance`
+    );
+  } else {
+    void sendRoleNotification(
+      "TALENT_ACQUISITION",
+      "Compliance Document Submitted",
+      `A compliance document for "${requirement.documentLabel}" was uploaded and is ready for verification.`,
+      "INFO",
+      `/ta/compliance`,
+      userId
+    );
+  }
 
   return updated;
 };

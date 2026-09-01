@@ -28,6 +28,7 @@ export const JobPostingsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+  const [mineOnly, setMineOnly] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 8;
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -39,14 +40,50 @@ export const JobPostingsPage: React.FC = () => {
   const [formDescription, setFormDescription] = useState("");
   const [formRequirements, setFormRequirements] = useState("");
 
+  const clientsQuery = useQuery({
+    queryKey: ["ta", "clients", "dropdown"],
+    queryFn: () => taApi.listClients(),
+  });
+
+  const clients = clientsQuery.data || [];
+
   const jobsQuery = useQuery({
-    queryKey: ["ta", "jobs", { search, filterValues }],
+    queryKey: ["ta", "jobs", { search, filterValues, mineOnly }],
     queryFn: () =>
       taApi.listJobs({
         search: search || undefined,
         status: filterValues.status || undefined,
+        clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
+        mineOnly: mineOnly ? true : undefined,
       }),
   });
+
+  const jobs = jobsQuery.data || [];
+
+  // Dynamically derive client options for current TA scope (deduplicated)
+  const availableClients = React.useMemo(() => {
+    const seen = new Set<number>();
+    if (mineOnly) {
+      const list: Array<{ id: number; name: string; industry?: string | null; address?: string | null }> = [];
+      jobs.forEach((j: any) => {
+        const client = j.mrf?.client;
+        if (client && !seen.has(client.id)) {
+          seen.add(client.id);
+          list.push(client);
+        }
+      });
+      return list;
+    }
+
+    const list: typeof clients = [];
+    clients.forEach((c) => {
+      if (!seen.has(c.id)) {
+        seen.add(c.id);
+        list.push(c);
+      }
+    });
+    return list;
+  }, [mineOnly, jobs, clients]);
 
   const mrfsQuery = useQuery({
     queryKey: ["ta", "mrfs"],
@@ -99,7 +136,6 @@ export const JobPostingsPage: React.FC = () => {
     },
   });
 
-  const jobs = jobsQuery.data || [];
   const totalPages = Math.max(1, Math.ceil(jobs.length / pageSize));
   const paginatedJobs = jobs.slice((page - 1) * pageSize, page * pageSize);
 
@@ -142,7 +178,7 @@ export const JobPostingsPage: React.FC = () => {
 
       {/* Filter Bar */}
       <SearchFilters
-        searchPlaceholder="Search requisitions by title, location..."
+        searchPlaceholder="Search requisitions by title, location, client..."
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
@@ -158,7 +194,55 @@ export const JobPostingsPage: React.FC = () => {
               { value: JobStatus.CLOSED, label: "CLOSED" },
             ],
           },
+          {
+            key: "clientId",
+            label: "Client Account",
+            placeholder: mineOnly ? "My client accounts" : "All client accounts",
+            searchable: true,
+            options: availableClients.map((c) => ({
+              value: String(c.id),
+              label: c.name,
+              subtitle: `${c.industry || "General"} • ${c.address || "Philippines"}`,
+            })),
+          },
         ]}
+        actions={
+          <div className="flex items-center border border-slate-300 bg-slate-100 p-0.5 rounded text-xs font-mono">
+            <button
+              type="button"
+              onClick={() => {
+                setMineOnly(false);
+                setPage(1);
+              }}
+              className={`px-2.5 py-1 rounded transition-colors ${
+                !mineOnly
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200 font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              All Company
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMineOnly(true);
+                setFilterValues((prev) => {
+                  const next = { ...prev };
+                  delete next.clientId;
+                  return next;
+                });
+                setPage(1);
+              }}
+              className={`px-2.5 py-1 rounded transition-colors ${
+                mineOnly
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200 font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              My Requisitions
+            </button>
+          </div>
+        }
       />
 
       {/* Jobs Grid / Table */}
@@ -195,7 +279,7 @@ export const JobPostingsPage: React.FC = () => {
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
-                      <JobImage src={job.imageUrl} alt={job.title} size="md" />
+                      <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="md" />
                       <div>
                         <h3 className="text-sm font-bold text-slate-900 leading-snug">
                           {job.title}
@@ -203,6 +287,12 @@ export const JobPostingsPage: React.FC = () => {
                         <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2 mt-1">
                           <MapPin className="w-3 h-3 text-slate-400" />
                           <span>{job.location || "Philippines"}</span>
+                          {job.mrf?.client?.name && (
+                            <>
+                              <span>•</span>
+                              <span className="font-semibold text-slate-700">{job.mrf.client.name}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>

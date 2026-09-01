@@ -117,6 +117,8 @@ export function getApplicationStatusPresentation(
         return { label: "Action needed", badgeClass: "bg-amber-100 text-amber-800 border-amber-300" };
       case ApplicationStatus.COMPLIANCE:
         return { label: "Requirements", badgeClass: "bg-orange-100 text-orange-800 border-orange-300" };
+      case ApplicationStatus.CONTRACT_AND_ORIENTATION:
+        return { label: "Contract & Orientation", badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
       case ApplicationStatus.TALENT_POOL:
         return { label: "Future Opportunities", badgeClass: "bg-violet-100 text-violet-800 border-violet-300" };
     }
@@ -141,6 +143,8 @@ export function getApplicationStatusPresentation(
       return { label: "Final Interview", badgeClass: "bg-sky-100 text-sky-800 border-sky-300" };
     case ApplicationStatus.COMPLIANCE:
       return { label: "Requirements", badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
+    case ApplicationStatus.CONTRACT_AND_ORIENTATION:
+      return { label: "Contract & Orientation", badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
     case ApplicationStatus.DEPLOYED:
       return { label: "Deployed", badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300" };
     case ApplicationStatus.TALENT_POOL:
@@ -170,13 +174,13 @@ export function getDeploymentStatusMeta(status?: string | null): {
 } {
   switch (status) {
     case DeploymentStatus.READY_FOR_DEPLOYMENT:
-      return { label: "Ready for Deployment", badgeClass: "bg-blue-100 text-blue-800 border-blue-300" };
+      return { label: "Scheduled for Site", badgeClass: "bg-blue-50 text-blue-800 border-blue-200" };
     case DeploymentStatus.ACTIVE:
-      return { label: "Active", badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300" };
+      return { label: "Active on Site", badgeClass: "bg-emerald-50 text-emerald-800 border-emerald-200" };
     case DeploymentStatus.ENDED:
-      return { label: "Ended", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
+      return { label: "Assignment Completed", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
     case DeploymentStatus.CANCELLED:
-      return { label: "Cancelled", badgeClass: "bg-rose-100 text-rose-800 border-rose-300" };
+      return { label: "Cancelled", badgeClass: "bg-rose-50 text-rose-800 border-rose-200" };
     default:
       return { label: status || "Unknown", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
   }

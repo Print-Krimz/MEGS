@@ -6,20 +6,26 @@ import {
   updateTAApplicationStatus,
   archiveTAApplication,
   restoreTAApplication,
-  getRecruiterDecisionsService
+  getRecruiterDecisionsService,
+  signApplicationContract,
+  completeApplicationOrientation
 } from '../../services/ta/ta.applications.service.js';
 
 // GET /api/ta/applications - List and filter applications across postings
 export const listApplications = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status, jobPostingId, jobId, search, isArchived, page, limit } = req.query;
+    const { status, jobPostingId, jobId, clientId, search, isArchived, page, limit, mineOnly } = req.query;
+    const currentUserId = req.user?.id;
     const result = await listTAApplications({
       status: status as string,
       jobPostingId: (jobPostingId || jobId) as string,
+      clientId: clientId ? parseInt(clientId as string, 10) : undefined,
       search: search as string,
       isArchived: isArchived !== undefined ? isArchived === "true" : undefined,
       page: page ? parseInt(page as string, 10) : undefined,
       limit: limit ? parseInt(limit as string, 10) : undefined,
+      mineOnly: mineOnly === "true",
+      currentUserId,
     });
     sendSuccess(res, "Applications retrieved", result);
   } catch (error: any) {
@@ -104,6 +110,40 @@ export const restoreApplication = async (req: Request, res: Response): Promise<v
     }
     const updated = await restoreTAApplication(id);
     sendSuccess(res, "Application restored to pipeline", updated);
+  } catch (error: any) {
+    const statusCode = error.message.includes("not found") ? 404 : 400;
+    sendError(res, error.message, statusCode);
+  }
+};
+
+// POST /api/ta/applications/:id/contract/sign - Record employment contract signed
+export const signContractHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) {
+      sendError(res, "Invalid application ID", 400);
+      return;
+    }
+    const { contractNotes, contractDocumentUrl } = req.body || {};
+    const updated = await signApplicationContract(id, { contractNotes, contractDocumentUrl }, req.user!.id);
+    sendSuccess(res, "Employment contract marked as signed", updated);
+  } catch (error: any) {
+    const statusCode = error.message.includes("not found") ? 404 : 400;
+    sendError(res, error.message, statusCode);
+  }
+};
+
+// POST /api/ta/applications/:id/orientation/complete - Record candidate orientation complete
+export const completeOrientationHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) {
+      sendError(res, "Invalid application ID", 400);
+      return;
+    }
+    const { orientationDate, orientationNotes } = req.body || {};
+    const updated = await completeApplicationOrientation(id, { orientationDate, orientationNotes }, req.user!.id);
+    sendSuccess(res, "Orientation marked as completed", updated);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, statusCode);

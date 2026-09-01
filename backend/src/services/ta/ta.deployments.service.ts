@@ -47,18 +47,30 @@ export const createDeployment = async (
 
     if (!application) throw new Error("Application not found");
     if (
+      application.status !== "CONTRACT_AND_ORIENTATION" &&
       application.status !== "COMPLIANCE" &&
       application.status !== "ONBOARDING" &&
       application.status !== "HIRED" &&
       application.status !== "DEPLOYED"
     ) {
-      throw new Error("Application must be in COMPLIANCE, ONBOARDING or HIRED status to deploy.");
+      throw new Error("Application must be in CONTRACT_AND_ORIENTATION status to deploy.");
     }
 
     // Compliance check
     const compliant = await isFullyCompliant(data.applicationId);
     if (!compliant) {
       throw new Error("Cannot deploy candidate. All required compliance documents must be APPROVED.");
+    }
+
+    // Contract & Orientation check
+    if (!application.contractSigned && !application.orientationCompleted) {
+      throw new Error("Cannot deploy candidate. Both contract signing and orientation must be completed first.");
+    }
+    if (!application.contractSigned) {
+      throw new Error("Cannot deploy candidate. Employment contract must be signed first.");
+    }
+    if (!application.orientationCompleted) {
+      throw new Error("Cannot deploy candidate. Candidate orientation must be completed first.");
     }
 
     if (!empId) {
@@ -126,6 +138,14 @@ export const createDeployment = async (
     application?.jobPosting?.location ||
     null;
 
+  const startDate = data.contractStart ? new Date(data.contractStart) : null;
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const initialStatus: DeploymentStatus =
+    (data as any).status ||
+    (startDate && startDate <= todayEnd ? "ACTIVE" : "READY_FOR_DEPLOYMENT");
+
   const deployment = await prisma.deployment.create({
     data: {
       employeeId: empId,
@@ -137,7 +157,7 @@ export const createDeployment = async (
       contractStart: data.contractStart ? new Date(data.contractStart) : null,
       contractEnd: data.contractEnd ? new Date(data.contractEnd) : null,
       notes: data.notes || null,
-      status: "READY_FOR_DEPLOYMENT",
+      status: initialStatus,
     },
     include: {
       employee: {
@@ -160,9 +180,9 @@ export const createDeployment = async (
   await prisma.deploymentStatusHistory.create({
     data: {
       deploymentId: deployment.id,
-      toStatus: "READY_FOR_DEPLOYMENT",
+      toStatus: initialStatus,
       changedById: createdById,
-      reason: data.notes || "Deployment created",
+      reason: data.notes || (initialStatus === "ACTIVE" ? "Auto-activated on site upon deployment creation" : "Scheduled for site deployment"),
     },
   });
 
@@ -246,7 +266,7 @@ export const updateDeploymentStatus = async (
     where: { id },
     include: {
       client: { select: { name: true } },
-      employee: { select: { userId: true } },
+      employee: { select: { id: true, userId: true, employeeNumber: true, status: true } },
     },
   });
   if (!deployment) throw new Error("Deployment not found");
@@ -277,6 +297,64 @@ export const updateDeploymentStatus = async (
     },
   });
 
+  // Record DeploymentStatusHistory audit trail
+  if (actorId) {
+    await prisma.deploymentStatusHistory.create({
+      data: {
+        deploymentId: id,
+        fromStatus: currentStatus,
+        toStatus: status,
+        changedById: actorId,
+        reason: notes || `Status changed to ${status}`,
+      },
+    }).catch(() => {});
+  }
+
+  // Synchronize Employee Status & Career Timeline Event
+  if (deployment.employeeId) {
+    if (status === "ENDED") {
+      await prisma.employee.update({
+        where: { id: deployment.employeeId },
+        data: { status: "AVAILABLE_FOR_REDEPLOYMENT" },
+      });
+
+      await prisma.employmentEvent.create({
+        data: {
+          employeeId: deployment.employeeId,
+          eventType: "ASSIGNMENT_ENDED",
+          description: notes || `Assignment with ${deployment.client?.name || "Client"} ended. Candidate is available for redeployment.`,
+          effectiveDate: new Date(),
+          actorId: actorId || null,
+          metadata: {
+            deploymentId: id,
+            clientName: deployment.client?.name,
+          },
+        },
+      });
+
+      // Update TalentPool availability back to AVAILABLE
+      if (deployment.employee?.userId) {
+        const profile = await prisma.applicantProfile.findUnique({
+          where: { userId: deployment.employee.userId },
+        });
+        if (profile) {
+          await prisma.talentPoolMembership.updateMany({
+            where: { applicantProfileId: profile.id },
+            data: {
+              status: "ACTIVE",
+              availability: "AVAILABLE",
+            },
+          });
+        }
+      }
+    } else if (status === "ACTIVE") {
+      await prisma.employee.update({
+        where: { id: deployment.employeeId },
+        data: { status: "ACTIVE" },
+      });
+    }
+  }
+
   void logAudit(actorId || null, "DEPLOYMENT_STATUS_UPDATED", "Deployment", id, {
     deploymentId: id,
     previousStatus: currentStatus,
@@ -298,7 +376,67 @@ export const updateDeploymentStatus = async (
   return updated;
 };
 
+export const autoPromoteDeployments = async () => {
+  try {
+    const now = new Date();
+
+    // 1. Promote READY_FOR_DEPLOYMENT -> ACTIVE if contractStart <= now
+    const readyDeployments = await prisma.deployment.findMany({
+      where: {
+        status: "READY_FOR_DEPLOYMENT",
+        contractStart: { lte: now },
+      },
+      select: { id: true, employeeId: true },
+    });
+
+    if (readyDeployments.length > 0) {
+      const ids = readyDeployments.map((d) => d.id);
+      await prisma.deployment.updateMany({
+        where: { id: { in: ids } },
+        data: { status: "ACTIVE" },
+      });
+
+      const empIds = readyDeployments.map((d) => d.employeeId).filter(Boolean) as number[];
+      if (empIds.length > 0) {
+        await prisma.employee.updateMany({
+          where: { id: { in: empIds } },
+          data: { status: "ACTIVE" },
+        });
+      }
+    }
+
+    // 2. Conclude ACTIVE -> ENDED if contractEnd <= now
+    const expiredDeployments = await prisma.deployment.findMany({
+      where: {
+        status: "ACTIVE",
+        contractEnd: { lte: now, not: null },
+      },
+      select: { id: true, employeeId: true },
+    });
+
+    if (expiredDeployments.length > 0) {
+      const ids = expiredDeployments.map((d) => d.id);
+      await prisma.deployment.updateMany({
+        where: { id: { in: ids } },
+        data: { status: "ENDED" },
+      });
+
+      const empIds = expiredDeployments.map((d) => d.employeeId).filter(Boolean) as number[];
+      if (empIds.length > 0) {
+        await prisma.employee.updateMany({
+          where: { id: { in: empIds } },
+          data: { status: "AVAILABLE_FOR_REDEPLOYMENT" },
+        });
+      }
+    }
+  } catch {
+    // Non-blocking auto-promotion
+  }
+};
+
 export const listDeployments = async (clientId?: number, status?: string) => {
+  await autoPromoteDeployments();
+
   const where: any = {};
   if (clientId) where.clientId = clientId;
   if (status) where.status = status as DeploymentStatus;
@@ -331,6 +469,8 @@ export const listDeployments = async (clientId?: number, status?: string) => {
 };
 
 export const getDeploymentDetails = async (id: number) => {
+  await autoPromoteDeployments();
+
   const deployment = await prisma.deployment.findUnique({
     where: { id },
     include: {

@@ -231,7 +231,7 @@ export const ClientDetailPage: React.FC = () => {
               <h3 className="text-sm font-bold text-slate-900">Active Site Deployments ({deployments.length})</h3>
               <p className="text-xs text-slate-500">Personnel currently dispatched on client sites</p>
             </div>
-            <Link to="/ta/deployments">
+            <Link to="/ta/workforce" search={{ tab: "deployments" }}>
               <Button variant="ghost" size="sm">
                 All
               </Button>

@@ -76,4 +76,16 @@ export const taSchema = {
       isRequired: z.boolean().optional(),
     }),
   }),
+  signContract: z.object({
+    body: z.object({
+      contractNotes: z.string().optional(),
+      contractDocumentUrl: z.string().optional(),
+    }),
+  }),
+  completeOrientation: z.object({
+    body: z.object({
+      orientationDate: z.string().optional(),
+      orientationNotes: z.string().optional(),
+    }),
+  }),
 };

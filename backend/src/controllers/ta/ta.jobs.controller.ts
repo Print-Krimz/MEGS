@@ -12,7 +12,17 @@ import {
 export const listJobs = async (req: Request, res: Response): Promise<void> => {
   try {
     const status = req.query.status as string | undefined;
-    const jobs = await listTAJobs(status);
+    const search = req.query.search as string | undefined;
+    const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
+    const mineOnly = req.query.mineOnly === "true";
+    const currentUserId = req.user?.id;
+    const jobs = await listTAJobs({
+      status,
+      search,
+      clientId: !isNaN(clientId!) ? clientId : undefined,
+      mineOnly,
+      currentUserId,
+    });
     sendSuccess(res, "Job postings retrieved", jobs);
   } catch (error: any) {
     sendError(res, error.message, 500);

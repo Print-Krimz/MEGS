@@ -11,6 +11,7 @@ import {
   ErrorState,
   DocumentPreviewModal,
 } from "../../components/common";
+import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
 import { Button, Dialog, Input, Select, Textarea, ComboBox } from "../../components/ui";
 import { formatDate, formatDateTime, getApplicationStatusMeta, extractDocumentId } from "../../lib/utils";
 import { COMPLIANCE_201_PRESETS } from "../../lib/hr-constants";
@@ -32,12 +33,12 @@ import {
   Clock,
   ExternalLink,
   Plus,
-  UserCheck,
   UserX,
   CheckCircle2,
   AlertCircle,
   Eye,
   XCircle,
+  FileCheck,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
 
@@ -143,6 +144,14 @@ export const ApplicationDetailPage: React.FC = () => {
   const [deployContractEnd, setDeployContractEnd] = useState("");
   const [deployNotes, setDeployNotes] = useState("");
 
+  const [contractModalOpen, setContractModalOpen] = useState(false);
+  const [contractNotes, setContractNotes] = useState("");
+  const [contractDocumentUrl, setContractDocumentUrl] = useState("");
+
+  const [orientationModalOpen, setOrientationModalOpen] = useState(false);
+  const [orientationDate, setOrientationDate] = useState("");
+  const [orientationNotes, setOrientationNotes] = useState("");
+
   // Queries
   const applicationQuery = useQuery({
     queryKey: ["ta", "application", applicationId],
@@ -217,6 +226,54 @@ export const ApplicationDetailPage: React.FC = () => {
         message: "Failed to reject candidate: " + errMsg,
       });
       notify.error("Status Update Failed", err);
+    },
+  });
+
+  const signContractMutation = useMutation({
+    mutationFn: (data: { contractNotes?: string; contractDocumentUrl?: string }) =>
+      taApi.signContract(applicationId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
+      setContractModalOpen(false);
+      setFeedback({
+        type: "success",
+        message: "Employment contract successfully recorded as signed.",
+      });
+      notify.success("Contract Signed", "Employment contract recorded successfully.");
+    },
+    onError: (err: any) => {
+      const errMsg = err?.message || "Failed to record contract signing.";
+      setFeedback({
+        type: "error",
+        message: "Contract update error: " + errMsg,
+      });
+      notify.error("Contract Update Failed", err);
+    },
+  });
+
+  const completeOrientationMutation = useMutation({
+    mutationFn: (data: { orientationDate?: string; orientationNotes?: string }) =>
+      taApi.completeOrientation(applicationId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
+      setOrientationModalOpen(false);
+      setFeedback({
+        type: "success",
+        message: "Candidate orientation marked as completed.",
+      });
+      notify.success("Orientation Completed", "Orientation recorded successfully.");
+    },
+    onError: (err: any) => {
+      const errMsg = err?.message || "Failed to record orientation.";
+      setFeedback({
+        type: "error",
+        message: "Orientation update error: " + errMsg,
+      });
+      notify.error("Orientation Update Failed", err);
     },
   });
 
@@ -558,18 +615,27 @@ export const ApplicationDetailPage: React.FC = () => {
   const isClientEndorsementStage = app.status === ApplicationStatus.CLIENT_ENDORSEMENT;
 
   const isFinalInterviewStage = app.status === ApplicationStatus.FINAL_INTERVIEW;
-  const canRecordClientEvaluation =
-    isFinalInterviewStage && !hasPassedFinalInterview && !isTerminal;
   const canScheduleFinalInterview =
     isFinalInterviewStage && !hasPassedFinalInterview && !pendingFinalInterview && !isTerminal;
+  const canRecordFinalInterview =
+    isFinalInterviewStage && !hasPassedFinalInterview && Boolean(pendingFinalInterview) && !isTerminal;
   const canAdvanceToCompliance =
     isFinalInterviewStage && hasPassedFinalInterview && !isTerminal;
 
   const isComplianceStage = app.status === ApplicationStatus.COMPLIANCE;
-  const canDeployCandidate =
-    isComplianceStage &&
+  const canAdvanceToContractAndOrientation =
+    isComplianceStage && !hasUnapprovedMandatoryCompliance && !isTerminal;
+
+  const isContractAndOrientationStage = app.status === ApplicationStatus.CONTRACT_AND_ORIENTATION;
+  const isContractSigned = Boolean(app.contractSigned);
+  const isOrientationCompleted = Boolean(app.orientationCompleted);
+  const isReadyForDeployment =
+    (isContractAndOrientationStage || isComplianceStage) &&
     !hasUnapprovedMandatoryCompliance &&
+    isContractSigned &&
+    isOrientationCompleted &&
     !isTerminal;
+  const canDeployCandidate = isReadyForDeployment;
 
   const totalCompReqs = app.complianceRequirements?.length || 0;
   const approvedCompReqs = (app.complianceRequirements || []).filter((r) => r.reviewStatus === "APPROVED").length;
@@ -680,6 +746,8 @@ export const ApplicationDetailPage: React.FC = () => {
                 leftIcon={<Calendar className="w-3.5 h-3.5" />}
                 onClick={() => {
                   setInterviewType(InterviewType.INITIAL_SCREENING);
+                  setInterviewDate("");
+                  setInterviewNotes("");
                   setInterviewModalOpen(true);
                 }}
               >
@@ -707,6 +775,12 @@ export const ApplicationDetailPage: React.FC = () => {
                   leftIcon={<Calendar className="w-3.5 h-3.5" />}
                   onClick={() => {
                     setInterviewType(InterviewType.INITIAL_SCREENING);
+                    setInterviewDate(
+                      pendingScreeningInterview?.scheduledAt
+                        ? new Date(pendingScreeningInterview.scheduledAt).toISOString().slice(0, 16)
+                        : ""
+                    );
+                    setInterviewNotes(pendingScreeningInterview?.notes || "");
                     setInterviewModalOpen(true);
                   }}
                 >
@@ -782,7 +856,37 @@ export const ApplicationDetailPage: React.FC = () => {
             )}
 
             {/* FINAL_INTERVIEW Actions */}
-            {canRecordClientEvaluation && (
+            {canScheduleFinalInterview && (
+              <>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Calendar className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    setInterviewType(InterviewType.FINAL_INTERVIEW);
+                    setInterviewDate("");
+                    setInterviewNotes("");
+                    setInterviewModalOpen(true);
+                  }}
+                >
+                  Schedule Client Interview
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    setSelectedInterviewForOutcome(null);
+                    setInterviewOutcomeResult("PASS");
+                    setInterviewOutcomeNotes("");
+                    setInterviewOutcomeModalOpen(true);
+                  }}
+                >
+                  Record Client Result
+                </Button>
+              </>
+            )}
+            {canRecordFinalInterview && (
               <>
                 <Button
                   variant="primary"
@@ -797,19 +901,23 @@ export const ApplicationDetailPage: React.FC = () => {
                 >
                   Record Client Result
                 </Button>
-                {canScheduleFinalInterview && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    leftIcon={<Calendar className="w-3.5 h-3.5" />}
-                    onClick={() => {
-                      setInterviewType(InterviewType.FINAL_INTERVIEW);
-                      setInterviewModalOpen(true);
-                    }}
-                  >
-                    Schedule Client Interview
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Calendar className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    setInterviewType(InterviewType.FINAL_INTERVIEW);
+                    setInterviewDate(
+                      pendingFinalInterview?.scheduledAt
+                        ? new Date(pendingFinalInterview.scheduledAt).toISOString().slice(0, 16)
+                        : ""
+                    );
+                    setInterviewNotes(pendingFinalInterview?.notes || "");
+                    setInterviewModalOpen(true);
+                  }}
+                >
+                  Reschedule
+                </Button>
               </>
             )}
             {canAdvanceToCompliance && (
@@ -829,10 +937,36 @@ export const ApplicationDetailPage: React.FC = () => {
               </Button>
             )}
 
-            {/* COMPLIANCE / DEPLOYED Actions */}
+            {/* STAGE 5: COMPLIANCE Actions */}
             {isComplianceStage && (
               <>
-                {canDeployCandidate ? (
+                {canAdvanceToContractAndOrientation ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<FileCheck className="w-3.5 h-3.5" />}
+                    loading={updateStatusMutation.isPending}
+                    onClick={() => {
+                      updateStatusMutation.mutate({
+                        status: ApplicationStatus.CONTRACT_AND_ORIENTATION,
+                        reason: "All mandatory clearances verified and approved.",
+                      });
+                    }}
+                  >
+                    Advance to Contract & Orientation
+                  </Button>
+                ) : (
+                  <span className="text-[11px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded">
+                    Pending Mandatory Clearances
+                  </span>
+                )}
+              </>
+            )}
+
+            {/* STAGE 6: CONTRACT_AND_ORIENTATION Actions */}
+            {isContractAndOrientationStage && (
+              <div className="flex flex-wrap items-center gap-2">
+                {isReadyForDeployment && activeTab !== "hiring" && (
                   <Button
                     variant="primary"
                     size="sm"
@@ -845,12 +979,17 @@ export const ApplicationDetailPage: React.FC = () => {
                   >
                     Deploy Candidate
                   </Button>
-                ) : (
-                  <span className="text-[11px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded">
-                    Pending Mandatory Clearances
-                  </span>
                 )}
-              </>
+                {!isReadyForDeployment && activeTab !== "hiring" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setActiveTab("hiring")}
+                  >
+                    Manage Onboarding
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -864,7 +1003,7 @@ export const ApplicationDetailPage: React.FC = () => {
       {/* Main Tabs Container */}
       <div className="bg-white border border-slate-300 overflow-hidden">
         {/* Navigation Tabs Header */}
-        <div className="flex items-center border-b border-slate-300 overflow-x-auto bg-slate-100 divide-x divide-slate-300 no-scrollbar">
+        <div role="tablist" className="flex items-center border-b border-slate-300 overflow-x-auto bg-slate-100 divide-x divide-slate-300 no-scrollbar">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -872,6 +1011,8 @@ export const ApplicationDetailPage: React.FC = () => {
               <button
                 key={tab.id}
                 type="button"
+                role="tab"
+                aria-selected={isActive}
                 onClick={() => handleTabChange(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2.5 text-xs font-mono uppercase tracking-wider whitespace-nowrap transition-colors ${
                   isActive
@@ -1646,118 +1787,52 @@ export const ApplicationDetailPage: React.FC = () => {
 
           {/* TAB 8: PERSONNEL & DEPLOYMENT */}
           {activeTab === "hiring" && (
-            <div className="space-y-6">
-              <div className="border-b border-slate-100 pb-3">
-                <h3 className="text-sm font-bold text-slate-900">Digital 201 Personnel & Workforce Deployment</h3>
-                <p className="text-xs text-slate-500">
-                  Provisioned employee profile, statutory compliance standing, and site deployment assignments
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Card 1: Digital 201 Employee Profile */}
-                <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-800 uppercase">
-                      <UserCheck className="w-4 h-4 text-teal-600" />
-                      <span>Digital 201 Personnel Profile</span>
-                    </div>
-                    {app.hiredEmployee && (
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
-                        {app.hiredEmployee.status || "ACTIVE"}
-                      </span>
-                    )}
-                  </div>
-                  {app.hiredEmployee ? (
-                    <div className="space-y-2 text-xs font-mono">
-                      <div className="flex justify-between py-1 border-b border-slate-200">
-                        <span className="text-slate-500">Employee Number:</span>
-                        <span className="font-bold text-slate-900">{app.hiredEmployee.employeeNumber}</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-slate-200">
-                        <span className="text-slate-500">Position / Designation:</span>
-                        <span className="font-semibold text-slate-900">{app.hiredEmployee.position || app.jobPosting?.title || "Specialist"}</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-slate-200">
-                        <span className="text-slate-500">Department:</span>
-                        <span className="text-slate-800">{app.hiredEmployee.department || "Operations"}</span>
-                      </div>
-                      <div className="flex justify-between py-1">
-                        <span className="text-slate-500">Hire / Provision Date:</span>
-                        <span className="text-slate-800">{app.hiredEmployee.hireDate ? formatDate(app.hiredEmployee.hireDate) : "Recently Provisioned"}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 bg-white border border-slate-200 rounded text-xs space-y-1.5">
-                      <p className="text-slate-600 leading-relaxed font-sans">
-                        Digital 201 Personnel profile and statutory compliance requirements are <strong>automatically provisioned</strong> when candidate completes Client Evaluation and enters the <strong>201 Compliance</strong> stage.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Card 2: Site Deployment Status & Action */}
-                <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-800 uppercase">
-                      <Truck className="w-4 h-4 text-emerald-600" />
-                      <span>Workforce Site Deployment</span>
-                    </div>
-                    {app.status === ApplicationStatus.DEPLOYED && (
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        DEPLOYED
-                      </span>
-                    )}
-                  </div>
-                  {app.deployments && app.deployments.length > 0 ? (
-                    <div className="space-y-2 text-xs font-mono">
-                      {app.deployments.map((dep) => (
-                        <div key={dep.id} className="p-3 bg-white border border-slate-200 rounded space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-900">{dep.client?.name || linkedClientName}</span>
-                            <StatusBadge status={dep.status} size="sm" />
-                          </div>
-                          <div className="text-[11px] text-slate-600">Site Location: {dep.site || "Client Assigned Location"}</div>
-                          {dep.contractStart && (
-                            <div className="text-[11px] text-slate-500">Contract Start: {formatDate(dep.contractStart)}</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <p className="text-xs text-slate-600 leading-relaxed font-sans">
-                        Deploys compliant candidate to the linked client work site under the active requisition MRF.
-                      </p>
-                      {canDeployCandidate && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          leftIcon={<Truck className="w-3.5 h-3.5" />}
-                          onClick={() => {
-                            setDeployClientId(linkedClientId || latestEndorsement?.clientId || 0);
-                            setDeploySite(app.jobPosting?.location || (app.jobPosting?.mrf as any)?.location || (linkedClient as any)?.address || "");
-                            setDeployModalOpen(true);
-                          }}
-                        >
-                          Deploy Candidate to Site
-                        </Button>
-                      )}
-                      {!canDeployCandidate && isComplianceStage && (
-                        <p className="text-[11px] font-mono text-amber-700 bg-amber-50 p-2.5 rounded border border-amber-200">
-                          ⚠️ All mandatory 201 compliance clearances must be APPROVED before deployment can be activated.
-                        </p>
-                      )}
-                      {!canDeployCandidate && !isComplianceStage && app.status !== ApplicationStatus.DEPLOYED && (
-                        <p className="text-[11px] font-mono text-slate-500 bg-white p-2.5 rounded border border-slate-200">
-                          ℹ️ Candidate must reach and complete 201 Compliance before deployment.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            <OnboardingDeploymentStepper
+              app={app}
+              totalCompReqs={totalCompReqs}
+              approvedCompReqs={approvedCompReqs}
+              hasUnapprovedMandatoryCompliance={hasUnapprovedMandatoryCompliance}
+              isComplianceStage={isComplianceStage}
+              canAdvanceToContractAndOrientation={canAdvanceToContractAndOrientation}
+              isAdvancingToContractAndOrientation={updateStatusMutation.isPending}
+              isContractAndOrientationStage={isContractAndOrientationStage}
+              isContractSigned={isContractSigned}
+              isOrientationCompleted={isOrientationCompleted}
+              isReadyForDeployment={isReadyForDeployment}
+              canDeployCandidate={canDeployCandidate}
+              linkedClientName={linkedClientName}
+              onOpenComplianceTab={() => setActiveTab("compliance")}
+              onAdvanceToContractAndOrientation={() => {
+                updateStatusMutation.mutate({
+                  status: ApplicationStatus.CONTRACT_AND_ORIENTATION,
+                  reason: "All mandatory clearances approved. Moving to contract signing and orientation.",
+                });
+              }}
+              onRecordContract={() => {
+                setContractNotes(app.contractNotes || "");
+                setContractDocumentUrl(app.contractDocumentUrl || "");
+                setContractModalOpen(true);
+              }}
+              onRecordOrientation={() => {
+                setOrientationDate(
+                  app.orientationDate
+                    ? new Date(app.orientationDate).toISOString().split("T")[0]
+                    : new Date().toISOString().split("T")[0]
+                );
+                setOrientationNotes(app.orientationNotes || "");
+                setOrientationModalOpen(true);
+              }}
+              onDeployCandidate={() => {
+                setDeployClientId(linkedClientId || latestEndorsement?.clientId || 0);
+                setDeploySite(
+                  app.jobPosting?.location ||
+                    (app.jobPosting?.mrf as any)?.location ||
+                    (linkedClient as any)?.address ||
+                    ""
+                );
+                setDeployModalOpen(true);
+              }}
+            />
           )}
 
           {/* TAB 9: SIMILAR CANDIDATES IN TALENT POOL */}
@@ -1953,12 +2028,20 @@ export const ApplicationDetailPage: React.FC = () => {
         </div>
       </Dialog>
 
-      {/* Schedule Interview Modal */}
+      {/* Schedule / Reschedule Interview Modal */}
       <Dialog
         open={interviewModalOpen}
         onClose={() => setInterviewModalOpen(false)}
-        title={interviewType === InterviewType.INITIAL_SCREENING ? "Schedule Initial Screening Interview" : "Schedule Final Technical Interview"}
-        description={`Book ${interviewType === InterviewType.INITIAL_SCREENING ? "initial screening" : "final technical / client"} interview for ${candidateName}`}
+        title={
+          interviewType === InterviewType.INITIAL_SCREENING
+            ? (pendingScreeningInterview ? "Reschedule Initial Screening Interview" : "Schedule Initial Screening Interview")
+            : (pendingFinalInterview ? "Reschedule Final Client Interview" : "Schedule Final Technical / Client Interview")
+        }
+        description={
+          (interviewType === InterviewType.INITIAL_SCREENING ? pendingScreeningInterview : pendingFinalInterview)
+            ? `Update scheduled date and time for ${candidateName}`
+            : `Book ${interviewType === InterviewType.INITIAL_SCREENING ? "initial screening" : "final technical / client"} interview for ${candidateName}`
+        }
       >
         <div className="space-y-4">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1">
@@ -2006,7 +2089,9 @@ export const ApplicationDetailPage: React.FC = () => {
                 })
               }
             >
-              Schedule Interview
+              {(interviewType === InterviewType.INITIAL_SCREENING ? pendingScreeningInterview : pendingFinalInterview)
+                ? "Save Rescheduled Interview"
+                : "Schedule Interview"}
             </Button>
           </div>
         </div>
@@ -2666,6 +2751,100 @@ export const ApplicationDetailPage: React.FC = () => {
               }
             >
               Confirm Rejection
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Record Contract Signing Modal */}
+      <Dialog
+        open={contractModalOpen}
+        onClose={() => setContractModalOpen(false)}
+        title="Record Employment Contract Signing"
+        description={`Record signed employment contract for ${candidateName}`}
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1 font-mono">
+            <div className="text-slate-600">Candidate: <strong className="text-slate-900">{candidateName}</strong></div>
+            <div className="text-slate-600">Position: <strong className="text-slate-900">{app.jobPosting?.title || "Specialist"}</strong></div>
+            <div className="text-slate-600">Client: <strong className="text-slate-900">{linkedClientName || "Direct / Internal"}</strong></div>
+          </div>
+          <Input
+            label="Contract Document URL / Storage Reference (Optional)"
+            placeholder="https://... or storage reference..."
+            value={contractDocumentUrl}
+            onChange={(e) => setContractDocumentUrl(e.target.value)}
+          />
+          <Textarea
+            label="Contract Notes / Remarks (Optional)"
+            placeholder="Contract terms, duration, compensation acknowledgment, or witness details..."
+            value={contractNotes}
+            onChange={(e) => setContractNotes(e.target.value)}
+            rows={3}
+          />
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setContractModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={signContractMutation.isPending}
+              onClick={() =>
+                signContractMutation.mutate({
+                  contractNotes: contractNotes.trim() || undefined,
+                  contractDocumentUrl: contractDocumentUrl.trim() || undefined,
+                })
+              }
+            >
+              Confirm Contract Signed
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Record Candidate Orientation Modal */}
+      <Dialog
+        open={orientationModalOpen}
+        onClose={() => setOrientationModalOpen(false)}
+        title="Record Candidate Orientation"
+        description={`Record company and site onboarding orientation for ${candidateName}`}
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1 font-mono">
+            <div className="text-slate-600">Candidate: <strong className="text-slate-900">{candidateName}</strong></div>
+            <div className="text-slate-600">Assigned Site: <strong className="text-slate-900">{app.jobPosting?.location || "Main Site"}</strong></div>
+          </div>
+          <Input
+            label="Orientation Date"
+            type="date"
+            value={orientationDate}
+            onChange={(e) => setOrientationDate(e.target.value)}
+            required
+          />
+          <Textarea
+            label="Orientation Notes / Topics Covered (Optional)"
+            placeholder="Company policies, site safety protocols, dress code, reporting supervisor briefed..."
+            value={orientationNotes}
+            onChange={(e) => setOrientationNotes(e.target.value)}
+            rows={3}
+          />
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setOrientationModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={completeOrientationMutation.isPending}
+              onClick={() =>
+                completeOrientationMutation.mutate({
+                  orientationDate: orientationDate ? new Date(orientationDate).toISOString() : undefined,
+                  orientationNotes: orientationNotes.trim() || undefined,
+                })
+              }
+            >
+              Confirm Orientation Completed
             </Button>
           </div>
         </div>

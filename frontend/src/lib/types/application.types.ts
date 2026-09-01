@@ -152,6 +152,14 @@ export interface Application {
   aiSummary?: string | null;
   candidateFitScore?: number | null;
   candidateFitScoreCalculatedAt?: string | null;
+  contractSigned?: boolean;
+  contractSignedAt?: string | null;
+  contractDocumentUrl?: string | null;
+  contractNotes?: string | null;
+  orientationCompleted?: boolean;
+  orientationCompletedAt?: string | null;
+  orientationDate?: string | null;
+  orientationNotes?: string | null;
   isArchived: boolean;
   archivedAt?: string | null;
   createdAt: string;

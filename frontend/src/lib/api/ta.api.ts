@@ -49,6 +49,7 @@ function buildTAAnalyticsQueryString(filters?: Partial<AnalyticsFilterState>): s
   if (filters.range) params.append("range", filters.range);
   if (filters.startDate) params.append("startDate", filters.startDate);
   if (filters.endDate) params.append("endDate", filters.endDate);
+  if (filters.clientId) params.append("clientId", String(filters.clientId));
   if (filters.mrfId) params.append("mrfId", String(filters.mrfId));
   if (filters.jobPostingId) params.append("jobPostingId", String(filters.jobPostingId));
   if (filters.stage) params.append("stage", filters.stage);
@@ -67,10 +68,12 @@ export interface PaginatedResult<T> {
 export interface ApplicationQueryFilters {
   status?: ApplicationStatus;
   jobId?: number | string;
+  clientId?: number | string;
   search?: string;
   isArchived?: boolean;
   page?: number;
   limit?: number;
+  mineOnly?: boolean;
 }
 
 export const taApi = {
@@ -81,10 +84,12 @@ export const taApi = {
     const params = new URLSearchParams();
     if (filters?.status) params.append("status", filters.status);
     if (filters?.jobId) params.append("jobId", String(filters.jobId));
+    if (filters?.clientId) params.append("clientId", String(filters.clientId));
     if (filters?.search) params.append("search", filters.search);
     if (filters?.isArchived !== undefined) params.append("isArchived", String(filters.isArchived));
     if (filters?.page) params.append("page", String(filters.page));
     if (filters?.limit) params.append("limit", String(filters.limit));
+    if (filters?.mineOnly !== undefined) params.append("mineOnly", String(filters.mineOnly));
 
     const qs = params.toString();
     return api.get<PaginatedResult<Application> | Application[]>(`/api/ta/applications${qs ? `?${qs}` : ""}`);
@@ -107,6 +112,16 @@ export const taApi = {
   getRecruiterDecisions: (id: number | string) =>
     api.get<RecruiterDecision[]>(`/api/ta/applications/${id}/decisions`),
 
+  signContract: (
+    id: number | string,
+    data: { contractNotes?: string; contractDocumentUrl?: string }
+  ) => api.post<Application>(`/api/ta/applications/${id}/contract/sign`, data),
+
+  completeOrientation: (
+    id: number | string,
+    data: { orientationDate?: string; orientationNotes?: string }
+  ) => api.post<Application>(`/api/ta/applications/${id}/orientation/complete`, data),
+
   // -------------------------------------------------------------
   // 2. AI Scoring & Assessment
   // -------------------------------------------------------------
@@ -119,10 +134,12 @@ export const taApi = {
   // -------------------------------------------------------------
   // 3. Job Postings & Candidate Match Ranking
   // -------------------------------------------------------------
-  listJobs: (filters?: { status?: string; search?: string }) => {
+  listJobs: (filters?: { status?: string; search?: string; clientId?: number | string; mineOnly?: boolean }) => {
     const params = new URLSearchParams();
     if (filters?.status) params.append("status", filters.status);
     if (filters?.search) params.append("search", filters.search);
+    if (filters?.clientId) params.append("clientId", String(filters.clientId));
+    if (filters?.mineOnly !== undefined) params.append("mineOnly", String(filters.mineOnly));
     const qs = params.toString();
     return api.get<JobPosting[]>(`/api/ta/jobs${qs ? `?${qs}` : ""}`);
   },

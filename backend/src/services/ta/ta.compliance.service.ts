@@ -125,7 +125,14 @@ export const reviewComplianceRequirement = async (
 ) => {
   const requirement = await prisma.complianceRequirement.findUnique({
     where: { id: requirementId },
-    include: { application: { select: { userId: true } } },
+    include: {
+      application: {
+        select: {
+          userId: true,
+          jobPosting: { select: { postedById: true, title: true } },
+        },
+      },
+    },
   });
   if (!requirement) throw new Error("Compliance requirement not found");
 
@@ -161,6 +168,17 @@ export const reviewComplianceRequirement = async (
       notifMsg,
       notifType,
       `/app/applications/${requirement.applicationId}`
+    );
+  }
+
+  const jobOwnerId = requirement.application?.jobPosting?.postedById;
+  if (jobOwnerId && jobOwnerId !== reviewedById) {
+    void sendNotification(
+      jobOwnerId,
+      `Compliance Document ${isApproved ? "Approved" : "Rejected"}`,
+      `Document '${requirement.documentLabel}' was ${reviewStatus.toLowerCase()} by reviewer.`,
+      notifType,
+      `/ta/applications/${requirement.applicationId}`
     );
   }
 

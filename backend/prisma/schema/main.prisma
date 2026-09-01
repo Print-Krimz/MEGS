@@ -40,6 +40,7 @@ enum ApplicationStatus {
   HIRED             // Offer accepted / hired as employee
   ONBOARDING        // Legacy state
   COMPLIANCE        // Pre-employment compliance document verification stage
+  CONTRACT_AND_ORIENTATION // Contract signing and orientation stage
   DEPLOYED          // Candidate is actively deployed
   BACKOUT           // Candidate withdrew
   ARCHIVED          // Discarded / no longer active

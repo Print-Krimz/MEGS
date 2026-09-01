@@ -15,7 +15,7 @@ import { ApplicationStatus } from "../../lib/types/enums";
 import { ShieldCheck } from "lucide-react";
 import { notify } from "../../lib/feedback";
 
-export const CompliancePage: React.FC = () => {
+export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
   const queryClient = useQueryClient();
 
   const [reviewReqId, setReviewReqId] = useState<number | null>(null);
@@ -70,7 +70,7 @@ export const CompliancePage: React.FC = () => {
   if (complianceAnalyticsQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="201 Compliance Tracking" description="Loading compliance statistics..." />
+        {!hideHeader && <PageHeader title="201 Compliance Tracking" description="Loading compliance statistics..." />}
         <LoadingState variant="table" rows={6} />
       </div>
     );
@@ -79,7 +79,7 @@ export const CompliancePage: React.FC = () => {
   if (complianceAnalyticsQuery.isError) {
     return (
       <div className="space-y-6">
-        <PageHeader title="201 Compliance Tracking" description="Pre-employment verification" />
+        {!hideHeader && <PageHeader title="201 Compliance Tracking" description="Pre-employment verification" />}
         <ErrorState
           error={complianceAnalyticsQuery.error}
           onRetry={() => complianceAnalyticsQuery.refetch()}
@@ -97,14 +97,16 @@ export const CompliancePage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Employment documents (201)"
-        description="Verify government clearances (NBI, SSS, PhilHealth, Pag-IBIG, Medical) prior to field site deployment"
-        breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Compliance Tracking" },
-        ]}
-      />
+      {!hideHeader && (
+        <PageHeader
+          title="Employment documents (201)"
+          description="Verify government clearances (NBI, SSS, PhilHealth, Pag-IBIG, Medical) prior to field site deployment"
+          breadcrumbs={[
+            { label: "TA Portal", href: "/ta" },
+            { label: "Compliance Tracking" },
+          ]}
+        />
+      )}
 
       {feedback && (
         <div

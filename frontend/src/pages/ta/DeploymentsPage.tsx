@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
 
-export const DeploymentsPage: React.FC = () => {
+export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
@@ -62,17 +62,19 @@ export const DeploymentsPage: React.FC = () => {
   const clients = clientsQuery.data || [];
 
   const filteredDeployments = allDeployments.filter((dep) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
+    if (!search || !search.trim()) return true;
+    const q = search.trim().toLowerCase();
     const emp = dep.employee;
-    const profile = emp?.user?.applicantProfile;
+    const profile = emp?.user?.applicantProfile || dep.application?.user?.applicantProfile;
     const empName = profile
-      ? `${profile.firstName} ${profile.lastName}`.toLowerCase()
-      : (emp?.employeeNumber || "").toLowerCase();
+      ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim().toLowerCase()
+      : "";
+    const empEmail = (emp?.user?.email || dep.application?.user?.email || "").toLowerCase();
     const siteMatch = (dep.site || "").toLowerCase().includes(q);
     const clientMatch = (dep.client?.name || "").toLowerCase().includes(q);
     const empNumMatch = (emp?.employeeNumber || "").toLowerCase().includes(q);
-    return empName.includes(q) || siteMatch || clientMatch || empNumMatch;
+    const jobTitleMatch = (dep.application?.jobPosting?.title || dep.mrf?.title || "").toLowerCase().includes(q);
+    return empName.includes(q) || empEmail.includes(q) || siteMatch || clientMatch || empNumMatch || jobTitleMatch;
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredDeployments.length / pageSize));
@@ -99,14 +101,16 @@ export const DeploymentsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Workforce Site Deployments"
-        description="Monitor field site assignments, employee deployments, and active client personnel contracts"
-        breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Deployments" },
-        ]}
-      />
+      {!hideHeader && (
+        <PageHeader
+          title="Workforce Site Deployments"
+          description="Monitor field site assignments, employee deployments, and active client personnel contracts"
+          breadcrumbs={[
+            { label: "TA Portal", href: "/ta" },
+            { label: "Deployments" },
+          ]}
+        />
+      )}
 
       {/* Filters Bar */}
       <SearchFilters
@@ -127,7 +131,8 @@ export const DeploymentsPage: React.FC = () => {
           },
           {
             key: "clientId",
-            label: "Client Company",
+            label: "Client account",
+            placeholder: "All client accounts",
             searchable: true,
             options: clients.map((c) => ({
               value: String(c.id),
@@ -182,13 +187,33 @@ export const DeploymentsPage: React.FC = () => {
                   return (
                     <tr key={dep.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="px-4 py-3">
-                        <div className="font-bold text-slate-900">{empName}</div>
+                        {emp?.id ? (
+                          <Link
+                            to="/ta/employees/$employeeId"
+                            params={{ employeeId: String(emp.id) }}
+                            className="font-bold text-slate-900 hover:text-teal-700 hover:underline block"
+                          >
+                            {empName}
+                          </Link>
+                        ) : (
+                          <div className="font-bold text-slate-900">{empName}</div>
+                        )}
                         <div className="text-[11px] text-slate-400 font-mono">
                           ID: {emp?.employeeNumber || "N/A"}
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-semibold text-slate-800">{dep.client?.name}</div>
+                        {dep.client?.id ? (
+                          <Link
+                            to="/ta/clients/$clientId"
+                            params={{ clientId: String(dep.client.id) }}
+                            className="font-semibold text-slate-800 hover:text-teal-700 hover:underline block"
+                          >
+                            {dep.client.name}
+                          </Link>
+                        ) : (
+                          <div className="font-semibold text-slate-800">{dep.client?.name}</div>
+                        )}
                         <div className="text-[11px] text-slate-400 font-mono">
                           MRF #{dep.mrfId || "Direct"}
                         </div>
@@ -197,26 +222,11 @@ export const DeploymentsPage: React.FC = () => {
                         {dep.site || "General Client Site"}
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={dep.status} />
+                        <StatusBadge status={dep.status} type="deployment" />
                       </td>
-                      <td className="px-4 py-3 font-mono text-[11px]">
-                        <div className="text-slate-700">
-                          {dep.contractStart ? formatDate(dep.contractStart) : "N/A"} —{" "}
-                          {dep.contractEnd ? formatDate(dep.contractEnd) : "Open"}
-                        </div>
-                        <div className="mt-0.5">
-                          <span
-                            className={`inline-block px-1.5 py-0.2 rounded text-[9px] uppercase font-bold ${
-                              dep.contractStatus === "FULLY_EXECUTED"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : dep.workerSigned || dep.clientSigned
-                                ? "bg-amber-50 text-amber-700 border border-amber-200"
-                                : "bg-slate-100 text-slate-600 border border-slate-200"
-                            }`}
-                          >
-                            {dep.contractStatus ? dep.contractStatus.replace(/_/g, " ") : "PENDING SIGNATURES"}
-                          </span>
-                        </div>
+                      <td className="px-4 py-3 font-mono text-[11px] text-slate-700">
+                        {dep.contractStart ? formatDate(dep.contractStart) : "N/A"} —{" "}
+                        {dep.contractEnd ? formatDate(dep.contractEnd) : "Open"}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
@@ -273,7 +283,7 @@ export const DeploymentsPage: React.FC = () => {
           {statusModalDeployment && (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex items-center justify-between">
               <span className="text-slate-500 font-mono">Current Status:</span>
-              <StatusBadge status={statusModalDeployment.currentStatus} />
+              <StatusBadge status={statusModalDeployment.currentStatus} type="deployment" />
             </div>
           )}
           <Select

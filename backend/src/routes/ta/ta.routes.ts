@@ -19,6 +19,8 @@ import {
   archiveApplication,
   restoreApplication,
   getRecruiterDecisionsHandler,
+  signContractHandler,
+  completeOrientationHandler,
 } from '../../controllers/ta/ta.applications.controller.js';
 
 import { analyzeApplication } from '../../controllers/ta/ta.ai.controller.js';
@@ -143,6 +145,8 @@ router.patch("/applications/:id/status", validate(taSchema.updateStatus), update
 router.patch("/applications/:id/archive", validate(taSchema.archiveRestore), archiveApplication);
 router.patch("/applications/:id/restore", validate(taSchema.archiveRestore), restoreApplication);
 router.get("/applications/:id/decisions", getRecruiterDecisionsHandler);
+router.post("/applications/:id/contract/sign", validate(taSchema.signContract), signContractHandler);
+router.post("/applications/:id/orientation/complete", validate(taSchema.completeOrientation), completeOrientationHandler);
 
 // Client Endorsement
 router.post("/applications/:id/endorse", validate(taSchema.endorseCandidate), recordEndorsementHandler);

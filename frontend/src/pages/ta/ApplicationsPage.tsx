@@ -34,6 +34,7 @@ export const ApplicationsPage: React.FC = () => {
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [showArchived, setShowArchived] = useState(false);
+  const [mineOnly, setMineOnly] = useState(false);
 
   // Modal states for archive
   const [archiveModalApp, setArchiveModalApp] = useState<{ id: number; name: string; isArchived: boolean } | null>(null);
@@ -42,7 +43,7 @@ export const ApplicationsPage: React.FC = () => {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const applicationsQuery = useQuery({
-    queryKey: ["ta", "applications", { page, pageSize, search, filterValues, showArchived }],
+    queryKey: ["ta", "applications", { page, pageSize, search, filterValues, showArchived, mineOnly }],
     queryFn: () =>
       taApi.listApplications({
         page,
@@ -50,17 +51,23 @@ export const ApplicationsPage: React.FC = () => {
         search: search || undefined,
         status: (filterValues.status as ApplicationStatus) || undefined,
         jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
+        clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
         isArchived: showArchived,
+        mineOnly: mineOnly ? true : undefined,
       }),
   });
 
   const jobsQuery = useQuery({
-    queryKey: ["ta", "jobs", "dropdown"],
-    queryFn: () => taApi.listJobs(),
+    queryKey: ["ta", "jobs", "dropdown", { mineOnly }],
+    queryFn: () => taApi.listJobs({ mineOnly: mineOnly ? true : undefined }),
+  });
+
+  const clientsQuery = useQuery({
+    queryKey: ["ta", "clients", "dropdown"],
+    queryFn: () => taApi.listClients(),
   });
 
   // Mutations
-
   const archiveMutation = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
       taApi.archiveApplication(id, { reason }),
@@ -102,6 +109,38 @@ export const ApplicationsPage: React.FC = () => {
     ? Math.max(1, Math.ceil(queryData.length / pageSize))
     : queryData?.totalPages || 1;
   const jobs = jobsQuery.data || [];
+  const clients = clientsQuery.data || [];
+
+  // Dynamically derive client options for current TA scope (deduplicated)
+  const availableClients = React.useMemo(() => {
+    const seen = new Set<number>();
+    if (mineOnly) {
+      const list: Array<{ id: number; name: string; industry?: string | null; address?: string | null }> = [];
+      jobs.forEach((j: any) => {
+        const client = j.mrf?.client;
+        if (client && !seen.has(client.id)) {
+          seen.add(client.id);
+          list.push(client);
+        }
+      });
+      return list;
+    }
+
+    const list: typeof clients = [];
+    clients.forEach((c) => {
+      if (!seen.has(c.id)) {
+        seen.add(c.id);
+        list.push(c);
+      }
+    });
+    return list;
+  }, [mineOnly, jobs, clients]);
+
+  const filteredJobs = React.useMemo(() => {
+    return filterValues.clientId
+      ? jobs.filter((j: any) => j.mrf?.clientId === Number(filterValues.clientId))
+      : jobs;
+  }, [jobs, filterValues.clientId]);
 
   return (
     <div className="space-y-6">
@@ -151,6 +190,7 @@ export const ApplicationsPage: React.FC = () => {
 
       {/* Filters Bar */}
       <SearchFilters
+        searchPlaceholder="Search applications by candidate, email, job title..."
         searchValue={search}
         onSearchChange={(v) => {
           setSearch(v);
@@ -158,7 +198,17 @@ export const ApplicationsPage: React.FC = () => {
         }}
         filterValues={filterValues}
         onFilterChange={(k, v) => {
-          setFilterValues((prev) => ({ ...prev, [k]: v }));
+          setFilterValues((prev) => {
+            const next = { ...prev, [k]: v };
+            // If changing client, clear selected job if not belonging to that client
+            if (k === "clientId" && prev.jobId) {
+              const jobBelongs = jobs.some((j: any) => String(j.id) === prev.jobId && (!v || j.mrf?.clientId === Number(v)));
+              if (!jobBelongs) {
+                delete next.jobId;
+              }
+            }
+            return next;
+          });
           setPage(1);
         }}
         onReset={() => {
@@ -177,17 +227,66 @@ export const ApplicationsPage: React.FC = () => {
             })),
           },
           {
+            key: "clientId",
+            label: "Client account",
+            placeholder: mineOnly ? "My client accounts" : "All client accounts",
+            searchable: true,
+            options: availableClients.map((c) => ({
+              value: String(c.id),
+              label: c.name,
+              subtitle: `${c.industry || "General"} • ${c.address || "Philippines"}`,
+            })),
+          },
+          {
             key: "jobId",
             label: "Job opening",
-            placeholder: "All job openings",
+            placeholder: mineOnly ? "My job openings" : "All job openings",
             searchable: true,
-            options: jobs.map((j) => ({
+            options: filteredJobs.map((j) => ({
               value: String(j.id),
               label: j.title,
               subtitle: `Reference ${j.id} • ${j.location || "Philippines"}`,
             })),
           },
         ]}
+        actions={
+          <div className="flex items-center border border-slate-300 bg-slate-100 p-0.5 rounded text-xs font-mono">
+            <button
+              type="button"
+              onClick={() => {
+                setMineOnly(false);
+                setPage(1);
+              }}
+              className={`px-2.5 py-1 rounded transition-colors ${
+                !mineOnly
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200 font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              All Company
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMineOnly(true);
+                setFilterValues((prev) => {
+                  const next = { ...prev };
+                  delete next.clientId;
+                  delete next.jobId;
+                  return next;
+                });
+                setPage(1);
+              }}
+              className={`px-2.5 py-1 rounded transition-colors ${
+                mineOnly
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200 font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              My Candidates
+            </button>
+          </div>
+        }
       />
 
       {/* Table Section */}

@@ -1,19 +1,21 @@
 import React, { useState } from "react";
-import { Building2, Briefcase } from "lucide-react";
+import { Building2 } from "lucide-react";
 
 interface JobImageProps {
   src?: string | null;
+  title?: string | null;
   alt?: string;
   className?: string;
-  fallbackIcon?: "building" | "briefcase";
+  fallbackIcon?: "building" | "none";
   size?: "sm" | "md" | "lg" | "xl";
 }
 
 export const JobImage: React.FC<JobImageProps> = ({
   src,
-  alt = "Company or Job Requisition",
+  title,
+  alt = "Company Logo",
   className = "",
-  fallbackIcon = "briefcase",
+  fallbackIcon = "none",
   size = "md",
 }) => {
   const [hasError, setHasError] = useState(false);
@@ -43,14 +45,16 @@ export const JobImage: React.FC<JobImageProps> = ({
     );
   }
 
-  const Icon = fallbackIcon === "building" ? Building2 : Briefcase;
+  if (fallbackIcon === "building") {
+    return (
+      <div
+        className={`bg-slate-100 border border-slate-300 text-slate-700 flex items-center justify-center rounded shrink-0 ${sizeClasses} ${className}`}
+        title={title || alt}
+      >
+        <Building2 className={`${iconSizes} text-slate-600`} />
+      </div>
+    );
+  }
 
-  return (
-    <div
-      className={`bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center rounded shrink-0 shadow-xs ${sizeClasses} ${className}`}
-      title={alt}
-    >
-      <Icon className={`${iconSizes} text-teal-700`} />
-    </div>
-  );
+  return null;
 };

@@ -14,7 +14,14 @@ import {
 import { Button } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
-import { Briefcase, Calendar, FileText, CheckCircle2, Sparkles } from "lucide-react";
+import {
+  Briefcase,
+  Calendar,
+  FileText,
+  CheckCircle2,
+  Bookmark,
+  MapPin,
+} from "lucide-react";
 
 export const MyApplicationsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -46,7 +53,10 @@ export const MyApplicationsPage: React.FC = () => {
       );
     }
     if (statusFilter === "COMPLIANCE") {
-      return app.status === ApplicationStatus.COMPLIANCE;
+      return (
+        app.status === ApplicationStatus.COMPLIANCE ||
+        app.status === ApplicationStatus.CONTRACT_AND_ORIENTATION
+      );
     }
     if (statusFilter === "DEPLOYED") {
       return app.status === ApplicationStatus.DEPLOYED;
@@ -92,9 +102,11 @@ export const MyApplicationsPage: React.FC = () => {
     },
     {
       key: "COMPLIANCE",
-      label: "Requirements",
+      label: "Requirements & Onboarding",
       count: allApplications.filter(
-        (a) => a.status === ApplicationStatus.COMPLIANCE
+        (a) =>
+          a.status === ApplicationStatus.COMPLIANCE ||
+          a.status === ApplicationStatus.CONTRACT_AND_ORIENTATION
       ).length,
     },
     {
@@ -114,7 +126,10 @@ export const MyApplicationsPage: React.FC = () => {
           { label: "Applications" },
         ]}
         actions={
-          <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+          <Link
+            to="/app/jobs"
+            className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+          >
             Explore jobs
           </Link>
         }
@@ -162,7 +177,10 @@ export const MyApplicationsPage: React.FC = () => {
             title="No applications yet"
             description="Explore current jobs and apply when a role suits you."
             action={
-              <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+              <Link
+                to="/app/jobs"
+                className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+              >
                 Explore jobs
               </Link>
             }
@@ -173,17 +191,10 @@ export const MyApplicationsPage: React.FC = () => {
           <EmptyState
             icon={<Briefcase className="w-5 h-5" />}
             title="No applications in this category"
-            description="You don't have any application records matching the selected status filter."
+            description="There are currently no job applications matching this filter category."
             action={
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setStatusFilter("ALL");
-                  setPage(1);
-                }}
-              >
-                Show all applications
+              <Button variant="outline" size="sm" onClick={() => setStatusFilter("ALL")}>
+                View All Applications
               </Button>
             }
           />
@@ -193,55 +204,64 @@ export const MyApplicationsPage: React.FC = () => {
           {paginatedApplications.map((app) => (
             <div
               key={app.id}
-              className="bg-white border border-slate-300 p-4 space-y-4 hover:border-slate-400 transition-colors"
+              className="bg-white border border-slate-300 p-5 space-y-4 hover:border-slate-400 transition-colors rounded-lg shadow-xs"
             >
-              {/* Header Info */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2.5">
+              {/* Top line: role title, company & date */}
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-base font-semibold text-slate-950">
-                      {app.jobPosting?.title || "Job opening"}
+                      {app.jobPosting?.title || `Position reference #${app.jobPostingId}`}
                     </h3>
-                    <StatusBadge status={app.status} audience="applicant" size="sm" />
+                    <StatusBadge status={app.status} />
                   </div>
-                  <div className="text-sm text-slate-500 flex flex-wrap items-center gap-3">
-                    <span>Submitted: {formatDate(app.createdAt)}</span>
-                    {app.jobPosting?.location && <span>• {app.jobPosting.location}</span>}
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                    {app.jobPosting?.location && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>{app.jobPosting.location}</span>
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>Applied on {formatDate(app.createdAt)}</span>
+                    </span>
+                    <span className="font-mono text-slate-400">
+                      Reference: #{app.id}
+                    </span>
                   </div>
                 </div>
 
                 <Link
                   to="/app/applications/$applicationId"
                   params={{ applicationId: String(app.id) }}
-                  className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2 shrink-0"
                 >
-                  View details
+                  View application progress
                 </Link>
               </div>
 
-              {/* Hiring Pipeline Visual Progression */}
-              <div className="px-1 py-1">
+              {/* Pipeline Stepper */}
+              <div className="pt-2 border-t border-slate-200">
                 <PipelineIndicator currentStatus={app.status} audience="applicant" />
               </div>
 
-              {/* Status Specific Action / Alert Bar */}
-              {(app.status === ApplicationStatus.INITIAL_SCREENING ||
-                app.status === ApplicationStatus.FINAL_INTERVIEW) && (
-                <div className="p-3 bg-blue-50 border-l-4 border-blue-700 border border-slate-300 flex items-center justify-between gap-3 text-sm text-blue-950">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-blue-700 shrink-0" />
-                    <span>
-                      An interview is scheduled or in progress. Check your notifications for details.
-                    </span>
-                  </div>
-                  <Link
-                    to="/app/applications/$applicationId"
-                    params={{ applicationId: String(app.id) }}
-                  >
-                    <span className="font-medium text-blue-800 hover:underline shrink-0">
-                      View details
-                    </span>
-                  </Link>
+              {/* Stage-specific contextual notices */}
+              {app.status === ApplicationStatus.INITIAL_SCREENING && (
+                <div className="p-3 bg-teal-50 border-l-4 border-teal-700 border border-slate-300 flex items-center gap-2 text-sm text-teal-950">
+                  <Calendar className="w-4 h-4 text-teal-700 shrink-0" />
+                  <span>
+                    Your screening interview has been queued. Our recruitment team will coordinate with you regarding the schedule.
+                  </span>
+                </div>
+              )}
+
+              {app.status === ApplicationStatus.FINAL_INTERVIEW && (
+                <div className="p-3 bg-teal-50 border-l-4 border-teal-700 border border-slate-300 flex items-center gap-2 text-sm text-teal-950">
+                  <Calendar className="w-4 h-4 text-teal-700 shrink-0" />
+                  <span>
+                    You have advanced to the client final interview. Please prepare for your scheduled discussion.
+                  </span>
                 </div>
               )}
 
@@ -276,7 +296,7 @@ export const MyApplicationsPage: React.FC = () => {
               {app.status === ApplicationStatus.TALENT_POOL && (
                 <div className="p-3 bg-violet-50 border-l-4 border-violet-700 border border-slate-300 flex items-center justify-between gap-3 text-sm text-violet-950">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-violet-700 shrink-0" />
+                    <Bookmark className="w-4 h-4 text-violet-700 shrink-0" />
                     <span>
                       You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications.
                     </span>

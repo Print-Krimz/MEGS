@@ -24,6 +24,7 @@ function extractTAFilters(query: any): AnalyticsFilterDto {
     range: query.range as any,
     startDate: query.startDate as string,
     endDate: query.endDate as string,
+    clientId: query.clientId ? parseInt(query.clientId as string, 10) : undefined,
     mrfId: query.mrfId ? parseInt(query.mrfId as string, 10) : undefined,
     jobPostingId: query.jobPostingId ? parseInt(query.jobPostingId as string, 10) : undefined,
     stage: query.stage as string,

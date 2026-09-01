@@ -3,9 +3,53 @@ import { JobStatus } from "@prisma/client";
 import { revalidateJobScoring } from "../scoring/scoring-configuration.service.js";
 import { logAudit } from "../../utils/audit.js";
 
-export const listTAJobs = async (status?: string) => {
+export interface ListTAJobsOptions {
+  status?: string;
+  search?: string;
+  clientId?: number;
+  mineOnly?: boolean;
+  currentUserId?: string;
+  postedById?: string;
+}
+
+export const listTAJobs = async (statusOrOptions?: string | ListTAJobsOptions) => {
+  const options: ListTAJobsOptions = typeof statusOrOptions === "string" ? { status: statusOrOptions } : statusOrOptions || {};
+  const { status, search, clientId, mineOnly, currentUserId, postedById } = options;
+
+  const andConditions: any[] = [];
+
+  if (status) {
+    andConditions.push({ status: status as JobStatus });
+  }
+
+  if (clientId !== undefined && clientId !== null) {
+    const parsedClientId = Number(clientId);
+    if (!isNaN(parsedClientId)) {
+      andConditions.push({ mrf: { clientId: parsedClientId } });
+    }
+  }
+
+  if (postedById || (mineOnly && currentUserId)) {
+    andConditions.push({ postedById: postedById || currentUserId });
+  }
+
+  if (search && search.trim()) {
+    const q = search.trim();
+    andConditions.push({
+      OR: [
+        { title: { contains: q, mode: "insensitive" } },
+        { location: { contains: q, mode: "insensitive" } },
+        { description: { contains: q, mode: "insensitive" } },
+        { requirements: { contains: q, mode: "insensitive" } },
+        { mrf: { client: { name: { contains: q, mode: "insensitive" } } } },
+      ],
+    });
+  }
+
+  const where = andConditions.length > 0 ? { AND: andConditions } : undefined;
+
   return await prisma.jobPosting.findMany({
-    where: status ? { status: status as JobStatus } : undefined,
+    where,
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -16,6 +60,14 @@ export const listTAJobs = async (status?: string) => {
       createdAt: true,
       updatedAt: true,
       mrfId: true,
+      mrf: {
+        select: {
+          id: true,
+          title: true,
+          clientId: true,
+          client: { select: { id: true, name: true } },
+        },
+      },
       postedBy: { select: { id: true, email: true } },
       _count: { select: { applications: true } },
     },

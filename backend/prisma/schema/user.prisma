@@ -45,6 +45,7 @@ model User {
   employmentEventsCreated EmploymentEvent[] @relation("EmploymentEventActor")
   mfaRecoveryCodes UserMfaRecoveryCode[]
   invitations UserInvitation[]
+  savedJobs SavedJob[]
 }
 
 // ─────────────────────────────────────────────

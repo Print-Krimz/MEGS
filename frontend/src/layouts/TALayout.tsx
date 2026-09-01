@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Link, Outlet } from "@tanstack/react-router";
+import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   Users,
@@ -7,9 +7,7 @@ import {
   ClipboardList,
   Calendar,
   Building2,
-  FileCheck2,
   Send,
-  IdCard,
   BarChart3,
   LogOut,
   ChevronLeft,
@@ -27,7 +25,22 @@ import { Role } from "../lib/types/enums";
 
 export const TALayout: React.FC = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+
+  const isNavItemActive = (itemTo: string) => {
+    const pathname = location.pathname;
+    if (itemTo === "/ta") return pathname === "/ta";
+    if (itemTo === "/ta/workforce") {
+      return (
+        pathname.startsWith("/ta/workforce") ||
+        pathname.startsWith("/ta/deployments") ||
+        pathname.startsWith("/ta/employees") ||
+        pathname.startsWith("/ta/compliance")
+      );
+    }
+    return pathname.startsWith(itemTo);
+  };
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
@@ -122,11 +135,9 @@ export const TALayout: React.FC = () => {
       ],
     },
     {
-      label: "New hires and placement",
+      label: "Workforce & placement",
       items: [
-        { to: "/ta/compliance", label: "Employment documents (201)", icon: FileCheck2 },
-        { to: "/ta/deployments", label: "Deployments", icon: Send },
-        { to: "/ta/employees", label: "Employee records (201)", icon: IdCard },
+        { to: "/ta/workforce", label: "Workforce & placements", icon: Send },
       ],
     },
     {
@@ -176,16 +187,17 @@ export const TALayout: React.FC = () => {
                   <div className="space-y-0.5">
                     {section.items.map((item) => {
                       const Icon = item.icon;
+                      const isActive = isNavItemActive(item.to);
                       return (
                         <Link
                           key={item.to}
                           to={item.to}
                           onClick={() => setMobileMenuOpen(false)}
-                          activeOptions={{ exact: item.to === "/ta" }}
-                          activeProps={{
-                            className: "bg-teal-700 text-white font-medium border-l-2 border-teal-400",
-                          }}
-                          className="flex min-h-11 items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:text-white hover:bg-slate-850 transition-colors"
+                          className={`flex min-h-11 items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                            isActive
+                              ? "bg-teal-700 text-white font-medium border-l-2 border-teal-400"
+                              : "text-slate-200 hover:text-white hover:bg-slate-850"
+                          }`}
                         >
                           <Icon className="w-4 h-4 shrink-0" />
                           <span className="truncate">{item.label}</span>
@@ -244,15 +256,16 @@ export const TALayout: React.FC = () => {
               <div className="space-y-0.5">
                 {section.items.map((item) => {
                   const Icon = item.icon;
+                  const isActive = isNavItemActive(item.to);
                   return (
                     <Link
                       key={item.to}
                       to={item.to}
-                      activeOptions={{ exact: item.to === "/ta" }}
-                      activeProps={{
-                        className: "bg-teal-700 text-white font-medium border-l-2 border-teal-400",
-                      }}
-                      className="flex min-h-9 items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:text-white hover:bg-slate-850 transition-colors"
+                      className={`flex min-h-9 items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                        isActive
+                          ? "bg-teal-700 text-white font-medium border-l-2 border-teal-400"
+                          : "text-slate-200 hover:text-white hover:bg-slate-850"
+                      }`}
                       title={collapsed ? item.label : undefined}
                     >
                       <Icon className="w-4 h-4 shrink-0" />

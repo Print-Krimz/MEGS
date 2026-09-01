@@ -16,6 +16,7 @@ const CANONICAL_STAGES = [
   { id: ApplicationStatus.CLIENT_ENDORSEMENT, label: "Client review" },
   { id: ApplicationStatus.FINAL_INTERVIEW, label: "Final interview" },
   { id: ApplicationStatus.COMPLIANCE, label: "Requirements" },
+  { id: ApplicationStatus.CONTRACT_AND_ORIENTATION, label: "Contract & Orientation" },
   { id: ApplicationStatus.DEPLOYED, label: "Deployed" },
 ];
 
@@ -51,8 +52,10 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
       case ApplicationStatus.ONBOARDING:
       case ApplicationStatus.COMPLIANCE:
         return 4;
-      case ApplicationStatus.DEPLOYED:
+      case ApplicationStatus.CONTRACT_AND_ORIENTATION:
         return 5;
+      case ApplicationStatus.DEPLOYED:
+        return 6;
       default:
         return -1;
     }

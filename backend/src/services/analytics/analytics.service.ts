@@ -554,6 +554,7 @@ export const getAdminFunnelAnalytics = async (filters: AnalyticsFilterDto = {}):
     { key: "CLIENT_ENDORSEMENT", label: "Client Endorsement" },
     { key: "FINAL_INTERVIEW", label: "Final Interview" },
     { key: "COMPLIANCE", label: "201 Compliance" },
+    { key: "CONTRACT_AND_ORIENTATION", label: "Contract & Orientation" },
     { key: "DEPLOYED", label: "Site Deployment" },
   ];
 
@@ -566,10 +567,11 @@ export const getAdminFunnelAnalytics = async (filters: AnalyticsFilterDto = {}):
     const allKnown = [currentStatus, ...historyStatuses];
 
     const hierarchy: Record<string, string[]> = {
-      INITIAL_SCREENING: ["INITIAL_SCREENING", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "DEPLOYED"],
-      CLIENT_ENDORSEMENT: ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "DEPLOYED"],
-      FINAL_INTERVIEW: ["FINAL_INTERVIEW", "COMPLIANCE", "DEPLOYED"],
-      COMPLIANCE: ["COMPLIANCE", "DEPLOYED"],
+      INITIAL_SCREENING: ["INITIAL_SCREENING", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
+      CLIENT_ENDORSEMENT: ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
+      FINAL_INTERVIEW: ["FINAL_INTERVIEW", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
+      COMPLIANCE: ["COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
+      CONTRACT_AND_ORIENTATION: ["CONTRACT_AND_ORIENTATION", "DEPLOYED"],
       DEPLOYED: ["DEPLOYED"],
     };
 
@@ -631,7 +633,7 @@ export const getAdminBottlenecks = async (filters: AnalyticsFilterDto = {}): Pro
   const activeApps = await prisma.application.findMany({
     where: {
       ...where,
-      status: filters.stage ? (filters.stage as ApplicationStatus) : { in: ["SUBMITTED", "INITIAL_SCREENING", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE"] },
+      status: filters.stage ? (filters.stage as ApplicationStatus) : { in: ["SUBMITTED", "INITIAL_SCREENING", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "CONTRACT_AND_ORIENTATION"] },
     },
     include: {
       interviews: { where: { isActive: true } },
@@ -1104,6 +1106,7 @@ export const getAnalyticsFilterOptions = async (
     { key: "CLIENT_ENDORSEMENT", label: "Client Endorsement" },
     { key: "FINAL_INTERVIEW", label: "Final Interview" },
     { key: "COMPLIANCE", label: "201 Compliance" },
+    { key: "CONTRACT_AND_ORIENTATION", label: "Contract & Orientation" },
     { key: "DEPLOYED", label: "Deployed" },
   ];
 

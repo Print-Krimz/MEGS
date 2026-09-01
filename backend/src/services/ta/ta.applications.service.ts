@@ -8,28 +8,33 @@ import { logAudit } from '../../utils/audit.js';
 
 // Authoritative State Machine governing valid applicant pipeline stage transitions
 export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  SUBMITTED:          ["PARSING", "REVIEW", "MATCHED", "INITIAL_SCREENING", "NEEDS_ATTENTION", "BACKOUT", "ARCHIVED"],
-  PARSING:            ["REVIEW", "MATCHED", "INITIAL_SCREENING", "NEEDS_ATTENTION", "ARCHIVED"],
-  REVIEW:             ["INITIAL_SCREENING", "MATCHED", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  NEEDS_ATTENTION:    ["PARSING", "REVIEW", "MATCHED", "INITIAL_SCREENING", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  MATCHED:            ["INITIAL_SCREENING", "REVIEW", "TALENT_POOL", "ARCHIVED"],
-  TALENT_POOL:        ["ARCHIVED"],
-  INITIAL_SCREENING:  ["CLIENT_ENDORSEMENT", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  CLIENT_ENDORSEMENT: ["FINAL_INTERVIEW", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  FINAL_INTERVIEW:    ["COMPLIANCE", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  COMPLIANCE:         ["DEPLOYED", "BACKOUT", "ARCHIVED"],
-  DEPLOYED:           ["ARCHIVED"],
-  BACKOUT:            [],
-  ARCHIVED:           [],
+  SUBMITTED:                 ["PARSING", "REVIEW", "MATCHED", "INITIAL_SCREENING", "NEEDS_ATTENTION", "BACKOUT", "ARCHIVED"],
+  PARSING:                   ["REVIEW", "MATCHED", "INITIAL_SCREENING", "NEEDS_ATTENTION", "ARCHIVED"],
+  REVIEW:                    ["INITIAL_SCREENING", "MATCHED", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
+  NEEDS_ATTENTION:           ["PARSING", "REVIEW", "MATCHED", "INITIAL_SCREENING", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
+  MATCHED:                   ["INITIAL_SCREENING", "REVIEW", "TALENT_POOL", "ARCHIVED"],
+  TALENT_POOL:               ["ARCHIVED"],
+  INITIAL_SCREENING:         ["CLIENT_ENDORSEMENT", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
+  CLIENT_ENDORSEMENT:        ["FINAL_INTERVIEW", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
+  FINAL_INTERVIEW:           ["COMPLIANCE", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
+  COMPLIANCE:                ["CONTRACT_AND_ORIENTATION", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
+  CONTRACT_AND_ORIENTATION: ["DEPLOYED", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
+  DEPLOYED:                  ["ARCHIVED"],
+  BACKOUT:                   [],
+  ARCHIVED:                  [],
 };
 
 export interface ListTAApplicationsOptions {
   status?: string;
   jobPostingId?: string;
+  clientId?: number | string;
   search?: string;
   isArchived?: boolean;
   page?: number;
   limit?: number;
+  mineOnly?: boolean;
+  currentUserId?: string;
+  postedById?: string;
 }
 
 export const listTAApplications = async (
@@ -44,32 +49,79 @@ export const listTAApplications = async (
           jobPostingId: legacyJobPostingId,
         };
 
-  const { status, jobPostingId, search, isArchived, page, limit } = options;
+  const { status, jobPostingId, clientId, search, isArchived, page, limit, mineOnly, currentUserId, postedById } = options;
   const dynamicScoring = scoringFlags.dynamicCandidateScoringEnabled();
   const configuration = dynamicScoring ? await getActiveScoringConfiguration() : null;
 
-  const where: any = {};
+  const andConditions: any[] = [];
+
+  if (postedById || (mineOnly && currentUserId)) {
+    andConditions.push({ jobPosting: { postedById: postedById || currentUserId } });
+  }
+
   if (status) {
-    where.status = status as ApplicationStatus;
+    andConditions.push({ status: status as ApplicationStatus });
   }
+
   if (jobPostingId) {
-    where.jobPostingId = parseInt(jobPostingId, 10);
+    const parsedJobId = parseInt(String(jobPostingId), 10);
+    if (!isNaN(parsedJobId)) {
+      andConditions.push({ jobPostingId: parsedJobId });
+    }
   }
+
+  if (clientId !== undefined && clientId !== null && clientId !== "") {
+    const parsedClientId = typeof clientId === "string" ? parseInt(clientId, 10) : clientId;
+    if (!isNaN(parsedClientId)) {
+      andConditions.push({
+        OR: [
+          { jobPosting: { mrf: { clientId: parsedClientId } } },
+          { clientEndorsements: { some: { clientId: parsedClientId } } },
+          { deployments: { some: { clientId: parsedClientId } } },
+        ],
+      });
+    }
+  }
+
   if (isArchived !== undefined) {
-    where.isArchived = Boolean(isArchived);
+    andConditions.push({ isArchived: Boolean(isArchived) });
   } else if (!status) {
-    where.isArchived = false;
+    andConditions.push({ isArchived: false });
   }
 
   if (search && search.trim()) {
     const q = search.trim();
-    where.OR = [
-      { user: { email: { contains: q, mode: "insensitive" } } },
-      { user: { applicantProfile: { firstName: { contains: q, mode: "insensitive" } } } },
-      { user: { applicantProfile: { lastName: { contains: q, mode: "insensitive" } } } },
-      { jobPosting: { title: { contains: q, mode: "insensitive" } } },
-    ];
+    const tokens = q.split(/\s+/).filter(Boolean);
+
+    if (tokens.length > 1) {
+      const tokenConditions = tokens.map((token) => ({
+        OR: [
+          { user: { email: { contains: token, mode: "insensitive" } } },
+          { user: { applicantProfile: { firstName: { contains: token, mode: "insensitive" } } } },
+          { user: { applicantProfile: { lastName: { contains: token, mode: "insensitive" } } } },
+          { user: { applicantProfile: { mobileNumber: { contains: token, mode: "insensitive" } } } },
+          { jobPosting: { title: { contains: token, mode: "insensitive" } } },
+          { jobPosting: { location: { contains: token, mode: "insensitive" } } },
+          { jobPosting: { mrf: { client: { name: { contains: token, mode: "insensitive" } } } } },
+        ],
+      }));
+      andConditions.push({ AND: tokenConditions });
+    } else {
+      andConditions.push({
+        OR: [
+          { user: { email: { contains: q, mode: "insensitive" } } },
+          { user: { applicantProfile: { firstName: { contains: q, mode: "insensitive" } } } },
+          { user: { applicantProfile: { lastName: { contains: q, mode: "insensitive" } } } },
+          { user: { applicantProfile: { mobileNumber: { contains: q, mode: "insensitive" } } } },
+          { jobPosting: { title: { contains: q, mode: "insensitive" } } },
+          { jobPosting: { location: { contains: q, mode: "insensitive" } } },
+          { jobPosting: { mrf: { client: { name: { contains: q, mode: "insensitive" } } } } },
+        ],
+      });
+    }
   }
+
+  const where: any = andConditions.length > 0 ? { AND: andConditions } : {};
 
   const take = limit ? Math.max(1, limit) : undefined;
   const skip = page && limit ? Math.max(0, (page - 1) * limit) : undefined;
@@ -91,7 +143,22 @@ export const listTAApplications = async (
         aiSummary: true,
         isArchived: true,
         createdAt: true,
-        jobPosting: { select: { id: true, title: true, location: true } },
+        jobPosting: {
+          select: {
+            id: true,
+            title: true,
+            location: true,
+            mrfId: true,
+            mrf: {
+              select: {
+                id: true,
+                title: true,
+                clientId: true,
+                client: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
         user: {
           select: {
             id: true,
@@ -347,11 +414,35 @@ export const updateTAApplicationStatus = async (
     }
   }
 
-  // Pre-transition rule: COMPLIANCE -> DEPLOYED requires all mandatory requirements APPROVED & valid
+  // Pre-transition rule: COMPLIANCE -> CONTRACT_AND_ORIENTATION requires all mandatory requirements APPROVED & valid
+  if (status === "CONTRACT_AND_ORIENTATION") {
+    const compliant = await isFullyCompliant(id);
+    if (!compliant) {
+      throw new Error("Cannot move to Contract Signing & Orientation. All mandatory compliance documents must be APPROVED and valid.");
+    }
+  }
+
+  // Pre-transition rule: CONTRACT_AND_ORIENTATION -> DEPLOYED requires:
+  // 1. All mandatory compliance APPROVED
+  // 2. contractSigned === true
+  // 3. orientationCompleted === true
   if (status === "DEPLOYED") {
     const compliant = await isFullyCompliant(id);
     if (!compliant) {
       throw new Error("Cannot deploy candidate. All required compliance documents must be APPROVED and valid.");
+    }
+    const appRecord = await prisma.application.findUnique({
+      where: { id },
+      select: { contractSigned: true, orientationCompleted: true },
+    });
+    if (!appRecord?.contractSigned && !appRecord?.orientationCompleted) {
+      throw new Error("Cannot deploy candidate. Both contract signing and orientation must be completed first.");
+    }
+    if (!appRecord?.contractSigned) {
+      throw new Error("Cannot deploy candidate. Employment contract must be signed first.");
+    }
+    if (!appRecord?.orientationCompleted) {
+      throw new Error("Cannot deploy candidate. Candidate orientation must be completed first.");
     }
   }
 
@@ -441,7 +532,7 @@ export const updateTAApplicationStatus = async (
         },
       });
     }
-  } else if (status === "COMPLIANCE" || status === "DEPLOYED") {
+  } else if (status === "COMPLIANCE" || status === "CONTRACT_AND_ORIENTATION" || status === "DEPLOYED") {
     const appWithProfile = await prisma.application.findUnique({
       where: { id },
       include: { user: { select: { applicantProfile: { select: { id: true } } } } },
@@ -580,6 +671,8 @@ export const updateTAApplicationStatus = async (
         return "Your application has advanced to Final Interview.";
       case "COMPLIANCE":
         return "Employment documents (201) are needed. Please submit the requested documents.";
+      case "CONTRACT_AND_ORIENTATION":
+        return "Your application has advanced to Contract Signing & Orientation.";
       case "DEPLOYED":
         return "You have been placed at your work site. Your employee record is ready.";
       case "ARCHIVED":
@@ -601,6 +694,104 @@ export const updateTAApplicationStatus = async (
 
 
 
+
+  return updated;
+};
+
+export const signApplicationContract = async (
+  applicationId: number,
+  data: {
+    contractNotes?: string;
+    contractDocumentUrl?: string;
+  },
+  actorId?: string
+) => {
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { id: true, status: true, userId: true, contractSigned: true },
+  });
+  if (!application) throw new Error("Application not found");
+
+  const compliant = await isFullyCompliant(applicationId);
+  if (!compliant && application.status === "COMPLIANCE") {
+    throw new Error("Cannot sign contract. All mandatory pre-employment compliance requirements must be approved first.");
+  }
+
+  const now = new Date();
+  const updated = await prisma.application.update({
+    where: { id: applicationId },
+    data: {
+      contractSigned: true,
+      contractSignedAt: now,
+      contractNotes: data.contractNotes || null,
+      ...(data.contractDocumentUrl ? { contractDocumentUrl: data.contractDocumentUrl } : {}),
+    },
+  });
+
+  const resolvedActorId = actorId || application.userId;
+  void logAudit(resolvedActorId, "CONTRACT_SIGNED", "Application", applicationId, {
+    applicationId,
+    contractSigned: true,
+    contractSignedAt: now,
+    notes: data.contractNotes,
+  });
+
+  if (application.userId) {
+    void sendNotification(
+      application.userId,
+      "Employment Contract Signed",
+      "Your employment contract has been successfully recorded.",
+      "SUCCESS",
+      `/app/applications/${applicationId}`
+    );
+  }
+
+  return updated;
+};
+
+export const completeApplicationOrientation = async (
+  applicationId: number,
+  data: {
+    orientationDate?: string | Date;
+    orientationNotes?: string;
+  },
+  actorId?: string
+) => {
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { id: true, status: true, userId: true, contractSigned: true },
+  });
+  if (!application) throw new Error("Application not found");
+
+  const now = new Date();
+  const updated = await prisma.application.update({
+    where: { id: applicationId },
+    data: {
+      orientationCompleted: true,
+      orientationCompletedAt: now,
+      orientationDate: data.orientationDate ? new Date(data.orientationDate) : now,
+      orientationNotes: data.orientationNotes || null,
+    },
+  });
+
+  const resolvedActorId = actorId || application.userId;
+  void logAudit(resolvedActorId, "ORIENTATION_COMPLETED", "Application", applicationId, {
+    applicationId,
+    orientationCompleted: true,
+    orientationCompletedAt: now,
+    orientationDate: data.orientationDate,
+    notes: data.orientationNotes,
+  });
+
+  if (application.userId) {
+    void sendNotification(
+      application.userId,
+      "Orientation Completed",
+      "Your company and work site orientation has been marked complete.",
+      "SUCCESS",
+      `/app/applications/${applicationId}`
+    );
+  }
 
   return updated;
 };

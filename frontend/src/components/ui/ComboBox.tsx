@@ -91,6 +91,16 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
   // Filter options based on user input
   const filteredOptions = React.useMemo(() => {
     if (!searchQuery) return normalizedOptions;
+
+    // If the input text matches the current selection's label (or custom value), show all options
+    const isMatchingSelected =
+      (selectedOption && searchQuery.trim().toLowerCase() === selectedOption.label.trim().toLowerCase()) ||
+      (allowCustom && Boolean(value) && searchQuery.trim().toLowerCase() === value.trim().toLowerCase());
+
+    if (isMatchingSelected) {
+      return normalizedOptions;
+    }
+
     const q = searchQuery.toLowerCase().trim();
     return normalizedOptions.filter(
       (opt) =>
@@ -98,7 +108,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
         opt.value.toLowerCase().includes(q) ||
         (opt.subtitle && opt.subtitle.toLowerCase().includes(q))
     );
-  }, [normalizedOptions, searchQuery]);
+  }, [normalizedOptions, searchQuery, selectedOption, allowCustom, value]);
 
   // Click outside listener
   useEffect(() => {
@@ -234,10 +244,20 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
     if (!isOpen) setIsOpen(true);
   };
 
-  const handleInputFocus = () => {
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     if (!disabled) {
       setIsOpen(true);
-      setHighlightedIndex(0);
+      e.target.select();
+      const selectedIdx = normalizedOptions.findIndex((opt) => opt.value === value);
+      setHighlightedIndex(selectedIdx >= 0 ? selectedIdx : 0);
+    }
+  };
+
+  const handleInputClick = () => {
+    if (!disabled && !isOpen) {
+      setIsOpen(true);
+      const selectedIdx = normalizedOptions.findIndex((opt) => opt.value === value);
+      setHighlightedIndex(selectedIdx >= 0 ? selectedIdx : 0);
     }
   };
 
@@ -274,6 +294,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
           value={searchQuery}
           onChange={handleInputChange}
           onFocus={handleInputFocus}
+          onClick={handleInputClick}
           onKeyDown={handleKeyDown}
           autoComplete="off"
           className={cn(
@@ -299,14 +320,31 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
             </button>
           )}
 
-          <span aria-hidden="true" className="p-1 text-slate-400">
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => {
+              if (!disabled) {
+                if (isOpen) {
+                  setIsOpen(false);
+                } else {
+                  inputRef.current?.focus();
+                  setIsOpen(true);
+                  const selectedIdx = normalizedOptions.findIndex((opt) => opt.value === value);
+                  setHighlightedIndex(selectedIdx >= 0 ? selectedIdx : 0);
+                }
+              }
+            }}
+            aria-label="Toggle options menu"
+            className="p-1 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+          >
             <ChevronDown
               className={cn(
                 "w-3.5 h-3.5 transition-transform duration-150",
                 isOpen && "rotate-180"
               )}
             />
-          </span>
+          </button>
         </div>
       </div>
 

@@ -9,6 +9,12 @@ import {
   getMyApplicationDetails,
   uploadComplianceDocumentHandler,
 } from '../../controllers/applicant/application.controller.js';
+import {
+  saveJobHandler,
+  unsaveJobHandler,
+  listSavedJobsHandler,
+  getSavedJobIdsHandler,
+} from '../../controllers/applicant/saved-job.controller.js';
 
 const router = Router();
 
@@ -18,6 +24,10 @@ router.use(requireRole("APPLICANT"));
 router.get("/jobs", getOpenJobs);
 router.get("/jobs/:id", getJobDetails);
 router.post("/jobs/:id/apply", upload.single("file"), applyToJob);
+router.post("/jobs/:id/save", saveJobHandler);
+router.delete("/jobs/:id/save", unsaveJobHandler);
+router.get("/saved-jobs", listSavedJobsHandler);
+router.get("/saved-jobs/ids", getSavedJobIdsHandler);
 router.get("/my-applications", getMyApplications);
 router.get("/my-applications/:id", getMyApplicationDetails);
 router.get("/applications/:id", getMyApplicationDetails);

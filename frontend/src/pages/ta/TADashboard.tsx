@@ -400,7 +400,8 @@ export const TADashboard: React.FC = () => {
               </Link>
 
               <Link
-                to="/ta/compliance"
+                to="/ta/workforce"
+                search={{ tab: "clearances" }}
                 className="p-3 hover:bg-amber-50/50 transition-colors flex items-center justify-between block group"
               >
                 <div className="flex items-center gap-2.5">

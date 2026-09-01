@@ -58,4 +58,20 @@ export const applicantJobsApi = {
     formData.append("file", file);
     return api.upload<any>(`/api/applicant-jobs/compliance/${requirementId}/upload`, formData);
   },
+
+  // Get list of saved job IDs
+  getSavedJobIds: () =>
+    api.get<number[]>("/api/applicant-jobs/saved-jobs/ids"),
+
+  // Get full list of saved jobs
+  getSavedJobs: () =>
+    api.get<JobPosting[]>("/api/applicant-jobs/saved-jobs"),
+
+  // Bookmark a job
+  saveJob: (jobId: number | string) =>
+    api.post<{ success: boolean }>(`/api/applicant-jobs/jobs/${jobId}/save`, {}),
+
+  // Remove a job bookmark
+  unsaveJob: (jobId: number | string) =>
+    api.delete<{ success: boolean }>(`/api/applicant-jobs/jobs/${jobId}/save`),
 };

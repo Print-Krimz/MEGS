@@ -19,8 +19,8 @@ import {
   AlertCircle,
   FileText,
   Briefcase,
+  Bookmark,
 } from "lucide-react";
-
 import { notify, formatErrorMessage } from "../../lib/feedback";
 
 export const JobDetailPage: React.FC = () => {
@@ -37,6 +37,39 @@ export const JobDetailPage: React.FC = () => {
     queryFn: () => applicantJobsApi.getJobDetail(jobId),
     enabled: Boolean(jobId),
   });
+
+  const savedJobIdsQuery = useQuery({
+    queryKey: ["applicant", "saved-jobs", "ids"],
+    queryFn: applicantJobsApi.getSavedJobIds,
+  });
+
+  const isSaved = (savedJobIdsQuery.data || []).includes(Number(jobId));
+
+  const saveMutation = useMutation({
+    mutationFn: () => applicantJobsApi.saveJob(Number(jobId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["applicant", "saved-jobs"] });
+      notify.success("Job Saved", "Position added to your saved jobs.");
+    },
+    onError: (err: any) => notify.error("Save Failed", err),
+  });
+
+  const unsaveMutation = useMutation({
+    mutationFn: () => applicantJobsApi.unsaveJob(Number(jobId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["applicant", "saved-jobs"] });
+      notify.success("Job Removed", "Position removed from your saved jobs.");
+    },
+    onError: (err: any) => notify.error("Action Failed", err),
+  });
+
+  const handleToggleSave = () => {
+    if (isSaved) {
+      unsaveMutation.mutate();
+    } else {
+      saveMutation.mutate();
+    }
+  };
 
   const applyMutation = useMutation({
     mutationFn: (body?: FormData | { resumeUrl?: string }) =>
@@ -97,6 +130,16 @@ export const JobDetailPage: React.FC = () => {
             <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
               Back to jobs
             </Link>
+
+            <Button
+              variant="outline"
+              size="md"
+              leftIcon={<Bookmark className={`w-4 h-4 ${isSaved ? "fill-teal-700 text-teal-700" : ""}`} />}
+              onClick={handleToggleSave}
+            >
+              {isSaved ? "Saved for Later" : "Save for Later"}
+            </Button>
+
             {job.alreadyApplied ? (
               <Button
                 variant="outline"
@@ -150,7 +193,7 @@ export const JobDetailPage: React.FC = () => {
         <div className="space-y-4">
           <div className="bg-white border border-slate-300 p-4 space-y-3">
             <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
-              <JobImage src={job.imageUrl} alt={job.title} size="md" />
+              <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="md" />
               <div>
                 <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">
                   Job details

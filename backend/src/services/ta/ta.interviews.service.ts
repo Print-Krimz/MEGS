@@ -23,7 +23,12 @@ export const scheduleNewInterview = async (
 
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { status: true, isArchived: true, userId: true },
+    select: {
+      status: true,
+      isArchived: true,
+      userId: true,
+      jobPosting: { select: { id: true, title: true, postedById: true } },
+    },
   });
 
   if (!application) throw new Error("Application not found");
@@ -94,31 +99,83 @@ export const scheduleNewInterview = async (
   const deadline = new Date();
   deadline.setDate(deadline.getDate() + 7);
 
-  const interview = await prisma.interview.create({
-    data: {
+  // Check if an existing pending interview of this type exists for this application
+  const existingPending = await prisma.interview.findFirst({
+    where: {
       applicationId,
       type,
-      scheduledAt: new Date(scheduledAt),
-      result: "PENDING",
-      notes,
-      complianceDeadline: deadline,
+      result: { in: ["PENDING", "SCHEDULED"] },
+      isActive: true,
     },
+    orderBy: { createdAt: "desc" },
   });
 
-  sendNotification(
-    application.userId,
-    "Interview Scheduled",
-    `Your ${type.replace("_", " ")} has been scheduled for ${new Date(scheduledAt).toLocaleString()}.`,
-    "INFO",
-    `/app/applications/${applicationId}`
-  );
+  let interview;
+  if (existingPending) {
+    interview = await prisma.interview.update({
+      where: { id: existingPending.id },
+      data: {
+        scheduledAt: new Date(scheduledAt),
+        notes: notes !== undefined ? notes : existingPending.notes,
+        complianceDeadline: deadline,
+        result: "PENDING",
+      },
+    });
 
-  void logAudit(actorId || application.userId, "INTERVIEW_SCHEDULED", "Application", applicationId, {
-    interviewId: interview.id,
-    type,
-    scheduledAt,
-    notes,
-  });
+    sendNotification(
+      application.userId,
+      "Interview Rescheduled",
+      `Your ${type.replace("_", " ")} has been rescheduled to ${new Date(scheduledAt).toLocaleString()}.`,
+      "INFO",
+      `/app/applications/${applicationId}`
+    );
+
+    void logAudit(actorId || application.userId, "INTERVIEW_RESCHEDULED", "Application", applicationId, {
+      interviewId: interview.id,
+      type,
+      previousScheduledAt: existingPending.scheduledAt,
+      newScheduledAt: scheduledAt,
+      notes,
+    });
+  } else {
+    interview = await prisma.interview.create({
+      data: {
+        applicationId,
+        type,
+        scheduledAt: new Date(scheduledAt),
+        result: "PENDING",
+        notes,
+        complianceDeadline: deadline,
+      },
+    });
+
+    sendNotification(
+      application.userId,
+      "Interview Scheduled",
+      `Your ${type.replace("_", " ")} has been scheduled for ${new Date(scheduledAt).toLocaleString()}.`,
+      "INFO",
+      `/app/applications/${applicationId}`
+    );
+
+    void logAudit(actorId || application.userId, "INTERVIEW_SCHEDULED", "Application", applicationId, {
+      interviewId: interview.id,
+      type,
+      scheduledAt,
+      notes,
+    });
+  }
+
+  const jobOwnerId = (application as any).jobPosting?.postedById;
+  const jobTitle = (application as any).jobPosting?.title || "Job";
+  if (jobOwnerId && actorId && jobOwnerId !== actorId) {
+    void sendNotification(
+      jobOwnerId,
+      "Interview Scheduled for Candidate",
+      `An interview (${type.replace("_", " ")}) has been scheduled for candidate on "${jobTitle}".`,
+      "INFO",
+      `/ta/applications/${applicationId}`
+    );
+  }
 
   return interview;
 };

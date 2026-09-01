@@ -110,7 +110,13 @@ export const MRFListPage: React.FC = () => {
           {
             key: "clientId",
             label: "Client Account",
-            options: clients.map((c) => ({ value: String(c.id), label: c.name })),
+            placeholder: "All client accounts",
+            searchable: true,
+            options: clients.map((c) => ({
+              value: String(c.id),
+              label: c.name,
+              subtitle: `${c.industry || "General"} • ${c.address || "Philippines"}`,
+            })),
           },
         ]}
       />

@@ -21,7 +21,7 @@ import {
   ExternalLink,
   AlertCircle,
   CheckCircle2,
-  Sparkles,
+  Bookmark,
 } from "lucide-react";
 import { ApplicationStatus } from "../../lib/types/enums";
 import { notify } from "../../lib/feedback";
@@ -180,13 +180,53 @@ export const ApplicationDetailPage: React.FC = () => {
         {application.status === ApplicationStatus.TALENT_POOL && (
           <div className="p-4 bg-violet-50 border-l-4 border-violet-700 border border-slate-300 space-y-1">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-violet-700 shrink-0" />
+              <Bookmark className="w-4 h-4 text-violet-700 shrink-0" />
               <h4 className="text-sm font-semibold text-violet-950">
                 Status: Future Opportunities
               </h4>
             </div>
             <p className="text-xs sm:text-sm text-violet-900 leading-relaxed">
               You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications.
+            </p>
+          </div>
+        )}
+
+        {application.status === ApplicationStatus.CONTRACT_AND_ORIENTATION && (
+          <div className="p-4 bg-purple-50 border-l-4 border-purple-700 border border-slate-300 space-y-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-purple-700 shrink-0" />
+              <h4 className="text-sm font-semibold text-purple-950">
+                Status: Contract Signing & Orientation
+              </h4>
+            </div>
+            <p className="text-xs sm:text-sm text-purple-900 leading-relaxed">
+              Congratulations! Your pre-employment requirements have been approved. Our team is preparing your employment contract and orientation schedule.
+            </p>
+            <div className="flex flex-wrap gap-3 pt-1 text-xs font-mono">
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border ${
+                application.contractSigned ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-slate-100 text-slate-700 border-slate-300"
+              }`}>
+                {application.contractSigned ? "✓ Contract Signed" : "⏳ Contract Pending"}
+              </span>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border ${
+                application.orientationCompleted ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-slate-100 text-slate-700 border-slate-300"
+              }`}>
+                {application.orientationCompleted ? "✓ Orientation Completed" : "⏳ Orientation Pending"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {application.status === ApplicationStatus.DEPLOYED && (
+          <div className="p-4 bg-emerald-50 border-l-4 border-emerald-700 border border-slate-300 space-y-1">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+              <h4 className="text-sm font-semibold text-emerald-950">
+                Status: Deployed to Work Site
+              </h4>
+            </div>
+            <p className="text-xs sm:text-sm text-emerald-900 leading-relaxed">
+              You are actively deployed. Your employment record and site placement are active.
             </p>
           </div>
         )}
