@@ -46,6 +46,12 @@ export const ACTION_LABELS: Record<string, string> = {
   SCORING_CONFIG_ACTIVATED: "Scoring Configuration Activated",
   SCORING_DEFAULTS_RESTORED: "Scoring Defaults Restored",
 
+  // Database Maintenance
+  DATABASE_BACKUP_SUCCESS: "Database Backup Created",
+  DATABASE_BACKUP_DOWNLOAD: "Database Backup Downloaded",
+  DATABASE_RESTORE_SUCCESS: "Database Restored from Backup",
+  DATABASE_BACKUP_RENAMED: "Database Backup Renamed",
+
   // Compliance
   COMPLIANCE_REQUIREMENT_CREATED: "Compliance Requirement Created",
   COMPLIANCE_REQUIREMENT_REVIEWED: "Compliance Document Reviewed",
@@ -110,6 +116,11 @@ const ACTION_CATEGORY_MAP: Record<string, AuditCategory> = {
   SCORING_CONFIG_ACTIVATED: "Configuration",
   SCORING_DEFAULTS_RESTORED: "Configuration",
 
+  DATABASE_BACKUP_SUCCESS: "Configuration",
+  DATABASE_BACKUP_DOWNLOAD: "Configuration",
+  DATABASE_RESTORE_SUCCESS: "Configuration",
+  DATABASE_BACKUP_RENAMED: "Configuration",
+
   COMPLIANCE_REQUIREMENT_CREATED: "Compliance",
   COMPLIANCE_REQUIREMENT_REVIEWED: "Compliance",
 
@@ -152,6 +163,14 @@ export function getActionCategory(action: string): AuditCategory {
     return "Talent Pool";
   }
   if (action.includes("SCORING") || action.includes("CONFIG")) {
+    return "Configuration";
+  }
+  if (
+    action.includes("DATABASE") ||
+    action.includes("BACKUP") ||
+    action.includes("RESTORE") ||
+    action.includes("MAINTENANCE")
+  ) {
     return "Configuration";
   }
   if (action.includes("COMPLIANCE") || action.includes("DOCUMENT")) {
@@ -215,6 +234,62 @@ export function formatIpAddress(ip?: string | null): string {
 }
 
 /**
+ * Converts enum roles into readable titles.
+ */
+export function formatRole(role?: string | null): string {
+  if (!role) return "System";
+  switch (role.toUpperCase()) {
+    case "ADMINISTRATOR":
+      return "Administrator";
+    case "TALENT_ACQUISITION":
+      return "Talent Acquisition Specialist";
+    case "APPLICANT":
+      return "Applicant";
+    default:
+      return role
+        .toLowerCase()
+        .split("_")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+  }
+}
+
+/**
+ * Converts enum pipeline stages into friendly titles.
+ */
+export function formatStage(stage?: string | null): string {
+  if (!stage) return "N/A";
+  switch (stage.toUpperCase()) {
+    case "SUBMITTED":
+      return "Submitted";
+    case "INITIAL_SCREENING":
+      return "Initial Screening";
+    case "INTERVIEW":
+      return "Interview";
+    case "FINAL_INTERVIEW":
+      return "Final Interview";
+    case "CLIENT_REVIEW":
+      return "Client Review";
+    case "COMPLIANCE":
+      return "Compliance";
+    case "OFFER_EXTENDED":
+      return "Offer Extended";
+    case "HIRED":
+      return "Hired";
+    case "REJECTED":
+      return "Rejected";
+    case "WITHDRAWN":
+      return "Withdrawn";
+    default:
+      return stage
+        .toLowerCase()
+        .split("_")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+  }
+}
+
+/**
  * Resolves target entity into descriptive, administrator-friendly text.
  * Prevents raw 'User #' or 'TalentPool #' glitches.
  */
@@ -247,94 +322,124 @@ export function formatTargetEntity(log: AuditLog): {
   }
 
   // 2. Application Entity
-  if (entity === "Application" || log.action.includes("APPLICATION") || log.action.includes("INTERVIEW") || log.action.includes("ENDORSEMENT")) {
+  if (
+    entity === "Application" ||
+    log.action.includes("APPLICATION") ||
+    log.action.includes("INTERVIEW") ||
+    log.action.includes("ENDORSEMENT")
+  ) {
     const jobTitle = details.jobTitle;
     const applicant = details.applicantName || details.applicantEmail;
-    const appLabel = entityId ? `App #${entityId}` : "Application";
 
-    if (jobTitle && applicant) {
+    if (applicant && jobTitle) {
       return {
-        type: "Application",
-        label: `${appLabel} • ${jobTitle}`,
-        secondary: applicant,
+        type: "Candidate Application",
+        label: applicant,
+        secondary: jobTitle,
       };
     }
-    if (jobTitle) {
-      return { type: "Application", label: `${appLabel} • ${jobTitle}` };
-    }
     if (applicant) {
-      return { type: "Application", label: `${appLabel} • ${applicant}` };
+      return { type: "Candidate Application", label: applicant };
     }
-    return { type: "Application", label: entityId ? `Application #${entityId}` : "Job Application" };
+    if (jobTitle) {
+      return { type: "Job Application", label: jobTitle };
+    }
+    return { type: "Candidate Application", label: "Job Candidate" };
   }
 
   // 3. Talent Pool Entity
-  if (entity.includes("TalentPool") || entity === "ApplicantProfile" || log.action.includes("TALENT_POOL")) {
+  if (
+    entity.includes("TalentPool") ||
+    entity === "ApplicantProfile" ||
+    log.action.includes("TALENT_POOL")
+  ) {
     const candidateName = details.candidateName || details.applicantName;
     if (candidateName) {
-      return { type: "Talent Pool", label: `Candidate: ${candidateName}` };
-    }
-    if (details.targetJobId) {
-      return { type: "Talent Pool", label: "Talent Pool Candidate", secondary: `Target Job #${details.targetJobId}` };
+      return {
+        type: "Talent Pool",
+        label: candidateName,
+        secondary: details.targetJobTitle || "Talent Pool Candidate",
+      };
     }
     return { type: "Talent Pool", label: "Talent Pool Candidate" };
   }
 
   // 4. Candidate Scoring Configuration
-  if (entity.includes("CandidateScoringConfiguration") || entity.includes("Scoring") || log.action.includes("SCORING")) {
+  if (
+    entity.includes("CandidateScoringConfiguration") ||
+    entity.includes("Scoring") ||
+    log.action.includes("SCORING")
+  ) {
     const version = details.version ? `v${details.version}` : "";
     return {
-      type: "Configuration",
+      type: "Matching Configuration",
       label: `Candidate Scoring ${version ? `${version} (Global)` : "Configuration"}`,
       secondary: details.isDefault ? "Default Preset" : undefined,
     };
   }
 
-  // 5. Deployment / Employee
-  if (entity === "Deployment" || entity === "Employee" || log.action.includes("DEPLOY")) {
-    const clientName = details.clientName;
-    const site = details.site;
-    const depLabel = entityId ? `Deployment #${entityId}` : "Deployment";
-
-    if (clientName) {
-      return {
-        type: "Deployment",
-        label: `${depLabel} • ${clientName}`,
-        secondary: site ? `Site: ${site}` : undefined,
-      };
-    }
-    return { type: "Deployment", label: entityId ? `Deployment #${entityId}` : "Candidate Deployment" };
-  }
-
-  // 6. Compliance Requirement
-  if (entity === "ComplianceRequirement" || log.action.includes("COMPLIANCE")) {
-    const doc = details.documentLabel;
+  // 5. Database Backup
+  if (entity.includes("DatabaseBackup") || log.action.includes("DATABASE_BACKUP")) {
     return {
-      type: "Compliance",
-      label: doc ? `Document: ${doc}` : "Compliance Requirement",
-      secondary: entityId ? `Requirement #${entityId}` : undefined,
+      type: "Database Backup",
+      label: details.filename ? String(details.filename) : "System Database Snapshot",
+      secondary: details.checksumSha256
+        ? `SHA-256: ${String(details.checksumSha256).slice(0, 12)}...`
+        : undefined,
     };
   }
 
-  // 7. Manpower Request (MRF)
+  // 6. Deployment / Employee
+  if (entity === "Deployment" || entity === "Employee" || log.action.includes("DEPLOY")) {
+    const clientName = details.clientName;
+    const candidate = details.employeeName || details.applicantName;
+    const site = details.site;
+
+    if (candidate && clientName) {
+      return {
+        type: "Deployment",
+        label: candidate,
+        secondary: `${clientName}${site ? ` • ${site}` : ""}`,
+      };
+    }
+    if (clientName) {
+      return {
+        type: "Deployment",
+        label: clientName,
+        secondary: site ? `Site: ${site}` : undefined,
+      };
+    }
+    return { type: "Deployment", label: "Candidate Deployment" };
+  }
+
+  // 7. Compliance Requirement
+  if (entity === "ComplianceRequirement" || log.action.includes("COMPLIANCE")) {
+    const doc = details.documentLabel;
+    const candidate = details.applicantName;
+    return {
+      type: "Compliance",
+      label: doc || "Compliance Requirement",
+      secondary: candidate,
+    };
+  }
+
+  // 8. Manpower Request (MRF)
   if (entity === "ManpowerRequest" || log.action.includes("MRF")) {
     const title = details.title;
     const client = details.clientName;
-    const mrfLabel = entityId ? `MRF #${entityId}` : "Manpower Request";
     return {
       type: "Manpower Request",
-      label: title ? `${mrfLabel} • ${title}` : mrfLabel,
+      label: title || "Manpower Request",
       secondary: client ? `Client: ${client}` : undefined,
     };
   }
 
-  // 8. Job Posting
+  // 9. Job Posting
   if (entity === "JobPosting" || log.action.includes("JOB_POSTING")) {
     const title = details.title;
-    const jobLabel = entityId ? `Job #${entityId}` : "Job Posting";
     return {
       type: "Job Posting",
-      label: title ? `${jobLabel} • ${title}` : jobLabel,
+      label: title || "Job Posting",
       secondary: details.location ? `Location: ${details.location}` : undefined,
     };
   }
@@ -343,11 +448,172 @@ export function formatTargetEntity(log: AuditLog): {
   if (entity) {
     return {
       type: entity,
-      label: entityId ? `${entity} #${entityId}` : entity,
+      label: entity,
     };
   }
 
   return { type: "System", label: "Global System" };
+}
+
+export function formatInterviewType(type?: string | null): string {
+  if (!type) return "Interview";
+  const upper = type.toUpperCase().replace(/\s+/g, "_");
+  const map: Record<string, string> = {
+    INITIAL_SCREENING: "Initial Screening",
+    TECHNICAL_INTERVIEW: "Technical Interview",
+    FINAL_INTERVIEW: "Final Client Interview",
+    BEHAVIORAL_INTERVIEW: "Behavioral Interview",
+    HR_INTERVIEW: "HR Interview",
+  };
+  return map[upper] || formatStage(type);
+}
+
+export function formatInterviewResult(result?: string | null): string {
+  if (!result) return "";
+  const upper = result.toUpperCase().replace(/\s+/g, "_");
+  const map: Record<string, string> = {
+    PASS: "Passed",
+    PASSED: "Passed",
+    FAIL: "Did Not Pass",
+    FAILED: "Did Not Pass",
+    NO_SHOW: "No Show",
+    PENDING: "Pending",
+    SCHEDULED: "Scheduled",
+    CANCELLED: "Cancelled",
+  };
+  return map[upper] || formatStage(result);
+}
+
+/**
+ * Resolves the actor who performed the action into a clear, professional person/team name.
+ * Never outputs robotic phrases like "System Routine" or raw "System".
+ */
+export function formatActor(log: AuditLog): {
+  name: string;
+  role?: string;
+  email?: string;
+} {
+  const details = parseDetails(log.details);
+  const user = log.user;
+
+  // 1. If user object has first/last name from applicantProfile
+  if (user?.applicantProfile?.firstName || user?.applicantProfile?.lastName) {
+    const fullName = `${user.applicantProfile.firstName || ""} ${user.applicantProfile.lastName || ""}`.trim();
+    return {
+      name: fullName,
+      role: formatRole(user.role),
+      email: user.email,
+    };
+  }
+
+  // 2. If user object has email
+  if (user?.email) {
+    return {
+      name: user.email,
+      role: formatRole(user.role),
+      email: user.email,
+    };
+  }
+
+  // 3. Extract explicit actor information from details payload if available
+  const explicitActorName =
+    details.actorName ||
+    details.interviewerName ||
+    details.evaluatorName ||
+    details.recruiterName ||
+    details.userName ||
+    details.conductedBy ||
+    details.changedBy;
+
+  if (explicitActorName) {
+    return {
+      name: String(explicitActorName),
+      role: details.actorRole ? formatRole(details.actorRole) : undefined,
+      email: details.actorEmail ? String(details.actorEmail) : undefined,
+    };
+  }
+
+  if (details.actorEmail) {
+    return {
+      name: String(details.actorEmail),
+      role: details.actorRole ? formatRole(details.actorRole) : undefined,
+    };
+  }
+
+  // 4. Fallback based on domain context — never display "System Routine" or "System"
+  const action = (log.action || "").toUpperCase();
+  const category = getActionCategory(log.action);
+
+  if (action === "APPLICATION_SUBMITTED" || action.includes("APPLICANT")) {
+    const candidateName = details.applicantName || details.name;
+    return {
+      name: candidateName ? String(candidateName) : "Job Applicant",
+      role: "Applicant",
+    };
+  }
+
+  // Backup & Restore actions always performed by Administrators
+  if (
+    action.includes("DATABASE_BACKUP") ||
+    action.includes("DATABASE_RESTORE") ||
+    action.includes("BACKUP") ||
+    action.includes("RESTORE") ||
+    action.includes("MAINTENANCE")
+  ) {
+    return {
+      name: "System Administrator",
+      role: "Administrator",
+    };
+  }
+
+  if (
+    category === "Recruitment" ||
+    category === "Talent Pool" ||
+    action.includes("INTERVIEW") ||
+    action.includes("STAGE") ||
+    action.includes("APPLICATION") ||
+    action.includes("ENDORSEMENT") ||
+    action.includes("ORIENTATION") ||
+    action.includes("CONTRACT")
+  ) {
+    return {
+      name: "Talent Acquisition Specialist",
+      role: "Recruitment Team",
+    };
+  }
+
+  if (category === "Compliance" || action.includes("COMPLIANCE")) {
+    return {
+      name: "Compliance Officer",
+      role: "Verification Team",
+    };
+  }
+
+  if (category === "Deployment" || action.includes("DEPLOY")) {
+    return {
+      name: "Deployment Coordinator",
+      role: "Operations Team",
+    };
+  }
+
+  if (category === "Configuration" || action.includes("BACKUP") || action.includes("MAINTENANCE")) {
+    return {
+      name: "System Administrator",
+      role: "Administrator",
+    };
+  }
+
+  if (category === "Authentication" || category === "Security") {
+    return {
+      name: details.attemptedEmail ? String(details.attemptedEmail) : "Security Administrator",
+      role: "Security Audit",
+    };
+  }
+
+  return {
+    name: "Talent Acquisition Specialist",
+    role: "Recruitment Team",
+  };
 }
 
 /**
@@ -358,63 +624,65 @@ export function extractDisplayDetails(log: AuditLog): Array<{ label: string; val
   const items: Array<{ label: string; value: string }> = [];
 
   if (details.targetEmail) {
-    items.push({ label: "Target Account Email", value: String(details.targetEmail) });
+    items.push({ label: "Target Account", value: String(details.targetEmail) });
   } else if (details.attemptedEmail) {
-    items.push({ label: "Attempted Email", value: String(details.attemptedEmail) });
+    items.push({ label: "Account Email", value: String(details.attemptedEmail) });
   }
 
-  if (details.previousRole && details.newRole) {
-    items.push({
-      label: "Role Transition",
-      value: `${details.previousRole} → ${details.newRole}`,
-    });
+  if (details.applicantName) {
+    items.push({ label: "Candidate", value: String(details.applicantName) });
+  } else if (details.applicantEmail) {
+    items.push({ label: "Candidate Email", value: String(details.applicantEmail) });
+  }
+
+  if (details.jobTitle) {
+    items.push({ label: "Position", value: String(details.jobTitle) });
   }
 
   if (details.fromStatus && details.toStatus) {
     items.push({
-      label: "Stage Transition",
-      value: `${details.fromStatus} → ${details.toStatus}`,
+      label: "Stage",
+      value: `${formatStage(details.fromStatus)} → ${formatStage(details.toStatus)}`,
     });
   }
 
-  if (details.jobTitle) {
-    items.push({ label: "Job Position", value: String(details.jobTitle) });
-  }
-
-  if (details.applicantName) {
-    items.push({ label: "Applicant Name", value: String(details.applicantName) });
-  }
-
-  if (details.clientName) {
-    items.push({ label: "Client Organization", value: String(details.clientName) });
-  }
-
-  if (details.site) {
-    items.push({ label: "Work / Deployment Site", value: String(details.site) });
-  }
-
-  if (details.documentLabel) {
-    items.push({ label: "Document Name", value: String(details.documentLabel) });
-  }
-
-  if (details.type && log.action.includes("INTERVIEW")) {
-    items.push({ label: "Interview Type", value: String(details.type).replace(/_/g, " ") });
-  }
-
-  if (details.result) {
-    items.push({ label: "Interview Result", value: String(details.result) });
-  }
-
-  if (details.outcome) {
-    items.push({ label: "Decision Outcome", value: String(details.outcome) });
-  }
-
-  if (details.version !== undefined) {
-    items.push({ label: "Configuration Version", value: `v${details.version}` });
+  if (details.previousRole && details.newRole) {
+    items.push({
+      label: "Role",
+      value: `${formatRole(details.previousRole)} → ${formatRole(details.newRole)}`,
+    });
   }
 
   if (details.reason) {
-    items.push({ label: "Action Notes / Reason", value: String(details.reason) });
+    items.push({ label: "Note", value: String(details.reason) });
+  }
+
+  if (details.clientName) {
+    items.push({ label: "Client", value: String(details.clientName) });
+  }
+
+  if (details.site) {
+    items.push({ label: "Work Site", value: String(details.site) });
+  }
+
+  if (details.documentLabel) {
+    items.push({ label: "Document", value: String(details.documentLabel) });
+  }
+
+  if (details.type && log.action.includes("INTERVIEW")) {
+    items.push({ label: "Interview", value: formatInterviewType(details.type) });
+  }
+
+  if (details.result) {
+    items.push({ label: "Result", value: formatInterviewResult(details.result) });
+  }
+
+  if (details.outcome) {
+    items.push({ label: "Outcome", value: formatStage(details.outcome) });
+  }
+
+  if (details.filename) {
+    items.push({ label: "Backup File", value: String(details.filename) });
   }
 
   if (details.reviewNotes) {
@@ -422,4 +690,199 @@ export function extractDisplayDetails(log: AuditLog): Array<{ label: string; val
   }
 
   return items;
+}
+
+export type AuditSeverity = "CRITICAL" | "WARNING" | "INFORMATIONAL";
+
+/**
+ * Evaluates audit log severity for security triage.
+ */
+export function getAuditSeverity(log: AuditLog): AuditSeverity {
+  const action = (log.action || "").toUpperCase();
+  const details = parseDetails(log.details);
+
+  if (
+    action.includes("FAILED") ||
+    action.includes("FAILURE") ||
+    action.includes("BREACH") ||
+    action.includes("UNAUTHORIZED") ||
+    action.includes("ATTACK") ||
+    (action === "USER_ROLE_UPDATED" &&
+      (String(details.newRole).toUpperCase() === "ADMINISTRATOR" ||
+        String(details.newRole).toUpperCase() === "ADMIN"))
+  ) {
+    return "CRITICAL";
+  }
+
+  if (
+    action.includes("DEACTIVAT") ||
+    action.includes("REJECT") ||
+    action.includes("PASSWORD_RESET") ||
+    action.includes("CANCEL") ||
+    action.includes("NO_SHOW") ||
+    action === "DEPLOYMENT_ENDED"
+  ) {
+    return "WARNING";
+  }
+
+  return "INFORMATIONAL";
+}
+
+/**
+ * Returns calibrated badge styles for audit severity levels.
+ */
+export function getAuditSeverityBadgeClass(severity: AuditSeverity): string {
+  switch (severity) {
+    case "CRITICAL":
+      return "bg-rose-50 text-rose-800 border-rose-300 font-bold";
+    case "WARNING":
+      return "bg-amber-50 text-amber-900 border-amber-300 font-semibold";
+    case "INFORMATIONAL":
+      return "bg-slate-100 text-slate-700 border-slate-200 font-medium";
+  }
+}
+
+/**
+ * Generates clear, plain-language HCI responses for the 5 essential audit questions:
+ * 1. What was detected?
+ * 2. How severe is it?
+ * 3. Where did it happen?
+ * 4. Why does it matter?
+ * 5. What should the user do?
+ */
+export function getAuditExplanation(log: AuditLog): {
+  affectedModule: string;
+  contextSummary: string;
+  whyItMatters: string;
+  recommendedAction: string;
+} {
+  const action = (log.action || "").toUpperCase();
+  const category = getActionCategory(log.action);
+  const details = parseDetails(log.details);
+
+  // 1. Authentication
+  if (category === "Authentication") {
+    if (action.includes("FAILED")) {
+      return {
+        affectedModule: "Authentication & Identity",
+        contextSummary: `Unsuccessful login attempt detected for account '${details.attemptedEmail || details.email || "Unknown"}'.`,
+        whyItMatters: "Repeated failed attempts may indicate invalid credentials or unauthorized access attempts.",
+        recommendedAction: "Monitor for multiple failed attempts from this IP. Lock the account if credential stuffing is suspected.",
+      };
+    }
+    if (action.includes("PASSWORD_RESET")) {
+      return {
+        affectedModule: "Authentication & Security",
+        contextSummary: `Password reset requested or completed for '${details.targetEmail || details.email || log.user?.email || "User Account"}'.`,
+        whyItMatters: "Password changes modify security credentials and invalidate existing active sessions.",
+        recommendedAction: "Confirm with the account owner if this password reset was unexpected.",
+      };
+    }
+    return {
+      affectedModule: "Authentication & Session",
+      contextSummary: `User session event '${formatAction(log.action)}' recorded successfully.`,
+      whyItMatters: "Maintains an immutable record of authorized system logins and logouts.",
+      recommendedAction: "No action required. Standard operational activity.",
+    };
+  }
+
+  // 2. User Management
+  if (category === "User Management") {
+    if (action === "USER_ROLE_UPDATED") {
+      return {
+        affectedModule: "User Access & Permissions",
+        contextSummary: `Role transitioned from ${formatRole(details.previousRole)} to ${formatRole(details.newRole)}.`,
+        whyItMatters: "Role modifications alter user access rights and confidential data permissions across the platform.",
+        recommendedAction: "Verify that this permission elevation was authorized by system administration.",
+      };
+    }
+    if (action.includes("DEACTIVAT")) {
+      return {
+        affectedModule: "User Accounts",
+        contextSummary: "User account deactivated, immediately revoking access to the system.",
+        whyItMatters: "Deactivated users cannot log in or manage active recruitment pipelines.",
+        recommendedAction: "Reassign any pending candidate reviews or interviews to an active specialist.",
+      };
+    }
+    return {
+      affectedModule: "User Access & Personnel",
+      contextSummary: `User management event '${formatAction(log.action)}' completed.`,
+      whyItMatters: "Governs staff onboarding and system privileges.",
+      recommendedAction: "No action required.",
+    };
+  }
+
+  // 3. Recruitment & Applications
+  if (category === "Recruitment") {
+    if (action === "APPLICATION_STATUS_UPDATED") {
+      const from = formatStage(details.fromStatus);
+      const to = formatStage(details.toStatus);
+      return {
+        affectedModule: "Recruitment Pipeline",
+        contextSummary: `Application moved from '${from}' to '${to}'.`,
+        whyItMatters: "Stage advancements trigger candidate status updates and gate pre-employment workflows.",
+        recommendedAction:
+          to === "Compliance"
+            ? "Ensure candidate uploads mandatory 201 compliance documents before deployment."
+            : to === "Hired"
+            ? "Proceed with orientation scheduling and contract signing."
+            : "Review candidate evaluation records before scheduling next steps.",
+      };
+    }
+    return {
+      affectedModule: "Recruitment Workflow",
+      contextSummary: `Recruitment action '${formatAction(log.action)}' recorded.`,
+      whyItMatters: "Ensures transparent and accountable hiring decisions.",
+      recommendedAction: "Continue regular recruitment lifecycle.",
+    };
+  }
+
+  // 4. Compliance
+  if (category === "Compliance") {
+    return {
+      affectedModule: "Digital 201 & Compliance",
+      contextSummary: `Compliance document event '${formatAction(log.action)}' recorded for ${details.documentLabel || "requirement"}.`,
+      whyItMatters: "Compliance verification enforces legal and client requirements before site deployment.",
+      recommendedAction:
+        details.status === "REJECTED"
+          ? "Notify candidate to re-upload clear or valid document copies."
+          : "Verify all other mandatory checklist items are approved.",
+    };
+  }
+
+  // 5. Deployment
+  if (category === "Deployment") {
+    return {
+      affectedModule: "Client Deployments & Workforce",
+      contextSummary: `Deployment record updated for '${details.clientName || "Client"}'.`,
+      whyItMatters: "Directly affects client site fulfillment, active rosters, and billing periods.",
+      recommendedAction: "Ensure site orientation and employment contract are signed.",
+    };
+  }
+
+  // 6. Configuration & Maintenance
+  if (category === "Configuration" || category === "Security") {
+    if (action.includes("DATABASE_BACKUP")) {
+      return {
+        affectedModule: "Database Maintenance & Recovery",
+        contextSummary: `Encrypted PostgreSQL snapshot routine completed (${details.filename || "snapshot"}).`,
+        whyItMatters: "Guarantees system disaster recovery readiness and data integrity.",
+        recommendedAction: "Retain snapshot according to compliance schedule.",
+      };
+    }
+    return {
+      affectedModule: "System Configuration",
+      contextSummary: `Configuration change '${formatAction(log.action)}' activated.`,
+      whyItMatters: "Modifies global scoring criteria or system configuration settings.",
+      recommendedAction: "Inspect candidate scoring metrics to observe algorithm impact.",
+    };
+  }
+
+  // Default fallback
+  return {
+    affectedModule: category,
+    contextSummary: `${formatAction(log.action)} recorded for ${formatTargetEntity(log).label}.`,
+    whyItMatters: "Recorded in the permanent tamper-evident security audit trail.",
+    recommendedAction: "No action required unless unexpected.",
+  };
 }

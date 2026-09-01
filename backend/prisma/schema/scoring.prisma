@@ -110,7 +110,7 @@ model CandidateFeatureProfile {
   applicantProfileId      Int                         @unique
   rawFeatures             Json
   sparseTfidf             Json?
-  embedding               Unsupported("vector(384)")?
+  embedding               Unsupported("vector(768)")?
   normalizedCity          String?
   normalizedProvince      String?
   normalizedPreferredAreas String[]        @default([])
@@ -153,3 +153,4 @@ model ScoringRevalidationTask {
 
   @@index([status, createdAt])
 }
+

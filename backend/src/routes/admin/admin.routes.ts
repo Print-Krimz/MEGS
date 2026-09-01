@@ -13,12 +13,22 @@ import {
   resetUserMfaHandler,
 } from '../../controllers/admin/admin.users.controller.js';
 
-import { listAuditLogs } from '../../controllers/admin/admin.audit.controller.js';
+import {
+  listAuditLogs,
+  exportAuditReportHandler,
+} from '../../controllers/admin/admin.audit.controller.js';
+import {
+  listBackupsHandler,
+  triggerBackupHandler,
+  renameBackupHandler,
+  downloadBackupHandler,
+  restoreDatabaseBackupHandler,
+  restoreUploadedBackupHandler,
+} from '../../controllers/admin/admin.maintenance.controller.js';
 import {
   getConfiguration,
   getConfigurationHistory,
   getQualityMetrics,
-  getRevalidationStatus,
   restoreDefaults,
   updateConfiguration,
   validateConfiguration,
@@ -63,11 +73,26 @@ router.post("/candidate-scoring/configuration/validate", validateConfiguration);
 router.put("/candidate-scoring/configuration", updateConfiguration);
 router.post("/candidate-scoring/configuration/restore-defaults", restoreDefaults);
 router.get("/candidate-scoring/configuration/history", getConfigurationHistory);
-router.get("/candidate-scoring/revalidation-status", getRevalidationStatus);
 router.get("/candidate-scoring/quality-metrics", getQualityMetrics);
 
-// Security Audit Trail
+// Security Audit Trail & Reporting
 router.get("/audit-logs", listAuditLogs);
+router.get("/audit-logs/export", exportAuditReportHandler);
+
+import multer from "multer";
+
+const backupUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
+
+// Database Maintenance & Encrypted Backups / Restores
+router.get("/maintenance/backups", listBackupsHandler);
+router.post("/maintenance/backup", triggerBackupHandler);
+router.patch("/maintenance/backups/:id/rename", renameBackupHandler);
+router.get("/maintenance/backups/:id/download", downloadBackupHandler);
+router.post("/maintenance/backups/:id/restore", restoreDatabaseBackupHandler);
+router.post("/maintenance/backups/restore-upload", backupUpload.single("file"), restoreUploadedBackupHandler);
 
 // Recruitment Analytics
 router.get("/analytics/dashboard", getAdminDashboardSummaryHandler);

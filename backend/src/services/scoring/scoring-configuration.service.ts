@@ -256,53 +256,17 @@ export const waitForRevalidationQueueToIdle = async () => {
 };
 
 const executeRevalidationTask = async (
-  taskId: string,
   applicationId: number,
   jobPostingId: number,
   configurationId: number
 ) => {
   try {
-    const existing = await prisma.scoringRevalidationTask.findUnique({
-      where: { id: taskId },
+    await calculateAndPersistCandidateScore(applicationId, jobPostingId, undefined, {
+      forceNewCalculation: true,
+      configurationId,
     });
-    if (!existing) return;
-
-    await prisma.scoringRevalidationTask.update({
-      where: { id: taskId },
-      data: {
-        status: "PROCESSING",
-        claimedAt: new Date(),
-        leaseExpiresAt: new Date(Date.now() + 5 * 60 * 1000),
-      },
-    });
-
-    try {
-      await calculateAndPersistCandidateScore(applicationId, jobPostingId, undefined, {
-        forceNewCalculation: true,
-        configurationId,
-      });
-      await prisma.scoringRevalidationTask.update({
-        where: { id: taskId },
-        data: {
-          status: "COMPLETED",
-          completedAt: new Date(),
-          lastError: null,
-        },
-      });
-    } catch (err: any) {
-      const errorMsg = err?.message || "Failed to calculate candidate score";
-      console.warn(`[Scoring] Failed to revalidate score for task ${taskId} (app ${applicationId}): ${errorMsg}`);
-      await prisma.scoringRevalidationTask.update({
-        where: { id: taskId },
-        data: {
-          status: "FAILED",
-          attempts: { increment: 1 },
-          lastError: errorMsg,
-        },
-      });
-    }
   } catch (err: any) {
-    console.warn(`[Scoring] Error during revalidation task execution ${taskId}:`, err?.message);
+    console.warn(`[Scoring] Background score calculation error (app ${applicationId}): ${err?.message}`);
   }
 };
 
@@ -321,44 +285,14 @@ export const revalidateConfiguration = async (configurationId: number) => {
       select: {
         id: true,
         jobPostingId: true,
-        userId: true,
-        user: { select: { applicantProfile: { select: { id: true } } } },
       },
     });
 
-    await Promise.all(
-      applications.map(async (app) => {
-        try {
-          const dedupeKey = `CONFIG-${configuration.id}-APP-${app.id}`;
-          const task = await prisma.scoringRevalidationTask.upsert({
-            where: { dedupeKey },
-            create: {
-              target: "CONFIGURATION",
-              configurationId: configuration.id,
-              configurationVersion: configuration.version,
-              applicationId: app.id,
-              jobPostingId: app.jobPostingId,
-              applicantProfileId: app.user?.applicantProfile?.id ?? null,
-              dedupeKey,
-              status: "PENDING",
-            },
-            update: {
-              status: "PENDING",
-              configurationId: configuration.id,
-              configurationVersion: configuration.version,
-              lastError: null,
-              completedAt: null,
-            },
-          });
-
-          void revalidationQueue.add(() =>
-            executeRevalidationTask(task.id, app.id, app.jobPostingId, configuration.id)
-          );
-        } catch {
-          // Ignore concurrent deletion race conditions
-        }
-      })
-    );
+    for (const app of applications) {
+      void revalidationQueue.add(() =>
+        executeRevalidationTask(app.id, app.jobPostingId, configuration.id)
+      );
+    }
   })();
 
   trackOperation(promise);
@@ -381,44 +315,14 @@ export const revalidateJobScoring = async (jobPostingId: number) => {
       select: {
         id: true,
         jobPostingId: true,
-        userId: true,
-        user: { select: { applicantProfile: { select: { id: true } } } },
       },
     });
 
-    await Promise.all(
-      applications.map(async (app) => {
-        try {
-          const dedupeKey = `JOB-${jobPostingId}-APP-${app.id}-CONFIG-${configuration.id}`;
-          const task = await prisma.scoringRevalidationTask.upsert({
-            where: { dedupeKey },
-            create: {
-              target: "JOB_POSTING",
-              configurationId: configuration.id,
-              configurationVersion: configuration.version,
-              applicationId: app.id,
-              jobPostingId: app.jobPostingId,
-              applicantProfileId: app.user?.applicantProfile?.id ?? null,
-              dedupeKey,
-              status: "PENDING",
-            },
-            update: {
-              status: "PENDING",
-              configurationId: configuration.id,
-              configurationVersion: configuration.version,
-              lastError: null,
-              completedAt: null,
-            },
-          });
-
-          void revalidationQueue.add(() =>
-            executeRevalidationTask(task.id, app.id, app.jobPostingId, configuration.id)
-          );
-        } catch {
-          // Ignore concurrent deletion race conditions
-        }
-      })
-    );
+    for (const app of applications) {
+      void revalidationQueue.add(() =>
+        executeRevalidationTask(app.id, app.jobPostingId, configuration.id)
+      );
+    }
 
     return applications.length;
   })();
@@ -434,39 +338,7 @@ export const revalidateApplication = async (applicationId: number, jobPostingId:
       select: { id: true, version: true },
     });
 
-    const app = await prisma.application.findUniqueOrThrow({
-      where: { id: applicationId },
-      select: {
-        id: true,
-        jobPostingId: true,
-        userId: true,
-        user: { select: { applicantProfile: { select: { id: true } } } },
-      },
-    });
-
-    const dedupeKey = `APP-${applicationId}-CONFIG-${configuration.id}`;
-    const task = await prisma.scoringRevalidationTask.upsert({
-      where: { dedupeKey },
-      create: {
-        target: "APPLICATION",
-        configurationId: configuration.id,
-        configurationVersion: configuration.version,
-        applicationId: app.id,
-        jobPostingId: app.jobPostingId,
-        applicantProfileId: app.user?.applicantProfile?.id ?? null,
-        dedupeKey,
-        status: "PENDING",
-      },
-      update: {
-        status: "PENDING",
-        configurationId: configuration.id,
-        configurationVersion: configuration.version,
-        lastError: null,
-        completedAt: null,
-      },
-    });
-
-    await executeRevalidationTask(task.id, app.id, app.jobPostingId, configuration.id);
+    await executeRevalidationTask(applicationId, jobPostingId, configuration.id);
   })();
 
   trackOperation(promise);
@@ -486,48 +358,26 @@ export const revalidateApplicantProfile = async (applicantProfileId: number) => 
 
       const profile = await prisma.applicantProfile.findUnique({
         where: { id: applicantProfileId },
-        select: { id: true, userId: true },
-      });
-      if (!profile) return;
-
-      const applications = await prisma.application.findMany({
-        where: { userId: profile.userId, isArchived: false },
-        select: { id: true, jobPostingId: true },
-      });
-
-      await Promise.all(
-        applications.map(async (app) => {
-          try {
-            const dedupeKey = `PROFILE-${applicantProfileId}-APP-${app.id}-CONFIG-${configuration.id}`;
-            const task = await prisma.scoringRevalidationTask.upsert({
-              where: { dedupeKey },
-              create: {
-                target: "APPLICANT_PROFILE",
-                configurationId: configuration.id,
-                configurationVersion: configuration.version,
-                applicationId: app.id,
-                jobPostingId: app.jobPostingId,
-                applicantProfileId,
-                dedupeKey,
-                status: "PENDING",
+        select: {
+          id: true,
+          userId: true,
+          user: {
+            select: {
+              applications: {
+                where: { isArchived: false },
+                select: { id: true, jobPostingId: true },
               },
-              update: {
-                status: "PENDING",
-                configurationId: configuration.id,
-                configurationVersion: configuration.version,
-                lastError: null,
-                completedAt: null,
-              },
-            });
+            },
+          },
+        },
+      });
+      if (!profile || !profile.user) return;
 
-            void revalidationQueue.add(() =>
-              executeRevalidationTask(task.id, app.id, app.jobPostingId, configuration.id)
-            );
-          } catch {
-            // Ignore concurrent deletion race conditions
-          }
-        })
-      );
+      for (const app of profile.user.applications) {
+        void revalidationQueue.add(() =>
+          executeRevalidationTask(app.id, app.jobPostingId, configuration.id)
+        );
+      }
     } catch {
       // Ignore background errors if profile or database state changed
     }
@@ -537,72 +387,3 @@ export const revalidateApplicantProfile = async (applicantProfileId: number) => 
   return promise;
 };
 
-export const getScoringRevalidationStatus = async () => {
-  const [countsByStatus, failedTasks] = await Promise.all([
-    prisma.scoringRevalidationTask.groupBy({
-      by: ["status"],
-      _count: { _all: true },
-    }),
-    prisma.scoringRevalidationTask.findMany({
-      where: { status: "FAILED" },
-      orderBy: { updatedAt: "desc" },
-      take: 100,
-      include: {
-        application: {
-          select: {
-            id: true,
-            jobPosting: { select: { title: true } },
-            user: {
-              select: {
-                applicantProfile: { select: { firstName: true, lastName: true } },
-                email: true,
-              },
-            },
-          },
-        },
-      },
-    }),
-  ]);
-
-  const counts: Record<string, number> = {
-    PENDING: 0,
-    PROCESSING: 0,
-    COMPLETED: 0,
-    FAILED: 0,
-  };
-
-  for (const row of countsByStatus) {
-    if (row.status in counts) {
-      counts[row.status] = row._count._all;
-    }
-  }
-
-  const failures = failedTasks.map((t) => {
-    const candidateName = t.application?.user?.applicantProfile
-      ? `${t.application.user.applicantProfile.firstName} ${t.application.user.applicantProfile.lastName}`.trim()
-      : t.application?.user?.email || "Candidate";
-    const jobTitle = t.application?.jobPosting?.title || "Position";
-    const targetDesc = t.applicationId
-      ? `Application #${t.applicationId} (${candidateName} - ${jobTitle})`
-      : t.applicantProfileId
-      ? `Applicant Profile #${t.applicantProfileId} (${candidateName})`
-      : `${t.target} Task`;
-
-    return {
-      id: t.id.slice(0, 8),
-      target: targetDesc,
-      lastError: t.lastError || "Scoring calculation failed",
-      attempts: t.attempts,
-    };
-  });
-
-  return {
-    counts: {
-      PENDING: counts.PENDING,
-      PROCESSING: counts.PROCESSING,
-      COMPLETED: counts.COMPLETED,
-      FAILED: counts.FAILED,
-    },
-    failures,
-  };
-};

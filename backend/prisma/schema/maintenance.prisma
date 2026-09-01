@@ -1,0 +1,30 @@
+enum BackupStatus {
+  IN_PROGRESS
+  SUCCESS
+  FAILED
+}
+
+enum BackupType {
+  MANUAL
+  SCHEDULED_ROUTINE
+}
+
+model DatabaseBackupRecord {
+  id               String       @id @default(uuid())
+  filename         String
+  sizeBytes        BigInt?
+  checksumSha256   String?
+  status           BackupStatus @default(IN_PROGRESS)
+  backupType       BackupType   @default(MANUAL)
+  storagePath      String?
+  encryptionMethod String       @default("AES-256-GCM")
+  tablesIncluded   String[]     @default([])
+  errorMessage     String?
+  durationMs       Int?
+  initiatedById    String?
+  initiatedBy      User?        @relation(fields: [initiatedById], references: [id], onDelete: SetNull)
+  createdAt        DateTime     @default(now())
+  completedAt      DateTime?
+
+  @@index([status, createdAt])
+}

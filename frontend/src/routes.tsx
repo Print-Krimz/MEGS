@@ -54,7 +54,7 @@ import { AdminAnalyticsPage } from "./pages/admin/AdminAnalyticsPage";
 import { UsersPage } from "./pages/admin/UsersPage";
 import { ScoringConfigPage } from "./pages/admin/ScoringConfigPage";
 import { ScoringQualityPage } from "./pages/admin/ScoringQualityPage";
-import { RevalidationQueuePage } from "./pages/admin/RevalidationQueuePage";
+import { DatabaseMaintenancePage } from "./pages/admin/DatabaseMaintenancePage";
 import { AuditLogsPage } from "./pages/admin/AuditLogsPage";
 import { AdminMRFDetailPage } from "./pages/admin/AdminMRFDetailPage";
 
@@ -438,10 +438,10 @@ export const adminScoringQualityRoute = createRoute({
   component: ScoringQualityPage,
 });
 
-export const adminRevalidationRoute = createRoute({
+export const adminMaintenanceRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
-  path: "/admin/revalidation",
-  component: RevalidationQueuePage,
+  path: "/admin/maintenance",
+  component: DatabaseMaintenancePage,
 });
 
 export const adminAuditRoute = createRoute({
@@ -513,7 +513,7 @@ const routeTree = rootRoute.addChildren([
     adminUsersRoute,
     adminScoringRoute,
     adminScoringQualityRoute,
-    adminRevalidationRoute,
+    adminMaintenanceRoute,
     adminAuditRoute,
     adminNotificationsRoute,
     adminMrfDetailRoute,

@@ -28,6 +28,8 @@ out/
 .nuxt/
 .turbo/
 *.tsbuildinfo
+storage/
+*.enc.gz
 
 # 4. Logs
 *.log

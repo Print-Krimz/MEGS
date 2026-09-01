@@ -42,7 +42,7 @@ MEGS/
 | **Database & ORM** | PostgreSQL (Supabase), Prisma ORM 7.8 (Multi-Schema partitioned) |
 | **Authentication & Storage** | Supabase Auth (Server-side service role) & Supabase Storage Vault |
 | **Email Service** | Nodemailer with Gmail SMTP / Google App Passwords |
-| **AI Assessment & Search** | Google Gemini (`gemini-2.5-flash`), Xenova Transformers, pgvector |
+| **AI Assessment & Search** | Google Gemini (`gemini-2.5-flash`), Google Gemini Embeddings (`gemini-embedding-001`), pgvector |
 | **Frontend Framework** | React 19, Vite 8, TypeScript |
 | **UI & Styling** | Tailwind CSS v4, Lucide Icons |
 | **State & Navigation** | TanStack Query v5, TanStack Router, TanStack Table |
@@ -92,6 +92,7 @@ SUPABASE_SECRET_KEY="your-supabase-service-role-secret-key"
 # Google Gemini AI API Key & Model
 GEMINI_API_KEY="your-google-gemini-api-key"
 GEMINI_MODEL="gemini-2.5-flash"
+GEMINI_EMBEDDING_MODEL="gemini-embedding-001"
 
 # Email Configuration (Nodemailer / Gmail SMTP)
 GMAIL_USER="your-email@gmail.com"

@@ -107,15 +107,15 @@ export const Dialog: React.FC<DialogProps> = ({
   if (!open) return null;
 
   const sizeStyles = {
-    sm: "max-w-md",
-    md: "max-w-lg",
-    lg: "max-w-2xl",
-    xl: "max-w-4xl",
+    sm: "sm:max-w-md",
+    md: "sm:max-w-lg",
+    lg: "sm:max-w-xl md:max-w-2xl",
+    xl: "sm:max-w-3xl md:max-w-4xl",
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 flex items-center justify-center p-2 sm:p-4 md:p-6"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 flex items-center justify-center p-3 sm:p-4 md:p-6"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -128,7 +128,7 @@ export const Dialog: React.FC<DialogProps> = ({
         ref={dialogRef}
         tabIndex={-1}
         className={cn(
-          "relative w-full max-w-[calc(100vw-1rem)] bg-white border border-slate-400 transform transition-all shadow-modal",
+          "relative w-full bg-white border border-slate-400 transform transition-all shadow-modal mx-auto",
           overflowVisible ? "overflow-visible" : "overflow-hidden",
           sizeStyles[size],
           className

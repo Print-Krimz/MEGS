@@ -16,6 +16,8 @@ import {
   UserPlus,
   ArrowRight,
   BarChart3,
+  Database,
+  ShieldCheck,
 } from "lucide-react";
 import {
   formatAction,
@@ -35,9 +37,9 @@ export const AdminDashboard: React.FC = () => {
     queryFn: adminApi.getScoringConfig,
   });
 
-  const revalidationQuery = useQuery({
-    queryKey: ["admin", "scoring", "revalidation"],
-    queryFn: adminApi.getRevalidationStatus,
+  const backupsQuery = useQuery({
+    queryKey: ["admin", "maintenance", "backups"],
+    queryFn: () => adminApi.listDatabaseBackups(5),
   });
 
   const qualityQuery = useQuery({
@@ -53,7 +55,7 @@ export const AdminDashboard: React.FC = () => {
   const isLoading =
     usersQuery.isLoading ||
     scoringConfigQuery.isLoading ||
-    revalidationQuery.isLoading ||
+    backupsQuery.isLoading ||
     auditLogsQuery.isLoading;
 
   if (isLoading) {
@@ -72,7 +74,7 @@ export const AdminDashboard: React.FC = () => {
   const isError =
     usersQuery.isError ||
     scoringConfigQuery.isError ||
-    revalidationQuery.isError ||
+    backupsQuery.isError ||
     auditLogsQuery.isError;
 
   if (isError) {
@@ -86,13 +88,13 @@ export const AdminDashboard: React.FC = () => {
           error={
             usersQuery.error ||
             scoringConfigQuery.error ||
-            revalidationQuery.error ||
+            backupsQuery.error ||
             auditLogsQuery.error
           }
           onRetry={() => {
             usersQuery.refetch();
             scoringConfigQuery.refetch();
-            revalidationQuery.refetch();
+            backupsQuery.refetch();
             auditLogsQuery.refetch();
           }}
         />
@@ -102,7 +104,8 @@ export const AdminDashboard: React.FC = () => {
 
   const users = usersQuery.data || [];
   const config = scoringConfigQuery.data;
-  const reval = revalidationQuery.data;
+  const backups = backupsQuery.data || [];
+  const latestBackup = backups[0];
   const quality = qualityQuery.data;
   const logs = auditLogsQuery.data || [];
 
@@ -116,7 +119,7 @@ export const AdminDashboard: React.FC = () => {
     <div className="space-y-5">
       <PageHeader
         title="Administration overview"
-        description="Manage access, matching settings, score updates, and activity."
+        description="Manage access, matching settings, database snapshots, and activity."
         breadcrumbs={[{ label: "Administration" }]}
         actions={
           <div className="flex items-center gap-2">
@@ -170,14 +173,14 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-blue-800 uppercase tracking-wider">
-            Score Update Backlog
+          <div className="text-[10px] font-mono font-bold text-indigo-800 uppercase tracking-wider">
+            Database Snapshots
           </div>
-          <div className="text-2xl font-bold font-mono text-blue-950 mt-0.5 tabular-nums">
-            {reval?.counts?.PENDING || 0}
+          <div className="text-2xl font-bold font-mono text-indigo-950 mt-0.5 tabular-nums">
+            {backups.length}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
-            {reval?.counts?.PROCESSING || 0} in progress
+            {latestBackup ? `${latestBackup.status} • ${formatDate(latestBackup.createdAt)}` : "No snapshots yet"}
           </div>
         </div>
 
@@ -241,7 +244,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Grid: Recent Audit Log & Background Worker Monitor */}
+      {/* Grid: Recent Audit Log & Database Maintenance Status */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left 2 Cols: Recent Security & Administrative Logs */}
         <div className="lg:col-span-2 border border-slate-300 bg-white overflow-hidden">
@@ -320,34 +323,56 @@ export const AdminDashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Right Col: Background Worker & Scoring Health */}
+        {/* Right Col: Database Maintenance & Snapshots Widget */}
         <div className="space-y-4">
           <div className="border border-slate-300 bg-white">
             <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
-              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">
-                Score Reassessment Status
-              </h3>
-              <Link to="/admin/revalidation" className="text-[11px] font-mono text-teal-800 font-bold hover:underline">
-                Details →
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-indigo-700" />
+                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">
+                  Database Snapshots
+                </h3>
+              </div>
+              <Link to="/admin/maintenance" className="text-[11px] font-mono text-indigo-800 font-bold hover:underline">
+                Manage →
               </Link>
             </div>
 
-            <div className="divide-y divide-slate-200 text-xs font-mono">
-              <div className="flex items-center justify-between px-3.5 py-2.5 hover:bg-slate-50">
-                <span className="text-slate-600 uppercase">Pending Updates:</span>
-                <span className="font-bold text-slate-950 tabular-nums">{reval?.counts?.PENDING || 0}</span>
+            <div className="p-3.5 space-y-3">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-600 uppercase text-[11px]">Latest Status:</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  latestBackup?.status === "SUCCESS"
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    : latestBackup?.status === "FAILED"
+                    ? "bg-rose-100 text-rose-800 border border-rose-300"
+                    : "bg-slate-100 text-slate-700 border border-slate-300"
+                }`}>
+                  {latestBackup?.status || "READY"}
+                </span>
               </div>
-              <div className="flex items-center justify-between px-3.5 py-2.5 hover:bg-slate-50">
-                <span className="text-slate-600 uppercase">Processing:</span>
-                <span className="font-bold text-blue-800 tabular-nums">{reval?.counts?.PROCESSING || 0}</span>
+
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-600 uppercase text-[11px]">Encryption:</span>
+                <span className="text-slate-900 font-bold flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  AES-256-GCM
+                </span>
               </div>
-              <div className="flex items-center justify-between px-3.5 py-2.5 hover:bg-slate-50">
-                <span className="text-slate-600 uppercase">Completed Assessments:</span>
-                <span className="font-bold text-emerald-800 tabular-nums">{reval?.counts?.COMPLETED || 0}</span>
+
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-600 uppercase text-[11px]">Last Backup:</span>
+                <span className="text-slate-900 text-[11px]">
+                  {latestBackup ? formatDateTime(latestBackup.createdAt) : "Never"}
+                </span>
               </div>
-              <div className="flex items-center justify-between px-3.5 py-2.5 hover:bg-slate-50">
-                <span className="text-slate-600 uppercase">Failed Updates:</span>
-                <span className="font-bold text-rose-700 tabular-nums">{reval?.counts?.FAILED || 0}</span>
+
+              <div className="pt-2 border-t border-slate-200">
+                <Link to="/admin/maintenance" className="block w-full">
+                  <Button variant="outline" size="sm" className="w-full justify-center">
+                    View Maintenance Console
+                  </Button>
+                </Link>
               </div>
             </div>
           </div>

@@ -1,24 +1,58 @@
-import { pipeline, env } from "@xenova/transformers";
+import { getGeminiClient } from "../../utils/gemini.js";
 
-export const EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";
-export const EMBEDDING_DIMENSION = 384;
+export const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001";
+export const EMBEDDING_MODEL = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
+export const EMBEDDING_DIMENSION = 768;
 
-let pipelinePromise: Promise<any> | null = null;
+export type EmbeddingTaskType =
+  | "RETRIEVAL_DOCUMENT"
+  | "RETRIEVAL_QUERY"
+  | "SEMANTIC_SIMILARITY"
+  | "CLASSIFICATION"
+  | "CLUSTERING";
 
-const getPipeline = () => {
-  if (!pipelinePromise) {
-    pipelinePromise = pipeline("feature-extraction", EMBEDDING_MODEL);
+export interface GenerateEmbeddingOptions {
+  taskType?: EmbeddingTaskType;
+}
+
+export const l2Normalize = (vector: number[]): number[] => {
+  let sumSq = 0;
+  for (let i = 0; i < vector.length; i++) {
+    sumSq += vector[i] * vector[i];
   }
-  return pipelinePromise;
+  const norm = Math.sqrt(sumSq);
+  if (norm === 0) return vector;
+  return vector.map((v) => v / norm);
 };
 
-export const generateEmbedding = async (text: string): Promise<number[]> => {
+export const generateEmbedding = async (
+  text: string,
+  options: GenerateEmbeddingOptions = {}
+): Promise<number[]> => {
   const cleanText = text.trim() || "empty";
-  const extractor = await getPipeline();
-  const output = await extractor(cleanText, { pooling: "mean", normalize: true });
-  const rawArray = Array.from(output.data) as number[];
+  const taskType = options.taskType ?? "SEMANTIC_SIMILARITY";
+  const model = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
+
+  const ai = getGeminiClient();
+  const response = await ai.models.embedContent({
+    model,
+    contents: cleanText,
+    config: {
+      outputDimensionality: EMBEDDING_DIMENSION,
+      taskType,
+    },
+  });
+
+  const embeddingObj = response.embeddings?.[0];
+  if (!embeddingObj || !Array.isArray(embeddingObj.values) || embeddingObj.values.length === 0) {
+    throw new Error("Gemini returned an empty embedding response");
+  }
+
+  const rawArray = embeddingObj.values;
   if (rawArray.length !== EMBEDDING_DIMENSION) {
     throw new Error(`Expected embedding dimension ${EMBEDDING_DIMENSION}, received ${rawArray.length}`);
   }
-  return rawArray;
+
+  return l2Normalize(rawArray);
 };
+

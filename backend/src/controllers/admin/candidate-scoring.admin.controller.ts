@@ -11,7 +11,6 @@ import {
   updateScoringConfiguration,
   validateConfigurationChange,
 } from "../../services/scoring/scoring-configuration.service.js";
-import { getScoringRevalidationStatus } from "../../services/scoring/scoring-configuration.service.js";
 import { getScoringQualityMetrics } from "../../services/scoring/scoring-quality.service.js";
 import { sendError, sendSuccess } from '../../utils/response.js';
 
@@ -55,10 +54,6 @@ export const getConfigurationHistory = async (req: Request, res: Response) => {
     const { cursor, limit } = candidateScoringSchema.cursorQuery.parse(req.query);
     sendSuccess(res, "Candidate scoring configuration history retrieved", await listScoringConfigurationHistory(cursor, limit));
   } catch (error) { handle(res, error); }
-};
-
-export const getRevalidationStatus = async (_req: Request, res: Response) => {
-  try { sendSuccess(res, "Candidate scoring revalidation status retrieved", await getScoringRevalidationStatus()); } catch (error) { handle(res, error); }
 };
 
 export const getQualityMetrics = async (_req: Request, res: Response) => {

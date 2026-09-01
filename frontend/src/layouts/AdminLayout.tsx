@@ -14,6 +14,7 @@ import {
   Shield,
   Menu,
   X,
+  Database,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
@@ -53,13 +54,13 @@ const adminNavSections: NavSection[] = [
     items: [
       { to: "/admin/scoring", label: "Candidate score settings", icon: Sliders },
       { to: "/admin/scoring/quality", label: "Score quality", icon: Activity },
-      { to: "/admin/revalidation", label: "Score review queue", icon: Activity },
     ],
   },
   {
     label: "Governance & Security",
     items: [
       { to: "/admin/audit", label: "Audit logs", icon: History },
+      { to: "/admin/maintenance", label: "Database maintenance", icon: Database },
     ],
   },
 ];

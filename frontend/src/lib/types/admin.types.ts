@@ -89,19 +89,23 @@ export interface AuditLogQueryFilters {
   limit?: number;
 }
 
-export interface RevalidationStatusResponse {
-  counts: {
-    PENDING: number;
-    PROCESSING: number;
-    COMPLETED: number;
-    FAILED: number;
-  };
-  failures: Array<{
-    id: string;
-    target: string;
-    lastError: string;
-    attempts: number;
-  }>;
+export type BackupStatus = "IN_PROGRESS" | "SUCCESS" | "FAILED";
+export type BackupType = "MANUAL" | "SCHEDULED_ROUTINE";
+
+export interface DatabaseBackupRecord {
+  id: string;
+  filename: string;
+  sizeBytes: number | null;
+  checksumSha256: string | null;
+  status: BackupStatus;
+  backupType: BackupType;
+  encryptionMethod: string;
+  tablesIncluded: string[];
+  errorMessage: string | null;
+  durationMs: number | null;
+  initiatedBy: { id: string; email: string } | null;
+  createdAt: string;
+  completedAt: string | null;
 }
 
 export interface QualityMetricsResponse {

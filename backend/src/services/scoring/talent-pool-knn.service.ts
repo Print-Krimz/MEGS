@@ -7,7 +7,7 @@ import { normalizeComplianceDocumentType } from "./scoring.dimensions.js";
 import { generateEmbedding } from "./embedding.service.js";
 
 export const FEATURE_SCHEMA_VERSION = "candidate-feature-v1";
-const VOCABULARY_VERSION = "xenova-mini-lm-v1";
+const VOCABULARY_VERSION = "gemini-embedding-001-v1";
 export const EXTRACTION_VERSION = "deterministic-v1";
 
 const normalizeLocation = (value: string | null | undefined) =>
@@ -61,8 +61,14 @@ export const rebuildCandidateFeatureProfile = async (applicantProfileId: number)
   if (!profile) return null;
   const features = buildCandidateFeatureInput(profile);
   const text = featureDocument(features);
-  const embedding = await generateEmbedding(text);
-  const vectorStr = `[${embedding.join(",")}]`;
+
+  let vectorStr: string | null = null;
+  try {
+    const embedding = await generateEmbedding(text, { taskType: "RETRIEVAL_DOCUMENT" });
+    vectorStr = `[${embedding.join(",")}]`;
+  } catch {
+    // Graceful fallback for mock or offline environments without active Gemini API
+  }
 
   try {
     const record = await prisma.candidateFeatureProfile.upsert({
@@ -88,14 +94,16 @@ export const rebuildCandidateFeatureProfile = async (applicantProfileId: number)
       },
     });
 
-    try {
-      await prisma.$executeRaw`
-        UPDATE "CandidateFeatureProfile"
-        SET embedding = ${vectorStr}::vector
-        WHERE id = ${record.id}
-      `;
-    } catch {
-      // Graceful bypass in environments without pgvector
+    if (vectorStr) {
+      try {
+        await prisma.$executeRaw`
+          UPDATE "CandidateFeatureProfile"
+          SET embedding = ${vectorStr}::vector
+          WHERE id = ${record.id}
+        `;
+      } catch {
+        // Graceful bypass in environments without pgvector
+      }
     }
 
     return record;
@@ -189,7 +197,7 @@ export const discoverTalentPoolForJob = async (jobPostingId: number, requested: 
     job.mrf?.requiredCertifications,
   ].filter(Boolean).join(" ");
 
-  const jobEmbedding = await generateEmbedding(jobText);
+  const jobEmbedding = await generateEmbedding(jobText, { taskType: "RETRIEVAL_QUERY" });
   const vectorStr = `[${jobEmbedding.join(",")}]`;
 
   let rawResults: Array<{ applicantProfileId: number; similarity: number }> = [];
@@ -321,7 +329,7 @@ export const findSimilarCandidates = async (sourceApplicationOrProfileId: number
   }
 
   const doc = featureDocument(readFeatureInput(sourceFeature.rawFeatures));
-  const sourceEmbedding = await generateEmbedding(doc);
+  const sourceEmbedding = await generateEmbedding(doc, { taskType: "SEMANTIC_SIMILARITY" });
   const vectorStr = `[${sourceEmbedding.join(",")}]`;
 
   let rawResults: Array<{ applicantProfileId: number; similarity: number }> = [];
@@ -404,7 +412,7 @@ export const findSimilarCandidates = async (sourceApplicationOrProfileId: number
 export const searchTalentPoolByText = async (text: string, requested: TalentPoolOptions = {}) => {
   const configuration = await getActiveScoringConfiguration();
   const knn = resolveKnnOptions(configuration, requested);
-  const queryEmbedding = await generateEmbedding(text);
+  const queryEmbedding = await generateEmbedding(text, { taskType: "RETRIEVAL_QUERY" });
   const vectorStr = `[${queryEmbedding.join(",")}]`;
 
   let rawResults: Array<{ applicantProfileId: number; similarity: number }> = [];

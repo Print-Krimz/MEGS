@@ -63,15 +63,32 @@ export const logAudit = async (
       return;
     }
 
-    await prisma.auditLog.create({
-      data: {
-        userId: userId || null,
-        action,
-        entity: entity || null,
-        entityId: parsedEntityId,
-        details: JSON.stringify(sanitized),
-      },
-    });
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: userId || null,
+          action,
+          entity: entity || null,
+          entityId: parsedEntityId,
+          details: JSON.stringify(sanitized),
+        },
+      });
+    } catch (createErr: any) {
+      if (createErr?.code === "P2003" && userId) {
+        sanitized.actorId = userId;
+        await prisma.auditLog.create({
+          data: {
+            userId: null,
+            action,
+            entity: entity || null,
+            entityId: parsedEntityId,
+            details: JSON.stringify(sanitized),
+          },
+        }).catch(() => null);
+        return;
+      }
+      console.error("[AUDIT LOG FAILED]", createErr, { userId, action, entity });
+    }
   } catch (error) {
     console.error("[AUDIT LOG FAILED]", error, { userId, action, entity });
   }

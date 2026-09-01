@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 
 let aiInstance: GoogleGenAI | null = null;
 
-const getGeminiClient = (): GoogleGenAI => {
+export const getGeminiClient = (): GoogleGenAI => {
   if (!aiInstance) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {

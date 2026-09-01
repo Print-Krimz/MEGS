@@ -5,7 +5,7 @@ import type {
   UpdateScoringConfigDto,
   AuditLog,
   AuditLogQueryFilters,
-  RevalidationStatusResponse,
+  DatabaseBackupRecord,
   QualityMetricsResponse,
 } from "../types/admin.types";
 import type { Role } from "../types/enums";
@@ -101,14 +101,11 @@ export const adminApi = {
     return (Array.isArray(res) ? res : []) as CandidateScoringConfiguration[];
   },
 
-  getRevalidationStatus: () =>
-    api.get<RevalidationStatusResponse>("/api/admin/candidate-scoring/revalidation-status"),
-
   getQualityMetrics: () =>
     api.get<QualityMetricsResponse>("/api/admin/candidate-scoring/quality-metrics"),
 
   // -------------------------------------------------------------
-  // 3. Security Audit Trail
+  // 3. Security Audit Trail & Report Export
   // -------------------------------------------------------------
   listAuditLogs: (filters?: AuditLogQueryFilters) => {
     const params = new URLSearchParams();
@@ -124,8 +121,51 @@ export const adminApi = {
     return api.get<AuditLog[]>(`/api/admin/audit-logs${qs ? `?${qs}` : ""}`);
   },
 
+  exportAuditReport: (format: "pdf" | "csv" = "pdf", filters?: AuditLogQueryFilters) => {
+    const params = new URLSearchParams();
+    params.append("format", format);
+    if (filters?.action) params.append("action", filters.action);
+    if (filters?.userId) params.append("userId", filters.userId);
+    if (filters?.entity) params.append("entity", filters.entity);
+    if (filters?.category) params.append("category", filters.category);
+    if (filters?.search) params.append("search", filters.search);
+    if (filters?.startDate) params.append("startDate", filters.startDate);
+    if (filters?.endDate) params.append("endDate", filters.endDate);
+    return api.blob(`/api/admin/audit-logs/export?${params.toString()}`);
+  },
+
   // -------------------------------------------------------------
-  // 4. Recruitment Analytics
+  // 4. Database Maintenance & Encrypted Backups / Restores
+  // -------------------------------------------------------------
+  listDatabaseBackups: (limit = 50) =>
+    api.get<DatabaseBackupRecord[]>(`/api/admin/maintenance/backups?limit=${limit}`),
+
+  triggerDatabaseBackup: (customName?: string) =>
+    api.post<DatabaseBackupRecord>("/api/admin/maintenance/backup", { customName }),
+
+  renameDatabaseBackup: (id: string, name: string) =>
+    api.patch<DatabaseBackupRecord>(`/api/admin/maintenance/backups/${id}/rename`, { name }),
+
+  downloadDatabaseBackup: (id: string) =>
+    api.blob(`/api/admin/maintenance/backups/${id}/download`),
+
+  restoreDatabaseBackup: (id: string) =>
+    api.post<{ success: boolean; totalRecords: number; durationMs: number }>(
+      `/api/admin/maintenance/backups/${id}/restore`,
+      {}
+    ),
+
+  restoreUploadedBackup: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.upload<{ success: boolean; totalRecords: number; durationMs: number }>(
+      "/api/admin/maintenance/backups/restore-upload",
+      formData
+    );
+  },
+
+  // -------------------------------------------------------------
+  // 5. Recruitment Analytics
   // -------------------------------------------------------------
   getDashboardSummary: (filters?: Partial<AnalyticsFilterState>) =>
     api.get<{
@@ -156,7 +196,7 @@ export const adminApi = {
     api.get<AnalyticsFilterOptions>("/api/admin/analytics/filters"),
 
   // -------------------------------------------------------------
-  // 5. Manpower Request (MRF) Oversight
+  // 6. Manpower Request (MRF) Oversight
   // -------------------------------------------------------------
   getMRFDetails: (id: string | number) =>
     api.get<any>(`/api/admin/mrfs/${id}`),
