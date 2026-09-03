@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { notificationApi } from "../lib/api/notification.api";
+import { resolveApiBase } from "../lib/api/client";
 import { useAuth } from "./useAuth";
 
 export interface RealtimeToast {
@@ -50,7 +51,7 @@ export function useRealtimeNotifications() {
     if (!token) return;
 
     const controller = new AbortController();
-    const API_BASE = import.meta.env.VITE_API_URL || "";
+    const API_BASE = resolveApiBase(import.meta.env.VITE_API_URL);
 
     fetchEventSource(`${API_BASE}/api/notifications/stream`, {
       method: "GET",

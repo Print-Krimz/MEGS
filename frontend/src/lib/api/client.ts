@@ -16,7 +16,12 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+export function resolveApiBase(rawUrl?: string): string {
+  if (!rawUrl) return "";
+  return rawUrl.trim().replace(/\/api\/?$/, "").replace(/\/+$/, "");
+}
+
+const API_BASE = resolveApiBase(import.meta.env.VITE_API_URL);
 
 export async function apiRequest<T>(
   path: string,

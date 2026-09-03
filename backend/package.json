@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch server.ts",
     "start": "node dist/server.js",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "test": "vitest run --fileParallelism=false --testTimeout=30000",
     "test:watch": "vitest",
     "seed": "tsx prisma/seed.ts",
