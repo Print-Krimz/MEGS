@@ -77,6 +77,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const isImage = preview?.mimeType?.startsWith("image/");
   const isPdf = preview?.mimeType === "application/pdf";
 
+
   return (
     <div
       className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 flex items-center justify-center p-2 sm:p-4"
@@ -126,7 +127,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 target="_blank"
                 rel="noreferrer"
                 download={preview.originalName || "document"}
-                className="inline-flex items-center gap-1 text-xs font-mono font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 px-2 py-1 sm:px-2.5 rounded hover:bg-slate-50 transition-colors"
+                className="inline-flex items-center gap-1 min-h-11 text-xs font-mono font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 px-3 py-1.5 sm:px-3 rounded hover:bg-slate-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
                 title="Download original file"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -136,7 +137,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             <button
               type="button"
               onClick={handleClose}
-              className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors rounded"
+              className="min-h-11 min-w-11 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
               aria-label="Close dialog"
               title="Close dialog"
             >

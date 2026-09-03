@@ -103,12 +103,40 @@ export const loginRoute = createRoute({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
     email: typeof search.email === "string" ? search.email : undefined,
   }),
+  beforeLoad: ({ context }) => {
+    if (context.auth.isAuthenticated && context.auth.user) {
+      if (context.auth.mustChangePassword) {
+        throw redirect({ to: "/change-password" });
+      }
+      if (context.auth.user.role === Role.ADMINISTRATOR) {
+        throw redirect({ to: "/admin" });
+      }
+      if (context.auth.user.role === Role.TALENT_ACQUISITION) {
+        throw redirect({ to: "/ta" });
+      }
+      throw redirect({ to: "/app" });
+    }
+  },
   component: LoginPage,
 });
 
 export const registerRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
   path: "/register",
+  beforeLoad: ({ context }) => {
+    if (context.auth.isAuthenticated && context.auth.user) {
+      if (context.auth.mustChangePassword) {
+        throw redirect({ to: "/change-password" });
+      }
+      if (context.auth.user.role === Role.ADMINISTRATOR) {
+        throw redirect({ to: "/admin" });
+      }
+      if (context.auth.user.role === Role.TALENT_ACQUISITION) {
+        throw redirect({ to: "/ta" });
+      }
+      throw redirect({ to: "/app" });
+    }
+  },
   component: RegisterPage,
 });
 
@@ -220,6 +248,18 @@ export const applicantNotificationsRoute = createRoute({
   getParentRoute: () => applicantLayoutRoute,
   path: "/app/notifications",
   component: NotificationsPage,
+});
+
+export const applicantInvitationsRoute = createRoute({
+  getParentRoute: () => applicantLayoutRoute,
+  path: "/app/invitations",
+  beforeLoad: () => {
+    throw redirect({
+      to: "/app/applications",
+      search: { tab: "invitations" },
+    });
+  },
+  component: () => null,
 });
 
 // -------------------------------------------------------------
@@ -484,6 +524,7 @@ const routeTree = rootRoute.addChildren([
     applicantApplicationDetailRoute,
     applicantProfileRoute,
     applicantNotificationsRoute,
+    applicantInvitationsRoute,
   ]),
   taLayoutRoute.addChildren([
     taDashboardRoute,

@@ -141,6 +141,8 @@ export const JobsPage: React.FC = () => {
 
       {/* Filter Bar */}
       <SearchFilters
+        searchLabel="Search jobs"
+        searchPlaceholder="Search by job title, skill, or keyword (e.g. Backend, React, Electrician)..."
         searchValue={searchValue}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}

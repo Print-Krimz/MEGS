@@ -207,7 +207,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               leftIcon={<ExternalLink className="w-3.5 h-3.5" />}
               onClick={onOpenComplianceTab}
             >
-              View 201 Checklist (Tab)
+              View Requirements Checklist (Tab)
             </Button>
           </div>
         </div>
@@ -319,7 +319,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               leftIcon={<ExternalLink className="w-3.5 h-3.5" />}
               onClick={onOpenComplianceTab}
             >
-              View 201 Checklist (Tab)
+              View Requirements Checklist (Tab)
             </Button>
           </div>
         </div>

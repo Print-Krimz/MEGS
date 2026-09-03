@@ -3,11 +3,11 @@ import { Check, AlertCircle } from "lucide-react";
 import { ApplicationStatus } from "../../lib/types/enums";
 import { ApplicationStatusAudience, cn, getApplicationStatusPresentation } from "../../lib/utils";
 
-
 export interface PipelineIndicatorProps {
   currentStatus: string;
   audience?: ApplicationStatusAudience;
   className?: string;
+  hideTerminalAlert?: boolean;
 }
 
 const CANONICAL_STAGES = [
@@ -30,6 +30,7 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
   currentStatus,
   audience = "staff",
   className,
+  hideTerminalAlert = false,
 }) => {
   const isTerminal = TERMINAL_STATUSES.includes(currentStatus);
 
@@ -97,16 +98,24 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
               const isCompleted = activeIndex > idx;
               const isCurrent = activeIndex === idx && !isTerminal;
 
+              const circleClass = isCompleted
+                ? "bg-teal-700 border-teal-800 text-white"
+                : isCurrent
+                ? "bg-white border-teal-700 text-teal-800 ring-2 ring-teal-200 font-bold"
+                : "bg-white border-slate-400 text-slate-400";
+
+              const labelClass = isCurrent
+                ? "text-teal-900 font-bold"
+                : isCompleted
+                ? "text-slate-700 font-semibold"
+                : "text-slate-400";
+
               return (
                 <div key={stage.id} className="relative z-10 flex flex-col items-center group">
                   <div
                     className={cn(
                       "w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold border transition-all",
-                      isCompleted
-                        ? "bg-teal-700 border-teal-800 text-white"
-                        : isCurrent
-                        ? "bg-white border-teal-700 text-teal-800 ring-2 ring-teal-200 font-bold"
-                        : "bg-white border-slate-400 text-slate-400"
+                      circleClass
                     )}
                   >
                     {isCompleted ? (
@@ -116,16 +125,7 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
                     )}
                   </div>
 
-                  <span
-                    className={cn(
-                      "absolute top-8 text-xs whitespace-nowrap text-center",
-                      isCurrent
-                        ? "text-teal-900 font-bold"
-                        : isCompleted
-                        ? "text-slate-700 font-semibold"
-                        : "text-slate-400"
-                    )}
-                  >
+                  <span className={cn("absolute top-8 text-xs whitespace-nowrap text-center", labelClass)}>
                     {stage.label}
                   </span>
                 </div>
@@ -136,7 +136,7 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
       </div>
 
       {/* Terminal Status Alert banner if in non-linear state */}
-      {isTerminal && (
+      {isTerminal && !hideTerminalAlert && (
         <div className="mt-2 px-3.5 py-2 bg-amber-50 border border-amber-300 flex items-center gap-2 text-sm text-amber-900">
           <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
           <span>
@@ -147,4 +147,3 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
     </div>
   );
 };
-

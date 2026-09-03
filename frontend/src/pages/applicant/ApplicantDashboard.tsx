@@ -14,9 +14,11 @@ import { formatDate, getTimeBasedGreeting } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
 import {
   Briefcase,
-  CheckCircle2,
   AlertCircle,
+  Mail,
+  ArrowRight,
 } from "lucide-react";
+import { computeProfileHealth } from "../../lib/profile-health";
 
 export const ApplicantDashboard: React.FC = () => {
   const profileQuery = useQuery({
@@ -28,6 +30,14 @@ export const ApplicantDashboard: React.FC = () => {
   const applicationsQuery = useQuery({
     queryKey: ["applicant", "my-applications"],
     queryFn: applicantJobsApi.getMyApplications,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  const invitationsQuery = useQuery({
+    queryKey: ["applicant", "invitations"],
+    queryFn: applicantJobsApi.getMyInvitations,
+    refetchInterval: 10000,
   });
 
   const jobsQuery = useQuery({
@@ -67,8 +77,11 @@ export const ApplicantDashboard: React.FC = () => {
   }
 
   const profile = profileQuery.data || null;
-  const applications = applicationsQuery.data || [];
-  const openJobs = jobsQuery.data || [];
+  const applications = Array.isArray(applicationsQuery.data) ? applicationsQuery.data : [];
+  const openJobs = Array.isArray(jobsQuery.data) ? jobsQuery.data : [];
+
+  const allInvitations = Array.isArray(invitationsQuery.data) ? invitationsQuery.data : [];
+  const pendingInvitations = allInvitations.filter((inv) => inv.status === "PENDING");
 
   // Metrics computation
   const totalApps = applications.length;
@@ -89,12 +102,9 @@ export const ApplicantDashboard: React.FC = () => {
     (a) => a.status === ApplicationStatus.DEPLOYED
   ).length;
 
-  // Profile readiness checklist
-  const hasPersonalInfo = Boolean(profile?.firstName && profile?.lastName && profile?.mobileNumber);
-  const hasResume = Boolean(profile?.resumeUrl);
-  const hasPhoto = Boolean(profile?.photoUrl);
-  const readinessCount = [hasPersonalInfo, hasResume, hasPhoto].filter(Boolean).length;
-  const readinessPercent = Math.round((readinessCount / 3) * 100);
+  // Profile readiness computed via unified profile health engine
+  const profileHealth = computeProfileHealth(profile);
+  const readinessPercent = profileHealth.score;
 
   return (
     <div className="space-y-5">
@@ -107,7 +117,7 @@ export const ApplicantDashboard: React.FC = () => {
             <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
               Browse jobs
             </Link>
-            {readinessPercent === 100 && (
+            {readinessPercent >= 85 && (
               <Link to="/app/profile" className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
                 Update profile
               </Link>
@@ -116,57 +126,72 @@ export const ApplicantDashboard: React.FC = () => {
         }
       />
 
-      {/* Profile Readiness Banner */}
-      {readinessPercent < 100 && (
-        <div className="bg-amber-50 border-l-4 border-amber-600 border border-slate-300 p-4">
+      {/* Pending Job Invitations Alert Card */}
+      {pendingInvitations.length > 0 && (
+        <div className="bg-teal-50 border-l-4 border-teal-700 border border-teal-200 p-4 rounded-md shadow-xs">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-                <h3 className="text-base font-semibold text-amber-950">
-                  Complete your profile ({readinessPercent}%)
+                <Mail className="w-4 h-4 text-teal-800 shrink-0" />
+                <h3 className="text-base font-semibold text-teal-950">
+                  {pendingInvitations.length === 1
+                    ? `You received a job invitation for ${pendingInvitations[0].title}!`
+                    : `You have ${pendingInvitations.length} pending job invitations!`}
                 </h3>
               </div>
-                <p className="text-sm text-amber-800 leading-relaxed">
-                  Add the missing details so recruiters have the information they need when reviewing your applications.
-                </p>
+              <p className="text-sm text-teal-800 leading-relaxed">
+                Talent Acquisition matched your profile to open positions. Review details and submit your application with one click.
+              </p>
             </div>
-            <Link to="/app/profile" className="inline-flex min-h-11 shrink-0 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
-              Complete profile
+            <Link
+              to="/app/applications"
+              search={{ tab: "invitations" }}
+              className="inline-flex min-h-11 shrink-0 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+            >
+              Review Invitations ({pendingInvitations.length})
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Streamlined Profile Readiness Progress Card */}
+      {readinessPercent < 85 && (
+        <div className="bg-white border border-slate-200 p-4 rounded-lg shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-900">
+                Profile Strength:
+              </span>
+              <span className="text-xs font-bold font-sans text-teal-700">
+                {readinessPercent}%
+              </span>
+              <span className="inline-flex items-center px-1.5 py-0.5 bg-slate-100 border border-slate-300 text-[10px] font-mono font-bold uppercase text-slate-700 rounded-xs">
+                {profileHealth.tier}
+              </span>
+            </div>
+            <Link
+              to="/app/profile"
+              className="inline-flex items-center gap-1 min-h-11 px-2.5 py-1 text-xs font-medium text-teal-700 hover:text-teal-900 hover:bg-teal-50 rounded-md transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+            >
+              <span>Complete Profile</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 pt-3 border-t border-amber-200 text-xs">
-            <div className="flex items-center gap-2">
-              {hasPersonalInfo ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-              ) : (
-                <div className="w-3.5 h-3.5 border border-slate-400" />
-              )}
-              <span className={hasPersonalInfo ? "text-slate-900 font-medium" : "text-slate-500"}>
-                Personal Info
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {hasResume ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-              ) : (
-                <div className="w-3.5 h-3.5 border border-slate-400" />
-              )}
-              <span className={hasResume ? "text-slate-900 font-medium" : "text-slate-500"}>
-                Resume Uploaded
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {hasPhoto ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-              ) : (
-                <div className="w-3.5 h-3.5 border border-slate-400" />
-              )}
-              <span className={hasPhoto ? "text-slate-900 font-medium" : "text-slate-500"}>
-                Photo Attached
-              </span>
-            </div>
+          <div className="w-full bg-slate-100 h-1.5 border border-slate-200 overflow-hidden rounded-full my-2.5">
+            <div
+              className="h-full bg-teal-600 transition-all duration-300 rounded-full"
+              style={{ width: `${readinessPercent}%` }}
+              role="progressbar"
+              aria-valuenow={readinessPercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs text-slate-600">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span>{profileHealth.nextActionTip}</span>
           </div>
         </div>
       )}

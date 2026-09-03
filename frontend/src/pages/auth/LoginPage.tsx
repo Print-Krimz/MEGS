@@ -57,14 +57,15 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
-    // Safe internal redirect validation against open redirects
+    // Safe internal redirect validation against open redirects and landing page
     if (
       search?.redirect &&
       search.redirect.startsWith("/") &&
       !search.redirect.startsWith("//") &&
-      search.redirect !== "/login"
+      search.redirect !== "/login" &&
+      search.redirect !== "/"
     ) {
-      window.location.href = search.redirect;
+      navigate({ to: search.redirect as any });
       return;
     }
 

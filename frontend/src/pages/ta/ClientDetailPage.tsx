@@ -7,13 +7,14 @@ import {
   LoadingState,
   ErrorState,
 } from "../../components/common";
-import { Button, Dialog, Input } from "../../components/ui";
+import { Button, Dialog, Input, PhoneInput } from "../../components/ui";
 import { ComboBox } from "../../components/ui/ComboBox";
 import { formatDate } from "../../lib/utils";
 import {
   PHILIPPINE_REGIONS_AND_PROVINCES,
   getCitiesForProvince,
 } from "../../lib/geo-data";
+import { PHILIPPINE_INDUSTRY_SECTORS } from "../../lib/industry-data";
 import {
   ArrowLeft,
   Edit,
@@ -30,8 +31,10 @@ export const ClientDetailPage: React.FC = () => {
   const [editName, setEditName] = useState("");
   const [editTradeName, setEditTradeName] = useState("");
   const [editIndustry, setEditIndustry] = useState("");
-  const [editContactName, setEditContactName] = useState("");
+  const [editContactFirstName, setEditContactFirstName] = useState("");
+  const [editContactLastName, setEditContactLastName] = useState("");
   const [editContactEmail, setEditContactEmail] = useState("");
+  const [editEmailError, setEditEmailError] = useState<string | null>(null);
   const [editContactPhone, setEditContactPhone] = useState("");
   const [editStreet, setEditStreet] = useState("");
   const [editProvince, setEditProvince] = useState("");
@@ -78,8 +81,16 @@ export const ClientDetailPage: React.FC = () => {
       setEditName(client.name || "");
       setEditTradeName(client.tradeName || "");
       setEditIndustry(client.industry || "");
-      setEditContactName(client.contactName || "");
+      const nameParts = (client.contactName || "").trim().split(/\s+/);
+      if (nameParts.length <= 1) {
+        setEditContactFirstName(nameParts[0] || "");
+        setEditContactLastName("");
+      } else {
+        setEditContactFirstName(nameParts.slice(0, -1).join(" "));
+        setEditContactLastName(nameParts[nameParts.length - 1]);
+      }
       setEditContactEmail(client.contactEmail || "");
+      setEditEmailError(null);
       setEditContactPhone(client.contactPhone || "");
       setEditStreet(client.street || "");
       setEditProvince(client.province || "");
@@ -277,17 +288,23 @@ export const ClientDetailPage: React.FC = () => {
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (!editName.trim()) return;
+            if (editContactEmail.trim() && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(editContactEmail.trim())) {
+              setEditEmailError("Official contact email must be a valid @gmail.com address");
+              return;
+            }
+            const combinedName = [editContactFirstName.trim(), editContactLastName.trim()].filter(Boolean).join(" ");
             updateClientMutation.mutate({
-              name: editName,
-              tradeName: editTradeName || undefined,
-              industry: editIndustry || undefined,
-              contactName: editContactName || undefined,
-              contactEmail: editContactEmail || undefined,
-              contactPhone: editContactPhone || undefined,
-              street: editStreet || undefined,
-              province: editProvince || undefined,
-              city: editCity || undefined,
-              postalCode: editPostalCode || undefined,
+              name: editName.trim(),
+              tradeName: editTradeName.trim() || undefined,
+              industry: editIndustry.trim() || undefined,
+              contactName: combinedName || undefined,
+              contactEmail: editContactEmail.trim() || undefined,
+              contactPhone: editContactPhone.trim() || undefined,
+              street: editStreet.trim() || undefined,
+              province: editProvince.trim() || undefined,
+              city: editCity.trim() || undefined,
+              postalCode: editPostalCode.trim() || undefined,
             });
           }}
           className="space-y-4"
@@ -306,29 +323,47 @@ export const ClientDetailPage: React.FC = () => {
               onChange={(e) => setEditTradeName(e.target.value)}
             />
           </div>
-          <Input
+          <ComboBox
             label="Industry / Sector"
+            placeholder="Select or enter industry sector..."
             value={editIndustry}
-            onChange={(e) => setEditIndustry(e.target.value)}
+            onChange={(val) => setEditIndustry(val)}
+            options={PHILIPPINE_INDUSTRY_SECTORS.map((s) => ({ value: s, label: s }))}
+            allowCustom
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
-              label="Contact Person"
-              value={editContactName}
-              onChange={(e) => setEditContactName(e.target.value)}
+              label="Contact Person First Name"
+              placeholder="e.g. Roberto"
+              value={editContactFirstName}
+              onChange={(e) => setEditContactFirstName(e.target.value)}
             />
             <Input
-              label="Contact Phone"
-              value={editContactPhone}
-              onChange={(e) => setEditContactPhone(e.target.value)}
+              label="Contact Person Last Name"
+              placeholder="e.g. Tan"
+              value={editContactLastName}
+              onChange={(e) => setEditContactLastName(e.target.value)}
             />
           </div>
-          <Input
-            label="Official Contact Email"
-            type="email"
-            value={editContactEmail}
-            onChange={(e) => setEditContactEmail(e.target.value)}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <PhoneInput
+              label="Contact Phone"
+              placeholder="0917 123 4567"
+              value={editContactPhone}
+              onChange={setEditContactPhone}
+            />
+            <Input
+              label="Official Contact Email"
+              type="email"
+              placeholder="e.g. hr.acmecorp@gmail.com"
+              value={editContactEmail}
+              error={editEmailError || undefined}
+              onChange={(e) => {
+                setEditContactEmail(e.target.value);
+                if (editEmailError) setEditEmailError(null);
+              }}
+            />
+          </div>
 
           <div className="pt-2 border-t border-slate-100 space-y-3">
             <div className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">

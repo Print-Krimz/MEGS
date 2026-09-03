@@ -22,7 +22,7 @@ import {
   ArrowRight,
   Plus,
   ShieldCheck,
-  Sparkles,
+  Search,
   TrendingUp,
 } from "lucide-react";
 
@@ -121,7 +121,7 @@ export const TADashboard: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                leftIcon={<Sparkles className="w-3.5 h-3.5 text-teal-700" />}
+                leftIcon={<Users className="w-3.5 h-3.5 text-teal-700" />}
               >
                 Talent Pool
               </Button>
@@ -242,7 +242,7 @@ export const TADashboard: React.FC = () => {
             { label: "Screening", status: ApplicationStatus.INITIAL_SCREENING },
             { label: "Endorsement", status: ApplicationStatus.CLIENT_ENDORSEMENT },
             { label: "Final Interview", status: ApplicationStatus.FINAL_INTERVIEW },
-            { label: "201 Compliance", status: ApplicationStatus.COMPLIANCE },
+            { label: "Requirements", status: ApplicationStatus.COMPLIANCE },
             { label: "Deployed", status: ApplicationStatus.DEPLOYED },
           ].map((stage) => {
             const count = pipeline?.statusBreakdown?.[stage.status] || 0;
@@ -367,7 +367,7 @@ export const TADashboard: React.FC = () => {
               >
                 <div className="flex items-center gap-2.5">
                   <div className="w-6 h-6 bg-teal-100 border border-teal-300 text-teal-800 flex items-center justify-center">
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <Search className="w-3.5 h-3.5" />
                   </div>
                   <div>
                     <div className="text-xs font-bold text-slate-900 uppercase font-mono">
@@ -410,7 +410,7 @@ export const TADashboard: React.FC = () => {
                   </div>
                   <div>
                     <div className="text-xs font-bold font-mono text-slate-900 group-hover:text-amber-900 uppercase">
-                      201 Compliance Review
+                      Requirements Review
                     </div>
                     <div className="text-[10px] text-slate-500">Verify government clearances</div>
                   </div>

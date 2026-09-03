@@ -12,8 +12,6 @@ import { formatDate, formatDateTime } from "../../lib/utils";
 import { Role } from "../../lib/types/enums";
 import {
   Sliders,
-  Sparkles,
-  UserPlus,
   ArrowRight,
   BarChart3,
   Database,
@@ -128,11 +126,6 @@ export const AdminDashboard: React.FC = () => {
                 Reports
               </Button>
             </Link>
-            <Link to="/admin/users">
-              <Button variant="outline" size="sm" leftIcon={<UserPlus className="w-3.5 h-3.5" />}>
-                Add TA Specialist
-              </Button>
-            </Link>
             <Link to="/admin/scoring">
               <Button
                 variant="primary"
@@ -202,7 +195,7 @@ export const AdminDashboard: React.FC = () => {
         <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-teal-700" />
+              <Sliders className="w-4 h-4 text-teal-700" />
               <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
                 Candidate Matching Weights
               </h3>
@@ -223,7 +216,7 @@ export const AdminDashboard: React.FC = () => {
             { label: "Skills Match", key: "SKILLS", defaultVal: 30 },
             { label: "Experience Fit", key: "EXPERIENCE", defaultVal: 25 },
             { label: "Location Proximity", key: "LOCATION", defaultVal: 15 },
-            { label: "201 Compliance", key: "COMPLIANCE", defaultVal: 15 },
+            { label: "Requirements", key: "COMPLIANCE", defaultVal: 15 },
             { label: "Education & Certs", key: "EDUCATION_CERTIFICATIONS", defaultVal: 15 },
           ].map((dim) => {
             const val = weights[dim.key] !== undefined ? weights[dim.key] : dim.defaultVal;

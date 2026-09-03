@@ -6,3 +6,4 @@ export * from "./Textarea";
 export * from "./Dialog";
 export * from "./Badge";
 export * from "./ComboBox";
+export * from "./PhoneInput";

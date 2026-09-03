@@ -1,5 +1,6 @@
 import { api } from "./client";
 import type { JobPosting, Application } from "../types/application.types";
+import type { ApplicantJobInvitation, RespondInvitationDto } from "../types/applicant.types";
 
 export interface JobQueryFilters {
   search?: string;
@@ -74,4 +75,15 @@ export const applicantJobsApi = {
   // Remove a job bookmark
   unsaveJob: (jobId: number | string) =>
     api.delete<{ success: boolean }>(`/api/applicant-jobs/jobs/${jobId}/save`),
+
+  // Get job invitations for applicant
+  getMyInvitations: () =>
+    api.get<ApplicantJobInvitation[]>("/api/applicant-jobs/invitations"),
+
+  // Respond to a job invitation
+  respondToInvitation: (invitationId: number | string, body: RespondInvitationDto) =>
+    api.post<{ success: boolean; message: string; application?: Application; invitation: any }>(
+      `/api/applicant-jobs/invitations/${invitationId}/respond`,
+      body
+    ),
 };

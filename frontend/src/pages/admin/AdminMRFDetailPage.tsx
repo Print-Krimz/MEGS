@@ -255,7 +255,7 @@ export const AdminMRFDetailPage: React.FC = () => {
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
             <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-slate-700 uppercase border-b border-slate-100 pb-2">
               <ShieldCheck className="w-4 h-4 text-teal-600" />
-              <span>201 Compliance Templates</span>
+              <span>Requirements Templates</span>
             </div>
 
             {templates.length === 0 ? (

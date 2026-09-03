@@ -18,7 +18,6 @@ import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
 import {
   Users,
   UserCheck,
-  Sparkles,
   Building2,
   FileCheck2,
   Send,
@@ -190,7 +189,7 @@ export const AdminAnalyticsPage: React.FC = () => {
             {overview?.talentPoolCandidates ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
-            <Sparkles className="w-3 h-3 text-purple-700 shrink-0" />
+            <Users className="w-3 h-3 text-purple-700 shrink-0" />
             <span>Sourced & reactivatable</span>
           </div>
         </div>
@@ -212,14 +211,14 @@ export const AdminAnalyticsPage: React.FC = () => {
         {/* Candidates in Compliance */}
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-amber-800 uppercase tracking-wider">
-            In 201 Compliance
+            In Requirements
           </div>
           <div className="text-2xl font-bold font-mono text-amber-950 mt-0.5 tabular-nums">
             {overview?.candidatesInCompliance ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
             <FileCheck2 className="w-3 h-3 text-amber-700 shrink-0" />
-            <span>Pre-employment 201</span>
+            <span>Pre-employment requirements</span>
           </div>
         </div>
 

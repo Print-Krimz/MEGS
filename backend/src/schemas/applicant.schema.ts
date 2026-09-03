@@ -6,7 +6,20 @@ export const applicantSchema = {
       firstName: z.string().min(1, "First name is required").optional(),
       middleName: z.string().optional().nullable(),
       lastName: z.string().min(1, "Last name is required").optional(),
-      mobileNumber: z.string().optional().nullable(),
+      mobileNumber: z
+        .string()
+        .optional()
+        .nullable()
+        .refine(
+          (val) => {
+            if (!val || val.trim() === "") return true;
+            const digits = val.replace(/\D/g, "");
+            return digits.length >= 7 && digits.length <= 12;
+          },
+          {
+            message: "Mobile number must not exceed 11 digits",
+          }
+        ),
       gender: z.string().optional().nullable(),
       province: z.string().optional().nullable(),
       city: z.string().optional().nullable(),
@@ -26,7 +39,20 @@ export const applicantSchema = {
       professionalSummary: z.string().optional().nullable(),
       emergencyContactName: z.string().optional().nullable(),
       emergencyContactRelationship: z.string().optional().nullable(),
-      emergencyContactPhone: z.string().optional().nullable(),
+      emergencyContactPhone: z
+        .string()
+        .optional()
+        .nullable()
+        .refine(
+          (val) => {
+            if (!val || val.trim() === "") return true;
+            const digits = val.replace(/\D/g, "");
+            return digits.length >= 7 && digits.length <= 12;
+          },
+          {
+            message: "Emergency contact phone must not exceed 11 digits",
+          }
+        ),
       emergencyContactAddress: z.string().optional().nullable(),
       additionalNotes: z.string().optional().nullable(),
     }),
@@ -68,7 +94,20 @@ export const applicantSchema = {
     body: z.object({
       name: z.string().min(1, "Name is required"),
       relationship: z.string().min(1, "Relationship is required"),
-      phone: z.string().optional(),
+      phone: z
+        .string()
+        .optional()
+        .nullable()
+        .refine(
+          (val) => {
+            if (!val || val.trim() === "") return true;
+            const digits = val.replace(/\D/g, "");
+            return digits.length >= 7 && digits.length <= 12;
+          },
+          {
+            message: "Contact phone must not exceed 11 digits",
+          }
+        ),
       email: z.string().email("Invalid email format").optional().or(z.literal("")),
       notes: z.string().optional(),
     }),
@@ -85,7 +124,20 @@ export const applicantSchema = {
         firstName: z.string().optional(),
         middleName: z.string().optional().nullable(),
         lastName: z.string().optional(),
-        mobileNumber: z.string().optional().nullable(),
+        mobileNumber: z
+          .string()
+          .optional()
+          .nullable()
+          .refine(
+            (val) => {
+              if (!val || val.trim() === "") return true;
+              const digits = val.replace(/\D/g, "");
+              return digits.length >= 7 && digits.length <= 12;
+            },
+            {
+              message: "Mobile number must not exceed 11 digits",
+            }
+          ),
         gender: z.string().optional().nullable(),
         province: z.string().optional().nullable(),
         city: z.string().optional().nullable(),

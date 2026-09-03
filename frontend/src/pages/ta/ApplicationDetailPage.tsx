@@ -22,7 +22,9 @@ import {
 import type { Interview } from "../../lib/types/application.types";
 import {
   User,
-  Sparkles,
+  Award,
+  RefreshCw,
+  Users,
   FileText,
   Calendar,
   Building2,
@@ -184,8 +186,25 @@ export const ApplicationDetailPage: React.FC = () => {
     mutationFn: (data: { status: ApplicationStatus; reason?: string }) =>
       taApi.updateApplicationStatus(applicationId, data),
     onSuccess: (_, vars) => {
+      queryClient.setQueryData<any>(["ta", "application", applicationId], (old: any) =>
+        old ? { ...old, status: vars.status } : old
+      );
+      queryClient.setQueriesData<any>({ queryKey: ["ta", "applications"] }, (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old)) {
+          return old.map((item) => (String(item.id) === String(applicationId) ? { ...item, status: vars.status } : item));
+        }
+        if (Array.isArray(old.data)) {
+          return {
+            ...old,
+            data: old.data.map((item: any) => (String(item.id) === String(applicationId) ? { ...item, status: vars.status } : item)),
+          };
+        }
+        return old;
+      });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       const msg = `Candidate stage moved to ${getApplicationStatusMeta(vars.status).label}.`;
       setFeedback({
         type: "success",
@@ -207,9 +226,40 @@ export const ApplicationDetailPage: React.FC = () => {
     mutationFn: (data: { status: ApplicationStatus; reason: string }) =>
       taApi.updateApplicationStatus(applicationId, data),
     onSuccess: (_, vars) => {
+      queryClient.setQueryData<any>(["ta", "application", applicationId], (old: any) =>
+        old
+          ? {
+              ...old,
+              status: vars.status,
+              isArchived: vars.status === ApplicationStatus.ARCHIVED ? true : old.isArchived,
+            }
+          : old
+      );
+      queryClient.setQueriesData<any>({ queryKey: ["ta", "applications"] }, (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old)) {
+          return old.map((item) =>
+            String(item.id) === String(applicationId)
+              ? { ...item, status: vars.status, isArchived: vars.status === ApplicationStatus.ARCHIVED ? true : item.isArchived }
+              : item
+          );
+        }
+        if (Array.isArray(old.data)) {
+          return {
+            ...old,
+            data: old.data.map((item: any) =>
+              String(item.id) === String(applicationId)
+                ? { ...item, status: vars.status, isArchived: vars.status === ApplicationStatus.ARCHIVED ? true : item.isArchived }
+                : item
+            ),
+          };
+        }
+        return old;
+      });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       setRejectModalOpen(false);
       setRejectNotes("");
       const msg = `Candidate has been moved to ${getApplicationStatusMeta(vars.status).label}.`;
@@ -232,7 +282,18 @@ export const ApplicationDetailPage: React.FC = () => {
   const signContractMutation = useMutation({
     mutationFn: (data: { contractNotes?: string; contractDocumentUrl?: string }) =>
       taApi.signContract(applicationId, data),
-    onSuccess: () => {
+    onSuccess: (updatedApp: any, vars) => {
+      queryClient.setQueryData<any>(["ta", "application", applicationId], (old: any) =>
+        old
+          ? {
+              ...old,
+              contractSigned: true,
+              contractNotes: vars.contractNotes || old.contractNotes,
+              contractDocumentUrl: vars.contractDocumentUrl || old.contractDocumentUrl,
+              ...(updatedApp?.status ? { status: updatedApp.status } : {}),
+            }
+          : old
+      );
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
@@ -256,7 +317,18 @@ export const ApplicationDetailPage: React.FC = () => {
   const completeOrientationMutation = useMutation({
     mutationFn: (data: { orientationDate?: string; orientationNotes?: string }) =>
       taApi.completeOrientation(applicationId, data),
-    onSuccess: () => {
+    onSuccess: (updatedApp: any, vars) => {
+      queryClient.setQueryData<any>(["ta", "application", applicationId], (old: any) =>
+        old
+          ? {
+              ...old,
+              orientationCompleted: true,
+              orientationDate: vars.orientationDate || old.orientationDate,
+              orientationNotes: vars.orientationNotes || old.orientationNotes,
+              ...(updatedApp?.status ? { status: updatedApp.status } : {}),
+            }
+          : old
+      );
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
@@ -304,11 +376,65 @@ export const ApplicationDetailPage: React.FC = () => {
         });
       }
     },
-    onSuccess: (_, vars) => {
+    onSuccess: (updatedInterview: any, vars) => {
+      queryClient.setQueryData<any>(["ta", "application", applicationId], (old: any) => {
+        if (!old) return old;
+        const newStatus =
+          vars.result === "NO_SHOW"
+            ? ApplicationStatus.ARCHIVED
+            : vars.type === InterviewType.FINAL_INTERVIEW && vars.result === "PASS"
+            ? ApplicationStatus.COMPLIANCE
+            : old.status;
+        const existingInterviews = old.interviews || [];
+        const updatedInterviews = vars.interviewId
+          ? existingInterviews.map((i: any) =>
+              i.id === vars.interviewId
+                ? { ...i, result: vars.result, notes: vars.notes, conductedAt: vars.conductedAt || new Date().toISOString() }
+                : i
+            )
+          : updatedInterview
+          ? [updatedInterview, ...existingInterviews]
+          : existingInterviews;
+        return {
+          ...old,
+          status: newStatus,
+          isArchived: vars.result === "NO_SHOW" ? true : old.isArchived,
+          interviews: updatedInterviews,
+        };
+      });
+      queryClient.setQueriesData<any>({ queryKey: ["ta", "applications"] }, (old: any) => {
+        if (!old) return old;
+        const newStatus =
+          vars.result === "NO_SHOW"
+            ? ApplicationStatus.ARCHIVED
+            : vars.type === InterviewType.FINAL_INTERVIEW && vars.result === "PASS"
+            ? ApplicationStatus.COMPLIANCE
+            : undefined;
+        if (!newStatus) return old;
+        if (Array.isArray(old)) {
+          return old.map((item) =>
+            String(item.id) === String(applicationId)
+              ? { ...item, status: newStatus, isArchived: newStatus === ApplicationStatus.ARCHIVED ? true : item.isArchived }
+              : item
+          );
+        }
+        if (Array.isArray(old.data)) {
+          return {
+            ...old,
+            data: old.data.map((item: any) =>
+              String(item.id) === String(applicationId)
+                ? { ...item, status: newStatus, isArchived: newStatus === ApplicationStatus.ARCHIVED ? true : item.isArchived }
+                : item
+            ),
+          };
+        }
+        return old;
+      });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
       setInterviewOutcomeModalOpen(false);
       setSelectedInterviewForOutcome(null);
@@ -343,6 +469,7 @@ export const ApplicationDetailPage: React.FC = () => {
     },
   });
 
+
   const scheduleInterviewMutation = useMutation({
     mutationFn: (data: { type: InterviewType; scheduledAt: string; notes?: string }) =>
       taApi.scheduleInterview(applicationId, data),
@@ -368,10 +495,27 @@ export const ApplicationDetailPage: React.FC = () => {
     mutationFn: (data: { clientId: number; outcome?: "PENDING" | "APPROVED" | "DECLINED" | "ENDORSED"; notes?: string }) =>
       taApi.recordEndorsement(applicationId, data),
     onSuccess: () => {
+      queryClient.setQueryData<any>(["ta", "application", applicationId], (old: any) =>
+        old ? { ...old, status: ApplicationStatus.CLIENT_ENDORSEMENT } : old
+      );
+      queryClient.setQueriesData<any>({ queryKey: ["ta", "applications"] }, (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old)) {
+          return old.map((item) => (String(item.id) === String(applicationId) ? { ...item, status: ApplicationStatus.CLIENT_ENDORSEMENT } : item));
+        }
+        if (Array.isArray(old.data)) {
+          return {
+            ...old,
+            data: old.data.map((item: any) => (String(item.id) === String(applicationId) ? { ...item, status: ApplicationStatus.CLIENT_ENDORSEMENT } : item)),
+          };
+        }
+        return old;
+      });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       setEndorseOutcome("PENDING");
       setEndorseNotes("");
       setEndorseModalOpen(false);
@@ -401,11 +545,25 @@ export const ApplicationDetailPage: React.FC = () => {
         outcome: data.outcome,
         notes: data.notes,
       }),
-    onSuccess: (_, vars) => {
+    onSuccess: (_data: any, vars) => {
+      queryClient.setQueryData<any>(["ta", "application", applicationId], (old: any) => {
+        if (!old) return old;
+        const existingEndorsements = old.clientEndorsements || [];
+        const updated = existingEndorsements.map((e: any) =>
+          e.id === vars.endorsementId
+            ? { ...e, outcome: vars.outcome, notes: vars.notes }
+            : e
+        );
+        return {
+          ...old,
+          clientEndorsements: updated,
+        };
+      });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       setUpdateEndorsementModalOpen(false);
       setSelectedEndorsementId(null);
       setUpdateEndorsementNotes("");
@@ -492,8 +650,33 @@ export const ApplicationDetailPage: React.FC = () => {
       contractEnd?: string;
       notes?: string;
     }) => taApi.createDeployment(applicationId, data),
-    onSuccess: () => {
+    onSuccess: (createdDeployment: any) => {
+      queryClient.setQueryData<any>(["ta", "application", applicationId], (old: any) =>
+        old
+          ? {
+              ...old,
+              status: ApplicationStatus.DEPLOYED,
+              deployments: createdDeployment ? [createdDeployment, ...(old.deployments || [])] : old.deployments,
+            }
+          : old
+      );
+      queryClient.setQueriesData<any>({ queryKey: ["ta", "applications"] }, (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old)) {
+          return old.map((item) => (String(item.id) === String(applicationId) ? { ...item, status: ApplicationStatus.DEPLOYED } : item));
+        }
+        if (Array.isArray(old.data)) {
+          return {
+            ...old,
+            data: old.data.map((item: any) => (String(item.id) === String(applicationId) ? { ...item, status: ApplicationStatus.DEPLOYED } : item)),
+          };
+        }
+        return old;
+      });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       setDeployModalOpen(false);
       setDeployNotes("");
       const msg = "Workforce deployment successfully created and activated.";
@@ -552,8 +735,8 @@ export const ApplicationDetailPage: React.FC = () => {
     ? `${profile.firstName} ${profile.lastName}`
     : app.user?.email || "Candidate";
   const scores = app.candidateScores?.[0];
-  const decisions = decisionsQuery.data || [];
-  const clients = clientsQuery.data || [];
+  const decisions = Array.isArray(decisionsQuery.data) ? decisionsQuery.data : [];
+  const clients = Array.isArray(clientsQuery.data) ? clientsQuery.data : [];
 
   const latestEndorsement = (app.clientEndorsements && app.clientEndorsements.length > 0) ? app.clientEndorsements[0] : null;
 
@@ -644,14 +827,14 @@ export const ApplicationDetailPage: React.FC = () => {
 
   const tabs: { id: TabKey; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: "overview", label: "Candidate Profile", icon: User },
-    { id: "ai-score", label: "Candidate Assessment", icon: Sparkles },
+    { id: "ai-score", label: "Candidate Assessment", icon: Award },
     { id: "resume", label: "Resume & Documents", icon: FileText },
     { id: "interviews", label: `Interviews (${app.interviews?.length || 0})`, icon: Calendar },
     { id: "endorsements", label: `Endorsements (${app.clientEndorsements?.length || 0})`, icon: Building2 },
-    { id: "compliance", label: `201 Compliance (${app.complianceRequirements?.length || 0})`, icon: ShieldCheck },
+    { id: "compliance", label: `Requirements (${app.complianceRequirements?.length || 0})`, icon: ShieldCheck },
     { id: "timeline", label: `Decision Audit (${decisions.length})`, icon: History },
     { id: "hiring", label: "Personnel & Deployment", icon: Truck },
-    { id: "similar", label: "Similar in Pool", icon: Sparkles },
+    { id: "similar", label: "Similar in Pool", icon: Users },
   ];
 
   return (
@@ -675,7 +858,7 @@ export const ApplicationDetailPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              leftIcon={<Sparkles className="w-3.5 h-3.5 text-teal-600" />}
+              leftIcon={<RefreshCw className="w-3.5 h-3.5 text-teal-600" />}
               loading={analyzeMutation.isPending}
               onClick={() => analyzeMutation.mutate()}
             >
@@ -730,7 +913,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 Pipeline Status:
               </span>
               <StatusBadge status={app.status} size="sm" />
-              <ScoreBadge score={scores?.finalFitScore ?? app.aiScore} size="md" />
+              <ScoreBadge score={scores?.finalFitScore ?? app.candidateFitScore ?? app.aiScore} size="md" />
             </div>
             <div className="text-[11px] text-slate-500 font-mono">
               Submitted: {formatDate(app.createdAt)} • Email: {app.user?.email} • Phone: {profile?.mobileNumber || "N/A"}
@@ -933,7 +1116,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   });
                 }}
               >
-                Advance to 201 Compliance
+                Advance to Requirements
               </Button>
             )}
 
@@ -1161,7 +1344,7 @@ export const ApplicationDetailPage: React.FC = () => {
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-teal-600" />
+                    <Award className="w-4 h-4 text-teal-600" />
                     <h3 className="text-sm font-bold text-slate-900">
                       Candidate Suitability & Match Score
                     </h3>
@@ -1170,7 +1353,7 @@ export const ApplicationDetailPage: React.FC = () => {
                     Calculated based on candidate qualifications, work experience, location, and job requirements
                   </p>
                 </div>
-                <ScoreBadge score={scores?.finalFitScore ?? app.aiScore} size="lg" />
+                <ScoreBadge score={scores?.finalFitScore ?? app.candidateFitScore ?? app.aiScore} size="lg" />
               </div>
 
               {scores ? (
@@ -1207,16 +1390,14 @@ export const ApplicationDetailPage: React.FC = () => {
                 <div className="border border-slate-300 bg-white shadow-xs">
                   <div className="px-4 py-3 bg-teal-50 border-b border-slate-300 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-teal-800" />
+                      <FileCheck className="w-4 h-4 text-teal-800" />
                       <h4 className="text-xs font-bold font-mono text-teal-950 uppercase tracking-wide">
                         Candidate Assessment & Recommendation
                       </h4>
                     </div>
-                    {app.aiScore !== null && app.aiScore !== undefined && (
-                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 bg-white text-teal-950 border border-slate-300">
-                        Score: {app.aiScore}/100
-                      </span>
-                    )}
+                    <span className="text-[11px] font-mono font-semibold px-2 py-0.5 bg-white text-teal-900 border border-slate-300">
+                      AI Qualitative Analysis
+                    </span>
                   </div>
 
                   <div className="p-4 space-y-4 text-xs">
@@ -1288,7 +1469,7 @@ export const ApplicationDetailPage: React.FC = () => {
               <div className="border-b border-slate-100 pb-3">
                 <h3 className="text-sm font-bold text-slate-900">Curriculum Vitae & Document Vault</h3>
                 <p className="text-xs text-slate-500">
-                  Candidate resumes and uploaded 201 verification files
+                  Candidate resumes and uploaded requirements verification files
                 </p>
               </div>
 
@@ -1526,13 +1707,13 @@ export const ApplicationDetailPage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 6: 201 COMPLIANCE CHECKLIST */}
+          {/* TAB 6: REQUIREMENTS CHECKLIST */}
           {activeTab === "compliance" && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-900">Pre-Employment 201 Compliance Checklist</h3>
+                    <h3 className="text-sm font-bold text-slate-900">Pre-Employment Requirements Checklist</h3>
                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
                       Auto-Generated
                     </span>
@@ -1726,7 +1907,7 @@ export const ApplicationDetailPage: React.FC = () => {
                                 setReviewReqNotes(req.reviewNotes || "");
                               }}
                             >
-                              Manual Review
+                              Review
                             </Button>
                           </div>
                         )}
@@ -1842,7 +2023,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Similar Talent Pool Candidates</h3>
                   <p className="text-xs text-slate-500">
-                    Pre-screened and archived talent with matching skill and experience vector embeddings
+                    Pre-screened and archived talent with matching skills and qualifications
                   </p>
                 </div>
                 <Link to="/ta/talent-pool">
@@ -1858,12 +2039,12 @@ export const ApplicationDetailPage: React.FC = () => {
                 <ErrorState error={similarCandidatesQuery.error} onRetry={() => similarCandidatesQuery.refetch()} />
               ) : (similarCandidatesQuery.data || []).length === 0 ? (
                 <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                  <Sparkles className="w-6 h-6 text-teal-600 mx-auto" />
+                  <Users className="w-6 h-6 text-teal-600 mx-auto" />
                   <h4 className="text-xs font-mono font-bold uppercase text-slate-800">
                     No Similar Talent Pool Candidates Found
                   </h4>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    No other candidate profiles in the talent pool closely match this applicant's vector embeddings.
+                    No other candidate profiles in the talent pool closely match this applicant's profile and qualifications.
                   </p>
                 </div>
               ) : (
@@ -1895,7 +2076,7 @@ export const ApplicationDetailPage: React.FC = () => {
 
                             <div className="text-right">
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-50 text-teal-900 border border-teal-200 text-xs font-mono font-bold">
-                                <Sparkles className="w-3 h-3 text-teal-600" />
+                                <Users className="w-3 h-3 text-teal-600" />
                                 <span>{simPercent}% Match</span>
                               </span>
                             </div>
@@ -2248,14 +2429,14 @@ export const ApplicationDetailPage: React.FC = () => {
       <Dialog
         open={complianceModalOpen}
         onClose={() => setComplianceModalOpen(false)}
-        title="Add Custom Compliance Requirement"
-        description="Assign an exceptional or role-specific clearance not covered by the standard 201 checklist."
+        title="Add Custom Requirement"
+        description="Assign an exceptional or role-specific clearance not covered by the standard requirements checklist."
         overflowVisible
       >
         <div className="space-y-4">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
             <span className="text-slate-500 font-mono text-[10px] uppercase block">
-              Standard 201 Checklist Notice:
+              Standard Requirements Checklist Notice:
             </span>
             <p className="text-slate-600">
               Government IDs, NBI Clearance, Medical Exam, SSS, PhilHealth, Pag-IBIG, and Contracts are auto-generated. Use this form only for unique role/client requirements.
@@ -2301,7 +2482,7 @@ export const ApplicationDetailPage: React.FC = () => {
           <div className="space-y-1">
             <ComboBox
               label="Document Label / Requirement Name"
-              placeholder="Search standard 201 clearance or type custom name..."
+              placeholder="Search standard requirement or type custom name..."
               value={complianceDocLabel}
               onChange={(val) => setComplianceDocLabel(val || "")}
               options={COMPLIANCE_201_PRESETS.map((p) => ({
@@ -2715,7 +2896,7 @@ export const ApplicationDetailPage: React.FC = () => {
               { value: "Failed Final Interview", label: "Failed Final Technical / Client Interview" },
               { value: "Candidate Withdrew / Backout", label: "Candidate Withdrew Application / Backout" },
               { value: "Salary Expectation Unmet", label: "Salary / Compensation Expectation Mismatch" },
-              { value: "Failed Compliance Verification", label: "Failed 201 Compliance / Derogatory Record" },
+              { value: "Failed Compliance Verification", label: "Failed Requirements Verification / Derogatory Record" },
               { value: "Other / Discretionary", label: "Other Discretionary Reason" },
             ]}
           />

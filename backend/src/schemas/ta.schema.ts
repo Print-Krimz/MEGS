@@ -88,4 +88,89 @@ export const taSchema = {
       orientationNotes: z.string().optional(),
     }),
   }),
+  createClient: z.object({
+    body: z.object({
+      name: z.string().min(1, "Company name is required"),
+      tradeName: z.string().optional().nullable(),
+      industry: z.string().optional().nullable(),
+      contactName: z.string().optional().nullable(),
+      contactEmail: z
+        .string()
+        .email("Invalid email format")
+        .refine(
+          (val) => {
+            if (!val || val.trim() === "") return true;
+            return /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(val.trim());
+          },
+          {
+            message: "Official contact email must be a valid @gmail.com address",
+          }
+        )
+        .optional()
+        .nullable()
+        .or(z.literal("")),
+      contactPhone: z
+        .string()
+        .optional()
+        .nullable()
+        .refine(
+          (val) => {
+            if (!val || val.trim() === "") return true;
+            const digits = val.replace(/\D/g, "");
+            return digits.length >= 7 && digits.length <= 12;
+          },
+          {
+            message: "Contact phone must not exceed 11 digits",
+          }
+        ),
+      address: z.string().optional().nullable(),
+      street: z.string().optional().nullable(),
+      city: z.string().optional().nullable(),
+      province: z.string().optional().nullable(),
+      postalCode: z.string().optional().nullable(),
+    }),
+  }),
+  updateClient: z.object({
+    body: z.object({
+      name: z.string().min(1, "Company name is required").optional(),
+      tradeName: z.string().optional().nullable(),
+      industry: z.string().optional().nullable(),
+      contactName: z.string().optional().nullable(),
+      contactEmail: z
+        .string()
+        .email("Invalid email format")
+        .refine(
+          (val) => {
+            if (!val || val.trim() === "") return true;
+            return /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(val.trim());
+          },
+          {
+            message: "Official contact email must be a valid @gmail.com address",
+          }
+        )
+        .optional()
+        .nullable()
+        .or(z.literal("")),
+      contactPhone: z
+        .string()
+        .optional()
+        .nullable()
+        .refine(
+          (val) => {
+            if (!val || val.trim() === "") return true;
+            const digits = val.replace(/\D/g, "");
+            return digits.length >= 7 && digits.length <= 12;
+          },
+          {
+            message: "Contact phone must not exceed 11 digits",
+          }
+        ),
+      address: z.string().optional().nullable(),
+      street: z.string().optional().nullable(),
+      city: z.string().optional().nullable(),
+      province: z.string().optional().nullable(),
+      postalCode: z.string().optional().nullable(),
+      isActive: z.boolean().optional(),
+    }),
+  }),
 };

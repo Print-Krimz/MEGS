@@ -2,6 +2,8 @@ import prisma from '../../utils/prisma.js';
 import { JobStatus } from "@prisma/client";
 import { revalidateJobScoring } from "../scoring/scoring-configuration.service.js";
 import { logAudit } from "../../utils/audit.js";
+import { discoverTalentPoolForJob } from "../scoring/talent-pool-knn.service.js";
+import { sendNotification } from "../../utils/notification.js";
 
 export interface ListTAJobsOptions {
   status?: string;
@@ -74,6 +76,37 @@ export const listTAJobs = async (statusOrOptions?: string | ListTAJobsOptions) =
   });
 };
 
+export const triggerTalentPoolAutoDiscovery = async (jobId: number, postedById: string) => {
+  try {
+    const job = await prisma.jobPosting.findUnique({
+      where: { id: jobId },
+      select: { id: true, title: true, status: true, postedById: true },
+    });
+    if (!job || job.status !== "OPEN") return;
+
+    const targetRecruiterId = postedById || job.postedById;
+    const discovery = await discoverTalentPoolForJob(jobId, { k: 10 });
+    const qualifiedMatches = discovery.items.filter(
+      (item: any) => item.similarity >= 0.75 && item.candidate.availability === "AVAILABLE"
+    );
+
+    if (qualifiedMatches.length > 0) {
+      const topMatch = Math.round(qualifiedMatches[0].similarity * 100);
+      const count = qualifiedMatches.length;
+
+      await sendNotification(
+        targetRecruiterId,
+        "Talent Pool Candidates Matched",
+        `Found ${count} pre-screened candidate${count > 1 ? "s" : ""} in the Talent Pool matching "${job.title}" (${topMatch}% top match).`,
+        "INFO",
+        `/ta/jobs/${job.id}?tab=talentPool`
+      );
+    }
+  } catch (error) {
+    console.error(`[TalentPool Auto-Discovery] Discovery run failed for Job #${jobId}:`, error);
+  }
+};
+
 export const createTAJob = async (postedById: string, data: any) => {
   const { title, description, requirements, location, imageUrl, mrfId, status } = data;
 
@@ -104,6 +137,10 @@ export const createTAJob = async (postedById: string, data: any) => {
     status: job.status,
   });
 
+  if (job.status === "OPEN") {
+    void triggerTalentPoolAutoDiscovery(job.id, postedById);
+  }
+
   return job;
 };
 
@@ -128,6 +165,11 @@ export const getTAJob = async (jobId: number) => {
           aiScore: true,
           isArchived: true,
           createdAt: true,
+          candidateScores: {
+            orderBy: { calculatedAt: "desc" },
+            take: 1,
+            select: { finalFitScore: true, calculatedAt: true },
+          },
           user: {
             select: {
               id: true,
@@ -149,7 +191,14 @@ export const getTAJob = async (jobId: number) => {
   });
 
   if (!job) throw new Error("Job posting not found");
-  return job;
+
+  return {
+    ...job,
+    applications: job.applications.map((app) => ({
+      ...app,
+      candidateFitScore: app.candidateScores?.[0] ? Number(app.candidateScores[0].finalFitScore) : null,
+    })),
+  };
 };
 
 export const updateTAJob = async (jobId: number, data: any) => {
@@ -182,6 +231,10 @@ export const updateTAJob = async (jobId: number, data: any) => {
     status: updated.status,
   });
 
+  if (updated.status === "OPEN") {
+    void triggerTalentPoolAutoDiscovery(updated.id, existing.postedById);
+  }
+
   return updated;
 };
 
@@ -209,6 +262,10 @@ export const updateTAJobStatus = async (jobId: number, status: any) => {
     previousStatus: existing.status,
     status: updated.status,
   });
+
+  if (updated.status === "OPEN") {
+    void triggerTalentPoolAutoDiscovery(updated.id, existing.postedById);
+  }
 
   return updated;
 };

@@ -193,6 +193,15 @@ export const TalentPoolContactOutcome = {
 } as const;
 export type TalentPoolContactOutcome = (typeof TalentPoolContactOutcome)[keyof typeof TalentPoolContactOutcome];
 
+export const TalentPoolInvitationStatus = {
+  PENDING: "PENDING",
+  ACCEPTED: "ACCEPTED",
+  DECLINED: "DECLINED",
+  CANCELLED: "CANCELLED",
+  EXPIRED: "EXPIRED",
+} as const;
+export type TalentPoolInvitationStatus = (typeof TalentPoolInvitationStatus)[keyof typeof TalentPoolInvitationStatus];
+
 export const DocumentCategory = {
   RESUME: "RESUME",
   PHOTO: "PHOTO",

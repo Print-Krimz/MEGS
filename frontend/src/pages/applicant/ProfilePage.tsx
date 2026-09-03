@@ -14,7 +14,11 @@ import {
   Textarea,
   Dialog,
   Select,
+  PhoneInput,
 } from "../../components/ui";
+import { ProfileHealthMeter } from "../../components/applicant/ProfileHealthMeter";
+import { SkillsSection } from "../../components/applicant/SkillsSection";
+import { computeProfileHealth } from "../../lib/profile-health";
 import { formatDate, extractDocumentId } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
 import { computeAutoFillDiff } from "../../lib/resume-autofill";
@@ -28,6 +32,7 @@ import {
   FolderOpen,
   Plus,
   Trash2,
+  Pencil,
   Upload,
   CheckCircle2,
   FileCheck,
@@ -83,6 +88,7 @@ export const ProfilePage: React.FC = () => {
   });
 
   const profile = profileQuery.data;
+  const profileHealth = computeProfileHealth(profile);
 
   // Document Preview State
   const [previewDocState, setPreviewDocState] = useState<{
@@ -99,11 +105,20 @@ export const ProfilePage: React.FC = () => {
 
   const candidateInitials = `${profile?.firstName?.[0] || ""}${profile?.lastName?.[0] || ""}`.toUpperCase() || "AP";
 
-  // Dialog States
+  // Dialog & Editing States
   const [expModalOpen, setExpModalOpen] = useState(false);
+  const [editingExp, setEditingExp] = useState<any | null>(null);
+
   const [eduModalOpen, setEduModalOpen] = useState(false);
+  const [editingEdu, setEditingEdu] = useState<any | null>(null);
+
   const [trainingModalOpen, setTrainingModalOpen] = useState(false);
+  const [editingTraining, setEditingTraining] = useState<any | null>(null);
+
   const [refModalOpen, setRefModalOpen] = useState(false);
+  const [editingRef, setEditingRef] = useState<any | null>(null);
+  const [refPhone, setRefPhone] = useState("");
+
   const [assetModalOpen, setAssetModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
     type: "experience" | "education" | "training" | "reference" | "asset";
@@ -141,8 +156,7 @@ export const ProfilePage: React.FC = () => {
     additionalNotes: "",
   });
 
-  // Skills input state
-  const [skillInput, setSkillInput] = useState("");
+  // Skills state
   const [skillsList, setSkillsList] = useState<string[]>([]);
 
   // Auto-Fill & Extraction State
@@ -217,7 +231,6 @@ export const ProfilePage: React.FC = () => {
       if (data?.extractedData) {
         const diff = computeAutoFillDiff(personalForm, data.extractedData);
 
-        // Apply newly auto-filled personal fields
         setPersonalForm((prev) => ({
           ...prev,
           firstName: prev.firstName || data.profile?.firstName || data.extractedData?.firstName || "",
@@ -245,7 +258,6 @@ export const ProfilePage: React.FC = () => {
           return next;
         });
 
-        // Auto-populate skills list if extracted
         const extractedSkills = data.extractedData.skills;
         if (extractedSkills && extractedSkills.length > 0) {
           setSkillsList((prev) => {
@@ -289,14 +301,20 @@ export const ProfilePage: React.FC = () => {
   });
 
   const addExpMutation = useMutation({
-    mutationFn: applicantApi.addWorkExperience,
+    mutationFn: async (payload: { roleTitle: string; company: string; startDate: string; endDate?: string; isCurrent: boolean; summary?: string; previousId?: number | string }) => {
+      if (payload.previousId) {
+        await applicantApi.deleteWorkExperience(payload.previousId);
+      }
+      return applicantApi.addWorkExperience(payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setExpModalOpen(false);
-      setFeedback({ type: "success", message: "Work experience added successfully." });
+      setEditingExp(null);
+      setFeedback({ type: "success", message: "Work experience saved successfully." });
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: err?.message || "Failed to add work experience." });
+      setFeedback({ type: "error", message: err?.message || "Failed to save work experience." });
     },
   });
 
@@ -313,14 +331,20 @@ export const ProfilePage: React.FC = () => {
   });
 
   const addEduMutation = useMutation({
-    mutationFn: applicantApi.addEducation,
+    mutationFn: async (payload: { school: string; degree: string; fieldOfStudy: string; startDate: string; endDate?: string; notes?: string; previousId?: number | string }) => {
+      if (payload.previousId) {
+        await applicantApi.deleteEducation(payload.previousId);
+      }
+      return applicantApi.addEducation(payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setEduModalOpen(false);
-      setFeedback({ type: "success", message: "Education record added successfully." });
+      setEditingEdu(null);
+      setFeedback({ type: "success", message: "Education record saved successfully." });
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: err?.message || "Failed to add education record." });
+      setFeedback({ type: "error", message: err?.message || "Failed to save education record." });
     },
   });
 
@@ -348,14 +372,20 @@ export const ProfilePage: React.FC = () => {
   });
 
   const addTrainingMutation = useMutation({
-    mutationFn: applicantApi.addTraining,
+    mutationFn: async (payload: { title: string; provider: string; completionDate?: string; previousId?: number | string }) => {
+      if (payload.previousId) {
+        await applicantApi.deleteTraining(payload.previousId);
+      }
+      return applicantApi.addTraining(payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setTrainingModalOpen(false);
-      setFeedback({ type: "success", message: "Training certification added successfully." });
+      setEditingTraining(null);
+      setFeedback({ type: "success", message: "Training certification saved successfully." });
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: err?.message || "Failed to add training certification." });
+      setFeedback({ type: "error", message: err?.message || "Failed to save training certification." });
     },
   });
 
@@ -372,14 +402,20 @@ export const ProfilePage: React.FC = () => {
   });
 
   const addRefMutation = useMutation({
-    mutationFn: applicantApi.addReference,
+    mutationFn: async (payload: { name: string; relationship: string; phone: string; email?: string; previousId?: number | string }) => {
+      if (payload.previousId) {
+        await applicantApi.deleteReference(payload.previousId);
+      }
+      return applicantApi.addReference(payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setRefModalOpen(false);
-      setFeedback({ type: "success", message: "Character reference added successfully." });
+      setEditingRef(null);
+      setFeedback({ type: "success", message: "Character reference saved successfully." });
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: err?.message || "Failed to add character reference." });
+      setFeedback({ type: "error", message: err?.message || "Failed to save character reference." });
     },
   });
 
@@ -444,7 +480,7 @@ export const ProfilePage: React.FC = () => {
   }
 
   // Work experience form submit
-  const handleAddExp = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveExp = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     addExpMutation.mutate({
@@ -454,11 +490,12 @@ export const ProfilePage: React.FC = () => {
       endDate: (formData.get("endDate") as string) || undefined,
       isCurrent: formData.get("isCurrent") === "on",
       summary: (formData.get("responsibilities") as string) || undefined,
+      previousId: editingExp?.id,
     });
   };
 
   // Education form submit
-  const handleAddEdu = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveEdu = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     addEduMutation.mutate({
@@ -468,29 +505,32 @@ export const ProfilePage: React.FC = () => {
       startDate: (formData.get("startDate") as string) || new Date().toISOString(),
       endDate: (formData.get("endDate") as string) || undefined,
       notes: (formData.get("notes") as string) || undefined,
+      previousId: editingEdu?.id,
     });
   };
 
   // Training form submit
-  const handleAddTraining = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveTraining = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     addTrainingMutation.mutate({
       title: formData.get("title") as string,
       provider: formData.get("issuer") as string,
       completionDate: (formData.get("issueDate") as string) || undefined,
+      previousId: editingTraining?.id,
     });
   };
 
   // Reference form submit
-  const handleAddRef = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveRef = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     addRefMutation.mutate({
       name: formData.get("name") as string,
       relationship: formData.get("relationship") as string,
-      phone: formData.get("contactNumber") as string,
+      phone: refPhone,
       email: (formData.get("email") as string) || undefined,
+      previousId: editingRef?.id,
     });
   };
 
@@ -502,17 +542,16 @@ export const ProfilePage: React.FC = () => {
   };
 
   // Skills add / remove
-  const handleAddSkill = () => {
-    if (!skillInput.trim()) return;
-    if (skillsList.includes(skillInput.trim())) return;
-    const updated = [...skillsList, skillInput.trim()];
+  const handleAddSkill = (newSkill: string) => {
+    if (!newSkill.trim()) return;
+    if (skillsList.some((s) => s.toLowerCase() === newSkill.trim().toLowerCase())) return;
+    const updated = [...skillsList, newSkill.trim()];
     setSkillsList(updated);
-    setSkillInput("");
     updateSkillsMutation.mutate(updated);
   };
 
   const handleRemoveSkill = (skillToRemove: string) => {
-    const updated = skillsList.filter((s) => s !== skillToRemove);
+    const updated = skillsList.filter((s) => s.toLowerCase() !== skillToRemove.toLowerCase());
     setSkillsList(updated);
     updateSkillsMutation.mutate(updated);
   };
@@ -539,6 +578,12 @@ export const ProfilePage: React.FC = () => {
         ]}
       />
 
+      {/* Profile Completeness Health Bar (HCI Visibility of System Status) */}
+      <ProfileHealthMeter
+        profile={profile}
+        onJumpToTab={(tabId) => handleTabChange(tabId as ProfileTab)}
+      />
+
       {feedback && (
         <div
           className={`p-3 border-l-4 border text-xs font-mono flex items-center justify-between ${
@@ -552,7 +597,7 @@ export const ProfilePage: React.FC = () => {
           </div>
           <button
             onClick={() => setFeedback(null)}
-            className="text-slate-400 hover:text-slate-700 font-bold ml-4"
+            className="text-slate-400 hover:text-slate-700 font-bold ml-4 cursor-pointer"
           >
             ×
           </button>
@@ -560,29 +605,49 @@ export const ProfilePage: React.FC = () => {
       )}
 
       <div className="flex flex-col lg:flex-row gap-5">
-        {/* Navigation Sidebar */}
-        <div className="lg:w-60 shrink-0">
-          <div className="bg-white border border-slate-300 divide-y divide-slate-200">
+        {/* Navigation Sidebar with Completion Status Indicators */}
+        <div className="lg:w-64 shrink-0">
+          <div className="bg-white border border-slate-200 divide-y divide-slate-100 shadow-2xs">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
+              const status = profileHealth.tabStatuses[tab.id];
+
               return (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => handleTabChange(tab.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-mono uppercase tracking-wider transition-colors text-left ${
+                  className={`w-full flex items-center justify-between px-3.5 py-3 text-xs font-sans transition-colors text-left cursor-pointer ${
                     isActive
-                      ? "bg-slate-900 text-white font-bold"
+                      ? "bg-slate-900 text-white font-semibold"
                       : "text-slate-700 hover:text-slate-950 hover:bg-slate-50"
                   }`}
                 >
-                  <Icon
-                    className={`w-3.5 h-3.5 shrink-0 ${
-                      isActive ? "text-teal-400" : "text-slate-400"
-                    }`}
-                  />
-                  <span>{tab.label}</span>
+                  <div className="flex items-center gap-2.5 overflow-hidden">
+                    <Icon
+                      className={`w-4 h-4 shrink-0 ${
+                        isActive ? "text-teal-400" : "text-slate-400"
+                      }`}
+                    />
+                    <span className="truncate">{tab.label}</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                    {status?.isComplete ? (
+                      <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] ${
+                        isActive ? "bg-teal-900 text-teal-300" : "bg-teal-50 text-teal-700"
+                      }`}>
+                        ✓
+                      </span>
+                    ) : (
+                      <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] ${
+                        isActive ? "bg-amber-900 text-amber-300" : "bg-amber-50 text-amber-600"
+                      }`}>
+                        !
+                      </span>
+                    )}
+                  </div>
                 </button>
               );
             })}
@@ -590,14 +655,14 @@ export const ProfilePage: React.FC = () => {
         </div>
 
         {/* Tab Content Container */}
-        <div className="flex-1 bg-white border border-slate-300 p-5">
+        <div className="flex-1 bg-white border border-slate-200 p-6 shadow-2xs">
           {/* TAB 1: PERSONAL INFO */}
           {activeTab === "personal" && (
-            <div className="space-y-5">
-              <div className="border-b border-slate-200 pb-3">
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-950">Personal Information</h3>
-                <p className="text-[11px] text-slate-500 font-sans">
-                  Ensure contact details and full legal name match government-issued identification.
+            <div className="space-y-6">
+              <div className="border-b border-slate-100 pb-3">
+                <h3 className="text-base font-bold text-slate-900">Personal Information</h3>
+                <p className="text-xs text-slate-500">
+                  Ensure contact details and full legal name match your government-issued identification.
                 </p>
               </div>
 
@@ -650,13 +715,12 @@ export const ProfilePage: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Input
+                    <PhoneInput
                       label="Contact Number"
-                      placeholder="e.g. 09171234567"
                       value={personalForm.mobileNumber}
                       helperText={autoFilledFields.has("mobileNumber") ? "✓ Extracted from resume" : undefined}
-                      onChange={(e) => {
-                        setPersonalForm((prev) => ({ ...prev, mobileNumber: e.target.value }));
+                      onChange={(val) => {
+                        setPersonalForm((prev) => ({ ...prev, mobileNumber: val }));
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("mobileNumber"); return n; });
                       }}
                       required
@@ -673,7 +737,7 @@ export const ProfilePage: React.FC = () => {
                     />
                     <Input
                       label="Place of Birth"
-                      placeholder="e.g. Quezon City"
+                      placeholder="e.g. Quezon City, Rizal"
                       value={personalForm.birthPlace}
                       helperText={autoFilledFields.has("birthPlace") ? "✓ Extracted from resume" : undefined}
                       onChange={(e) => {
@@ -684,10 +748,10 @@ export const ProfilePage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 2. Demographics & Physical */}
+                {/* 2. Demographics & Background */}
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
-                    2. Demographics & Background
+                    2. Demographics & Placement Background
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <Select
@@ -735,7 +799,7 @@ export const ProfilePage: React.FC = () => {
                     />
                     <Input
                       label="Religion"
-                      placeholder="e.g. Roman Catholic"
+                      placeholder="e.g. Roman Catholic, Christian"
                       value={personalForm.religion}
                       helperText={autoFilledFields.has("religion") ? "✓ Extracted from resume" : undefined}
                       onChange={(e) => {
@@ -751,36 +815,48 @@ export const ProfilePage: React.FC = () => {
                       type="number"
                       placeholder="e.g. 170"
                       value={personalForm.height}
-                      helperText={autoFilledFields.has("height") ? "✓ Extracted from resume" : undefined}
-                      onChange={(e) => {
-                        setPersonalForm((prev) => ({ ...prev, height: e.target.value }));
-                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("height"); return n; });
-                      }}
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, height: e.target.value }))}
                     />
                     <Input
                       label="Weight (kg)"
                       type="number"
                       placeholder="e.g. 65"
                       value={personalForm.weight}
-                      helperText={autoFilledFields.has("weight") ? "✓ Extracted from resume" : undefined}
-                      onChange={(e) => {
-                        setPersonalForm((prev) => ({ ...prev, weight: e.target.value }));
-                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("weight"); return n; });
-                      }}
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, weight: e.target.value }))}
                     />
-                    <Input
-                      label="Preferred Work Locations"
-                      placeholder="e.g. Makati, Taguig, Ortigas, Remote"
-                      value={personalForm.preferredWorkLocations}
-                      helperText={autoFilledFields.has("preferredWorkLocations") ? "✓ Extracted from resume" : undefined}
-                      onChange={(e) => {
-                        setPersonalForm((prev) => ({
-                          ...prev,
-                          preferredWorkLocations: e.target.value,
-                        }));
-                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("preferredWorkLocations"); return n; });
-                      }}
-                    />
+                    <div className="space-y-1">
+                      <Input
+                        label="Preferred Work Locations"
+                        placeholder="e.g. Makati, Taguig, Ortigas, Remote"
+                        value={personalForm.preferredWorkLocations}
+                        onChange={(e) => {
+                          setPersonalForm((prev) => ({
+                            ...prev,
+                            preferredWorkLocations: e.target.value,
+                          }));
+                        }}
+                      />
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {["Metro Manila", "Rizal", "Cavite", "Laguna", "Remote / WFH"].map((loc) => (
+                          <button
+                            key={loc}
+                            type="button"
+                            onClick={() => {
+                              const current = personalForm.preferredWorkLocations;
+                              if (!current.includes(loc)) {
+                                setPersonalForm((prev) => ({
+                                  ...prev,
+                                  preferredWorkLocations: current ? `${current}, ${loc}` : loc,
+                                }));
+                              }
+                            }}
+                            className="text-[10px] px-1.5 py-0.5 bg-slate-100 hover:bg-teal-50 border border-slate-200 text-slate-600 hover:text-teal-900 transition-colors cursor-pointer"
+                          >
+                            + {loc}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -802,7 +878,7 @@ export const ProfilePage: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <Input
                       label="Province / Region"
-                      placeholder="e.g. Metro Manila"
+                      placeholder="e.g. Rizal, Metro Manila"
                       value={personalForm.province}
                       helperText={autoFilledFields.has("province") ? "✓ Extracted from resume" : undefined}
                       onChange={(e) => {
@@ -812,7 +888,7 @@ export const ProfilePage: React.FC = () => {
                     />
                     <Input
                       label="City / Municipality"
-                      placeholder="e.g. Quezon City"
+                      placeholder="e.g. Antipolo City, Quezon City"
                       value={personalForm.city}
                       helperText={autoFilledFields.has("city") ? "✓ Extracted from resume" : undefined}
                       onChange={(e) => {
@@ -854,33 +930,25 @@ export const ProfilePage: React.FC = () => {
                       label="SSS Number"
                       placeholder="e.g. 00-0000000-0"
                       value={personalForm.sss}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, sss: e.target.value }))
-                      }
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, sss: e.target.value }))}
                     />
                     <Input
                       label="PhilHealth Number"
                       placeholder="e.g. 00-000000000-0"
                       value={personalForm.philhealth}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, philhealth: e.target.value }))
-                      }
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, philhealth: e.target.value }))}
                     />
                     <Input
                       label="Pag-IBIG / HDMF Number"
                       placeholder="e.g. 0000-0000-0000"
                       value={personalForm.pagibig}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, pagibig: e.target.value }))
-                      }
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, pagibig: e.target.value }))}
                     />
                     <Input
                       label="TIN Number"
                       placeholder="e.g. 000-000-000-000"
                       value={personalForm.tin}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({ ...prev, tin: e.target.value }))
-                      }
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, tin: e.target.value }))}
                     />
                   </div>
                 </div>
@@ -895,47 +963,20 @@ export const ProfilePage: React.FC = () => {
                       label="Contact Full Name"
                       placeholder="Full Name"
                       value={personalForm.emergencyContactName}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({
-                          ...prev,
-                          emergencyContactName: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, emergencyContactName: e.target.value }))}
                     />
-                    <Input
+                    <PhoneInput
                       label="Contact Number"
-                      placeholder="e.g. 09181234567"
                       value={personalForm.emergencyContactPhone}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({
-                          ...prev,
-                          emergencyContactPhone: e.target.value,
-                        }))
-                      }
+                      onChange={(val) => setPersonalForm((prev) => ({ ...prev, emergencyContactPhone: val }))}
                     />
                     <Input
                       label="Relationship"
                       placeholder="e.g. Spouse / Parent / Sibling"
                       value={personalForm.emergencyContactRelationship}
-                      onChange={(e) =>
-                        setPersonalForm((prev) => ({
-                          ...prev,
-                          emergencyContactRelationship: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, emergencyContactRelationship: e.target.value }))}
                     />
                   </div>
-                  <Input
-                    label="Emergency Contact Residential Address"
-                    placeholder="Address of emergency contact person (optional)"
-                    value={personalForm.emergencyContactAddress}
-                    onChange={(e) =>
-                      setPersonalForm((prev) => ({
-                        ...prev,
-                        emergencyContactAddress: e.target.value,
-                      }))
-                    }
-                  />
                 </div>
 
                 {/* 7. Additional Notes */}
@@ -948,12 +989,7 @@ export const ProfilePage: React.FC = () => {
                     rows={2}
                     placeholder="Any special accommodations, schedule constraints, or additional remarks..."
                     value={personalForm.additionalNotes}
-                    onChange={(e) =>
-                      setPersonalForm((prev) => ({
-                        ...prev,
-                        additionalNotes: e.target.value,
-                      }))
-                    }
+                    onChange={(e) => setPersonalForm((prev) => ({ ...prev, additionalNotes: e.target.value }))}
                   />
                 </div>
 
@@ -973,35 +1009,35 @@ export const ProfilePage: React.FC = () => {
 
           {/* TAB 2: RESUME & PHOTO */}
           {activeTab === "documents" && (
-            <div className="space-y-5">
-              <div className="border-b border-slate-200 pb-3">
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-950">Resume & Identification Photo</h3>
-                <p className="text-[11px] text-slate-500 font-sans">
+            <div className="space-y-6">
+              <div className="border-b border-slate-100 pb-3">
+                <h3 className="text-base font-bold text-slate-900">Resume & Identification Photo</h3>
+                <p className="text-xs text-slate-500">
                   Upload latest curriculum vitae in PDF format and standard identity photo.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Resume Box */}
-                <div className="bg-slate-50 border border-slate-300 p-4 space-y-3">
+                <div className="bg-slate-50 border border-slate-200 p-4 space-y-3">
                   <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-900 uppercase">
-                    <FileText className="w-3.5 h-3.5 text-teal-700" />
+                    <FileText className="w-4 h-4 text-teal-700" />
                     <span>Resume (PDF)</span>
                   </div>
 
                   {profile?.resumeUrl ? (
-                    <div className="p-2.5 bg-white border border-slate-300 flex items-center justify-between">
+                    <div className="p-3 bg-white border border-slate-200 flex items-center justify-between">
                       <div className="flex items-center gap-2 overflow-hidden">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-700 shrink-0" />
-                        <span className="text-xs font-mono text-slate-800 truncate">
-                          Resume on file
+                        <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+                        <span className="text-xs font-sans font-medium text-slate-800 truncate">
+                          Active resume on file
                         </span>
                       </div>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="text-xs font-bold font-mono text-teal-800 uppercase hover:underline shrink-0 cursor-pointer"
+                        className="text-xs font-semibold text-teal-800 uppercase hover:underline shrink-0 cursor-pointer"
                         onClick={() =>
                           setPreviewDocState({
                             open: true,
@@ -1014,7 +1050,7 @@ export const ProfilePage: React.FC = () => {
                       </Button>
                     </div>
                   ) : (
-                    <div className="p-3 border border-dashed border-slate-300 text-center text-xs font-mono text-slate-500 bg-white">
+                    <div className="p-4 border border-dashed border-slate-300 text-center text-xs text-slate-500 bg-white">
                       No resume uploaded yet
                     </div>
                   )}
@@ -1058,9 +1094,9 @@ export const ProfilePage: React.FC = () => {
                 </div>
 
                 {/* Photo Box */}
-                <div className="bg-slate-50 border border-slate-300 p-4 space-y-3">
+                <div className="bg-slate-50 border border-slate-200 p-4 space-y-3">
                   <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-900 uppercase">
-                    <User className="w-3.5 h-3.5 text-teal-700" />
+                    <User className="w-4 h-4 text-teal-700" />
                     <span>Candidate Photo</span>
                   </div>
 
@@ -1070,20 +1106,20 @@ export const ProfilePage: React.FC = () => {
                         <img
                           src={profile.photoUrl}
                           alt="Profile avatar"
-                          className="w-14 h-14 object-cover border border-slate-400"
+                          className="w-14 h-14 object-cover border border-slate-300"
                           onError={() => setImgError(true)}
                         />
                       ) : (
-                        <div className="w-14 h-14 bg-slate-200 border border-slate-400 flex items-center justify-center font-bold text-slate-700 font-mono text-base">
+                        <div className="w-14 h-14 bg-slate-200 border border-slate-300 flex items-center justify-center font-bold text-slate-700 font-mono text-base">
                           {candidateInitials}
                         </div>
                       )}
-                      <div className="text-xs text-slate-700 font-mono">
+                      <div className="text-xs text-slate-700 font-sans font-medium">
                         Active identity photo on file
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3 border border-dashed border-slate-300 text-center text-xs font-mono text-slate-500 bg-white">
+                    <div className="p-4 border border-dashed border-slate-300 text-center text-xs text-slate-500 bg-white">
                       No photo attached
                     </div>
                   )}
@@ -1121,7 +1157,7 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 4: WORK EXPERIENCE */}
+          {/* TAB 3: WORK EXPERIENCE */}
           {activeTab === "experience" && (
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -1135,22 +1171,32 @@ export const ProfilePage: React.FC = () => {
                   variant="primary"
                   size="sm"
                   leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => setExpModalOpen(true)}
+                  onClick={() => {
+                    setEditingExp(null);
+                    setExpModalOpen(true);
+                  }}
                 >
                   Add Experience
                 </Button>
               </div>
 
               {!profile?.workExperiences || profile.workExperiences.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
+                <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
                   No work experience entries recorded. Click "Add Experience" to begin.
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
                   {profile.workExperiences.map((exp: any) => (
                     <div key={exp.id} className="py-4 flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="text-sm font-bold text-slate-900">{exp.roleTitle}</div>
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-slate-900">{exp.roleTitle}</span>
+                          {exp.isCurrent && (
+                            <span className="px-1.5 py-0.5 bg-teal-50 border border-teal-200 text-teal-800 text-[10px] font-mono font-bold uppercase">
+                              Present
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-slate-700 font-medium">
                           {exp.company}
                         </div>
@@ -1164,20 +1210,36 @@ export const ProfilePage: React.FC = () => {
                           </p>
                         )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setDeleteTarget({
-                            type: "experience",
-                            id: exp.id,
-                            label: `${exp.roleTitle} at ${exp.company}`,
-                          })
-                        }
-                        className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Edit ${exp.roleTitle}`}
+                          onClick={() => {
+                            setEditingExp(exp);
+                            setExpModalOpen(true);
+                          }}
+                          className="text-slate-600 hover:text-teal-700 hover:bg-slate-100"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Delete ${exp.roleTitle}`}
+                          onClick={() =>
+                            setDeleteTarget({
+                              type: "experience",
+                              id: exp.id,
+                              label: `${exp.roleTitle} at ${exp.company}`,
+                            })
+                          }
+                          className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1185,7 +1247,7 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 5: EDUCATION */}
+          {/* TAB 4: EDUCATION */}
           {activeTab === "education" && (
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -1199,21 +1261,24 @@ export const ProfilePage: React.FC = () => {
                   variant="primary"
                   size="sm"
                   leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => setEduModalOpen(true)}
+                  onClick={() => {
+                    setEditingEdu(null);
+                    setEduModalOpen(true);
+                  }}
                 >
                   Add Education
                 </Button>
               </div>
 
               {!profile?.educations || profile.educations.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
+                <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
                   No education entries recorded. Click "Add Education" to begin.
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
                   {profile.educations.map((edu: any) => (
                     <div key={edu.id} className="py-4 flex items-start justify-between gap-4">
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <div className="text-sm font-bold text-slate-900">{edu.degree}</div>
                         <div className="text-xs text-slate-700 font-medium">
                           {edu.school}
@@ -1224,20 +1289,36 @@ export const ProfilePage: React.FC = () => {
                           {edu.endDate && <span>to {formatDate(edu.endDate)}</span>}
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setDeleteTarget({
-                            type: "education",
-                            id: edu.id,
-                            label: `${edu.degree} from ${edu.school}`,
-                          })
-                        }
-                        className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Edit ${edu.degree}`}
+                          onClick={() => {
+                            setEditingEdu(edu);
+                            setEduModalOpen(true);
+                          }}
+                          className="text-slate-600 hover:text-teal-700 hover:bg-slate-100"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Delete ${edu.degree}`}
+                          onClick={() =>
+                            setDeleteTarget({
+                              type: "education",
+                              id: edu.id,
+                              label: `${edu.degree} from ${edu.school}`,
+                            })
+                          }
+                          className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1245,61 +1326,17 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 6: SKILLS */}
+          {/* TAB 5: SKILLS */}
           {activeTab === "skills" && (
-            <div className="space-y-6">
-              <div className="border-b border-slate-100 pb-4">
-                <h3 className="text-base font-bold text-slate-900">Technical & Practical Skills</h3>
-                <p className="text-xs text-slate-500">
-                  List skills and competencies used for job matching and placement.
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <Input
-                  placeholder="e.g. Forklift Operation, CCTV Monitoring, Python, Customer Care"
-                  value={skillInput}
-                  onChange={(e) => setSkillInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddSkill();
-                    }
-                  }}
-                  className="flex-1"
-                />
-                <Button variant="primary" size="md" onClick={handleAddSkill}>
-                  Add Skill
-                </Button>
-              </div>
-
-              <div className="flex flex-wrap gap-2 pt-2">
-                {skillsList.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-slate-400 w-full">
-                    No skills added yet. Type a skill name and press Enter.
-                  </div>
-                ) : (
-                  skillsList.map((skill) => (
-                    <span
-                      key={skill}
-                      className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 text-slate-900 border border-slate-300 font-mono text-[11px] font-bold uppercase"
-                    >
-                      <span>{skill}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSkill(skill)}
-                        className="hover:text-rose-700 focus:outline-none font-bold"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))
-                )}
-              </div>
-            </div>
+            <SkillsSection
+              skills={skillsList}
+              onAddSkill={handleAddSkill}
+              onRemoveSkill={handleRemoveSkill}
+              isUpdating={updateSkillsMutation.isPending}
+            />
           )}
 
-          {/* TAB 7: TRAININGS & CERTIFICATIONS */}
+          {/* TAB 6: TRAININGS & CERTIFICATIONS */}
           {activeTab === "trainings" && (
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -1315,41 +1352,60 @@ export const ProfilePage: React.FC = () => {
                   variant="primary"
                   size="sm"
                   leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => setTrainingModalOpen(true)}
+                  onClick={() => {
+                    setEditingTraining(null);
+                    setTrainingModalOpen(true);
+                  }}
                 >
                   Add Training
                 </Button>
               </div>
 
               {!profile?.trainings || profile.trainings.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
+                <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
                   No training records added. Click "Add Training" to record credentials.
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
                   {profile.trainings.map((t: any) => (
                     <div key={t.id} className="py-4 flex items-start justify-between gap-4">
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <div className="text-sm font-bold text-slate-900">{t.title}</div>
                         <div className="text-xs text-slate-700 font-medium">{t.provider}</div>
                         <div className="text-[11px] text-slate-500 font-mono">
                           {t.completionDate && <span>Completed: {formatDate(t.completionDate)}</span>}
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setDeleteTarget({
-                            type: "training",
-                            id: t.id,
-                            label: t.title,
-                          })
-                        }
-                        className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Edit ${t.title}`}
+                          onClick={() => {
+                            setEditingTraining(t);
+                            setTrainingModalOpen(true);
+                          }}
+                          className="text-slate-600 hover:text-teal-700 hover:bg-slate-100"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Delete ${t.title}`}
+                          onClick={() =>
+                            setDeleteTarget({
+                              type: "training",
+                              id: t.id,
+                              label: t.title,
+                            })
+                          }
+                          className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1357,7 +1413,7 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 8: CHARACTER REFERENCES */}
+          {/* TAB 7: CHARACTER REFERENCES */}
           {activeTab === "references" && (
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -1371,21 +1427,25 @@ export const ProfilePage: React.FC = () => {
                   variant="primary"
                   size="sm"
                   leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => setRefModalOpen(true)}
+                  onClick={() => {
+                    setEditingRef(null);
+                    setRefPhone("");
+                    setRefModalOpen(true);
+                  }}
                 >
                   Add Reference
                 </Button>
               </div>
 
               {!profile?.characterReferences || profile.characterReferences.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
+                <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
                   No references listed. Click "Add Reference" to record contacts.
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
                   {profile.characterReferences.map((r: any) => (
                     <div key={r.id} className="py-4 flex items-start justify-between gap-4">
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <div className="text-sm font-bold text-slate-900">{r.name}</div>
                         <div className="text-xs text-slate-700 font-medium">
                           {r.relationship}
@@ -1395,20 +1455,37 @@ export const ProfilePage: React.FC = () => {
                           {r.email && <span> • Email: {r.email}</span>}
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setDeleteTarget({
-                            type: "reference",
-                            id: r.id,
-                            label: r.name,
-                          })
-                        }
-                        className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Edit ${r.name}`}
+                          onClick={() => {
+                            setEditingRef(r);
+                            setRefPhone(r.phone || "");
+                            setRefModalOpen(true);
+                          }}
+                          className="text-slate-600 hover:text-teal-700 hover:bg-slate-100"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Delete ${r.name}`}
+                          onClick={() =>
+                            setDeleteTarget({
+                              type: "reference",
+                              id: r.id,
+                              label: r.name,
+                            })
+                          }
+                          className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1416,7 +1493,7 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 9: 201 CLEARANCES & ASSETS */}
+          {/* TAB 8: 201 CLEARANCES & ASSETS */}
           {activeTab === "assets" && (
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -1439,8 +1516,8 @@ export const ProfilePage: React.FC = () => {
               </div>
 
               {!profile?.assets || profile.assets.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  No 201 compliance documents uploaded. Click "Upload Document" to attach government clearances.
+                <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
+                  No requirements documents uploaded. Click "Upload Document" to attach government clearances.
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
@@ -1490,104 +1567,239 @@ export const ProfilePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Add Experience Modal */}
+      {/* Add / Edit Experience Modal */}
       <Dialog
         open={expModalOpen}
-        onClose={() => setExpModalOpen(false)}
-        title="Add Work Experience"
-        description="Record a previous employment role"
+        onClose={() => {
+          setExpModalOpen(false);
+          setEditingExp(null);
+        }}
+        title={editingExp ? "Edit Work Experience" : "Add Work Experience"}
+        description={editingExp ? "Update your employment details" : "Record a previous employment role"}
       >
-        <form onSubmit={handleAddExp} className="space-y-4">
-          <Input label="Job Title / Position" name="jobTitle" required />
-          <Input label="Company / Employer Name" name="companyName" required />
+        <form onSubmit={handleSaveExp} className="space-y-4">
+          <Input
+            label="Job Title / Position"
+            name="jobTitle"
+            defaultValue={editingExp?.roleTitle || ""}
+            required
+          />
+          <Input
+            label="Company / Employer Name"
+            name="companyName"
+            defaultValue={editingExp?.company || ""}
+            required
+          />
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Start Date" type="date" name="startDate" required />
-            <Input label="End Date" type="date" name="endDate" />
+            <Input
+              label="Start Date"
+              type="date"
+              name="startDate"
+              defaultValue={editingExp?.startDate ? editingExp.startDate.substring(0, 10) : ""}
+              required
+            />
+            <Input
+              label="End Date"
+              type="date"
+              name="endDate"
+              defaultValue={editingExp?.endDate ? editingExp.endDate.substring(0, 10) : ""}
+            />
           </div>
           <div className="flex items-center gap-2">
-            <input type="checkbox" id="isCurrent" name="isCurrent" className="rounded text-teal-600" />
+            <input
+              type="checkbox"
+              id="isCurrent"
+              name="isCurrent"
+              defaultChecked={Boolean(editingExp?.isCurrent)}
+              className="rounded text-teal-600"
+            />
             <label htmlFor="isCurrent" className="text-xs text-slate-700">
               I currently work in this position
             </label>
           </div>
-          <Textarea label="Responsibilities & Duties" name="responsibilities" rows={3} />
+          <Textarea
+            label="Responsibilities & Duties"
+            name="responsibilities"
+            defaultValue={editingExp?.summary || ""}
+            rows={3}
+          />
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setExpModalOpen(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setExpModalOpen(false);
+                setEditingExp(null);
+              }}
+            >
               Cancel
             </Button>
             <Button variant="primary" size="sm" type="submit" loading={addExpMutation.isPending}>
-              Save Experience
+              {editingExp ? "Save Changes" : "Save Experience"}
             </Button>
           </div>
         </form>
       </Dialog>
 
-      {/* Add Education Modal */}
+      {/* Add / Edit Education Modal */}
       <Dialog
         open={eduModalOpen}
-        onClose={() => setEduModalOpen(false)}
-        title="Add Educational Background"
-        description="Record a degree, diploma, or certificate"
+        onClose={() => {
+          setEduModalOpen(false);
+          setEditingEdu(null);
+        }}
+        title={editingEdu ? "Edit Educational Background" : "Add Educational Background"}
+        description={editingEdu ? "Update your degree or course details" : "Record a degree, diploma, or certificate"}
       >
-        <form onSubmit={handleAddEdu} className="space-y-4">
-          <Input label="School / Institution Name" name="schoolName" required />
-          <Input label="Degree / Course Level" name="degree" placeholder="e.g. High School Diploma, BS Nursing" required />
-          <Input label="Field of Study" name="fieldOfStudy" placeholder="e.g. General Sciences, Electrical" />
+        <form onSubmit={handleSaveEdu} className="space-y-4">
+          <Input
+            label="School / Institution Name"
+            name="schoolName"
+            defaultValue={editingEdu?.school || ""}
+            required
+          />
+          <Input
+            label="Degree / Course Level"
+            name="degree"
+            placeholder="e.g. High School Diploma, BS Nursing"
+            defaultValue={editingEdu?.degree || ""}
+            required
+          />
+          <Input
+            label="Field of Study"
+            name="fieldOfStudy"
+            placeholder="e.g. General Sciences, Electrical"
+            defaultValue={editingEdu?.fieldOfStudy || ""}
+          />
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Start Date" type="date" name="startDate" />
-            <Input label="End Date" type="date" name="endDate" />
+            <Input
+              label="Start Date"
+              type="date"
+              name="startDate"
+              defaultValue={editingEdu?.startDate ? editingEdu.startDate.substring(0, 10) : ""}
+            />
+            <Input
+              label="End Date"
+              type="date"
+              name="endDate"
+              defaultValue={editingEdu?.endDate ? editingEdu.endDate.substring(0, 10) : ""}
+            />
           </div>
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setEduModalOpen(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEduModalOpen(false);
+                setEditingEdu(null);
+              }}
+            >
               Cancel
             </Button>
             <Button variant="primary" size="sm" type="submit" loading={addEduMutation.isPending}>
-              Save Education
+              {editingEdu ? "Save Changes" : "Save Education"}
             </Button>
           </div>
         </form>
       </Dialog>
 
-      {/* Add Training Modal */}
+      {/* Add / Edit Training Modal */}
       <Dialog
         open={trainingModalOpen}
-        onClose={() => setTrainingModalOpen(false)}
-        title="Add Training or Certification"
-        description="Record industry credentials"
+        onClose={() => {
+          setTrainingModalOpen(false);
+          setEditingTraining(null);
+        }}
+        title={editingTraining ? "Edit Training or Certification" : "Add Training or Certification"}
+        description={editingTraining ? "Update credential records" : "Record industry credentials"}
       >
-        <form onSubmit={handleAddTraining} className="space-y-4">
-          <Input label="Certificate / Course Title" name="title" required />
-          <Input label="Issuing Organization" name="issuer" placeholder="e.g. TESDA, Red Cross, DOLE" required />
-          <Input label="Completion Date" type="date" name="issueDate" />
+        <form onSubmit={handleSaveTraining} className="space-y-4">
+          <Input
+            label="Certificate / Course Title"
+            name="title"
+            defaultValue={editingTraining?.title || ""}
+            required
+          />
+          <Input
+            label="Issuing Organization"
+            name="issuer"
+            placeholder="e.g. TESDA, Red Cross, DOLE"
+            defaultValue={editingTraining?.provider || ""}
+            required
+          />
+          <Input
+            label="Completion Date"
+            type="date"
+            name="issueDate"
+            defaultValue={editingTraining?.completionDate ? editingTraining.completionDate.substring(0, 10) : ""}
+          />
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setTrainingModalOpen(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setTrainingModalOpen(false);
+                setEditingTraining(null);
+              }}
+            >
               Cancel
             </Button>
             <Button variant="primary" size="sm" type="submit" loading={addTrainingMutation.isPending}>
-              Save Training
+              {editingTraining ? "Save Changes" : "Save Training"}
             </Button>
           </div>
         </form>
       </Dialog>
 
-      {/* Add Reference Modal */}
+      {/* Add / Edit Reference Modal */}
       <Dialog
         open={refModalOpen}
-        onClose={() => setRefModalOpen(false)}
-        title="Add Character Reference"
-        description="Record a professional or personal contact"
+        onClose={() => {
+          setRefModalOpen(false);
+          setEditingRef(null);
+        }}
+        title={editingRef ? "Edit Character Reference" : "Add Character Reference"}
+        description={editingRef ? "Update contact information" : "Record a professional or personal contact"}
       >
-        <form onSubmit={handleAddRef} className="space-y-4">
-          <Input label="Contact Full Name" name="name" required />
-          <Input label="Relationship / Title" name="relationship" placeholder="e.g. Former Supervisor" required />
-          <Input label="Contact Phone Number" name="contactNumber" required />
-          <Input label="Email Address" type="email" name="email" />
+        <form onSubmit={handleSaveRef} className="space-y-4">
+          <Input
+            label="Contact Full Name"
+            name="name"
+            defaultValue={editingRef?.name || ""}
+            required
+          />
+          <Input
+            label="Relationship / Title"
+            name="relationship"
+            placeholder="e.g. Former Supervisor"
+            defaultValue={editingRef?.relationship || ""}
+            required
+          />
+          <PhoneInput
+            label="Contact Phone Number"
+            value={refPhone}
+            onChange={setRefPhone}
+            required
+          />
+          <Input
+            label="Email Address"
+            type="email"
+            name="email"
+            defaultValue={editingRef?.email || ""}
+          />
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setRefModalOpen(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setRefModalOpen(false);
+                setEditingRef(null);
+              }}
+            >
               Cancel
             </Button>
             <Button variant="primary" size="sm" type="submit" loading={addRefMutation.isPending}>
-              Save Reference
+              {editingRef ? "Save Changes" : "Save Reference"}
             </Button>
           </div>
         </form>

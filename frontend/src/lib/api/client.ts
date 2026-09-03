@@ -72,7 +72,12 @@ export async function apiRequest<T>(
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
         if (!window.location.pathname.startsWith("/login")) {
-          window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+          const currentPath = window.location.pathname;
+          const redirectParam =
+            currentPath && currentPath !== "/"
+              ? `?redirect=${encodeURIComponent(currentPath + window.location.search)}`
+              : "";
+          window.location.href = `/login${redirectParam}`;
         }
       }
 
@@ -120,7 +125,12 @@ export async function apiRequestBlob(
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
       if (!window.location.pathname.startsWith("/login")) {
-        window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+        const currentPath = window.location.pathname;
+        const redirectParam =
+          currentPath && currentPath !== "/"
+            ? `?redirect=${encodeURIComponent(currentPath + window.location.search)}`
+            : "";
+        window.location.href = `/login${redirectParam}`;
       }
       throw new ApiError(401, "Session expired. Please log in again.");
     }

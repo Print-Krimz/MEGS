@@ -71,8 +71,23 @@ export const ApplicationsPage: React.FC = () => {
   const archiveMutation = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
       taApi.archiveApplication(id, { reason }),
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
+      queryClient.setQueriesData<any>({ queryKey: ["ta", "applications"] }, (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old)) {
+          return old.map((item) => (item.id === vars.id ? { ...item, isArchived: true, status: ApplicationStatus.ARCHIVED } : item));
+        }
+        if (Array.isArray(old.data)) {
+          return {
+            ...old,
+            data: old.data.map((item: any) => (item.id === vars.id ? { ...item, isArchived: true, status: ApplicationStatus.ARCHIVED } : item)),
+          };
+        }
+        return old;
+      });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", String(vars.id)] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       setArchiveModalApp(null);
       setArchiveReason("");
       const msg = "Application archived successfully.";
@@ -88,8 +103,23 @@ export const ApplicationsPage: React.FC = () => {
   const restoreMutation = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
       taApi.restoreApplication(id, { reason }),
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
+      queryClient.setQueriesData<any>({ queryKey: ["ta", "applications"] }, (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old)) {
+          return old.map((item) => (item.id === vars.id ? { ...item, isArchived: false, status: ApplicationStatus.SUBMITTED } : item));
+        }
+        if (Array.isArray(old.data)) {
+          return {
+            ...old,
+            data: old.data.map((item: any) => (item.id === vars.id ? { ...item, isArchived: false, status: ApplicationStatus.SUBMITTED } : item)),
+          };
+        }
+        return old;
+      });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", String(vars.id)] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       setArchiveModalApp(null);
       setArchiveReason("");
       const msg = "Application restored to pipeline.";

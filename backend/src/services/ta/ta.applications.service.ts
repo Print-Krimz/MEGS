@@ -168,26 +168,38 @@ export const listTAApplications = async (
             },
           },
         },
-        ...(configuration ? {
-          candidateScores: {
-            where: { configurationId: configuration.id, status: "CALCULATED" },
-            orderBy: { calculatedAt: "desc" },
-            select: { jobPostingId: true, finalFitScore: true, calculatedAt: true },
-          },
-        } : {}),
+        candidateScores: {
+          orderBy: { calculatedAt: "desc" },
+          take: 1,
+          select: { id: true, jobPostingId: true, configurationId: true, status: true, finalFitScore: true, calculatedAt: true },
+        },
       },
     }),
   ]);
 
-  const formatted = configuration
-    ? applications
-        .map((application) => {
-          const score = application.candidateScores?.find((candidateScore) => candidateScore.jobPostingId === application.jobPosting.id) ?? null;
-          const { candidateScores, ...rest } = application;
-          return { ...rest, candidateFitScore: score ? Number(score.finalFitScore) : null, candidateFitScoreCalculatedAt: score?.calculatedAt ?? null, candidateScoringConfigurationVersion: configuration.version };
-        })
-        .sort((left, right) => (right.candidateFitScore ?? -1) - (left.candidateFitScore ?? -1) || right.createdAt.getTime() - left.createdAt.getTime())
-    : applications;
+  const formatted = applications
+    .map((application) => {
+      const activeScore = configuration
+        ? application.candidateScores?.find((cs) => cs.jobPostingId === application.jobPosting.id && cs.configurationId === configuration.id && cs.status === "CALCULATED")
+        : null;
+      const latestScore = activeScore ?? application.candidateScores?.[0] ?? null;
+      const candidateFitScore = latestScore ? Number(latestScore.finalFitScore) : null;
+      const candidateFitScoreCalculatedAt = latestScore?.calculatedAt ?? null;
+      const { candidateScores, ...rest } = application;
+      return {
+        ...rest,
+        candidateFitScore,
+        candidateFitScoreCalculatedAt,
+        candidateScoringConfigurationVersion: configuration?.version ?? null,
+        candidateScores: latestScore ? [{ finalFitScore: candidateFitScore, calculatedAt: candidateFitScoreCalculatedAt }] : [],
+      };
+    })
+    .sort((left, right) => {
+      if (dynamicScoring) {
+        return (right.candidateFitScore ?? -1) - (left.candidateFitScore ?? -1) || right.createdAt.getTime() - left.createdAt.getTime();
+      }
+      return (right.candidateFitScore ?? right.aiScore ?? -1) - (left.candidateFitScore ?? left.aiScore ?? -1) || right.createdAt.getTime() - left.createdAt.getTime();
+    });
 
   return {
     data: formatted,

@@ -1,4 +1,4 @@
-import type { AssetVerificationState } from "./enums";
+import type { AssetVerificationState, JobStatus, TalentPoolInvitationStatus } from "./enums";
 
 export interface WorkExperience {
   id: number;
@@ -278,6 +278,30 @@ export interface ApplyExtractedProfileDto {
   skills?: string[];
   trainings?: ExtractedProfileTraining[];
   characterReferences?: ExtractedProfileReference[];
+}
+
+export interface ApplicantJobInvitation {
+  id: number;
+  jobPostingId: number;
+  title: string;
+  location?: string | null;
+  description: string;
+  requirements: string;
+  imageUrl?: string | null;
+  jobStatus: JobStatus;
+  status: TalentPoolInvitationStatus;
+  message?: string | null;
+  declineReason?: string | null;
+  expiresAt?: string | null;
+  respondedAt?: string | null;
+  createdAt: string;
+  invitedBy?: string;
+}
+
+export interface RespondInvitationDto {
+  decision: "ACCEPT" | "DECLINE";
+  declineReason?: "SALARY_MISMATCH" | "UNAVAILABLE_EMPLOYED" | "LOCATION_COMMUTE" | "NOT_INTERESTED" | "OTHER";
+  notes?: string;
 }
 
 

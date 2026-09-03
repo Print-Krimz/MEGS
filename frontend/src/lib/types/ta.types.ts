@@ -4,6 +4,7 @@ import type {
   InterviewType,
   JobStatus,
   TalentPoolContactOutcome,
+  TalentPoolInvitationStatus,
   TalentPoolStatus,
 } from "./enums";
 import type { ApplicantProfile } from "./applicant.types";
@@ -203,6 +204,41 @@ export interface ConsiderForJobResult {
   application: any;
   contact: TalentPoolContact;
   score?: any;
+}
+
+export interface TalentPoolInvitationRecord {
+  id: number;
+  membershipId: number;
+  jobPostingId: number;
+  jobPostingTitle: string;
+  jobPostingLocation?: string | null;
+  jobPostingStatus: JobStatus;
+  candidateId: string;
+  applicantProfileId: number;
+  candidateName: string;
+  candidateEmail: string;
+  status: TalentPoolInvitationStatus;
+  message?: string | null;
+  declineReason?: string | null;
+  responseNotes?: string | null;
+  expiresAt?: string | null;
+  respondedAt?: string | null;
+  createdAt: string;
+  invitedBy?: string;
+}
+
+export interface SendTalentPoolInvitationDto {
+  applicantProfileId: number;
+  targetJobId: number;
+  message?: string;
+  expiresInDays?: number;
+}
+
+export interface BatchSendTalentPoolInvitationsDto {
+  applicantProfileIds: number[];
+  targetJobId: number;
+  message?: string;
+  expiresInDays?: number;
 }
 
 export interface HireCandidateDto {

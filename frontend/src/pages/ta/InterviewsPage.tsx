@@ -63,6 +63,9 @@ export const InterviewsPage: React.FC = () => {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", String(vars.applicationId)] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["applicant"] });
       setResultModalOpen(false);
       setTargetInterview(null);
       setResultNotes("");

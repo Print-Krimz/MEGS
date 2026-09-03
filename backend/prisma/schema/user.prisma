@@ -41,6 +41,7 @@ model User {
   deploymentStatusHistory DeploymentStatusHistory[] @relation("DeploymentHistoryActor")
   talentPoolMembershipsAdded TalentPoolMembership[] @relation("PoolAddedBy")
   talentPoolContacts TalentPoolContact[] @relation("ContactRecruiter")
+  sentTalentPoolInvitations TalentPoolInvitation[] @relation("InvitationRecruiter")
   employee Employee? @relation("UserEmployee")
   employmentEventsCreated EmploymentEvent[] @relation("EmploymentEventActor")
   mfaRecoveryCodes UserMfaRecoveryCode[]

@@ -11,7 +11,6 @@ import { Button, Dialog, Input } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
 import {
   Sliders,
-  Sparkles,
   RotateCcw,
   CheckCircle2,
   AlertTriangle,
@@ -283,7 +282,7 @@ export const ScoringConfigPage: React.FC = () => {
         {/* 5 Dimension Sliders */}
         <div className="bg-white border border-slate-300">
           <div className="p-3 border-b border-slate-300 flex items-center gap-2 bg-slate-100">
-            <Sparkles className="w-4 h-4 text-teal-700" />
+            <Sliders className="w-4 h-4 text-teal-700" />
             <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-900">
               Evaluation Criteria Weights
             </h3>
@@ -350,10 +349,10 @@ export const ScoringConfigPage: React.FC = () => {
               </p>
             </div>
 
-            {/* 4. 201 Compliance */}
+            {/* 4. Requirements */}
             <div className="space-y-1.5 pt-3 border-t border-slate-200">
               <div className="flex justify-between text-xs">
-                <span className="font-bold text-slate-950 uppercase font-mono">4. Pre-Employment 201 Readiness</span>
+                <span className="font-bold text-slate-950 uppercase font-mono">4. Pre-Employment Requirements Readiness</span>
                 <span className="font-mono font-bold text-teal-900 tabular-nums">{complianceWeight}%</span>
               </div>
               <input

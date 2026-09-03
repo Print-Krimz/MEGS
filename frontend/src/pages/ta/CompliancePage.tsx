@@ -70,7 +70,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   if (complianceAnalyticsQuery.isLoading) {
     return (
       <div className="space-y-6">
-        {!hideHeader && <PageHeader title="201 Compliance Tracking" description="Loading compliance statistics..." />}
+        {!hideHeader && <PageHeader title="Requirements Tracking" description="Loading requirements statistics..." />}
         <LoadingState variant="table" rows={6} />
       </div>
     );
@@ -79,7 +79,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   if (complianceAnalyticsQuery.isError) {
     return (
       <div className="space-y-6">
-        {!hideHeader && <PageHeader title="201 Compliance Tracking" description="Pre-employment verification" />}
+        {!hideHeader && <PageHeader title="Requirements Tracking" description="Pre-employment verification" />}
         <ErrorState
           error={complianceAnalyticsQuery.error}
           onRetry={() => complianceAnalyticsQuery.refetch()}
@@ -99,11 +99,11 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     <div className="space-y-6">
       {!hideHeader && (
         <PageHeader
-          title="Employment documents (201)"
+          title="Requirements Documents"
           description="Verify government clearances (NBI, SSS, PhilHealth, Pag-IBIG, Medical) prior to field site deployment"
           breadcrumbs={[
             { label: "TA Portal", href: "/ta" },
-            { label: "Compliance Tracking" },
+            { label: "Requirements Tracking" },
           ]}
         />
       )}
@@ -197,7 +197,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
           <div>
             <h3 className="text-sm font-bold text-slate-900 font-mono uppercase">
-              Operational 201 Clearance Verification Queue
+              Operational Requirements Verification Queue
             </h3>
             <p className="text-xs text-slate-500 font-sans mt-0.5">
               Active candidates undergoing pre-employment documentation
@@ -267,7 +267,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                           params={{ applicationId: String(app.id) }}
                         >
                           <Button variant="outline" size="sm">
-                            Review 201 Checklist →
+                            Review Requirements Checklist →
                           </Button>
                         </Link>
                       </td>

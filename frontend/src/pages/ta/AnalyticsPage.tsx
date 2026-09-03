@@ -224,7 +224,7 @@ export const AnalyticsPage: React.FC = () => {
         {/* Awaiting Compliance */}
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase tracking-wider">
-            201 Compliance
+            Requirements
           </div>
           <div className="text-2xl font-bold font-mono text-emerald-950 mt-0.5 tabular-nums">
             {overview?.awaitingCompliance ?? 0}

@@ -823,7 +823,7 @@ export function getAuditExplanation(log: AuditLog): {
         whyItMatters: "Stage advancements trigger candidate status updates and gate pre-employment workflows.",
         recommendedAction:
           to === "Compliance"
-            ? "Ensure candidate uploads mandatory 201 compliance documents before deployment."
+            ? "Ensure candidate uploads mandatory requirements documents before deployment."
             : to === "Hired"
             ? "Proceed with orientation scheduling and contract signing."
             : "Review candidate evaluation records before scheduling next steps.",

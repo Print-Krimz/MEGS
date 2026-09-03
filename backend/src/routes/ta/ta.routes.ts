@@ -46,6 +46,13 @@ import {
   recordContact,
   searchTalentPool,
 } from '../../controllers/ta/candidate-scoring.ta.controller.js';
+import {
+  sendInvitationHandler,
+  batchSendInvitationsHandler,
+  listInvitationsHandler,
+  cancelInvitationHandler,
+  expireOverdueInvitationsHandler,
+} from '../../controllers/ta/talent-pool-invitation.ta.controller.js';
 
 import {
   listClientsHandler,
@@ -110,9 +117,9 @@ router.use(requireRole("TALENT_ACQUISITION"));
 
 // Client & MRF Management
 router.get("/clients", listClientsHandler);
-router.post("/clients", createClientHandler);
+router.post("/clients", validate(taSchema.createClient), createClientHandler);
 router.get("/clients/:id", getClientDetailsHandler);
-router.patch("/clients/:id", updateClientHandler);
+router.patch("/clients/:id", validate(taSchema.updateClient), updateClientHandler);
 
 router.get("/mrfs", listMRFsHandler);
 router.post("/mrfs", createMRFHandler);
@@ -137,6 +144,11 @@ router.post("/talent-pool/search", searchTalentPool);
 router.post("/talent-pool/members", addCandidateToPool);
 router.post("/talent-pool/contacts", recordContact);
 router.post("/talent-pool/consider", considerCandidateForJob);
+router.post("/talent-pool/invitations", sendInvitationHandler);
+router.post("/talent-pool/invitations/batch", batchSendInvitationsHandler);
+router.get("/talent-pool/invitations", listInvitationsHandler);
+router.delete("/talent-pool/invitations/:id", cancelInvitationHandler);
+router.post("/talent-pool/invitations/expire-overdue", expireOverdueInvitationsHandler);
 
 // Application Pipeline & Recruiter Decisions
 router.get("/applications", listApplications);

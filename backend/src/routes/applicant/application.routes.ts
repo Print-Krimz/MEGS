@@ -15,6 +15,10 @@ import {
   listSavedJobsHandler,
   getSavedJobIdsHandler,
 } from '../../controllers/applicant/saved-job.controller.js';
+import {
+  getMyInvitationsHandler,
+  respondToInvitationHandler,
+} from '../../controllers/applicant/applicant-invitation.controller.js';
 
 const router = Router();
 
@@ -28,6 +32,8 @@ router.post("/jobs/:id/save", saveJobHandler);
 router.delete("/jobs/:id/save", unsaveJobHandler);
 router.get("/saved-jobs", listSavedJobsHandler);
 router.get("/saved-jobs/ids", getSavedJobIdsHandler);
+router.get("/invitations", getMyInvitationsHandler);
+router.post("/invitations/:id/respond", respondToInvitationHandler);
 router.get("/my-applications", getMyApplications);
 router.get("/my-applications/:id", getMyApplicationDetails);
 router.get("/applications/:id", getMyApplicationDetails);

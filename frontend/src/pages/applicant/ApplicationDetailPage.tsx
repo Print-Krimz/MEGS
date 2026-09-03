@@ -37,6 +37,8 @@ export const ApplicationDetailPage: React.FC = () => {
     queryKey: ["applicant", "application", applicationId],
     queryFn: () => applicantJobsApi.getApplicationDetail(applicationId),
     enabled: Boolean(applicationId),
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
   });
 
   const uploadMutation = useMutation({
@@ -233,7 +235,7 @@ export const ApplicationDetailPage: React.FC = () => {
 
         {/* Pipeline Stepper */}
         <div className="py-1">
-          <PipelineIndicator currentStatus={application.status} audience="applicant" />
+          <PipelineIndicator currentStatus={application.status} audience="applicant" hideTerminalAlert />
         </div>
       </div>
 

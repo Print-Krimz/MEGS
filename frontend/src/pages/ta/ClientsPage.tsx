@@ -10,13 +10,14 @@ import {
   SearchFilters,
   Pagination,
 } from "../../components/common";
-import { Button, Dialog, Input } from "../../components/ui";
+import { Button, Dialog, Input, PhoneInput } from "../../components/ui";
 import { ComboBox } from "../../components/ui/ComboBox";
 import { formatDate } from "../../lib/utils";
 import {
   PHILIPPINE_REGIONS_AND_PROVINCES,
   getCitiesForProvince,
 } from "../../lib/geo-data";
+import { PHILIPPINE_INDUSTRY_SECTORS } from "../../lib/industry-data";
 import {
   Building2,
   Plus,
@@ -42,8 +43,10 @@ export const ClientsPage: React.FC = () => {
   const [name, setName] = useState("");
   const [tradeName, setTradeName] = useState("");
   const [industry, setIndustry] = useState("");
-  const [contactName, setContactName] = useState("");
+  const [contactFirstName, setContactFirstName] = useState("");
+  const [contactLastName, setContactLastName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [contactPhone, setContactPhone] = useState("");
   const [street, setStreet] = useState("");
   const [province, setProvince] = useState("");
@@ -68,8 +71,10 @@ export const ClientsPage: React.FC = () => {
       setName("");
       setTradeName("");
       setIndustry("");
-      setContactName("");
+      setContactFirstName("");
+      setContactLastName("");
       setContactEmail("");
+      setEmailError(null);
       setContactPhone("");
       setStreet("");
       setProvince("");
@@ -402,17 +407,23 @@ export const ClientsPage: React.FC = () => {
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (!name.trim()) return;
+            if (contactEmail.trim() && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(contactEmail.trim())) {
+              setEmailError("Official contact email must be a valid @gmail.com address");
+              return;
+            }
+            const combinedName = [contactFirstName.trim(), contactLastName.trim()].filter(Boolean).join(" ");
             createClientMutation.mutate({
-              name,
-              tradeName: tradeName || undefined,
-              industry: industry || undefined,
-              contactName: contactName || undefined,
-              contactEmail: contactEmail || undefined,
-              contactPhone: contactPhone || undefined,
-              street: street || undefined,
-              province: province || undefined,
-              city: city || undefined,
-              postalCode: postalCode || undefined,
+              name: name.trim(),
+              tradeName: tradeName.trim() || undefined,
+              industry: industry.trim() || undefined,
+              contactName: combinedName || undefined,
+              contactEmail: contactEmail.trim() || undefined,
+              contactPhone: contactPhone.trim() || undefined,
+              street: street.trim() || undefined,
+              province: province.trim() || undefined,
+              city: city.trim() || undefined,
+              postalCode: postalCode.trim() || undefined,
             });
           }}
           className="space-y-4"
@@ -433,34 +444,49 @@ export const ClientsPage: React.FC = () => {
             />
           </div>
 
-          <Input
+          <ComboBox
             label="Industry / Sector"
-            placeholder="e.g. Manufacturing, Logistics, Food Processing"
+            placeholder="Select or enter industry sector..."
             value={industry}
-            onChange={(e) => setIndustry(e.target.value)}
+            onChange={(val) => setIndustry(val)}
+            options={PHILIPPINE_INDUSTRY_SECTORS.map((s) => ({ value: s, label: s }))}
+            allowCustom
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
-              label="Contact Person Full Name"
-              placeholder="e.g. Engr. Roberto Tan"
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
+              label="Contact Person First Name"
+              placeholder="e.g. Roberto"
+              value={contactFirstName}
+              onChange={(e) => setContactFirstName(e.target.value)}
             />
             <Input
-              label="Contact Phone"
-              placeholder="e.g. (02) 8123-4567"
-              value={contactPhone}
-              onChange={(e) => setContactPhone(e.target.value)}
+              label="Contact Person Last Name"
+              placeholder="e.g. Tan"
+              value={contactLastName}
+              onChange={(e) => setContactLastName(e.target.value)}
             />
           </div>
-          <Input
-            label="Official Contact Email"
-            type="email"
-            placeholder="e.g. hr@acmecorp.com"
-            value={contactEmail}
-            onChange={(e) => setContactEmail(e.target.value)}
-          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <PhoneInput
+              label="Contact Phone"
+              placeholder="0917 123 4567"
+              value={contactPhone}
+              onChange={setContactPhone}
+            />
+            <Input
+              label="Official Contact Email"
+              type="email"
+              placeholder="e.g. hr.acmecorp@gmail.com"
+              value={contactEmail}
+              error={emailError || undefined}
+              onChange={(e) => {
+                setContactEmail(e.target.value);
+                if (emailError) setEmailError(null);
+              }}
+            />
+          </div>
 
           <div className="pt-2 border-t border-slate-100 space-y-3">
             <div className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">

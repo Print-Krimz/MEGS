@@ -6,13 +6,31 @@ import { enqueueResumeAnalysis } from '../../workers/resume.worker.js';
 import { revalidateApplication } from "../scoring/scoring-configuration.service.js";
 import { ensureApplicantProfile, updateProfileResumeService } from './applicant.service.js';
 
-export const fetchOpenJobs = async () => {
+export const fetchOpenJobs = async (filters?: { search?: string; location?: string }) => {
+  const where: any = { status: "OPEN" };
+
+  if (filters?.location && filters.location.trim()) {
+    where.location = { contains: filters.location.trim(), mode: "insensitive" };
+  }
+
+  if (filters?.search && filters.search.trim()) {
+    const term = filters.search.trim();
+    where.OR = [
+      { title: { contains: term, mode: "insensitive" } },
+      { description: { contains: term, mode: "insensitive" } },
+      { requirements: { contains: term, mode: "insensitive" } },
+      { location: { contains: term, mode: "insensitive" } },
+    ];
+  }
+
   return await prisma.jobPosting.findMany({
-    where: { status: "OPEN" },
+    where,
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
       title: true,
+      description: true,
+      requirements: true,
       location: true,
       imageUrl: true,
       status: true,

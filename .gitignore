@@ -63,11 +63,14 @@ frontend/src/pages/dev/
 scratch/
 *.audit.*
 
-# 7. Internal AI Agents & Sprint Documentation
+# 7. Internal AI Agents, Superpowers & Sprint Documentation
 .agents/
+.superpowers/
 agent/
 AGENTS.md
 docs/
+DATABASE_SCHEMA_EXPORTER.html
+database_diagrams.html
 
 # 8. IDE, Editor & OS Artifacts
 .vscode/

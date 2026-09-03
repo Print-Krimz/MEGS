@@ -314,13 +314,27 @@ export const JobPostingsPage: React.FC = () => {
                     {job.description}
                   </p>
 
-                  <div className="flex items-center gap-4 text-xs text-slate-500 font-mono pt-1">
-                    <span className="flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{job._count?.applications || 0} Applicants</span>
-                    </span>
-                    <span>•</span>
-                    <span>Posted {formatDate(job.createdAt)}</span>
+                  <div className="flex items-center justify-between text-xs text-slate-500 font-mono pt-1">
+                    <div className="flex items-center gap-4">
+                      <span className="flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{job._count?.applications || 0} Applicants</span>
+                      </span>
+                      <span>•</span>
+                      <span>Posted {formatDate(job.createdAt)}</span>
+                    </div>
+
+                    {job.status === JobStatus.OPEN && (
+                      <Link
+                        to="/ta/jobs/$jobId"
+                        params={{ jobId: String(job.id) }}
+                        search={{ tab: "talentPool" }}
+                        className="inline-flex items-center gap-1 text-[11px] text-teal-700 font-semibold hover:underline"
+                      >
+                        <Users className="w-3 h-3 text-teal-600" />
+                        <span>Pool Matches</span>
+                      </Link>
+                    )}
                   </div>
                 </div>
 

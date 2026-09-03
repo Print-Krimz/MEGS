@@ -42,8 +42,42 @@ model TalentPoolMembership {
   notes               String?
 
   contacts            TalentPoolContact[]
+  invitations         TalentPoolInvitation[]
 
   @@index([status, availability])
+}
+
+enum TalentPoolInvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+  EXPIRED
+}
+
+model TalentPoolInvitation {
+  id            Int                        @id @default(autoincrement())
+  membershipId  Int
+  membership    TalentPoolMembership       @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  jobPostingId  Int
+  jobPosting    JobPosting                 @relation(fields: [jobPostingId], references: [id], onDelete: Restrict)
+
+  invitedById   String
+  invitedBy     User                       @relation("InvitationRecruiter", fields: [invitedById], references: [id])
+
+  status        TalentPoolInvitationStatus @default(PENDING)
+  message       String?
+  declineReason String?
+  responseNotes String?
+  expiresAt     DateTime?
+  respondedAt   DateTime?
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+
+  @@index([membershipId, status])
+  @@index([jobPostingId, status])
+  @@index([status, createdAt(sort: Desc)])
 }
 
 model TalentPoolContact {

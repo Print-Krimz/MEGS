@@ -12,7 +12,9 @@ import {
 // GET /api/applicant-jobs/jobs - Browse active job postings
 export const getOpenJobs = async (req: Request, res: Response): Promise<void> => {
   try {
-    const jobs = await fetchOpenJobs();
+    const search = typeof req.query.search === "string" ? req.query.search : undefined;
+    const location = typeof req.query.location === "string" ? req.query.location : undefined;
+    const jobs = await fetchOpenJobs({ search, location });
     sendSuccess(res, "Open jobs retrieved", jobs);
   } catch (error: any) {
     sendError(res, error.message, 500);

@@ -6,6 +6,6 @@ export interface GlobalConfig {
 }
 
 export const getGlobalConfig = async (): Promise<GlobalConfig> => {
-  const data = await api.get<GlobalConfig>("/config");
+  const data = await api.get<GlobalConfig>("/api/config");
   return data;
 };

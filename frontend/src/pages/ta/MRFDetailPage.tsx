@@ -290,7 +290,7 @@ export const MRFDetailPage: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-slate-700 uppercase">
                 <ShieldCheck className="w-4 h-4 text-teal-600" />
-                <span>201 Compliance Templates</span>
+                <span>Requirements Templates</span>
               </div>
               <Button
                 variant="ghost"

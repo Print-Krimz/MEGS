@@ -15,19 +15,21 @@ import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { JobStatus } from "../../lib/types/enums";
 import {
-  Sparkles,
+  RefreshCw,
   ArrowLeft,
   MapPin,
   Clock,
   Edit,
   ExternalLink,
   Users,
-  UserPlus,
   Briefcase,
-  CheckCircle2,
+  Send,
+  ListOrdered,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
+import { SendInvitationModal } from "../../components/ta/SendInvitationModal";
+import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTrackerDrawer";
 
 export const JobPostingDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -43,11 +45,17 @@ export const JobPostingDetailPage: React.FC = () => {
   const [editRequirements, setEditRequirements] = useState("");
   const [editStatus, setEditStatus] = useState<JobStatus>(JobStatus.OPEN);
 
-  // Consider / Reactivation Modal State
-  const [considerModalOpen, setConsiderModalOpen] = useState(false);
-  const [selectedCandidate, setSelectedCandidate] = useState<TalentPoolCandidate | null>(null);
-  const [considerNotes, setConsiderNotes] = useState("");
-  const [considerOutcome, setConsiderOutcome] = useState<"INTERESTED" | "NOT_INTERESTED" | "NO_RESPONSE" | "UNAVAILABLE">("INTERESTED");
+  // Invitation Modal & Tracker Drawer State
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [trackerDrawerOpen, setTrackerDrawerOpen] = useState(false);
+  const [candidateToInvite, setCandidateToInvite] = useState<TalentPoolCandidate | null>(null);
+
+  React.useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("tab") === "talentPool") {
+      setActiveTab("talentPool");
+    }
+  }, []);
 
   const [candidatePage, setCandidatePage] = useState(1);
   const candidatePageSize = 10;
@@ -107,23 +115,19 @@ export const JobPostingDetailPage: React.FC = () => {
     },
   });
 
-  const considerCandidateMutation = useMutation({
-    mutationFn: taApi.considerCandidateForJob,
-    onSuccess: (res) => {
-      setConsiderModalOpen(false);
-      setConsiderNotes("");
-      queryClient.invalidateQueries({ queryKey: ["ta", "job", jobId, "ranked"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "job", jobId, "talent-pool"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "talent-pool"] });
-      const scoreMsg = res.score?.finalFitScore !== undefined ? ` (Fit Score: ${res.score.finalFitScore}%)` : "";
-      const msg = `Candidate reactivated into Application #${res.application?.id || ""}${scoreMsg} for this requisition.`;
+  const sendInvitationMutation = useMutation({
+    mutationFn: taApi.sendTalentPoolInvitation,
+    onSuccess: () => {
+      setInviteModalOpen(false);
+      setCandidateToInvite(null);
+      queryClient.invalidateQueries({ queryKey: ["ta", "talent-pool", "invitations"] });
+      const msg = "Job invitation sent successfully via in-app notification and email.";
       setFeedback({ type: "success", message: msg });
-      notify.success("Candidate Reactivated", msg);
+      notify.success("Invitation Sent", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to reactivate candidate: " + err.message });
-      notify.error("Reactivation Failed", err);
+      setFeedback({ type: "error", message: "Failed to send invitation: " + err.message });
+      notify.error("Invitation Failed", err);
     },
   });
 
@@ -168,23 +172,6 @@ export const JobPostingDetailPage: React.FC = () => {
     candidatePage * candidatePageSize
   );
 
-  const handleOpenConsider = (cand: TalentPoolCandidate) => {
-    setSelectedCandidate(cand);
-    setConsiderNotes("");
-    setConsiderOutcome("INTERESTED");
-    setConsiderModalOpen(true);
-  };
-
-  const handleConfirmConsider = () => {
-    if (!selectedCandidate || !jobId) return;
-    considerCandidateMutation.mutate({
-      applicantProfileId: selectedCandidate.applicantProfileId,
-      targetJobId: Number(jobId),
-      notes: considerNotes || undefined,
-      contactOutcome: considerOutcome,
-    });
-  };
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -213,7 +200,7 @@ export const JobPostingDetailPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+              leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
               loading={rankCandidatesMutation.isPending}
               onClick={() => rankCandidatesMutation.mutate()}
             >
@@ -310,20 +297,30 @@ export const JobPostingDetailPage: React.FC = () => {
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <Users className="w-3.5 h-3.5" />
               <span>Talent Pool Matches ({talentPoolMatches.length})</span>
             </button>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<Sparkles className="w-3.5 h-3.5 text-teal-600" />}
-            loading={rankCandidatesMutation.isPending}
-            onClick={() => rankCandidatesMutation.mutate()}
-          >
-            Re-calculate Match Scores
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<ListOrdered className="w-3.5 h-3.5 text-slate-500" />}
+              onClick={() => setTrackerDrawerOpen(true)}
+            >
+              Outgoing Invitations
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<RefreshCw className="w-3.5 h-3.5 text-teal-600" />}
+              loading={rankCandidatesMutation.isPending}
+              onClick={() => rankCandidatesMutation.mutate()}
+            >
+              Re-calculate Match Scores
+            </Button>
+          </div>
         </div>
 
         {/* Tab 1: Direct Applicants */}
@@ -341,7 +338,7 @@ export const JobPostingDetailPage: React.FC = () => {
                     <Button
                       variant="primary"
                       size="sm"
-                      leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+                      leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
                       loading={rankCandidatesMutation.isPending}
                       onClick={() => rankCandidatesMutation.mutate()}
                     >
@@ -449,9 +446,9 @@ export const JobPostingDetailPage: React.FC = () => {
             ) : talentPoolMatches.length === 0 ? (
               <div className="p-8">
                 <EmptyState
-                  icon={<Sparkles className="w-6 h-6 text-teal-600" />}
+                  icon={<Users className="w-6 h-6 text-slate-400" />}
                   title="No talent pool matches for this requisition"
-                  description="All available talent pool members have already been considered or have no matching skill embeddings."
+                  description="All available talent pool members have already been considered or have no matching skills."
                 />
               </div>
             ) : (
@@ -482,8 +479,8 @@ export const JobPostingDetailPage: React.FC = () => {
                           </div>
 
                           <div className="text-right">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-50 text-teal-900 border border-teal-200 text-xs font-mono font-bold">
-                              <Sparkles className="w-3 h-3 text-teal-600" />
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-50 text-teal-900 border border-teal-200 text-xs font-mono font-bold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-teal-600" />
                               <span>{simPercent}% Match</span>
                             </span>
                           </div>
@@ -521,10 +518,13 @@ export const JobPostingDetailPage: React.FC = () => {
                         <Button
                           variant="primary"
                           size="sm"
-                          leftIcon={<UserPlus className="w-3.5 h-3.5" />}
-                          onClick={() => handleOpenConsider(c)}
+                          leftIcon={<Send className="w-3.5 h-3.5" />}
+                          onClick={() => {
+                            setCandidateToInvite(c);
+                            setInviteModalOpen(true);
+                          }}
                         >
-                          Consider for This Job
+                          Invite to Apply
                         </Button>
                       </div>
                     </div>
@@ -535,63 +535,6 @@ export const JobPostingDetailPage: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Consider Candidate for Job Modal */}
-      <Dialog
-        open={considerModalOpen}
-        onClose={() => setConsiderModalOpen(false)}
-        title="Consider Talent Pool Candidate"
-        description={
-          selectedCandidate
-            ? `Reactivate ${selectedCandidate.firstName} ${selectedCandidate.lastName} into a new application for ${job.title}.`
-            : "Reactivate talent pool candidate."
-        }
-      >
-        <div className="space-y-4">
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
-            <div className="font-semibold text-slate-800">
-              Candidate: {selectedCandidate?.firstName} {selectedCandidate?.lastName}
-            </div>
-            <div className="text-slate-500 font-mono">Email: {selectedCandidate?.email}</div>
-            <div className="text-teal-700 font-medium font-sans">
-              Requisition: #{job.id} — {job.title}
-            </div>
-          </div>
-
-          <Select
-            label="Initial Contact Outcome"
-            value={considerOutcome}
-            onChange={(e) => setConsiderOutcome(e.target.value as any)}
-            options={[
-              { value: "INTERESTED", label: "INTERESTED (Candidate Confirmed Interest)" },
-              { value: "NO_RESPONSE", label: "NO RESPONSE (Attempting Outreach)" },
-            ]}
-          />
-
-          <Textarea
-            label="Recruiter Reactivation Notes"
-            placeholder="Document notes on candidate qualification for this specific job..."
-            value={considerNotes}
-            onChange={(e) => setConsiderNotes(e.target.value)}
-            rows={3}
-          />
-
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setConsiderModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              loading={considerCandidateMutation.isPending}
-              onClick={handleConfirmConsider}
-              leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
-            >
-              Reactivate & Apply
-            </Button>
-          </div>
-        </div>
-      </Dialog>
 
       {/* Edit Job Modal */}
       <Dialog
@@ -667,6 +610,27 @@ export const JobPostingDetailPage: React.FC = () => {
           </div>
         </form>
       </Dialog>
+
+      {/* Send Job Invitation Modal */}
+      <SendInvitationModal
+        open={inviteModalOpen}
+        onClose={() => {
+          setInviteModalOpen(false);
+          setCandidateToInvite(null);
+        }}
+        candidate={candidateToInvite}
+        targetJobId={Number(jobId)}
+        targetJobTitle={job.title}
+        onSend={(payload) => sendInvitationMutation.mutate(payload)}
+        loading={sendInvitationMutation.isPending}
+      />
+
+      {/* Outgoing Invitations Tracker Drawer */}
+      <InvitationsTrackerDrawer
+        open={trackerDrawerOpen}
+        onClose={() => setTrackerDrawerOpen(false)}
+        jobPostingId={Number(jobId)}
+      />
     </div>
   );
 };

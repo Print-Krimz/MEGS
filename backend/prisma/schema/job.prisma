@@ -29,6 +29,7 @@ model JobPosting {
   candidateScores CandidateScore[]
   scoringRevalidationTasks ScoringRevalidationTask[]
   talentPoolContacts TalentPoolContact[]
+  talentPoolInvitations TalentPoolInvitation[]
   savedBy SavedJob[]
 }
 

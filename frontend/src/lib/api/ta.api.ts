@@ -25,6 +25,9 @@ import type {
   TalentPoolMembership,
   TalentPoolSearchDto,
   TalentPoolMatchResult,
+  SendTalentPoolInvitationDto,
+  BatchSendTalentPoolInvitationsDto,
+  TalentPoolInvitationRecord,
   PipelineAnalytics,
   TimeToFillAnalytics,
   DeploymentAnalytics,
@@ -226,6 +229,31 @@ export const taApi = {
       contact: { id: number; membershipId: number; jobPostingId: number; outcome: string };
       score?: CandidateScore | null;
     }>("/api/ta/talent-pool/consider", data),
+
+  sendTalentPoolInvitation: (data: SendTalentPoolInvitationDto) =>
+    api.post<TalentPoolInvitationRecord>("/api/ta/talent-pool/invitations", data),
+
+  batchSendTalentPoolInvitations: (data: BatchSendTalentPoolInvitationsDto) =>
+    api.post<{ sentCount: number; failedCount: number; results: any[] }>("/api/ta/talent-pool/invitations/batch", data),
+
+  listTalentPoolInvitations: (params?: { status?: string; jobPostingId?: number; page?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.append("status", params.status);
+    if (params?.jobPostingId) qs.append("jobPostingId", String(params.jobPostingId));
+    if (params?.page) qs.append("page", String(params.page));
+    if (params?.limit) qs.append("limit", String(params.limit));
+    const qStr = qs.toString();
+    return api.get<{
+      items: TalentPoolInvitationRecord[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }>(`/api/ta/talent-pool/invitations${qStr ? `?${qStr}` : ""}`);
+  },
+
+  cancelTalentPoolInvitation: (id: number) =>
+    api.delete<{ id: number; status: string }>(`/api/ta/talent-pool/invitations/${id}`),
 
   // -------------------------------------------------------------
   // 5. Clients & MRFs (Manpower Requests)
