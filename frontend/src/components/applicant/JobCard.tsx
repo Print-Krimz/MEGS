@@ -49,7 +49,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   requirements,
   skills = [],
   createdAt,
-  status = "OPEN",
+  status: _status = "OPEN",
   isSaved = false,
   alreadyApplied = false,
   onToggleSave,

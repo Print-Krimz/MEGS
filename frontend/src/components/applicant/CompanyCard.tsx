@@ -14,7 +14,7 @@ export interface CompanyCardProps {
 }
 
 export const CompanyCard: React.FC<CompanyCardProps> = ({
-  id = "1",
+  id: _id = "1",
   name,
   industry = "Industrial & Commercial",
   location = "Metro Manila",

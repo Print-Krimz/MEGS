@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
@@ -6,9 +6,7 @@ import { JobCard } from "../applicant/JobCard";
 import { Briefcase, ArrowRight, Sparkles } from "lucide-react";
 
 export const LandingFeaturedJobs: React.FC = () => {
-  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
-
-  const { data: jobs = [], isLoading } = useQuery({
+  const { data: jobs = [] } = useQuery({
     queryKey: ["public", "featured-jobs"],
     queryFn: () => applicantJobsApi.getJobs({ limit: 6 }),
     staleTime: 60 * 1000,
@@ -115,7 +113,7 @@ export const LandingFeaturedJobs: React.FC = () => {
               requirements={job.requirements}
               skills={(job as any).skills}
               createdAt={job.createdAt}
-              status={job.status}
+              status={(job as any).status}
               detailUrl={`/app/jobs/${job.id}`}
             />
           ))}

@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "@tanstack/react-router";
 import { Dialog } from "../ui/Dialog";
 import { Button } from "../ui/Button";
-import { Briefcase, UserPlus, LogIn, CheckCircle2, ShieldCheck } from "lucide-react";
+import { UserPlus, LogIn, ShieldCheck } from "lucide-react";
 
 export interface GuestApplyModalProps {
   open: boolean;

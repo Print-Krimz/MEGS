@@ -1,7 +1,6 @@
 import React from "react";
 import { Link } from "@tanstack/react-router";
 import {
-  Mail,
   Building2,
   MapPin,
   Clock,

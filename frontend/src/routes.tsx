@@ -186,6 +186,27 @@ export const forbiddenRoute = createRoute({
 });
 
 // -------------------------------------------------------------
+// 3.1 Public Job Discovery Routes (Unauthenticated & Authenticated)
+// -------------------------------------------------------------
+export const publicJobsLayoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: "public-jobs-layout",
+  component: ApplicantLayout,
+});
+
+export const publicJobsRoute = createRoute({
+  getParentRoute: () => publicJobsLayoutRoute,
+  path: "/jobs",
+  component: JobsPage,
+});
+
+export const publicJobDetailRoute = createRoute({
+  getParentRoute: () => publicJobsLayoutRoute,
+  path: "/jobs/$jobId",
+  component: JobDetailPage,
+});
+
+// -------------------------------------------------------------
 // 4. Applicant Protected Layout & Child Routes
 // -------------------------------------------------------------
 export const applicantLayoutRoute = createRoute({
@@ -508,6 +529,10 @@ export const adminMrfDetailRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   forbiddenRoute,
+  publicJobsLayoutRoute.addChildren([
+    publicJobsRoute,
+    publicJobDetailRoute,
+  ]),
   authLayoutRoute.addChildren([
     loginRoute,
     registerRoute,

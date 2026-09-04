@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
-import { Briefcase, Menu, X, ArrowRight, User } from "lucide-react";
+import { Menu, X, ArrowRight, User } from "lucide-react";
 
 export const LandingHeader: React.FC = () => {
   const { isAuthenticated, user } = useAuth();

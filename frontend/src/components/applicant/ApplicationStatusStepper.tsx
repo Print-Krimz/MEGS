@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2, Clock, Calendar, ShieldCheck, AlertCircle, Bookmark } from "lucide-react";
+import { CheckCircle2, Clock, Bookmark } from "lucide-react";
 import { ApplicationStatus } from "../../lib/types/enums";
 
 export interface ApplicationStatusStepperProps {
