@@ -29,7 +29,7 @@ export const getJobDetails = async (req: Request, res: Response): Promise<void> 
       sendError(res, "Invalid job ID", 400);
       return;
     }
-    const job = await fetchJobDetails(jobId, req.user!.id);
+    const job = await fetchJobDetails(jobId, req.user?.id);
     sendSuccess(res, "Job details retrieved", job);
   } catch (error: any) {
     const status = error.message.includes("not found") ? 404 : 400;

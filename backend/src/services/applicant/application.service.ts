@@ -40,7 +40,7 @@ export const fetchOpenJobs = async (filters?: { search?: string; location?: stri
   });
 };
 
-export const fetchJobDetails = async (jobId: number, userId: string) => {
+export const fetchJobDetails = async (jobId: number, userId?: string) => {
   const job = await prisma.jobPosting.findUnique({
     where: { id: jobId },
     include: {
@@ -63,9 +63,11 @@ export const fetchJobDetails = async (jobId: number, userId: string) => {
   if (!job) throw new Error("Job not found");
   if (job.status !== "OPEN") throw new Error("This job posting is no longer accepting applications");
 
-  const existingApplication = await prisma.application.findFirst({
-    where: { userId, jobPostingId: jobId },
-  });
+  const existingApplication = userId
+    ? await prisma.application.findFirst({
+        where: { userId, jobPostingId: jobId },
+      })
+    : null;
 
   return {
     ...job,

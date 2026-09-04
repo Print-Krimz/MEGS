@@ -62,14 +62,19 @@ export const authenticateJWT = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const authHeader = req.headers.authorization;
+  let token: string | null = null;
+  const authHeader = req.headers?.authorization;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
+  } else if (req.query && typeof req.query.token === "string" && req.query.token.trim()) {
+    token = req.query.token.trim();
+  }
+
+  if (!token) {
     sendError(res, "No token provided", 401);
     return;
   }
-
-  const token = authHeader.split(" ")[1];
 
   // 1. Fast-path: local cryptographic verification (< 0.1 ms)
   let userId: string | null = null;
@@ -158,4 +163,64 @@ export const requireRole = (...roles: string[]) => {
 
     next();
   };
+};
+
+/**
+ * Optional authentication middleware:
+ * If a valid Bearer token or token query is provided, attaches dbUser to req.user.
+ * If no token is provided or token is invalid, continues without erroring.
+ */
+export const authenticateOptionalJWT = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): Promise<void> => {
+  let token: string | null = null;
+  const authHeader = req.headers?.authorization;
+
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
+  } else if (req.query && typeof req.query.token === "string" && req.query.token.trim()) {
+    token = req.query.token.trim();
+  }
+
+  if (!token) {
+    return next();
+  }
+
+  try {
+    let userId: string | null = null;
+    const localClaims = verifyJwtLocally(token);
+
+    if (localClaims?.sub) {
+      userId = localClaims.sub;
+    } else {
+      const { data, error } = await supabase.auth.getUser(token);
+      if (!error && data?.user) {
+        userId = data.user.id;
+      }
+    }
+
+    if (userId) {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          isActive: true,
+          accountStatus: true,
+          mustChangePassword: true,
+        },
+      });
+
+      if (dbUser && dbUser.isActive && dbUser.accountStatus !== "DEACTIVATED") {
+        req.user = dbUser as any;
+      }
+    }
+  } catch {
+    // Silently continue for optional auth
+  }
+
+  next();
 };
