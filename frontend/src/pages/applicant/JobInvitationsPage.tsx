@@ -169,7 +169,7 @@ export const JobInvitationsPage: React.FC = () => {
         <div
           className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
             feedback.type === "success"
-              ? "bg-teal-50 border-teal-200 text-teal-800"
+              ? "bg-[#E8EEF6] border-[#0F294A]/20 text-[#0F294A]"
               : "bg-rose-50 border-rose-200 text-rose-800"
           }`}
         >
@@ -211,7 +211,7 @@ export const JobInvitationsPage: React.FC = () => {
               <div
                 key={inv.id}
                 className={`bg-white rounded-xl border p-5 shadow-xs transition-all space-y-4 ${
-                  isPending ? "border-teal-300 ring-1 ring-teal-200" : "border-slate-200"
+                  isPending ? "border-[#0F294A]/30 ring-1 ring-[#0F294A]/20" : "border-slate-200"
                 }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 pb-4">
@@ -264,9 +264,9 @@ export const JobInvitationsPage: React.FC = () => {
 
                 {/* Recruiter Message */}
                 {inv.message && (
-                  <div className="p-3 bg-teal-50/60 border border-teal-100 rounded-lg text-xs space-y-1">
-                    <div className="text-teal-900 font-semibold flex items-center gap-1.5">
-                      <MessageSquare className="w-3.5 h-3.5 text-teal-600" />
+                  <div className="p-3 bg-[#E8EEF6]/60 border border-[#0F294A]/20 rounded-lg text-xs space-y-1">
+                    <div className="text-[#0F294A] font-semibold flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 text-[#0F294A]" />
                       <span>Note from Recruiter ({inv.invitedBy || "Talent Acquisition"})</span>
                     </div>
                     <p className="text-slate-700 leading-relaxed italic">"{inv.message}"</p>

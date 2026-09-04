@@ -8,6 +8,7 @@ interface SkillsSectionProps {
   onAddSkill: (skill: string) => void;
   onRemoveSkill: (skill: string) => void;
   isUpdating?: boolean;
+  showHeader?: boolean;
 }
 
 const COMMON_SUGGESTIONS = [
@@ -30,6 +31,7 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
   onAddSkill,
   onRemoveSkill,
   isUpdating = false,
+  showHeader = true,
 }) => {
   const [inputValue, setInputValue] = useState("");
 
@@ -48,12 +50,14 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-100 pb-4">
-        <h3 className="text-base font-bold text-slate-900">Technical & Practical Skills</h3>
-        <p className="text-xs text-slate-500">
-          List competencies and credentials used for automated candidate matching and requisition placement.
-        </p>
-      </div>
+      {showHeader && (
+        <div className="border-b border-slate-100 pb-4">
+          <h3 className="text-base font-bold text-slate-900">Technical & Practical Skills</h3>
+          <p className="text-xs text-slate-500">
+            List competencies and credentials used for automated candidate matching and requisition placement.
+          </p>
+        </div>
+      )}
 
       {/* Input Field */}
       <div className="flex gap-2">
@@ -92,7 +96,7 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
                 key={suggestion}
                 type="button"
                 onClick={() => onAddSkill(suggestion)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-sans bg-slate-50 hover:bg-teal-50 border border-slate-200 hover:border-teal-300 text-slate-700 hover:text-teal-900 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-sans bg-slate-50 hover:bg-[#E8EEF6] border border-slate-200 hover:border-[#0F294A]/30 text-slate-700 hover:text-[#0F294A] rounded-md transition-colors cursor-pointer"
               >
                 <span>+ {suggestion}</span>
               </button>

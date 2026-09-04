@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useBlocker, useNavigate } from "@tanstack/react-router";
 import { applicantApi } from "../../lib/api/applicant.api";
 import {
   PageHeader,
@@ -16,70 +17,52 @@ import {
   Select,
   PhoneInput,
 } from "../../components/ui";
-import { ProfileHealthMeter } from "../../components/applicant/ProfileHealthMeter";
 import { SkillsSection } from "../../components/applicant/SkillsSection";
-import { computeProfileHealth } from "../../lib/profile-health";
 import { formatDate, extractDocumentId } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
-import { computeAutoFillDiff } from "../../lib/resume-autofill";
 import {
-  User,
-  FileText,
-  Briefcase,
-  GraduationCap,
-  Award,
-  Users,
-  FolderOpen,
+  computeAutoFillDiff,
+  filterDuplicateEducations,
+  filterDuplicateExperiences,
+  filterDuplicateReferences,
+  filterDuplicateSkills,
+  filterDuplicateTrainings,
+} from "../../lib/resume-autofill";
+import { ProfileApplications } from "./components/profile/ProfileApplications";
+import { ProfileDisclosure } from "./components/profile/ProfileDisclosure";
+import { ProfileOverview } from "./components/profile/ProfileOverview";
+import { ProfileSectionNav } from "./components/profile/ProfileSectionNav";
+import type { ProfileSection } from "./components/profile/profile-navigation";
+import { parseProfileSection } from "./components/profile/profile-navigation";
+import type { ResumeReviewSummary } from "./components/profile/profile-types";
+import {
   Plus,
   Trash2,
   Pencil,
-  Upload,
-  CheckCircle2,
-  FileCheck,
 } from "lucide-react";
-
-type ProfileTab =
-  | "personal"
-  | "documents"
-  | "experience"
-  | "education"
-  | "skills"
-  | "trainings"
-  | "references"
-  | "assets";
 
 export const ProfilePage: React.FC = () => {
   const queryClient = useQueryClient();
-  const { refreshUser } = useAuth();
+  const { refreshUser, user } = useAuth();
+  const navigate = useNavigate({ from: "/app/profile" });
 
-  const validTabs: ProfileTab[] = [
-    "personal",
-    "documents",
-    "experience",
-    "education",
-    "skills",
-    "trainings",
-    "references",
-    "assets",
-  ];
-
-  const [activeTab, setActiveTab] = useState<ProfileTab>(() => {
+  const [activeSection, setActiveSection] = useState<ProfileSection>(() => {
     if (typeof window !== "undefined") {
-      const paramTab = new URLSearchParams(window.location.search).get("tab") as ProfileTab;
-      if (paramTab && validTabs.includes(paramTab)) {
-        return paramTab;
-      }
+      const params = new URLSearchParams(window.location.search);
+      return parseProfileSection(params.get("section"), params.get("tab"));
     }
-    return "personal";
+    return "overview";
   });
 
-  const handleTabChange = (tab: ProfileTab) => {
-    setActiveTab(tab);
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.searchParams.set("tab", tab);
-      window.history.replaceState({}, "", url.toString());
-    }
+  const [openPersonalSection, setOpenPersonalSection] = useState("identity");
+  const [openQualificationSection, setOpenQualificationSection] = useState("experience");
+
+  const handleSectionChange = (section: ProfileSection) => {
+    setActiveSection(section);
+    void navigate({
+      search: (previous) => ({ ...previous, section, tab: undefined }),
+      replace: true,
+    });
   };
 
   const profileQuery = useQuery({
@@ -88,12 +71,12 @@ export const ProfilePage: React.FC = () => {
   });
 
   const profile = profileQuery.data;
-  const profileHealth = computeProfileHealth(profile);
 
   // Document Preview State
   const [previewDocState, setPreviewDocState] = useState<{
     open: boolean;
     documentId?: number | null;
+    fileUrl?: string | null;
     title?: string;
   } | null>(null);
 
@@ -119,9 +102,8 @@ export const ProfilePage: React.FC = () => {
   const [editingRef, setEditingRef] = useState<any | null>(null);
   const [refPhone, setRefPhone] = useState("");
 
-  const [assetModalOpen, setAssetModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
-    type: "experience" | "education" | "training" | "reference" | "asset";
+    type: "experience" | "education" | "training" | "reference";
     id: number | string;
     label: string;
   } | null>(null);
@@ -161,44 +143,45 @@ export const ProfilePage: React.FC = () => {
 
   // Auto-Fill & Extraction State
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
+  const [resumeReview, setResumeReview] = useState<ResumeReviewSummary | null>(null);
 
   // Update local form when data arrives
   React.useEffect(() => {
     if (profile) {
       setPersonalForm((prev) => ({
-        firstName: prev.firstName || profile.firstName || "",
-        lastName: prev.lastName || profile.lastName || "",
-        middleName: prev.middleName || profile.middleName || "",
-        dateOfBirth: prev.dateOfBirth || (profile.dateOfBirth ? profile.dateOfBirth.substring(0, 10) : ""),
-        mobileNumber: prev.mobileNumber || profile.mobileNumber || "",
-        gender: prev.gender || profile.gender || "",
-        civilStatus: prev.civilStatus || profile.civilStatus || "",
-        nationality: prev.nationality || profile.nationality || "",
-        birthPlace: prev.birthPlace || profile.birthPlace || "",
-        religion: prev.religion || profile.religion || "",
-        height: prev.height || (profile.height !== null && profile.height !== undefined ? String(profile.height) : ""),
-        weight: prev.weight || (profile.weight !== null && profile.weight !== undefined ? String(profile.weight) : ""),
-        address: prev.address || profile.address || "",
-        province: prev.province || profile.province || "",
-        city: prev.city || profile.city || "",
-        preferredWorkLocations: prev.preferredWorkLocations || profile.preferredWorkLocations || "",
-        professionalSummary: prev.professionalSummary || profile.professionalSummary || "",
-        sss: prev.sss || profile.sss || "",
-        philhealth: prev.philhealth || profile.philhealth || "",
-        pagibig: prev.pagibig || profile.pagibig || "",
-        tin: prev.tin || profile.tin || "",
-        emergencyContactName: prev.emergencyContactName || profile.emergencyContactName || "",
-        emergencyContactPhone: prev.emergencyContactPhone || profile.emergencyContactPhone || "",
-        emergencyContactRelationship: prev.emergencyContactRelationship || profile.emergencyContactRelationship || "",
-        emergencyContactAddress: prev.emergencyContactAddress || profile.emergencyContactAddress || "",
-        additionalNotes: prev.additionalNotes || profile.additionalNotes || "",
+        firstName: profile.firstName || prev.firstName || "",
+        lastName: profile.lastName || prev.lastName || "",
+        middleName: profile.middleName || prev.middleName || "",
+        dateOfBirth: profile.dateOfBirth ? profile.dateOfBirth.substring(0, 10) : prev.dateOfBirth || "",
+        mobileNumber: profile.mobileNumber || prev.mobileNumber || "",
+        gender: profile.gender || prev.gender || "",
+        civilStatus: profile.civilStatus || prev.civilStatus || "",
+        nationality: profile.nationality || prev.nationality || "",
+        birthPlace: profile.birthPlace || prev.birthPlace || "",
+        religion: profile.religion || prev.religion || "",
+        height: profile.height !== null && profile.height !== undefined ? String(profile.height) : prev.height || "",
+        weight: profile.weight !== null && profile.weight !== undefined ? String(profile.weight) : prev.weight || "",
+        address: profile.address || prev.address || "",
+        province: profile.province || prev.province || "",
+        city: profile.city || prev.city || "",
+        preferredWorkLocations: profile.preferredWorkLocations || prev.preferredWorkLocations || "",
+        professionalSummary: profile.professionalSummary || prev.professionalSummary || "",
+        sss: profile.sss || prev.sss || "",
+        philhealth: profile.philhealth || prev.philhealth || "",
+        pagibig: profile.pagibig || prev.pagibig || "",
+        tin: profile.tin || prev.tin || "",
+        emergencyContactName: profile.emergencyContactName || prev.emergencyContactName || "",
+        emergencyContactPhone: profile.emergencyContactPhone || prev.emergencyContactPhone || "",
+        emergencyContactRelationship: profile.emergencyContactRelationship || prev.emergencyContactRelationship || "",
+        emergencyContactAddress: profile.emergencyContactAddress || prev.emergencyContactAddress || "",
+        additionalNotes: profile.additionalNotes || prev.additionalNotes || "",
       }));
 
-      if (profile.skills) {
+      if (profile.skills && profile.skills.length > 0) {
         const parsed = profile.skills.map((s: any) =>
           typeof s === "string" ? s : s.name || s.skillName || ""
         ).filter(Boolean);
-        setSkillsList((prev) => (prev.length > 0 ? prev : parsed));
+        setSkillsList(parsed);
       }
     }
   }, [profile]);
@@ -230,27 +213,83 @@ export const ProfilePage: React.FC = () => {
 
       if (data?.extractedData) {
         const diff = computeAutoFillDiff(personalForm, data.extractedData);
+        const previousProfile = profile;
+        const experienceDiff = filterDuplicateExperiences(
+          previousProfile?.workExperiences || [],
+          data.extractedData.workExperiences || [],
+        );
+        const educationDiff = filterDuplicateEducations(
+          previousProfile?.educations || [],
+          data.extractedData.educations || [],
+        );
+        const skillsDiff = filterDuplicateSkills(
+          previousProfile?.skills || [],
+          data.extractedData.skills || [],
+        );
+        const trainingDiff = filterDuplicateTrainings(
+          previousProfile?.trainings || [],
+          data.extractedData.trainings || [],
+        );
+        const referenceDiff = filterDuplicateReferences(
+          previousProfile?.characterReferences || [],
+          data.extractedData.characterReferences || [],
+        );
+        const firstQualificationSection = experienceDiff.newItems.length > 0
+          ? "experience"
+          : educationDiff.newItems.length > 0
+            ? "education"
+            : skillsDiff.newItems.length > 0
+              ? "skills"
+              : trainingDiff.newItems.length > 0
+                ? "trainings"
+                : referenceDiff.newItems.length > 0
+                  ? "references"
+                  : undefined;
+        setResumeReview({
+          personalFields: Object.keys(diff.autoFilledFields),
+          workExperienceCount: experienceDiff.newItems.length,
+          educationCount: educationDiff.newItems.length,
+          skillsCount: skillsDiff.newItems.length,
+          trainingCount: trainingDiff.newItems.length,
+          referenceCount: referenceDiff.newItems.length,
+          firstSection: Object.keys(diff.autoFilledFields).length > 0
+            ? "personal"
+            : firstQualificationSection
+              ? "qualifications"
+              : "overview",
+          firstQualificationSection,
+        });
 
-        setPersonalForm((prev) => ({
-          ...prev,
-          firstName: prev.firstName || data.profile?.firstName || data.extractedData?.firstName || "",
-          middleName: prev.middleName || data.profile?.middleName || data.extractedData?.middleName || "",
-          lastName: prev.lastName || data.profile?.lastName || data.extractedData?.lastName || "",
-          mobileNumber: prev.mobileNumber || data.profile?.mobileNumber || data.extractedData?.mobileNumber || "",
-          dateOfBirth: prev.dateOfBirth || (data.profile?.dateOfBirth ? data.profile.dateOfBirth.substring(0, 10) : "") || data.extractedData?.dateOfBirth || "",
-          birthPlace: prev.birthPlace || data.profile?.birthPlace || data.extractedData?.birthPlace || "",
-          gender: prev.gender || data.profile?.gender || data.extractedData?.gender || "",
-          civilStatus: prev.civilStatus || data.profile?.civilStatus || data.extractedData?.civilStatus || "",
-          nationality: prev.nationality || data.profile?.nationality || data.extractedData?.nationality || "",
-          religion: prev.religion || data.profile?.religion || data.extractedData?.religion || "",
-          height: prev.height || (data.profile?.height !== null && data.profile?.height !== undefined ? String(data.profile.height) : "") || (data.extractedData?.height !== null && data.extractedData?.height !== undefined ? String(data.extractedData.height) : "") || "",
-          weight: prev.weight || (data.profile?.weight !== null && data.profile?.weight !== undefined ? String(data.profile.weight) : "") || (data.extractedData?.weight !== null && data.extractedData?.weight !== undefined ? String(data.extractedData.weight) : "") || "",
-          address: prev.address || data.profile?.address || data.extractedData?.address || "",
-          province: prev.province || data.profile?.province || data.extractedData?.province || "",
-          city: prev.city || data.profile?.city || data.extractedData?.city || "",
-          preferredWorkLocations: prev.preferredWorkLocations || data.profile?.preferredWorkLocations || data.extractedData?.preferredWorkLocations || "",
-          professionalSummary: prev.professionalSummary || data.profile?.professionalSummary || data.extractedData?.professionalSummary || "",
-        }));
+        const p = data.profile || {};
+        const ext = data.extractedData || {};
+        setPersonalForm({
+          firstName: ext.firstName || p.firstName || "",
+          middleName: ext.middleName ?? p.middleName ?? "",
+          lastName: ext.lastName || p.lastName || "",
+          mobileNumber: ext.mobileNumber || p.mobileNumber || "",
+          dateOfBirth: ext.dateOfBirth || (p.dateOfBirth ? p.dateOfBirth.substring(0, 10) : "") || "",
+          birthPlace: ext.birthPlace || p.birthPlace || "",
+          gender: ext.gender || p.gender || "",
+          civilStatus: ext.civilStatus || p.civilStatus || "",
+          nationality: ext.nationality || p.nationality || "",
+          religion: ext.religion || p.religion || "",
+          height: ext.height !== null && ext.height !== undefined ? String(ext.height) : p.height !== null && p.height !== undefined ? String(p.height) : "",
+          weight: ext.weight !== null && ext.weight !== undefined ? String(ext.weight) : p.weight !== null && p.weight !== undefined ? String(p.weight) : "",
+          address: ext.address || p.address || "",
+          province: ext.province || p.province || "",
+          city: ext.city || p.city || "",
+          preferredWorkLocations: ext.preferredWorkLocations || p.preferredWorkLocations || "",
+          professionalSummary: ext.professionalSummary || p.professionalSummary || "",
+          sss: p.sss || "",
+          philhealth: p.philhealth || "",
+          pagibig: p.pagibig || "",
+          tin: p.tin || "",
+          emergencyContactName: p.emergencyContactName || "",
+          emergencyContactPhone: p.emergencyContactPhone || "",
+          emergencyContactRelationship: p.emergencyContactRelationship || "",
+          emergencyContactAddress: p.emergencyContactAddress || "",
+          additionalNotes: p.additionalNotes || "",
+        });
 
         setAutoFilledFields((prev) => {
           const next = new Set(prev);
@@ -258,29 +297,25 @@ export const ProfilePage: React.FC = () => {
           return next;
         });
 
-        const extractedSkills = data.extractedData.skills;
-        if (extractedSkills && extractedSkills.length > 0) {
-          setSkillsList((prev) => {
-            const combined = [...prev];
-            extractedSkills.forEach((s) => {
-              if (!combined.some((item) => item.toLowerCase() === s.toLowerCase())) {
-                combined.push(s);
-              }
-            });
-            return combined;
-          });
+        if (p.skills && p.skills.length > 0) {
+          const parsed = p.skills.map((s: any) => typeof s === "string" ? s : s.name || s.skillName || "").filter(Boolean);
+          setSkillsList(parsed);
+        } else if (ext.skills && ext.skills.length > 0) {
+          setSkillsList(ext.skills);
         }
 
         setFeedback({
           type: "success",
-          message: "Resume uploaded and profile details auto-filled successfully. Review and edit any field before saving.",
+          message: "Resume parsed — your profile has been filled automatically. Review the details below.",
         });
       } else if (data?.extractionStatus === "UNAVAILABLE") {
+        setResumeReview(null);
         setFeedback({
           type: "success",
-          message: "Resume uploaded. Automatic profile extraction was unavailable for this file format.",
+          message: "Resume uploaded, but we couldn't fill profile details from this file. You can enter them manually or try another PDF.",
         });
       } else {
+        setResumeReview(null);
         setFeedback({ type: "success", message: "Resume uploaded successfully." });
       }
     },
@@ -431,35 +466,49 @@ export const ProfilePage: React.FC = () => {
     },
   });
 
-  const addAssetMutation = useMutation({
-    mutationFn: applicantApi.addAsset,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
-      setAssetModalOpen(false);
-      setFeedback({ type: "success", message: "Document uploaded successfully." });
-    },
-    onError: (err: any) => {
-      setFeedback({ type: "error", message: err?.message || "Failed to upload document." });
-    },
-  });
-
-  const deleteAssetMutation = useMutation({
-    mutationFn: applicantApi.deleteAsset,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
-      setDeleteTarget(null);
-      setFeedback({ type: "success", message: "Document removed." });
-    },
-    onError: (err: any) => {
-      setFeedback({ type: "error", message: err?.message || "Failed to delete document." });
-    },
-  });
 
   const isNotFoundError =
     profileQuery.isError &&
     (profileQuery.error?.message?.includes("not found") ||
       profileQuery.error?.message?.includes("404") ||
       Boolean((profileQuery.error as any)?.status === 404));
+
+  const profileFormSnapshot = profile
+    ? {
+        firstName: profile.firstName || "",
+        lastName: profile.lastName || "",
+        middleName: profile.middleName || "",
+        dateOfBirth: profile.dateOfBirth ? profile.dateOfBirth.substring(0, 10) : "",
+        mobileNumber: profile.mobileNumber || "",
+        gender: profile.gender || "",
+        civilStatus: profile.civilStatus || "",
+        nationality: profile.nationality || "",
+        birthPlace: profile.birthPlace || "",
+        religion: profile.religion || "",
+        height: profile.height === null || profile.height === undefined ? "" : String(profile.height),
+        weight: profile.weight === null || profile.weight === undefined ? "" : String(profile.weight),
+        address: profile.address || "",
+        province: profile.province || "",
+        city: profile.city || "",
+        preferredWorkLocations: profile.preferredWorkLocations || "",
+        professionalSummary: profile.professionalSummary || "",
+        sss: profile.sss || "",
+        philhealth: profile.philhealth || "",
+        pagibig: profile.pagibig || "",
+        tin: profile.tin || "",
+        emergencyContactName: profile.emergencyContactName || "",
+        emergencyContactPhone: profile.emergencyContactPhone || "",
+        emergencyContactRelationship: profile.emergencyContactRelationship || "",
+        emergencyContactAddress: profile.emergencyContactAddress || "",
+        additionalNotes: profile.additionalNotes || "",
+      }
+    : null;
+  const personalFormDirty = Boolean(profileFormSnapshot && JSON.stringify(personalForm) !== JSON.stringify(profileFormSnapshot));
+  const blocker = useBlocker({
+    shouldBlockFn: ({ current, next }) => personalFormDirty && current.pathname !== next.pathname,
+    enableBeforeUnload: personalFormDirty,
+    withResolver: true,
+  });
 
   if (profileQuery.isLoading) {
     return (
@@ -534,13 +583,6 @@ export const ProfilePage: React.FC = () => {
     });
   };
 
-  // Asset upload submit
-  const handleAddAsset = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    addAssetMutation.mutate(formData);
-  };
-
   // Skills add / remove
   const handleAddSkill = (newSkill: string) => {
     if (!newSkill.trim()) return;
@@ -556,108 +598,130 @@ export const ProfilePage: React.FC = () => {
     updateSkillsMutation.mutate(updated);
   };
 
-  const tabs: { id: ProfileTab; label: string; icon: React.FC<{ className?: string }> }[] = [
-    { id: "personal", label: "Personal Info", icon: User },
-    { id: "documents", label: "Resume & Photo", icon: FileText },
-    { id: "experience", label: "Work History", icon: Briefcase },
-    { id: "education", label: "Education", icon: GraduationCap },
-    { id: "skills", label: "Skills", icon: Award },
-    { id: "trainings", label: "Trainings", icon: FileCheck },
-    { id: "references", label: "References", icon: Users },
-    { id: "assets", label: "201 Clearances", icon: FolderOpen },
-  ];
+  const handleCompleteNextSection = (target: string) => {
+    if (target.includes("resume")) handleSectionChange("overview");
+    else if (target.includes("experience") || target.includes("education") || target.includes("skill") || target.includes("reference")) {
+      handleSectionChange("qualifications");
+    } else handleSectionChange("personal");
+  };
+
+  const handleReviewResume = () => {
+    if (!resumeReview) return;
+    if (resumeReview.firstSection === "personal") {
+      setOpenPersonalSection("identity");
+      handleSectionChange("personal");
+    } else if (resumeReview.firstSection === "qualifications") {
+      setOpenQualificationSection(resumeReview.firstQualificationSection || "experience");
+      handleSectionChange("qualifications");
+    } else {
+      handleSectionChange("overview");
+      window.setTimeout(() => document.getElementById("overview-resume-panel")?.focus(), 0);
+    }
+  };
+
+  const handlePhotoFile = (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      setFeedback({ type: "error", message: "Maximum photo upload size is 5 MB." });
+      return;
+    }
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if ((file.type && !["image/jpeg", "image/png", "image/jpg"].includes(file.type)) || !["jpg", "jpeg", "png"].includes(ext || "")) {
+      setFeedback({ type: "error", message: "Invalid photo format. Only JPG and PNG files up to 5 MB are accepted." });
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    uploadPhotoMutation.mutate(formData);
+  };
+
+  const handleResumeFile = (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      setFeedback({ type: "error", message: "Maximum resume upload size is 5 MB." });
+      return;
+    }
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if ((file.type && file.type !== "application/pdf") || ext !== "pdf") {
+      setFeedback({ type: "error", message: "Invalid file format. Only PDF files up to 5 MB are accepted." });
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    uploadResumeMutation.mutate(formData);
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Candidate Profile & Qualifications"
-        description="Maintain verified identity, qualifications, and profile records"
+        title="Candidate Profile"
+        description="Keep your profile ready for the next opportunity"
         breadcrumbs={[
           { label: "Applicant Portal", href: "/app" },
           { label: "Profile" },
         ]}
       />
 
-      {/* Profile Completeness Health Bar (HCI Visibility of System Status) */}
-      <ProfileHealthMeter
-        profile={profile}
-        onJumpToTab={(tabId) => handleTabChange(tabId as ProfileTab)}
-      />
-
-      {feedback && (
+      {feedback && !(activeSection === "overview" && resumeReview && feedback.type === "success" && feedback.message.startsWith("Resume parsed")) && (
         <div
-          className={`p-3 border-l-4 border text-xs font-mono flex items-center justify-between ${
+          className={`p-3.5 rounded-md border text-sm font-sans flex items-center justify-between ${
             feedback.type === "success"
-              ? "bg-teal-50 border-teal-700 text-teal-950"
-              : "bg-rose-50 border-rose-700 text-rose-950"
+              ? "bg-[#E8EEF6] border-[#0F294A]/30 text-[#0F294A]"
+              : "bg-rose-50 border-rose-300 text-rose-950"
           }`}
+          role="alert"
         >
           <div className="flex items-center gap-2">
             <span>{feedback.message}</span>
           </div>
           <button
             onClick={() => setFeedback(null)}
-            className="text-slate-400 hover:text-slate-700 font-bold ml-4 cursor-pointer"
+            className="text-slate-400 hover:text-slate-700 font-bold ml-4 cursor-pointer text-base"
+            aria-label="Dismiss notification"
           >
             ×
           </button>
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-5">
-        {/* Navigation Sidebar with Completion Status Indicators */}
-        <div className="lg:w-64 shrink-0">
-          <div className="bg-white border border-slate-200 divide-y divide-slate-100 shadow-2xs">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              const status = profileHealth.tabStatuses[tab.id];
+      <ProfileSectionNav activeSection={activeSection} onChange={handleSectionChange} />
 
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`w-full flex items-center justify-between px-3.5 py-3 text-xs font-sans transition-colors text-left cursor-pointer ${
-                    isActive
-                      ? "bg-slate-900 text-white font-semibold"
-                      : "text-slate-700 hover:text-slate-950 hover:bg-slate-50"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <Icon
-                      className={`w-4 h-4 shrink-0 ${
-                        isActive ? "text-teal-400" : "text-slate-400"
-                      }`}
-                    />
-                    <span className="truncate">{tab.label}</span>
-                  </div>
+      <div
+        id={`profile-panel-${activeSection}`}
+        role="tabpanel"
+        aria-labelledby={`profile-tab-${activeSection}`}
+        tabIndex={0}
+        className="bg-white border border-slate-200 p-4 sm:p-6 shadow-2xs focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] focus-visible:ring-offset-2"
+      >
+          {activeSection === "overview" && (
+            <ProfileOverview
+              profile={profile}
+              user={user}
+              candidateInitials={candidateInitials}
+              imgError={imgError}
+              onImageError={() => setImgError(true)}
+              onPhotoFile={handlePhotoFile}
+              photoUploadPending={uploadPhotoMutation.isPending}
+              onResumeFile={handleResumeFile}
+              resumeUploadPending={uploadResumeMutation.isPending}
+              resumeReview={resumeReview}
+              onViewPdf={() => {
+                if (profile?.resumeUrl) {
+                  setPreviewDocState({
+                    open: true,
+                    documentId: extractDocumentId(profile.resumeUrl),
+                    fileUrl: profile.resumeUrl,
+                    title: "Resume",
+                  });
+                }
+              }}
+              onReviewResume={handleReviewResume}
+              onNavigate={handleSectionChange}
+              onJumpToSection={handleCompleteNextSection}
+              skills={skillsList}
+            />
+          )}
 
-                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                    {status?.isComplete ? (
-                      <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] ${
-                        isActive ? "bg-teal-900 text-teal-300" : "bg-teal-50 text-teal-700"
-                      }`}>
-                        ✓
-                      </span>
-                    ) : (
-                      <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] ${
-                        isActive ? "bg-amber-900 text-amber-300" : "bg-amber-50 text-amber-600"
-                      }`}>
-                        !
-                      </span>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Tab Content Container */}
-        <div className="flex-1 bg-white border border-slate-200 p-6 shadow-2xs">
           {/* TAB 1: PERSONAL INFO */}
-          {activeTab === "personal" && (
+          {activeSection === "personal" && (
             <div className="space-y-6">
               <div className="border-b border-slate-100 pb-3">
                 <h3 className="text-base font-bold text-slate-900">Personal Information</h3>
@@ -677,6 +741,13 @@ export const ProfilePage: React.FC = () => {
                 }}
                 className="space-y-6"
               >
+                <ProfileDisclosure
+                  id="profile-personal-identity"
+                  title="Identity & contact"
+                  summary="Your legal name and primary contact details"
+                  open={openPersonalSection === "identity"}
+                  onToggle={() => setOpenPersonalSection(openPersonalSection === "identity" ? "" : "identity")}
+                >
                 {/* 1. Legal Name & Contact */}
                 <div className="space-y-3">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
@@ -747,8 +818,16 @@ export const ProfilePage: React.FC = () => {
                     />
                   </div>
                 </div>
+                </ProfileDisclosure>
 
                 {/* 2. Demographics & Background */}
+                <ProfileDisclosure
+                  id="profile-personal-background"
+                  title="Background"
+                  summary="Optional demographic and placement preferences"
+                  open={openPersonalSection === "background"}
+                  onToggle={() => setOpenPersonalSection(openPersonalSection === "background" ? "" : "background")}
+                >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
                     2. Demographics & Placement Background
@@ -824,43 +903,29 @@ export const ProfilePage: React.FC = () => {
                       value={personalForm.weight}
                       onChange={(e) => setPersonalForm((prev) => ({ ...prev, weight: e.target.value }))}
                     />
-                    <div className="space-y-1">
-                      <Input
-                        label="Preferred Work Locations"
-                        placeholder="e.g. Makati, Taguig, Ortigas, Remote"
-                        value={personalForm.preferredWorkLocations}
-                        onChange={(e) => {
-                          setPersonalForm((prev) => ({
-                            ...prev,
-                            preferredWorkLocations: e.target.value,
-                          }));
-                        }}
-                      />
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {["Metro Manila", "Rizal", "Cavite", "Laguna", "Remote / WFH"].map((loc) => (
-                          <button
-                            key={loc}
-                            type="button"
-                            onClick={() => {
-                              const current = personalForm.preferredWorkLocations;
-                              if (!current.includes(loc)) {
-                                setPersonalForm((prev) => ({
-                                  ...prev,
-                                  preferredWorkLocations: current ? `${current}, ${loc}` : loc,
-                                }));
-                              }
-                            }}
-                            className="text-[10px] px-1.5 py-0.5 bg-slate-100 hover:bg-teal-50 border border-slate-200 text-slate-600 hover:text-teal-900 transition-colors cursor-pointer"
-                          >
-                            + {loc}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    <Input
+                      label="Preferred Work Locations"
+                      placeholder="e.g. Makati, Taguig, Ortigas, Remote"
+                      value={personalForm.preferredWorkLocations}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({
+                          ...prev,
+                          preferredWorkLocations: e.target.value,
+                        }));
+                      }}
+                    />
                   </div>
                 </div>
+                </ProfileDisclosure>
 
                 {/* 3. Residential Address */}
+                <ProfileDisclosure
+                  id="profile-personal-address"
+                  title="Address & work preferences"
+                  summary="Where you live and where you can work"
+                  open={openPersonalSection === "address"}
+                  onToggle={() => setOpenPersonalSection(openPersonalSection === "address" ? "" : "address")}
+                >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
                     3. Residential Address
@@ -898,8 +963,16 @@ export const ProfilePage: React.FC = () => {
                     />
                   </div>
                 </div>
+                </ProfileDisclosure>
 
                 {/* 4. Professional Summary */}
+                <ProfileDisclosure
+                  id="profile-personal-summary"
+                  title="Professional summary"
+                  summary="A short introduction for recruiters"
+                  open={openPersonalSection === "summary"}
+                  onToggle={() => setOpenPersonalSection(openPersonalSection === "summary" ? "" : "summary")}
+                >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
                     4. Professional Summary & Career Objective
@@ -919,11 +992,19 @@ export const ProfilePage: React.FC = () => {
                     }}
                   />
                 </div>
+                </ProfileDisclosure>
 
-                {/* 5. Statutory & Government ID Numbers */}
+                {/* 5. Government Identification */}
+                <ProfileDisclosure
+                  id="profile-personal-government"
+                  title="Government identification"
+                  summary="Optional statutory numbers"
+                  open={openPersonalSection === "government"}
+                  onToggle={() => setOpenPersonalSection(openPersonalSection === "government" ? "" : "government")}
+                >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
-                    5. Statutory & Government ID Numbers (Optional)
+                    5. Government Identification (Optional)
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <Input
@@ -952,8 +1033,16 @@ export const ProfilePage: React.FC = () => {
                     />
                   </div>
                 </div>
+                </ProfileDisclosure>
 
                 {/* 6. Emergency Contact */}
+                <ProfileDisclosure
+                  id="profile-personal-emergency"
+                  title="Emergency contact"
+                  summary="A contact we can reach if needed"
+                  open={openPersonalSection === "emergency"}
+                  onToggle={() => setOpenPersonalSection(openPersonalSection === "emergency" ? "" : "emergency")}
+                >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
                     6. Emergency Contact Person
@@ -978,8 +1067,16 @@ export const ProfilePage: React.FC = () => {
                     />
                   </div>
                 </div>
+                </ProfileDisclosure>
 
                 {/* 7. Additional Notes */}
+                <ProfileDisclosure
+                  id="profile-personal-notes"
+                  title="Additional notes"
+                  summary="Optional accommodations or schedule notes"
+                  open={openPersonalSection === "notes"}
+                  onToggle={() => setOpenPersonalSection(openPersonalSection === "notes" ? "" : "notes")}
+                >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
                     7. Additional Notes (Optional)
@@ -992,6 +1089,7 @@ export const ProfilePage: React.FC = () => {
                     onChange={(e) => setPersonalForm((prev) => ({ ...prev, additionalNotes: e.target.value }))}
                   />
                 </div>
+                </ProfileDisclosure>
 
                 <div className="flex justify-end pt-4 border-t border-slate-200">
                   <Button
@@ -1007,166 +1105,17 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 2: RESUME & PHOTO */}
-          {activeTab === "documents" && (
-            <div className="space-y-6">
-              <div className="border-b border-slate-100 pb-3">
-                <h3 className="text-base font-bold text-slate-900">Resume & Identification Photo</h3>
-                <p className="text-xs text-slate-500">
-                  Upload latest curriculum vitae in PDF format and standard identity photo.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {/* Resume Box */}
-                <div className="bg-slate-50 border border-slate-200 p-4 space-y-3">
-                  <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-900 uppercase">
-                    <FileText className="w-4 h-4 text-teal-700" />
-                    <span>Resume (PDF)</span>
-                  </div>
-
-                  {profile?.resumeUrl ? (
-                    <div className="p-3 bg-white border border-slate-200 flex items-center justify-between">
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
-                        <span className="text-xs font-sans font-medium text-slate-800 truncate">
-                          Active resume on file
-                        </span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="text-xs font-semibold text-teal-800 uppercase hover:underline shrink-0 cursor-pointer"
-                        onClick={() =>
-                          setPreviewDocState({
-                            open: true,
-                            documentId: extractDocumentId(profile.resumeUrl),
-                            title: "Resume",
-                          })
-                        }
-                      >
-                        View PDF
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="p-4 border border-dashed border-slate-300 text-center text-xs text-slate-500 bg-white">
-                      No resume uploaded yet
-                    </div>
-                  )}
-
-                  <label className="block">
-                    <input
-                      data-testid="resume-autofill-upload-input"
-                      type="file"
-                      accept=".pdf"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          if (file.size > 5 * 1024 * 1024) {
-                            setFeedback({ type: "error", message: "Maximum resume upload size is 5 MB." });
-                            return;
-                          }
-                          const fd = new FormData();
-                          fd.append("file", file);
-                          uploadResumeMutation.mutate(fd);
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Upload className="w-3.5 h-3.5" />}
-                      loading={uploadResumeMutation.isPending}
-                      className="w-full cursor-pointer"
-                      onClick={(e) => {
-                        const input = e.currentTarget.parentElement?.querySelector("input");
-                        input?.click();
-                      }}
-                    >
-                      {uploadResumeMutation.isPending ? "Reading Resume..." : "Upload Resume (PDF)"}
-                    </Button>
-                  </label>
-                  <p className="text-[11px] text-slate-500 font-sans">
-                    Uploading a PDF resume extracts and auto-fills profile details for your review.
-                  </p>
-                </div>
-
-                {/* Photo Box */}
-                <div className="bg-slate-50 border border-slate-200 p-4 space-y-3">
-                  <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-900 uppercase">
-                    <User className="w-4 h-4 text-teal-700" />
-                    <span>Candidate Photo</span>
-                  </div>
-
-                  {profile?.photoUrl ? (
-                    <div className="flex items-center gap-3">
-                      {!imgError ? (
-                        <img
-                          src={profile.photoUrl}
-                          alt="Profile avatar"
-                          className="w-14 h-14 object-cover border border-slate-300"
-                          onError={() => setImgError(true)}
-                        />
-                      ) : (
-                        <div className="w-14 h-14 bg-slate-200 border border-slate-300 flex items-center justify-center font-bold text-slate-700 font-mono text-base">
-                          {candidateInitials}
-                        </div>
-                      )}
-                      <div className="text-xs text-slate-700 font-sans font-medium">
-                        Active identity photo on file
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 border border-dashed border-slate-300 text-center text-xs text-slate-500 bg-white">
-                      No photo attached
-                    </div>
-                  )}
-
-                  <label className="block">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const fd = new FormData();
-                          fd.append("file", file);
-                          uploadPhotoMutation.mutate(fd);
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Upload className="w-3.5 h-3.5" />}
-                      loading={uploadPhotoMutation.isPending}
-                      className="w-full cursor-pointer"
-                      onClick={(e) => {
-                        const input = e.currentTarget.parentElement?.querySelector("input");
-                        input?.click();
-                      }}
-                    >
-                      Upload Photo (PNG/JPG)
-                    </Button>
-                  </label>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* TAB 3: WORK EXPERIENCE */}
-          {activeTab === "experience" && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div className="space-y-0.5">
-                  <h3 className="text-base font-bold text-slate-900">Work Experience History</h3>
-                  <p className="text-xs text-slate-500">
-                    Chronological employment background for manpower placement
-                  </p>
-                </div>
+          {activeSection === "qualifications" && (
+            <ProfileDisclosure
+              id="profile-qualification-experience"
+              title="Work experience"
+              summary={`${profile?.workExperiences?.length || 0} ${profile?.workExperiences?.length === 1 ? "role" : "roles"}`}
+              open={openQualificationSection === "experience"}
+              onToggle={() => setOpenQualificationSection(openQualificationSection === "experience" ? "" : "experience")}
+            >
+              <div className="space-y-5">
+                <div className="flex justify-end border-b border-slate-100 pb-3">
                 <Button
                   variant="primary"
                   size="sm"
@@ -1178,7 +1127,7 @@ export const ProfilePage: React.FC = () => {
                 >
                   Add Experience
                 </Button>
-              </div>
+                </div>
 
               {!profile?.workExperiences || profile.workExperiences.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
@@ -1192,7 +1141,7 @@ export const ProfilePage: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-bold text-slate-900">{exp.roleTitle}</span>
                           {exp.isCurrent && (
-                            <span className="px-1.5 py-0.5 bg-teal-50 border border-teal-200 text-teal-800 text-[10px] font-mono font-bold uppercase">
+                            <span className="px-1.5 py-0.5 bg-[#E8EEF6] border border-[#0F294A]/20 text-[#0F294A] text-[10px] font-mono font-bold uppercase rounded">
                               Present
                             </span>
                           )}
@@ -1220,7 +1169,7 @@ export const ProfilePage: React.FC = () => {
                             setEditingExp(exp);
                             setExpModalOpen(true);
                           }}
-                          className="text-slate-600 hover:text-teal-700 hover:bg-slate-100"
+                          className="text-slate-600 hover:text-[#0F294A] hover:bg-slate-100"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -1244,19 +1193,21 @@ export const ProfilePage: React.FC = () => {
                   ))}
                 </div>
               )}
-            </div>
+              </div>
+            </ProfileDisclosure>
           )}
 
           {/* TAB 4: EDUCATION */}
-          {activeTab === "education" && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div className="space-y-0.5">
-                  <h3 className="text-base font-bold text-slate-900">Educational Attainment</h3>
-                  <p className="text-xs text-slate-500">
-                    Degrees, vocational courses, and academic background
-                  </p>
-                </div>
+          {activeSection === "qualifications" && (
+            <ProfileDisclosure
+              id="profile-qualification-education"
+              title="Education"
+              summary={`${profile?.educations?.length || 0} ${profile?.educations?.length === 1 ? "record" : "records"}`}
+              open={openQualificationSection === "education"}
+              onToggle={() => setOpenQualificationSection(openQualificationSection === "education" ? "" : "education")}
+            >
+              <div className="space-y-5">
+                <div className="flex justify-end border-b border-slate-100 pb-3">
                 <Button
                   variant="primary"
                   size="sm"
@@ -1268,7 +1219,7 @@ export const ProfilePage: React.FC = () => {
                 >
                   Add Education
                 </Button>
-              </div>
+                </div>
 
               {!profile?.educations || profile.educations.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
@@ -1299,7 +1250,7 @@ export const ProfilePage: React.FC = () => {
                             setEditingEdu(edu);
                             setEduModalOpen(true);
                           }}
-                          className="text-slate-600 hover:text-teal-700 hover:bg-slate-100"
+                          className="text-slate-600 hover:text-[#0F294A] hover:bg-slate-100"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -1323,31 +1274,40 @@ export const ProfilePage: React.FC = () => {
                   ))}
                 </div>
               )}
-            </div>
+              </div>
+            </ProfileDisclosure>
           )}
 
           {/* TAB 5: SKILLS */}
-          {activeTab === "skills" && (
-            <SkillsSection
-              skills={skillsList}
-              onAddSkill={handleAddSkill}
-              onRemoveSkill={handleRemoveSkill}
-              isUpdating={updateSkillsMutation.isPending}
-            />
+          {activeSection === "qualifications" && (
+            <ProfileDisclosure
+              id="profile-qualification-skills"
+              title="Skills"
+              summary={`${skillsList.length} ${skillsList.length === 1 ? "skill" : "skills"}`}
+              open={openQualificationSection === "skills"}
+              onToggle={() => setOpenQualificationSection(openQualificationSection === "skills" ? "" : "skills")}
+            >
+              <SkillsSection
+                skills={skillsList}
+                onAddSkill={handleAddSkill}
+                onRemoveSkill={handleRemoveSkill}
+                isUpdating={updateSkillsMutation.isPending}
+                showHeader={false}
+              />
+            </ProfileDisclosure>
           )}
 
           {/* TAB 6: TRAININGS & CERTIFICATIONS */}
-          {activeTab === "trainings" && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div className="space-y-0.5">
-                  <h3 className="text-base font-bold text-slate-900">
-                    Certifications & Seminars
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    TESDA, safety certifications, and industry trainings
-                  </p>
-                </div>
+          {activeSection === "qualifications" && (
+            <ProfileDisclosure
+              id="profile-qualification-trainings"
+              title="Training & certifications"
+              summary={`${profile?.trainings?.length || 0} ${profile?.trainings?.length === 1 ? "record" : "records"}`}
+              open={openQualificationSection === "trainings"}
+              onToggle={() => setOpenQualificationSection(openQualificationSection === "trainings" ? "" : "trainings")}
+            >
+              <div className="space-y-5">
+                <div className="flex justify-end border-b border-slate-100 pb-3">
                 <Button
                   variant="primary"
                   size="sm"
@@ -1359,7 +1319,7 @@ export const ProfilePage: React.FC = () => {
                 >
                   Add Training
                 </Button>
-              </div>
+                </div>
 
               {!profile?.trainings || profile.trainings.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
@@ -1386,7 +1346,7 @@ export const ProfilePage: React.FC = () => {
                             setEditingTraining(t);
                             setTrainingModalOpen(true);
                           }}
-                          className="text-slate-600 hover:text-teal-700 hover:bg-slate-100"
+                          className="text-slate-600 hover:text-[#0F294A] hover:bg-slate-100"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -1410,19 +1370,21 @@ export const ProfilePage: React.FC = () => {
                   ))}
                 </div>
               )}
-            </div>
+              </div>
+            </ProfileDisclosure>
           )}
 
           {/* TAB 7: CHARACTER REFERENCES */}
-          {activeTab === "references" && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div className="space-y-0.5">
-                  <h3 className="text-base font-bold text-slate-900">Character References</h3>
-                  <p className="text-xs text-slate-500">
-                    Professional and personal references for background verification
-                  </p>
-                </div>
+          {activeSection === "qualifications" && (
+            <ProfileDisclosure
+              id="profile-qualification-references"
+              title="References"
+              summary={`${profile?.characterReferences?.length || 0} ${profile?.characterReferences?.length === 1 ? "contact" : "contacts"}`}
+              open={openQualificationSection === "references"}
+              onToggle={() => setOpenQualificationSection(openQualificationSection === "references" ? "" : "references")}
+            >
+              <div className="space-y-5">
+                <div className="flex justify-end border-b border-slate-100 pb-3">
                 <Button
                   variant="primary"
                   size="sm"
@@ -1435,7 +1397,7 @@ export const ProfilePage: React.FC = () => {
                 >
                   Add Reference
                 </Button>
-              </div>
+                </div>
 
               {!profile?.characterReferences || profile.characterReferences.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
@@ -1466,7 +1428,7 @@ export const ProfilePage: React.FC = () => {
                             setRefPhone(r.phone || "");
                             setRefModalOpen(true);
                           }}
-                          className="text-slate-600 hover:text-teal-700 hover:bg-slate-100"
+                          className="text-slate-600 hover:text-[#0F294A] hover:bg-slate-100"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -1490,82 +1452,13 @@ export const ProfilePage: React.FC = () => {
                   ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* TAB 8: 201 CLEARANCES & ASSETS */}
-          {activeTab === "assets" && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div className="space-y-0.5">
-                  <h3 className="text-base font-bold text-slate-900">
-                    Pre-Employment 201 Clearances & Assets
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Upload NBI clearance, SSS, PhilHealth, Pag-IBIG, and medical clearance files
-                  </p>
-                </div>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => setAssetModalOpen(true)}
-                >
-                  Upload Document
-                </Button>
               </div>
-
-              {!profile?.assets || profile.assets.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
-                  No requirements documents uploaded. Click "Upload Document" to attach government clearances.
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {profile.assets.map((asset: any) => (
-                    <div key={asset.id} className="py-4 flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="text-sm font-bold text-slate-900">{asset.label}</div>
-                        <div className="text-xs text-slate-600 font-mono">
-                          Type: {asset.documentType || "Government Clearance"}
-                        </div>
-                        <div className="text-[11px] text-slate-400 font-mono">
-                          Uploaded: {formatDate(asset.createdAt)}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {asset.fileUrl && (
-                          <a
-                            href={asset.fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-xs font-semibold text-teal-700 hover:underline"
-                          >
-                            View
-                          </a>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            setDeleteTarget({
-                              type: "asset",
-                              id: asset.id,
-                              label: asset.label,
-                            })
-                          }
-                          className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            </ProfileDisclosure>
           )}
+
+          {activeSection === "applications" && <ProfileApplications />}
+
         </div>
-      </div>
 
       {/* Add / Edit Experience Modal */}
       <Dialog
@@ -1611,7 +1504,7 @@ export const ProfilePage: React.FC = () => {
               id="isCurrent"
               name="isCurrent"
               defaultChecked={Boolean(editingExp?.isCurrent)}
-              className="rounded text-teal-600"
+              className="rounded text-[#0F294A] focus:ring-[#0F294A]"
             />
             <label htmlFor="isCurrent" className="text-xs text-slate-700">
               I currently work in this position
@@ -1805,37 +1698,6 @@ export const ProfilePage: React.FC = () => {
         </form>
       </Dialog>
 
-      {/* Add Asset Modal */}
-      <Dialog
-        open={assetModalOpen}
-        onClose={() => setAssetModalOpen(false)}
-        title="Upload 201 Document / Clearance"
-        description="Attach PDF or image scan of pre-employment clearance"
-      >
-        <form onSubmit={handleAddAsset} className="space-y-4">
-          <Input label="Document Label / Title" name="label" placeholder="e.g. NBI Clearance, SSS Form, Medical Certificate" required />
-          <div className="space-y-1">
-            <label className="block text-xs font-semibold text-slate-700">
-              Clearance File (PDF or Image) <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="file"
-              name="file"
-              required
-              className="block w-full text-xs text-slate-700 border border-slate-300 rounded-lg file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer"
-            />
-          </div>
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setAssetModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" type="submit" loading={addAssetMutation.isPending}>
-              Upload Clearance
-            </Button>
-          </div>
-        </form>
-      </Dialog>
-
       {/* Delete Item Confirm Dialog */}
       <ConfirmDialog
         open={Boolean(deleteTarget)}
@@ -1846,7 +1708,6 @@ export const ProfilePage: React.FC = () => {
           if (deleteTarget.type === "education") deleteEduMutation.mutate(deleteTarget.id);
           if (deleteTarget.type === "training") deleteTrainingMutation.mutate(deleteTarget.id);
           if (deleteTarget.type === "reference") deleteRefMutation.mutate(deleteTarget.id);
-          if (deleteTarget.type === "asset") deleteAssetMutation.mutate(deleteTarget.id);
         }}
         variant="danger"
         title="Delete Qualification Entry"
@@ -1859,8 +1720,20 @@ export const ProfilePage: React.FC = () => {
         open={Boolean(previewDocState?.open)}
         onClose={() => setPreviewDocState(null)}
         documentId={previewDocState?.documentId}
+        fileUrl={previewDocState?.fileUrl}
         title={previewDocState?.title}
       />
+
+      {blocker.status === "blocked" && (
+        <ConfirmDialog
+          open
+          onClose={() => blocker.reset?.()}
+          onConfirm={() => blocker.proceed?.()}
+          title="Leave without saving?"
+          description="Your personal information changes will be lost if you leave this page."
+          confirmLabel="Leave without saving"
+        />
+      )}
     </div>
   );
 };

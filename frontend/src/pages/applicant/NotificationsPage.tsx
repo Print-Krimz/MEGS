@@ -100,7 +100,7 @@ export const NotificationsPage: React.FC = () => {
       case "INTERVIEW_SLA":
         return <Calendar className="w-4 h-4 text-blue-600" />;
       case "APPLICATION_STATUS":
-        return <Briefcase className="w-4 h-4 text-teal-600" />;
+        return <Briefcase className="w-4 h-4 text-[#0F294A]" />;
       case "COMPLIANCE_REQUIRED":
         return <ShieldCheck className="w-4 h-4 text-amber-600" />;
       default:
@@ -138,10 +138,10 @@ export const NotificationsPage: React.FC = () => {
             setFilterUnread(false);
             setPage(1);
           }}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
             !filterUnread
-              ? "bg-teal-50 text-teal-800 border border-teal-200"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              ? "bg-[#0F294A] text-white shadow-xs"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
           }`}
         >
           All Notifications ({notifications.length})
@@ -152,10 +152,10 @@ export const NotificationsPage: React.FC = () => {
             setFilterUnread(true);
             setPage(1);
           }}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
             filterUnread
-              ? "bg-teal-50 text-teal-800 border border-teal-200"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              ? "bg-[#0F294A] text-white shadow-xs"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
           }`}
         >
           Unread Only
@@ -173,7 +173,7 @@ export const NotificationsPage: React.FC = () => {
       ) : notifications.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
           <EmptyState
-            icon={<Bell className="w-6 h-6" />}
+            icon={<Bell className="w-6 h-6 text-slate-500" />}
             title="No notifications to show"
             description={
               filterUnread
@@ -193,7 +193,7 @@ export const NotificationsPage: React.FC = () => {
                   if (n.link) navigate({ to: n.link as any });
                 }}
                 className={`p-4 flex items-start justify-between gap-4 transition-colors cursor-pointer ${
-                  !n.isRead ? "bg-teal-50/20" : "hover:bg-slate-50/60"
+                  !n.isRead ? "bg-[#E8EEF6]/40" : "hover:bg-slate-50/60"
                 }`}
               >
                 <div className="flex items-start gap-3 flex-1">
@@ -204,10 +204,10 @@ export const NotificationsPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-slate-900">{n.title}</span>
                       {!n.isRead && (
-                        <span className="w-2 h-2 rounded-full bg-teal-600 shrink-0" />
+                        <span className="w-2 h-2 rounded-full bg-[#0F294A] shrink-0" />
                       )}
                       {n.link && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium text-[#0F294A] bg-[#E8EEF6] border border-[#0F294A]/20 px-1.5 py-0.5 rounded">
                           <span>View Record</span>
                           <ArrowUpRight className="w-3 h-3" />
                         </span>
@@ -250,7 +250,7 @@ export const NotificationsPage: React.FC = () => {
                         markReadMutation.mutate(n.id);
                       }}
                       title="Mark as read"
-                      className="text-teal-700 hover:text-teal-900 shrink-0"
+                      className="text-[#0F294A] hover:text-[#163B66] shrink-0"
                     >
                       Mark read
                     </Button>
