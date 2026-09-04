@@ -178,7 +178,7 @@ export const MyApplicationsPage: React.FC = () => {
     },
     {
       key: "COMPLIANCE",
-      label: "Requirements & Onboarding",
+      label: "Requirements & Contract",
       count: allApplications.filter(
         (a) =>
           a.status === ApplicationStatus.COMPLIANCE ||
@@ -285,7 +285,7 @@ export const MyApplicationsPage: React.FC = () => {
         actions={
           <Link
             to="/app/jobs"
-            className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+            className="inline-flex min-h-[44px] items-center rounded-md border border-[#0F294A] bg-[#0F294A] px-4 text-sm font-medium text-white hover:bg-[#163B66] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] focus-visible:ring-offset-2 transition-colors"
           >
             Explore jobs
           </Link>
@@ -296,7 +296,7 @@ export const MyApplicationsPage: React.FC = () => {
         <div
           className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
             feedback.type === "success"
-              ? "bg-teal-50 border-teal-200 text-teal-800"
+              ? "bg-[#E8EEF6] border-[#0F294A]/20 text-[#0F294A]"
               : "bg-rose-50 border-rose-200 text-rose-800"
           }`}
         >
@@ -311,7 +311,7 @@ export const MyApplicationsPage: React.FC = () => {
       )}
 
       {/* Filter Tabs Ribbon */}
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-300 pb-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
         {filterTabs.map((tab) => {
           const isActive = statusFilter === tab.key;
           const hasPending = tab.key === "INVITATIONS" && (tab.pendingCount || 0) > 0;
@@ -324,17 +324,17 @@ export const MyApplicationsPage: React.FC = () => {
                 setStatusFilter(tab.key);
                 setPage(1);
               }}
-              className={`min-h-11 px-3 py-2 text-sm font-medium transition-colors flex items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
+              className={`min-h-[44px] px-3.5 py-2 text-sm font-medium transition-colors flex items-center gap-2 rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] ${
                 isActive
-                  ? "bg-teal-700 text-white border border-teal-800"
-                  : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50"
+                  ? "bg-[#0F294A] text-white border-[#0F294A] shadow-xs"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
               }`}
             >
               <span>{tab.label}</span>
               <span
-                className={`px-1.5 py-0.5 text-xs rounded-full font-mono font-semibold ${
+                className={`px-2 py-0.5 text-xs rounded-full font-mono font-semibold ${
                   isActive
-                    ? "bg-teal-900 text-teal-100"
+                    ? "bg-white/20 text-white"
                     : hasPending
                     ? "bg-amber-100 text-amber-900 border border-amber-300 font-bold"
                     : "bg-slate-100 text-slate-600"
@@ -380,7 +380,7 @@ export const MyApplicationsPage: React.FC = () => {
                 <div
                   key={inv.id}
                   className={`bg-white rounded-xl border p-5 shadow-xs transition-all space-y-4 ${
-                    isPending ? "border-teal-300 ring-1 ring-teal-200" : "border-slate-200"
+                    isPending ? "border-[#0F294A]/30 ring-1 ring-[#0F294A]/20" : "border-slate-200"
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 pb-4">
@@ -433,9 +433,9 @@ export const MyApplicationsPage: React.FC = () => {
 
                   {/* Recruiter Message */}
                   {inv.message && (
-                    <div className="p-3 bg-teal-50/60 border border-teal-100 rounded-lg text-xs space-y-1">
-                      <div className="text-teal-900 font-semibold flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5 text-teal-600" />
+                    <div className="p-3 bg-[#E8EEF6]/60 border border-[#0F294A]/20 rounded-lg text-xs space-y-1">
+                      <div className="text-[#0F294A] font-semibold flex items-center gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5 text-[#0F294A]" />
                         <span>Note from Recruiter ({inv.invitedBy || "Talent Acquisition"})</span>
                       </div>
                       <p className="text-slate-700 leading-relaxed italic">"{inv.message}"</p>
@@ -476,15 +476,15 @@ export const MyApplicationsPage: React.FC = () => {
             onRetry={() => applicationsQuery.refetch()}
           />
         ) : allApplications.length === 0 ? (
-          <div className="bg-white border border-slate-300 p-6">
+          <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-xs">
             <EmptyState
-              icon={<Briefcase className="w-5 h-5" />}
+              icon={<Briefcase className="w-5 h-5 text-slate-500" />}
               title="No applications yet"
               description="Explore current jobs and apply when a role suits you."
               action={
                 <Link
                   to="/app/jobs"
-                  className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+                  className="inline-flex min-h-[44px] items-center rounded-md border border-[#0F294A] bg-[#0F294A] px-4 text-sm font-medium text-white hover:bg-[#163B66] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] focus-visible:ring-offset-2 transition-colors"
                 >
                   Explore jobs
                 </Link>
@@ -492,9 +492,9 @@ export const MyApplicationsPage: React.FC = () => {
             />
           </div>
         ) : filteredApplications.length === 0 ? (
-          <div className="bg-white border border-slate-300 p-6">
+          <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-xs">
             <EmptyState
-              icon={<Briefcase className="w-5 h-5" />}
+              icon={<Briefcase className="w-5 h-5 text-slate-500" />}
               title="No applications in this category"
               description="There are currently no job applications matching this filter category."
               action={
@@ -509,7 +509,7 @@ export const MyApplicationsPage: React.FC = () => {
             {paginatedApplications.map((app) => (
               <div
                 key={app.id}
-                className="bg-white border border-slate-300 p-5 space-y-4 hover:border-slate-400 transition-colors rounded-lg shadow-xs"
+                className="bg-white border border-slate-200 p-5 space-y-4 hover:border-slate-300 transition-all rounded-lg shadow-xs hover:shadow-sm"
               >
                 {/* Top line: role title, company & date */}
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -539,21 +539,21 @@ export const MyApplicationsPage: React.FC = () => {
                   <Link
                     to="/app/applications/$applicationId"
                     params={{ applicationId: String(app.id) }}
-                    className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2 shrink-0"
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] focus-visible:ring-offset-2 shrink-0 transition-colors"
                   >
                     View application progress
                   </Link>
                 </div>
 
                 {/* Pipeline Stepper */}
-                <div className="pt-2 border-t border-slate-200">
+                <div className="pt-2 border-t border-slate-100">
                   <PipelineIndicator currentStatus={app.status} audience="applicant" hideTerminalAlert />
                 </div>
 
                 {/* Contextual Status Alerts */}
                 {app.status === ApplicationStatus.INITIAL_SCREENING && (
-                  <div className="p-3 bg-teal-50 border-l-4 border-teal-700 border border-slate-300 flex items-center gap-2 text-sm text-teal-950">
-                    <Calendar className="w-4 h-4 text-teal-700 shrink-0" />
+                  <div className="p-3 bg-[#E8EEF6] border-l-4 border-[#0F294A] border border-slate-200 rounded-r-md flex items-center gap-2 text-sm text-slate-900">
+                    <Calendar className="w-4 h-4 text-[#0F294A] shrink-0" />
                     <span>
                       Your screening interview has been queued. Our recruitment team will coordinate with you regarding the schedule.
                     </span>
@@ -561,8 +561,8 @@ export const MyApplicationsPage: React.FC = () => {
                 )}
 
                 {app.status === ApplicationStatus.FINAL_INTERVIEW && (
-                  <div className="p-3 bg-teal-50 border-l-4 border-teal-700 border border-slate-300 flex items-center gap-2 text-sm text-teal-950">
-                    <Calendar className="w-4 h-4 text-teal-700 shrink-0" />
+                  <div className="p-3 bg-[#E8EEF6] border-l-4 border-[#0F294A] border border-slate-200 rounded-r-md flex items-center gap-2 text-sm text-slate-900">
+                    <Calendar className="w-4 h-4 text-[#0F294A] shrink-0" />
                     <span>
                       You have advanced to the client final interview. Please prepare for your scheduled discussion.
                     </span>
@@ -570,11 +570,11 @@ export const MyApplicationsPage: React.FC = () => {
                 )}
 
                 {app.status === ApplicationStatus.COMPLIANCE && (
-                  <div className="p-3 bg-amber-50 border-l-4 border-amber-600 border border-slate-300 flex items-center justify-between gap-3 text-sm text-amber-950">
+                  <div className="p-3 bg-amber-50 border-l-4 border-amber-600 border border-slate-200 rounded-r-md flex items-center justify-between gap-3 text-sm text-amber-950">
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-amber-700 shrink-0" />
                       <span>
-                        Employment documents (201) are needed. Please submit the documents requested for you.
+                        Requirements are needed. Please submit the documents requested for you.
                       </span>
                     </div>
                     <Link
@@ -589,7 +589,7 @@ export const MyApplicationsPage: React.FC = () => {
                 )}
 
                 {app.status === ApplicationStatus.DEPLOYED && (
-                  <div className="p-3 bg-emerald-50 border-l-4 border-emerald-700 border border-slate-300 flex items-center gap-2 text-sm text-emerald-950">
+                  <div className="p-3 bg-emerald-50 border-l-4 border-emerald-700 border border-slate-200 rounded-r-md flex items-center gap-2 text-sm text-emerald-950">
                     <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
                     <span>
                       You have been placed at your work site. Your employee record is ready.
@@ -598,9 +598,9 @@ export const MyApplicationsPage: React.FC = () => {
                 )}
 
                 {app.status === ApplicationStatus.TALENT_POOL && (
-                  <div className="p-3 bg-violet-50 border-l-4 border-violet-700 border border-slate-300 flex items-center justify-between gap-3 text-sm text-violet-950">
+                  <div className="p-3 bg-slate-100 border-l-4 border-[#0F294A] border border-slate-200 rounded-r-md flex items-center justify-between gap-3 text-sm text-slate-800">
                     <div className="flex items-center gap-2">
-                      <Bookmark className="w-4 h-4 text-violet-700 shrink-0" />
+                      <Bookmark className="w-4 h-4 text-[#0F294A] shrink-0" />
                       <span>
                         You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications.
                       </span>
@@ -609,7 +609,7 @@ export const MyApplicationsPage: React.FC = () => {
                       to="/app/applications/$applicationId"
                       params={{ applicationId: String(app.id) }}
                     >
-                      <span className="font-medium text-violet-900 hover:underline shrink-0">
+                      <span className="font-medium text-[#0F294A] hover:underline shrink-0">
                         View details
                       </span>
                     </Link>
@@ -619,13 +619,14 @@ export const MyApplicationsPage: React.FC = () => {
             ))}
 
             {/* Pagination */}
-            <div className="bg-white border border-slate-300 p-2">
+            <div className="bg-white border border-slate-200 p-2 rounded-lg shadow-xs">
               <Pagination
                 currentPage={page}
                 totalPages={totalPages}
                 totalItems={filteredApplications.length}
                 pageSize={pageSize}
                 onPageChange={setPage}
+                itemLabel="applications"
               />
             </div>
           </div>

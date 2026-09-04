@@ -104,7 +104,7 @@ export const ApplicationDetailPage: React.FC = () => {
             <p className="text-xs text-slate-600">
               This application does not exist or you do not have permission to view it.
             </p>
-            <Link to="/app/applications" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+            <Link to="/app/applications" className="inline-flex min-h-[44px] items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] focus-visible:ring-offset-2 transition-colors">
               Back to applications
             </Link>
           </div>
@@ -138,7 +138,7 @@ export const ApplicationDetailPage: React.FC = () => {
           { label: job?.title || "Application Details" },
         ]}
         actions={
-          <Link to="/app/applications" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+          <Link to="/app/applications" className="inline-flex min-h-[44px] items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] focus-visible:ring-offset-2 transition-colors">
             Back to applications
           </Link>
         }
@@ -163,8 +163,8 @@ export const ApplicationDetailPage: React.FC = () => {
       )}
 
       {/* Progress Card */}
-      <div className="bg-white border border-slate-300 p-4 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+      <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2.5">
               <span className="text-sm font-medium text-slate-600">
@@ -180,21 +180,21 @@ export const ApplicationDetailPage: React.FC = () => {
 
         {/* Supporting message for Future Opportunities */}
         {application.status === ApplicationStatus.TALENT_POOL && (
-          <div className="p-4 bg-violet-50 border-l-4 border-violet-700 border border-slate-300 space-y-1">
+          <div className="p-4 bg-slate-100 border-l-4 border-[#0F294A] border border-slate-200 rounded-lg space-y-1">
             <div className="flex items-center gap-2">
-              <Bookmark className="w-4 h-4 text-violet-700 shrink-0" />
-              <h4 className="text-sm font-semibold text-violet-950">
+              <Bookmark className="w-4 h-4 text-[#0F294A] shrink-0" />
+              <h4 className="text-sm font-semibold text-slate-900">
                 Status: Future Opportunities
               </h4>
             </div>
-            <p className="text-xs sm:text-sm text-violet-900 leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
               You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications.
             </p>
           </div>
         )}
 
-        {application.status === ApplicationStatus.CONTRACT_AND_ORIENTATION && (
-          <div className="p-4 bg-purple-50 border-l-4 border-purple-700 border border-slate-300 space-y-2">
+        {(application.status === ApplicationStatus.CONTRACT_AND_ORIENTATION || application.status === ApplicationStatus.ONBOARDING) && (
+          <div className="p-4 bg-purple-50 border-l-4 border-purple-700 border border-slate-200 rounded-lg space-y-2">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-purple-700 shrink-0" />
               <h4 className="text-sm font-semibold text-purple-950">
@@ -206,12 +206,12 @@ export const ApplicationDetailPage: React.FC = () => {
             </p>
             <div className="flex flex-wrap gap-3 pt-1 text-xs font-mono">
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border ${
-                application.contractSigned ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-slate-100 text-slate-700 border-slate-300"
+                application.contractSigned ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-slate-100 text-slate-700 border-slate-200"
               }`}>
                 {application.contractSigned ? "✓ Contract Signed" : "⏳ Contract Pending"}
               </span>
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border ${
-                application.orientationCompleted ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-slate-100 text-slate-700 border-slate-300"
+                application.orientationCompleted ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-slate-100 text-slate-700 border-slate-200"
               }`}>
                 {application.orientationCompleted ? "✓ Orientation Completed" : "⏳ Orientation Pending"}
               </span>
@@ -220,7 +220,7 @@ export const ApplicationDetailPage: React.FC = () => {
         )}
 
         {application.status === ApplicationStatus.DEPLOYED && (
-          <div className="p-4 bg-emerald-50 border-l-4 border-emerald-700 border border-slate-300 space-y-1">
+          <div className="p-4 bg-emerald-50 border-l-4 border-emerald-700 border border-slate-200 rounded-lg space-y-1">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
               <h4 className="text-sm font-semibold text-emerald-950">
@@ -239,14 +239,14 @@ export const ApplicationDetailPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Scheduled Interviews & Compliance Requirements */}
-        <div className="md:col-span-2 space-y-5">
+        <div className="lg:col-span-2 space-y-6">
           {/* Scheduled Interviews Card */}
-          <div className="bg-white border border-slate-300">
-            <div className="p-3 border-b border-slate-300 flex items-center gap-2 bg-slate-100">
-              <Calendar className="w-4 h-4 text-blue-700" />
-              <h3 className="text-base font-semibold text-slate-900">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden">
+            <div className="p-3.5 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
+              <Calendar className="w-4 h-4 text-[#0F294A]" />
+              <h3 className="text-sm font-semibold text-slate-900">
                 Interviews and assessments
               </h3>
             </div>
@@ -256,14 +256,14 @@ export const ApplicationDetailPage: React.FC = () => {
                 No interviews scheduled yet. Once our recruitment team reviews your application, interview details will appear here.
               </div>
             ) : (
-              <div className="divide-y divide-slate-200 p-4 space-y-3">
+              <div className="divide-y divide-slate-100 p-4 space-y-3">
                 {interviews.map((interview) => (
                   <div key={interview.id} className="pt-2 space-y-1.5 font-mono">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-950 uppercase">
                         {interview.type.replace(/_/g, " ")}
                       </span>
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-900 border border-blue-300 uppercase">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-900 border border-blue-200 uppercase rounded">
                         {interview.result || "SCHEDULED"}
                       </span>
                     </div>
@@ -285,32 +285,34 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
 
           {/* Compliance Requirements Checklist */}
-          <div className="bg-white border border-slate-300">
-            <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden">
+            <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2">
-                <FileCheck2 className="w-4 h-4 text-teal-700" />
-                <h3 className="text-base font-semibold text-slate-900">
-                  Employment documents (201)
+                <FileCheck2 className="w-4 h-4 text-[#0F294A]" />
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Requirements
                 </h3>
               </div>
-              <span className="text-[11px] font-mono text-slate-500">
+              <span className="text-xs font-mono text-slate-500">
                 {compliance.filter((c) => c.reviewStatus === "APPROVED").length} / {compliance.length} Approved
               </span>
             </div>
 
             {compliance.length === 0 ? (
               <div className="p-6 text-center text-xs font-mono text-slate-400">
-                No active document requirements pending at this stage. Requirements will be assigned once hired.
+                {(application.status === ApplicationStatus.CONTRACT_AND_ORIENTATION || application.status === ApplicationStatus.ONBOARDING)
+                  ? "No additional requirements are pending. Contract and orientation are the next steps."
+                  : "No active document requirements are assigned yet. We’ll show them here when they are ready."}
               </div>
             ) : (
-              <div className="divide-y divide-slate-200">
+              <div className="divide-y divide-slate-100">
                 {compliance.map((req) => {
                   const isApproved = req.reviewStatus === "APPROVED";
                   const isRejected = req.reviewStatus === "REJECTED";
                   const isSubmitted = req.reviewStatus === "SUBMITTED";
 
                   return (
-                    <div key={req.id} className="p-4 space-y-2 hover:bg-slate-50">
+                    <div key={req.id} className="p-4 space-y-2 hover:bg-slate-50 transition-colors">
                       <div className="flex items-start justify-between gap-4">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
@@ -318,7 +320,7 @@ export const ApplicationDetailPage: React.FC = () => {
                               {req.documentLabel}
                             </span>
                             {req.isRequired && (
-                              <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 bg-rose-50 text-rose-700 border border-rose-200 uppercase">
+                              <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 bg-rose-50 text-rose-700 border border-rose-200 uppercase rounded">
                                 Mandatory
                               </span>
                             )}
@@ -332,14 +334,14 @@ export const ApplicationDetailPage: React.FC = () => {
 
                         <div className="flex items-center gap-2 shrink-0">
                           <span
-                            className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 border ${
+                            className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 border rounded ${
                               isApproved
                                 ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                                 : isRejected
                                 ? "bg-rose-50 text-rose-800 border-rose-200"
                                 : isSubmitted
                                 ? "bg-amber-50 text-amber-800 border-amber-200"
-                                : "bg-slate-100 text-slate-800 border-slate-300"
+                                : "bg-slate-100 text-slate-800 border-slate-200"
                             }`}
                           >
                             {req.reviewStatus}
@@ -350,7 +352,7 @@ export const ApplicationDetailPage: React.FC = () => {
                               href={`/api/documents/${req.documentId}/download`}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] font-mono text-blue-600 hover:text-blue-800 underline ml-1"
+                              className="inline-flex items-center gap-1 text-[11px] font-mono text-[#0F294A] hover:underline ml-1"
                             >
                               <ExternalLink className="w-3 h-3" />
                               View
@@ -401,35 +403,36 @@ export const ApplicationDetailPage: React.FC = () => {
 
         {/* Right Column: Requisition Information */}
         <div className="space-y-4">
-          <div className="bg-white border border-slate-300 p-4 space-y-3">
-            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700 border-b border-slate-200 pb-2">
-              Position Details
+          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4 shadow-xs sticky top-6">
+            <h3 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-[#0F294A]" />
+              <span>Position Details</span>
             </h3>
 
-            <div className="space-y-2.5 text-xs">
+            <div className="space-y-3 text-xs">
               <div className="flex items-start gap-2.5">
-                <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                <Briefcase className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold uppercase font-mono text-[10px] text-slate-500">Position Title</div>
-                  <div className="text-slate-900 font-bold">{job?.title || "N/A"}</div>
+                  <div className="text-[11px] font-medium text-slate-500">Position Title</div>
+                  <div className="text-slate-900 font-semibold text-xs mt-0.5">{job?.title || "N/A"}</div>
                 </div>
               </div>
 
               <div className="flex items-start gap-2.5">
-                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold uppercase font-mono text-[10px] text-slate-500">Deployment Location</div>
-                  <div className="text-slate-800">{job?.location || "Philippines"}</div>
+                  <div className="text-[11px] font-medium text-slate-500">Deployment Location</div>
+                  <div className="text-slate-800 font-medium text-xs mt-0.5">{job?.location || "Philippines"}</div>
                 </div>
               </div>
             </div>
 
             {job?.description && (
-              <div className="pt-3 border-t border-slate-200">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-500">
+              <div className="pt-3 border-t border-slate-100">
+                <span className="text-[11px] font-medium text-slate-500">
                   Role Description:
                 </span>
-                <p className="text-xs text-slate-600 line-clamp-4 mt-1 leading-normal font-sans">
+                <p className="text-xs text-slate-600 line-clamp-4 mt-1 leading-relaxed">
                   {job.description}
                 </p>
               </div>
