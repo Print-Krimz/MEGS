@@ -1,48 +1,44 @@
 import React from "react";
 import { LandingHeader } from "../../components/public/LandingHeader";
 import { LandingHero } from "../../components/public/LandingHero";
-import { LandingAbout } from "../../components/public/LandingAbout";
-import { LandingServices } from "../../components/public/LandingServices";
-import { LandingSpecializations } from "../../components/public/LandingSpecializations";
-import { LandingIndustries } from "../../components/public/LandingIndustries";
-import { LandingBranches } from "../../components/public/LandingBranches";
+import { LandingFeaturedJobs } from "../../components/public/LandingFeaturedJobs";
+import { LandingCategories } from "../../components/public/LandingCategories";
+import { LandingCompanies } from "../../components/public/LandingCompanies";
+import { LandingHowItWorks } from "../../components/public/LandingHowItWorks";
+import { LandingRecruiterBanner } from "../../components/public/LandingRecruiterBanner";
 import { LandingCTA } from "../../components/public/LandingCTA";
-import { LandingValues } from "../../components/public/LandingValues";
 import { LandingFooter } from "../../components/public/LandingFooter";
 
 export const LandingPage: React.FC = () => {
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-teal-700 selection:text-white">
-      {/* 1. Header */}
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+      {/* 1. Sticky Navigation Header */}
       <LandingHeader />
 
       <main className="flex-1">
-        {/* 2. Hero */}
+        {/* 2. Hero with Search & Headline */}
         <LandingHero />
 
-        {/* 3. About MEGS */}
-        <LandingAbout />
+        {/* 3. Featured & Recommended Jobs */}
+        <LandingFeaturedJobs />
 
-        {/* 4. What We Do (Services) */}
-        <LandingServices />
+        {/* 4. Browse by Category */}
+        <LandingCategories />
 
-        {/* 5. Job Specializations */}
-        <LandingSpecializations />
+        {/* 5. Featured Hiring Employers */}
+        <LandingCompanies />
 
-        {/* 6. Industries We Serve */}
-        <LandingIndustries />
+        {/* 6. How It Works */}
+        <LandingHowItWorks />
 
-        {/* 7. Nationwide Presence */}
-        <LandingBranches />
+        {/* 7. Let Opportunities Find You (Recruiter Outreach) */}
+        <LandingRecruiterBanner />
 
-        {/* 8. Applicant / Employer CTA Split */}
+        {/* 8. Final High-Conversion CTA */}
         <LandingCTA />
-
-        {/* 9. Corporate Values */}
-        <LandingValues />
       </main>
 
-      {/* 10. Contact / Footer */}
+      {/* 9. DOLE-Compliant Clean Footer */}
       <LandingFooter />
     </div>
   );
