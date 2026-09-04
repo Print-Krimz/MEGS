@@ -12,7 +12,12 @@ import {
   JobImage,
 } from "../../components/common";
 import { Button } from "../../components/ui";
-import { formatDate } from "../../lib/utils";
+import {
+  formatDate,
+  formatSalaryRange,
+  formatEmploymentType,
+  formatWorkArrangement,
+} from "../../lib/utils";
 import { Briefcase, MapPin, ArrowRight, Bookmark } from "lucide-react";
 import { notify } from "../../lib/feedback";
 
@@ -224,11 +229,26 @@ export const JobsPage: React.FC = () => {
                       <h3 className="text-base font-semibold text-slate-900 leading-snug">
                         {job.title}
                       </h3>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                           <span>{job.location || "Philippines"}</span>
                         </span>
+                        {job.mrf?.salaryRangeMin || job.mrf?.salaryRangeMax ? (
+                          <span className="font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-[11px] border border-emerald-200">
+                            {formatSalaryRange(job.mrf.salaryRangeMin, job.mrf.salaryRangeMax)}
+                          </span>
+                        ) : null}
+                        {job.mrf?.employmentType && (
+                          <span className="text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[11px] border border-slate-200">
+                            {formatEmploymentType(job.mrf.employmentType)}
+                          </span>
+                        )}
+                        {job.mrf?.workArrangement && (
+                          <span className="text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[11px] border border-slate-200">
+                            {formatWorkArrangement(job.mrf.workArrangement)}
+                          </span>
+                        )}
                       </div>
                     </div>
 

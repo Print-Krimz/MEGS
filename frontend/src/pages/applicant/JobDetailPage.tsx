@@ -9,7 +9,12 @@ import {
   JobImage,
 } from "../../components/common";
 import { Button, Dialog } from "../../components/ui";
-import { formatDate } from "../../lib/utils";
+import {
+  formatDate,
+  formatSalaryRange,
+  formatEmploymentType,
+  formatWorkArrangement,
+} from "../../lib/utils";
 import {
   MapPin,
   Clock,
@@ -20,6 +25,8 @@ import {
   FileText,
   Briefcase,
   Bookmark,
+  Banknote,
+  Building2,
 } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 
@@ -114,12 +121,15 @@ export const JobDetailPage: React.FC = () => {
   }
 
   const job = jobQuery.data;
+  const salaryDisplay = formatSalaryRange(job.mrf?.salaryRangeMin, job.mrf?.salaryRangeMax);
+  const employmentTypeDisplay = formatEmploymentType(job.mrf?.employmentType);
+  const workArrangementDisplay = formatWorkArrangement(job.mrf?.workArrangement);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={job.title}
-        description={job.location || "Philippines"}
+        description={`${job.location || "Philippines"} · ${employmentTypeDisplay} · ${workArrangementDisplay}`}
         breadcrumbs={[
           { label: "My career", href: "/app" },
           { label: "Explore jobs", href: "/app/jobs" },
@@ -170,6 +180,28 @@ export const JobDetailPage: React.FC = () => {
       {/* Position Details Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* Compensation & Working Terms Bar */}
+          <div className="bg-[#E8EEF6] border border-[#0F294A]/20 rounded-lg p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
+            <div className="space-y-0.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                Monthly Salary Range
+              </span>
+              <div className="text-xl font-bold font-mono text-[#0F294A]">
+                {salaryDisplay}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-white text-slate-800 border border-slate-300 text-xs font-semibold">
+                <Briefcase className="w-3.5 h-3.5 text-slate-500" />
+                <span>{employmentTypeDisplay}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-white text-slate-800 border border-slate-300 text-xs font-semibold">
+                <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                <span>{workArrangementDisplay}</span>
+              </span>
+            </div>
+          </div>
+
           {/* Main Description */}
           <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-xs space-y-4">
             <h3 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
@@ -209,6 +241,32 @@ export const JobDetailPage: React.FC = () => {
             </div>
 
             <div className="space-y-3.5 text-xs">
+              <div className="flex items-start gap-3">
+                <Banknote className="w-4 h-4 text-[#0F294A] shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-slate-500 text-[11px] font-medium">Monthly Compensation</div>
+                  <div className="text-[#0F294A] font-bold text-sm mt-0.5 font-mono">
+                    {salaryDisplay}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Briefcase className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-slate-500 text-[11px] font-medium">Employment Type</div>
+                  <div className="text-slate-900 font-medium text-xs mt-0.5">{employmentTypeDisplay}</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Building2 className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-slate-500 text-[11px] font-medium">Work Arrangement</div>
+                  <div className="text-slate-900 font-medium text-xs mt-0.5">{workArrangementDisplay}</div>
+                </div>
+              </div>
+
               <div className="flex items-start gap-3">
                 <Briefcase className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
                 <div>

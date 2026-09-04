@@ -69,6 +69,20 @@ const mockJobs = [
     location: "Valenzuela City",
     status: "OPEN",
     createdAt: "2026-03-01T08:00:00.000Z",
+    mrf: {
+      id: 10,
+      title: "Warehouse Inventory Specialist Requisition",
+      clientId: 1,
+      salaryRangeMin: 22000,
+      salaryRangeMax: 28000,
+      employmentType: "FULL_TIME",
+      workArrangement: "ONSITE",
+      client: {
+        id: 1,
+        name: "FastLogistics PH",
+        tradeName: "FastLogistics",
+      },
+    },
   },
   {
     id: 2,
@@ -78,6 +92,20 @@ const mockJobs = [
     location: "Quezon City",
     status: "OPEN",
     createdAt: "2026-03-02T08:00:00.000Z",
+    mrf: {
+      id: 11,
+      title: "Logistics Dispatch Supervisor Requisition",
+      clientId: 2,
+      salaryRangeMin: 32000,
+      salaryRangeMax: 40000,
+      employmentType: "FULL_TIME",
+      workArrangement: "ONSITE",
+      client: {
+        id: 2,
+        name: "Metro Express Cargo",
+        tradeName: "Metro Express",
+      },
+    },
   },
   {
     id: 3,
@@ -87,6 +115,20 @@ const mockJobs = [
     location: "Biñan, Laguna",
     status: "OPEN",
     createdAt: "2026-03-03T08:00:00.000Z",
+    mrf: {
+      id: 12,
+      title: "Distribution Center Team Lead Requisition",
+      clientId: 3,
+      salaryRangeMin: 28000,
+      salaryRangeMax: 35000,
+      employmentType: "FULL_TIME",
+      workArrangement: "HYBRID",
+      client: {
+        id: 3,
+        name: "Apex Retail Distribution",
+        tradeName: "Apex Retail",
+      },
+    },
   },
 ];
 
@@ -407,6 +449,9 @@ test.describe("Applicant Portal Redesign - Navy Blue Theme & HCI Audit", () => {
     await expect(page.getByText("Warehouse Inventory Specialist")).toBeVisible();
     await expect(page.getByText("Logistics Dispatch Supervisor")).toBeVisible();
 
+    // Verify Salary Range from MRF
+    await expect(page.getByText("₱22,000 – ₱28,000 / month")).toBeVisible();
+
     // Details CTA button
     const detailsButtons = page.getByRole("link", { name: "Details" });
     expect(await detailsButtons.count()).toBeGreaterThanOrEqual(1);
@@ -437,6 +482,10 @@ test.describe("Applicant Portal Redesign - Navy Blue Theme & HCI Audit", () => {
     // Position Overview & Requirements
     await expect(page.getByText("Position Overview")).toBeVisible();
     await expect(page.getByText("What you need for this role")).toBeVisible();
+
+    // Salary and Working Terms from MRF
+    await expect(page.getByText("Monthly Salary Range")).toBeVisible();
+    await expect(page.getByText("₱22,000 – ₱28,000 / month").first()).toBeVisible();
 
     // Sticky summary sidebar
     await expect(page.getByText("Role Summary")).toBeVisible();

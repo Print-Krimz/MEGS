@@ -117,6 +117,7 @@ export function getApplicationStatusPresentation(
         return { label: "Action needed", badgeClass: "bg-amber-100 text-amber-800 border-amber-300" };
       case ApplicationStatus.COMPLIANCE:
         return { label: "Requirements", badgeClass: "bg-orange-100 text-orange-800 border-orange-300" };
+      case ApplicationStatus.ONBOARDING:
       case ApplicationStatus.CONTRACT_AND_ORIENTATION:
         return { label: "Contract & Orientation", badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
       case ApplicationStatus.TALENT_POOL:
@@ -143,6 +144,7 @@ export function getApplicationStatusPresentation(
       return { label: "Final Interview", badgeClass: "bg-sky-100 text-sky-800 border-sky-300" };
     case ApplicationStatus.COMPLIANCE:
       return { label: "Requirements", badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
+    case ApplicationStatus.ONBOARDING:
     case ApplicationStatus.CONTRACT_AND_ORIENTATION:
       return { label: "Contract & Orientation", badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
     case ApplicationStatus.DEPLOYED:
@@ -336,7 +338,7 @@ export function formatNotificationMessage(
     }
 
     if (message.includes("moved to COMPLIANCE")) {
-      return "Employment documents (201) are needed. Please submit the requested documents.";
+      return "Requirements are needed. Please submit the requested documents.";
     }
 
     if (message.includes("moved to DEPLOYED")) {
@@ -351,3 +353,65 @@ export function formatNotificationMessage(
   return message;
 }
 
+/**
+ * Format minimum and maximum salary range into Philippine Peso representation.
+ * Example: ₱20,000 – ₱28,000 / month, or "Competitive / Negotiable"
+ */
+export function formatSalaryRange(
+  min?: number | null,
+  max?: number | null,
+  fallback = "Competitive / Negotiable"
+): string {
+  const hasMin = min !== undefined && min !== null && min > 0;
+  const hasMax = max !== undefined && max !== null && max > 0;
+
+  if (hasMin && hasMax) {
+    if (min === max) {
+      return `₱${min.toLocaleString("en-PH")} / month`;
+    }
+    return `₱${min.toLocaleString("en-PH")} – ₱${max.toLocaleString("en-PH")} / month`;
+  }
+  if (hasMin) {
+    return `From ₱${min.toLocaleString("en-PH")} / month`;
+  }
+  if (hasMax) {
+    return `Up to ₱${max.toLocaleString("en-PH")} / month`;
+  }
+  return fallback;
+}
+
+/**
+ * Format employment type enum into human-readable text
+ */
+export function formatEmploymentType(type?: string | null): string {
+  if (!type) return "Full-time";
+  switch (type.toUpperCase()) {
+    case "FULL_TIME":
+      return "Full-time";
+    case "PART_TIME":
+      return "Part-time";
+    case "CONTRACT":
+      return "Contract";
+    case "PROJECT_BASED":
+      return "Project-based";
+    default:
+      return type.replace(/_/g, " ");
+  }
+}
+
+/**
+ * Format work arrangement into human-readable text
+ */
+export function formatWorkArrangement(arrangement?: string | null): string {
+  if (!arrangement) return "On-site";
+  switch (arrangement.toUpperCase()) {
+    case "ONSITE":
+      return "On-site";
+    case "REMOTE":
+      return "Remote";
+    case "HYBRID":
+      return "Hybrid";
+    default:
+      return arrangement.replace(/_/g, " ");
+  }
+}

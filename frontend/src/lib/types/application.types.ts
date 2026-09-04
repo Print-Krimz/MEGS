@@ -23,6 +23,10 @@ export interface JobPosting {
     id: number;
     title: string;
     clientId: number;
+    salaryRangeMin?: number | null;
+    salaryRangeMax?: number | null;
+    employmentType?: string | null;
+    workArrangement?: string | null;
     client?: {
       id: number;
       name: string;
