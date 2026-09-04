@@ -13,9 +13,9 @@ export const AppContent: React.FC = () => {
 
   if (auth.isLoading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-slate-300">
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-300">
         <div className="flex items-center gap-3">
-          <Loader2 className="w-6 h-6 text-teal-400 animate-spin" />
+          <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
           <span className="text-sm font-medium">
             Opening your recruitment workspace…
           </span>
