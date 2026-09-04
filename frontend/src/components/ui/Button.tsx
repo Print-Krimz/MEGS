@@ -27,17 +27,17 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const baseStyles =
-      "inline-flex items-center justify-center min-h-11 md:min-h-9 rounded-md font-medium font-sans border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed select-none";
+      "inline-flex items-center justify-center min-h-11 md:min-h-9 rounded-md font-medium font-sans border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed select-none";
 
     const variantStyles = {
       primary:
-        "bg-blue-600 hover:bg-blue-700 text-white border-blue-700 focus:ring-blue-600 active:bg-blue-800 shadow-xs",
+        "bg-teal-700 hover:bg-teal-800 text-white border-teal-800 focus:ring-teal-600 active:bg-teal-900",
       secondary:
-        "bg-slate-900 hover:bg-slate-800 text-white border-slate-900 focus:ring-slate-700 active:bg-slate-950",
+        "bg-slate-800 hover:bg-slate-900 text-white border-slate-900 focus:ring-slate-700 active:bg-slate-950",
       outline:
-        "border-slate-300 bg-white hover:bg-slate-50 text-slate-800 focus:ring-blue-600 active:bg-slate-100",
+        "border-slate-300 bg-white hover:bg-slate-100 text-slate-800 focus:ring-teal-600 active:bg-slate-200",
       ghost:
-        "border-transparent text-slate-700 hover:text-slate-950 hover:bg-slate-100 focus:ring-slate-400 active:bg-slate-200",
+        "border-transparent text-slate-700 hover:text-slate-950 hover:bg-slate-200/70 focus:ring-slate-400 active:bg-slate-300",
       danger:
         "bg-rose-700 hover:bg-rose-800 text-white border-rose-800 focus:ring-rose-600 active:bg-rose-900",
     };

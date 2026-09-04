@@ -6,6 +6,7 @@ import {
   PageHeader,
   LoadingState,
   ErrorState,
+  JobImage,
 } from "../../components/common";
 import { Button, Dialog } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
@@ -15,29 +16,19 @@ import {
   Send,
   Upload,
   CheckCircle2,
+  AlertCircle,
   FileText,
   Briefcase,
   Bookmark,
-  Building2,
-  ShieldCheck,
-  DollarSign,
-  ArrowLeft,
-  Check,
 } from "lucide-react";
-import { notify } from "../../lib/feedback";
-import { AuthContext } from "../../context/AuthContext";
-import { GuestApplyModal } from "../../components/applicant/GuestApplyModal";
+import { notify, formatErrorMessage } from "../../lib/feedback";
 
 export const JobDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { jobId } = useParams({ strict: false }) as { jobId: string };
 
-  const auth = React.useContext(AuthContext);
-  const isAuthenticated = Boolean(auth?.isAuthenticated);
-
   const [applyModalOpen, setApplyModalOpen] = useState(false);
-  const [guestModalOpen, setGuestModalOpen] = useState(false);
   const [customResume, setCustomResume] = useState<File | null>(null);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
@@ -50,7 +41,6 @@ export const JobDetailPage: React.FC = () => {
   const savedJobIdsQuery = useQuery({
     queryKey: ["applicant", "saved-jobs", "ids"],
     queryFn: applicantJobsApi.getSavedJobIds,
-    enabled: isAuthenticated,
   });
 
   const isSaved = (savedJobIdsQuery.data || []).includes(Number(jobId));
@@ -74,11 +64,6 @@ export const JobDetailPage: React.FC = () => {
   });
 
   const handleToggleSave = () => {
-    if (!isAuthenticated) {
-      setGuestModalOpen(true);
-      return;
-    }
-
     if (isSaved) {
       unsaveMutation.mutate();
     } else {
@@ -94,7 +79,7 @@ export const JobDetailPage: React.FC = () => {
       setSubmissionSuccess(true);
       notify.success("Application Submitted", "Your candidacy has been received and is now being reviewed.");
     },
-    onError: (err: any) => {
+    onError: (err) => {
       notify.error("Application Failed", err);
     },
   });
@@ -110,18 +95,10 @@ export const JobDetailPage: React.FC = () => {
     }
   };
 
-  const handleApplyButtonClick = () => {
-    if (!isAuthenticated) {
-      setGuestModalOpen(true);
-      return;
-    }
-    setApplyModalOpen(true);
-  };
-
   if (jobQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Job Details" description="Loading position details…" />
+        <PageHeader title="Job details" description="Loading position…" />
         <LoadingState variant="detail" />
       </div>
     );
@@ -130,221 +107,149 @@ export const JobDetailPage: React.FC = () => {
   if (jobQuery.isError || !jobQuery.data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Job Details" description="Position details" />
+        <PageHeader title="Job details" description="Position details" />
         <ErrorState error={jobQuery.error} onRetry={() => jobQuery.refetch()} />
       </div>
     );
   }
 
   const job = jobQuery.data;
-  const companyName = (job as any).client?.name || (job as any).company || "MAR Employment (MEGS)";
-  const workSetup = (job as any).workSetup || "ON_SITE";
-  const salaryRange = (job as any).salaryRange;
-  const employmentType = (job as any).employmentType || "Full-time";
 
   return (
     <div className="space-y-6">
-      {/* Back Link */}
-      <div>
-        <Link
-          to={isAuthenticated ? "/app/jobs" : "/jobs"}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-blue-600 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to All Openings</span>
-        </Link>
-      </div>
+      <PageHeader
+        title={job.title}
+        description={job.location || "Philippines"}
+        breadcrumbs={[
+          { label: "My career", href: "/app" },
+          { label: "Explore jobs", href: "/app/jobs" },
+          { label: job.title },
+        ]}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+              Back to jobs
+            </Link>
 
-      {/* Main Hero Header Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-700">{companyName}</span>
-              <span className="text-blue-600" title="Verified Employer">
-                <ShieldCheck className="w-4 h-4" />
-              </span>
-            </div>
+            <Button
+              variant="outline"
+              size="md"
+              leftIcon={<Bookmark className={`w-4 h-4 ${isSaved ? "fill-teal-700 text-teal-700" : ""}`} />}
+              onClick={handleToggleSave}
+            >
+              {isSaved ? "Saved for Later" : "Save for Later"}
+            </Button>
 
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              {job.title}
-            </h1>
-
-            {/* Badges Ribbon */}
-            <div className="flex flex-wrap items-center gap-2.5 pt-1 text-xs">
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-slate-100 text-slate-700 font-medium">
-                <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                <span>{job.location || "Philippines"}</span>
-              </span>
-
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-blue-50 text-blue-700 font-medium">
-                <Briefcase className="w-3.5 h-3.5" />
-                <span>{workSetup === "ON_SITE" ? "On-site" : workSetup === "HYBRID" ? "Hybrid" : "Remote"}</span>
-              </span>
-
-              <span className="inline-flex items-center px-3 py-1 rounded-lg bg-slate-100 text-slate-700 font-medium">
-                {employmentType}
-              </span>
-
-              {salaryRange && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200">
-                  <DollarSign className="w-3.5 h-3.5" />
-                  <span>{salaryRange}</span>
-                </span>
-              )}
-
-              <span className="inline-flex items-center gap-1 text-slate-500 pl-1">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                <span>Posted {formatDate(job.createdAt)}</span>
-              </span>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex sm:flex-col items-center sm:items-end gap-2.5 shrink-0">
             {job.alreadyApplied ? (
-              <Link to="/app/applications">
-                <Button
-                  variant="outline"
-                  size="md"
-                  leftIcon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                >
-                  Application Submitted
-                </Button>
-              </Link>
+              <Button
+                variant="outline"
+                size="md"
+                disabled
+                leftIcon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+              >
+                Application submitted
+              </Button>
             ) : (
               <Button
                 variant="primary"
                 size="md"
                 leftIcon={<Send className="w-4 h-4" />}
-                onClick={handleApplyButtonClick}
-                className="w-full sm:w-auto"
+                onClick={() => setApplyModalOpen(true)}
               >
-                Apply for this Position
+                Apply for this job
               </Button>
             )}
-
-            <Button
-              variant="outline"
-              size="md"
-              leftIcon={<Bookmark className={`w-4 h-4 ${isSaved ? "fill-blue-600 text-blue-600" : ""}`} />}
-              onClick={handleToggleSave}
-              className="w-full sm:w-auto"
-            >
-              {isSaved ? "Saved" : "Save for Later"}
-            </Button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Main Grid: Description (Left) + Metadata (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Role Details */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Position Overview */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">
+      {/* Position Overview Card */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="md:col-span-2 space-y-5">
+          {/* Main Description */}
+          <div className="bg-white border border-slate-300 p-4 space-y-3">
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-2">
               Position Overview
             </h3>
-            <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+            <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-line font-sans">
               {job.description}
             </div>
           </div>
 
-          {/* Requirements */}
+          {/* Requirements & Criteria */}
           {job.requirements && (
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-              <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">
-                Key Requirements & Qualifications
+            <div className="bg-white border border-slate-300 p-4 space-y-3">
+              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-2">
+                What you need for this role
               </h3>
-              <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+              <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-line font-sans">
                 {job.requirements}
               </div>
             </div>
           )}
-
-          {/* Candidate Protection Banner */}
-          <div className="bg-blue-50/60 rounded-xl border border-blue-200 p-5 flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-            <div className="text-xs text-blue-900 space-y-1">
-              <div className="font-bold">Legitimate & Safe Recruitment</div>
-              <p className="leading-relaxed">
-                MAR Employment is a DOLE-licensed Private Employment Agency. We never charge placement fees to applicants. All candidate assessments and hiring workflows are conducted transparently.
-              </p>
-            </div>
-          </div>
         </div>
 
-        {/* Right Column: Sidebar Summary & Company Card */}
-        <div className="space-y-6">
-          {/* Quick Summary Card */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              Position Summary
-            </h3>
+        {/* Sidebar Metadata Card */}
+        <div className="space-y-4">
+          <div className="bg-white border border-slate-300 p-4 space-y-3">
+            <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
+              <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="md" />
+              <div>
+                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">
+                  Job details
+                </h3>
+                <div className="text-[10px] font-mono text-slate-400">REQ #{job.id}</div>
+              </div>
+            </div>
 
-            <div className="space-y-3.5 text-xs">
-              <div className="flex items-start gap-3">
-                <Building2 className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+            <div className="space-y-3 text-xs">
+              <div className="flex items-start gap-2.5">
+                <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-slate-500 font-medium">Employer</div>
-                  <div className="font-bold text-slate-900 mt-0.5">{companyName}</div>
+                  <div className="font-semibold text-slate-900 uppercase font-mono text-[10px]">Position Status</div>
+                  <div className="text-slate-700 font-mono font-bold text-xs">{job.status}</div>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3">
-                <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5">
+                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-slate-500 font-medium">Work Location</div>
-                  <div className="font-bold text-slate-900 mt-0.5">{job.location || "Philippines"}</div>
+                  <div className="font-semibold text-slate-900 uppercase font-mono text-[10px]">Deployment Location</div>
+                  <div className="text-slate-700">{job.location || "Nationwide"}</div>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3">
-                <Briefcase className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5">
+                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-slate-500 font-medium">Work Setup & Schedule</div>
-                  <div className="font-bold text-slate-900 mt-0.5">
-                    {workSetup === "ON_SITE" ? "On-site" : workSetup === "HYBRID" ? "Hybrid" : "Remote"} • {employmentType}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Clock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-slate-500 font-medium">Date Posted</div>
-                  <div className="font-bold text-slate-900 mt-0.5">{formatDate(job.createdAt)}</div>
+                  <div className="font-medium text-slate-700 text-sm">Posted</div>
+                  <div className="text-slate-700 font-mono">{formatDate(job.createdAt)}</div>
                 </div>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-100">
-              <Button
-                variant="primary"
-                size="md"
-                className="w-full"
-                onClick={handleApplyButtonClick}
-                disabled={job.alreadyApplied}
-              >
-                {job.alreadyApplied ? "Already Applied" : "Apply Now"}
-              </Button>
+            <div className="pt-3 border-t border-slate-200">
+              {job.alreadyApplied ? (
+                <div className="p-3 bg-teal-50 border border-teal-300 text-xs text-teal-950 text-center font-medium space-y-2">
+                  <div className="font-mono uppercase font-bold text-[10px]">Application on file</div>
+                  <Link to="/app/applications">
+                    <Button variant="outline" size="sm" className="w-full mt-1">
+                      View Tracker
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="md"
+                  leftIcon={<Send className="w-4 h-4" />}
+                  className="w-full"
+                  onClick={() => setApplyModalOpen(true)}
+                >
+                  Submit application
+                </Button>
+              )}
             </div>
-          </div>
-
-          {/* Tips Card */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3 text-xs text-slate-600">
-            <h4 className="font-bold text-slate-900">Application Tips</h4>
-            <ul className="space-y-2">
-              <li className="flex items-start gap-2">
-                <Check className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
-                <span>Keep your phone number updated in your profile so recruiters can reach you promptly.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
-                <span>Attach a tailored PDF resume to highlight relevant machinery or technical experience.</span>
-              </li>
-            </ul>
           </div>
         </div>
       </div>
@@ -367,7 +272,7 @@ export const JobDetailPage: React.FC = () => {
             <div className="space-y-1">
               <h4 className="text-base font-bold text-slate-900">Application Submitted</h4>
               <p className="text-xs text-slate-600 leading-relaxed max-w-sm mx-auto">
-                Your application has been received and is now queued for recruiter evaluation.
+                Your application has been received and is now being reviewed by our recruitment team.
               </p>
             </div>
             <div className="pt-3 flex gap-2">
@@ -394,10 +299,10 @@ export const JobDetailPage: React.FC = () => {
           </div>
         ) : (
           <form onSubmit={handleApply} className="space-y-4">
-            <div className="p-3.5 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-slate-700 space-y-1">
-              <div className="font-semibold text-blue-900">Candidate Profile Attached:</div>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 space-y-1">
+              <div className="font-semibold text-slate-900">Applicant Profile Information:</div>
               <p>
-                Your saved credentials, work experience, and character references will automatically be attached to this application.
+                Your saved education, work experience, and character references will automatically be attached to this job application.
               </p>
             </div>
 
@@ -415,31 +320,41 @@ export const JobDetailPage: React.FC = () => {
                       const file = e.target.files?.[0];
                       if (file) {
                         if (file.size > 5 * 1024 * 1024) {
-                          notify.error("File Too Large", "Resume must be under 5MB.");
+                          notify.error("File Too Large", "Maximum PDF upload size is 5 MB. Please select a smaller file.");
                           return;
                         }
                         setCustomResume(file);
                       }
                     }}
                   />
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-xs">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>{customResume ? "Change PDF" : "Upload Tailored PDF"}</span>
-                  </div>
+                    <span>{customResume ? "Replace PDF" : "Attach Tailored Resume (PDF up to 5 MB)"}</span>
+                  </span>
                 </label>
                 {customResume && (
-                  <div className="flex items-center gap-1.5 text-xs text-slate-700 font-medium">
-                    <FileText className="w-3.5 h-3.5 text-blue-600" />
-                    <span>{customResume.name}</span>
-                  </div>
+                  <span className="text-xs font-mono text-teal-800 flex items-center gap-1 truncate max-w-[200px]">
+                    <FileText className="w-3.5 h-3.5 shrink-0" />
+                    {customResume.name}
+                  </span>
                 )}
               </div>
-              <p className="text-[11px] text-slate-400">If omitted, your default profile resume will be used.</p>
+              <p className="text-[11px] text-slate-400">
+                If omitted, your active profile resume on file will be used.
+              </p>
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            {applyMutation.isError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2 text-xs text-rose-800">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>
+                  {formatErrorMessage(applyMutation.error)}
+                </span>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
               <Button
-                type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setApplyModalOpen(false)}
@@ -447,26 +362,18 @@ export const JobDetailPage: React.FC = () => {
                 Cancel
               </Button>
               <Button
-                type="submit"
                 variant="primary"
                 size="sm"
+                type="submit"
                 loading={applyMutation.isPending}
                 leftIcon={<Send className="w-3.5 h-3.5" />}
               >
-                Submit Application
+                Confirm & Submit
               </Button>
             </div>
           </form>
         )}
       </Dialog>
-
-      {/* Guest Apply Intercept Modal */}
-      <GuestApplyModal
-        open={guestModalOpen}
-        onClose={() => setGuestModalOpen(false)}
-        jobId={Number(jobId)}
-        jobTitle={job.title}
-      />
     </div>
   );
 };

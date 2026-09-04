@@ -75,7 +75,7 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
             <span>{health.nextActionTip}</span>
           </div>
           <span className="font-mono text-slate-400 hidden md:inline">
-            {health.score >= 85 ? "Job Ready" : `${100 - health.score}% to 100%`}
+            {health.score >= 85 ? "Verified for Placement" : `${100 - health.score}% to 100%`}
           </span>
         </div>
       </div>

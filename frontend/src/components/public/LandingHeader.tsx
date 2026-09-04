@@ -1,159 +1,170 @@
-import React, { useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { useAuth } from "../../hooks/useAuth";
-import { Role } from "../../lib/types/enums";
-import { Menu, X, ArrowRight, User } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Menu, X, ArrowRight, LogIn } from "lucide-react";
+import { scrollToSection } from "../../lib/scrollToSection";
+
+const navLinks = [
+  { label: "Home", href: "#home", id: "home" },
+  { label: "About", href: "#about", id: "about" },
+  { label: "Services", href: "#services", id: "services" },
+  { label: "Industries", href: "#industries", id: "industries" },
+  { label: "Branches", href: "#branches", id: "branches" },
+  { label: "Contact", href: "#contact", id: "contact" },
+];
 
 export const LandingHeader: React.FC = () => {
-  const { isAuthenticated, user } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<string>("home");
 
-  const getPortalLink = () => {
-    if (!user) return "/app";
-    if (user.role === Role.ADMINISTRATOR) return "/admin";
-    if (user.role === Role.TALENT_ACQUISITION) return "/ta";
-    return "/app";
+  // Track active section during scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY + 120;
+      for (const link of navLinks) {
+        const el = document.getElementById(link.id);
+        if (el) {
+          const top = el.offsetTop;
+          const height = el.offsetHeight;
+          if (scrollPosition >= top && scrollPosition < top + height) {
+            setActiveSection(link.id);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    scrollToSection(e, href);
+    setIsMobileMenuOpen(false);
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs">
+    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-xs border-b border-slate-200 transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Brand Logo */}
-          <div className="flex items-center gap-8">
-            <Link to="/" className="flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 rounded-lg">
-              <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-extrabold text-base shadow-xs">
-                M
-              </div>
-              <div className="flex flex-col text-left">
-                <span className="font-extrabold text-slate-950 text-base sm:text-lg tracking-tight leading-none font-sans">
-                  MEGS <span className="text-blue-600 font-semibold text-sm">Careers</span>
-                </span>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
-                  Workforce & Recruitment
-                </span>
-              </div>
-            </Link>
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600" aria-label="Main Navigation">
-              <Link to="/app/jobs" className="hover:text-blue-600 transition-colors">
-                Find Jobs
-              </Link>
-              <a href="#categories" className="hover:text-blue-600 transition-colors">
-                Browse Categories
-              </a>
-              <a href="#companies" className="hover:text-blue-600 transition-colors">
-                Top Companies
-              </a>
-              <a href="#how-it-works" className="hover:text-blue-600 transition-colors">
-                How It Works
-              </a>
-            </nav>
-          </div>
-
-          {/* Right Action Buttons */}
-          <div className="hidden sm:flex items-center gap-3">
-            {isAuthenticated ? (
-              <Link
-                to={getPortalLink() as any}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-              >
-                <User className="w-4 h-4" />
-                <span>My Portal</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="px-4 py-2 text-sm font-semibold text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/register"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-                >
-                  <span>Create Account</span>
-                </Link>
-              </>
-            )}
-          </div>
-
-          {/* Mobile Menu Button */}
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden min-h-11 min-w-11 inline-flex items-center justify-center p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+        <div className="flex items-center justify-between h-16 sm:h-18">
+          {/* Brand Logo & Name */}
+          <a
+            href="#home"
+            onClick={(e) => handleNavClick(e, "#home")}
+            className="flex flex-col focus:outline-none focus:ring-2 focus:ring-teal-700 py-1 group"
+            aria-label="MEGS Home"
           >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+            <span className="font-extrabold text-base sm:text-lg tracking-tight text-slate-950 font-mono leading-none group-hover:text-teal-800 transition-colors">
+              MEGS INC.
+            </span>
+            <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 tracking-wider uppercase mt-1">
+              Manpower & Recruitment
+            </span>
+          </a>
+
+          {/* Desktop Navigation Links with gliding active indicator */}
+          <nav
+            aria-label="Primary Navigation"
+            className="hidden lg:flex items-center gap-6 xl:gap-8"
+          >
+            {navLinks.map((link) => {
+              const isActive = activeSection === link.id;
+              return (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  onClick={(e) => handleNavClick(e, link.href)}
+                  className={`relative text-xs font-semibold uppercase tracking-wider py-1 transition-all duration-200 focus:outline-none ${
+                    isActive
+                      ? "text-teal-800 font-bold"
+                      : "text-slate-600 hover:text-teal-800"
+                  }`}
+                >
+                  {link.label}
+                  {isActive && (
+                    <span className="absolute bottom-0 left-0 w-full h-0.5 bg-teal-700 transition-all duration-300 animate-in fade-in" />
+                  )}
+                </a>
+              );
+            })}
+          </nav>
+
+          {/* Desktop CTAs */}
+          <div className="hidden lg:flex items-center gap-3">
+            <a
+              href="/login"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold font-mono uppercase tracking-wider text-slate-700 hover:text-slate-900 border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-50 transition-all focus:outline-none focus:ring-1 focus:ring-teal-700 hover:-translate-y-0.5"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Portal Login</span>
+            </a>
+            <a
+              href="/register"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold font-mono uppercase tracking-wider text-white bg-teal-800 hover:bg-teal-900 border border-teal-900 transition-all shadow-xs focus:outline-none focus:ring-1 focus:ring-teal-700 hover:-translate-y-0.5"
+            >
+              <span>View Job Openings</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
+
+          {/* Mobile/Tablet Menu Toggle Button */}
+          <div className="flex lg:hidden items-center gap-2">
+            <a
+              href="/login"
+              className="p-2 text-slate-700 hover:text-slate-900 border border-slate-200 bg-white text-xs font-mono font-bold"
+              aria-label="Login to portal"
+            >
+              <LogIn className="w-4 h-4" />
+            </a>
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 text-slate-700 hover:text-slate-900 border border-slate-300 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700"
+              aria-expanded={isMobileMenuOpen}
+              aria-label="Toggle navigation menu"
+            >
+              {isMobileMenuOpen ? (
+                <X className="w-5 h-5" />
+              ) : (
+                <Menu className="w-5 h-5" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-3 shadow-lg animate-in slide-in-from-top-2 duration-150">
-          <nav className="flex flex-col space-y-2 text-sm font-medium text-slate-700">
-            <Link
-              to="/app/jobs"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 rounded-lg hover:bg-slate-100"
-            >
-              Find Jobs
-            </Link>
-            <a
-              href="#categories"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 rounded-lg hover:bg-slate-100"
-            >
-              Browse Categories
-            </a>
-            <a
-              href="#companies"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 rounded-lg hover:bg-slate-100"
-            >
-              Top Companies
-            </a>
-            <a
-              href="#how-it-works"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 rounded-lg hover:bg-slate-100"
-            >
-              How It Works
-            </a>
-          </nav>
-
-          <div className="pt-3 border-t border-slate-200 flex flex-col gap-2">
-            {isAuthenticated ? (
-              <Link
-                to={getPortalLink() as any}
-                onClick={() => setMobileMenuOpen(false)}
-                className="w-full py-2.5 px-4 text-center rounded-xl bg-blue-600 text-white font-bold text-sm shadow-xs"
+      {/* Mobile/Tablet Navigation Drawer */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-6 space-y-3 shadow-md transition-all duration-200">
+          <nav className="flex flex-col space-y-2">
+            {navLinks.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                onClick={(e) => handleNavClick(e, link.href)}
+                className={`px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors border-l-2 ${
+                  activeSection === link.id
+                    ? "bg-teal-50 text-teal-900 border-teal-700"
+                    : "text-slate-700 hover:bg-slate-50 hover:text-teal-800 border-transparent hover:border-teal-700"
+                }`}
               >
-                Go to Portal
-              </Link>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="w-full py-2.5 px-4 text-center rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold text-sm"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/register"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="w-full py-2.5 px-4 text-center rounded-xl bg-blue-600 text-white font-bold text-sm shadow-xs"
-                >
-                  Create Account
-                </Link>
-              </>
-            )}
+                {link.label}
+              </a>
+            ))}
+          </nav>
+          <div className="pt-3 border-t border-slate-200 flex flex-col gap-2">
+            <a
+              href="/register"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="w-full text-center px-4 py-2.5 text-xs font-bold font-mono uppercase tracking-wider text-white bg-teal-800 hover:bg-teal-900 border border-teal-900"
+            >
+              View Job Openings
+            </a>
+            <a
+              href="#contact"
+              onClick={(e) => handleNavClick(e, "#contact")}
+              className="w-full text-center px-4 py-2 text-xs font-bold font-mono uppercase tracking-wider text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300"
+            >
+              Partner With Us
+            </a>
           </div>
         </div>
       )}

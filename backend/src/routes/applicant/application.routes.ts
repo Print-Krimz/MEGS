@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticateJWT, authenticateOptionalJWT, requireRole } from '../../middleware/auth.middleware.js';
+import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
 import { upload } from '../../middleware/upload.middleware.js';
 import {
   getOpenJobs,
@@ -22,14 +22,11 @@ import {
 
 const router = Router();
 
-// Public / Guest job browsing (attaches req.user if token is present)
-router.get("/jobs", authenticateOptionalJWT, getOpenJobs);
-router.get("/jobs/:id", authenticateOptionalJWT, getJobDetails);
-
-// Protected applicant-only routes
 router.use(authenticateJWT);
 router.use(requireRole("APPLICANT"));
 
+router.get("/jobs", getOpenJobs);
+router.get("/jobs/:id", getJobDetails);
 router.post("/jobs/:id/apply", upload.single("file"), applyToJob);
 router.post("/jobs/:id/save", saveJobHandler);
 router.delete("/jobs/:id/save", unsaveJobHandler);

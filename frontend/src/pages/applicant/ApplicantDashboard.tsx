@@ -1,6 +1,6 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import React from "react";
+import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { applicantApi } from "../../lib/api/applicant.api";
 import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
 import {
@@ -17,22 +17,10 @@ import {
   AlertCircle,
   Mail,
   ArrowRight,
-  Search,
-  MapPin,
-  Sparkles,
 } from "lucide-react";
-import { Button } from "../../components/ui";
 import { computeProfileHealth } from "../../lib/profile-health";
-import { ApplicationStatusStepper } from "../../components/applicant/ApplicationStatusStepper";
-import { JobCard } from "../../components/applicant/JobCard";
-import { InvitationCard } from "../../components/applicant/InvitationCard";
-import { notify } from "../../lib/feedback";
 
 export const ApplicantDashboard: React.FC = () => {
-  const navigate = useNavigate();
-  const [searchKeyword, setSearchKeyword] = useState("");
-  const [searchLocation, setSearchLocation] = useState("");
-
   const profileQuery = useQuery({
     queryKey: ["applicant", "profile"],
     queryFn: applicantApi.getProfile,
@@ -42,48 +30,20 @@ export const ApplicantDashboard: React.FC = () => {
   const applicationsQuery = useQuery({
     queryKey: ["applicant", "my-applications"],
     queryFn: applicantJobsApi.getMyApplications,
-    refetchInterval: 10000,
+    refetchInterval: 5000,
     refetchOnWindowFocus: true,
   });
 
   const invitationsQuery = useQuery({
     queryKey: ["applicant", "invitations"],
     queryFn: applicantJobsApi.getMyInvitations,
-    refetchInterval: 15000,
+    refetchInterval: 10000,
   });
 
   const jobsQuery = useQuery({
     queryKey: ["applicant", "open-jobs-preview"],
     queryFn: () => applicantJobsApi.getJobs({ limit: 4 }),
   });
-
-  const respondMutation = useMutation({
-    mutationFn: ({ id, response }: { id: string | number; response: "ACCEPTED" | "DECLINED" }) =>
-      applicantJobsApi.respondToInvitation(id, response),
-    onSuccess: (_, variables) => {
-      invitationsQuery.refetch();
-      if (variables.response === "ACCEPTED") {
-        applicationsQuery.refetch();
-        notify.success("Invitation Accepted", "Your application has been created.");
-      } else {
-        notify.info("Invitation Declined", "Recruiters have been notified.");
-      }
-    },
-    onError: (err) => {
-      notify.error("Action Failed", err);
-    },
-  });
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    navigate({
-      to: "/app/jobs",
-      search: {
-        search: searchKeyword.trim() || undefined,
-        location: searchLocation.trim() || undefined,
-      } as any,
-    });
-  };
 
   if (profileQuery.isLoading || applicationsQuery.isLoading) {
     return (
@@ -119,9 +79,11 @@ export const ApplicantDashboard: React.FC = () => {
   const profile = profileQuery.data || null;
   const applications = Array.isArray(applicationsQuery.data) ? applicationsQuery.data : [];
   const openJobs = Array.isArray(jobsQuery.data) ? jobsQuery.data : [];
+
   const allInvitations = Array.isArray(invitationsQuery.data) ? invitationsQuery.data : [];
   const pendingInvitations = allInvitations.filter((inv) => inv.status === "PENDING");
 
+  // Metrics computation
   const totalApps = applications.length;
   const activeApps = applications.filter(
     (a) =>
@@ -140,296 +102,85 @@ export const ApplicantDashboard: React.FC = () => {
     (a) => a.status === ApplicationStatus.DEPLOYED
   ).length;
 
+  // Profile readiness computed via unified profile health engine
   const profileHealth = computeProfileHealth(profile);
   const readinessPercent = profileHealth.score;
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-4">
-        <PageHeader
-          title={getTimeBasedGreeting(profile?.firstName)}
-          description="See where each application stands and discover matching opportunities."
-          breadcrumbs={[{ label: "My career" }]}
-          actions={
-            <div className="flex items-center gap-2">
-              <Link to="/app/jobs">
-                <Button variant="outline" size="sm" leftIcon={<Briefcase className="w-4 h-4" />}>
-                  Explore Jobs
-                </Button>
+    <div className="space-y-5">
+      <PageHeader
+        title={getTimeBasedGreeting(profile?.firstName)}
+        description="See where each application stands and what to do next."
+        breadcrumbs={[{ label: "My career" }]}
+        actions={
+          <div className="flex gap-2">
+            <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+              Browse jobs
+            </Link>
+            {readinessPercent >= 85 && (
+              <Link to="/app/profile" className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+                Update profile
               </Link>
-              {readinessPercent >= 85 && (
-                <Link to="/app/profile">
-                  <Button variant="primary" size="sm">
-                    View Profile
-                  </Button>
-                </Link>
-              )}
-            </div>
-          }
-        />
+            )}
+          </div>
+        }
+      />
 
-        <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs">
-          <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row items-stretch gap-2.5">
-            <div className="flex-1 relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search job title, skills, or keywords..."
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 text-sm bg-slate-50 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-slate-900"
-              />
-            </div>
-            <div className="sm:w-64 relative">
-              <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Location (e.g. Laguna, Manila)..."
-                value={searchLocation}
-                onChange={(e) => setSearchLocation(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 text-sm bg-slate-50 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-slate-900"
-              />
-            </div>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              leftIcon={<Search className="w-4 h-4" />}
-              className="shrink-0"
-            >
-              Search Jobs
-            </Button>
-          </form>
-        </div>
-      </div>
-
+      {/* Pending Job Invitations Alert Card */}
       {pendingInvitations.length > 0 && (
-        <div className="bg-blue-50/70 border border-blue-200 p-4 sm:p-5 rounded-xl shadow-xs space-y-3">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
-                <Mail className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
+        <div className="bg-teal-50 border-l-4 border-teal-700 border border-teal-200 p-4 rounded-md shadow-xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-teal-800 shrink-0" />
+                <h3 className="text-base font-semibold text-teal-950">
                   {pendingInvitations.length === 1
-                    ? `Direct Invitation: ${pendingInvitations[0].title}`
+                    ? `You received a job invitation for ${pendingInvitations[0].title}!`
                     : `You have ${pendingInvitations.length} pending job invitations!`}
                 </h3>
-                <p className="text-xs text-slate-600">
-                  A recruiter matched your candidate profile. Review details and respond.
-                </p>
               </div>
+              <p className="text-sm text-teal-800 leading-relaxed">
+                Talent Acquisition matched your profile to open positions. Review details and submit your application with one click.
+              </p>
             </div>
             <Link
               to="/app/applications"
-              search={{ tab: "invitations" } as any}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline shrink-0"
+              search={{ tab: "invitations" }}
+              className="inline-flex min-h-11 shrink-0 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
             >
-              View All Invitations ({pendingInvitations.length}) →
+              Review Invitations ({pendingInvitations.length})
             </Link>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-            {pendingInvitations.slice(0, 2).map((inv) => (
-              <InvitationCard
-                key={inv.id}
-                invitation={inv}
-                onAccept={(target) => respondMutation.mutate({ id: target.id, response: "ACCEPTED" })}
-                onDecline={(target) => respondMutation.mutate({ id: target.id, response: "DECLINED" })}
-                loading={respondMutation.isPending}
-              />
-            ))}
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Applications
-          </div>
-          <div className="text-2xl font-bold font-mono text-slate-900 mt-1 tabular-nums">
-            {totalApps}
-          </div>
-          <div className="text-xs text-slate-400 mt-0.5">
-            Total submissions
-          </div>
-        </div>
-
-        <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs">
-          <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider">
-            In Progress
-          </div>
-          <div className="text-2xl font-bold font-mono text-blue-900 mt-1 tabular-nums">
-            {activeApps}
-          </div>
-          <div className="text-xs text-slate-400 mt-0.5">
-            Under active review
-          </div>
-        </div>
-
-        <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs">
-          <div className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">
-            Interviews
-          </div>
-          <div className="text-2xl font-bold font-mono text-indigo-900 mt-1 tabular-nums">
-            {interviewApps}
-          </div>
-          <div className="text-xs text-slate-400 mt-0.5">
-            Scheduled / Endorsed
-          </div>
-        </div>
-
-        <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs">
-          <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">
-            Placed
-          </div>
-          <div className="text-2xl font-bold font-mono text-emerald-900 mt-1 tabular-nums">
-            {placedApps}
-          </div>
-          <div className="text-xs text-slate-400 mt-0.5">
-            Hired & deployed
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-blue-600" />
-            <h3 className="text-base font-bold text-slate-900">
-              Recent Applications
-            </h3>
-          </div>
-          <Link
-            to="/app/applications"
-            className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
-          >
-            View all ({applications.length}) →
-          </Link>
-        </div>
-
-        {applications.length === 0 ? (
-          <div className="p-8">
-            <EmptyState
-              icon={<Briefcase className="w-6 h-6 text-slate-400" />}
-              title="No applications yet"
-              description="Explore current job openings and submit your first application."
-              action={
-                <Link to="/app/jobs">
-                  <Button variant="primary" size="md">
-                    Browse Jobs
-                  </Button>
-                </Link>
-              }
-            />
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {applications.slice(0, 3).map((app) => (
-              <div
-                key={app.id}
-                className="p-4 sm:p-5 hover:bg-slate-50/70 transition-colors space-y-3"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-base font-bold text-slate-900">
-                        {app.jobPosting?.title || "Job opening"}
-                      </span>
-                      <StatusBadge status={app.status} audience="applicant" size="sm" />
-                    </div>
-                    <div className="text-xs text-slate-500 flex flex-wrap items-center gap-3">
-                      <span>Applied: {formatDate(app.createdAt)}</span>
-                      {app.jobPosting?.location && <span>• {app.jobPosting.location}</span>}
-                    </div>
-                  </div>
-
-                  <Link
-                    to="/app/applications"
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline shrink-0"
-                  >
-                    <span>View Application</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-
-                <ApplicationStatusStepper currentStatus={app.status} compact />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {openJobs.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-blue-600" />
-              <h3 className="text-lg font-bold text-slate-900">
-                Jobs you may like
-              </h3>
-            </div>
-            <Link
-              to="/app/jobs"
-              className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
-            >
-              Explore all openings →
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {openJobs.slice(0, 4).map((job) => (
-              <JobCard
-                key={job.id}
-                id={job.id}
-                title={job.title}
-                company={(job as any).client?.name || (job as any).company || "MAR Employment (MEGS)"}
-                location={job.location || "Philippines"}
-                workSetup={(job as any).workSetup || "ON_SITE"}
-                salaryRange={(job as any).salaryRange}
-                employmentType={(job as any).employmentType || "Full-time"}
-                description={job.description}
-                requirements={job.requirements}
-                skills={(job as any).skills}
-                createdAt={job.createdAt}
-                status={(job as any).status}
-                detailUrl={`/app/jobs/${job.id}`}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {readinessPercent < 100 && (
-        <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-xl shadow-xs space-y-3">
+      {/* Streamlined Profile Readiness Progress Card */}
+      {readinessPercent < 85 && (
+        <div className="bg-white border border-slate-200 p-4 rounded-lg shadow-2xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                Profile Readiness:
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-900">
+                Profile Strength:
               </span>
-              <span className="text-sm font-bold text-blue-600">
+              <span className="text-xs font-bold font-sans text-teal-700">
                 {readinessPercent}%
               </span>
-              <span className="inline-flex items-center px-2 py-0.5 bg-blue-50 border border-blue-200 text-[10px] font-semibold text-blue-700 rounded-md">
+              <span className="inline-flex items-center px-1.5 py-0.5 bg-slate-100 border border-slate-300 text-[10px] font-mono font-bold uppercase text-slate-700 rounded-xs">
                 {profileHealth.tier}
               </span>
             </div>
             <Link
               to="/app/profile"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline shrink-0"
+              className="inline-flex items-center gap-1 min-h-11 px-2.5 py-1 text-xs font-medium text-teal-700 hover:text-teal-900 hover:bg-teal-50 rounded-md transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
             >
               <span>Complete Profile</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
-          <div className="w-full bg-slate-100 h-2 border border-slate-200 overflow-hidden rounded-full">
+          <div className="w-full bg-slate-100 h-1.5 border border-slate-200 overflow-hidden rounded-full my-2.5">
             <div
-              className={`h-full transition-all duration-300 rounded-full ${
-                readinessPercent >= 80 ? "bg-emerald-500" : "bg-blue-600"
-              }`}
+              className="h-full bg-teal-600 transition-all duration-300 rounded-full"
               style={{ width: `${readinessPercent}%` }}
               role="progressbar"
               aria-valuenow={readinessPercent}
@@ -438,9 +189,170 @@ export const ApplicantDashboard: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-600">
-            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+          <div className="flex items-center gap-1.5 text-xs text-slate-600">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
             <span>{profileHealth.nextActionTip}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Unified 4-Segment Operational Metrics Ribbon */}
+      <div className="border border-slate-300 bg-slate-300 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-px">
+        <div className="p-3 sm:p-3.5 bg-white">
+          <div className="text-sm font-medium text-slate-600">
+            Applications
+          </div>
+          <div className="text-2xl font-bold font-mono text-slate-950 mt-0.5 tabular-nums">
+            {totalApps}
+          </div>
+          <div className="text-sm text-slate-500 mt-0.5">
+            All applications
+          </div>
+        </div>
+
+        <div className="p-3 sm:p-3.5 bg-white">
+          <div className="text-sm font-medium text-teal-800">
+            In progress
+          </div>
+          <div className="text-2xl font-bold font-mono text-teal-950 mt-0.5 tabular-nums">
+            {activeApps}
+          </div>
+          <div className="text-sm text-slate-500 mt-0.5">
+            Still being considered
+          </div>
+        </div>
+
+        <div className="p-3 sm:p-3.5 bg-white">
+          <div className="text-sm font-medium text-blue-800">
+            Interviews
+          </div>
+          <div className="text-2xl font-bold font-mono text-blue-950 mt-0.5 tabular-nums">
+            {interviewApps}
+          </div>
+          <div className="text-sm text-slate-500 mt-0.5">
+            Interview activity
+          </div>
+        </div>
+
+        <div className="p-3 sm:p-3.5 bg-white">
+          <div className="text-sm font-medium text-emerald-800">
+            Placed
+          </div>
+          <div className="text-2xl font-bold font-mono text-emerald-950 mt-0.5 tabular-nums">
+            {placedApps}
+          </div>
+          <div className="text-sm text-slate-500 mt-0.5">
+            Deployed
+          </div>
+        </div>
+      </div>
+
+      {/* Active Applications Section */}
+      <div className="border border-slate-300 bg-white overflow-hidden">
+        <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-slate-700" />
+            <h3 className="text-base font-semibold text-slate-900">
+              Recent Applications
+            </h3>
+          </div>
+          <Link to="/app/applications" className="inline-flex min-h-11 items-center px-3 text-sm font-medium text-teal-800 hover:text-teal-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700">
+            View all ({applications.length})
+          </Link>
+        </div>
+
+        {applications.length === 0 ? (
+          <div className="p-6">
+            <EmptyState
+              icon={<Briefcase className="w-5 h-5" />}
+            title="No applications yet"
+            description="Explore current jobs and apply when you find a role that suits you."
+            action={
+                <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-teal-800 bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+                  Browse jobs
+                </Link>
+              }
+            />
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-200">
+            {applications.slice(0, 5).map((app) => (
+              <div
+                key={app.id}
+                className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 transition-colors"
+              >
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-sm font-semibold text-slate-950">
+                      {app.jobPosting?.title || "Job opening"}
+                    </span>
+                    <StatusBadge status={app.status} audience="applicant" size="sm" />
+                  </div>
+                  <div className="text-sm text-slate-500 flex flex-wrap items-center gap-3">
+                    <span>Applied: {formatDate(app.createdAt)}</span>
+                    {app.jobPosting?.location && <span>• {app.jobPosting.location}</span>}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Link to="/app/applications" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+                    Track status
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Recommended Open Jobs Grid */}
+      {openJobs.length > 0 && (
+        <div className="border border-slate-300 bg-white">
+          <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-teal-700" />
+              <h3 className="text-base font-semibold text-slate-900">
+                Jobs you may like
+              </h3>
+            </div>
+            <Link to="/app/jobs" className="inline-flex min-h-11 items-center px-3 text-sm font-medium text-teal-800 hover:text-teal-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700">
+              Browse jobs
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-300">
+            {openJobs.slice(0, 4).map((job) => (
+              <div
+                key={job.id}
+                className="p-4 flex flex-col justify-between hover:bg-slate-50/70 transition-colors"
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="text-base font-semibold text-slate-950 hover:text-teal-800">
+                      {job.title}
+                    </h4>
+                    <span className="text-xs font-medium px-2 py-1 rounded-full border border-slate-300 bg-slate-100 text-slate-700">
+                      Open
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 line-clamp-2 leading-normal">
+                    {job.description}
+                  </p>
+                  <div className="text-sm text-slate-500 flex items-center gap-2">
+                    <span>{job.location || "Philippines"}</span>
+                    <span>•</span>
+                    <span>Posted {formatDate(job.createdAt)}</span>
+                  </div>
+                </div>
+
+                <div className="pt-3 mt-3 border-t border-slate-200 flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Review the role details</span>
+                  <Link to="/app/jobs" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+                    View jobs
+                  </Link>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

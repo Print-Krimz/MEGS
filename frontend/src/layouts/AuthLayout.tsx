@@ -31,7 +31,7 @@ export const AuthLayout: React.FC = () => {
         {backDest ? (
           <Link
             to={backDest.to}
-            className="inline-flex items-center gap-1.5 sm:gap-2 text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors group py-2 px-2 rounded-md hover:bg-white"
+            className="inline-flex items-center gap-1.5 sm:gap-2 text-sm font-medium text-slate-600 hover:text-teal-800 transition-colors group py-2 px-2 rounded-md hover:bg-white"
           >
             <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
             <span>{backDest.label}</span>
@@ -66,24 +66,19 @@ export const AuthLayout: React.FC = () => {
       <div className="sm:mx-auto sm:w-full sm:max-w-md my-auto w-full">
         <div className="text-center mb-5 sm:mb-6">
           <Link to={portalHome} className="inline-block group focus:outline-none">
-            <div className="inline-flex items-center gap-2 mb-1">
-              <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-extrabold text-sm shadow-xs">
-                M
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-950 group-hover:text-blue-600 transition-colors">
-                MEGS <span className="text-blue-600 font-semibold text-lg">Careers</span>
-              </h1>
-            </div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Candidate & Recruitment Portal
+            <h1 className="text-2xl sm:text-3xl font-extrabold font-mono tracking-tight text-slate-950 group-hover:text-teal-800 transition-colors">
+              MEGS INC.
+            </h1>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mt-1">
+              Recruitment & Manpower Services
             </p>
           </Link>
-          <p className="mt-2 text-xs sm:text-sm text-slate-600">
-            Find the opportunity that fits you.
+          <p className="mt-2 text-sm text-slate-600">
+            Find work and manage recruitment with confidence.
           </p>
         </div>
 
-        <div className="bg-white py-6 px-5 sm:py-8 sm:px-8 rounded-2xl border border-slate-200/90 shadow-md">
+        <div className="bg-white py-6 px-4 sm:py-8 sm:px-10 rounded-lg border border-slate-200 shadow-sm">
           <Outlet />
         </div>
       </div>

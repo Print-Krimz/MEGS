@@ -1,6 +1,6 @@
 import React, { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
 import {
   PageHeader,
@@ -9,29 +9,20 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
+  JobImage,
 } from "../../components/common";
 import { Button } from "../../components/ui";
-import { Briefcase, Bookmark, Sparkles } from "lucide-react";
+import { formatDate } from "../../lib/utils";
+import { Briefcase, MapPin, ArrowRight, Bookmark } from "lucide-react";
 import { notify } from "../../lib/feedback";
-import { JobCard } from "../../components/applicant/JobCard";
-import { GuestApplyModal } from "../../components/applicant/GuestApplyModal";
-import { AuthContext } from "../../context/AuthContext";
 
 export const JobsPage: React.FC = () => {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const auth = React.useContext(AuthContext);
-  const isAuthenticated = Boolean(auth?.isAuthenticated);
-
   const [scope, setScope] = useState<"all" | "saved">("all");
   const [searchValue, setSearchValue] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const pageSize = 8;
-
-  // Guest apply intercept modal state
-  const [guestModalOpen, setGuestModalOpen] = useState(false);
-  const [targetJob, setTargetJob] = useState<{ id: number; title: string } | null>(null);
 
   const jobsQuery = useQuery({
     queryKey: ["applicant", "jobs", searchValue, filterValues],
@@ -45,7 +36,6 @@ export const JobsPage: React.FC = () => {
   const savedJobIdsQuery = useQuery({
     queryKey: ["applicant", "saved-jobs", "ids"],
     queryFn: applicantJobsApi.getSavedJobIds,
-    enabled: isAuthenticated,
   });
 
   const savedJobIds = new Set(savedJobIdsQuery.data || []);
@@ -56,7 +46,7 @@ export const JobsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "saved-jobs"] });
       notify.success("Job Saved", "Position added to your saved jobs.");
     },
-    onError: (err: any) => notify.error("Action Failed", err),
+    onError: (err: any) => notify.error("Save Failed", err),
   });
 
   const unsaveMutation = useMutation({
@@ -68,16 +58,7 @@ export const JobsPage: React.FC = () => {
     onError: (err: any) => notify.error("Action Failed", err),
   });
 
-  const rawJobs = Array.isArray(jobsQuery.data) ? jobsQuery.data : [];
-
   const toggleBookmark = (jobId: number) => {
-    if (!isAuthenticated) {
-      const job = rawJobs.find((j) => j.id === jobId);
-      setTargetJob({ id: jobId, title: job?.title || "Job opening" });
-      setGuestModalOpen(true);
-      return;
-    }
-
     if (savedJobIds.has(jobId)) {
       unsaveMutation.mutate(jobId);
     } else {
@@ -85,16 +66,7 @@ export const JobsPage: React.FC = () => {
     }
   };
 
-  const handleApplyClick = (jobId: number) => {
-    if (!isAuthenticated) {
-      const job = rawJobs.find((j) => j.id === jobId);
-      setTargetJob({ id: jobId, title: job?.title || "Job opening" });
-      setGuestModalOpen(true);
-      return;
-    }
-    navigate({ to: `/app/jobs/${jobId}` });
-  };
-
+  const rawJobs = jobsQuery.data || [];
   const displayedJobs = scope === "saved"
     ? rawJobs.filter((job) => savedJobIds.has(job.id))
     : rawJobs;
@@ -121,50 +93,46 @@ export const JobsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={scope === "all" ? "Explore Opportunities" : "Saved Jobs"}
+        title={scope === "all" ? "Explore jobs" : "Saved jobs"}
         description={
           scope === "all"
-            ? "Discover verified job openings across leading Philippine employers."
+            ? "Browse current opportunities and apply when a role suits you."
             : "Review bookmarked job openings and continue your applications."
         }
         breadcrumbs={[
-          { label: "My career", href: isAuthenticated ? "/app" : "/" },
+          { label: "My career", href: "/app" },
           { label: scope === "all" ? "Explore jobs" : "Saved Jobs" },
         ]}
         actions={
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+          <div className="flex items-center border border-slate-300 bg-slate-100 p-0.5 rounded text-xs font-mono">
             <button
               type="button"
               onClick={() => {
                 setScope("all");
                 setPage(1);
               }}
-              className={`px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 font-medium ${
+              className={`px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 ${
                 scope === "all"
-                  ? "bg-white text-slate-900 shadow-xs font-bold"
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200 font-semibold"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              <Briefcase className="w-3.5 h-3.5 text-blue-600" />
+              <Briefcase className="w-3.5 h-3.5" />
               <span>All Openings ({rawJobs.length})</span>
             </button>
             <button
               type="button"
               onClick={() => {
-                if (!isAuthenticated) {
-                  setGuestModalOpen(true);
-                  return;
-                }
                 setScope("saved");
                 setPage(1);
               }}
-              className={`px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 font-medium ${
+              className={`px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 ${
                 scope === "saved"
-                  ? "bg-white text-slate-900 shadow-xs font-bold"
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200 font-semibold"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              <Bookmark className="w-3.5 h-3.5 text-blue-600" />
+              <Bookmark className="w-3.5 h-3.5" />
               <span>Saved Jobs ({savedJobIds.size})</span>
             </button>
           </div>
@@ -172,34 +140,31 @@ export const JobsPage: React.FC = () => {
       />
 
       {/* Filter Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-        <SearchFilters
-          searchLabel="Search jobs"
-          searchPlaceholder="Search by job title, skill, or keyword (e.g. Backend, React, Electrician)..."
-          searchValue={searchValue}
-          onSearchChange={handleSearchChange}
-          filterValues={filterValues}
-          onFilterChange={handleFilterChange}
-          onReset={handleReset}
-          className="border-0 p-0 mb-0 bg-transparent"
-          filters={[
-            {
-              key: "location",
-              label: "Location",
-              options: [
-                { value: "Valenzuela", label: "Valenzuela (Central HQ)" },
-                { value: "Quezon City", label: "Quezon City" },
-                { value: "Laguna", label: "Laguna" },
-                { value: "Batangas", label: "Batangas" },
-                { value: "Cavite", label: "Cavite" },
-                { value: "Cebu", label: "Cebu" },
-                { value: "Davao", label: "Davao" },
-                { value: "Metro Manila", label: "Metro Manila" },
-              ],
-            },
-          ]}
-        />
-      </div>
+      <SearchFilters
+        searchLabel="Search jobs"
+        searchPlaceholder="Search by job title, skill, or keyword (e.g. Backend, React, Electrician)..."
+        searchValue={searchValue}
+        onSearchChange={handleSearchChange}
+        filterValues={filterValues}
+        onFilterChange={handleFilterChange}
+        onReset={handleReset}
+        filters={[
+          {
+            key: "location",
+            label: "Location",
+            options: [
+              { value: "Valenzuela", label: "Valenzuela (Central HQ)" },
+              { value: "Quezon City", label: "Quezon City" },
+              { value: "Laguna", label: "Laguna" },
+              { value: "Batangas", label: "Batangas" },
+              { value: "Cavite", label: "Cavite" },
+              { value: "Cebu", label: "Cebu" },
+              { value: "Davao", label: "Davao" },
+              { value: "Metro Manila", label: "Metro Manila" },
+            ],
+          },
+        ]}
+      />
 
       {/* Content */}
       {jobsQuery.isLoading ? (
@@ -207,10 +172,10 @@ export const JobsPage: React.FC = () => {
       ) : jobsQuery.isError ? (
         <ErrorState error={jobsQuery.error} onRetry={() => jobsQuery.refetch()} />
       ) : displayedJobs.length === 0 ? (
-        <div className="bg-white border border-slate-200 p-8 rounded-xl shadow-xs">
+        <div className="bg-white border border-slate-300 p-8 rounded-lg shadow-xs">
           {scope === "saved" ? (
             <EmptyState
-              icon={<Bookmark className="w-8 h-8 text-blue-600" />}
+              icon={<Bookmark className="w-6 h-6 text-teal-700" />}
               title="No saved jobs yet"
               description="Bookmark job openings while exploring careers so you can review and apply when ready."
               action={
@@ -225,7 +190,7 @@ export const JobsPage: React.FC = () => {
             />
           ) : (
             <EmptyState
-              icon={<Briefcase className="w-8 h-8 text-slate-400" />}
+              icon={<Briefcase className="w-5 h-5" />}
               title="No matching jobs found"
               description="Try clearing search filters or check back later as new positions are posted daily."
               action={
@@ -242,57 +207,95 @@ export const JobsPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-            <span>Showing {paginatedJobs.length} of {displayedJobs.length} {displayedJobs.length === 1 ? "position" : "positions"}</span>
-            <div className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-              <span>Verified Employers</span>
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {paginatedJobs.map((job) => (
-              <JobCard
+              <div
                 key={job.id}
-                id={job.id}
-                title={job.title}
-                company={(job as any).client?.name || (job as any).company || "MAR Employment (MEGS)"}
-                location={job.location || "Philippines"}
-                workSetup={(job as any).workSetup || "ON_SITE"}
-                salaryRange={(job as any).salaryRange}
-                employmentType={(job as any).employmentType || "Full-time"}
-                description={job.description}
-                requirements={job.requirements}
-                skills={(job as any).skills}
-                createdAt={job.createdAt}
-                status={(job as any).status}
-                isSaved={savedJobIds.has(job.id)}
-                onToggleSave={() => toggleBookmark(job.id)}
-                onApply={() => handleApplyClick(job.id)}
-                detailUrl={isAuthenticated ? `/app/jobs/${job.id}` : `/jobs/${job.id}`}
-              />
+                className="bg-white border border-slate-300 p-5 flex flex-col justify-between hover:border-slate-400 transition-colors space-y-4 rounded-lg shadow-xs"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1 min-w-0">
+                      {job.imageUrl && (
+                        <div className="mb-2">
+                          <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="md" />
+                        </div>
+                      )}
+                      <h3 className="text-base font-semibold text-slate-950 leading-snug">
+                        {job.title}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>{job.location || "Philippines"}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        aria-label={savedJobIds.has(job.id) ? "Remove from saved jobs" : "Save job for later"}
+                        onClick={() => toggleBookmark(job.id)}
+                        className={`p-1.5 rounded-md border transition-colors ${
+                          savedJobIds.has(job.id)
+                            ? "bg-teal-50 border-teal-300 text-teal-700 hover:bg-teal-100"
+                            : "bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:border-slate-300"
+                        }`}
+                      >
+                        <Bookmark className={`w-4 h-4 ${savedJobIds.has(job.id) ? "fill-teal-700 text-teal-700" : ""}`} />
+                      </button>
+                      <span className="text-xs font-semibold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        {job.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
+                    {job.description}
+                  </p>
+
+                  {job.requirements && (
+                    <div className="text-xs text-slate-500 line-clamp-1">
+                      <span className="font-medium text-slate-700">Requirements: </span>
+                      <span>{job.requirements}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+                  <div className="text-xs text-slate-500 space-y-0.5">
+                    <div className="font-medium text-slate-700">
+                      REQ #{job.id}
+                    </div>
+                    <div>Posted {formatDate(job.createdAt)}</div>
+                  </div>
+
+                  <Link
+                    to="/app/jobs/$jobId"
+                    params={{ jobId: String(job.id) }}
+                    className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-teal-800 bg-teal-700 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+                  >
+                    <span>Details</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
             ))}
           </div>
 
-          {totalPages > 1 && (
-            <div className="pt-2">
-              <Pagination
-                page={page}
-                totalPages={totalPages}
-                onPageChange={(p) => setPage(p)}
-              />
-            </div>
-          )}
+          {/* Pagination */}
+          <div className="bg-white border border-slate-300 p-2">
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={displayedJobs.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+            />
+          </div>
         </div>
       )}
-
-      {/* Guest Apply Intercept Modal */}
-      <GuestApplyModal
-        open={guestModalOpen}
-        onClose={() => setGuestModalOpen(false)}
-        jobId={targetJob?.id}
-        jobTitle={targetJob?.title}
-      />
     </div>
   );
 };

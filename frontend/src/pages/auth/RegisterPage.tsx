@@ -151,80 +151,17 @@ export const RegisterPage: React.FC = () => {
     }
   };
 
-  const renderStepper = (activeStepIndex: number) => {
-    const steps = [
-      { label: "Account", num: 1 },
-      { label: "Verification", num: 2 },
-      { label: "Profile", num: 3 },
-    ];
-    return (
-      <div className="flex items-center justify-between mb-6 px-2">
-        {steps.map((s, idx) => {
-          const isDone = idx < activeStepIndex;
-          const isCurrent = idx === activeStepIndex;
-          return (
-            <React.Fragment key={s.label}>
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
-                    isDone
-                      ? "bg-emerald-600 text-white"
-                      : isCurrent
-                      ? "bg-blue-600 text-white ring-4 ring-blue-100"
-                      : "bg-slate-100 text-slate-400"
-                  }`}
-                >
-                  {isDone ? "✓" : s.num}
-                </div>
-                <span
-                  className={`text-xs font-medium hidden sm:inline ${
-                    isCurrent ? "text-slate-900 font-semibold" : "text-slate-500"
-                  }`}
-                >
-                  {s.label}
-                </span>
-              </div>
-              {idx < steps.length - 1 && (
-                <div
-                  className={`flex-1 h-0.5 mx-2 rounded transition-colors ${
-                    idx < activeStepIndex ? "bg-emerald-500" : "bg-slate-200"
-                  }`}
-                />
-              )}
-            </React.Fragment>
-          );
-        })}
-      </div>
-    );
-  };
-
   if (step === "SUCCESS") {
     return (
       <div className="space-y-6 text-center py-2">
-        {renderStepper(2)}
         <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
           <CheckCircle2 className="w-6 h-6" />
         </div>
         <div className="space-y-1">
           <h2 className="text-xl font-bold text-slate-900">Email Verified Successfully</h2>
           <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
-            Your candidate portal account (<strong className="font-mono text-slate-800">{maskEmail(formData.email)}</strong>) is now active. Sign in to complete your candidate profile and upload your resume.
+            Your candidate portal account (<strong className="font-mono text-slate-800">{maskEmail(formData.email)}</strong>) is now active. You can sign in to build your profile and apply for opportunities.
           </p>
-        </div>
-        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-left space-y-2 text-xs text-slate-600">
-          <div className="font-semibold text-slate-800">Next Steps:</div>
-          <div className="flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
-            <span>Sign in to access your candidate dashboard</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
-            <span>Add your skills, work experience, and job preferences</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold shrink-0">3</span>
-            <span>Upload your resume for 1-click applications</span>
-          </div>
         </div>
         <div className="pt-2">
           <Link to="/login" search={{ email: formData.email.trim() }}>
@@ -240,11 +177,10 @@ export const RegisterPage: React.FC = () => {
   if (step === "VERIFY_OTP") {
     return (
       <div className="space-y-6">
-        {renderStepper(1)}
         {/* Header */}
         <div className="space-y-1 text-center sm:text-left">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 text-[11px] font-medium border border-blue-200 mb-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 text-[11px] font-medium border border-teal-200 mb-1">
+            <ShieldCheck className="w-3.5 h-3.5" />
             <span>Email Verification Required</span>
           </div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
@@ -286,7 +222,7 @@ export const RegisterPage: React.FC = () => {
                   setValidationErrors({});
                 }
               }}
-              className="w-full text-center text-2xl font-mono tracking-[0.4em] font-bold py-2.5 px-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white text-slate-900"
+              className="w-full text-center text-2xl font-mono tracking-[0.4em] font-bold py-2.5 px-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent bg-white text-slate-900"
             />
             {validationErrors.otp && (
               <p className="text-xs text-rose-600 mt-1 font-medium">{validationErrors.otp}</p>
@@ -328,7 +264,7 @@ export const RegisterPage: React.FC = () => {
             className={`inline-flex items-center gap-1 font-medium ${
               cooldown > 0
                 ? "text-slate-400 cursor-not-allowed"
-                : "text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                : "text-teal-700 hover:text-teal-900 hover:underline cursor-pointer"
             }`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${resendMutation.isPending ? "animate-spin" : ""}`} />
@@ -341,7 +277,6 @@ export const RegisterPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {renderStepper(0)}
       {/* Header */}
       <div className="space-y-1 text-center sm:text-left">
         <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
@@ -411,7 +346,7 @@ export const RegisterPage: React.FC = () => {
         Already have an account?{" "}
         <Link
           to="/login"
-          className="font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+          className="font-semibold text-teal-700 hover:text-teal-900 hover:underline"
         >
           Sign In
         </Link>

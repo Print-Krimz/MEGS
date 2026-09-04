@@ -182,7 +182,7 @@ export const LoginPage: React.FC = () => {
             <Link
               to="/forgot-password"
               search={formData.email.trim() ? { email: formData.email.trim() } : undefined}
-              className="text-xs text-blue-600 hover:text-blue-700 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+              className="text-xs text-teal-700 hover:text-teal-900 font-medium hover:underline"
             >
               Forgot password?
             </Link>
@@ -215,7 +215,7 @@ export const LoginPage: React.FC = () => {
         Applying for job opportunities?{" "}
         <Link
           to="/register"
-          className="font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+          className="font-semibold text-teal-700 hover:text-teal-900 hover:underline"
         >
           Create account
         </Link>
