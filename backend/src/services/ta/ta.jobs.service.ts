@@ -59,6 +59,7 @@ export const listTAJobs = async (statusOrOptions?: string | ListTAJobsOptions) =
       location: true,
       imageUrl: true,
       status: true,
+      isEvergreen: true,
       createdAt: true,
       updatedAt: true,
       mrfId: true,
@@ -108,7 +109,7 @@ export const triggerTalentPoolAutoDiscovery = async (jobId: number, postedById: 
 };
 
 export const createTAJob = async (postedById: string, data: any) => {
-  const { title, description, requirements, location, imageUrl, mrfId, status } = data;
+  const { title, description, requirements, location, imageUrl, mrfId, status, isEvergreen } = data;
 
   if (!title || !description || !requirements) {
     throw new Error("title, description, and requirements are required");
@@ -127,6 +128,7 @@ export const createTAJob = async (postedById: string, data: any) => {
       imageUrl: imageUrl?.trim() ?? null,
       mrfId: mrfId ? Number(mrfId) : null,
       status: resolvedStatus,
+      isEvergreen: Boolean(isEvergreen),
     },
   });
 
@@ -135,6 +137,7 @@ export const createTAJob = async (postedById: string, data: any) => {
     title: job.title,
     location: job.location,
     status: job.status,
+    isEvergreen: job.isEvergreen,
   });
 
   if (job.status === "OPEN") {
@@ -209,7 +212,7 @@ export const updateTAJob = async (jobId: number, data: any) => {
     throw new Error("Cannot edit a closed job posting. Re-open it first.");
   }
 
-  const { title, description, requirements, location, imageUrl, mrfId } = data;
+  const { title, description, requirements, location, imageUrl, mrfId, isEvergreen } = data;
 
   const updated = await prisma.jobPosting.update({
     where: { id: jobId },
@@ -220,6 +223,7 @@ export const updateTAJob = async (jobId: number, data: any) => {
       ...(location !== undefined && { location: location?.trim() ?? null }),
       ...(imageUrl !== undefined && { imageUrl: imageUrl?.trim() ?? null }),
       ...(mrfId !== undefined && { mrfId: mrfId ? Number(mrfId) : null }),
+      ...(isEvergreen !== undefined && { isEvergreen: Boolean(isEvergreen) }),
     },
   });
   void revalidateJobScoring(updated.id).catch((error) => console.error("[Scoring] failed to synchronously revalidate job scoring", error));
@@ -229,6 +233,7 @@ export const updateTAJob = async (jobId: number, data: any) => {
     title: updated.title,
     location: updated.location,
     status: updated.status,
+    isEvergreen: updated.isEvergreen,
   });
 
   if (updated.status === "OPEN") {
