@@ -12,6 +12,14 @@ import type { Client } from "./client.types";
 import type { JobPosting } from "./application.types";
 import type { User } from "./auth.types";
 
+declare module "./application.types" {
+  interface JobPosting {
+    isEvergreen?: boolean;
+  }
+}
+
+export type { JobPosting };
+
 export interface MRFComplianceTemplate {
   id: number;
   mrfId?: number | null;
@@ -53,6 +61,14 @@ export interface ManpowerRequest {
     jobPostings: number;
     deployments: number;
   };
+  fulfillment?: {
+    mrfId: number;
+    headcount: number;
+    deployedCount: number;
+    remainingCount: number;
+    fulfillmentRate: number;
+    isFulfilled: boolean;
+  };
 }
 
 export interface CreateMRFDto {
@@ -84,6 +100,7 @@ export interface CreateJobDto {
   requirements: string;
   location?: string;
   status?: JobStatus;
+  isEvergreen?: boolean;
 }
 
 export interface UpdateJobDto {
@@ -92,6 +109,7 @@ export interface UpdateJobDto {
   requirements?: string;
   location?: string;
   status?: JobStatus;
+  isEvergreen?: boolean;
 }
 
 export interface ScheduleInterviewDto {

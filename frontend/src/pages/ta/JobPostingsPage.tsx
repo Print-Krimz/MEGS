@@ -39,6 +39,7 @@ export const JobPostingsPage: React.FC = () => {
   const [formImageUrl, setFormImageUrl] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formRequirements, setFormRequirements] = useState("");
+  const [formIsEvergreen, setFormIsEvergreen] = useState(false);
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients", "dropdown"],
@@ -129,6 +130,7 @@ export const JobPostingsPage: React.FC = () => {
       setFormImageUrl("");
       setFormDescription("");
       setFormRequirements("");
+      setFormIsEvergreen(false);
       notify.success("Job Requisition Created", `Requisition #${newJob?.id || ""} created successfully.`);
     },
     onError: (err: any) => {
@@ -169,7 +171,10 @@ export const JobPostingsPage: React.FC = () => {
             variant="primary"
             size="sm"
             leftIcon={<Plus className="w-3.5 h-3.5" />}
-            onClick={() => setCreateModalOpen(true)}
+            onClick={() => {
+              setFormIsEvergreen(false);
+              setCreateModalOpen(true);
+            }}
           >
             Create Requisition
           </Button>
@@ -261,7 +266,10 @@ export const JobPostingsPage: React.FC = () => {
                 variant="primary"
                 size="sm"
                 leftIcon={<Plus className="w-3.5 h-3.5" />}
-                onClick={() => setCreateModalOpen(true)}
+                onClick={() => {
+                  setFormIsEvergreen(false);
+                  setCreateModalOpen(true);
+                }}
               >
                 Create Requisition
               </Button>
@@ -297,17 +305,24 @@ export const JobPostingsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <span
-                      className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase ${
-                        job.status === JobStatus.OPEN
-                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                          : job.status === JobStatus.DRAFT
-                          ? "bg-amber-50 text-amber-800 border border-amber-200"
-                          : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      {job.status}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {job.isEvergreen && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Evergreen
+                        </span>
+                      )}
+                      <span
+                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase ${
+                          job.status === JobStatus.OPEN
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            : job.status === JobStatus.DRAFT
+                            ? "bg-amber-50 text-amber-800 border border-amber-200"
+                            : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {job.status}
+                      </span>
+                    </div>
                   </div>
 
                   <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
@@ -369,6 +384,7 @@ export const JobPostingsPage: React.FC = () => {
               totalItems={jobs.length}
               pageSize={pageSize}
               onPageChange={setPage}
+              itemLabel="requisitions"
             />
           </div>
         </div>
@@ -391,6 +407,7 @@ export const JobPostingsPage: React.FC = () => {
               description: formDescription,
               requirements: formRequirements,
               mrfId: selectedMrfId || undefined,
+              isEvergreen: formIsEvergreen,
               status: JobStatus.OPEN,
             });
           }}
@@ -450,6 +467,25 @@ export const JobPostingsPage: React.FC = () => {
             rows={3}
             required
           />
+
+          {/* Evergreen Requisition Toggle */}
+          <div className="pt-2 border-t border-slate-100">
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                checked={formIsEvergreen}
+                onChange={(e) => setFormIsEvergreen(e.target.checked)}
+              />
+              <div>
+                <span className="text-xs font-semibold text-slate-800">Evergreen Requisition</span>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Keep this posting open on the public careers board to continuously collect candidates into the Talent Pool, even after the linked MRF headcount is filled.
+                </p>
+              </div>
+            </label>
+          </div>
+
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setCreateModalOpen(false)}>
               Cancel

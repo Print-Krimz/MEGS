@@ -44,6 +44,7 @@ export const JobPostingDetailPage: React.FC = () => {
   const [editDescription, setEditDescription] = useState("");
   const [editRequirements, setEditRequirements] = useState("");
   const [editStatus, setEditStatus] = useState<JobStatus>(JobStatus.OPEN);
+  const [editIsEvergreen, setEditIsEvergreen] = useState(false);
 
   // Invitation Modal & Tracker Drawer State
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
@@ -142,6 +143,7 @@ export const JobPostingDetailPage: React.FC = () => {
       setEditDescription(job.description);
       setEditRequirements(job.requirements);
       setEditStatus(job.status);
+      setEditIsEvergreen(Boolean(job.isEvergreen));
     }
   }, [job]);
 
@@ -193,7 +195,18 @@ export const JobPostingDetailPage: React.FC = () => {
               variant="outline"
               size="sm"
               leftIcon={<Edit className="w-3.5 h-3.5" />}
-              onClick={() => setEditModalOpen(true)}
+              onClick={() => {
+                if (job) {
+                  setEditTitle(job.title);
+                  setEditLocation(job.location || "");
+                  setEditImageUrl(job.imageUrl || "");
+                  setEditDescription(job.description);
+                  setEditRequirements(job.requirements);
+                  setEditStatus(job.status);
+                  setEditIsEvergreen(Boolean(job.isEvergreen));
+                }
+                setEditModalOpen(true);
+              }}
             >
               Edit Requisition
             </Button>
@@ -238,9 +251,16 @@ export const JobPostingDetailPage: React.FC = () => {
             <div className="space-y-1">
               <div className="flex items-center gap-3">
                 <span className="text-xs font-mono font-bold uppercase text-slate-500">Status:</span>
-                <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  {job.status}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {job.isEvergreen && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Evergreen
+                    </span>
+                  )}
+                  <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    {job.status}
+                  </span>
+                </div>
               </div>
               <div className="text-xs text-slate-500 font-mono flex items-center gap-3">
                 <span className="flex items-center gap-1">
@@ -311,15 +331,6 @@ export const JobPostingDetailPage: React.FC = () => {
             >
               Outgoing Invitations
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<RefreshCw className="w-3.5 h-3.5 text-teal-600" />}
-              loading={rankCandidatesMutation.isPending}
-              onClick={() => rankCandidatesMutation.mutate()}
-            >
-              Re-calculate Match Scores
-            </Button>
           </div>
         </div>
 
@@ -333,7 +344,7 @@ export const JobPostingDetailPage: React.FC = () => {
                 <EmptyState
                   icon={<Users className="w-6 h-6" />}
                   title="No direct applicant matches yet"
-                  description="Click 'Re-calculate Match Scores' to evaluate active applicants against this position's requirements."
+                  description="Click 'Calculate Match Scores' to evaluate active applicants against this position's requirements."
                   action={
                     <Button
                       variant="primary"
@@ -431,6 +442,7 @@ export const JobPostingDetailPage: React.FC = () => {
                     totalItems={rankedScores.length}
                     pageSize={candidatePageSize}
                     onPageChange={setCandidatePage}
+                    itemLabel="candidates"
                   />
                 </div>
               </>
@@ -515,17 +527,43 @@ export const JobPostingDetailPage: React.FC = () => {
                       </div>
 
                       <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          leftIcon={<Send className="w-3.5 h-3.5" />}
-                          onClick={() => {
-                            setCandidateToInvite(c);
-                            setInviteModalOpen(true);
-                          }}
-                        >
-                          Invite to Apply
-                        </Button>
+                        {(() => {
+                          const isAlreadyInPipeline = rankedScores.some(
+                            (r: any) =>
+                              r.applicantProfileId === c.id ||
+                              r.applicantProfileId === c.applicantProfileId ||
+                              r.candidate?.id === c.id ||
+                              r.candidate?.id === (c as any).userId ||
+                              r.candidate?.applicantProfileId === c.applicantProfileId ||
+                              r.candidate?.applicantProfileId === c.id ||
+                              r.application?.user?.id === (c as any).userId ||
+                              r.application?.user?.id === c.id ||
+                              r.application?.userId === (c as any).userId ||
+                              r.application?.userId === c.id
+                          );
+
+                          if (isAlreadyInPipeline) {
+                            return (
+                              <span className="text-xs font-medium text-teal-800 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-200">
+                                In Active Pipeline
+                              </span>
+                            );
+                          }
+
+                          return (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              leftIcon={<Send className="w-3.5 h-3.5" />}
+                              onClick={() => {
+                                setCandidateToInvite(c);
+                                setInviteModalOpen(true);
+                              }}
+                            >
+                              Invite to Apply
+                            </Button>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
@@ -553,6 +591,7 @@ export const JobPostingDetailPage: React.FC = () => {
               description: editDescription,
               requirements: editRequirements,
               status: editStatus,
+              isEvergreen: editIsEvergreen,
             });
           }}
           className="space-y-4"
@@ -600,6 +639,25 @@ export const JobPostingDetailPage: React.FC = () => {
             rows={3}
             required
           />
+
+          {/* Evergreen Requisition Toggle */}
+          <div className="pt-2 border-t border-slate-100">
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                checked={editIsEvergreen}
+                onChange={(e) => setEditIsEvergreen(e.target.checked)}
+              />
+              <div>
+                <span className="text-xs font-semibold text-slate-800">Evergreen Requisition</span>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Keep this posting open on the public careers board to continuously collect candidates into the Talent Pool, even after the linked MRF headcount is filled.
+                </p>
+              </div>
+            </label>
+          </div>
+
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setEditModalOpen(false)}>
               Cancel
