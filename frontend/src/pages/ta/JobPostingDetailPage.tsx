@@ -253,8 +253,8 @@ export const JobPostingDetailPage: React.FC = () => {
                 <span className="text-xs font-mono font-bold uppercase text-slate-500">Status:</span>
                 <div className="flex items-center gap-1.5">
                   {job.isEvergreen && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Evergreen
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-teal-50 text-teal-700 border border-teal-200">
+                      Keep Open
                     </span>
                   )}
                   <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -640,7 +640,7 @@ export const JobPostingDetailPage: React.FC = () => {
             required
           />
 
-          {/* Evergreen Requisition Toggle */}
+          {/* Keep Open After Fill Toggle */}
           <div className="pt-2 border-t border-slate-100">
             <label className="flex items-start gap-2.5 cursor-pointer">
               <input
@@ -650,9 +650,9 @@ export const JobPostingDetailPage: React.FC = () => {
                 onChange={(e) => setEditIsEvergreen(e.target.checked)}
               />
               <div>
-                <span className="text-xs font-semibold text-slate-800">Evergreen Requisition</span>
+                <span className="text-xs font-semibold text-slate-800">Keep Open After Fill</span>
                 <p className="text-[11px] text-slate-500 leading-tight">
-                  Keep this posting open on the public careers board to continuously collect candidates into the Talent Pool, even after the linked MRF headcount is filled.
+                  Do not auto-close when target headcount is reached.
                 </p>
               </div>
             </label>

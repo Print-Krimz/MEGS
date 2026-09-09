@@ -131,7 +131,7 @@ export const AdminMRFDetailPage: React.FC = () => {
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3 text-emerald-900 shadow-xs">
           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
           <p className="text-xs text-emerald-900">
-            <strong className="font-bold">Order 100% Fulfilled.</strong> The target manpower quota has been reached. Linked non-evergreen job postings have been closed to prevent candidate ghosting.
+            <strong className="font-bold">Order 100% Fulfilled.</strong> Target headcount reached. Linked job postings have been closed.
           </p>
         </div>
       )}
