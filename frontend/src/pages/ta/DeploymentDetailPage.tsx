@@ -82,7 +82,7 @@ export const DeploymentDetailPage: React.FC = () => {
         description={`Record #${dep.id} • Assigned to ${dep.client?.name || "Client Site"}`}
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },
-          { label: "Workforce & Placements", href: "/ta/workforce?tab=deployments" },
+          { label: "Deployments & 201", href: "/ta/workforce?tab=deployments" },
           { label: `Assignment #${dep.id}` },
         ]}
         actions={

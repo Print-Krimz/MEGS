@@ -45,11 +45,11 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Workforce & Placements"
-        description="Monitor field site assignments, digital 201 employee records, and pre-employment clearances in one place."
+        title="Deployments & 201 Records"
+        description="Monitor field site assignments, employee 201 records, and pre-employment clearances."
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },
-          { label: "Workforce & Placements" },
+          { label: "Deployments & 201" },
         ]}
       />
 
@@ -65,7 +65,7 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
           }`}
         >
           <Send className="w-3.5 h-3.5" />
-          <span>Active Site Deployments</span>
+          <span>Site Deployments</span>
         </button>
 
         <button
@@ -78,7 +78,7 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
           }`}
         >
           <IdCard className="w-3.5 h-3.5" />
-          <span>Digital 201 Directory</span>
+          <span>201 Employee Files</span>
         </button>
 
         <button

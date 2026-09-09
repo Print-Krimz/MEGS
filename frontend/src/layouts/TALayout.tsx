@@ -135,9 +135,9 @@ export const TALayout: React.FC = () => {
       ],
     },
     {
-      label: "Workforce & placement",
+      label: "Field operations",
       items: [
-        { to: "/ta/workforce", label: "Workforce & placements", icon: Send },
+        { to: "/ta/workforce", label: "Deployments & 201", icon: Send },
       ],
     },
     {

@@ -111,7 +111,7 @@ export const EmployeeDetailPage: React.FC = () => {
         description={`Employee Number: ${emp.employeeNumber} • Hired ${formatDate(emp.hireDate)}`}
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },
-          { label: "Workforce & Placements", href: "/ta/workforce?tab=employees" },
+          { label: "Deployments & 201", href: "/ta/workforce?tab=employees" },
           { label: emp.employeeNumber },
         ]}
         actions={
@@ -272,7 +272,7 @@ export const EmployeeDetailPage: React.FC = () => {
               </h3>
               <Link to="/ta/workforce" search={{ tab: "deployments" }}>
                 <span className="text-xs text-teal-700 hover:text-teal-900 font-semibold">
-                  All Workforce Deployments →
+                  All Site Deployments →
                 </span>
               </Link>
             </div>
