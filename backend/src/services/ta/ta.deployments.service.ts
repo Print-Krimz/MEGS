@@ -3,6 +3,10 @@ import { DeploymentStatus } from "@prisma/client";
 import { isFullyCompliant } from "./ta.compliance.service.js";
 import { logAudit } from "../../utils/audit.js";
 import { sendNotification } from "../../utils/notification.js";
+import {
+  calculateMRFFulfillment,
+  syncMRFFulfillmentStatus,
+} from "./ta.mrf.service.js";
 
 const ALLOWED_DEPLOYMENT_TRANSITIONS: Record<string, string[]> = {
   READY_FOR_DEPLOYMENT: ["ACTIVE", "CANCELLED"],
@@ -22,6 +26,8 @@ export const createDeployment = async (
     contractStart?: string | Date;
     contractEnd?: string | Date;
     notes?: string;
+    status?: DeploymentStatus;
+    allowOverheadcount?: boolean;
   }
 ) => {
   let empId = data.employeeId;
@@ -130,6 +136,15 @@ export const createDeployment = async (
   if (resolvedMrfId) {
     const mrf = await prisma.manpowerRequest.findUnique({ where: { id: resolvedMrfId } });
     if (!mrf) throw new Error("Manpower Request not found");
+    if (mrf.status === "CANCELLED") {
+      throw new Error("Cannot deploy candidate to a cancelled Manpower Request.");
+    }
+    const fulfillment = await calculateMRFFulfillment(resolvedMrfId);
+    if (fulfillment.isFulfilled && !(data as any).allowOverheadcount) {
+      throw new Error(
+        `MRF #${resolvedMrfId} ("${mrf.title}") headcount limit of ${mrf.headcount} pax has already been reached. Expand MRF headcount or archive assignments before deploying more candidates.`
+      );
+    }
   }
 
   const resolvedSite =
@@ -175,6 +190,10 @@ export const createDeployment = async (
       mrf: { select: { id: true, title: true } },
     },
   });
+
+  if (resolvedMrfId) {
+    await syncMRFFulfillmentStatus(resolvedMrfId, createdById);
+  }
 
   // Record deployment status history
   await prisma.deploymentStatusHistory.create({
@@ -296,6 +315,10 @@ export const updateDeploymentStatus = async (
       client: { select: { id: true, name: true } },
     },
   });
+
+  if (deployment.mrfId && (status === "CANCELLED" || status === "ENDED")) {
+    await syncMRFFulfillmentStatus(deployment.mrfId, actorId);
+  }
 
   // Record DeploymentStatusHistory audit trail
   if (actorId) {

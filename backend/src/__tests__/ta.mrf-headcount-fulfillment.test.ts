@@ -7,6 +7,10 @@ import {
   listMRFs,
   getMRFDetails,
 } from "../services/ta/ta.mrf.service.js";
+import {
+  createDeployment,
+  updateDeploymentStatus,
+} from "../services/ta/ta.deployments.service.js";
 
 describe("MRF Headcount Fulfillment & Job Auto-Closure", () => {
   let testTA: any;
@@ -260,4 +264,189 @@ describe("MRF Headcount Fulfillment & Job Auto-Closure", () => {
     expect(depWithEmp.employee.employeeNumber).toBe(emp1.employeeNumber);
     expect(depWithEmp.employee.user?.applicantProfile?.firstName).toBe("First1");
   });
+});
+
+describe("Deployment Quota Hard Guard", () => {
+  let guardTA: any;
+  let guardClient: any;
+  let guardMrf: any;
+  let userA: any;
+  let userB: any;
+  let empA: any;
+  let empB: any;
+  let dep1: any;
+
+  beforeAll(async () => {
+    guardTA = await prisma.user.create({
+      data: {
+        id: randomUUID(),
+        email: `ta-guard-${Date.now()}@test.com`,
+        role: "TALENT_ACQUISITION",
+        isActive: true,
+      },
+    });
+
+    guardClient = await prisma.client.create({
+      data: {
+        name: `Guard Client ${Date.now()}`,
+        industry: "Retail",
+        contactName: "Store Lead",
+        contactEmail: `client-guard-${Date.now()}@test.com`,
+        isActive: true,
+      },
+    });
+
+    guardMrf = await prisma.manpowerRequest.create({
+      data: {
+        clientId: guardClient.id,
+        createdById: guardTA.id,
+        title: "Retail Cashier Solo",
+        headcount: 1,
+        status: "OPEN",
+      },
+    });
+
+    userA = await prisma.user.create({
+      data: {
+        id: randomUUID(),
+        email: `ua-guard-${Date.now()}@test.com`,
+        role: "APPLICANT",
+        isActive: true,
+      },
+    });
+    await prisma.applicantProfile.create({
+      data: {
+        userId: userA.id,
+        firstName: "Alpha",
+        lastName: "Candidate",
+      },
+    });
+    empA = await prisma.employee.create({
+      data: {
+        userId: userA.id,
+        employeeNumber: `EG-A-${Date.now()}`,
+        status: "ACTIVE",
+      },
+    });
+
+    userB = await prisma.user.create({
+      data: {
+        id: randomUUID(),
+        email: `ub-guard-${Date.now()}@test.com`,
+        role: "APPLICANT",
+        isActive: true,
+      },
+    });
+    await prisma.applicantProfile.create({
+      data: {
+        userId: userB.id,
+        firstName: "Beta",
+        lastName: "Candidate",
+      },
+    });
+    empB = await prisma.employee.create({
+      data: {
+        userId: userB.id,
+        employeeNumber: `EG-B-${Date.now()}`,
+        status: "ACTIVE",
+      },
+    });
+  });
+
+  afterAll(async () => {
+    if (guardMrf) {
+      await prisma.deploymentStatusHistory.deleteMany({
+        where: { deployment: { mrfId: guardMrf.id } },
+      }).catch(() => {});
+      await prisma.deployment.deleteMany({ where: { mrfId: guardMrf.id } }).catch(() => {});
+      await prisma.auditLog.deleteMany({
+        where: {
+          OR: [
+            { entity: "ManpowerRequest", entityId: guardMrf.id },
+            { userId: { in: [guardTA.id, userA.id, userB.id] } },
+          ],
+        },
+      }).catch(() => {});
+      await prisma.manpowerRequest.deleteMany({ where: { id: guardMrf.id } }).catch(() => {});
+    }
+    if (empA && empB) {
+      await prisma.deploymentStatusHistory.deleteMany({
+        where: { deployment: { employeeId: { in: [empA.id, empB.id] } } },
+      }).catch(() => {});
+      await prisma.deployment.deleteMany({
+        where: { employeeId: { in: [empA.id, empB.id] } },
+      }).catch(() => {});
+      await prisma.employmentEvent.deleteMany({
+        where: { employeeId: { in: [empA.id, empB.id] } },
+      }).catch(() => {});
+      await prisma.employee.deleteMany({
+        where: { id: { in: [empA.id, empB.id] } },
+      }).catch(() => {});
+    }
+    if (userA && userB && guardTA) {
+      await prisma.applicantProfile.deleteMany({
+        where: { userId: { in: [userA.id, userB.id] } },
+      }).catch(() => {});
+      await prisma.notification.deleteMany({
+        where: { userId: { in: [userA.id, userB.id, guardTA.id] } },
+      }).catch(() => {});
+      await prisma.user.deleteMany({
+        where: { id: { in: [userA.id, userB.id, guardTA.id] } },
+      }).catch(() => {});
+    }
+    if (guardClient) {
+      await prisma.client.deleteMany({ where: { id: guardClient.id } }).catch(() => {});
+    }
+  });
+
+  it("enforces headcount limit upon deployment creation and auto-syncs MRF status to FILLED", async () => {
+    // 1st deployment succeeds
+    dep1 = await createDeployment(guardTA.id, {
+      employeeId: empA.id,
+      clientId: guardClient.id,
+      mrfId: guardMrf.id,
+    });
+    expect(dep1).toBeDefined();
+    expect(dep1.id).toBeDefined();
+
+    // Verify MRF status transitioned to FILLED
+    const mrfAfter1st = await prisma.manpowerRequest.findUnique({
+      where: { id: guardMrf.id },
+    });
+    expect(mrfAfter1st?.status).toBe("FILLED");
+
+    // 2nd deployment must be rejected due to quota
+    await expect(
+      createDeployment(guardTA.id, {
+        employeeId: empB.id,
+        clientId: guardClient.id,
+        mrfId: guardMrf.id,
+      })
+    ).rejects.toThrow(/headcount limit of 1 pax has already been reached/);
+  }, 30000);
+
+  it("auto-reopens MRF to OPEN when active deployment is cancelled", async () => {
+    // Cancel 1st deployment
+    await updateDeploymentStatus(dep1.id, "CANCELLED", "Deployment cancelled by client", guardTA.id);
+
+    // Verify MRF status reopened to OPEN
+    const mrfAfterCancel = await prisma.manpowerRequest.findUnique({
+      where: { id: guardMrf.id },
+    });
+    expect(mrfAfterCancel?.status).toBe("OPEN");
+
+    // Now 2nd deployment can succeed
+    const dep2 = await createDeployment(guardTA.id, {
+      employeeId: empB.id,
+      clientId: guardClient.id,
+      mrfId: guardMrf.id,
+    });
+    expect(dep2).toBeDefined();
+    expect(dep2.id).toBeDefined();
+
+    const mrfAfter2nd = await prisma.manpowerRequest.findUnique({
+      where: { id: guardMrf.id },
+    });
+    expect(mrfAfter2nd?.status).toBe("FILLED");
+  }, 30000);
 });

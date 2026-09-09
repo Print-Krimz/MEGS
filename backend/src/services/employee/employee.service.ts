@@ -1,5 +1,10 @@
 import prisma from "../../utils/prisma.js";
 import { EmploymentStatus, EmploymentEventType, DeploymentStatus } from "@prisma/client";
+import { resolveDocumentSignedUrl } from "../document/document.service.js";
+import {
+  calculateMRFFulfillment,
+  syncMRFFulfillmentStatus,
+} from "../ta/ta.mrf.service.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DIGITAL 201 AGGREGATE SERVICE
@@ -102,6 +107,16 @@ export const getDigital201ByEmployeeId = async (employeeId: number): Promise<Dig
 
   const profile = employee.user.applicantProfile;
 
+  let photoUrl = profile?.photoUrl ?? null;
+  if (photoUrl && employee.user) {
+    try {
+      const resolved = await resolveDocumentSignedUrl(photoUrl, employee.user.id, "ADMINISTRATOR");
+      if (resolved) photoUrl = resolved;
+    } catch {
+      // fallback
+    }
+  }
+
   return {
     employee: {
       id: employee.id,
@@ -136,7 +151,7 @@ export const getDigital201ByEmployeeId = async (employeeId: number): Promise<Dig
             philhealth: profile.philhealth,
             sss: profile.sss,
             tin: profile.tin,
-            photoUrl: profile.photoUrl,
+            photoUrl,
             resumeUrl: profile.resumeUrl,
             professionalSummary: profile.professionalSummary,
             emergencyContactName: profile.emergencyContactName,
@@ -257,7 +272,32 @@ export const listEmployees = async (filters: {
     }),
   ]);
 
-  return items;
+  const resolvedItems = await Promise.all(
+    items.map(async (item) => {
+      const photo = item.user?.applicantProfile?.photoUrl;
+      if (photo && item.user) {
+        try {
+          const resolved = await resolveDocumentSignedUrl(photo, item.user.id, "ADMINISTRATOR");
+          if (resolved) {
+            return {
+              ...item,
+              user: {
+                ...item.user,
+                applicantProfile: item.user.applicantProfile
+                  ? { ...item.user.applicantProfile, photoUrl: resolved }
+                  : null,
+              },
+            };
+          }
+        } catch {
+          // fallback
+        }
+      }
+      return item;
+    })
+  );
+
+  return resolvedItems;
 };
 
 /**
@@ -349,6 +389,7 @@ export const createEmployeeDeployment = async (
     contractEnd?: string | Date;
     notes?: string;
     applicationId?: number;
+    allowOverheadcount?: boolean;
   }
 ) => {
   const employee = await prisma.employee.findUnique({
@@ -378,9 +419,18 @@ export const createEmployeeDeployment = async (
   if (data.mrfId) {
     const mrf = await prisma.manpowerRequest.findUnique({ where: { id: data.mrfId } });
     if (!mrf) throw new Error("Manpower Request not found");
+    if (mrf.status === "CANCELLED") {
+      throw new Error("Cannot deploy employee to a cancelled Manpower Request.");
+    }
+    const fulfillment = await calculateMRFFulfillment(data.mrfId);
+    if (fulfillment.isFulfilled && !(data as any).allowOverheadcount) {
+      throw new Error(
+        `MRF #${data.mrfId} ("${mrf.title}") headcount limit of ${mrf.headcount} pax has already been reached. Expand MRF headcount or archive assignments before deploying more candidates.`
+      );
+    }
   }
 
-  return await prisma.$transaction(async (tx) => {
+  const deployment = await prisma.$transaction(async (tx) => {
     const deployment = await tx.deployment.create({
       data: {
         employeeId: data.employeeId,
@@ -448,6 +498,12 @@ export const createEmployeeDeployment = async (
 
     return deployment;
   });
+
+  if (data.mrfId) {
+    await syncMRFFulfillmentStatus(data.mrfId, createdById);
+  }
+
+  return deployment;
 };
 
 /**
@@ -477,8 +533,8 @@ export const endEmployeeDeployment = async (
       ? deployment.contractStart
       : (deployment.contractEnd && deployment.contractEnd < now ? deployment.contractEnd : now);
 
-  return await prisma.$transaction(async (tx) => {
-    const updatedDeployment = await tx.deployment.update({
+  const updatedDeployment = await prisma.$transaction(async (tx) => {
+    const updated = await tx.deployment.update({
       where: { id: deploymentId },
       data: {
         status: "ENDED",
@@ -533,8 +589,14 @@ export const endEmployeeDeployment = async (
       });
     }
 
-    return updatedDeployment;
+    return updated;
   });
+
+  if (deployment.mrfId) {
+    await syncMRFFulfillmentStatus(deployment.mrfId, actorId);
+  }
+
+  return updatedDeployment;
 };
 
 /**
