@@ -171,24 +171,48 @@ export const MRFListPage: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-xs font-mono pt-1">
-                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 text-center">
-                      <span className="text-[10px] text-slate-400 uppercase block">Headcount</span>
-                      <span className="font-bold text-slate-900">{mrf.headcount} pax</span>
-                    </div>
-                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 text-center">
-                      <span className="text-[10px] text-slate-400 uppercase block">Priority</span>
-                      <span className={`font-bold ${mrf.priority === "URGENT" ? "text-rose-600" : "text-slate-800"}`}>
-                        {mrf.priority}
-                      </span>
-                    </div>
-                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 text-center">
-                      <span className="text-[10px] text-slate-400 uppercase block">Target Date</span>
-                      <span className="font-bold text-slate-800 truncate block">
-                        {mrf.targetFillDate ? formatDate(mrf.targetFillDate) : "ASAP"}
-                      </span>
-                    </div>
-                  </div>
+                  {(() => {
+                    const deployed = mrf.fulfillment?.deployedCount ?? mrf._count?.deployments ?? 0;
+                    const calculatedRate =
+                      mrf.headcount > 0 ? Math.round((deployed / mrf.headcount) * 100) : 0;
+                    const rate = mrf.fulfillment?.fulfillmentRate ?? calculatedRate;
+                    const clampedRate = Math.min(100, Math.max(0, rate));
+                    const barColor =
+                      clampedRate >= 100
+                        ? "bg-emerald-600"
+                        : clampedRate > 0
+                        ? "bg-teal-600"
+                        : "bg-slate-300";
+
+                    return (
+                      <div className="grid grid-cols-3 gap-2 text-xs font-mono pt-1">
+                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 flex flex-col justify-between">
+                          <span className="text-[10px] text-slate-400 uppercase block">Fulfillment</span>
+                          <span className="font-bold text-slate-900 truncate block my-0.5">
+                            {deployed} / {mrf.headcount} pax
+                          </span>
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${barColor}`}
+                              style={{ width: `${clampedRate}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 text-center flex flex-col justify-between">
+                          <span className="text-[10px] text-slate-400 uppercase block">Priority</span>
+                          <span className={`font-bold my-auto ${mrf.priority === "URGENT" ? "text-rose-600" : "text-slate-800"}`}>
+                            {mrf.priority}
+                          </span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 text-center flex flex-col justify-between">
+                          <span className="text-[10px] text-slate-400 uppercase block">Target Date</span>
+                          <span className="font-bold text-slate-800 truncate block my-auto">
+                            {mrf.targetFillDate ? formatDate(mrf.targetFillDate) : "ASAP"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between">

@@ -7,6 +7,7 @@ import {
   LoadingState,
   ErrorState,
   EmptyState,
+  StatusBadge,
 } from "../../components/common";
 import { Button } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
@@ -18,6 +19,7 @@ import {
   Calendar,
   Briefcase,
   Layers,
+  CheckCircle2,
 } from "lucide-react";
 
 export const AdminMRFDetailPage: React.FC = () => {
@@ -94,6 +96,14 @@ export const AdminMRFDetailPage: React.FC = () => {
   const mrf = mrfQuery.data;
   const linkedJobs = mrf.jobPostings || [];
   const templates = mrf.complianceTemplates || [];
+  const deployments = (mrf.deployments as any[]) || [];
+  const deployedCount = mrf.fulfillment?.deployedCount ?? deployments.length;
+  const fulfillmentRate =
+    mrf.fulfillment?.fulfillmentRate ??
+    (mrf.headcount > 0 ? Math.round((deployedCount / mrf.headcount) * 100) : 0);
+  const remainingCount =
+    mrf.fulfillment?.remainingCount ?? Math.max(0, mrf.headcount - deployedCount);
+  const isFulfilled = mrf.status === "FILLED" || Boolean(mrf.fulfillment?.isFulfilled);
 
   return (
     <div className="space-y-6">
@@ -116,18 +126,41 @@ export const AdminMRFDetailPage: React.FC = () => {
         }
       />
 
+      {/* Fulfillment Callout Banner */}
+      {isFulfilled && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3 text-emerald-900 shadow-xs">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          <p className="text-xs text-emerald-900">
+            <strong className="font-bold">Order 100% Fulfilled.</strong> The target manpower quota has been reached. Linked non-evergreen job postings have been closed to prevent candidate ghosting.
+          </p>
+        </div>
+      )}
+
       {/* Metrics & Overview Banner */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
           <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-slate-500 uppercase">
             <Users className="w-3.5 h-3.5 text-slate-400" />
-            <span>Required Headcount</span>
+            <span>Manpower Fulfillment</span>
           </div>
           <div className="text-2xl font-bold font-mono text-slate-900 mt-1 tabular-nums">
-            {mrf.headcount} <span className="text-xs text-slate-400 font-normal">pax</span>
+            {deployedCount} / <span>{mrf.headcount}</span>{" "}
+            <span className="text-xs text-slate-400 font-normal">pax</span>
           </div>
-          <div className="text-[11px] text-slate-500 mt-1 font-mono">
-            {mrf.location || "Nationwide"}
+          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-2">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${
+                fulfillmentRate >= 100
+                  ? "bg-emerald-600"
+                  : fulfillmentRate > 0
+                  ? "bg-teal-600"
+                  : "bg-slate-300"
+              }`}
+              style={{ width: `${Math.min(100, Math.max(0, fulfillmentRate))}%` }}
+            />
+          </div>
+          <div className="text-[11px] text-slate-500 mt-2 font-mono">
+            {fulfillmentRate}% • {remainingCount} slots remaining
           </div>
         </div>
 
@@ -276,6 +309,76 @@ export const AdminMRFDetailPage: React.FC = () => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Deployed Personnel Roster */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="p-4 border-b border-slate-100">
+          <h3 className="text-sm font-bold text-slate-900">
+            Deployed Personnel ({deployments.length} / {mrf.headcount})
+          </h3>
+          <p className="text-xs text-slate-500">
+            Active workers and site assignments fulfilling this order (Read-Only Audit)
+          </p>
+        </div>
+
+        {deployments.length === 0 ? (
+          <div className="p-8 text-center text-xs text-slate-400">
+            No personnel deployed yet. Candidates become visible here once their deployment record is finalized.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-700">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-mono text-[11px] uppercase tracking-wider">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Worker Name</th>
+                  <th className="px-4 py-3 font-semibold">Employee ID</th>
+                  <th className="px-4 py-3 font-semibold">Deployment Site</th>
+                  <th className="px-4 py-3 font-semibold">Contract Period</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {deployments.map((d: any) => {
+                  const profile =
+                    d.employee?.user?.applicantProfile || d.application?.user?.applicantProfile;
+                  const workerName = profile
+                    ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || "Unnamed Worker"
+                    : d.employee?.user?.email || "Unnamed Worker";
+
+                  const contractPeriod = `${d.contractStart ? formatDate(d.contractStart) : "N/A"} - ${
+                    d.contractEnd ? formatDate(d.contractEnd) : "Ongoing"
+                  }`;
+
+                  return (
+                    <tr key={d.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-slate-900">
+                        <span className="font-semibold">{workerName}</span>
+                        {profile?.mobileNumber && (
+                          <div className="text-[11px] text-slate-400 font-mono">
+                            {profile.mobileNumber}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-slate-700">
+                        {d.employee?.employeeNumber || "N/A"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-700 font-medium">
+                        {d.site || mrf.location || "Main Site"}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[11px] text-slate-700">
+                        {contractPeriod}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={d.status} type="deployment" size="sm" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
