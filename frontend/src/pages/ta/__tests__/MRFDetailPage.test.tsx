@@ -44,6 +44,9 @@ const mockMRFWithData = {
   priority: "HIGH",
   targetFillDate: "2026-10-01T00:00:00.000Z",
   createdAt: "2026-09-01T00:00:00.000Z",
+  updatedAt: "2026-09-01T00:00:00.000Z",
+  clientId: 5,
+  createdById: "user-test-01",
   description: "Coordinates regional warehouse inbound and outbound logistics.",
   requiredSkills: "Inventory management, ERP SAP, Forklift safety",
   client: {
@@ -123,7 +126,7 @@ const mockMRFWithData = {
 describe("MRFDetailPage Tabbed Navigation & Search", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(taApi.getMRFDetails).mockResolvedValue(mockMRFWithData);
+    vi.mocked(taApi.getMRFDetails).mockResolvedValue(mockMRFWithData as unknown as any);
     vi.mocked(taApi.listJobs).mockResolvedValue([]);
   });
 
