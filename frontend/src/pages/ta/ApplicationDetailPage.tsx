@@ -12,6 +12,7 @@ import {
   DocumentPreviewModal,
 } from "../../components/common";
 import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
+import { InlineResumeViewer } from "../../components/ta/InlineResumeViewer";
 import { Button, Dialog, Input, Select, Textarea, ComboBox } from "../../components/ui";
 import { formatDate, formatDateTime, getApplicationStatusMeta, extractDocumentId } from "../../lib/utils";
 import { COMPLIANCE_201_PRESETS } from "../../lib/hr-constants";
@@ -21,11 +22,10 @@ import {
 } from "../../lib/types/enums";
 import type { Interview } from "../../lib/types/application.types";
 import {
-  User,
+  UserCheck,
   Award,
   RefreshCw,
   Users,
-  FileText,
   Calendar,
   Building2,
   ShieldCheck,
@@ -41,46 +41,45 @@ import {
   Eye,
   XCircle,
   FileCheck,
+  FileText,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
 
+type TabKey = "evaluation" | "compliance" | "history";
 
-
-type TabKey =
-  | "overview"
-  | "ai-score"
-  | "resume"
-  | "interviews"
-  | "endorsements"
-  | "compliance"
-  | "timeline"
-  | "hiring"
-  | "similar";
+const normalizeTab = (tab: string | null): TabKey => {
+  if (!tab) return "evaluation";
+  switch (tab) {
+    case "evaluation":
+    case "overview":
+    case "ai-score":
+    case "interviews":
+    case "similar":
+      return "evaluation";
+    case "compliance":
+    case "endorsements":
+    case "hiring":
+      return "compliance";
+    case "history":
+    case "timeline":
+      return "history";
+    default:
+      return "evaluation";
+  }
+};
 
 export const ApplicationDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { applicationId } = useParams({ strict: false }) as { applicationId: string };
 
-  const validTabs: TabKey[] = [
-    "overview",
-    "ai-score",
-    "resume",
-    "interviews",
-    "endorsements",
-    "compliance",
-    "timeline",
-    "hiring",
-    "similar",
-  ];
-
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     if (typeof window !== "undefined") {
-      const paramTab = new URLSearchParams(window.location.search).get("tab") as TabKey;
-      if (paramTab && validTabs.includes(paramTab)) {
-        return paramTab;
-      }
+      const paramTab = new URLSearchParams(window.location.search).get("tab");
+      return normalizeTab(paramTab);
     }
-    return "overview";
+    return "evaluation";
   });
 
   const handleTabChange = (tab: TabKey) => {
@@ -134,10 +133,30 @@ export const ApplicationDetailPage: React.FC = () => {
   const [previewDocState, setPreviewDocState] = useState<{
     open: boolean;
     documentId?: number | null;
+    fileUrl?: string | null;
     title?: string;
     requirementId?: number | null;
     requirementStatus?: string;
   } | null>(null);
+
+  const [photoImgError, setPhotoImgError] = useState(false);
+  const [isResumeOpen, setIsResumeOpen] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem(`megs_ta_resume_open_${applicationId}`);
+      if (stored !== null) {
+        return stored === "true";
+      }
+      return window.innerWidth >= 1024;
+    }
+    return true;
+  });
+
+  const toggleResume = (open: boolean) => {
+    setIsResumeOpen(open);
+    if (typeof window !== "undefined" && applicationId) {
+      sessionStorage.setItem(`megs_ta_resume_open_${applicationId}`, String(open));
+    }
+  };
 
   const [deployModalOpen, setDeployModalOpen] = useState(false);
   const [deployClientId, setDeployClientId] = useState<number>(0);
@@ -173,10 +192,17 @@ export const ApplicationDetailPage: React.FC = () => {
     staleTime: 5 * 60 * 1000,
   });
 
+  const [similarTalentOpen, setSimilarTalentOpen] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return new URLSearchParams(window.location.search).get("tab") === "similar";
+    }
+    return false;
+  });
+
   const similarCandidatesQuery = useQuery({
     queryKey: ["ta", "application", applicationId, "similar"],
     queryFn: () => taApi.getSimilarCandidates(applicationId),
-    enabled: activeTab === "similar" && Boolean(applicationId),
+    enabled: activeTab === "evaluation" && similarTalentOpen && Boolean(applicationId),
   });
 
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -734,6 +760,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const candidateName = profile
     ? `${profile.firstName} ${profile.lastName}`
     : app.user?.email || "Candidate";
+  const candidateInitials = [profile?.firstName?.[0], profile?.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "ID";
   const scores = app.candidateScores?.[0];
   const decisions = Array.isArray(decisionsQuery.data) ? decisionsQuery.data : [];
   const clients = Array.isArray(clientsQuery.data) ? clientsQuery.data : [];
@@ -826,15 +853,9 @@ export const ApplicationDetailPage: React.FC = () => {
   const missingCompReqs = (app.complianceRequirements || []).filter((r) => !r.documentId && r.reviewStatus !== "APPROVED").length;
 
   const tabs: { id: TabKey; label: string; icon: React.FC<{ className?: string }> }[] = [
-    { id: "overview", label: "Candidate Profile", icon: User },
-    { id: "ai-score", label: "Candidate Assessment", icon: Award },
-    { id: "resume", label: "Resume & Documents", icon: FileText },
-    { id: "interviews", label: `Interviews (${app.interviews?.length || 0})`, icon: Calendar },
-    { id: "endorsements", label: `Endorsements (${app.clientEndorsements?.length || 0})`, icon: Building2 },
-    { id: "compliance", label: `Requirements (${app.complianceRequirements?.length || 0})`, icon: ShieldCheck },
-    { id: "timeline", label: `Decision Audit (${decisions.length})`, icon: History },
-    { id: "hiring", label: "Personnel & Deployment", icon: Truck },
-    { id: "similar", label: "Similar in Pool", icon: Users },
+    { id: "evaluation", label: "Candidate & Evaluation", icon: UserCheck },
+    { id: "compliance", label: "Compliance & Deployment", icon: ShieldCheck },
+    { id: "history", label: "Decisions & Audit", icon: History },
   ];
 
   return (
@@ -1149,7 +1170,7 @@ export const ApplicationDetailPage: React.FC = () => {
             {/* STAGE 6: CONTRACT_AND_ORIENTATION Actions */}
             {isContractAndOrientationStage && (
               <div className="flex flex-wrap items-center gap-2">
-                {isReadyForDeployment && activeTab !== "hiring" && (
+                {isReadyForDeployment && activeTab !== "compliance" && (
                   <Button
                     variant="primary"
                     size="sm"
@@ -1163,11 +1184,11 @@ export const ApplicationDetailPage: React.FC = () => {
                     Deploy Candidate
                   </Button>
                 )}
-                {!isReadyForDeployment && activeTab !== "hiring" && (
+                {!isReadyForDeployment && activeTab !== "compliance" && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setActiveTab("hiring")}
+                    onClick={() => handleTabChange("compliance")}
                   >
                     Manage Onboarding
                   </Button>
@@ -1216,722 +1237,977 @@ export const ApplicationDetailPage: React.FC = () => {
 
         {/* Tab Body */}
         <div className="p-3.5 sm:p-6">
-          {/* TAB 1: OVERVIEW & CANDIDATE PROFILE */}
-          {activeTab === "overview" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Personal Information */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-                    Personal & Contact Demographics
-                  </h4>
-                  <div className="space-y-2 text-xs">
-                    <div className="grid grid-cols-3">
-                      <span className="text-slate-400 font-mono">Full Name:</span>
-                      <span className="col-span-2 font-semibold text-slate-900">{candidateName}</span>
-                    </div>
-                    <div className="grid grid-cols-3">
-                      <span className="text-slate-400 font-mono">Contact Phone:</span>
-                      <span className="col-span-2 text-slate-800 font-mono">{profile?.mobileNumber || "N/A"}</span>
-                    </div>
-                    <div className="grid grid-cols-3">
-                      <span className="text-slate-400 font-mono">Current Address:</span>
-                      <span className="col-span-2 text-slate-800">{profile?.address || "N/A"}</span>
-                    </div>
-                    <div className="grid grid-cols-3">
-                      <span className="text-slate-400 font-mono">Region:</span>
-                      <span className="col-span-2 text-slate-800">{profile?.city ? `${profile.city}, ${profile.province}` : "Philippines"}</span>
-                    </div>
-                    <div className="grid grid-cols-3">
-                      <span className="text-slate-400 font-mono">Date of Birth:</span>
-                      <span className="col-span-2 text-slate-800 font-mono">{profile?.dateOfBirth ? formatDate(profile.dateOfBirth) : "N/A"}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Target Requisition Snapshot */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-                    Target Job Requisition
-                  </h4>
-                  <div className="space-y-2 text-xs">
-                    <div className="grid grid-cols-3">
-                      <span className="text-slate-400 font-mono">Position Title:</span>
-                      <span className="col-span-2 font-bold text-slate-900">{app.jobPosting?.title || "N/A"}</span>
-                    </div>
-                    <div className="grid grid-cols-3">
-                      <span className="text-slate-400 font-mono">Location:</span>
-                      <span className="col-span-2 text-slate-800">{app.jobPosting?.location || "Philippines"}</span>
-                    </div>
-                    <div className="grid grid-cols-3">
-                      <span className="text-slate-400 font-mono">Status:</span>
-                      <span className="col-span-2 font-mono">{app.jobPosting?.status || "OPEN"}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Work Experience */}
-              <div className="space-y-3 pt-4 border-t border-slate-100">
-                <h4 className="text-xs font-mono font-bold uppercase text-slate-500">
-                  Employment History
-                </h4>
-                {!profile?.workExperiences || profile.workExperiences.length === 0 ? (
-                  <p className="text-xs text-slate-400">No recorded employment entries.</p>
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {profile.workExperiences.map((exp: any) => (
-                      <div key={exp.id} className="py-2 text-xs">
-                        <span className="font-bold text-slate-900">{exp.roleTitle}</span> at{" "}
-                        <span className="font-medium text-slate-800">{exp.company}</span>
-                        <div className="text-[11px] text-slate-400 font-mono">
-                          {formatDate(exp.startDate)} — {exp.isCurrent ? "Present" : exp.endDate ? formatDate(exp.endDate) : "N/A"}
-                        </div>
-                        {exp.summary && <p className="text-slate-600 mt-1">{exp.summary}</p>}
-                      </div>
-                    ))}
+                    {/* ========================================================================= */}
+          {/* TAB 1: CANDIDATE & EVALUATION */}
+          {/* ========================================================================= */}
+          {activeTab === "evaluation" && (
+            <div className="space-y-8">
+              {/* SECTION A: Candidate Demographics, Records & Inline Resume Viewer */}
+              <div className="space-y-4">
+                {/* Top-right control when Resume is Collapsed */}
+                {!isResumeOpen && (
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      leftIcon={<FileText className="w-3.5 h-3.5 text-teal-700" />}
+                      onClick={() => toggleResume(true)}
+                      aria-label="View Resume"
+                      title="Show resume panel side-by-side"
+                    >
+                      View Resume
+                    </Button>
                   </div>
                 )}
-              </div>
 
-              {/* Education */}
-              <div className="space-y-3 pt-4 border-t border-slate-100">
-                <h4 className="text-xs font-mono font-bold uppercase text-slate-500">
-                  Educational Attainment
-                </h4>
-                {!profile?.educations || profile.educations.length === 0 ? (
-                  <p className="text-xs text-slate-400">No education entries on file.</p>
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {profile.educations.map((edu: any) => (
-                      <div key={edu.id} className="py-2 text-xs">
-                        <span className="font-bold text-slate-900">{edu.degree}</span> • {edu.school}
-                        <div className="text-[11px] text-slate-400 font-mono">
-                          {edu.fieldOfStudy}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Skills Tags */}
-              <div className="space-y-3 pt-4 border-t border-slate-100">
-                <h4 className="text-xs font-mono font-bold uppercase text-slate-500">
-                  Competencies & Skills
-                </h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {profile?.skills && profile.skills.length > 0 ? (
-                    profile.skills.map((s: any, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 text-[11px] font-semibold border border-slate-200"
-                      >
-                        {typeof s === "string" ? s : s.name}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-400">No skills listed</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: AI FIT ASSESSMENT & SCORE BREAKDOWN */}
-          {activeTab === "ai-score" && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <Award className="w-4 h-4 text-teal-600" />
-                    <h3 className="text-sm font-bold text-slate-900">
-                      Candidate Suitability & Match Score
-                    </h3>
-                  </div>
-                  <p className="text-[11px] text-slate-500 font-sans">
-                    Calculated based on candidate qualifications, work experience, location, and job requirements
-                  </p>
-                </div>
-                <ScoreBadge score={scores?.finalFitScore ?? app.candidateFitScore ?? app.aiScore} size="lg" />
-              </div>
-
-              {scores ? (
-                <div className="border border-slate-300 bg-white grid grid-cols-2 sm:grid-cols-5 divide-x divide-y sm:divide-y-0 divide-slate-300">
-                  <div className="p-3 text-center">
-                    <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Skills Match</div>
-                    <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.skillsScore).toFixed(0)}%</div>
-                  </div>
-                  <div className="p-3 text-center">
-                    <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Experience Fit</div>
-                    <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.experienceScore).toFixed(0)}%</div>
-                  </div>
-                  <div className="p-3 text-center">
-                    <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Location Proximity</div>
-                    <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.locationScore).toFixed(0)}%</div>
-                  </div>
-                  <div className="p-3 text-center">
-                    <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Compliance Match</div>
-                    <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.complianceScore).toFixed(0)}%</div>
-                  </div>
-                  <div className="p-3 text-center">
-                    <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Education / Certs</div>
-                    <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.educationCertificationScore).toFixed(0)}%</div>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-4 bg-slate-50 border border-slate-300 text-center text-xs font-mono text-slate-500">
-                  Detailed criteria score breakdown is being calculated.
-                </div>
-              )}
-
-              {/* Candidate Assessment & Recommendation */}
-              {parsedAiAssessment && (
-                <div className="border border-slate-300 bg-white shadow-xs">
-                  <div className="px-4 py-3 bg-teal-50 border-b border-slate-300 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FileCheck className="w-4 h-4 text-teal-800" />
-                      <h4 className="text-xs font-bold font-mono text-teal-950 uppercase tracking-wide">
-                        Candidate Assessment & Recommendation
-                      </h4>
-                    </div>
-                    <span className="text-[11px] font-mono font-semibold px-2 py-0.5 bg-white text-teal-900 border border-slate-300">
-                      AI Qualitative Analysis
-                    </span>
-                  </div>
-
-                  <div className="p-4 space-y-4 text-xs">
-                    {/* Executive Summary */}
-                    {parsedAiAssessment.summary && (
-                      <div className="space-y-1.5">
-                        <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-                          Executive Evaluation Summary
-                        </div>
-                        <p className="text-slate-900 leading-relaxed font-sans text-xs">
-                          {parsedAiAssessment.summary}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Strengths & Gaps Breakdown */}
-                    {(parsedAiAssessment.strengths.length > 0 || parsedAiAssessment.gaps.length > 0) && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-200">
-                        {/* Key Strengths */}
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-teal-900 uppercase tracking-wider">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-teal-700" />
-                            <span>Candidate Strengths ({parsedAiAssessment.strengths.length})</span>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start transition-all duration-200">
+                  {/* Left / Profile Column: Structured Records */}
+                  <div className={`${isResumeOpen ? "lg:col-span-5 xl:col-span-5" : "col-span-12"} transition-all duration-200`}>
+                    <div className={isResumeOpen ? "space-y-6" : "grid grid-cols-1 md:grid-cols-2 gap-6 items-start"}>
+                      {/* Left Sub-Group in Collapsed, or First Group in Split */}
+                      <div className="space-y-6">
+                        {/* 1. Personal & Contact Demographics */}
+                        <div className="space-y-3">
+                          <div className="border-b border-slate-200 pb-2">
+                            <h4 className="text-xs font-mono font-bold uppercase text-slate-600">
+                              Personal & Contact Demographics
+                            </h4>
                           </div>
-                          {parsedAiAssessment.strengths.length > 0 ? (
-                            <ul className="space-y-1.5">
-                              {parsedAiAssessment.strengths.map((strength: string, i: number) => (
-                                <li key={i} className="flex items-start gap-2 text-slate-800">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-teal-600 mt-1.5 shrink-0" />
-                                  <span className="leading-snug">{strength}</span>
-                                </li>
-                              ))}
-                            </ul>
+
+                          <div className="flex items-start gap-4 pt-1">
+                            {/* 2x2 Photo Avatar Preview */}
+                            <div className="shrink-0">
+                              {profile?.photoUrl && !photoImgError ? (
+                                <img
+                                  src={profile.photoUrl}
+                                  alt="Profile"
+                                  className="w-16 h-16 rounded-md object-cover border border-slate-300 shadow-xs cursor-pointer hover:opacity-90 transition-opacity"
+                                  onError={() => setPhotoImgError(true)}
+                                  onClick={() => {
+                                    const docId = extractDocumentId(profile.photoUrl);
+                                    setPreviewDocState({
+                                      open: true,
+                                      documentId: docId,
+                                      fileUrl: profile.photoUrl,
+                                      title: "Identification Photo",
+                                    });
+                                  }}
+                                  title="Click to view full photo"
+                                />
+                              ) : (
+                                <div
+                                  aria-hidden="true"
+                                  className="flex h-16 w-16 items-center justify-center rounded-md bg-teal-50 text-base font-semibold text-teal-800 ring-1 ring-inset ring-teal-200"
+                                >
+                                  {candidateInitials}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Demographics details */}
+                            <div className="space-y-1.5 text-xs flex-1 min-w-0">
+                              <div className="grid grid-cols-3">
+                                <span className="text-slate-600 font-mono font-medium">Full Name:</span>
+                                <span className="col-span-2 font-semibold text-slate-950 truncate">{candidateName}</span>
+                              </div>
+                              <div className="grid grid-cols-3">
+                                <span className="text-slate-600 font-mono font-medium">Contact Phone:</span>
+                                <span className="col-span-2 text-slate-800 font-mono">{profile?.mobileNumber || "N/A"}</span>
+                              </div>
+                              <div className="grid grid-cols-3">
+                                <span className="text-slate-600 font-mono font-medium">Current Address:</span>
+                                <span className="col-span-2 text-slate-800">{profile?.address || "N/A"}</span>
+                              </div>
+                              <div className="grid grid-cols-3">
+                                <span className="text-slate-600 font-mono font-medium">Region:</span>
+                                <span className="col-span-2 text-slate-800">{profile?.city ? `${profile.city}, ${profile.province}` : "Philippines"}</span>
+                              </div>
+                              <div className="grid grid-cols-3">
+                                <span className="text-slate-600 font-mono font-medium">Date of Birth:</span>
+                                <span className="col-span-2 text-slate-800 font-mono">{profile?.dateOfBirth ? formatDate(profile.dateOfBirth) : "N/A"}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 2. Target Job Requisition */}
+                        <div className="space-y-3 pt-4 border-t border-slate-200">
+                          <h4 className="text-xs font-mono font-bold uppercase text-slate-600 border-b border-slate-100 pb-2">
+                            Target Job Requisition
+                          </h4>
+                          <div className="space-y-2 text-xs">
+                            <div className="grid grid-cols-3">
+                              <span className="text-slate-600 font-mono font-medium">Position Title:</span>
+                              <span className="col-span-2 font-bold text-slate-900">{app.jobPosting?.title || "N/A"}</span>
+                            </div>
+                            <div className="grid grid-cols-3">
+                              <span className="text-slate-600 font-mono font-medium">Location:</span>
+                              <span className="col-span-2 text-slate-800">{app.jobPosting?.location || "Philippines"}</span>
+                            </div>
+                            <div className="grid grid-cols-3">
+                              <span className="text-slate-600 font-mono font-medium">Status:</span>
+                              <span className="col-span-2 font-mono">{app.jobPosting?.status || "OPEN"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 3. Suitability Match */}
+                        <div className="space-y-2 pt-4 border-t border-slate-200">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <h4 className="text-xs font-mono font-bold uppercase text-slate-600">
+                              Suitability Match
+                            </h4>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                document.getElementById("evaluation-ai-breakdown")?.scrollIntoView({ behavior: "smooth" });
+                              }}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-teal-50 text-teal-900 border border-teal-200 hover:bg-teal-100 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                              title="View detailed suitability breakdown below"
+                            >
+                              <Award className="w-3.5 h-3.5 text-teal-600" />
+                              <span>{scores?.finalFitScore ?? app.candidateFitScore ?? app.aiScore ?? "N/A"}/100</span>
+                              <span className="text-[11px] text-teal-700 font-sans ml-1">Breakdown &darr;</span>
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            Match score calculated from candidate qualifications, work history, and job requisition requirements.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Right Sub-Group in Collapsed, or Second Group in Split */}
+                      <div className="space-y-6">
+                        {/* 4. Employment History (Prioritized before Skills) */}
+                        <div className={`space-y-3 ${isResumeOpen ? "pt-4 border-t border-slate-200" : "pt-4 md:pt-0 border-t md:border-t-0 border-slate-200"}`}>
+                          <h4 className="text-xs font-mono font-bold uppercase text-slate-600 border-b border-slate-200 pb-2">
+                            Employment History
+                          </h4>
+                          {!profile?.workExperiences || profile.workExperiences.length === 0 ? (
+                            <p className="text-xs text-slate-400">No recorded employment entries.</p>
                           ) : (
-                            <p className="text-slate-400 italic">No specific strengths documented</p>
+                            <div className="divide-y divide-slate-100">
+                              {profile.workExperiences.map((exp: any) => (
+                                <div key={exp.id} className="py-2 text-xs">
+                                  <span className="font-bold text-slate-900">{exp.roleTitle}</span> at{" "}
+                                  <span className="font-medium text-slate-800">{exp.company}</span>
+                                  <div className="text-[11px] text-slate-400 font-mono">
+                                    {formatDate(exp.startDate)} — {exp.isCurrent ? "Present" : exp.endDate ? formatDate(exp.endDate) : "N/A"}
+                                  </div>
+                                  {exp.summary && <p className="text-slate-600 mt-1">{exp.summary}</p>}
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
 
-                        {/* Identified Gaps / Development Areas */}
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-amber-900 uppercase tracking-wider">
-                            <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Identified Gaps & Considerations ({parsedAiAssessment.gaps.length})</span>
-                          </div>
-                          {parsedAiAssessment.gaps.length > 0 ? (
-                            <ul className="space-y-1.5">
-                              {parsedAiAssessment.gaps.map((gap: string, i: number) => (
-                                <li key={i} className="flex items-start gap-2 text-slate-800">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                                  <span className="leading-snug">{gap}</span>
-                                </li>
-                              ))}
-                            </ul>
+                        {/* 5. Educational Attainment */}
+                        <div className="space-y-3 pt-4 border-t border-slate-200">
+                          <h4 className="text-xs font-mono font-bold uppercase text-slate-600 border-b border-slate-200 pb-2">
+                            Educational Attainment
+                          </h4>
+                          {!profile?.educations || profile.educations.length === 0 ? (
+                            <p className="text-xs text-slate-400">No education entries on file.</p>
                           ) : (
-                            <p className="text-slate-400 italic">No critical gaps identified</p>
+                            <div className="divide-y divide-slate-100">
+                              {profile.educations.map((edu: any) => (
+                                <div key={edu.id} className="py-2 text-xs">
+                                  <span className="font-bold text-slate-900">{edu.degree}</span> • {edu.school}
+                                  <div className="text-[11px] text-slate-400 font-mono">
+                                    {edu.fieldOfStudy}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
-          {/* TAB 3: RESUME & DOCUMENTS */}
-          {activeTab === "resume" && (
-            <div className="space-y-6">
-              <div className="border-b border-slate-100 pb-3">
-                <h3 className="text-sm font-bold text-slate-900">Curriculum Vitae & Document Vault</h3>
-                <p className="text-xs text-slate-500">
-                  Candidate resumes and uploaded requirements verification files
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                  <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-800 uppercase">
-                    <FileText className="w-4 h-4 text-teal-600" />
-                    <span>Application Resume</span>
+                      {/* 6. Competencies & Skills (Appears after Work Experience and Education) */}
+                      <div className={`space-y-3 pt-4 border-t border-slate-200 ${!isResumeOpen ? "md:col-span-2" : ""}`}>
+                        <h4 className="text-xs font-mono font-bold uppercase text-slate-600">
+                          Competencies & Skills
+                        </h4>
+                        <div className="flex flex-wrap gap-1.5">
+                          {profile?.skills && profile.skills.length > 0 ? (
+                            profile.skills.map((s: any, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 rounded-md bg-slate-100/90 text-slate-700 text-[11px] font-medium border border-slate-200"
+                              >
+                                {typeof s === "string" ? s : s.name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-slate-400">No skills listed</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  {app.resumeUrl || profile?.resumeUrl ? (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono text-slate-600">CV Document on file</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const docId = extractDocumentId(app.resumeUrl || profile?.resumeUrl);
+
+                  {/* Right Column: Sticky Inline Resume & Document Viewer */}
+                  {isResumeOpen && (
+                    <div className="lg:col-span-7 xl:col-span-7 lg:sticky lg:top-4 space-y-4 transition-all duration-200">
+                      <InlineResumeViewer
+                        resumeUrl={profile?.resumeUrl || app.resumeUrl}
+                        candidateName={candidateName}
+                        candidateInitials={candidateInitials}
+                        onOpenFullscreen={() => {
+                          const resumeUrlToPreview = profile?.resumeUrl || app.resumeUrl;
+                          const docId = extractDocumentId(resumeUrlToPreview);
                           setPreviewDocState({
                             open: true,
                             documentId: docId,
+                            fileUrl: resumeUrlToPreview,
                             title: "Application Resume (CV)",
                           });
                         }}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>Open Resume (PDF)</span>
-                      </button>
+                        onCollapse={() => toggleResume(false)}
+                      />
                     </div>
-                  ) : (
-                    <p className="text-xs text-slate-400">No resume attached to this application.</p>
                   )}
                 </div>
+              </div>
 
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                  <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-800 uppercase">
-                    <User className="w-4 h-4 text-teal-600" />
-                    <span>Identification Photo</span>
+              {/* SECTION B: AI Suitability & Match Score Breakdown */}
+              <div id="evaluation-ai-breakdown" className="pt-6 border-t border-slate-200 space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Award className="w-4 h-4 text-teal-600" />
+                      <h3 className="text-sm font-bold text-slate-900">
+                        Candidate Suitability & Match Score
+                      </h3>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-sans">
+                      Calculated based on candidate qualifications, work experience, location, and job requirements
+                    </p>
                   </div>
-                  {profile?.photoUrl ? (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={profile.photoUrl}
-                          alt="Profile"
-                          className="w-14 h-14 rounded-lg object-cover border border-slate-300 shadow-xs"
-                        />
-                        <div>
-                          <span className="text-xs text-slate-700 font-mono font-bold block">2x2 ID Photo</span>
-                          <span className="text-[11px] text-slate-400 font-mono">Profile Avatar</span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const docId = extractDocumentId(profile.photoUrl);
-                          setPreviewDocState({
-                            open: true,
-                            documentId: docId,
-                            title: "Identification Photo",
-                          });
-                        }}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>Inspect Full Photo</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-400">No profile photo on file.</p>
-                  )}
+                  <ScoreBadge score={scores?.finalFitScore ?? app.candidateFitScore ?? app.aiScore} size="lg" />
                 </div>
 
+                {scores ? (
+                  <div className="border border-slate-300 bg-white grid grid-cols-2 sm:grid-cols-5 divide-x divide-y sm:divide-y-0 divide-slate-300 rounded-md overflow-hidden">
+                    <div className="p-3 text-center">
+                      <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Skills Match</div>
+                      <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.skillsScore).toFixed(0)}%</div>
+                    </div>
+                    <div className="p-3 text-center">
+                      <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Experience Fit</div>
+                      <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.experienceScore).toFixed(0)}%</div>
+                    </div>
+                    <div className="p-3 text-center">
+                      <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Location Proximity</div>
+                      <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.locationScore).toFixed(0)}%</div>
+                    </div>
+                    <div className="p-3 text-center">
+                      <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Compliance Match</div>
+                      <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.complianceScore).toFixed(0)}%</div>
+                    </div>
+                    <div className="p-3 text-center">
+                      <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Education / Certs</div>
+                      <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.educationCertificationScore).toFixed(0)}%</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-50 border border-slate-300 text-center text-xs font-mono text-slate-500 rounded-md">
+                    Detailed criteria score breakdown is being calculated.
+                  </div>
+                )}
+
+                {/* Candidate Assessment & Recommendation */}
+                {parsedAiAssessment && (
+                  <div className="border border-slate-300 bg-white shadow-xs rounded-md overflow-hidden">
+                    <div className="px-4 py-3 bg-teal-50 border-b border-slate-300 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileCheck className="w-4 h-4 text-teal-800" />
+                        <h4 className="text-xs font-bold font-mono text-teal-950 uppercase tracking-wide">
+                          Candidate Assessment & Recommendation
+                        </h4>
+                      </div>
+                      <span className="text-[11px] font-mono font-semibold px-2 py-0.5 bg-white text-teal-900 border border-slate-300 rounded-md">
+                        AI Qualitative Analysis
+                      </span>
+                    </div>
+
+                    <div className="p-4 space-y-4 text-xs">
+                      {/* Executive Summary */}
+                      {parsedAiAssessment.summary && (
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
+                            Executive Evaluation Summary
+                          </div>
+                          <p className="text-slate-900 leading-relaxed font-sans text-xs">
+                            {parsedAiAssessment.summary}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Strengths & Gaps Breakdown */}
+                      {(parsedAiAssessment.strengths.length > 0 || parsedAiAssessment.gaps.length > 0) && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-200">
+                          {/* Key Strengths */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-teal-900 uppercase tracking-wider">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-teal-700" />
+                              <span>Candidate Strengths ({parsedAiAssessment.strengths.length})</span>
+                            </div>
+                            {parsedAiAssessment.strengths.length > 0 ? (
+                              <ul className="space-y-1.5">
+                                {parsedAiAssessment.strengths.map((strength: string, i: number) => (
+                                  <li key={i} className="flex items-start gap-2 text-slate-800">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-teal-600 mt-1.5 shrink-0" />
+                                    <span className="leading-snug">{strength}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-slate-400 italic">No specific strengths documented</p>
+                            )}
+                          </div>
+
+                          {/* Identified Gaps / Development Areas */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Identified Gaps & Considerations ({parsedAiAssessment.gaps.length})</span>
+                            </div>
+                            {parsedAiAssessment.gaps.length > 0 ? (
+                              <ul className="space-y-1.5">
+                                {parsedAiAssessment.gaps.map((gap: string, i: number) => (
+                                  <li key={i} className="flex items-start gap-2 text-slate-800">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                                    <span className="leading-snug">{gap}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-slate-400 italic">No critical gaps identified</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION C: Interview Management */}
+              <div id="evaluation-interviews" className="pt-6 border-t border-slate-200 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-teal-600" />
+                      <h3 className="text-sm font-bold text-slate-900">
+                        Scheduled Interviews ({app.interviews?.length || 0})
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Track candidate interviews, evaluate outcomes, and log recruiter feedback
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<Plus className="w-3.5 h-3.5 text-teal-600" />}
+                    onClick={() => {
+                      setInterviewType(InterviewType.INITIAL_SCREENING);
+                      setInterviewDate("");
+                      setInterviewNotes("");
+                      setInterviewModalOpen(true);
+                    }}
+                  >
+                    Schedule Interview
+                  </Button>
+                </div>
+
+                {!app.interviews || app.interviews.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400 bg-slate-50/50 rounded-md border border-dashed border-slate-200">
+                    No interviews scheduled yet. Click "Schedule Interview" to initiate candidate assessment.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {app.interviews.map((int) => {
+                      const isPending = !int.result || int.result === "PENDING" || int.result === "SCHEDULED";
+                      const isPassed = int.result === "PASS" || int.result === "PASSED";
+                      const isFailed = int.result === "FAIL" || int.result === "FAILED";
+                      const isNoShow = int.result === "NO_SHOW";
+
+                      return (
+                        <div key={int.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold font-mono text-slate-900 uppercase">
+                                {int.type.replace(/_/g, " ")}
+                              </span>
+                              <span
+                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                                  isPassed
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                    : isFailed
+                                    ? "bg-rose-50 text-rose-800 border-rose-200"
+                                    : isNoShow
+                                    ? "bg-slate-100 text-slate-800 border-slate-300"
+                                    : "bg-blue-50 text-blue-800 border-blue-200"
+                                }`}
+                              >
+                                {int.result || "SCHEDULED"}
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-600 font-mono flex items-center gap-2">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Scheduled: {formatDateTime(int.scheduledAt || int.createdAt)}</span>
+                            </div>
+                            {int.conductedAt && (
+                              <div className="text-xs text-slate-500 font-mono">
+                                Conducted: {formatDateTime(int.conductedAt)}
+                              </div>
+                            )}
+                            {int.notes && <p className="text-xs text-slate-600 mt-1">Notes: {int.notes}</p>}
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isPending && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-emerald-700 hover:bg-emerald-50 border-emerald-300"
+                                loading={updateInterviewStatusMutation.isPending}
+                                onClick={() => {
+                                  updateInterviewStatusMutation.mutate({
+                                    interviewId: int.id,
+                                    result: "PASS",
+                                    notes: int.notes || "Passed interview assessment",
+                                  });
+                                }}
+                              >
+                                Mark as Passed
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedInterviewForOutcome(int);
+                                setInterviewOutcomeResult(
+                                  isPassed ? "PASS" : isFailed ? "FAIL" : isNoShow ? "NO_SHOW" : "PASS"
+                                );
+                                setInterviewOutcomeNotes(int.notes || "");
+                                setInterviewOutcomeModalOpen(true);
+                              }}
+                            >
+                              {isPending ? "Record Result" : "Update Result"}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION D: Similar Talent in Pool (Collapsible Drawer / Section) */}
+              <div id="evaluation-similar-pool" className="pt-6 border-t border-slate-200 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-teal-600" />
+                      <h3 className="text-sm font-bold text-slate-900">Similar Talent in Pool</h3>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Pre-screened and archived talent with matching skills and qualifications
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSimilarTalentOpen((prev) => !prev)}
+                      leftIcon={similarTalentOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    >
+                      {similarTalentOpen ? "Hide Talent Matches" : "Find Similar Candidates"}
+                    </Button>
+                    <Link to="/ta/talent-pool">
+                      <Button variant="outline" size="sm" rightIcon={<ExternalLink className="w-3 h-3" />}>
+                        Open Talent Pool
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+
+                {similarTalentOpen && (
+                  <div className="pt-2">
+                    {similarCandidatesQuery.isLoading ? (
+                      <LoadingState variant="cards" />
+                    ) : similarCandidatesQuery.isError ? (
+                      <ErrorState error={similarCandidatesQuery.error} onRetry={() => similarCandidatesQuery.refetch()} />
+                    ) : (similarCandidatesQuery.data || []).length === 0 ? (
+                      <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-md space-y-2">
+                        <Users className="w-6 h-6 text-teal-600 mx-auto" />
+                        <h4 className="text-xs font-mono font-bold uppercase text-slate-800">
+                          No Similar Talent Pool Candidates Found
+                        </h4>
+                        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                          No other candidate profiles in the talent pool closely match this applicant's profile and qualifications.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {(similarCandidatesQuery.data || []).map((res) => {
+                          const c = res.candidate;
+                          const simPercent = Math.round((res.similarity || 0) * 100);
+
+                          return (
+                            <div
+                              key={c.id}
+                              className="p-4 rounded-md border border-slate-200 hover:border-teal-300 transition-colors bg-white flex flex-col justify-between space-y-3 shadow-xs"
+                            >
+                              <div className="space-y-2">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <h4 className="text-sm font-bold text-slate-900">
+                                        {c.firstName} {c.lastName}
+                                      </h4>
+                                      <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                        {c.availability}
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-slate-500 font-mono mt-0.5">
+                                      {c.email}
+                                    </div>
+                                  </div>
+
+                                  <div className="text-right">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-teal-50 text-teal-900 border border-teal-200 text-xs font-mono font-bold">
+                                      <Users className="w-3 h-3 text-teal-600" />
+                                      <span>{simPercent}% Match</span>
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {c.currentRole && (
+                                  <div className="text-xs text-slate-700 font-medium flex items-center gap-1.5">
+                                    <span>{c.currentRole}</span>
+                                  </div>
+                                )}
+
+                                {(c.city || c.province) && (
+                                  <div className="text-xs text-slate-600 flex items-center gap-1.5 font-mono">
+                                    <span>{[c.city, c.province].filter(Boolean).join(", ")}</span>
+                                  </div>
+                                )}
+
+                                {c.skills && c.skills.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 pt-1">
+                                    {c.skills.slice(0, 5).map((s: any, idx: number) => (
+                                      <span
+                                        key={idx}
+                                        className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-semibold"
+                                      >
+                                        {typeof s === "string" ? s : s.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+                                <Link to="/ta/talent-pool">
+                                  <Button variant="outline" size="sm" rightIcon={<ArrowLeft className="w-3 h-3 rotate-180" />}>
+                                    View in Talent Pool
+                                  </Button>
+                                </Link>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* TAB 4: INTERVIEWS */}
-          {activeTab === "interviews" && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="space-y-0.5">
-                  <h3 className="text-sm font-bold text-slate-900">Scheduled Interviews</h3>
-                  <p className="text-xs text-slate-500">
-                    Track candidate interviews, evaluate outcomes, and log recruiter feedback
-                  </p>
+          {/* ========================================================================= */}
+          {/* TAB 2: COMPLIANCE & DEPLOYMENT */}
+          {/* ========================================================================= */}
+          {activeTab === "compliance" && (
+            <div className="space-y-8">
+              {/* SECTION A: Client Endorsements & Client Review Status */}
+              <div id="compliance-endorsements-section" className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-teal-600" />
+                      <h3 className="text-sm font-bold text-slate-900">Client Endorsement Records</h3>
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+                        {app.clientEndorsements?.length || 0} Records
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Candidate presentations to client hiring managers and endorsement decisions
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<Plus className="w-3.5 h-3.5" />}
+                    onClick={() => {
+                      setManualClientId(linkedClientId || null);
+                      setEndorseOutcome("PENDING");
+                      setEndorseNotes("");
+                      setEndorseModalOpen(true);
+                    }}
+                  >
+                    Record Endorsement
+                  </Button>
                 </div>
-              </div>
 
-              {!app.interviews || app.interviews.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  No interviews scheduled yet. Click "Schedule Interview" in the stage banner above to initiate candidate assessment.
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {app.interviews.map((int) => {
-                    const isPending = !int.result || int.result === "PENDING" || int.result === "SCHEDULED";
-                    const isPassed = int.result === "PASS" || int.result === "PASSED";
-                    const isFailed = int.result === "FAIL" || int.result === "FAILED";
-                    const isNoShow = int.result === "NO_SHOW";
-
-                    return (
-                      <div key={int.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                {!app.clientEndorsements || app.clientEndorsements.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-slate-400 bg-slate-50/50 rounded-md border border-dashed border-slate-200">
+                    No endorsements recorded. Candidates must pass initial screening before client presentation.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {app.clientEndorsements.map((end) => (
+                      <div key={end.id} className="py-4 flex items-start justify-between gap-4">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold font-mono text-slate-900 uppercase">
-                              {int.type.replace(/_/g, " ")}
-                            </span>
-                            <span
-                              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
-                                isPassed
-                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                  : isFailed
-                                  ? "bg-rose-50 text-rose-800 border-rose-200"
-                                  : isNoShow
-                                  ? "bg-slate-100 text-slate-800 border-slate-300"
-                                  : "bg-blue-50 text-blue-800 border-blue-200"
-                              }`}
-                            >
-                              {int.result || "SCHEDULED"}
+                            <span className="text-xs font-bold text-slate-900">{end.client?.name || "Client"}</span>
+                            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                              end.outcome === "APPROVED" || end.outcome === "ENDORSED"
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                : end.outcome === "DECLINED"
+                                ? "bg-rose-50 text-rose-800 border-rose-200"
+                                : "bg-amber-50 text-amber-800 border-amber-200"
+                            }`}>
+                              {end.outcome === "APPROVED" || end.outcome === "ENDORSED"
+                                ? "APPROVED (Client Accepted)"
+                                : end.outcome === "DECLINED"
+                                ? "DECLINED (Client Rejected)"
+                                : "PENDING (Under Review)"}
                             </span>
                           </div>
-                          <div className="text-xs text-slate-600 font-mono flex items-center gap-2">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Scheduled: {formatDateTime(int.scheduledAt || int.createdAt)}</span>
-                          </div>
-                          {int.conductedAt && (
-                            <div className="text-xs text-slate-500 font-mono">
-                              Conducted: {formatDateTime(int.conductedAt)}
-                            </div>
-                          )}
-                          {int.notes && <p className="text-xs text-slate-600 mt-1">Notes: {int.notes}</p>}
+                          <div className="text-[11px] text-slate-400 font-mono">Endorsed on {formatDate(end.createdAt)}</div>
+                          {end.notes && <p className="text-xs text-slate-600 mt-1">{end.notes}</p>}
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
-                          {isPending && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-emerald-700 hover:bg-emerald-50 border-emerald-300"
-                              loading={updateInterviewStatusMutation.isPending}
-                              onClick={() => {
-                                updateInterviewStatusMutation.mutate({
-                                  interviewId: int.id,
-                                  result: "PASS",
-                                  notes: int.notes || "Passed interview assessment",
-                                });
-                              }}
-                            >
-                              Mark as Passed
-                            </Button>
-                          )}
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              setSelectedInterviewForOutcome(int);
-                              setInterviewOutcomeResult(
-                                isPassed ? "PASS" : isFailed ? "FAIL" : isNoShow ? "NO_SHOW" : "PASS"
-                              );
-                              setInterviewOutcomeNotes(int.notes || "");
-                              setInterviewOutcomeModalOpen(true);
+                              setSelectedEndorsementId(end.id);
+                              setSelectedEndorsementClientName(end.client?.name || "Client");
+                              setUpdateEndorsementOutcome(end.outcome as any);
+                              setUpdateEndorsementNotes(end.notes || "");
+                              setUpdateEndorsementModalOpen(true);
                             }}
                           >
-                            {isPending ? "Record Result" : "Update Result"}
+                            Update Client Acceptance
                           </Button>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 5: CLIENT ENDORSEMENTS */}
-          {activeTab === "endorsements" && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="space-y-0.5">
-                  <h3 className="text-sm font-bold text-slate-900">Client Endorsement Records</h3>
-                  <p className="text-xs text-slate-500">
-                    Candidate presentations to client hiring managers and endorsement decisions
-                  </p>
-                </div>
-              </div>
-
-              {!app.clientEndorsements || app.clientEndorsements.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  No endorsements recorded. Candidates must pass initial screening before client presentation.
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {app.clientEndorsements.map((end) => (
-                    <div key={end.id} className="py-4 flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-900">{end.client?.name || "Client"}</span>
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
-                            end.outcome === "APPROVED" || end.outcome === "ENDORSED"
-                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                              : end.outcome === "DECLINED"
-                              ? "bg-rose-50 text-rose-800 border-rose-200"
-                              : "bg-amber-50 text-amber-800 border-amber-200"
-                          }`}>
-                            {end.outcome === "APPROVED" || end.outcome === "ENDORSED"
-                              ? "APPROVED (Client Accepted)"
-                              : end.outcome === "DECLINED"
-                              ? "DECLINED (Client Rejected)"
-                              : "PENDING (Under Review)"}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-slate-400 font-mono">Endorsed on {formatDate(end.createdAt)}</div>
-                        {end.notes && <p className="text-xs text-slate-600 mt-1">{end.notes}</p>}
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedEndorsementId(end.id);
-                            setSelectedEndorsementClientName(end.client?.name || "Client");
-                            setUpdateEndorsementOutcome(end.outcome as any);
-                            setUpdateEndorsementNotes(end.notes || "");
-                            setUpdateEndorsementModalOpen(true);
-                          }}
-                        >
-                          Update Client Acceptance
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 6: REQUIREMENTS CHECKLIST */}
-          {activeTab === "compliance" && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-900">Pre-Employment Requirements Checklist</h3>
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
-                      Auto-Generated
-                    </span>
+                    ))}
                   </div>
-                  <p className="text-xs text-slate-500">
-                    Standard statutory clearances (NBI, SSS, PhilHealth, Pag-IBIG, Medical, Contract) required before field deployment
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => {
-                    setComplianceDocLabel("");
-                    setComplianceDeadline(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
-                    setComplianceModalOpen(true);
-                  }}
-                >
-                  Add Custom Requirement
-                </Button>
+                )}
               </div>
 
-              {/* Compliance Status Progress Counters */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 p-3 rounded-lg text-xs font-mono">
-                <div className="space-y-0.5">
-                  <span className="text-slate-400 uppercase text-[10px] block">Total Required</span>
-                  <span className="text-sm font-bold text-slate-900">{totalCompReqs} Documents</span>
+              {/* SECTION B: 201 Pre-employment Clearances & Document Checklist */}
+              <div id="compliance-checklist-section" className="pt-6 border-t border-slate-200 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-teal-600" />
+                      <h3 className="text-sm font-bold text-slate-900">Pre-Employment Requirements Checklist</h3>
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+                        201 Clearances
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Standard statutory clearances (NBI, SSS, PhilHealth, Pag-IBIG, Medical, Contract) required before field deployment
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<Plus className="w-3.5 h-3.5" />}
+                    onClick={() => {
+                      setComplianceDocLabel("");
+                      setComplianceDeadline(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+                      setComplianceModalOpen(true);
+                    }}
+                  >
+                    Add Custom Requirement
+                  </Button>
                 </div>
-                <div className="space-y-0.5">
-                  <span className="text-emerald-600 uppercase text-[10px] block">Approved</span>
-                  <span className="text-sm font-bold text-emerald-700">{approvedCompReqs} / {totalCompReqs}</span>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-blue-600 uppercase text-[10px] block">Under Review</span>
-                  <span className="text-sm font-bold text-blue-700">{submittedCompReqs}</span>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-amber-600 uppercase text-[10px] block">Awaiting Upload</span>
-                  <span className="text-sm font-bold text-amber-700">{missingCompReqs}</span>
-                </div>
-              </div>
 
-              {!app.complianceRequirements || app.complianceRequirements.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  No compliance requirements generated yet. Standard checklist is created automatically upon hiring.
+                {/* Compliance Status Progress Counters */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 p-3 rounded-md text-xs font-mono">
+                  <div className="space-y-0.5">
+                    <span className="text-slate-400 uppercase text-[10px] block">Total Required</span>
+                    <span className="text-sm font-bold text-slate-900">{totalCompReqs} Documents</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="text-emerald-600 uppercase text-[10px] block">Approved</span>
+                    <span className="text-sm font-bold text-emerald-700">{approvedCompReqs} / {totalCompReqs}</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="text-blue-600 uppercase text-[10px] block">Under Review</span>
+                    <span className="text-sm font-bold text-blue-700">{submittedCompReqs}</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="text-amber-600 uppercase text-[10px] block">Awaiting Upload</span>
+                    <span className="text-sm font-bold text-amber-700">{missingCompReqs}</span>
+                  </div>
                 </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {app.complianceRequirements.map((req) => (
-                    <div key={req.id} className="py-3 flex items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-900">{req.documentLabel}</span>
-                          {req.isRequired && (
-                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
-                              MANDATORY
+
+                {!app.complianceRequirements || app.complianceRequirements.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400 bg-slate-50/50 rounded-md border border-dashed border-slate-200">
+                    No compliance requirements generated yet. Standard checklist is created automatically upon hiring.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {app.complianceRequirements.map((req) => (
+                      <div key={req.id} className="py-3 flex items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-900">{req.documentLabel}</span>
+                            {req.isRequired && (
+                              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                                MANDATORY
+                              </span>
+                            )}
+                            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
+                              req.reviewStatus === "APPROVED" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" :
+                              req.reviewStatus === "REJECTED" ? "bg-rose-50 text-rose-800 border border-rose-200" :
+                              req.reviewStatus === "SUBMITTED" ? "bg-blue-50 text-blue-800 border border-blue-200" :
+                              "bg-slate-100 text-slate-700 border border-slate-200"
+                            }`}>
+                              {req.reviewStatus === "SUBMITTED" ? "UNDER REVIEW" : req.reviewStatus}
                             </span>
-                          )}
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                            req.reviewStatus === "APPROVED" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" :
-                            req.reviewStatus === "REJECTED" ? "bg-rose-50 text-rose-800 border border-rose-200" :
-                            req.reviewStatus === "SUBMITTED" ? "bg-blue-50 text-blue-800 border border-blue-200" :
-                            "bg-slate-100 text-slate-700 border border-slate-200"
-                          }`}>
-                            {req.reviewStatus === "SUBMITTED" ? "UNDER REVIEW" : req.reviewStatus}
-                          </span>
-                        </div>
-                        {(() => {
-                          const now = new Date();
-                          const deadlineDate = req.deadline ? new Date(req.deadline) : null;
-                          const isOverdue = deadlineDate && deadlineDate < now && req.reviewStatus !== "APPROVED";
-                          const diffDays = deadlineDate ? Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
-                          const isDueSoon = diffDays !== null && diffDays >= 0 && diffDays <= 3 && req.reviewStatus !== "APPROVED";
+                          </div>
+                          {(() => {
+                            const now = new Date();
+                            const deadlineDate = req.deadline ? new Date(req.deadline) : null;
+                            const isOverdue = deadlineDate && deadlineDate < now && req.reviewStatus !== "APPROVED";
+                            const diffDays = deadlineDate ? Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                            const isDueSoon = diffDays !== null && diffDays >= 0 && diffDays <= 3 && req.reviewStatus !== "APPROVED";
 
-                          if (!deadlineDate) {
+                            if (!deadlineDate) {
+                              return (
+                                <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
+                                  <span>No deadline set</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditDeadlineReqId(req.id);
+                                      setEditDeadlineDate(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+                                      setEditDeadlineModalOpen(true);
+                                    }}
+                                    className="text-teal-600 hover:underline text-[10px] ml-1 cursor-pointer font-sans"
+                                  >
+                                    + Set Deadline
+                                  </button>
+                                </div>
+                              );
+                            }
+
                             return (
-                              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
-                                <span>No deadline set</span>
+                              <div className="flex items-center flex-wrap gap-1.5 text-[11px] font-mono">
+                                <span className={isOverdue ? "text-rose-600 font-bold" : isDueSoon ? "text-amber-700 font-bold" : "text-slate-500"}>
+                                  Deadline: {formatDate(req.deadline)}
+                                </span>
+                                {isOverdue && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                                    OVERDUE
+                                  </span>
+                                )}
+                                {isDueSoon && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                                    DUE IN ${diffDays} ${diffDays === 1 ? "DAY" : "DAYS"}
+                                  </span>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setEditDeadlineReqId(req.id);
-                                    setEditDeadlineDate(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+                                    setEditDeadlineDate(new Date(req.deadline!).toISOString().split('T')[0]);
                                     setEditDeadlineModalOpen(true);
                                   }}
-                                  className="text-teal-600 hover:underline text-[10px] ml-1 cursor-pointer font-sans"
+                                  className="text-slate-400 hover:text-teal-600 text-[10px] underline ml-1 cursor-pointer font-sans"
+                                  title="Adjust or extend deadline"
                                 >
-                                  + Set Deadline
+                                  Edit
                                 </button>
                               </div>
                             );
-                          }
+                          })()}
+                          {req.reviewNotes && <p className="text-xs text-slate-500 italic">Reviewer note: {req.reviewNotes}</p>}
+                        </div>
 
-                          return (
-                            <div className="flex items-center flex-wrap gap-1.5 text-[11px] font-mono">
-                              <span className={isOverdue ? "text-rose-600 font-bold" : isDueSoon ? "text-amber-700 font-bold" : "text-slate-500"}>
-                                Deadline: {formatDate(req.deadline)}
-                              </span>
-                              {isOverdue && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
-                                  OVERDUE
-                                </span>
-                              )}
-                              {isDueSoon && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
-                                  DUE IN {diffDays} {diffDays === 1 ? "DAY" : "DAYS"}
-                                </span>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditDeadlineReqId(req.id);
-                                  setEditDeadlineDate(new Date(req.deadline!).toISOString().split('T')[0]);
-                                  setEditDeadlineModalOpen(true);
-                                }}
-                                className="text-slate-400 hover:text-teal-600 text-[10px] underline ml-1 cursor-pointer font-sans"
-                                title="Adjust or extend deadline"
-                              >
-                                Edit
-                              </button>
-                            </div>
-                          );
-                        })()}
-                        {req.reviewNotes && <p className="text-xs text-slate-500 italic">Reviewer note: {req.reviewNotes}</p>}
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {req.documentId ? (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              leftIcon={<Eye className="w-3.5 h-3.5 text-slate-600" />}
-                              onClick={() => {
-                                setPreviewDocState({
-                                  open: true,
-                                  documentId: req.documentId,
-                                  title: req.documentLabel,
-                                  requirementId: req.id,
-                                  requirementStatus: req.reviewStatus,
-                                });
-                              }}
-                            >
-                              View
-                            </Button>
-                            {req.reviewStatus !== "APPROVED" && (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
-                                loading={reviewComplianceMutation.isPending && reviewReqId === req.id && reviewReqStatus === "APPROVED"}
-                                onClick={() => {
-                                  setReviewReqId(req.id);
-                                  setReviewReqStatus("APPROVED");
-                                  reviewComplianceMutation.mutate({
-                                    id: req.id,
-                                    data: { reviewStatus: "APPROVED" },
-                                  });
-                                }}
-                              >
-                                Approve
-                              </Button>
-                            )}
-                            {req.reviewStatus !== "REJECTED" && (
+                        <div className="flex items-center gap-2">
+                          {req.documentId ? (
+                            <>
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="border-rose-300 text-rose-700 hover:bg-rose-50"
-                                leftIcon={<XCircle className="w-3.5 h-3.5 text-rose-600" />}
+                                leftIcon={<Eye className="w-3.5 h-3.5 text-slate-600" />}
+                                onClick={() => {
+                                  setPreviewDocState({
+                                    open: true,
+                                    documentId: req.documentId,
+                                    title: req.documentLabel,
+                                    requirementId: req.id,
+                                    requirementStatus: req.reviewStatus,
+                                  });
+                                }}
+                              >
+                                View
+                              </Button>
+                              {req.reviewStatus !== "APPROVED" && (
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                                  loading={reviewComplianceMutation.isPending && reviewReqId === req.id && reviewReqStatus === "APPROVED"}
+                                  onClick={() => {
+                                    setReviewReqId(req.id);
+                                    setReviewReqStatus("APPROVED");
+                                    reviewComplianceMutation.mutate({
+                                      id: req.id,
+                                      data: { reviewStatus: "APPROVED" },
+                                    });
+                                  }}
+                                >
+                                  Approve
+                                </Button>
+                              )}
+                              {req.reviewStatus !== "REJECTED" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-rose-300 text-rose-700 hover:bg-rose-50"
+                                  leftIcon={<XCircle className="w-3.5 h-3.5 text-rose-600" />}
+                                  onClick={() => {
+                                    setReviewReqId(req.id);
+                                    setReviewReqStatus("REJECTED");
+                                    setReviewReqNotes(req.reviewNotes || "");
+                                  }}
+                                >
+                                  Reject
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-mono text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                Awaiting Upload
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => {
                                   setReviewReqId(req.id);
-                                  setReviewReqStatus("REJECTED");
+                                  setReviewReqStatus(req.reviewStatus === "REJECTED" ? "REJECTED" : "APPROVED");
                                   setReviewReqNotes(req.reviewNotes || "");
                                 }}
                               >
-                                Reject
+                                Review
                               </Button>
-                            )}
-                          </>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-mono text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                              Awaiting Upload
-                            </span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setReviewReqId(req.id);
-                                setReviewReqStatus(req.reviewStatus === "REJECTED" ? "REJECTED" : "APPROVED");
-                                setReviewReqNotes(req.reviewNotes || "");
-                              }}
-                            >
-                              Review
-                            </Button>
-                          </div>
-                        )}
+                            </div>
+                          )}
+                        </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-                    </div>
-                  ))}
+              {/* SECTION C: Contract Signing & Orientation Completion + Final Workforce Deployment */}
+              <div id="compliance-onboarding-section" className="pt-6 border-t border-slate-200 space-y-4">
+                <div className="border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-teal-600" />
+                    <h3 className="text-sm font-bold text-slate-900">Contract, Orientation & Workforce Deployment</h3>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Monitor employment contract completion, schedule orientation, and execute final roster deployment
+                  </p>
                 </div>
-              )}
+
+                <OnboardingDeploymentStepper
+                  app={app}
+                  totalCompReqs={totalCompReqs}
+                  approvedCompReqs={approvedCompReqs}
+                  hasUnapprovedMandatoryCompliance={hasUnapprovedMandatoryCompliance}
+                  isComplianceStage={isComplianceStage}
+                  canAdvanceToContractAndOrientation={canAdvanceToContractAndOrientation}
+                  isAdvancingToContractAndOrientation={updateStatusMutation.isPending}
+                  isContractAndOrientationStage={isContractAndOrientationStage}
+                  isContractSigned={isContractSigned}
+                  isOrientationCompleted={isOrientationCompleted}
+                  isReadyForDeployment={isReadyForDeployment}
+                  canDeployCandidate={canDeployCandidate}
+                  linkedClientName={linkedClientName}
+                  onOpenComplianceTab={() => {
+                    document.getElementById("compliance-checklist-section")?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  onAdvanceToContractAndOrientation={() => {
+                    updateStatusMutation.mutate({
+                      status: ApplicationStatus.CONTRACT_AND_ORIENTATION,
+                      reason: "All mandatory clearances approved. Moving to contract signing and orientation.",
+                    });
+                  }}
+                  onRecordContract={() => {
+                    setContractNotes(app.contractNotes || "");
+                    setContractDocumentUrl(app.contractDocumentUrl || "");
+                    setContractModalOpen(true);
+                  }}
+                  onRecordOrientation={() => {
+                    setOrientationDate(
+                      app.orientationDate
+                        ? new Date(app.orientationDate).toISOString().split("T")[0]
+                        : new Date().toISOString().split("T")[0]
+                    );
+                    setOrientationNotes(app.orientationNotes || "");
+                    setOrientationModalOpen(true);
+                  }}
+                  onDeployCandidate={() => {
+                    setDeployClientId(linkedClientId || latestEndorsement?.clientId || 0);
+                    setDeploySite(
+                      app.jobPosting?.location ||
+                        (app.jobPosting?.mrf as any)?.location ||
+                        (linkedClient as any)?.address ||
+                        ""
+                    );
+                    setDeployModalOpen(true);
+                  }}
+                />
+              </div>
             </div>
           )}
 
-          {/* TAB 7: RECRUITER DECISION TIMELINE */}
-          {activeTab === "timeline" && (
+          {/* ========================================================================= */}
+          {/* TAB 3: DECISIONS & AUDIT */}
+          {/* ========================================================================= */}
+          {activeTab === "history" && (
             <div className="space-y-6">
               <div className="border-b border-slate-100 pb-3">
-                <h3 className="text-sm font-bold text-slate-900">Immutable Recruiter Decision Log</h3>
+                <div className="flex items-center gap-2">
+                  <History className="w-4 h-4 text-teal-600" />
+                  <h3 className="text-sm font-bold text-slate-900">Immutable Recruiter Decision Log</h3>
+                </div>
                 <p className="text-xs text-slate-500">
                   Audit trail of pipeline transitions and administrative actions
                 </p>
               </div>
 
               {decisions.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
+                <div className="py-8 text-center text-xs text-slate-400 bg-slate-50/50 rounded-md border border-dashed border-slate-200">
                   No manual recruiter decisions recorded yet. Initial submission created by applicant.
                 </div>
               ) : (
@@ -1941,7 +2217,7 @@ export const ApplicationDetailPage: React.FC = () => {
                       <div className="w-7 h-7 rounded-full bg-teal-50 border-2 border-teal-600 flex items-center justify-center shrink-0 mt-0.5">
                         <History className="w-3.5 h-3.5 text-teal-700" />
                       </div>
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex-1 space-y-1 text-xs">
+                      <div className="p-3 bg-slate-50 rounded-md border border-slate-200 flex-1 space-y-1 text-xs">
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-slate-900">
                             {dec.fromStatus} → {dec.toStatus}
@@ -1961,163 +2237,6 @@ export const ApplicationDetailPage: React.FC = () => {
                       </div>
                     </div>
                   ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 8: PERSONNEL & DEPLOYMENT */}
-          {activeTab === "hiring" && (
-            <OnboardingDeploymentStepper
-              app={app}
-              totalCompReqs={totalCompReqs}
-              approvedCompReqs={approvedCompReqs}
-              hasUnapprovedMandatoryCompliance={hasUnapprovedMandatoryCompliance}
-              isComplianceStage={isComplianceStage}
-              canAdvanceToContractAndOrientation={canAdvanceToContractAndOrientation}
-              isAdvancingToContractAndOrientation={updateStatusMutation.isPending}
-              isContractAndOrientationStage={isContractAndOrientationStage}
-              isContractSigned={isContractSigned}
-              isOrientationCompleted={isOrientationCompleted}
-              isReadyForDeployment={isReadyForDeployment}
-              canDeployCandidate={canDeployCandidate}
-              linkedClientName={linkedClientName}
-              onOpenComplianceTab={() => setActiveTab("compliance")}
-              onAdvanceToContractAndOrientation={() => {
-                updateStatusMutation.mutate({
-                  status: ApplicationStatus.CONTRACT_AND_ORIENTATION,
-                  reason: "All mandatory clearances approved. Moving to contract signing and orientation.",
-                });
-              }}
-              onRecordContract={() => {
-                setContractNotes(app.contractNotes || "");
-                setContractDocumentUrl(app.contractDocumentUrl || "");
-                setContractModalOpen(true);
-              }}
-              onRecordOrientation={() => {
-                setOrientationDate(
-                  app.orientationDate
-                    ? new Date(app.orientationDate).toISOString().split("T")[0]
-                    : new Date().toISOString().split("T")[0]
-                );
-                setOrientationNotes(app.orientationNotes || "");
-                setOrientationModalOpen(true);
-              }}
-              onDeployCandidate={() => {
-                setDeployClientId(linkedClientId || latestEndorsement?.clientId || 0);
-                setDeploySite(
-                  app.jobPosting?.location ||
-                    (app.jobPosting?.mrf as any)?.location ||
-                    (linkedClient as any)?.address ||
-                    ""
-                );
-                setDeployModalOpen(true);
-              }}
-            />
-          )}
-
-          {/* TAB 9: SIMILAR CANDIDATES IN TALENT POOL */}
-          {activeTab === "similar" && (
-            <div className="space-y-6">
-              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Similar Talent Pool Candidates</h3>
-                  <p className="text-xs text-slate-500">
-                    Pre-screened and archived talent with matching skills and qualifications
-                  </p>
-                </div>
-                <Link to="/ta/talent-pool">
-                  <Button variant="outline" size="sm" rightIcon={<ExternalLink className="w-3 h-3" />}>
-                    Open Talent Pool
-                  </Button>
-                </Link>
-              </div>
-
-              {similarCandidatesQuery.isLoading ? (
-                <LoadingState variant="cards" />
-              ) : similarCandidatesQuery.isError ? (
-                <ErrorState error={similarCandidatesQuery.error} onRetry={() => similarCandidatesQuery.refetch()} />
-              ) : (similarCandidatesQuery.data || []).length === 0 ? (
-                <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                  <Users className="w-6 h-6 text-teal-600 mx-auto" />
-                  <h4 className="text-xs font-mono font-bold uppercase text-slate-800">
-                    No Similar Talent Pool Candidates Found
-                  </h4>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    No other candidate profiles in the talent pool closely match this applicant's profile and qualifications.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(similarCandidatesQuery.data || []).map((res) => {
-                    const c = res.candidate;
-                    const simPercent = Math.round((res.similarity || 0) * 100);
-
-                    return (
-                      <div
-                        key={c.id}
-                        className="p-4 rounded-xl border border-slate-200 hover:border-teal-300 transition-colors bg-white flex flex-col justify-between space-y-3 shadow-xs"
-                      >
-                        <div className="space-y-2">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-sm font-bold text-slate-900">
-                                  {c.firstName} {c.lastName}
-                                </h4>
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
-                                  {c.availability}
-                                </span>
-                              </div>
-                              <div className="text-xs text-slate-500 font-mono mt-0.5">
-                                {c.email}
-                              </div>
-                            </div>
-
-                            <div className="text-right">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-50 text-teal-900 border border-teal-200 text-xs font-mono font-bold">
-                                <Users className="w-3 h-3 text-teal-600" />
-                                <span>{simPercent}% Match</span>
-                              </span>
-                            </div>
-                          </div>
-
-                          {c.currentRole && (
-                            <div className="text-xs text-slate-700 font-medium flex items-center gap-1.5">
-                              <span>{c.currentRole}</span>
-                            </div>
-                          )}
-
-                          {(c.city || c.province) && (
-                            <div className="text-xs text-slate-600 flex items-center gap-1.5 font-mono">
-                              <span>{[c.city, c.province].filter(Boolean).join(", ")}</span>
-                            </div>
-                          )}
-
-                          {c.skills && c.skills.length > 0 && (
-                            <div className="flex flex-wrap gap-1 pt-1">
-                              {c.skills.slice(0, 5).map((s: any, idx: number) => (
-                                <span
-                                  key={idx}
-                                  className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold"
-                                >
-                                  {typeof s === "string" ? s : s.name}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
-                          <Link to="/ta/talent-pool">
-                            <Button variant="outline" size="sm" rightIcon={<ArrowLeft className="w-3 h-3 rotate-180" />}>
-                              View in Talent Pool
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    );
-                  })}
                 </div>
               )}
             </div>
@@ -2733,6 +2852,7 @@ export const ApplicationDetailPage: React.FC = () => {
         open={Boolean(previewDocState?.open)}
         onClose={() => setPreviewDocState(null)}
         documentId={previewDocState?.documentId}
+        fileUrl={previewDocState?.fileUrl}
         title={previewDocState?.title || "Compliance Document"}
         applicantName={candidateName}
         requirementStatus={previewDocState?.requirementStatus}
