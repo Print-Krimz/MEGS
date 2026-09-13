@@ -4,6 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MRFDetailPage } from "../MRFDetailPage";
 import { taApi } from "../../../lib/api/ta.api";
+import { adminApi } from "../../../lib/api/admin.api";
 
 // Mock useParams
 vi.mock("@tanstack/react-router", () => ({
@@ -25,6 +26,13 @@ vi.mock("../../../lib/api/ta.api", () => ({
     addMRFComplianceTemplate: vi.fn(),
     removeMRFComplianceTemplate: vi.fn(),
     updateMRF: vi.fn(),
+  },
+}));
+
+// Mock adminApi
+vi.mock("../../../lib/api/admin.api", () => ({
+  adminApi: {
+    getMRFDetails: vi.fn(),
   },
 }));
 
@@ -204,5 +212,92 @@ describe("MRFDetailPage Tabbed Navigation & Search", () => {
     fireEvent.change(searchInput, { target: { value: "" } });
     expect(screen.getByText("Juan Dela Cruz")).toBeDefined();
     expect(screen.getByText("Maria Santos")).toBeDefined();
+  });
+});
+
+describe("MRFDetailPage readOnly Mode (Admin Consolidation)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(adminApi.getMRFDetails).mockResolvedValue(mockMRFWithData as unknown as any);
+  });
+
+  it("queries through adminApi.getMRFDetails and does not query jobs when readOnly is true", async () => {
+    renderWithClient(<MRFDetailPage readOnly baseBackPath="/admin/notifications" />);
+
+    expect(await screen.findByRole("heading", { name: "Senior Logistics Coordinator" })).toBeDefined();
+
+    // Verify adminApi was called with the MRF ID
+    expect(adminApi.getMRFDetails).toHaveBeenCalledWith("12");
+
+    // Verify taApi was NOT called
+    expect(taApi.getMRFDetails).not.toHaveBeenCalled();
+    expect(taApi.listJobs).not.toHaveBeenCalled();
+  });
+
+  it("renders admin breadcrumbs, oversight badge, and back button linking to baseBackPath", async () => {
+    renderWithClient(<MRFDetailPage readOnly baseBackPath="/admin/notifications" />);
+
+    expect(await screen.findByRole("heading", { name: "Senior Logistics Coordinator" })).toBeDefined();
+
+    // Breadcrumbs
+    expect(screen.getByText("Administration")).toBeDefined();
+    expect(screen.getByText("Notifications")).toBeDefined();
+    expect(screen.getByText(/Read-Only Oversight/)).toBeDefined();
+
+    // Back button
+    const backBtn = screen.getByRole("button", { name: /Back to Notifications/i });
+    expect(backBtn).toBeDefined();
+    const backLink = backBtn.closest("a");
+    expect(backLink?.getAttribute("href")).toBe("/admin/notifications");
+  });
+
+  it("suppresses action buttons and mutation controls across all tabs", async () => {
+    renderWithClient(<MRFDetailPage readOnly baseBackPath="/admin/notifications" />);
+
+    expect(await screen.findByRole("heading", { name: "Senior Logistics Coordinator" })).toBeDefined();
+
+    // 1. Header: "Update Status" button must be suppressed
+    expect(screen.queryByRole("button", { name: /Update Status/i })).toBeNull();
+
+    // 2. Tab 1: Employee link should be plain text, not a link to /ta/employees/...
+    expect(screen.queryByRole("link", { name: "Juan Dela Cruz" })).toBeNull();
+    expect(screen.getByText("Juan Dela Cruz")).toBeDefined();
+
+    // 3. Tab 2: Switch to Linked Job Openings tab
+    const jobsTab = screen.getByRole("tab", { name: /Linked Job Openings/i });
+    fireEvent.click(jobsTab);
+
+    // "Link Requisition" button must be suppressed
+    expect(screen.queryByRole("button", { name: /Link Requisition/i })).toBeNull();
+    // Job postings show requisition badge instead of "View Funnel" action link
+    expect(screen.queryByRole("button", { name: /View Funnel/i })).toBeNull();
+    expect(screen.getByText("Requisition #201")).toBeDefined();
+
+    // 4. Tab 3: Switch to Order Specifications tab
+    const specsTab = screen.getByRole("tab", { name: /Order Specifications/i });
+    fireEvent.click(specsTab);
+
+    // "+ Add" template button must be suppressed
+    expect(screen.queryByRole("button", { name: /\+ Add/i })).toBeNull();
+    // Template delete buttons must be suppressed
+    expect(screen.queryByTitle(/Remove template/i)).toBeNull();
+    // Mandatory/Optional badges are shown
+    expect(screen.getAllByText("Mandatory").length).toBeGreaterThan(0);
+  });
+
+  it("renders friendly not found empty state when record does not exist", async () => {
+    const notFoundError = new Error("Manpower Request not found");
+    (notFoundError as any).status = 404;
+    vi.mocked(adminApi.getMRFDetails).mockRejectedValue(notFoundError);
+
+    renderWithClient(<MRFDetailPage readOnly baseBackPath="/admin/notifications" />);
+
+    expect(await screen.findByText("Manpower Request Not Available")).toBeDefined();
+    expect(screen.getByText(/was not found or may have been deleted/)).toBeDefined();
+
+    const returnBtn = screen.getByRole("button", { name: /Return to Notifications/i });
+    expect(returnBtn).toBeDefined();
+    const returnLink = returnBtn.closest("a");
+    expect(returnLink?.getAttribute("href")).toBe("/admin/notifications");
   });
 });

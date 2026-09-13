@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
+import { adminApi } from "../../lib/api/admin.api";
 import {
   PageHeader,
   LoadingState,
   ErrorState,
+  EmptyState,
   ConfirmDialog,
   StatusBadge,
 } from "../../components/common";
@@ -30,7 +32,15 @@ import { notify } from "../../lib/feedback";
 
 type MRFDetailTab = "deployments" | "jobs" | "specifications";
 
-export const MRFDetailPage: React.FC = () => {
+export interface MRFDetailPageProps {
+  readOnly?: boolean;
+  baseBackPath?: string;
+}
+
+export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
+  readOnly = false,
+  baseBackPath = "/ta/mrfs",
+}) => {
   const queryClient = useQueryClient();
   const { mrfId } = useParams({ strict: false }) as { mrfId: string };
 
@@ -48,14 +58,15 @@ export const MRFDetailPage: React.FC = () => {
   const [editStatus, setEditStatus] = useState<any>("OPEN");
 
   const mrfQuery = useQuery({
-    queryKey: ["ta", "mrf", mrfId],
-    queryFn: () => taApi.getMRFDetails(mrfId),
+    queryKey: [readOnly ? "admin" : "ta", "mrf", mrfId],
+    queryFn: () => (readOnly ? adminApi.getMRFDetails(mrfId) : taApi.getMRFDetails(mrfId)),
     enabled: Boolean(mrfId),
   });
 
   const jobsQuery = useQuery({
     queryKey: ["ta", "jobs", "all"],
     queryFn: () => taApi.listJobs(),
+    enabled: !readOnly,
   });
 
   // Mutations
@@ -113,8 +124,60 @@ export const MRFDetailPage: React.FC = () => {
   if (mrfQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Manpower Request" description="Loading MRF order..." />
+        <PageHeader
+          title="Manpower Request"
+          description={readOnly ? "Loading request details..." : "Loading MRF order..."}
+        />
         <LoadingState variant="detail" />
+      </div>
+    );
+  }
+
+  const isNotFound =
+    mrfQuery.error?.message?.toLowerCase().includes("not found") ||
+    (mrfQuery.error as any)?.status === 404;
+
+  if (isNotFound) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Manpower Request Not Found"
+          description={`MRF Reference #${mrfId || "Unknown"}`}
+          breadcrumbs={
+            readOnly
+              ? [
+                  { label: "Administration", href: "/admin" },
+                  { label: "Notifications", href: baseBackPath },
+                  { label: "Record Not Found" },
+                ]
+              : [
+                  { label: "TA Portal", href: "/ta" },
+                  { label: "Manpower Requests", href: baseBackPath },
+                  { label: "Record Not Found" },
+                ]
+          }
+          actions={
+            <Link to={baseBackPath}>
+              <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
+                {readOnly ? "Back to Notifications" : "Back to Requests"}
+              </Button>
+            </Link>
+          }
+        />
+        <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
+          <EmptyState
+            icon={<Briefcase className="w-6 h-6 text-slate-400" />}
+            title="Manpower Request Not Available"
+            description={`The Manpower Request record (#${mrfId}) was not found or may have been deleted.`}
+            action={
+              <Link to={baseBackPath}>
+                <Button variant="primary" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
+                  {readOnly ? "Return to Notifications" : "Return to Requests"}
+                </Button>
+              </Link>
+            }
+          />
+        </div>
       </div>
     );
   }
@@ -123,7 +186,10 @@ export const MRFDetailPage: React.FC = () => {
     return (
       <div className="space-y-6">
         <PageHeader title="Manpower Request" description="MRF details" />
-        <ErrorState error={mrfQuery.error} onRetry={() => mrfQuery.refetch()} />
+        <ErrorState
+          error={mrfQuery.error || new Error("Unable to load Manpower Request")}
+          onRetry={() => mrfQuery.refetch()}
+        />
       </div>
     );
   }
@@ -163,30 +229,40 @@ export const MRFDetailPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title={mrf.title}
-        description={`MRF Reference #${mrf.id} • Client: ${mrf.client?.name || "Client Account"}`}
-        breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Manpower Requests", href: "/ta/mrfs" },
-          { label: mrf.title },
-        ]}
+        description={`MRF Reference #${mrf.id} • Client: ${mrf.client?.name || "Client Account"}${readOnly ? " • Read-Only Oversight" : ""}`}
+        breadcrumbs={
+          readOnly
+            ? [
+                { label: "Administration", href: "/admin" },
+                { label: "Notifications", href: baseBackPath },
+                { label: mrf.title },
+              ]
+            : [
+                { label: "TA Portal", href: "/ta" },
+                { label: "Manpower Requests", href: baseBackPath },
+                { label: mrf.title },
+              ]
+        }
         actions={
           <div className="flex items-center gap-2">
-            <Link to="/ta/mrfs">
+            <Link to={baseBackPath}>
               <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                Back to Requests
+                {readOnly ? "Back to Notifications" : "Back to Requests"}
               </Button>
             </Link>
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<Edit className="w-3.5 h-3.5" />}
-              onClick={() => {
-                setEditStatus(mrf.status);
-                setEditStatusModalOpen(true);
-              }}
-            >
-              Update Status
-            </Button>
+            {!readOnly && (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<Edit className="w-3.5 h-3.5" />}
+                onClick={() => {
+                  setEditStatus(mrf.status);
+                  setEditStatusModalOpen(true);
+                }}
+              >
+                Update Status
+              </Button>
+            )}
           </div>
         }
       />
@@ -343,7 +419,9 @@ export const MRFDetailPage: React.FC = () => {
                   Deployed Personnel ({deployments.length} / {mrf.headcount})
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Active workers and site assignments fulfilling this order
+                  {readOnly
+                    ? "Active workers and site assignments fulfilling this order (Read-Only Audit)"
+                    : "Active workers and site assignments fulfilling this order"}
                 </p>
               </div>
               <div className="relative w-full sm:w-80">
@@ -408,7 +486,7 @@ export const MRFDetailPage: React.FC = () => {
                       return (
                         <tr key={d.id} className="hover:bg-slate-50 transition-colors">
                           <td className="px-4 py-3 font-medium text-slate-900">
-                            {d.employee?.id ? (
+                            {d.employee?.id && !readOnly ? (
                               <Link
                                 to="/ta/employees/$employeeId"
                                 params={{ employeeId: String(d.employee.id) }}
@@ -417,7 +495,7 @@ export const MRFDetailPage: React.FC = () => {
                                 {workerName}
                               </Link>
                             ) : (
-                              <span>{workerName}</span>
+                              <span className="font-semibold">{workerName}</span>
                             )}
                             {profile?.mobileNumber && (
                               <div className="text-[11px] text-slate-400 font-mono">
@@ -463,29 +541,35 @@ export const MRFDetailPage: React.FC = () => {
                   Openings actively collecting candidate applications for this MRF
                 </p>
               </div>
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<Plus className="w-3.5 h-3.5" />}
-                onClick={() => setLinkJobModalOpen(true)}
-              >
-                Link Requisition
-              </Button>
+              {!readOnly && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => setLinkJobModalOpen(true)}
+                >
+                  Link Requisition
+                </Button>
+              )}
             </div>
 
             {linkedJobs.length === 0 ? (
               <div className="p-8 text-center space-y-3">
                 <p className="text-xs text-slate-400">
-                  No job postings linked to this MRF yet. Link a requisition to connect applicant traffic.
+                  {readOnly
+                    ? "No job postings linked to this MRF yet."
+                    : "No job postings linked to this MRF yet. Link a requisition to connect applicant traffic."}
                 </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => setLinkJobModalOpen(true)}
-                >
-                  Link First Requisition
-                </Button>
+                {!readOnly && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<Plus className="w-3.5 h-3.5" />}
+                    onClick={() => setLinkJobModalOpen(true)}
+                  >
+                    Link First Requisition
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
@@ -505,11 +589,17 @@ export const MRFDetailPage: React.FC = () => {
                         Requisition #{job.id} • {job.location || "Philippines"}
                       </div>
                     </div>
-                    <Link to="/ta/jobs/$jobId" params={{ jobId: String(job.id) }}>
-                      <Button variant="outline" size="sm" rightIcon={<ExternalLink className="w-3.5 h-3.5" />}>
-                        View Funnel
-                      </Button>
-                    </Link>
+                    {readOnly ? (
+                      <span className="px-2 py-1 bg-slate-100 border border-slate-200 rounded text-[11px] font-mono font-medium text-slate-700">
+                        Requisition #{job.id}
+                      </span>
+                    ) : (
+                      <Link to="/ta/jobs/$jobId" params={{ jobId: String(job.id) }}>
+                        <Button variant="outline" size="sm" rightIcon={<ExternalLink className="w-3.5 h-3.5" />}>
+                          View Funnel
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 ))}
               </div>
@@ -575,33 +665,43 @@ export const MRFDetailPage: React.FC = () => {
                     <ShieldCheck className="w-4 h-4 text-teal-600" />
                     <span>Requirements Templates</span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setTemplateModalOpen(true)}
-                    className="text-teal-700"
-                  >
-                    + Add
-                  </Button>
+                  {!readOnly && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setTemplateModalOpen(true)}
+                      className="text-teal-700"
+                    >
+                      + Add
+                    </Button>
+                  )}
                 </div>
 
                 {templates.length === 0 ? (
                   <p className="text-xs text-slate-400">
-                    No templates assigned. Add required document types (NBI, SSS, Medical).
+                    {readOnly
+                      ? "No compliance document templates assigned to this MRF."
+                      : "No templates assigned. Add required document types (NBI, SSS, Medical)."}
                   </p>
                 ) : (
                   <div className="divide-y divide-slate-100">
                     {templates.map((tpl: any) => (
                       <div key={tpl.id} className="py-2 flex items-center justify-between gap-2 text-xs">
                         <span className="font-medium text-slate-800">{tpl.documentLabel}</span>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTemplateTarget({ id: tpl.id, label: tpl.documentLabel })}
-                          className="text-rose-600 hover:text-rose-800 focus:outline-none p-1"
-                          title="Remove template"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {!readOnly ? (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTemplateTarget({ id: tpl.id, label: tpl.documentLabel })}
+                            className="text-rose-600 hover:text-rose-800 focus:outline-none p-1"
+                            title="Remove template"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-mono text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded">
+                            {tpl.isRequired ? "Mandatory" : "Optional"}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -612,144 +712,149 @@ export const MRFDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Link Job Modal */}
-      <Dialog
-        open={linkJobModalOpen}
-        onClose={() => setLinkJobModalOpen(false)}
-        title="Link Job Requisition"
-        description="Attach an active job posting to this Manpower Request"
-        overflowVisible
-        bodyClassName="min-h-[290px] flex flex-col justify-between"
-      >
-        <div className="space-y-4">
-          <ComboBox
-            label="Select Job Requisition"
-            placeholder="Search active job requisitions..."
-            value={selectedJobId ? String(selectedJobId) : ""}
-            onChange={(val) => setSelectedJobId(Number(val) || 0)}
-            options={jobs.map((j) => ({
-              value: String(j.id),
-              label: j.title,
-              subtitle: `Requisition #${j.id} • ${j.location || "Philippines"}`,
-              badge: j.status,
-            }))}
-            emptyText="No matching job requisitions found"
-            required
-          />
-        </div>
-        <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 mt-auto">
-          <Button variant="outline" size="sm" onClick={() => setLinkJobModalOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={!selectedJobId}
-            loading={linkJobMutation.isPending}
-            onClick={() => linkJobMutation.mutate(selectedJobId)}
+      {/* Modals & Dialogs (Active actions only) */}
+      {!readOnly && (
+        <>
+          {/* Link Job Modal */}
+          <Dialog
+            open={linkJobModalOpen}
+            onClose={() => setLinkJobModalOpen(false)}
+            title="Link Job Requisition"
+            description="Attach an active job posting to this Manpower Request"
+            overflowVisible
+            bodyClassName="min-h-[290px] flex flex-col justify-between"
           >
-            Link Job
-          </Button>
-        </div>
-      </Dialog>
+            <div className="space-y-4">
+              <ComboBox
+                label="Select Job Requisition"
+                placeholder="Search active job requisitions..."
+                value={selectedJobId ? String(selectedJobId) : ""}
+                onChange={(val) => setSelectedJobId(Number(val) || 0)}
+                options={jobs.map((j) => ({
+                  value: String(j.id),
+                  label: j.title,
+                  subtitle: `Requisition #${j.id} • ${j.location || "Philippines"}`,
+                  badge: j.status,
+                }))}
+                emptyText="No matching job requisitions found"
+                required
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 mt-auto">
+              <Button variant="outline" size="sm" onClick={() => setLinkJobModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!selectedJobId}
+                loading={linkJobMutation.isPending}
+                onClick={() => linkJobMutation.mutate(selectedJobId)}
+              >
+                Link Job
+              </Button>
+            </div>
+          </Dialog>
 
-      {/* Add Compliance Template Modal */}
-      <Dialog
-        open={templateModalOpen}
-        onClose={() => setTemplateModalOpen(false)}
-        title="Add Compliance Requirement Template"
-        description="Specify clearance required for candidates under this MRF"
-        overflowVisible
-        bodyClassName="min-h-[290px] flex flex-col justify-between"
-      >
-        <div className="space-y-4">
-          <ComboBox
-            label="Document Template Label"
-            placeholder="Search statutory clearance or type custom..."
-            value={templateLabel}
-            onChange={(val) => setTemplateLabel(val || "")}
-            options={COMPLIANCE_201_PRESETS.map((p) => ({
-              value: p.label,
-              label: p.label,
-              subtitle: p.description,
-              badge: p.category,
-            }))}
-            allowCustom
-            required
-          />
-        </div>
-        <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 mt-auto">
-          <Button variant="outline" size="sm" onClick={() => setTemplateModalOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={!templateLabel.trim()}
-            loading={addTemplateMutation.isPending}
-            onClick={() =>
-              addTemplateMutation.mutate({
-                documentLabel: templateLabel,
-                isRequired: true,
-              })
-            }
+          {/* Add Compliance Template Modal */}
+          <Dialog
+            open={templateModalOpen}
+            onClose={() => setTemplateModalOpen(false)}
+            title="Add Compliance Requirement Template"
+            description="Specify clearance required for candidates under this MRF"
+            overflowVisible
+            bodyClassName="min-h-[290px] flex flex-col justify-between"
           >
-            Add Template
-          </Button>
-        </div>
-      </Dialog>
+            <div className="space-y-4">
+              <ComboBox
+                label="Document Template Label"
+                placeholder="Search statutory clearance or type custom..."
+                value={templateLabel}
+                onChange={(val) => setTemplateLabel(val || "")}
+                options={COMPLIANCE_201_PRESETS.map((p) => ({
+                  value: p.label,
+                  label: p.label,
+                  subtitle: p.description,
+                  badge: p.category,
+                }))}
+                allowCustom
+                required
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 mt-auto">
+              <Button variant="outline" size="sm" onClick={() => setTemplateModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!templateLabel.trim()}
+                loading={addTemplateMutation.isPending}
+                onClick={() =>
+                  addTemplateMutation.mutate({
+                    documentLabel: templateLabel,
+                    isRequired: true,
+                  })
+                }
+              >
+                Add Template
+              </Button>
+            </div>
+          </Dialog>
 
-      {/* Update Status Modal */}
-      <Dialog
-        open={editStatusModalOpen}
-        onClose={() => setEditStatusModalOpen(false)}
-        title="Update MRF Status"
-        description="Set current fulfillment lifecycle status"
-      >
-        <div className="space-y-4">
-          <Select
-            label="Status"
-            value={editStatus}
-            onChange={(e) => setEditStatus(e.target.value)}
-            options={[
-              { value: "OPEN", label: "OPEN" },
-              { value: "IN_PROGRESS", label: "IN PROGRESS" },
-              { value: "FILLED", label: "FILLED" },
-              { value: "ON_HOLD", label: "ON HOLD" },
-              { value: "CANCELLED", label: "CANCELLED" },
-            ]}
+          {/* Update Status Modal */}
+          <Dialog
+            open={editStatusModalOpen}
+            onClose={() => setEditStatusModalOpen(false)}
+            title="Update MRF Status"
+            description="Set current fulfillment lifecycle status"
+          >
+            <div className="space-y-4">
+              <Select
+                label="Status"
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value)}
+                options={[
+                  { value: "OPEN", label: "OPEN" },
+                  { value: "IN_PROGRESS", label: "IN PROGRESS" },
+                  { value: "FILLED", label: "FILLED" },
+                  { value: "ON_HOLD", label: "ON HOLD" },
+                  { value: "CANCELLED", label: "CANCELLED" },
+                ]}
+              />
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <Button variant="outline" size="sm" onClick={() => setEditStatusModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  loading={updateMRFMutation.isPending}
+                  onClick={() => updateMRFMutation.mutate({ status: editStatus })}
+                >
+                  Save Status
+                </Button>
+              </div>
+            </div>
+          </Dialog>
+
+          {/* Delete Template Confirm Dialog */}
+          <ConfirmDialog
+            open={Boolean(deleteTemplateTarget)}
+            onClose={() => setDeleteTemplateTarget(null)}
+            loading={removeTemplateMutation.isPending}
+            onConfirm={() => {
+              if (deleteTemplateTarget) {
+                removeTemplateMutation.mutate(deleteTemplateTarget.id);
+              }
+            }}
+            variant="danger"
+            title="Remove Compliance Template"
+            description={`Are you sure you want to remove '${deleteTemplateTarget?.label || "this template"}' from the MRF?`}
+            confirmLabel="Remove Template"
           />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setEditStatusModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              loading={updateMRFMutation.isPending}
-              onClick={() => updateMRFMutation.mutate({ status: editStatus })}
-            >
-              Save Status
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-
-      {/* Delete Template Confirm Dialog */}
-      <ConfirmDialog
-        open={Boolean(deleteTemplateTarget)}
-        onClose={() => setDeleteTemplateTarget(null)}
-        loading={removeTemplateMutation.isPending}
-        onConfirm={() => {
-          if (deleteTemplateTarget) {
-            removeTemplateMutation.mutate(deleteTemplateTarget.id);
-          }
-        }}
-        variant="danger"
-        title="Remove Compliance Template"
-        description={`Are you sure you want to remove '${deleteTemplateTarget?.label || "this template"}' from the MRF?`}
-        confirmLabel="Remove Template"
-      />
+        </>
+      )}
     </div>
   );
 };

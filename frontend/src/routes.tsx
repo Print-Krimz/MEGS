@@ -56,7 +56,6 @@ import { ScoringConfigPage } from "./pages/admin/ScoringConfigPage";
 import { ScoringQualityPage } from "./pages/admin/ScoringQualityPage";
 import { DatabaseMaintenancePage } from "./pages/admin/DatabaseMaintenancePage";
 import { AuditLogsPage } from "./pages/admin/AuditLogsPage";
-import { AdminMRFDetailPage } from "./pages/admin/AdminMRFDetailPage";
 
 export interface RouterContext {
   auth: AuthContextType;
@@ -499,7 +498,7 @@ export const adminNotificationsRoute = createRoute({
 export const adminMrfDetailRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/admin/mrfs/$mrfId",
-  component: AdminMRFDetailPage,
+  component: () => <MRFDetailPage readOnly baseBackPath="/admin/notifications" />,
 });
 
 // -------------------------------------------------------------
