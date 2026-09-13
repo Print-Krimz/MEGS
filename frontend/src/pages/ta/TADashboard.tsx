@@ -21,9 +21,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Plus,
-  ShieldCheck,
-  Search,
-  TrendingUp,
 } from "lucide-react";
 
 export const TADashboard: React.FC = () => {
@@ -126,13 +123,13 @@ export const TADashboard: React.FC = () => {
                 Talent Pool
               </Button>
             </Link>
-            <Link to="/ta/jobs">
+            <Link to="/ta/mrfs/create">
               <Button
                 variant="primary"
                 size="sm"
                 leftIcon={<Plus className="w-3.5 h-3.5" />}
               >
-                Create Requisition
+                New Requisition (MRF)
               </Button>
             </Link>
           </div>
@@ -167,7 +164,7 @@ export const TADashboard: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
             Active Candidates
           </div>
-          <div className="text-2xl font-bold font-mono text-slate-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-sans font-bold text-slate-950 mt-0.5 tabular-nums">
             {totalActive}
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
@@ -178,9 +175,9 @@ export const TADashboard: React.FC = () => {
 
         <div className="p-3 sm:p-3.5 bg-white">
           <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-wider">
-            Open Requisitions
+            Active Job Postings
           </div>
-          <div className="text-2xl font-bold font-mono text-teal-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-sans font-bold text-teal-950 mt-0.5 tabular-nums">
             {openJobs.length}
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
@@ -193,7 +190,7 @@ export const TADashboard: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-blue-800 uppercase tracking-wider">
             Interview SLA Health
           </div>
-          <div className="text-2xl font-bold font-mono text-blue-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-sans font-bold text-blue-950 mt-0.5 tabular-nums">
             {slaData?.summary?.healthy || 0}
             <span className="text-xs text-slate-400 font-normal"> / {slaData?.summary?.total || 0}</span>
           </div>
@@ -207,7 +204,7 @@ export const TADashboard: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase tracking-wider">
             Active Deployments
           </div>
-          <div className="text-2xl font-bold font-mono text-emerald-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-sans font-bold text-emerald-950 mt-0.5 tabular-nums">
             {activeDeployments.length}
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
@@ -252,7 +249,7 @@ export const TADashboard: React.FC = () => {
                 to="/ta/applications"
                 className="p-2.5 sm:p-3 bg-white hover:bg-teal-50/60 transition-colors text-center block group"
               >
-                <div className="text-xl font-bold font-mono text-slate-900 group-hover:text-teal-900 tabular-nums">
+                <div className="text-xl font-sans font-bold text-slate-900 group-hover:text-teal-900 tabular-nums">
                   {count}
                 </div>
                 <div className="text-[10px] font-mono text-slate-600 uppercase tracking-wider font-semibold mt-0.5">
@@ -264,180 +261,89 @@ export const TADashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Urgent Action Queue & Quick Tools */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Left 2 Cols: Action Queue Table */}
-        <div className="lg:col-span-2 border border-slate-300 bg-white overflow-hidden">
-          <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-slate-700" />
-              <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
-                Application Action Queue
-              </h3>
-            </div>
-            <Link to="/ta/applications">
-              <Button variant="ghost" size="sm">
-                Full Table →
-              </Button>
-            </Link>
+      {/* Urgent Action Queue */}
+      <div className="w-full border border-slate-300 bg-white overflow-hidden">
+        <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-slate-700" />
+            <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
+              Application Action Queue
+            </h3>
           </div>
-
-          {recentApps.length === 0 ? (
-            <div className="p-6">
-              <EmptyState
-                icon={<Users className="w-5 h-5" />}
-                title="No pending candidates"
-                description="The candidate intake pipeline is up to date."
-              />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-slate-100 text-slate-700 font-mono uppercase text-[10px] border-b border-slate-300">
-                  <tr>
-                    <th className="px-3.5 py-2.5 font-bold">Candidate</th>
-                    <th className="px-3.5 py-2.5 font-bold">Target Requisition</th>
-                    <th className="px-3.5 py-2.5 font-bold">Status</th>
-                    <th className="px-3.5 py-2.5 font-bold text-center">Match Score</th>
-                    <th className="px-3.5 py-2.5 font-bold text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {recentApps.map((app) => {
-                    const profile = app.user?.applicantProfile;
-                    const candidateName = profile
-                      ? `${profile.firstName} ${profile.lastName}`
-                      : app.user?.email || "Candidate";
-                    const score = app.candidateFitScore ?? app.candidateScores?.[0]?.finalFitScore ?? app.aiScore;
-
-                    return (
-                      <tr key={app.id} className="hover:bg-slate-100/70 transition-colors">
-                        <td className="px-3.5 py-2.5">
-                          <div className="font-bold text-slate-950">{candidateName}</div>
-                          <div className="text-[10px] text-slate-500 font-mono">
-                            Applied {formatDate(app.createdAt)}
-                          </div>
-                        </td>
-                        <td className="px-3.5 py-2.5">
-                          <div className="font-medium text-slate-900">
-                            {app.jobPosting?.title || "Requisition"}
-                          </div>
-                          <div className="text-[10px] text-slate-500 font-mono">
-                            {app.jobPosting?.location || "Philippines"}
-                          </div>
-                        </td>
-                        <td className="px-3.5 py-2.5">
-                          <StatusBadge status={app.status} />
-                        </td>
-                        <td className="px-3.5 py-2.5 text-center">
-                          <ScoreBadge score={score} size="sm" />
-                        </td>
-                        <td className="px-3.5 py-2.5 text-right">
-                          <Link
-                            to="/ta/applications/$applicationId"
-                            params={{ applicationId: String(app.id) }}
-                          >
-                            <Button variant="outline" size="sm">
-                              View Details
-                            </Button>
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <Link to="/ta/applications">
+            <Button variant="ghost" size="sm">
+              Full Table →
+            </Button>
+          </Link>
         </div>
 
-        {/* Right Col: Quick Tool Access */}
-        <div className="space-y-4">
-          <div className="border border-slate-300 bg-white">
-            <div className="p-3 border-b border-slate-300 bg-slate-100">
-              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">
-                Recruitment Operations
-              </h3>
-            </div>
-
-            <div className="divide-y divide-slate-200">
-              <Link
-                to="/ta/talent-pool"
-                className="p-3 hover:bg-teal-50/50 transition-colors flex items-center justify-between block group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 bg-teal-100 border border-teal-300 text-teal-800 flex items-center justify-center">
-                    <Search className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 uppercase font-mono">
-                      Candidate Search
-                    </div>
-                    <div className="text-[11px] text-slate-500 font-sans">
-                      Match candidates across talent pool
-                    </div>
-                  </div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-700" />
-              </Link>
-
-              <Link
-                to="/ta/mrfs"
-                className="p-3 hover:bg-blue-50/50 transition-colors flex items-center justify-between block group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 bg-blue-100 border border-blue-300 text-blue-800 flex items-center justify-center">
-                    <Briefcase className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold font-mono text-slate-900 group-hover:text-blue-900 uppercase">
-                      Client MRFs
-                    </div>
-                    <div className="text-[10px] text-slate-500">Manpower requisition orders</div>
-                  </div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-700" />
-              </Link>
-
-              <Link
-                to="/ta/workforce"
-                search={{ tab: "clearances" }}
-                className="p-3 hover:bg-amber-50/50 transition-colors flex items-center justify-between block group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold font-mono text-slate-900 group-hover:text-amber-900 uppercase">
-                      Requirements Review
-                    </div>
-                    <div className="text-[10px] text-slate-500">Verify government clearances</div>
-                  </div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-700" />
-              </Link>
-
-              <Link
-                to="/ta/analytics"
-                className="p-3 hover:bg-emerald-50/50 transition-colors flex items-center justify-between block group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 bg-emerald-100 border border-emerald-300 text-emerald-800 flex items-center justify-center">
-                    <TrendingUp className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold font-mono text-slate-900 group-hover:text-emerald-900 uppercase">
-                      Reports
-                    </div>
-                    <div className="text-[10px] text-slate-500">Time-to-fill & export tools</div>
-                  </div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-700" />
-              </Link>
-            </div>
+        {recentApps.length === 0 ? (
+          <div className="p-6">
+            <EmptyState
+              icon={<Users className="w-5 h-5" />}
+              title="No pending candidates"
+              description="The candidate intake pipeline is up to date."
+            />
           </div>
-        </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-100 text-slate-700 font-mono uppercase text-[10px] border-b border-slate-300">
+                <tr>
+                  <th className="px-3.5 py-2.5 font-bold">Candidate</th>
+                  <th className="px-3.5 py-2.5 font-bold">Target Requisition</th>
+                  <th className="px-3.5 py-2.5 font-bold">Status</th>
+                  <th className="px-3.5 py-2.5 font-bold text-center">Match Score</th>
+                  <th className="px-3.5 py-2.5 font-bold text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {recentApps.map((app) => {
+                  const profile = app.user?.applicantProfile;
+                  const candidateName = profile
+                    ? `${profile.firstName} ${profile.lastName}`
+                    : app.user?.email || "Candidate";
+                  const score = app.candidateFitScore ?? app.candidateScores?.[0]?.finalFitScore ?? app.aiScore;
+
+                  return (
+                    <tr key={app.id} className="hover:bg-slate-100/70 transition-colors">
+                      <td className="px-3.5 py-2.5">
+                        <div className="font-bold text-slate-950">{candidateName}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          Applied {formatDate(app.createdAt)}
+                        </div>
+                      </td>
+                      <td className="px-3.5 py-2.5">
+                        <div className="font-medium text-slate-900">
+                          {app.jobPosting?.title || "Requisition"}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          {app.jobPosting?.location || "Philippines"}
+                        </div>
+                      </td>
+                      <td className="px-3.5 py-2.5">
+                        <StatusBadge status={app.status} />
+                      </td>
+                      <td className="px-3.5 py-2.5 text-center">
+                        <ScoreBadge score={score} size="sm" />
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right">
+                        <Link
+                          to="/ta/applications/$applicationId"
+                          params={{ applicationId: String(app.id) }}
+                        >
+                          <Button variant="outline" size="sm">
+                            View Details
+                          </Button>
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
