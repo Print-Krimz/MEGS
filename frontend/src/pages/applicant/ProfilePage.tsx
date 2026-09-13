@@ -119,6 +119,9 @@ export const ProfilePage: React.FC = () => {
     civilStatus: "",
     nationality: "",
     birthPlace: "",
+    religion: "",
+    height: "",
+    weight: "",
     address: "",
     province: "",
     city: "",
@@ -155,6 +158,9 @@ export const ProfilePage: React.FC = () => {
         civilStatus: profile.civilStatus || prev.civilStatus || "",
         nationality: profile.nationality || prev.nationality || "",
         birthPlace: profile.birthPlace || prev.birthPlace || "",
+        religion: profile.religion || prev.religion || "",
+        height: profile.height !== null && profile.height !== undefined ? String(profile.height) : prev.height || "",
+        weight: profile.weight !== null && profile.weight !== undefined ? String(profile.weight) : prev.weight || "",
         address: profile.address || prev.address || "",
         province: profile.province || prev.province || "",
         city: profile.city || prev.city || "",
@@ -263,6 +269,9 @@ export const ProfilePage: React.FC = () => {
           mobileNumber: ext.mobileNumber || p.mobileNumber || "",
           dateOfBirth: ext.dateOfBirth || (p.dateOfBirth ? p.dateOfBirth.substring(0, 10) : "") || "",
           birthPlace: ext.birthPlace || p.birthPlace || "",
+          religion: ext.religion || p.religion || "",
+          height: ext.height !== null && ext.height !== undefined ? String(ext.height) : p.height !== null && p.height !== undefined ? String(p.height) : "",
+          weight: ext.weight !== null && ext.weight !== undefined ? String(ext.weight) : p.weight !== null && p.weight !== undefined ? String(p.weight) : "",
           gender: ext.gender || p.gender || "",
           civilStatus: ext.civilStatus || p.civilStatus || "",
           nationality: ext.nationality || p.nationality || "",
@@ -475,6 +484,9 @@ export const ProfilePage: React.FC = () => {
         civilStatus: profile.civilStatus || "",
         nationality: profile.nationality || "",
         birthPlace: profile.birthPlace || "",
+        religion: profile.religion || "",
+        height: profile.height !== null && profile.height !== undefined ? String(profile.height) : "",
+        weight: profile.weight !== null && profile.weight !== undefined ? String(profile.weight) : "",
         address: profile.address || "",
         province: profile.province || "",
         city: profile.city || "",
@@ -721,7 +733,11 @@ export const ProfilePage: React.FC = () => {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  updateProfileMutation.mutate(personalForm);
+                  updateProfileMutation.mutate({
+                    ...personalForm,
+                    height: personalForm.height ? parseFloat(personalForm.height) : undefined,
+                    weight: personalForm.weight ? parseFloat(personalForm.weight) : undefined,
+                  });
                 }}
                 className="space-y-6"
               >
@@ -816,7 +832,7 @@ export const ProfilePage: React.FC = () => {
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
                     2. Demographics & Placement Background
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <Select
                       label="Gender"
                       value={personalForm.gender}
@@ -860,9 +876,41 @@ export const ProfilePage: React.FC = () => {
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("nationality"); return n; });
                       }}
                     />
+                    <Input
+                      label="Religion"
+                      placeholder="e.g. Roman Catholic"
+                      value={personalForm.religion}
+                      helperText={autoFilledFields.has("religion") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, religion: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("religion"); return n; });
+                      }}
+                    />
                   </div>
 
-                  <div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Input
+                      label="Height (cm)"
+                      type="number"
+                      placeholder="e.g. 170"
+                      value={personalForm.height}
+                      helperText={autoFilledFields.has("height") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, height: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("height"); return n; });
+                      }}
+                    />
+                    <Input
+                      label="Weight (kg)"
+                      type="number"
+                      placeholder="e.g. 65"
+                      value={personalForm.weight}
+                      helperText={autoFilledFields.has("weight") ? "✓ Extracted from resume" : undefined}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, weight: e.target.value }));
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("weight"); return n; });
+                      }}
+                    />
                     <Input
                       label="Preferred Work Locations"
                       placeholder="e.g. Makati, Taguig, Ortigas, Remote"

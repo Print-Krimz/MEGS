@@ -179,9 +179,9 @@ describe("ProfilePage Resume Auto-Fill & Extraction UI", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^Background/ }));
     await waitFor(() => {
       expect(screen.getByDisplayValue("Filipino")).toBeDefined();
-      expect(screen.queryByDisplayValue("Roman Catholic")).toBeNull();
-      expect(screen.queryByDisplayValue("173")).toBeNull();
-      expect(screen.queryByDisplayValue("68")).toBeNull();
+      expect(screen.getByDisplayValue("Roman Catholic")).toBeDefined();
+      expect(screen.getByDisplayValue("173")).toBeDefined();
+      expect(screen.getByDisplayValue("68")).toBeDefined();
     });
 
     // Address and summary remain available through their own disclosures

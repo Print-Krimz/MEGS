@@ -93,7 +93,7 @@ describe("ProfilePage HCI Overhaul", () => {
     expect(screen.getByText("TypeScript")).toBeDefined();
   });
 
-  it("does not render sensitive legacy fields (religion, height, weight) in personal information form", async () => {
+  it("renders personal demographic fields including religion, height, and weight in personal information form", async () => {
     vi.mocked(applicantApi.getProfile).mockResolvedValueOnce({
       id: 1,
       userId: "u1",
@@ -102,6 +102,9 @@ describe("ProfilePage HCI Overhaul", () => {
       gender: "Male",
       civilStatus: "Single",
       nationality: "Filipino",
+      religion: "Roman Catholic",
+      height: 175,
+      weight: 70,
       workExperiences: [],
       educations: [],
       skills: [],
@@ -120,21 +123,17 @@ describe("ProfilePage HCI Overhaul", () => {
     expect(screen.getByLabelText(/First Name/i)).toBeDefined();
     expect(screen.getByLabelText(/Last Name/i)).toBeDefined();
 
-    // Open the Background disclosure which previously housed religion, height, weight
+    // Open the Background disclosure which houses demographics
     const backgroundDisclosure = screen.getByRole("button", { name: /^Background/ });
     fireEvent.click(backgroundDisclosure);
 
-    // Verify professional demographic fields are rendered
+    // Verify demographic fields are rendered
     expect(screen.getByLabelText(/Gender/i)).toBeDefined();
     expect(screen.getByLabelText(/Civil Status/i)).toBeDefined();
     expect(screen.getByLabelText(/Nationality/i)).toBeDefined();
+    expect(screen.getByLabelText(/Religion/i)).toBeDefined();
+    expect(screen.getByLabelText(/Height \(cm\)/i)).toBeDefined();
+    expect(screen.getByLabelText(/Weight \(kg\)/i)).toBeDefined();
     expect(screen.getByLabelText(/Preferred Work Locations/i)).toBeDefined();
-
-    // Verify sensitive legacy fields are completely absent
-    expect(screen.queryByLabelText(/religion/i)).toBeNull();
-    expect(screen.queryByLabelText(/height/i)).toBeNull();
-    expect(screen.queryByLabelText(/weight/i)).toBeNull();
-    expect(screen.queryByText(/Height \(cm\)/i)).toBeNull();
-    expect(screen.queryByText(/Weight \(kg\)/i)).toBeNull();
   });
 });
