@@ -159,7 +159,7 @@ export const ClientsPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Client Corporate Accounts"
-        description="Manage client partner companies, active manpower requests, and on-site workforce allocations"
+        description="Manage client partner companies, active staffing requisitions (MRF), and on-site workforce allocations"
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },
           { label: "Clients" },
@@ -252,7 +252,7 @@ export const ClientsPage: React.FC = () => {
           <EmptyState
             icon={<Building2 className="w-6 h-6" />}
             title="No Client Accounts Registered"
-            description="Create your first client account to begin receiving manpower requests and assigning site deployments."
+            description="Create your first client account to begin receiving staffing requisitions (MRF) and assigning site deployments."
             action={
               <Button
                 variant="primary"
@@ -393,6 +393,7 @@ export const ClientsPage: React.FC = () => {
             totalItems={filteredClients.length}
             pageSize={pageSize}
             onPageChange={setPage}
+            itemLabel="clients"
           />
         </div>
       )}

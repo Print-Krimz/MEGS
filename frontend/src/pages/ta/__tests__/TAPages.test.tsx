@@ -321,14 +321,14 @@ describe("Talent Acquisition Interface Suite", () => {
 
   it("renders JobPostingsPage with requisitions and client account filter", async () => {
     renderWithClient(<JobPostingsPage />);
-    expect(await screen.findByText("Job openings")).toBeDefined();
+    expect(await screen.findByText("Active Job Postings")).toBeDefined();
     expect(await screen.findByText("Forklift Operator")).toBeDefined();
     expect(await screen.findByText("Client Account")).toBeDefined();
   });
 
   it("renders MRFListPage with manpower requisitions and client filter", async () => {
     renderWithClient(<MRFListPage />);
-    expect(await screen.findByText("Staffing requests (MRF)")).toBeDefined();
+    expect(await screen.findByText("Client Requisitions (MRF)")).toBeDefined();
     expect(await screen.findByText("20x Line Assemblers")).toBeDefined();
     expect(await screen.findByText("Client Account")).toBeDefined();
   });

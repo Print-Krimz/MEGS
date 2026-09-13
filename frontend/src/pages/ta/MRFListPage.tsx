@@ -72,16 +72,16 @@ export const MRFListPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Staffing requests (MRF)"
+        title="Client Requisitions (MRF)"
         description="Client labor requisition orders, target headcount fulfillment, and compliance templates"
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },
-          { label: "Manpower Requests" },
+          { label: "Requisitions (MRF)" },
         ]}
         actions={
           <Link to="/ta/mrfs/create">
             <Button variant="primary" size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />}>
-              New Manpower Request
+              New Requisition (MRF)
             </Button>
           </Link>
         }
@@ -130,8 +130,8 @@ export const MRFListPage: React.FC = () => {
         <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
           <EmptyState
             icon={<Briefcase className="w-6 h-6" />}
-            title="No Manpower Requests Found"
-            description="Create a client labor requisition order or reset your filters."
+            title="No Requisitions Found"
+            description="Create a client requisition order or reset your filters."
             action={
               <Button variant="outline" size="sm" onClick={handleReset}>
                 Reset Filters

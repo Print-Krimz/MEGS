@@ -131,7 +131,7 @@ export const JobPostingsPage: React.FC = () => {
       setFormDescription("");
       setFormRequirements("");
       setFormIsEvergreen(false);
-      notify.success("Job Requisition Created", `Requisition #${newJob?.id || ""} created successfully.`);
+      notify.success("Job Posting Created", `Requisition #${newJob?.id || ""} created successfully.`);
     },
     onError: (err: any) => {
       notify.error("Creation Failed", err);
@@ -160,8 +160,8 @@ export const JobPostingsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Job openings"
-        description="Create and publish job postings, set criteria, and monitor incoming applicants"
+        title="Active Job Postings"
+        description="Create and publish job openings, set criteria, and monitor incoming candidates"
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },
           { label: "Job Postings" },

@@ -122,16 +122,16 @@ export const TALayout: React.FC = () => {
       items: [
         { to: "/ta", label: "Overview", icon: LayoutDashboard },
         { to: "/ta/applications", label: "Applications", icon: Users },
-        { to: "/ta/jobs", label: "Jobs", icon: Briefcase },
-        { to: "/ta/mrfs", label: "Hiring requests (MRF)", icon: ClipboardList },
+        { to: "/ta/jobs", label: "Job Postings", icon: Briefcase },
+        { to: "/ta/mrfs", label: "Requisitions (MRF)", icon: ClipboardList },
       ],
     },
     {
-      label: "Candidates and interviews",
+      label: "Candidates & Interviews",
       items: [
         { to: "/ta/talent-pool", label: "Candidate pool", icon: Users },
         { to: "/ta/interviews", label: "Interviews", icon: Calendar },
-        { to: "/ta/clients", label: "Clients and submissions", icon: Building2 },
+        { to: "/ta/clients", label: "Clients & Endorsements", icon: Building2 },
       ],
     },
     {
