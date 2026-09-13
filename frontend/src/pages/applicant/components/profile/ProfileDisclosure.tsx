@@ -25,7 +25,7 @@ export const ProfileDisclosure: React.FC<ProfileDisclosureProps> = ({
         aria-expanded={open}
         aria-controls={id}
         onClick={onToggle}
-        className="flex min-h-14 w-full items-center justify-between gap-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] focus-visible:ring-offset-2"
+        className="flex min-h-14 w-full items-center justify-between gap-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
       >
         <span className="min-w-0">
           <span className="block text-sm font-semibold text-slate-900">{title}</span>

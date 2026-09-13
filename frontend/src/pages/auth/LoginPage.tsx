@@ -6,7 +6,7 @@ import { Input, PasswordInput, Button } from "../../components/ui";
 import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
-import { LogIn, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { MfaChallengeModal } from "../../components/auth/MfaChallengeModal";
 import { MfaSetupModal } from "../../components/auth/MfaSetupModal";
@@ -143,12 +143,12 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Title */}
-      <div className="space-y-1 text-center sm:text-left">
-        <h2 className="text-xl font-semibold text-slate-900 tracking-tight">
-          Sign in
+      <div className="space-y-1 text-left">
+        <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+          Welcome back
         </h2>
         <p className="text-xs text-slate-500">
-          Use your email address and password to continue.
+          Sign in to your MEGS account.
         </p>
       </div>
 
@@ -167,7 +167,7 @@ export const LoginPage: React.FC = () => {
           label="Email Address"
           type="email"
           autoComplete="email"
-          placeholder="name@agency.com or applicant email"
+          placeholder="your.email@example.com"
           value={formData.email}
           onChange={(e) => handleChange("email", e.target.value)}
           error={validationErrors.email}
@@ -182,7 +182,7 @@ export const LoginPage: React.FC = () => {
             <Link
               to="/forgot-password"
               search={formData.email.trim() ? { email: formData.email.trim() } : undefined}
-              className="text-xs text-teal-700 hover:text-teal-900 font-medium hover:underline"
+              className="text-xs text-[#0B315D] hover:text-[#082747] font-medium hover:underline"
             >
               Forgot password?
             </Link>
@@ -190,7 +190,7 @@ export const LoginPage: React.FC = () => {
           <PasswordInput
             id="login-password"
             autoComplete="current-password"
-            placeholder="••••••••"
+            placeholder="Enter password"
             value={formData.password}
             onChange={(e) => handleChange("password", e.target.value)}
             error={validationErrors.password}
@@ -203,7 +203,6 @@ export const LoginPage: React.FC = () => {
           variant="primary"
           size="md"
           loading={loginMutation.isPending}
-          leftIcon={<LogIn className="w-4 h-4" />}
           className="w-full mt-2"
         >
           Sign In
@@ -211,13 +210,13 @@ export const LoginPage: React.FC = () => {
       </form>
 
       {/* Register Link Footer */}
-      <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-600">
-        Applying for job opportunities?{" "}
+      <div className="pt-4 border-t border-[#D9E2EC] text-center text-xs text-[#627D98]">
+        Don't have an account?{" "}
         <Link
           to="/register"
-          className="font-semibold text-teal-700 hover:text-teal-900 hover:underline"
+          className="font-semibold text-[#0B315D] hover:text-[#082747] hover:underline"
         >
-          Create account
+          Create an account
         </Link>
       </div>
 

@@ -119,9 +119,6 @@ export const ProfilePage: React.FC = () => {
     civilStatus: "",
     nationality: "",
     birthPlace: "",
-    religion: "",
-    height: "",
-    weight: "",
     address: "",
     province: "",
     city: "",
@@ -158,9 +155,6 @@ export const ProfilePage: React.FC = () => {
         civilStatus: profile.civilStatus || prev.civilStatus || "",
         nationality: profile.nationality || prev.nationality || "",
         birthPlace: profile.birthPlace || prev.birthPlace || "",
-        religion: profile.religion || prev.religion || "",
-        height: profile.height !== null && profile.height !== undefined ? String(profile.height) : prev.height || "",
-        weight: profile.weight !== null && profile.weight !== undefined ? String(profile.weight) : prev.weight || "",
         address: profile.address || prev.address || "",
         province: profile.province || prev.province || "",
         city: profile.city || prev.city || "",
@@ -272,9 +266,6 @@ export const ProfilePage: React.FC = () => {
           gender: ext.gender || p.gender || "",
           civilStatus: ext.civilStatus || p.civilStatus || "",
           nationality: ext.nationality || p.nationality || "",
-          religion: ext.religion || p.religion || "",
-          height: ext.height !== null && ext.height !== undefined ? String(ext.height) : p.height !== null && p.height !== undefined ? String(p.height) : "",
-          weight: ext.weight !== null && ext.weight !== undefined ? String(ext.weight) : p.weight !== null && p.weight !== undefined ? String(p.weight) : "",
           address: ext.address || p.address || "",
           province: ext.province || p.province || "",
           city: ext.city || p.city || "",
@@ -484,9 +475,6 @@ export const ProfilePage: React.FC = () => {
         civilStatus: profile.civilStatus || "",
         nationality: profile.nationality || "",
         birthPlace: profile.birthPlace || "",
-        religion: profile.religion || "",
-        height: profile.height === null || profile.height === undefined ? "" : String(profile.height),
-        weight: profile.weight === null || profile.weight === undefined ? "" : String(profile.weight),
         address: profile.address || "",
         province: profile.province || "",
         city: profile.city || "",
@@ -664,8 +652,8 @@ export const ProfilePage: React.FC = () => {
         <div
           className={`p-3.5 rounded-md border text-sm font-sans flex items-center justify-between ${
             feedback.type === "success"
-              ? "bg-[#E8EEF6] border-[#0F294A]/30 text-[#0F294A]"
-              : "bg-rose-50 border-rose-300 text-rose-950"
+              ? "bg-[#EAF0F7] border-[#0B315D]/30 text-[#0B315D]"
+              : "bg-[#FEF2F2] border-[#DC2626]/30 text-[#DC2626]"
           }`}
           role="alert"
         >
@@ -674,7 +662,7 @@ export const ProfilePage: React.FC = () => {
           </div>
           <button
             onClick={() => setFeedback(null)}
-            className="text-slate-400 hover:text-slate-700 font-bold ml-4 cursor-pointer text-base"
+            className="text-[#627D98] hover:text-[#102A43] font-bold ml-4 cursor-pointer text-base"
             aria-label="Dismiss notification"
           >
             ×
@@ -689,7 +677,7 @@ export const ProfilePage: React.FC = () => {
         role="tabpanel"
         aria-labelledby={`profile-tab-${activeSection}`}
         tabIndex={0}
-        className="bg-white border border-slate-200 p-4 sm:p-6 shadow-2xs focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] focus-visible:ring-offset-2"
+        className="bg-white border border-[#D9E2EC] p-4 sm:p-6 shadow-2xs focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2"
       >
           {activeSection === "overview" && (
             <ProfileOverview
@@ -733,11 +721,7 @@ export const ProfilePage: React.FC = () => {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  updateProfileMutation.mutate({
-                    ...personalForm,
-                    height: personalForm.height ? parseFloat(personalForm.height) : undefined,
-                    weight: personalForm.weight ? parseFloat(personalForm.weight) : undefined,
-                  });
+                  updateProfileMutation.mutate(personalForm);
                 }}
                 className="space-y-6"
               >
@@ -832,7 +816,7 @@ export const ProfilePage: React.FC = () => {
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
                     2. Demographics & Placement Background
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Select
                       label="Gender"
                       value={personalForm.gender}
@@ -876,33 +860,9 @@ export const ProfilePage: React.FC = () => {
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("nationality"); return n; });
                       }}
                     />
-                    <Input
-                      label="Religion"
-                      placeholder="e.g. Roman Catholic, Christian"
-                      value={personalForm.religion}
-                      helperText={autoFilledFields.has("religion") ? "✓ Extracted from resume" : undefined}
-                      onChange={(e) => {
-                        setPersonalForm((prev) => ({ ...prev, religion: e.target.value }));
-                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("religion"); return n; });
-                      }}
-                    />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Input
-                      label="Height (cm)"
-                      type="number"
-                      placeholder="e.g. 170"
-                      value={personalForm.height}
-                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, height: e.target.value }))}
-                    />
-                    <Input
-                      label="Weight (kg)"
-                      type="number"
-                      placeholder="e.g. 65"
-                      value={personalForm.weight}
-                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, weight: e.target.value }))}
-                    />
+                  <div>
                     <Input
                       label="Preferred Work Locations"
                       placeholder="e.g. Makati, Taguig, Ortigas, Remote"
@@ -1115,7 +1075,7 @@ export const ProfilePage: React.FC = () => {
               onToggle={() => setOpenQualificationSection(openQualificationSection === "experience" ? "" : "experience")}
             >
               <div className="space-y-5">
-                <div className="flex justify-end border-b border-slate-100 pb-3">
+                <div className="flex justify-end border-b border-[#D9E2EC] pb-3">
                 <Button
                   variant="primary"
                   size="sm"
@@ -1130,31 +1090,31 @@ export const ProfilePage: React.FC = () => {
                 </div>
 
               {!profile?.workExperiences || profile.workExperiences.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
+                <div className="py-8 text-center text-xs text-[#627D98] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
                   No work experience entries recorded. Click "Add Experience" to begin.
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-[#D9E2EC]">
                   {profile.workExperiences.map((exp: any) => (
                     <div key={exp.id} className="py-4 flex items-start justify-between gap-4">
                       <div className="space-y-1.5 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-slate-900">{exp.roleTitle}</span>
+                          <span className="text-sm font-bold text-[#102A43]">{exp.roleTitle}</span>
                           {exp.isCurrent && (
-                            <span className="px-1.5 py-0.5 bg-[#E8EEF6] border border-[#0F294A]/20 text-[#0F294A] text-[10px] font-mono font-bold uppercase rounded">
+                            <span className="px-1.5 py-0.5 bg-[#EAF0F7] border border-[#D9E2EC] text-[#0B315D] text-[10px] font-mono font-bold uppercase rounded">
                               Present
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-slate-700 font-medium">
+                        <div className="text-xs text-[#102A43] font-medium">
                           {exp.company}
                         </div>
-                        <div className="text-[11px] text-slate-500 font-mono">
+                        <div className="text-[11px] text-[#627D98] font-mono">
                           {formatDate(exp.startDate)} —{" "}
                           {exp.isCurrent ? "Present" : exp.endDate ? formatDate(exp.endDate) : "N/A"}
                         </div>
                         {exp.summary && (
-                          <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                          <p className="text-xs text-[#627D98] mt-2 leading-relaxed">
                             {exp.summary}
                           </p>
                         )}
@@ -1169,7 +1129,7 @@ export const ProfilePage: React.FC = () => {
                             setEditingExp(exp);
                             setExpModalOpen(true);
                           }}
-                          className="text-slate-600 hover:text-[#0F294A] hover:bg-slate-100"
+                          className="text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7]"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -1184,7 +1144,7 @@ export const ProfilePage: React.FC = () => {
                               label: `${exp.roleTitle} at ${exp.company}`,
                             })
                           }
-                          className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                          className="text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -1207,7 +1167,7 @@ export const ProfilePage: React.FC = () => {
               onToggle={() => setOpenQualificationSection(openQualificationSection === "education" ? "" : "education")}
             >
               <div className="space-y-5">
-                <div className="flex justify-end border-b border-slate-100 pb-3">
+                <div className="flex justify-end border-b border-[#D9E2EC] pb-3">
                 <Button
                   variant="primary"
                   size="sm"
@@ -1222,19 +1182,19 @@ export const ProfilePage: React.FC = () => {
                 </div>
 
               {!profile?.educations || profile.educations.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
+                <div className="py-8 text-center text-xs text-[#627D98] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
                   No education entries recorded. Click "Add Education" to begin.
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-[#D9E2EC]">
                   {profile.educations.map((edu: any) => (
                     <div key={edu.id} className="py-4 flex items-start justify-between gap-4">
                       <div className="space-y-1 flex-1">
-                        <div className="text-sm font-bold text-slate-900">{edu.degree}</div>
-                        <div className="text-xs text-slate-700 font-medium">
+                        <div className="text-sm font-bold text-[#102A43]">{edu.degree}</div>
+                        <div className="text-xs text-[#102A43] font-medium">
                           {edu.school}
                         </div>
-                        <div className="text-[11px] text-slate-500 font-mono">
+                        <div className="text-[11px] text-[#627D98] font-mono">
                           {edu.fieldOfStudy && <span>{edu.fieldOfStudy} • </span>}
                           {edu.startDate && <span>From {formatDate(edu.startDate)} </span>}
                           {edu.endDate && <span>to {formatDate(edu.endDate)}</span>}
@@ -1250,7 +1210,7 @@ export const ProfilePage: React.FC = () => {
                             setEditingEdu(edu);
                             setEduModalOpen(true);
                           }}
-                          className="text-slate-600 hover:text-[#0F294A] hover:bg-slate-100"
+                          className="text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7]"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -1265,7 +1225,7 @@ export const ProfilePage: React.FC = () => {
                               label: `${edu.degree} from ${edu.school}`,
                             })
                           }
-                          className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                          className="text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -1307,7 +1267,7 @@ export const ProfilePage: React.FC = () => {
               onToggle={() => setOpenQualificationSection(openQualificationSection === "trainings" ? "" : "trainings")}
             >
               <div className="space-y-5">
-                <div className="flex justify-end border-b border-slate-100 pb-3">
+                <div className="flex justify-end border-b border-[#D9E2EC] pb-3">
                 <Button
                   variant="primary"
                   size="sm"
@@ -1322,17 +1282,17 @@ export const ProfilePage: React.FC = () => {
                 </div>
 
               {!profile?.trainings || profile.trainings.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
+                <div className="py-8 text-center text-xs text-[#627D98] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
                   No training records added. Click "Add Training" to record credentials.
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-[#D9E2EC]">
                   {profile.trainings.map((t: any) => (
                     <div key={t.id} className="py-4 flex items-start justify-between gap-4">
                       <div className="space-y-1 flex-1">
-                        <div className="text-sm font-bold text-slate-900">{t.title}</div>
-                        <div className="text-xs text-slate-700 font-medium">{t.provider}</div>
-                        <div className="text-[11px] text-slate-500 font-mono">
+                        <div className="text-sm font-bold text-[#102A43]">{t.title}</div>
+                        <div className="text-xs text-[#102A43] font-medium">{t.provider}</div>
+                        <div className="text-[11px] text-[#627D98] font-mono">
                           {t.completionDate && <span>Completed: {formatDate(t.completionDate)}</span>}
                         </div>
                       </div>
@@ -1346,7 +1306,7 @@ export const ProfilePage: React.FC = () => {
                             setEditingTraining(t);
                             setTrainingModalOpen(true);
                           }}
-                          className="text-slate-600 hover:text-[#0F294A] hover:bg-slate-100"
+                          className="text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7]"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -1361,7 +1321,7 @@ export const ProfilePage: React.FC = () => {
                               label: t.title,
                             })
                           }
-                          className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                          className="text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -1384,7 +1344,7 @@ export const ProfilePage: React.FC = () => {
               onToggle={() => setOpenQualificationSection(openQualificationSection === "references" ? "" : "references")}
             >
               <div className="space-y-5">
-                <div className="flex justify-end border-b border-slate-100 pb-3">
+                <div className="flex justify-end border-b border-[#D9E2EC] pb-3">
                 <Button
                   variant="primary"
                   size="sm"
@@ -1400,19 +1360,19 @@ export const ProfilePage: React.FC = () => {
                 </div>
 
               {!profile?.characterReferences || profile.characterReferences.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
+                <div className="py-8 text-center text-xs text-[#627D98] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
                   No references listed. Click "Add Reference" to record contacts.
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-[#D9E2EC]">
                   {profile.characterReferences.map((r: any) => (
                     <div key={r.id} className="py-4 flex items-start justify-between gap-4">
                       <div className="space-y-1 flex-1">
-                        <div className="text-sm font-bold text-slate-900">{r.name}</div>
-                        <div className="text-xs text-slate-700 font-medium">
+                        <div className="text-sm font-bold text-[#102A43]">{r.name}</div>
+                        <div className="text-xs text-[#102A43] font-medium">
                           {r.relationship}
                         </div>
-                        <div className="text-[11px] text-slate-500 font-mono">
+                        <div className="text-[11px] text-[#627D98] font-mono">
                           <span>Phone: {r.phone}</span>
                           {r.email && <span> • Email: {r.email}</span>}
                         </div>
@@ -1428,7 +1388,7 @@ export const ProfilePage: React.FC = () => {
                             setRefPhone(r.phone || "");
                             setRefModalOpen(true);
                           }}
-                          className="text-slate-600 hover:text-[#0F294A] hover:bg-slate-100"
+                          className="text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7]"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -1443,7 +1403,7 @@ export const ProfilePage: React.FC = () => {
                               label: r.name,
                             })
                           }
-                          className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                          className="text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -1504,9 +1464,9 @@ export const ProfilePage: React.FC = () => {
               id="isCurrent"
               name="isCurrent"
               defaultChecked={Boolean(editingExp?.isCurrent)}
-              className="rounded text-[#0F294A] focus:ring-[#0F294A]"
+              className="rounded text-[#0B315D] focus:ring-[#0B315D]"
             />
-            <label htmlFor="isCurrent" className="text-xs text-slate-700">
+            <label htmlFor="isCurrent" className="text-xs text-[#102A43]">
               I currently work in this position
             </label>
           </div>
@@ -1516,7 +1476,7 @@ export const ProfilePage: React.FC = () => {
             defaultValue={editingExp?.summary || ""}
             rows={3}
           />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-3 border-t border-[#D9E2EC]">
             <Button
               variant="outline"
               size="sm"
@@ -1578,7 +1538,7 @@ export const ProfilePage: React.FC = () => {
               defaultValue={editingEdu?.endDate ? editingEdu.endDate.substring(0, 10) : ""}
             />
           </div>
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-3 border-t border-[#D9E2EC]">
             <Button
               variant="outline"
               size="sm"
@@ -1626,7 +1586,7 @@ export const ProfilePage: React.FC = () => {
             name="issueDate"
             defaultValue={editingTraining?.completionDate ? editingTraining.completionDate.substring(0, 10) : ""}
           />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-3 border-t border-[#D9E2EC]">
             <Button
               variant="outline"
               size="sm"
@@ -1680,7 +1640,7 @@ export const ProfilePage: React.FC = () => {
             name="email"
             defaultValue={editingRef?.email || ""}
           />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-3 border-t border-[#D9E2EC]">
             <Button
               variant="outline"
               size="sm"
