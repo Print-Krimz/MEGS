@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
+import { notify } from "../../lib/feedback";
 import {
   PageHeader,
   SearchFilters,
@@ -49,7 +50,7 @@ export const AuditLogsPage: React.FC = () => {
   const pageSize = 10;
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
-  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [isExportingXlsx, setIsExportingXlsx] = useState(false);
 
   // Compute effective start and end dates based on preset or custom pickers
   const effectiveDates = useMemo(() => {
@@ -202,22 +203,22 @@ export const AuditLogsPage: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `megs-security-audit-${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.download = `MEGS_Admin_Security_Audit_${new Date().toISOString().slice(0, 10)}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err: any) {
-      alert(err?.message || "Failed to export PDF audit report");
+      notify.error("Export Failed", err);
     } finally {
       setIsExportingPdf(false);
     }
   };
 
-  const handleExportCSV = async () => {
+  const handleExportXLSX = async () => {
     try {
-      setIsExportingCsv(true);
-      const blob = await adminApi.exportAuditReport("csv", {
+      setIsExportingXlsx(true);
+      const blob = await adminApi.exportAuditReport("xlsx", {
         action: filterValues.action,
         category: filterValues.category,
         search: search || undefined,
@@ -227,15 +228,15 @@ export const AuditLogsPage: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `megs-security-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `MEGS_Admin_Security_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err: any) {
-      alert(err?.message || "Failed to export CSV audit report");
+      notify.error("Export Failed", err);
     } finally {
-      setIsExportingCsv(false);
+      setIsExportingXlsx(false);
     }
   };
 
@@ -267,11 +268,11 @@ export const AuditLogsPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />}
-              onClick={handleExportCSV}
-              disabled={isExportingCsv || allLogs.length === 0}
+              leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-teal-700" />}
+              onClick={handleExportXLSX}
+              disabled={isExportingXlsx || allLogs.length === 0}
             >
-              {isExportingCsv ? "Exporting..." : "Export CSV"}
+              {isExportingXlsx ? "Exporting..." : "Export Excel"}
             </Button>
             <Button
               variant="primary"
@@ -327,7 +328,7 @@ export const AuditLogsPage: React.FC = () => {
 
       {/* Main Filter Bar */}
       <SearchFilters
-        searchPlaceholder="Search event, actor email, candidate, job, or notes..."
+        searchPlaceholder="Search events, actors, or targets..."
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
@@ -578,7 +579,10 @@ export const AuditLogsPage: React.FC = () => {
             <Pagination
               currentPage={page}
               totalPages={totalPages}
+              totalItems={filteredLogs.length}
+              pageSize={pageSize}
               onPageChange={setPage}
+              itemLabel="events"
             />
           </div>
         )}
