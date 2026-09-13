@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Briefcase,
   FileText,
-  User as UserIcon,
+  User,
   Shield,
   LogOut,
   Layers,
@@ -50,11 +50,12 @@ export const ApplicantLayout: React.FC = () => {
     : user?.email || "Applicant";
   const initials = getInitials(profile?.firstName, profile?.lastName);
 
-  // Primary Recruitment Navigation Links (Profile moved to account menu)
+  // Primary Recruitment Navigation Links
   const navLinks = [
     { to: "/app", label: "Dashboard", icon: Layers },
     { to: "/app/jobs", label: "Explore Jobs", icon: Briefcase },
     { to: "/app/applications", label: "My Applications", icon: FileText },
+    { to: "/app/profile", label: "My Profile", icon: User },
   ];
 
   // Close account menu on click outside
@@ -111,7 +112,7 @@ export const ApplicantLayout: React.FC = () => {
   }, [accountMenuOpen]);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans selection:bg-[#0f294a] selection:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-slate-900 selection:text-white">
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} />
 
       {/* Top Navigation Header */}
@@ -123,7 +124,7 @@ export const ApplicantLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-700 hover:text-slate-900 border border-slate-300 hover:bg-slate-100 transition-colors shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a]"
+                className="md:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 border border-slate-200 hover:bg-slate-100 transition-colors shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
                 aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
                 aria-expanded={mobileMenuOpen}
               >
@@ -132,10 +133,10 @@ export const ApplicantLayout: React.FC = () => {
 
               <Link
                 to="/app"
-                className="flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] rounded-sm py-1 group shrink-0"
+                className="flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 rounded-sm py-1 group shrink-0"
                 aria-label="MEGS Candidate Portal Home"
               >
-                <span className="font-black text-xl tracking-tight text-[#0f294a] font-sans leading-none">
+                <span className="font-black text-xl tracking-tight text-slate-900 font-sans leading-none">
                   MEGS
                 </span>
                 <span className="text-[10px] font-semibold text-slate-500 tracking-wider uppercase mt-1">
@@ -153,9 +154,9 @@ export const ApplicantLayout: React.FC = () => {
                       to={item.to}
                       activeOptions={{ exact: item.to === "/app" }}
                       activeProps={{
-                        className: "text-[#0f294a] bg-[#e8eef6] font-bold border border-slate-200/80 shadow-2xs",
+                        className: "text-slate-900 bg-slate-100 font-bold border border-slate-200 shadow-2xs",
                       }}
-                      className="flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:text-[#0f294a] hover:bg-slate-100 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a]"
+                      className="flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
                     >
                       <Icon className="w-4 h-4" />
                       <span>{item.label}</span>
@@ -181,13 +182,13 @@ export const ApplicantLayout: React.FC = () => {
                   id="applicant-account-button"
                   type="button"
                   onClick={() => setAccountMenuOpen((prev) => !prev)}
-                  className="group min-h-11 flex items-center gap-2 sm:gap-2.5 p-1 sm:px-2.5 sm:py-1.5 rounded-lg text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-transparent hover:border-slate-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] focus-visible:ring-offset-1 cursor-pointer"
+                  className="group min-h-11 flex items-center gap-2 sm:gap-2.5 p-1 sm:px-2.5 sm:py-1.5 rounded-lg text-slate-900 hover:bg-slate-100 hover:text-slate-900 border border-transparent hover:border-slate-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-1 cursor-pointer"
                   aria-label={`Account menu for ${fullName}`}
                   aria-haspopup="menu"
                   aria-expanded={accountMenuOpen}
                   aria-controls="applicant-account-menu"
                 >
-                  <div className="w-8 h-8 bg-[#0f294a] text-white rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0 shadow-2xs">
+                  <div className="w-8 h-8 bg-slate-900 text-white rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0 shadow-2xs">
                     {initials}
                   </div>
                   <div className="hidden lg:block text-left leading-tight">
@@ -197,7 +198,7 @@ export const ApplicantLayout: React.FC = () => {
                     <div className="text-[11px] text-slate-500 font-medium">Candidate</div>
                   </div>
                   <ChevronDown
-                    className={`w-4 h-4 text-slate-400 group-hover:text-slate-700 transition-transform duration-150 shrink-0 ${
+                    className={`w-4 h-4 text-slate-500 group-hover:text-slate-900 transition-transform duration-150 shrink-0 ${
                       accountMenuOpen ? "rotate-180" : ""
                     }`}
                     aria-hidden="true"
@@ -214,7 +215,7 @@ export const ApplicantLayout: React.FC = () => {
                     {/* User Identity Context Card */}
                     <div className="p-3.5 bg-slate-50 border-b border-slate-200">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 bg-[#0f294a] text-white rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 bg-slate-900 text-white rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0">
                           {initials}
                         </div>
                         <div className="overflow-hidden min-w-0">
@@ -226,11 +227,6 @@ export const ApplicantLayout: React.FC = () => {
                           </div>
                         </div>
                       </div>
-                      <div className="mt-2.5 flex items-center gap-1.5">
-                        <span className="px-2 py-0.5 bg-[#e8eef6] text-[#0f294a] border border-slate-200 text-[10px] font-mono font-semibold rounded">
-                          Candidate Verified
-                        </span>
-                      </div>
                     </div>
 
                     {/* Navigation Items */}
@@ -241,9 +237,9 @@ export const ApplicantLayout: React.FC = () => {
                         tabIndex={0}
                         ref={(el) => { menuItemsRef.current[0] = el; }}
                         onClick={() => setAccountMenuOpen(false)}
-                        className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a]"
+                        className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
                       >
-                        <UserIcon className="w-4 h-4 text-slate-500 shrink-0" />
+                        <User className="w-4 h-4 text-slate-500 shrink-0" />
                         <div className="flex flex-col text-left">
                           <span className="font-semibold text-slate-900">Profile & Resume</span>
                           <span className="text-[11px] text-slate-500 font-normal">Qualifications & clearances</span>
@@ -259,7 +255,7 @@ export const ApplicantLayout: React.FC = () => {
                           setAccountMenuOpen(false);
                           setShowChangePasswordModal(true);
                         }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] text-left cursor-pointer"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 text-left cursor-pointer"
                       >
                         <Shield className="w-4 h-4 text-slate-500 shrink-0" />
                         <div className="flex flex-col text-left">
@@ -307,8 +303,8 @@ export const ApplicantLayout: React.FC = () => {
                   to={item.to}
                   onClick={() => setMobileMenuOpen(false)}
                   activeOptions={{ exact: item.to === "/app" }}
-                  activeProps={{ className: "bg-[#0f294a] text-white font-bold" }}
-                  className="flex min-h-11 items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a]"
+                  activeProps={{ className: "bg-slate-900 text-white font-bold" }}
+                  className="flex min-h-11 items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
                 >
                   <Icon className="w-4 h-4 shrink-0" />
                   <span>{item.label}</span>
@@ -340,7 +336,7 @@ export const ApplicantLayout: React.FC = () => {
       <footer className="bg-white border-t border-slate-200 py-6 px-4 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>© {new Date().getFullYear()} MAR Employment for Good Services Inc. All rights reserved.</span>
-          <span className="text-[11px] text-slate-400">DOLE Licensed Private Employment Agency • Valenzuela City</span>
+          <span className="text-[11px] text-slate-500">DOLE Licensed Private Employment Agency • Valenzuela City</span>
         </div>
       </footer>
     </div>

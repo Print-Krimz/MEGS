@@ -238,35 +238,35 @@ export const MyApplicationsPage: React.FC = () => {
     switch (status) {
       case "ACCEPTED":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
             <span>ACCEPTED</span>
           </span>
         );
       case "DECLINED":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-rose-50 text-rose-800 border border-rose-200">
-            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-rose-50 text-rose-700 border border-rose-200">
+            <XCircle className="w-3.5 h-3.5 text-rose-700" />
             <span>DECLINED</span>
           </span>
         );
       case "EXPIRED":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-slate-50 text-slate-500 border border-slate-200">
             <Clock className="w-3.5 h-3.5 text-slate-500" />
             <span>EXPIRED</span>
           </span>
         );
       case "CANCELLED":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-500 border border-slate-200">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-slate-50 text-slate-500 border border-slate-200">
             <span>CANCELLED</span>
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
-            <Mail className="w-3.5 h-3.5 text-amber-600" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            <Mail className="w-3.5 h-3.5 text-amber-700" />
             <span>ACTION REQUIRED</span>
           </span>
         );
@@ -285,7 +285,7 @@ export const MyApplicationsPage: React.FC = () => {
         actions={
           <Link
             to="/app/jobs"
-            className="inline-flex min-h-[44px] items-center rounded-md border border-[#0F294A] bg-[#0F294A] px-4 text-sm font-medium text-white hover:bg-[#163B66] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] focus-visible:ring-offset-2 transition-colors"
+            className="inline-flex min-h-[44px] items-center rounded-md border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 transition-colors"
           >
             Explore jobs
           </Link>
@@ -294,10 +294,10 @@ export const MyApplicationsPage: React.FC = () => {
 
       {feedback && (
         <div
-          className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
+          className={`p-3 rounded-md border text-xs font-mono flex items-center justify-between ${
             feedback.type === "success"
-              ? "bg-[#E8EEF6] border-[#0F294A]/20 text-[#0F294A]"
-              : "bg-rose-50 border-rose-200 text-rose-800"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+              : "bg-rose-50 border-rose-200 text-rose-700"
           }`}
         >
           <span>{feedback.message}</span>
@@ -324,19 +324,19 @@ export const MyApplicationsPage: React.FC = () => {
                 setStatusFilter(tab.key);
                 setPage(1);
               }}
-              className={`min-h-[44px] px-3.5 py-2 text-sm font-medium transition-colors flex items-center gap-2 rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] ${
+              className={`min-h-10 px-3.5 py-2 text-sm font-medium transition-colors flex items-center gap-2 rounded-md border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 ${
                 isActive
-                  ? "bg-[#0F294A] text-white border-[#0F294A] shadow-xs"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-white text-slate-900 border-slate-200 hover:bg-slate-100 hover:text-slate-950"
               }`}
             >
               <span>{tab.label}</span>
               <span
-                className={`px-2 py-0.5 text-xs rounded-full font-mono font-semibold ${
+                className={`px-2 py-0.5 text-xs rounded-md font-mono font-semibold ${
                   isActive
                     ? "bg-white/20 text-white"
                     : hasPending
-                    ? "bg-amber-100 text-amber-900 border border-amber-300 font-bold"
+                    ? "bg-amber-50 text-amber-700 border border-amber-200 font-bold"
                     : "bg-slate-100 text-slate-600"
                 }`}
               >
@@ -357,7 +357,7 @@ export const MyApplicationsPage: React.FC = () => {
             onRetry={() => invitationsQuery.refetch()}
           />
         ) : allInvitations.length === 0 ? (
-          <div className="bg-white border border-slate-300 p-8 text-center rounded-lg shadow-xs">
+          <div className="bg-white border border-slate-200 p-8 text-center rounded-md shadow-xs">
             <EmptyState
               icon={<Mail className="w-8 h-8 text-slate-400" />}
               title="No job invitations right now"
@@ -379,11 +379,11 @@ export const MyApplicationsPage: React.FC = () => {
               return (
                 <div
                   key={inv.id}
-                  className={`bg-white rounded-xl border p-5 shadow-xs transition-all space-y-4 ${
-                    isPending ? "border-[#0F294A]/30 ring-1 ring-[#0F294A]/20" : "border-slate-200"
+                  className={`bg-white rounded-md border p-5 shadow-xs transition-all space-y-4 ${
+                    isPending ? "border-slate-900/40 ring-1 ring-slate-900/20" : "border-slate-200"
                   }`}
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 pb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-200 pb-4">
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="text-base font-bold text-slate-900">{inv.title}</h3>
@@ -415,7 +415,7 @@ export const MyApplicationsPage: React.FC = () => {
                           variant="outline"
                           size="sm"
                           onClick={() => handleOpenDecline(inv)}
-                          leftIcon={<XCircle className="w-3.5 h-3.5 text-rose-500" />}
+                          leftIcon={<XCircle className="w-3.5 h-3.5 text-rose-600" />}
                         >
                           Decline
                         </Button>
@@ -433,30 +433,30 @@ export const MyApplicationsPage: React.FC = () => {
 
                   {/* Recruiter Message */}
                   {inv.message && (
-                    <div className="p-3 bg-[#E8EEF6]/60 border border-[#0F294A]/20 rounded-lg text-xs space-y-1">
-                      <div className="text-[#0F294A] font-semibold flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5 text-[#0F294A]" />
+                    <div className="p-3 bg-slate-100 border border-slate-200 rounded-md text-xs space-y-1">
+                      <div className="text-slate-900 font-semibold flex items-center gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5 text-slate-900" />
                         <span>Note from Recruiter ({inv.invitedBy || "Talent Acquisition"})</span>
                       </div>
-                      <p className="text-slate-700 leading-relaxed italic">"{inv.message}"</p>
+                      <p className="text-slate-900 leading-relaxed italic">"{inv.message}"</p>
                     </div>
                   )}
 
                   {/* Job Description & Requirements */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs leading-relaxed">
                     <div>
-                      <h4 className="font-mono font-bold text-slate-700 uppercase mb-1">
+                      <h4 className="font-mono font-bold text-slate-900 uppercase mb-1">
                         Role Overview
                       </h4>
-                      <p className="text-slate-600 whitespace-pre-line line-clamp-3">
+                      <p className="text-slate-500 whitespace-pre-line line-clamp-3">
                         {inv.description}
                       </p>
                     </div>
                     <div>
-                      <h4 className="font-mono font-bold text-slate-700 uppercase mb-1">
+                      <h4 className="font-mono font-bold text-slate-900 uppercase mb-1">
                         Key Qualifications
                       </h4>
-                      <p className="text-slate-600 whitespace-pre-line line-clamp-3">
+                      <p className="text-slate-500 whitespace-pre-line line-clamp-3">
                         {inv.requirements}
                       </p>
                     </div>
@@ -476,15 +476,15 @@ export const MyApplicationsPage: React.FC = () => {
             onRetry={() => applicationsQuery.refetch()}
           />
         ) : allApplications.length === 0 ? (
-          <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-xs">
+          <div className="bg-white border border-slate-200 p-6 rounded-md shadow-xs">
             <EmptyState
-              icon={<Briefcase className="w-5 h-5 text-slate-500" />}
+              icon={<Briefcase className="w-5 h-5 text-slate-400" />}
               title="No applications yet"
               description="Explore current jobs and apply when a role suits you."
               action={
                 <Link
                   to="/app/jobs"
-                  className="inline-flex min-h-[44px] items-center rounded-md border border-[#0F294A] bg-[#0F294A] px-4 text-sm font-medium text-white hover:bg-[#163B66] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] focus-visible:ring-offset-2 transition-colors"
+                  className="inline-flex min-h-[44px] items-center rounded-md border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 transition-colors"
                 >
                   Explore jobs
                 </Link>
@@ -492,9 +492,9 @@ export const MyApplicationsPage: React.FC = () => {
             />
           </div>
         ) : filteredApplications.length === 0 ? (
-          <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-xs">
+          <div className="bg-white border border-slate-200 p-6 rounded-md shadow-xs">
             <EmptyState
-              icon={<Briefcase className="w-5 h-5 text-slate-500" />}
+              icon={<Briefcase className="w-5 h-5 text-slate-400" />}
               title="No applications in this category"
               description="There are currently no job applications matching this filter category."
               action={
@@ -509,18 +509,18 @@ export const MyApplicationsPage: React.FC = () => {
             {paginatedApplications.map((app) => (
               <div
                 key={app.id}
-                className="bg-white border border-slate-200 p-5 space-y-4 hover:border-slate-300 transition-all rounded-lg shadow-xs hover:shadow-sm"
+                className="bg-white border border-slate-200 p-5 space-y-4 hover:border-slate-400 transition-all rounded-md shadow-xs hover:shadow-sm"
               >
                 {/* Top line: role title, company & date */}
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-base font-semibold text-slate-950">
+                      <h3 className="text-base font-semibold text-slate-900">
                         {app.jobPosting?.title || `Position reference #${app.jobPostingId}`}
                       </h3>
                       <StatusBadge status={app.status} audience="applicant" />
                     </div>
-                    <div className="text-sm text-slate-600 font-mono flex items-center gap-4">
+                    <div className="text-sm text-slate-500 font-mono flex items-center gap-4">
                       <span>App #{app.id}</span>
                       <span>•</span>
                       <span>Applied on {formatDate(app.createdAt)}</span>
@@ -539,21 +539,21 @@ export const MyApplicationsPage: React.FC = () => {
                   <Link
                     to="/app/applications/$applicationId"
                     params={{ applicationId: String(app.id) }}
-                    className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] focus-visible:ring-offset-2 shrink-0 transition-colors"
+                    className="inline-flex min-h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3.5 text-xs sm:text-sm font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 shrink-0 transition-colors"
                   >
                     View application progress
                   </Link>
                 </div>
 
                 {/* Pipeline Stepper */}
-                <div className="pt-2 border-t border-slate-100">
+                <div className="pt-2 border-t border-slate-200">
                   <PipelineIndicator currentStatus={app.status} audience="applicant" hideTerminalAlert />
                 </div>
 
                 {/* Contextual Status Alerts */}
                 {app.status === ApplicationStatus.INITIAL_SCREENING && (
-                  <div className="p-3 bg-[#E8EEF6] border-l-4 border-[#0F294A] border border-slate-200 rounded-r-md flex items-center gap-2 text-sm text-slate-900">
-                    <Calendar className="w-4 h-4 text-[#0F294A] shrink-0" />
+                  <div className="p-3 bg-purple-50 border-l-4 border-purple-600 border border-purple-200 rounded-r-md flex items-center gap-2 text-sm text-slate-900">
+                    <Calendar className="w-4 h-4 text-purple-600 shrink-0" />
                     <span>
                       Your screening interview has been queued. Our recruitment team will coordinate with you regarding the schedule.
                     </span>
@@ -561,8 +561,8 @@ export const MyApplicationsPage: React.FC = () => {
                 )}
 
                 {app.status === ApplicationStatus.FINAL_INTERVIEW && (
-                  <div className="p-3 bg-[#E8EEF6] border-l-4 border-[#0F294A] border border-slate-200 rounded-r-md flex items-center gap-2 text-sm text-slate-900">
-                    <Calendar className="w-4 h-4 text-[#0F294A] shrink-0" />
+                  <div className="p-3 bg-purple-50 border-l-4 border-purple-600 border border-purple-200 rounded-r-md flex items-center gap-2 text-sm text-slate-900">
+                    <Calendar className="w-4 h-4 text-purple-600 shrink-0" />
                     <span>
                       You have advanced to the client final interview. Please prepare for your scheduled discussion.
                     </span>
@@ -570,9 +570,9 @@ export const MyApplicationsPage: React.FC = () => {
                 )}
 
                 {app.status === ApplicationStatus.COMPLIANCE && (
-                  <div className="p-3 bg-amber-50 border-l-4 border-amber-600 border border-slate-200 rounded-r-md flex items-center justify-between gap-3 text-sm text-amber-950">
+                  <div className="p-3 bg-amber-50 border-l-4 border-amber-600 border border-amber-200 rounded-r-md flex items-center justify-between gap-3 text-sm text-amber-700">
                     <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-amber-700 shrink-0" />
+                      <FileText className="w-4 h-4 text-amber-600 shrink-0" />
                       <span>
                         Requirements are needed. Please submit the documents requested for you.
                       </span>
@@ -581,7 +581,7 @@ export const MyApplicationsPage: React.FC = () => {
                       to="/app/applications/$applicationId"
                       params={{ applicationId: String(app.id) }}
                     >
-                      <span className="font-medium text-amber-900 hover:underline shrink-0">
+                      <span className="font-medium text-amber-700 hover:underline shrink-0">
                         Submit documents
                       </span>
                     </Link>
@@ -589,8 +589,8 @@ export const MyApplicationsPage: React.FC = () => {
                 )}
 
                 {app.status === ApplicationStatus.DEPLOYED && (
-                  <div className="p-3 bg-emerald-50 border-l-4 border-emerald-700 border border-slate-200 rounded-r-md flex items-center gap-2 text-sm text-emerald-950">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <div className="p-3 bg-emerald-50 border-l-4 border-emerald-600 border border-emerald-200 rounded-r-md flex items-center gap-2 text-sm text-emerald-700">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>
                       You have been placed at your work site. Your employee record is ready.
                     </span>
@@ -598,9 +598,9 @@ export const MyApplicationsPage: React.FC = () => {
                 )}
 
                 {app.status === ApplicationStatus.TALENT_POOL && (
-                  <div className="p-3 bg-slate-100 border-l-4 border-[#0F294A] border border-slate-200 rounded-r-md flex items-center justify-between gap-3 text-sm text-slate-800">
+                  <div className="p-3 bg-slate-50 border-l-4 border-slate-900 border border-slate-200 rounded-r-md flex items-center justify-between gap-3 text-sm text-slate-900">
                     <div className="flex items-center gap-2">
-                      <Bookmark className="w-4 h-4 text-[#0F294A] shrink-0" />
+                      <Bookmark className="w-4 h-4 text-slate-900 shrink-0" />
                       <span>
                         You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications.
                       </span>
@@ -609,7 +609,7 @@ export const MyApplicationsPage: React.FC = () => {
                       to="/app/applications/$applicationId"
                       params={{ applicationId: String(app.id) }}
                     >
-                      <span className="font-medium text-[#0F294A] hover:underline shrink-0">
+                      <span className="font-medium text-slate-900 hover:underline shrink-0">
                         View details
                       </span>
                     </Link>
@@ -619,7 +619,7 @@ export const MyApplicationsPage: React.FC = () => {
             ))}
 
             {/* Pagination */}
-            <div className="bg-white border border-slate-200 p-2 rounded-lg shadow-xs">
+            <div className="bg-white border border-slate-200 p-2 rounded-md shadow-xs">
               <Pagination
                 currentPage={page}
                 totalPages={totalPages}
@@ -641,7 +641,7 @@ export const MyApplicationsPage: React.FC = () => {
         description={`Submit your job application for ${selectedInvitation?.title}`}
       >
         <div className="space-y-4">
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 space-y-1">
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md text-xs text-emerald-900 space-y-1">
             <div className="font-semibold flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>Ready to submit your application?</span>
@@ -689,7 +689,7 @@ export const MyApplicationsPage: React.FC = () => {
         description={`Decline invitation for ${selectedInvitation?.title}`}
       >
         <div className="space-y-4">
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 flex items-start gap-2">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
             <span>
               Please let us know why you are declining so we can match you with better opportunities in the future.
