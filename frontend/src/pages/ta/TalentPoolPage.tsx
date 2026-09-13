@@ -26,7 +26,6 @@ export const TalentPoolPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [searchText, setSearchText] = useState("");
   const [selectedJobId, setSelectedJobId] = useState<number>(0);
-  const [searchK, setSearchK] = useState<number>(10);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Contact Modal State
@@ -102,14 +101,13 @@ export const TalentPoolPage: React.FC = () => {
     searchMutation.mutate({
       text: query || undefined,
       jobId: selectedJobId || undefined,
-      k: searchK,
+      k: 20,
     });
   };
 
   const handleReset = () => {
     setSearchText("");
     setSelectedJobId(0);
-    setSearchK(10);
     setValidationError(null);
     searchMutation.reset();
   };
@@ -195,7 +193,7 @@ export const TalentPoolPage: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-          <div className="sm:col-span-6">
+          <div className="sm:col-span-7">
             <Input
               label="Search by Skills, Keywords, or Qualifications"
               placeholder="e.g. Electrician with TESDA NC II, industrial machinery repair, Laguna area"
@@ -208,7 +206,7 @@ export const TalentPoolPage: React.FC = () => {
             />
           </div>
 
-          <div className="sm:col-span-4">
+          <div className="sm:col-span-5">
             <ComboBox
               label="Match Against Job (Optional)"
               placeholder="Search or select job requisition..."
@@ -222,25 +220,11 @@ export const TalentPoolPage: React.FC = () => {
                 ...jobs.map((j) => ({
                   value: String(j.id),
                   label: j.title,
-                  subtitle: `REQ #${j.id} • ${j.location || "Philippines"}`,
+                  subtitle: `Requisition #${j.id} • ${j.location || "Philippines"}`,
                   badge: j.status,
                 })),
               ]}
               clearable={Boolean(selectedJobId)}
-            />
-          </div>
-
-          <div className="sm:col-span-2">
-            <Select
-              label="Max Results"
-              value={searchK}
-              onChange={(e) => setSearchK(Number(e.target.value))}
-              options={[
-                { value: 5, label: "Top 5" },
-                { value: 10, label: "Top 10" },
-                { value: 20, label: "Top 20" },
-                { value: 50, label: "Top 50" },
-              ]}
             />
           </div>
         </div>
@@ -282,7 +266,7 @@ export const TalentPoolPage: React.FC = () => {
               searchMutation.mutate({
                 text: query || undefined,
                 jobId: selectedJobId || undefined,
-                k: searchK,
+                k: 20,
               });
             } else {
               searchMutation.reset();
@@ -441,7 +425,7 @@ export const TalentPoolPage: React.FC = () => {
             options={jobs.map((j) => ({
               value: String(j.id),
               label: j.title,
-              subtitle: `REQ #${j.id} • ${j.location || "Philippines"}`,
+              subtitle: `Requisition #${j.id} • ${j.location || "Philippines"}`,
               badge: j.status,
             }))}
             emptyText="No matching job openings found"

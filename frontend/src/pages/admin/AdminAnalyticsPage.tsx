@@ -61,7 +61,7 @@ export const AdminAnalyticsPage: React.FC = () => {
       <div className="space-y-6">
         <PageHeader
           title="Organization Recruitment Analytics"
-          description="Recruitment metrics & bottleneck telemetry"
+          description="Recruitment metrics & pipeline health"
         />
         <ErrorState
           error={dashboardQuery.error}
@@ -86,7 +86,7 @@ export const AdminAnalyticsPage: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `admin_pipeline_report_${new Date().toISOString().substring(0, 10)}.${exportFormat}`;
+      a.download = `MEGS_Admin_Workforce_Pipeline_Report_${new Date().toISOString().substring(0, 10)}.${exportFormat}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -106,7 +106,7 @@ export const AdminAnalyticsPage: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `admin_deployment_report_${new Date().toISOString().substring(0, 10)}.${exportFormat}`;
+      a.download = `MEGS_Admin_Deployment_Governance_${new Date().toISOString().substring(0, 10)}.${exportFormat}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -122,7 +122,7 @@ export const AdminAnalyticsPage: React.FC = () => {
     <div className="space-y-5">
       <PageHeader
         title="Organization Recruitment Reports"
-        description="Company-wide recruitment velocity, daily activity telemetry, stage conversion funnel, and bottleneck aging analysis"
+        description="Company-wide hiring progress, daily recruitment activity, stage conversion rates, and review bottlenecks"
         breadcrumbs={[
           { label: "Admin Operations", href: "/admin" },
           { label: "Reports" },
@@ -157,7 +157,7 @@ export const AdminAnalyticsPage: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
             Total Applications
           </div>
-          <div className="text-2xl font-bold font-mono text-slate-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-bold font-sans text-slate-950 mt-0.5 tabular-nums">
             {overview?.totalApplications ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
@@ -171,7 +171,7 @@ export const AdminAnalyticsPage: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-wider">
             Active Candidates
           </div>
-          <div className="text-2xl font-bold font-mono text-teal-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-bold font-sans text-teal-950 mt-0.5 tabular-nums">
             {overview?.activeCandidates ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
@@ -185,7 +185,7 @@ export const AdminAnalyticsPage: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-purple-800 uppercase tracking-wider">
             Talent Pool
           </div>
-          <div className="text-2xl font-bold font-mono text-purple-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-bold font-sans text-purple-950 mt-0.5 tabular-nums">
             {overview?.talentPoolCandidates ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
@@ -199,7 +199,7 @@ export const AdminAnalyticsPage: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-blue-800 uppercase tracking-wider">
             Client Endorsements
           </div>
-          <div className="text-2xl font-bold font-mono text-blue-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-bold font-sans text-blue-950 mt-0.5 tabular-nums">
             {overview?.clientEndorsements ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
@@ -213,7 +213,7 @@ export const AdminAnalyticsPage: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-amber-800 uppercase tracking-wider">
             In Requirements
           </div>
-          <div className="text-2xl font-bold font-mono text-amber-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-bold font-sans text-amber-950 mt-0.5 tabular-nums">
             {overview?.candidatesInCompliance ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
@@ -227,7 +227,7 @@ export const AdminAnalyticsPage: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase tracking-wider">
             Total Deployments
           </div>
-          <div className="text-2xl font-bold font-mono text-emerald-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-bold font-sans text-emerald-950 mt-0.5 tabular-nums">
             {overview?.totalDeployments ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
@@ -253,18 +253,21 @@ export const AdminAnalyticsPage: React.FC = () => {
       {/* Row 4: Bottleneck Aging Analysis */}
       <BottlenecksWidget bottlenecks={bottlenecks} />
 
-      {/* Row 5: Executive Report Export Center */}
+      {/* Row 5: Report Export Center */}
       <div className="border border-slate-300 bg-white">
         <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
-              <FileSpreadsheet className="w-4 h-4 text-teal-700" />
-              <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
-                Recruitment Report Export Center
+              <FileSpreadsheet className="w-4 h-4 text-slate-700" />
+              <h3 className="text-xs font-semibold font-sans text-slate-900">
+                Export Reports
               </h3>
+              <span className="px-1.5 py-0.5 text-[10px] font-mono font-medium rounded bg-slate-200 text-slate-700 border border-slate-300">
+                Admin
+              </span>
             </div>
             <p className="text-[11px] text-slate-500 font-sans">
-              Download filtered records for audits, compliance evaluations, and executive reports
+              Download pipeline and deployment records in PDF or Excel
             </p>
           </div>
 
@@ -284,11 +287,11 @@ export const AdminAnalyticsPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-300">
           <div className="p-4 flex items-center justify-between gap-4">
             <div>
-              <div className="font-bold font-mono uppercase text-slate-900 text-xs">
-                Organization Pipeline Report
+              <div className="font-semibold font-sans text-slate-900 text-xs">
+                Candidate Pipeline
               </div>
               <div className="text-[11px] text-slate-500 font-sans">
-                Filtered candidate applications, stages & match evaluations
+                Applications, stages, and match evaluations
               </div>
             </div>
             <Button
@@ -304,11 +307,11 @@ export const AdminAnalyticsPage: React.FC = () => {
 
           <div className="p-4 flex items-center justify-between gap-4">
             <div>
-              <div className="font-bold font-mono uppercase text-slate-900 text-xs">
-                Organization Deployment Report
+              <div className="font-semibold font-sans text-slate-900 text-xs">
+                Deployments
               </div>
               <div className="text-[11px] text-slate-500 font-sans">
-                Client assignments, sites & contract periods
+                Client assignments, sites, and contract dates
               </div>
             </div>
             <Button

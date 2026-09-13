@@ -173,6 +173,7 @@ describe("Admin Pages Integration & Rendering", () => {
     expect((await screen.findAllByText("Candidate matching settings")).length).toBeGreaterThan(0);
     expect(await screen.findByText("1. Skills & Technical Competencies")).toBeDefined();
     expect(await screen.findByText("Talent Discovery & Match Parameters")).toBeDefined();
+    expect(await screen.findByText("Advanced Algorithm Settings")).toBeDefined();
   });
 
   it("renders ScoringQualityPage with histogram, telemetry, and action buttons", async () => {

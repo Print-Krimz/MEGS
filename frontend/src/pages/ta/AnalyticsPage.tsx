@@ -48,7 +48,7 @@ export const AnalyticsPage: React.FC = () => {
       <div className="space-y-6">
         <PageHeader
           title="Recruitment Operations Intelligence"
-          description="Loading personal recruitment workload and telemetry..."
+          description="Loading personal recruitment workload and activity..."
         />
         <LoadingState variant="cards" />
         <LoadingState variant="table" rows={4} />
@@ -85,7 +85,7 @@ export const AnalyticsPage: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `pipeline_report_${new Date().toISOString().substring(0, 10)}.${exportFormat}`;
+      a.download = `MEGS_TA_Candidate_Pipeline_Report_${new Date().toISOString().substring(0, 10)}.${exportFormat}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -105,7 +105,7 @@ export const AnalyticsPage: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `deployment_report_${new Date().toISOString().substring(0, 10)}.${exportFormat}`;
+      a.download = `MEGS_TA_Deployment_Report_${new Date().toISOString().substring(0, 10)}.${exportFormat}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -121,7 +121,7 @@ export const AnalyticsPage: React.FC = () => {
     <div className="space-y-5">
       <PageHeader
         title="Recruitment reports"
-        description="Recruiter workload tracking, personalized daily recruitment trend, candidate funnel velocity, and actionable task queue"
+        description="Track active candidate stages, overdue reviews, and daily recruitment activity"
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },
           { label: "Reports" },
@@ -129,7 +129,7 @@ export const AnalyticsPage: React.FC = () => {
       />
 
       {exportError && (
-        <div className="p-3 border-l-4 border-rose-600 bg-rose-50 border border-slate-300 text-rose-900 text-xs font-mono flex items-center justify-between">
+        <div className="p-3 border-l-4 border-rose-600 bg-rose-50 border border-slate-300 text-rose-900 text-sm font-sans flex items-center justify-between">
           <span>{exportError}</span>
           <button
             onClick={() => setExportError(null)}
@@ -156,7 +156,7 @@ export const AnalyticsPage: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
             My Active Pipeline
           </div>
-          <div className="text-2xl font-bold font-mono text-slate-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-sans font-bold text-slate-950 mt-0.5 tabular-nums">
             {overview?.myActiveApplications ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
@@ -170,7 +170,7 @@ export const AnalyticsPage: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-blue-800 uppercase tracking-wider">
             Screening Pending
           </div>
-          <div className="text-2xl font-bold font-mono text-blue-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-sans font-bold text-blue-950 mt-0.5 tabular-nums">
             {overview?.initialInterviewsPending ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
@@ -184,7 +184,7 @@ export const AnalyticsPage: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-wider">
             Ready to Endorse
           </div>
-          <div className="text-2xl font-bold font-mono text-teal-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-sans font-bold text-teal-950 mt-0.5 tabular-nums">
             {overview?.readyForEndorsement ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
@@ -198,7 +198,7 @@ export const AnalyticsPage: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-purple-800 uppercase tracking-wider">
             Client Acceptance
           </div>
-          <div className="text-2xl font-bold font-mono text-purple-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-sans font-bold text-purple-950 mt-0.5 tabular-nums">
             {overview?.pendingClientDecisions ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
@@ -212,7 +212,7 @@ export const AnalyticsPage: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-amber-800 uppercase tracking-wider">
             Final Interviews
           </div>
-          <div className="text-2xl font-bold font-mono text-amber-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-sans font-bold text-amber-950 mt-0.5 tabular-nums">
             {overview?.finalInterviewsPending ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
@@ -226,7 +226,7 @@ export const AnalyticsPage: React.FC = () => {
           <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase tracking-wider">
             Requirements
           </div>
-          <div className="text-2xl font-bold font-mono text-emerald-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-sans font-bold text-emerald-950 mt-0.5 tabular-nums">
             {overview?.awaitingCompliance ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
@@ -254,18 +254,21 @@ export const AnalyticsPage: React.FC = () => {
         <PendingActionsWidget actions={actions} />
       </div>
 
-      {/* Row 4: Executive Report Export Center */}
+      {/* Row 4: Report Export Center */}
       <div className="border border-slate-300 bg-white">
         <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
               <FileSpreadsheet className="w-4 h-4 text-teal-700" />
               <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
-                Recruitment Report Export Center
+                Export Reports
               </h3>
+              <span className="px-1.5 py-0.5 text-[10px] font-mono font-medium rounded bg-teal-50 text-teal-800 border border-teal-200">
+                TA Portal
+              </span>
             </div>
             <p className="text-[11px] text-slate-500 font-sans">
-              Download structured records for billing audits, KPI evaluations, and client delivery reports
+              Download pipeline and deployment records in PDF or Excel
             </p>
           </div>
 
@@ -286,10 +289,10 @@ export const AnalyticsPage: React.FC = () => {
           <div className="p-4 flex items-center justify-between gap-4">
             <div>
               <div className="font-bold font-mono uppercase text-slate-900 text-xs">
-                Full Pipeline Activity Report
+                Candidate Pipeline
               </div>
               <div className="text-[11px] text-slate-500 font-sans">
-                All candidate application records & match evaluations
+                Applications, stages, and match evaluations
               </div>
             </div>
             <Button
@@ -306,10 +309,10 @@ export const AnalyticsPage: React.FC = () => {
           <div className="p-4 flex items-center justify-between gap-4">
             <div>
               <div className="font-bold font-mono uppercase text-slate-900 text-xs">
-                Site Deployment Audit Report
+                Deployments
               </div>
               <div className="text-[11px] text-slate-500 font-sans">
-                Client assignments & contract dates
+                Client assignments, sites, and contract dates
               </div>
             </div>
             <Button

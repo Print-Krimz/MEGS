@@ -336,6 +336,7 @@ describe("Talent Acquisition Interface Suite", () => {
   it("renders TalentPoolPage search container and validates empty query", async () => {
     renderWithClient(<TalentPoolPage />);
     expect(await screen.findByText("Candidate pool")).toBeDefined();
+    expect(screen.queryByText("Max Results")).toBeNull();
 
     // Clicking search with empty input shows validation message and does NOT call api
     const searchBtn = screen.getByRole("button", { name: /Search Talent Pool/i });
@@ -433,9 +434,10 @@ describe("Talent Acquisition Interface Suite", () => {
     expect(await screen.findByText("Employee records (201)")).toBeDefined();
   });
 
-  it("renders AnalyticsPage with personal workload and telemetry reports", async () => {
+  it("renders AnalyticsPage with personal workload and activity reports", async () => {
     renderWithClient(<AnalyticsPage />);
     expect(await screen.findByText("Recruitment reports")).toBeDefined();
+    expect(await screen.findByText("Track active candidate stages, overdue reviews, and daily recruitment activity")).toBeDefined();
     expect(await screen.findByText("My Recruitment Activity Trend")).toBeDefined();
     expect(await screen.findByText("Export Reports")).toBeDefined();
   });

@@ -449,35 +449,7 @@ export const ScoringConfigPage: React.FC = () => {
           </div>
 
           <div className="p-4 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Input
-                label="Default Match Results Count"
-                type="number"
-                min={1}
-                max={50}
-                value={defaultK}
-                onChange={(e) => setDefaultK(Number(e.target.value))}
-              />
-              <Input
-                label="Maximum Match Results Limit"
-                type="number"
-                min={10}
-                max={100}
-                value={maximumK}
-                onChange={(e) => setMaximumK(Number(e.target.value))}
-              />
-              <Input
-                label="Minimum Match Threshold (0.0 - 1.0)"
-                type="number"
-                step="0.05"
-                min={0}
-                max={1}
-                value={minSimilarity}
-                onChange={(e) => setMinSimilarity(Number(e.target.value))}
-              />
-            </div>
-
-            <div className="pt-2">
+            <div>
               <label className="flex items-center gap-2 text-xs text-slate-800 cursor-pointer">
                 <input
                   type="checkbox"
@@ -488,6 +460,39 @@ export const ScoringConfigPage: React.FC = () => {
                 <span>Exclude currently deployed employees from matching pool</span>
               </label>
             </div>
+
+            <details className="group border border-slate-200 rounded-md p-3">
+              <summary className="text-xs font-semibold text-slate-700 cursor-pointer flex items-center justify-between">
+                Advanced Algorithm Settings
+              </summary>
+              <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Input
+                  label="Default Match Results Count"
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={defaultK}
+                  onChange={(e) => setDefaultK(Number(e.target.value))}
+                />
+                <Input
+                  label="Maximum Match Results Limit"
+                  type="number"
+                  min={10}
+                  max={100}
+                  value={maximumK}
+                  onChange={(e) => setMaximumK(Number(e.target.value))}
+                />
+                <Input
+                  label="Minimum Match Threshold (0.0 - 1.0)"
+                  type="number"
+                  step="0.05"
+                  min={0}
+                  max={1}
+                  value={minSimilarity}
+                  onChange={(e) => setMinSimilarity(Number(e.target.value))}
+                />
+              </div>
+            </details>
           </div>
         </div>
 

@@ -10,8 +10,8 @@ interface BottlenecksWidgetProps {
 
 export const BottlenecksWidget: React.FC<BottlenecksWidgetProps> = ({
   bottlenecks = [],
-  title = "Recruitment Pipeline Bottleneck & Aging Analysis",
-  subtitle = "Identification of candidate accumulation points, dwell duration, and SLA adherence across active requisitions",
+  title = "Pipeline Review Bottlenecks",
+  subtitle = "Stages where candidate reviews exceed target SLAs",
 }) => {
   return (
     <div className="border border-slate-300 bg-white">
@@ -20,7 +20,7 @@ export const BottlenecksWidget: React.FC<BottlenecksWidgetProps> = ({
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-amber-700" />
           <div>
-            <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
+            <h3 className="text-xs font-semibold font-sans text-slate-900">
               {title}
             </h3>
             <p className="text-[11px] text-slate-500 font-sans mt-0.5">{subtitle}</p>
@@ -66,7 +66,7 @@ export const BottlenecksWidget: React.FC<BottlenecksWidgetProps> = ({
                     </span>
                   </div>
 
-                  <div className="text-2xl font-bold font-mono text-slate-950 tabular-nums">
+                  <div className="text-2xl font-bold font-sans text-slate-950 tabular-nums">
                     {item.candidateCount}{" "}
                     <span className="text-xs font-normal text-slate-500 font-sans">candidates</span>
                   </div>
@@ -76,10 +76,10 @@ export const BottlenecksWidget: React.FC<BottlenecksWidgetProps> = ({
                   </p>
                 </div>
 
-                {/* Telemetry Metrics */}
+                {/* Review SLA Metrics */}
                 <div className="pt-2 border-t border-slate-200 space-y-1 text-xs font-mono">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Average Aging:</span>
+                    <span className="text-slate-500">Average Time in Stage:</span>
                     <span
                       className={`font-bold tabular-nums ${
                         item.averageAgingDays > item.slaThresholdDays ? "text-amber-800" : "text-slate-900"
@@ -90,12 +90,12 @@ export const BottlenecksWidget: React.FC<BottlenecksWidgetProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">SLA Threshold:</span>
+                    <span className="text-slate-500">Target Review SLA:</span>
                     <span className="text-slate-700 font-medium">{item.slaThresholdDays} days</span>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Exceeding SLA:</span>
+                    <span className="text-slate-500">Overdue Reviews:</span>
                     <span
                       className={`font-bold tabular-nums ${
                         item.overdueCount > 0 ? "text-rose-700" : "text-slate-900"

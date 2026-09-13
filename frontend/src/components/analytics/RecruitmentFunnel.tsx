@@ -10,8 +10,8 @@ interface RecruitmentFunnelProps {
 
 export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
   data,
-  title = "Recruitment Funnel & Conversion Velocity",
-  subtitle = "Stage-by-stage progression and conversion throughput across canonical hiring workflow",
+  title = "Hiring Funnel",
+  subtitle = "Candidate progression through each hiring stage",
 }) => {
   const stages = data?.stages || [];
   const total = data?.totalApplications || 0;
@@ -70,7 +70,7 @@ export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
 
                     {!isFirst && (
                       <div>
-                        <span className="text-slate-500">Step Conv: </span>
+                        <span className="text-slate-500">Pass Rate: </span>
                         <span
                           className={`font-bold tabular-nums ${
                             st.conversionRate >= 70
@@ -86,7 +86,7 @@ export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
                     )}
 
                     <div>
-                      <span className="text-slate-500">Yield: </span>
+                      <span className="text-slate-500">Total Yield: </span>
                       <span className="font-bold text-teal-900 tabular-nums">{st.overallConversion}%</span>
                     </div>
                   </div>
