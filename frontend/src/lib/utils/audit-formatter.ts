@@ -12,7 +12,7 @@ export const ACTION_LABELS: Record<string, string> = {
   USER_REGISTERED: "User Registered",
 
   // User Management
-  INVITED_TA: "Talent Acquisition Specialist Invited",
+  INVITED_TA: "Recruiter invited",
   USER_INVITED: "User Invited",
   USER_ROLE_UPDATED: "User Role Updated",
   USER_ACTIVATED: "User Account Activated",
@@ -27,30 +27,30 @@ export const ACTION_LABELS: Record<string, string> = {
   CLIENT_ENDORSEMENT_RECORDED: "Candidate Endorsed to Client",
   CLIENT_ENDORSEMENT_UPDATED: "Client Endorsement Decision Updated",
   CANDIDATE_HIRED: "Candidate Hired",
-  MRF_CREATED: "Manpower Request Created",
-  MRF_UPDATED: "Manpower Request Updated",
+  MRF_CREATED: "Hiring request created",
+  MRF_UPDATED: "Hiring request updated",
   JOB_POSTING_CREATED: "Job Posting Created",
   JOB_POSTING_UPDATED: "Job Posting Updated",
 
   // Talent Pool
-  KNN_TALENT_POOL_SEARCH: "Talent Pool Search Performed",
+  KNN_TALENT_POOL_SEARCH: "Talent pool search performed",
   TALENT_POOL_SEARCH: "Talent Pool Search Performed",
-  KNN_TALENT_POOL_QUERY: "Talent Pool Matching Queried",
-  KNN_SIMILAR_CANDIDATES_QUERY: "Similar Candidates Search Performed",
+  KNN_TALENT_POOL_QUERY: "Talent pool match search performed",
+  KNN_SIMILAR_CANDIDATES_QUERY: "Similar candidates search performed",
   TALENT_POOL_MEMBER_ADDED: "Candidate Added to Talent Pool",
   TALENT_POOL_CONTACT_LOGGED: "Talent Pool Contact Logged",
   TALENT_POOL_REACTIVATION: "Talent Pool Candidate Reactivated",
 
   // Configuration
-  CANDIDATE_SCORING_CONFIGURATION_ACTIVATED: "Scoring Configuration Activated",
-  SCORING_CONFIG_ACTIVATED: "Scoring Configuration Activated",
-  SCORING_DEFAULTS_RESTORED: "Scoring Defaults Restored",
+  CANDIDATE_SCORING_CONFIGURATION_ACTIVATED: "Matching settings activated",
+  SCORING_CONFIG_ACTIVATED: "Matching settings activated",
+  SCORING_DEFAULTS_RESTORED: "Matching settings restored",
 
   // Database Maintenance
-  DATABASE_BACKUP_SUCCESS: "Database Backup Created",
-  DATABASE_BACKUP_DOWNLOAD: "Database Backup Downloaded",
-  DATABASE_RESTORE_SUCCESS: "Database Restored from Backup",
-  DATABASE_BACKUP_RENAMED: "Database Backup Renamed",
+  DATABASE_BACKUP_SUCCESS: "Backup created",
+  DATABASE_BACKUP_DOWNLOAD: "Backup downloaded",
+  DATABASE_RESTORE_SUCCESS: "Backup restored",
+  DATABASE_BACKUP_RENAMED: "Backup renamed",
 
   // Compliance
   COMPLIANCE_REQUIREMENT_CREATED: "Compliance Requirement Created",
@@ -242,7 +242,7 @@ export function formatRole(role?: string | null): string {
     case "ADMINISTRATOR":
       return "Administrator";
     case "TALENT_ACQUISITION":
-      return "Talent Acquisition Specialist";
+      return "Recruiter";
     case "APPLICANT":
       return "Applicant";
     default:
@@ -263,19 +263,19 @@ export function formatStage(stage?: string | null): string {
     case "SUBMITTED":
       return "Submitted";
     case "INITIAL_SCREENING":
-      return "Initial Screening";
+      return "Initial review";
     case "INTERVIEW":
       return "Interview";
     case "FINAL_INTERVIEW":
-      return "Final Interview";
+      return "Final interview";
     case "CLIENT_REVIEW":
-      return "Client Review";
+      return "Client review";
     case "COMPLIANCE":
-      return "Compliance";
+      return "Requirements";
     case "OFFER_EXTENDED":
       return "Offer Extended";
     case "HIRED":
-      return "Hired";
+      return "Requirements";
     case "REJECTED":
       return "Rejected";
     case "WITHDRAWN":

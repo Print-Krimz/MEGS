@@ -64,6 +64,9 @@ const normalizeTab = (tab: string | null): TabKey => {
       return "compliance";
     case "history":
     case "timeline":
+    case "decisions":
+    case "audit":
+    case "activity":
       return "history";
     default:
       return "evaluation";
@@ -172,6 +175,11 @@ export const ApplicationDetailPage: React.FC = () => {
   const [orientationModalOpen, setOrientationModalOpen] = useState(false);
   const [orientationDate, setOrientationDate] = useState("");
   const [orientationNotes, setOrientationNotes] = useState("");
+  const [isEducationExpanded, setIsEducationExpanded] = useState(true);
+  const [isSkillsExpanded, setIsSkillsExpanded] = useState(false);
+  const [manualRequirementsToggle, setManualRequirementsToggle] = useState<boolean | null>(null);
+  const [endorsementsExpanded, setEndorsementsExpanded] = useState(false);
+  const [isInterviewHistoryExpanded, setIsInterviewHistoryExpanded] = useState(false);
 
   // Queries
   const applicationQuery = useQuery({
@@ -836,15 +844,18 @@ export const ApplicationDetailPage: React.FC = () => {
   const canAdvanceToContractAndOrientation =
     isComplianceStage && !hasUnapprovedMandatoryCompliance && !isTerminal;
 
-  const isContractAndOrientationStage = app.status === ApplicationStatus.CONTRACT_AND_ORIENTATION;
-  const isContractSigned = Boolean(app.contractSigned);
-  const isOrientationCompleted = Boolean(app.orientationCompleted);
+  const isContractAndOrientationStage =
+    app.status === ApplicationStatus.CONTRACT_AND_ORIENTATION ||
+    app.status === ApplicationStatus.ONBOARDING ||
+    (app.status as string) === "ONBOARDING" ||
+    (app.status as string) === "HIRED";
+  const isContractSigned = Boolean(app.contractSigned || app.contractSignedAt);
+  const isOrientationCompleted = Boolean(app.orientationCompleted || app.orientationCompletedAt);
   const isReadyForDeployment =
-    (isContractAndOrientationStage || isComplianceStage) &&
+    !isTerminal &&
     !hasUnapprovedMandatoryCompliance &&
     isContractSigned &&
-    isOrientationCompleted &&
-    !isTerminal;
+    isOrientationCompleted;
   const canDeployCandidate = isReadyForDeployment;
 
   const totalCompReqs = app.complianceRequirements?.length || 0;
@@ -852,10 +863,66 @@ export const ApplicationDetailPage: React.FC = () => {
   const submittedCompReqs = (app.complianceRequirements || []).filter((r) => r.reviewStatus === "SUBMITTED").length;
   const missingCompReqs = (app.complianceRequirements || []).filter((r) => !r.documentId && r.reviewStatus !== "APPROVED").length;
 
-  const tabs: { id: TabKey; label: string; icon: React.FC<{ className?: string }> }[] = [
-    { id: "evaluation", label: "Candidate & Evaluation", icon: UserCheck },
-    { id: "compliance", label: "Compliance & Deployment", icon: ShieldCheck },
-    { id: "history", label: "Decisions & Audit", icon: History },
+  const isAllClearancesApproved = totalCompReqs > 0 && approvedCompReqs === totalCompReqs;
+  const requirementsListExpanded = manualRequirementsToggle !== null ? manualRequirementsToggle : !isAllClearancesApproved;
+  const setRequirementsListExpanded = (val: boolean | ((prev: boolean) => boolean)) => {
+    if (typeof val === "function") setManualRequirementsToggle(val(requirementsListExpanded));
+    else setManualRequirementsToggle(val);
+  };
+
+  const isPastClientReview =
+    !isPreScreeningOrScreening &&
+    app.status !== ApplicationStatus.CLIENT_ENDORSEMENT;
+
+  // Contextual attention badges for the 3 main tabs
+  const evaluationBadge = pendingScreeningInterview || pendingFinalInterview
+    ? "1 Interview"
+    : isPreScreeningOrScreening && !hasPassedScreening
+    ? "Review Needed"
+    : undefined;
+
+  const complianceBadge = canDeployCandidate
+    ? "Ready to Deploy"
+    : submittedCompReqs > 0
+    ? `${submittedCompReqs} Under Review`
+    : missingCompReqs > 0
+    ? `${missingCompReqs} Pending`
+    : undefined;
+
+  const tabs: {
+    id: TabKey;
+    label: string;
+    icon: React.FC<{ className?: string }>;
+    badge?: { text: string; variant: "success" | "warning" | "info" };
+  }[] = [
+    {
+      id: "evaluation",
+      label: "Candidate & Evaluation",
+      icon: UserCheck,
+      badge: evaluationBadge
+        ? {
+            text: evaluationBadge,
+            variant: evaluationBadge.includes("Interview") ? "info" : "warning",
+          }
+        : undefined,
+    },
+    {
+      id: "compliance",
+      label: "Compliance & Deployment",
+      icon: ShieldCheck,
+      badge: complianceBadge
+        ? {
+            text: complianceBadge,
+            variant:
+              complianceBadge === "Ready to Deploy"
+                ? "success"
+                : complianceBadge.includes("Review")
+                ? "info"
+                : "warning",
+          }
+        : undefined,
+    },
+    { id: "history", label: "Activity & Audit", icon: History },
   ];
 
   return (
@@ -926,18 +993,31 @@ export const ApplicationDetailPage: React.FC = () => {
       )}
 
       {/* Stage Progression & Highlights Banner */}
-      <div className="bg-white border border-slate-300 p-4 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2.5">
+      <div className="bg-white border border-slate-300 p-3.5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-2.5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
               <span className="text-[10px] font-mono font-bold uppercase text-slate-500">
-                Pipeline Status:
+                Pipeline:
               </span>
               <StatusBadge status={app.status} size="sm" />
-              <ScoreBadge score={scores?.finalFitScore ?? app.candidateFitScore ?? app.aiScore} size="md" />
-            </div>
-            <div className="text-[11px] text-slate-500 font-mono">
-              Submitted: {formatDate(app.createdAt)} • Email: {app.user?.email} • Phone: {profile?.mobileNumber || "N/A"}
+              <ScoreBadge score={scores?.finalFitScore ?? app.candidateFitScore ?? app.aiScore} size="sm" />
+              <span className="text-slate-300 hidden sm:inline">•</span>
+              <span className="text-[11px] text-slate-500">
+                Submitted {formatDate(app.createdAt)}
+              </span>
+              <span className="text-slate-300 hidden sm:inline">•</span>
+              <span className="text-[11px] text-slate-600 font-medium">
+                {app.user?.email}
+              </span>
+              {profile?.mobileNumber && (
+                <>
+                  <span className="text-slate-300 hidden sm:inline">•</span>
+                  <span className="text-[11px] text-slate-600">
+                    {profile.mobileNumber}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -1230,6 +1310,19 @@ export const ApplicationDetailPage: React.FC = () => {
                   }`}
                 />
                 <span>{tab.label}</span>
+                {tab.badge && (
+                  <span
+                    className={`ml-1 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold tracking-tight border ${
+                      tab.badge.variant === "success"
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        : tab.badge.variant === "info"
+                        ? "bg-blue-50 text-blue-800 border-blue-200"
+                        : "bg-amber-50 text-amber-800 border-amber-200"
+                    }`}
+                  >
+                    {tab.badge.text}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -1237,16 +1330,18 @@ export const ApplicationDetailPage: React.FC = () => {
 
         {/* Tab Body */}
         <div className="p-3.5 sm:p-6">
-                    {/* ========================================================================= */}
+          {/* ========================================================================= */}
           {/* TAB 1: CANDIDATE & EVALUATION */}
           {/* ========================================================================= */}
           {activeTab === "evaluation" && (
             <div className="space-y-8">
               {/* SECTION A: Candidate Demographics, Records & Inline Resume Viewer */}
-              <div className="space-y-4">
-                {/* Top-right control when Resume is Collapsed */}
+              <div id="eval-profile" className="space-y-4">
                 {!isResumeOpen && (
-                  <div className="flex justify-end">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+                    <span className="text-xs font-mono font-bold uppercase text-slate-500">
+                      Candidate Dossier & Profile
+                    </span>
                     <Button
                       variant="outline"
                       size="sm"
@@ -1330,7 +1425,7 @@ export const ApplicationDetailPage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* 2. Target Job Requisition */}
+                        {/* 2. Target Job Requisition & Suitability */}
                         <div className="space-y-3 pt-4 border-t border-slate-200">
                           <h4 className="text-xs font-mono font-bold uppercase text-slate-600 border-b border-slate-100 pb-2">
                             Target Job Requisition
@@ -1348,31 +1443,22 @@ export const ApplicationDetailPage: React.FC = () => {
                               <span className="text-slate-600 font-mono font-medium">Status:</span>
                               <span className="col-span-2 font-mono">{app.jobPosting?.status || "OPEN"}</span>
                             </div>
+                            <div className="grid grid-cols-3 items-center">
+                              <span className="text-slate-600 font-mono font-medium">
+                                <span>Suitability Match</span>:
+                              </span>
+                              <div className="col-span-2 flex items-center gap-2">
+                                <ScoreBadge score={scores?.finalFitScore ?? app.candidateFitScore ?? app.aiScore} size="sm" />
+                                <button
+                                  type="button"
+                                  onClick={() => document.getElementById("eval-qualifications")?.scrollIntoView({ behavior: "smooth" })}
+                                  className="text-[11px] text-teal-700 hover:underline font-mono cursor-pointer"
+                                >
+                                  Breakdown &darr;
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-
-                        {/* 3. Suitability Match */}
-                        <div className="space-y-2 pt-4 border-t border-slate-200">
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                            <h4 className="text-xs font-mono font-bold uppercase text-slate-600">
-                              Suitability Match
-                            </h4>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                document.getElementById("evaluation-ai-breakdown")?.scrollIntoView({ behavior: "smooth" });
-                              }}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-teal-50 text-teal-900 border border-teal-200 hover:bg-teal-100 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
-                              title="View detailed suitability breakdown below"
-                            >
-                              <Award className="w-3.5 h-3.5 text-teal-600" />
-                              <span>{scores?.finalFitScore ?? app.candidateFitScore ?? app.aiScore ?? "N/A"}/100</span>
-                              <span className="text-[11px] text-teal-700 font-sans ml-1">Breakdown &darr;</span>
-                            </button>
-                          </div>
-                          <p className="text-[11px] text-slate-500">
-                            Match score calculated from candidate qualifications, work history, and job requisition requirements.
-                          </p>
                         </div>
                       </div>
 
@@ -1403,14 +1489,25 @@ export const ApplicationDetailPage: React.FC = () => {
 
                         {/* 5. Educational Attainment */}
                         <div className="space-y-3 pt-4 border-t border-slate-200">
-                          <h4 className="text-xs font-mono font-bold uppercase text-slate-600 border-b border-slate-200 pb-2">
-                            Educational Attainment
-                          </h4>
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                            <h4 className="text-xs font-mono font-bold uppercase text-slate-600">
+                              Educational Attainment
+                            </h4>
+                            {profile?.educations && profile.educations.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setIsEducationExpanded(!isEducationExpanded)}
+                                className="text-[11px] font-mono text-teal-700 hover:underline cursor-pointer"
+                              >
+                                {isEducationExpanded ? "Show Compact" : `View All (${profile.educations.length})`}
+                              </button>
+                            )}
+                          </div>
                           {!profile?.educations || profile.educations.length === 0 ? (
                             <p className="text-xs text-slate-400">No education entries on file.</p>
                           ) : (
                             <div className="divide-y divide-slate-100">
-                              {profile.educations.map((edu: any) => (
+                              {(isEducationExpanded ? profile.educations : profile.educations.slice(0, 1)).map((edu: any) => (
                                 <div key={edu.id} className="py-2 text-xs">
                                   <span className="font-bold text-slate-900">{edu.degree}</span> • {edu.school}
                                   <div className="text-[11px] text-slate-400 font-mono">
@@ -1425,12 +1522,23 @@ export const ApplicationDetailPage: React.FC = () => {
 
                       {/* 6. Competencies & Skills (Appears after Work Experience and Education) */}
                       <div className={`space-y-3 pt-4 border-t border-slate-200 ${!isResumeOpen ? "md:col-span-2" : ""}`}>
-                        <h4 className="text-xs font-mono font-bold uppercase text-slate-600">
-                          Competencies & Skills
-                        </h4>
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <h4 className="text-xs font-mono font-bold uppercase text-slate-600">
+                            Competencies & Skills
+                          </h4>
+                          {profile?.skills && profile.skills.length > 8 && (
+                            <button
+                              type="button"
+                              onClick={() => setIsSkillsExpanded(!isSkillsExpanded)}
+                              className="text-[11px] font-mono text-teal-700 hover:underline cursor-pointer"
+                            >
+                              {isSkillsExpanded ? "Show Top 8" : `View All (${profile.skills.length})`}
+                            </button>
+                          )}
+                        </div>
                         <div className="flex flex-wrap gap-1.5">
                           {profile?.skills && profile.skills.length > 0 ? (
-                            profile.skills.map((s: any, idx) => (
+                            (isSkillsExpanded ? profile.skills : profile.skills.slice(0, 8)).map((s: any, idx) => (
                               <span
                                 key={idx}
                                 className="px-2 py-0.5 rounded-md bg-slate-100/90 text-slate-700 text-[11px] font-medium border border-slate-200"
@@ -1471,7 +1579,7 @@ export const ApplicationDetailPage: React.FC = () => {
               </div>
 
               {/* SECTION B: AI Suitability & Match Score Breakdown */}
-              <div id="evaluation-ai-breakdown" className="pt-6 border-t border-slate-200 space-y-6">
+              <div id="eval-qualifications" className="pt-6 border-t border-slate-200 space-y-6">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
@@ -1518,7 +1626,7 @@ export const ApplicationDetailPage: React.FC = () => {
 
                 {/* Candidate Assessment & Recommendation */}
                 {parsedAiAssessment && (
-                  <div className="border border-slate-300 bg-white shadow-xs rounded-md overflow-hidden">
+                  <div id="eval-assessment" className="border border-slate-300 bg-white shadow-xs rounded-md overflow-hidden">
                     <div className="px-4 py-3 bg-teal-50 border-b border-slate-300 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <FileCheck className="w-4 h-4 text-teal-800" />
@@ -1594,7 +1702,7 @@ export const ApplicationDetailPage: React.FC = () => {
               </div>
 
               {/* SECTION C: Interview Management */}
-              <div id="evaluation-interviews" className="pt-6 border-t border-slate-200 space-y-6">
+              <div id="eval-interviews" className="pt-6 border-t border-slate-200 space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
@@ -1607,19 +1715,30 @@ export const ApplicationDetailPage: React.FC = () => {
                       Track candidate interviews, evaluate outcomes, and log recruiter feedback
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    leftIcon={<Plus className="w-3.5 h-3.5 text-teal-600" />}
-                    onClick={() => {
-                      setInterviewType(InterviewType.INITIAL_SCREENING);
-                      setInterviewDate("");
-                      setInterviewNotes("");
-                      setInterviewModalOpen(true);
-                    }}
-                  >
-                    Schedule Interview
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {app.interviews && app.interviews.length > 2 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsInterviewHistoryExpanded(!isInterviewHistoryExpanded)}
+                      >
+                        {isInterviewHistoryExpanded ? "Show Recent (2)" : `View All (${app.interviews.length})`}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      leftIcon={<Plus className="w-3.5 h-3.5 text-teal-600" />}
+                      onClick={() => {
+                        setInterviewType(InterviewType.INITIAL_SCREENING);
+                        setInterviewDate("");
+                        setInterviewNotes("");
+                        setInterviewModalOpen(true);
+                      }}
+                    >
+                      Schedule Interview
+                    </Button>
+                  </div>
                 </div>
 
                 {!app.interviews || app.interviews.length === 0 ? (
@@ -1628,7 +1747,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100">
-                    {app.interviews.map((int) => {
+                    {(isInterviewHistoryExpanded ? app.interviews : app.interviews.slice(0, 2)).map((int) => {
                       const isPending = !int.result || int.result === "PENDING" || int.result === "SCHEDULED";
                       const isPassed = int.result === "PASS" || int.result === "PASSED";
                       const isFailed = int.result === "FAIL" || int.result === "FAILED";
@@ -1708,7 +1827,7 @@ export const ApplicationDetailPage: React.FC = () => {
               </div>
 
               {/* SECTION D: Similar Talent in Pool (Collapsible Drawer / Section) */}
-              <div id="evaluation-similar-pool" className="pt-6 border-t border-slate-200 space-y-4">
+              <div id="eval-similar-pool" className="pt-6 border-t border-slate-200 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
@@ -1836,87 +1955,172 @@ export const ApplicationDetailPage: React.FC = () => {
           {/* ========================================================================= */}
           {activeTab === "compliance" && (
             <div className="space-y-8">
-              {/* SECTION A: Client Endorsements & Client Review Status */}
-              <div id="compliance-endorsements-section" className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-teal-600" />
-                      <h3 className="text-sm font-bold text-slate-900">Client Endorsement Records</h3>
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
-                        {app.clientEndorsements?.length || 0} Records
+              {/* ========================================================================= */}
+              {/* SECTION 1: Client Endorsements & Presentation History */}
+              {/* ========================================================================= */}
+              <div id="compliance-endorsements-section" className="space-y-4">
+                {isPastClientReview && (!app.clientEndorsements || app.clientEndorsements.length === 0) ? (
+                  <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className="font-semibold text-slate-800">Client Endorsement:</span>
+                      <span className="text-slate-500">None Recorded</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      leftIcon={<Plus className="w-3.5 h-3.5" />}
+                      onClick={() => {
+                        setManualClientId(linkedClientId || null);
+                        setEndorseOutcome("PENDING");
+                        setEndorseNotes("");
+                        setEndorseModalOpen(true);
+                      }}
+                    >
+                      Record Endorsement
+                    </Button>
+                  </div>
+                ) : isPastClientReview && !endorsementsExpanded ? (
+                  <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Building2 className="w-4 h-4 text-teal-600 shrink-0" />
+                      <span className="font-semibold text-slate-800">Client Endorsement:</span>
+                      {isClientApproved ? (
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                          ✓ {latestEndorsement?.client?.name || "Client"} (Accepted)
+                        </span>
+                      ) : isClientDeclined ? (
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-800 border border-rose-200">
+                          ✕ {latestEndorsement?.client?.name || "Client"} (Declined)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                          {latestEndorsement?.client?.name || "Client"} (Pending)
+                        </span>
+                      )}
+                      <span className="text-slate-400 text-[11px] hidden sm:inline font-mono">
+                        ({app.clientEndorsements?.length || 0} {(app.clientEndorsements?.length || 0) === 1 ? "record" : "records"})
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500">
-                      Candidate presentations to client hiring managers and endorsement decisions
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    leftIcon={<Plus className="w-3.5 h-3.5" />}
-                    onClick={() => {
-                      setManualClientId(linkedClientId || null);
-                      setEndorseOutcome("PENDING");
-                      setEndorseNotes("");
-                      setEndorseModalOpen(true);
-                    }}
-                  >
-                    Record Endorsement
-                  </Button>
-                </div>
-
-                {!app.clientEndorsements || app.clientEndorsements.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-slate-400 bg-slate-50/50 rounded-md border border-dashed border-slate-200">
-                    No endorsements recorded. Candidates must pass initial screening before client presentation.
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEndorsementsExpanded(true)}
+                      >
+                        Details ({app.clientEndorsements?.length || 0}) ↓
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={<Plus className="w-3.5 h-3.5" />}
+                        onClick={() => {
+                          setManualClientId(linkedClientId || null);
+                          setEndorseOutcome("PENDING");
+                          setEndorseNotes("");
+                          setEndorseModalOpen(true);
+                        }}
+                      >
+                        Record
+                      </Button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-100">
-                    {app.clientEndorsements.map((end) => (
-                      <div key={end.id} className="py-4 flex items-start justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-900">{end.client?.name || "Client"}</span>
-                            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
-                              end.outcome === "APPROVED" || end.outcome === "ENDORSED"
-                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                : end.outcome === "DECLINED"
-                                ? "bg-rose-50 text-rose-800 border-rose-200"
-                                : "bg-amber-50 text-amber-800 border-amber-200"
-                            }`}>
-                              {end.outcome === "APPROVED" || end.outcome === "ENDORSED"
-                                ? "APPROVED (Client Accepted)"
-                                : end.outcome === "DECLINED"
-                                ? "DECLINED (Client Rejected)"
-                                : "PENDING (Under Review)"}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-slate-400 font-mono">Endorsed on {formatDate(end.createdAt)}</div>
-                          {end.notes && <p className="text-xs text-slate-600 mt-1">{end.notes}</p>}
+                  <div className="space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-teal-600" />
+                          <h3 className="text-sm font-bold text-slate-900">Client Endorsement Records</h3>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+                            {app.clientEndorsements?.length || 0} Records
+                          </span>
                         </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
+                        <p className="text-xs text-slate-500">
+                          Candidate presentations to client hiring managers and endorsement decisions
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isPastClientReview && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              setSelectedEndorsementId(end.id);
-                              setSelectedEndorsementClientName(end.client?.name || "Client");
-                              setUpdateEndorsementOutcome(end.outcome as any);
-                              setUpdateEndorsementNotes(end.notes || "");
-                              setUpdateEndorsementModalOpen(true);
-                            }}
+                            onClick={() => setEndorsementsExpanded(false)}
                           >
-                            Update Client Acceptance
+                            Hide Details ↑
                           </Button>
-                        </div>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leftIcon={<Plus className="w-3.5 h-3.5" />}
+                          onClick={() => {
+                            setManualClientId(linkedClientId || null);
+                            setEndorseOutcome("PENDING");
+                            setEndorseNotes("");
+                            setEndorseModalOpen(true);
+                          }}
+                        >
+                          Record Endorsement
+                        </Button>
                       </div>
-                    ))}
+                    </div>
+
+                    {!app.clientEndorsements || app.clientEndorsements.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-slate-400 bg-slate-50/50 rounded-md border border-dashed border-slate-200">
+                        No endorsements recorded. Candidates must pass initial screening before client presentation.
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-100">
+                        {app.clientEndorsements.map((end) => (
+                          <div key={end.id} className="py-4 flex items-start justify-between gap-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-900">{end.client?.name || "Client"}</span>
+                                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                                  end.outcome === "APPROVED" || end.outcome === "ENDORSED"
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                    : end.outcome === "DECLINED"
+                                    ? "bg-rose-50 text-rose-800 border-rose-200"
+                                    : "bg-amber-50 text-amber-800 border-amber-200"
+                                }`}>
+                                  {end.outcome === "APPROVED" || end.outcome === "ENDORSED"
+                                    ? "APPROVED (Client Accepted)"
+                                    : end.outcome === "DECLINED"
+                                    ? "DECLINED (Client Rejected)"
+                                    : "PENDING (Under Review)"}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono">Endorsed on {formatDate(end.createdAt)}</div>
+                              {end.notes && <p className="text-xs text-slate-600 mt-1">{end.notes}</p>}
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedEndorsementId(end.id);
+                                  setSelectedEndorsementClientName(end.client?.name || "Client");
+                                  setUpdateEndorsementOutcome(end.outcome as any);
+                                  setUpdateEndorsementNotes(end.notes || "");
+                                  setUpdateEndorsementModalOpen(true);
+                                }}
+                              >
+                                Update Client Acceptance
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* SECTION B: 201 Pre-employment Clearances & Document Checklist */}
+              {/* ========================================================================= */}
+              {/* SECTION 2: 201 Pre-employment Clearances & Document Checklist */}
+              {/* ========================================================================= */}
               <div id="compliance-checklist-section" className="pt-6 border-t border-slate-200 space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   <div className="space-y-0.5">
@@ -1931,37 +2135,28 @@ export const ApplicationDetailPage: React.FC = () => {
                       Standard statutory clearances (NBI, SSS, PhilHealth, Pag-IBIG, Medical, Contract) required before field deployment
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    leftIcon={<Plus className="w-3.5 h-3.5" />}
-                    onClick={() => {
-                      setComplianceDocLabel("");
-                      setComplianceDeadline(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
-                      setComplianceModalOpen(true);
-                    }}
-                  >
-                    Add Custom Requirement
-                  </Button>
-                </div>
-
-                {/* Compliance Status Progress Counters */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 p-3 rounded-md text-xs font-mono">
-                  <div className="space-y-0.5">
-                    <span className="text-slate-400 uppercase text-[10px] block">Total Required</span>
-                    <span className="text-sm font-bold text-slate-900">{totalCompReqs} Documents</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-emerald-600 uppercase text-[10px] block">Approved</span>
-                    <span className="text-sm font-bold text-emerald-700">{approvedCompReqs} / {totalCompReqs}</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-blue-600 uppercase text-[10px] block">Under Review</span>
-                    <span className="text-sm font-bold text-blue-700">{submittedCompReqs}</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-amber-600 uppercase text-[10px] block">Awaiting Upload</span>
-                    <span className="text-sm font-bold text-amber-700">{missingCompReqs}</span>
+                  <div className="flex items-center gap-2">
+                    {app.complianceRequirements && app.complianceRequirements.length > 0 && (!isAllClearancesApproved || requirementsListExpanded) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRequirementsListExpanded(!requirementsListExpanded)}
+                      >
+                        {requirementsListExpanded ? "Collapse Requirements" : `View Requirements (${app.complianceRequirements.length})`}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      leftIcon={<Plus className="w-3.5 h-3.5" />}
+                      onClick={() => {
+                        setComplianceDocLabel("");
+                        setComplianceDeadline(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+                        setComplianceModalOpen(true);
+                      }}
+                    >
+                      Add Requirement
+                    </Button>
                   </div>
                 </div>
 
@@ -1969,165 +2164,252 @@ export const ApplicationDetailPage: React.FC = () => {
                   <div className="py-8 text-center text-xs text-slate-400 bg-slate-50/50 rounded-md border border-dashed border-slate-200">
                     No compliance requirements generated yet. Standard checklist is created automatically upon hiring.
                   </div>
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {app.complianceRequirements.map((req) => (
-                      <div key={req.id} className="py-3 flex items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-900">{req.documentLabel}</span>
-                            {req.isRequired && (
-                              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
-                                MANDATORY
-                              </span>
-                            )}
-                            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
-                              req.reviewStatus === "APPROVED" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" :
-                              req.reviewStatus === "REJECTED" ? "bg-rose-50 text-rose-800 border border-rose-200" :
-                              req.reviewStatus === "SUBMITTED" ? "bg-blue-50 text-blue-800 border border-blue-200" :
-                              "bg-slate-100 text-slate-700 border border-slate-200"
-                            }`}>
-                              {req.reviewStatus === "SUBMITTED" ? "UNDER REVIEW" : req.reviewStatus}
-                            </span>
-                          </div>
-                          {(() => {
-                            const now = new Date();
-                            const deadlineDate = req.deadline ? new Date(req.deadline) : null;
-                            const isOverdue = deadlineDate && deadlineDate < now && req.reviewStatus !== "APPROVED";
-                            const diffDays = deadlineDate ? Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
-                            const isDueSoon = diffDays !== null && diffDays >= 0 && diffDays <= 3 && req.reviewStatus !== "APPROVED";
-
-                            if (!deadlineDate) {
-                              return (
-                                <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
-                                  <span>No deadline set</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditDeadlineReqId(req.id);
-                                      setEditDeadlineDate(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
-                                      setEditDeadlineModalOpen(true);
-                                    }}
-                                    className="text-teal-600 hover:underline text-[10px] ml-1 cursor-pointer font-sans"
-                                  >
-                                    + Set Deadline
-                                  </button>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div className="flex items-center flex-wrap gap-1.5 text-[11px] font-mono">
-                                <span className={isOverdue ? "text-rose-600 font-bold" : isDueSoon ? "text-amber-700 font-bold" : "text-slate-500"}>
-                                  Deadline: {formatDate(req.deadline)}
-                                </span>
-                                {isOverdue && (
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
-                                    OVERDUE
-                                  </span>
-                                )}
-                                {isDueSoon && (
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
-                                    DUE IN ${diffDays} ${diffDays === 1 ? "DAY" : "DAYS"}
-                                  </span>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditDeadlineReqId(req.id);
-                                    setEditDeadlineDate(new Date(req.deadline!).toISOString().split('T')[0]);
-                                    setEditDeadlineModalOpen(true);
-                                  }}
-                                  className="text-slate-400 hover:text-teal-600 text-[10px] underline ml-1 cursor-pointer font-sans"
-                                  title="Adjust or extend deadline"
-                                >
-                                  Edit
-                                </button>
-                              </div>
-                            );
-                          })()}
-                          {req.reviewNotes && <p className="text-xs text-slate-500 italic">Reviewer note: {req.reviewNotes}</p>}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {req.documentId ? (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                leftIcon={<Eye className="w-3.5 h-3.5 text-slate-600" />}
-                                onClick={() => {
-                                  setPreviewDocState({
-                                    open: true,
-                                    documentId: req.documentId,
-                                    title: req.documentLabel,
-                                    requirementId: req.id,
-                                    requirementStatus: req.reviewStatus,
-                                  });
-                                }}
-                              >
-                                View
-                              </Button>
-                              {req.reviewStatus !== "APPROVED" && (
-                                <Button
-                                  variant="primary"
-                                  size="sm"
-                                  leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
-                                  loading={reviewComplianceMutation.isPending && reviewReqId === req.id && reviewReqStatus === "APPROVED"}
-                                  onClick={() => {
-                                    setReviewReqId(req.id);
-                                    setReviewReqStatus("APPROVED");
-                                    reviewComplianceMutation.mutate({
-                                      id: req.id,
-                                      data: { reviewStatus: "APPROVED" },
-                                    });
-                                  }}
-                                >
-                                  Approve
-                                </Button>
-                              )}
-                              {req.reviewStatus !== "REJECTED" && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="border-rose-300 text-rose-700 hover:bg-rose-50"
-                                  leftIcon={<XCircle className="w-3.5 h-3.5 text-rose-600" />}
-                                  onClick={() => {
-                                    setReviewReqId(req.id);
-                                    setReviewReqStatus("REJECTED");
-                                    setReviewReqNotes(req.reviewNotes || "");
-                                  }}
-                                >
-                                  Reject
-                                </Button>
-                              )}
-                            </>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-mono text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                                Awaiting Upload
-                              </span>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setReviewReqId(req.id);
-                                  setReviewReqStatus(req.reviewStatus === "REJECTED" ? "REJECTED" : "APPROVED");
-                                  setReviewReqNotes(req.reviewNotes || "");
-                                }}
-                              >
-                                Review
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                ) : isAllClearancesApproved && !requirementsListExpanded ? (
+                  <div className="flex items-center justify-between p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-md text-xs font-mono text-emerald-900">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="font-semibold">All {totalCompReqs} Pre-Employment Clearances Approved</span>
+                      <span className="text-slate-300">•</span>
+                      <span className="text-emerald-800 font-normal">All clearances verified · Ready for contract</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-emerald-300 text-emerald-800 hover:bg-emerald-100"
+                      onClick={() => setRequirementsListExpanded(true)}
+                    >
+                      View Requirements ({totalCompReqs})
+                    </Button>
                   </div>
+                ) : (
+                  <>
+                    {/* Simplified Requirements Summary Hierarchy (Point 5) */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-50 border border-slate-200 rounded-md text-xs font-mono">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-slate-900 text-sm">
+                          {approvedCompReqs} / {totalCompReqs} requirements approved
+                        </span>
+                        <span className="text-slate-400">•</span>
+                        <span className="text-slate-600">
+                          {submittedCompReqs} awaiting review · {missingCompReqs} missing
+                        </span>
+                      </div>
+                      {hasUnapprovedMandatoryCompliance ? (
+                        <span className="text-[11px] font-semibold text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          Clearances pending verification
+                        </span>
+                      ) : totalCompReqs > 0 && approvedCompReqs === totalCompReqs ? (
+                        <span className="text-[11px] font-semibold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          ✓ All clearances verified · Ready for contract
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {requirementsListExpanded && (
+                      <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+                        {app.complianceRequirements.map((req) => {
+                          const isApproved = req.reviewStatus === "APPROVED";
+                          const isRejected = req.reviewStatus === "REJECTED";
+                          const isUnderReview = !isApproved && !isRejected && Boolean(req.documentId || req.reviewStatus === "SUBMITTED");
+
+                          const now = new Date();
+                          const deadlineDate = req.deadline ? new Date(req.deadline) : null;
+                          const isOverdue = deadlineDate && deadlineDate < now && !isApproved;
+                          const diffDays = deadlineDate ? Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                          const isDueSoon = diffDays !== null && diffDays >= 0 && diffDays <= 3 && !isApproved;
+
+                          return (
+                            <div
+                              key={req.id}
+                              className={`p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                                isApproved ? "bg-white" : isDueSoon || isOverdue ? "bg-amber-50/20" : "bg-white"
+                              }`}
+                            >
+                              {/* Left: Icon + Title + Secondary Metadata */}
+                              <div className="flex items-start gap-2.5 min-w-0">
+                                <div className="shrink-0 mt-0.5">
+                                  {isApproved ? (
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                  ) : isRejected ? (
+                                    <XCircle className="w-4 h-4 text-rose-600" />
+                                  ) : isUnderReview ? (
+                                    <Clock className="w-4 h-4 text-blue-600" />
+                                  ) : (
+                                    <FileText className="w-4 h-4 text-slate-400" />
+                                  )}
+                                </div>
+
+                                <div className="space-y-0.5 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-bold text-slate-900">{req.documentLabel}</span>
+                                    {!req.isRequired && (
+                                      <span className="text-[10px] font-sans font-normal text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                        Optional
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center flex-wrap gap-2 text-[11px] font-mono">
+                                    {deadlineDate ? (
+                                      <>
+                                        <span className="text-slate-600">
+                                          Deadline: {formatDate(req.deadline)}
+                                        </span>
+                                        {isOverdue && (
+                                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-900 border border-rose-300">
+                                            OVERDUE
+                                          </span>
+                                        )}
+                                        {isDueSoon && (
+                                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                                            DUE IN {diffDays} {diffDays === 1 ? "DAY" : "DAYS"}
+                                          </span>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditDeadlineReqId(req.id);
+                                            setEditDeadlineDate(new Date(req.deadline!).toISOString().split('T')[0]);
+                                            setEditDeadlineModalOpen(true);
+                                          }}
+                                          className="text-slate-500 hover:text-teal-700 text-xs font-sans font-medium underline underline-offset-2 cursor-pointer transition-colors"
+                                          title="Adjust or extend deadline"
+                                        >
+                                          Edit
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="text-slate-500">No deadline set</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditDeadlineReqId(req.id);
+                                            setEditDeadlineDate(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+                                            setEditDeadlineModalOpen(true);
+                                          }}
+                                          className="text-slate-500 hover:text-teal-700 text-xs font-sans font-medium underline underline-offset-2 cursor-pointer transition-colors"
+                                        >
+                                          + Set Deadline
+                                        </button>
+                                      </>
+                                    )}
+
+                                    {isApproved && !req.documentId && (
+                                      <span className="text-emerald-700 font-sans">• Clearance verified</span>
+                                    )}
+                                  </div>
+
+                                  {req.reviewNotes && (
+                                    <p className="text-[11px] text-slate-600 italic mt-0.5">
+                                      Reviewer note: {req.reviewNotes}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Right: Exactly ONE status badge, then action buttons */}
+                              <div className="flex items-center gap-2.5 self-end sm:self-center shrink-0">
+                                <span
+                                  className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md uppercase tracking-wide border ${
+                                    isApproved
+                                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                      : isRejected
+                                      ? "bg-rose-50 text-rose-800 border-rose-200"
+                                      : isUnderReview
+                                      ? "bg-blue-50 text-blue-800 border-blue-200"
+                                      : "bg-slate-100 text-slate-600 border-slate-200"
+                                  }`}
+                                >
+                                  {isApproved
+                                    ? "APPROVED"
+                                    : isRejected
+                                    ? "REJECTED"
+                                    : isUnderReview
+                                    ? "UNDER REVIEW"
+                                    : req.isRequired
+                                    ? "NOT SUBMITTED"
+                                    : "OPTIONAL"}
+                                </span>
+
+                                {req.documentId ? (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      leftIcon={<Eye className="w-3.5 h-3.5 text-slate-600" />}
+                                      onClick={() => {
+                                        setPreviewDocState({
+                                          open: true,
+                                          documentId: req.documentId,
+                                          title: req.documentLabel,
+                                          requirementId: req.id,
+                                          requirementStatus: req.reviewStatus,
+                                        });
+                                      }}
+                                    >
+                                      View
+                                    </Button>
+                                    {!isApproved && (
+                                      <Button
+                                        variant="primary"
+                                        size="sm"
+                                        leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                                        loading={reviewComplianceMutation.isPending && reviewReqId === req.id && reviewReqStatus === "APPROVED"}
+                                        onClick={() => {
+                                          setReviewReqId(req.id);
+                                          setReviewReqStatus("APPROVED");
+                                          reviewComplianceMutation.mutate({
+                                            id: req.id,
+                                            data: { reviewStatus: "APPROVED" },
+                                          });
+                                        }}
+                                      >
+                                        Approve
+                                      </Button>
+                                    )}
+                                    {!isRejected && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-rose-300 text-rose-700 hover:bg-rose-50"
+                                        leftIcon={<XCircle className="w-3.5 h-3.5 text-rose-600" />}
+                                        onClick={() => {
+                                          setReviewReqId(req.id);
+                                          setReviewReqStatus("REJECTED");
+                                          setReviewReqNotes(req.reviewNotes || "");
+                                        }}
+                                      >
+                                        Reject
+                                      </Button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setReviewReqId(req.id);
+                                      setReviewReqStatus(req.reviewStatus === "REJECTED" ? "REJECTED" : "APPROVED");
+                                      setReviewReqNotes(req.reviewNotes || "");
+                                    }}
+                                  >
+                                    Review
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
-              {/* SECTION C: Contract Signing & Orientation Completion + Final Workforce Deployment */}
+              {/* ========================================================================= */}
+              {/* SECTION 3: Contract Signing & Orientation Completion + Final Workforce Deployment */}
+              {/* ========================================================================= */}
               <div id="compliance-onboarding-section" className="pt-6 border-t border-slate-200 space-y-4">
                 <div className="border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
@@ -2192,17 +2474,17 @@ export const ApplicationDetailPage: React.FC = () => {
           )}
 
           {/* ========================================================================= */}
-          {/* TAB 3: DECISIONS & AUDIT */}
+          {/* TAB 3: ACTIVITY & AUDIT */}
           {/* ========================================================================= */}
           {activeTab === "history" && (
             <div className="space-y-6">
               <div className="border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <History className="w-4 h-4 text-teal-600" />
-                  <h3 className="text-sm font-bold text-slate-900">Immutable Recruiter Decision Log</h3>
+                  <h3 className="text-sm font-bold text-slate-900">Activity & Audit Trail</h3>
                 </div>
                 <p className="text-xs text-slate-500">
-                  Audit trail of pipeline transitions and administrative actions
+                  Chronological record of recruiter decisions, pipeline status changes, and administrative actions
                 </p>
               </div>
 
@@ -2214,25 +2496,29 @@ export const ApplicationDetailPage: React.FC = () => {
                 <div className="space-y-4 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-slate-200">
                   {decisions.map((dec) => (
                     <div key={dec.id} className="flex items-start gap-4 relative">
-                      <div className="w-7 h-7 rounded-full bg-teal-50 border-2 border-teal-600 flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-7 h-7 rounded-full bg-teal-50 border-2 border-teal-600 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
                         <History className="w-3.5 h-3.5 text-teal-700" />
                       </div>
-                      <div className="p-3 bg-slate-50 rounded-md border border-slate-200 flex-1 space-y-1 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-900">
-                            {dec.fromStatus} → {dec.toStatus}
+                      <div className="p-3.5 bg-white rounded-md border border-slate-200 shadow-xs flex-1 space-y-2 text-xs">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="inline-flex items-center gap-1.5 font-mono font-bold text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-900 border border-slate-200">
+                            <span>{dec.fromStatus}</span>
+                            <span className="text-slate-400">→</span>
+                            <span className="text-teal-700">{dec.toStatus}</span>
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
+                          <span className="text-[11px] text-slate-400 font-mono">
                             {formatDateTime(dec.createdAt)}
                           </span>
                         </div>
-                        <div className="text-[11px] text-slate-500 font-mono">
-                          Action by: {dec.actor?.email || dec.actorId}
+                        <div className="text-[11px] text-slate-600 font-mono flex items-center gap-1.5">
+                          <span className="text-slate-400">Actor:</span>
+                          <span className="font-semibold text-slate-800">{dec.actor?.email || dec.actorId}</span>
                         </div>
                         {dec.reason && (
-                          <p className="text-xs text-slate-700 mt-1 leading-relaxed">
-                            Rationale: "{dec.reason}"
-                          </p>
+                          <div className="p-2.5 bg-slate-50 rounded-md border border-slate-200 text-slate-700 leading-relaxed font-sans text-xs">
+                            <span className="font-bold text-slate-500 block text-[10px] font-mono uppercase mb-0.5">Rationale:</span>
+                            "{dec.reason}"
+                          </div>
                         )}
                       </div>
                     </div>
@@ -2786,15 +3072,23 @@ export const ApplicationDetailPage: React.FC = () => {
                 </div>
                 {selectedReq?.documentId ? (
                   <div className="pt-1">
-                    <a
-                      href={`/api/documents/${selectedReq.documentId}/download`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 font-mono text-blue-600 hover:text-blue-800 underline font-semibold"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReviewReqId(null);
+                        setPreviewDocState({
+                          open: true,
+                          documentId: selectedReq.documentId,
+                          requirementId: selectedReq.id,
+                          title: selectedReq.documentLabel,
+                          requirementStatus: selectedReq.reviewStatus,
+                        });
+                      }}
+                      className="inline-flex items-center gap-1 font-mono text-blue-600 hover:text-blue-800 underline font-semibold cursor-pointer"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                       Open / Inspect Uploaded Document
-                    </a>
+                    </button>
                   </div>
                 ) : (
                   <div className="text-amber-700 text-[11px] font-mono">
@@ -3104,12 +3398,12 @@ export const ApplicationDetailPage: React.FC = () => {
         </div>
       </Dialog>
 
-      {/* Record Candidate Orientation Modal */}
+      {/* Record Corporate Orientation Modal */}
       <Dialog
         open={orientationModalOpen}
         onClose={() => setOrientationModalOpen(false)}
-        title="Record Candidate Orientation"
-        description={`Record company and site onboarding orientation for ${candidateName}`}
+        title="Record Corporate Orientation"
+        description={`Record company policy briefing and job site orientation for ${candidateName}`}
       >
         <div className="space-y-4">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1 font-mono">
@@ -3145,7 +3439,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 })
               }
             >
-              Confirm Orientation Completed
+              Record Orientation
             </Button>
           </div>
         </div>

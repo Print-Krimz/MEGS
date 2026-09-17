@@ -10,7 +10,7 @@ import {
   Pagination,
 } from "../../components/common";
 import { Button } from "../../components/ui";
-import { formatRelativeTime, formatNotificationMessage } from "../../lib/utils";
+import { formatRelativeTime, formatNotificationMessage, formatNotificationTitle, resolveNotificationLink } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
 import {
@@ -20,7 +20,6 @@ import {
   Briefcase,
   ShieldCheck,
   Check,
-  ArrowUpRight,
   ExternalLink,
 } from "lucide-react";
 
@@ -65,7 +64,7 @@ export const NotificationsPage: React.FC = () => {
     if (user?.role === Role.TALENT_ACQUISITION) {
       return {
         title: "Notifications",
-        description: "Stay informed about applications, interview targets (SLA), and important updates.",
+         description: "Stay informed about applications, interview reminders, and important updates.",
         breadcrumbs: [
           { label: "Talent acquisition", href: "/ta" },
           { label: "Notifications" },
@@ -75,7 +74,7 @@ export const NotificationsPage: React.FC = () => {
     if (user?.role === Role.ADMINISTRATOR) {
       return {
         title: "Notifications",
-        description: "Stay informed about access, score reviews, and important updates.",
+         description: "Stay informed about access, matching, hiring requests, and important updates.",
         breadcrumbs: [
           { label: "Administration", href: "/admin" },
           { label: "Notifications" },
@@ -98,13 +97,13 @@ export const NotificationsPage: React.FC = () => {
     switch (type) {
       case "INTERVIEW_SCHEDULED":
       case "INTERVIEW_SLA":
-        return <Calendar className="w-4 h-4 text-blue-600" />;
+        return <Calendar className="w-4 h-4 text-[#5B3FD6]" />;
       case "APPLICATION_STATUS":
-        return <Briefcase className="w-4 h-4 text-[#0F294A]" />;
+        return <Briefcase className="w-4 h-4 text-[#0B315D]" />;
       case "COMPLIANCE_REQUIRED":
-        return <ShieldCheck className="w-4 h-4 text-amber-600" />;
+        return <ShieldCheck className="w-4 h-4 text-[#B45309]" />;
       default:
-        return <Bell className="w-4 h-4 text-slate-500" />;
+        return <Bell className="w-4 h-4 text-[#627D98]" />;
     }
   };
 
@@ -131,31 +130,33 @@ export const NotificationsPage: React.FC = () => {
       />
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+      <div className="flex items-center gap-2 border-b border-[#D9E2EC] pb-3">
         <button
           type="button"
+          aria-pressed={!filterUnread}
           onClick={() => {
             setFilterUnread(false);
             setPage(1);
           }}
           className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
             !filterUnread
-              ? "bg-[#0F294A] text-white shadow-xs"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              ? "bg-[#0B315D] text-white shadow-xs"
+              : "text-[#627D98] hover:text-[#102A43] hover:bg-[#EAF0F7]"
           }`}
         >
-          All Notifications ({notifications.length})
+           {notificationsQuery.isLoading ? "All notifications" : `All notifications (${notifications.length})`}
         </button>
         <button
           type="button"
+          aria-pressed={filterUnread}
           onClick={() => {
             setFilterUnread(true);
             setPage(1);
           }}
           className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
             filterUnread
-              ? "bg-[#0F294A] text-white shadow-xs"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              ? "bg-[#0B315D] text-white shadow-xs"
+              : "text-[#627D98] hover:text-[#102A43] hover:bg-[#EAF0F7]"
           }`}
         >
           Unread Only
@@ -171,9 +172,9 @@ export const NotificationsPage: React.FC = () => {
           onRetry={() => notificationsQuery.refetch()}
         />
       ) : notifications.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
+        <div className="bg-white rounded-xl border border-[#D9E2EC] p-8 shadow-xs">
           <EmptyState
-            icon={<Bell className="w-6 h-6 text-slate-500" />}
+            icon={<Bell className="w-6 h-6 text-[#627D98]" />}
             title="No notifications to show"
             description={
               filterUnread
@@ -184,59 +185,54 @@ export const NotificationsPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs divide-y divide-slate-100 overflow-hidden">
-            {paginatedNotifications.map((n) => (
-              <div
-                key={n.id}
-                onClick={() => {
-                  if (!n.isRead) markReadMutation.mutate(n.id);
-                  if (n.link) navigate({ to: n.link as any });
-                }}
-                className={`p-4 flex items-start justify-between gap-4 transition-colors cursor-pointer ${
-                  !n.isRead ? "bg-[#E8EEF6]/40" : "hover:bg-slate-50/60"
+          <div className="bg-white rounded-xl border border-[#D9E2EC] shadow-xs divide-y divide-[#D9E2EC] overflow-hidden">
+             {paginatedNotifications.map((n) => {
+               const notificationLink = resolveNotificationLink(n.link, user?.role);
+               return (
+                   <div
+                     key={n.id}
+                className={`p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 transition-colors ${
+                  !n.isRead ? "bg-[#EAF0F7]/50" : "hover:bg-[#F7F9FC]"
                 }`}
               >
-                <div className="flex items-start gap-3 flex-1">
-                  <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 shrink-0 mt-0.5">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="p-2 rounded-lg bg-[#F7F9FC] border border-[#D9E2EC] shrink-0 mt-0.5">
                     {getIconForType(n.type)}
                   </div>
                   <div className="space-y-1 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-900">{n.title}</span>
-                      {!n.isRead && (
-                        <span className="w-2 h-2 rounded-full bg-[#0F294A] shrink-0" />
-                      )}
-                      {n.link && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium text-[#0F294A] bg-[#E8EEF6] border border-[#0F294A]/20 px-1.5 py-0.5 rounded">
-                          <span>View Record</span>
-                          <ArrowUpRight className="w-3 h-3" />
-                        </span>
-                      )}
+                      <span className="text-sm font-semibold text-[#102A43]">{formatNotificationTitle(n.title, user?.role)}</span>
+                       {!n.isRead && (
+                         <span className="inline-flex items-center gap-1 text-xs font-medium text-[#0B315D]">
+                           <span className="w-2 h-2 rounded-full bg-[#0B315D] shrink-0" aria-hidden="true" />
+                           <span className="sr-only">Unread</span>
+                         </span>
+                       )}
                     </div>
-                    <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
+                    <p className="text-xs text-[#627D98] leading-relaxed max-w-2xl">
                       {formatNotificationMessage(n.message, user?.role)}
                     </p>
-                    <div className="text-[10px] text-slate-400 font-mono">
+                  <div className="text-xs text-[#627D98]">
                       {formatRelativeTime(n.createdAt)}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  {n.link && (
-                    <Button
+                <div className="flex flex-wrap items-center gap-2 shrink-0 pl-11 sm:pl-0">
+                   {notificationLink && (
+                       <Button
                       variant="outline"
                       size="sm"
                       rightIcon={<ExternalLink className="w-3.5 h-3.5" />}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!n.isRead) markReadMutation.mutate(n.id);
-                        navigate({ to: n.link as any });
+                         navigate({ to: notificationLink as any });
                       }}
-                      title="Open linked record"
-                      className="text-slate-700 text-xs hidden sm:flex"
+                       title="View linked record"
+                       className="text-[#102A43] text-sm"
                     >
-                      Open
+                       View details
                     </Button>
                   )}
                   {!n.isRead && (
@@ -250,18 +246,19 @@ export const NotificationsPage: React.FC = () => {
                         markReadMutation.mutate(n.id);
                       }}
                       title="Mark as read"
-                      className="text-[#0F294A] hover:text-[#163B66] shrink-0"
+                      className="text-[#0B315D] hover:text-[#082747] hover:bg-[#EAF0F7] shrink-0"
                     >
                       Mark read
                     </Button>
                   )}
                 </div>
               </div>
-            ))}
+             );
+             })}
           </div>
 
           {/* Pagination */}
-          <div className="bg-white border border-slate-300 p-2">
+          <div className="bg-white border border-[#D9E2EC] p-2">
             <Pagination
               currentPage={page}
               totalPages={totalPages}

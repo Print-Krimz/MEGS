@@ -1,6 +1,7 @@
 import React from "react";
 import { Filter, CheckCircle2 } from "lucide-react";
 import type { FunnelAnalytics } from "../../lib/types/analytics.types";
+import { formatAdminPipelineStage } from "../../lib/admin-copy";
 
 interface RecruitmentFunnelProps {
   data?: FunnelAnalytics;
@@ -10,8 +11,8 @@ interface RecruitmentFunnelProps {
 
 export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
   data,
-  title = "Hiring Funnel",
-  subtitle = "Candidate progression through each hiring stage",
+  title = "Hiring progress",
+  subtitle = "Candidate movement through each hiring stage",
 }) => {
   const stages = data?.stages || [];
   const total = data?.totalApplications || 0;
@@ -32,7 +33,7 @@ export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
           <p className="text-[11px] text-slate-500 font-sans mt-0.5">{subtitle}</p>
         </div>
         <div className="text-right font-mono">
-          <div className="text-[10px] text-slate-500 uppercase font-bold">Overall Yield</div>
+          <div className="text-xs text-slate-500 font-semibold">Overall progress</div>
           <div className="text-sm font-bold text-teal-950 tabular-nums">
             {stages.length > 0 ? stages[stages.length - 1].overallConversion : 0}%
           </div>
@@ -42,7 +43,7 @@ export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
       {/* Funnel Rows */}
       {stages.length === 0 || total === 0 ? (
         <div className="p-8 text-center text-xs font-mono text-slate-400">
-          No pipeline funnel data recorded for this selection.
+          No hiring progress is available for this selection.
         </div>
       ) : (
         <div className="p-4 space-y-3">
@@ -59,7 +60,7 @@ export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
                     <span className="w-4 h-4 bg-slate-900 text-white text-[10px] flex items-center justify-center font-bold">
                       {idx + 1}
                     </span>
-                    <span className="font-bold text-slate-950 uppercase">{st.label}</span>
+                    <span className="font-semibold text-slate-950">{formatAdminPipelineStage(st.stage || st.label)}</span>
                   </div>
 
                   <div className="flex items-center gap-4 text-[11px]">
@@ -70,7 +71,7 @@ export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
 
                     {!isFirst && (
                       <div>
-                        <span className="text-slate-500">Pass Rate: </span>
+                        <span className="text-slate-500">Moved forward: </span>
                         <span
                           className={`font-bold tabular-nums ${
                             st.conversionRate >= 70
@@ -86,7 +87,7 @@ export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
                     )}
 
                     <div>
-                      <span className="text-slate-500">Total Yield: </span>
+                      <span className="text-slate-500">Overall: </span>
                       <span className="font-bold text-teal-900 tabular-nums">{st.overallConversion}%</span>
                     </div>
                   </div>

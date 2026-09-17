@@ -9,6 +9,12 @@ import {
   getAnalyticsFilterOptions,
   AnalyticsFilterDto,
 } from "../../services/analytics/analytics.service.js";
+import {
+  generatePipelineReportPDF,
+  generatePipelineReportXLSX,
+  generateDeploymentReportPDF,
+  generateDeploymentReportXLSX,
+} from "../../services/analytics/export.service.js";
 
 function extractFilters(query: any): AnalyticsFilterDto {
   return {
@@ -102,6 +108,64 @@ export const getAdminDashboardSummaryHandler = async (req: Request, res: Respons
       jobDemands,
       filterOptions,
     });
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+export const exportAdminPipelineReportHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const format = ((req.query.format as string) || "pdf").toLowerCase();
+    const filters = extractFilters(req.query);
+    const user = req.user!;
+    const dateStr = new Date().toISOString().slice(0, 10);
+
+    if (format === "xlsx") {
+      const buffer = await generatePipelineReportXLSX(user, filters, "ADMINISTRATOR");
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="MEGS_Admin_Workforce_Pipeline_Report_${dateStr}.xlsx"`
+      );
+      res.send(buffer);
+    } else {
+      const buffer = await generatePipelineReportPDF(user, filters, "ADMINISTRATOR");
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="MEGS_Admin_Workforce_Pipeline_Report_${dateStr}.pdf"`
+      );
+      res.send(buffer);
+    }
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+export const exportAdminDeploymentReportHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const format = ((req.query.format as string) || "pdf").toLowerCase();
+    const filters = extractFilters(req.query);
+    const user = req.user!;
+    const dateStr = new Date().toISOString().slice(0, 10);
+
+    if (format === "xlsx") {
+      const buffer = await generateDeploymentReportXLSX(user, filters, "ADMINISTRATOR");
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="MEGS_Admin_Deployment_Governance_${dateStr}.xlsx"`
+      );
+      res.send(buffer);
+    } else {
+      const buffer = await generateDeploymentReportPDF(user, filters, "ADMINISTRATOR");
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="MEGS_Admin_Deployment_Governance_${dateStr}.pdf"`
+      );
+      res.send(buffer);
+    }
   } catch (error: any) {
     sendError(res, error.message, 500);
   }

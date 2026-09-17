@@ -80,9 +80,20 @@ export const getApplicantProfile = async (userId: string, requesterRole: string 
     }
   }
 
+  let resumeUrl = profile.resumeUrl;
+  if (profile.resumeUrl) {
+    try {
+      const resolved = await resolveDocumentSignedUrl(profile.resumeUrl, userId, requesterRole);
+      if (resolved) resumeUrl = resolved;
+    } catch {
+      // fallback to stored resumeUrl
+    }
+  }
+
   return {
     ...profile,
     photoUrl,
+    resumeUrl,
     skills: profile.skills.map((s) => s.skill.name),
   };
 };
@@ -358,6 +369,46 @@ export const updateProfileResumeService = async (userId: string, resumeUrl: stri
     where: { id: profile.id },
     data: { resumeUrl },
   });
+
+  try {
+    const activeApplications = await prisma.application.findMany({
+      where: {
+        userId,
+        status: { notIn: ["DEPLOYED"] },
+        isArchived: false,
+      },
+      select: { id: true, jobPostingId: true },
+    });
+
+    if (activeApplications.length > 0) {
+      await prisma.application.updateMany({
+        where: {
+          id: { in: activeApplications.map((a) => a.id) },
+        },
+        data: { resumeUrl },
+      });
+
+      const { enqueueResumeAnalysis } = await import("../../workers/resume.worker.js");
+      const { revalidateApplication } = await import("../scoring/scoring-configuration.service.js");
+
+      for (const app of activeApplications) {
+        try {
+          enqueueResumeAnalysis(app.id);
+          const res = revalidateApplication(app.id, app.jobPostingId);
+          if (res && typeof res.catch === "function") {
+            void res.catch((err) =>
+              console.error("[Scoring] failed to queue application revalidation", err)
+            );
+          }
+        } catch (queueErr: any) {
+          console.warn(`[Resume Update] Failed to queue analysis for application #${app.id}:`, queueErr.message);
+        }
+      }
+    }
+  } catch (syncErr: any) {
+    console.warn("[Resume Update] Failed to synchronize active applications:", syncErr.message);
+  }
+
   queueProfileRevalidation(updated.id);
   return updated;
 };
@@ -527,17 +578,27 @@ export const applyExtractedProfileService = async (
   if (payload.workExperiences && payload.workExperiences.length > 0) {
     const existingExps = await prisma.workExperience.findMany({
       where: { applicantProfileId: profile.id },
-      select: { company: true, roleTitle: true },
     });
 
     for (const exp of payload.workExperiences) {
       const companyNorm = exp.company.trim().toLowerCase();
       const roleNorm = exp.roleTitle.trim().toLowerCase();
-      const exists = existingExps.some(
+      const existing = existingExps.find(
         (e) => e.company.trim().toLowerCase() === companyNorm && e.roleTitle.trim().toLowerCase() === roleNorm
       );
 
-      if (!exists) {
+      if (existing) {
+        await prisma.workExperience.update({
+          where: { id: existing.id },
+          data: {
+            location: sanitizeString(exp.location) ?? existing.location,
+            startDate: exp.startDate ? new Date(exp.startDate) : existing.startDate,
+            endDate: exp.endDate !== undefined ? (exp.endDate ? new Date(exp.endDate) : null) : existing.endDate,
+            isCurrent: exp.isCurrent !== undefined ? Boolean(exp.isCurrent) : existing.isCurrent,
+            summary: sanitizeString(exp.summary) ?? existing.summary,
+          },
+        });
+      } else {
         await prisma.workExperience.create({
           data: {
             applicantProfileId: profile.id,
@@ -558,17 +619,26 @@ export const applyExtractedProfileService = async (
   if (payload.educations && payload.educations.length > 0) {
     const existingEdus = await prisma.education.findMany({
       where: { applicantProfileId: profile.id },
-      select: { school: true, degree: true },
     });
 
     for (const edu of payload.educations) {
       const schoolNorm = edu.school.trim().toLowerCase();
       const degreeNorm = (edu.degree || "").trim().toLowerCase();
-      const exists = existingEdus.some(
+      const existing = existingEdus.find(
         (e) => e.school.trim().toLowerCase() === schoolNorm && (e.degree || "").trim().toLowerCase() === degreeNorm
       );
 
-      if (!exists) {
+      if (existing) {
+        await prisma.education.update({
+          where: { id: existing.id },
+          data: {
+            fieldOfStudy: sanitizeString(edu.fieldOfStudy) ?? existing.fieldOfStudy,
+            startDate: edu.startDate ? new Date(edu.startDate) : existing.startDate,
+            endDate: edu.endDate !== undefined ? (edu.endDate ? new Date(edu.endDate) : null) : existing.endDate,
+            notes: sanitizeString(edu.notes) ?? existing.notes,
+          },
+        });
+      } else {
         await prisma.education.create({
           data: {
             applicantProfileId: profile.id,
@@ -611,16 +681,25 @@ export const applyExtractedProfileService = async (
   if (payload.trainings && payload.trainings.length > 0) {
     const existingTrainings = await prisma.trainingCertification.findMany({
       where: { applicantProfileId: profile.id },
-      select: { title: true },
     });
 
     for (const training of payload.trainings) {
       const titleNorm = training.title.trim().toLowerCase();
-      const exists = existingTrainings.some(
+      const existing = existingTrainings.find(
         (t) => t.title.trim().toLowerCase() === titleNorm
       );
 
-      if (!exists) {
+      if (existing) {
+        await prisma.trainingCertification.update({
+          where: { id: existing.id },
+          data: {
+            provider: sanitizeString(training.provider) ?? existing.provider,
+            completionDate: training.completionDate ? new Date(training.completionDate) : existing.completionDate,
+            certificateNo: sanitizeString(training.certificateNo) ?? existing.certificateNo,
+            notes: sanitizeString(training.notes) ?? existing.notes,
+          },
+        });
+      } else {
         await prisma.trainingCertification.create({
           data: {
             applicantProfileId: profile.id,
@@ -639,7 +718,6 @@ export const applyExtractedProfileService = async (
   if (payload.characterReferences && payload.characterReferences.length > 0) {
     const existingRefs = (await prisma.characterReference.findMany({
       where: { applicantProfileId: profile.id },
-      select: { name: true, phone: true, email: true },
     })) || [];
 
     for (const ref of payload.characterReferences) {
@@ -648,7 +726,7 @@ export const applyExtractedProfileService = async (
       const phoneNorm = (ref.phone || "").trim().toLowerCase();
       const emailNorm = (ref.email || "").trim().toLowerCase();
 
-      const exists = existingRefs.some((r) => {
+      const existing = existingRefs.find((r) => {
         const exName = r.name.trim().toLowerCase();
         const exPhone = (r.phone || "").trim().toLowerCase();
         const exEmail = (r.email || "").trim().toLowerCase();
@@ -661,13 +739,23 @@ export const applyExtractedProfileService = async (
         return false;
       });
 
-      if (!exists) {
-        let relationship = sanitizeString(ref.relationship);
-        const company = sanitizeString(ref.company);
-        if (company) {
-          relationship = relationship ? `${relationship} at ${company}` : company;
-        }
+      let relationship = sanitizeString(ref.relationship);
+      const company = sanitizeString(ref.company);
+      if (company) {
+        relationship = relationship ? `${relationship} at ${company}` : company;
+      }
 
+      if (existing) {
+        await prisma.characterReference.update({
+          where: { id: existing.id },
+          data: {
+            relationship: relationship ?? existing.relationship,
+            phone: sanitizeString(ref.phone) ?? existing.phone,
+            email: sanitizeString(ref.email) ?? existing.email,
+            notes: sanitizeString(ref.notes) ?? existing.notes,
+          },
+        });
+      } else {
         await prisma.characterReference.create({
           data: {
             applicantProfileId: profile.id,

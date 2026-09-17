@@ -6,6 +6,7 @@ import {
   PageHeader,
   LoadingState,
   ErrorState,
+  EmptyState,
 } from "../../components/common";
 import { Button } from "../../components/ui";
 import {
@@ -23,7 +24,7 @@ export const ScoringQualityPage: React.FC = () => {
   if (qualityQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Candidate Match Quality & Analytics" description="Loading quality metrics..." />
+        <PageHeader title="Match results" description="Loading match results..." />
         <LoadingState variant="cards" />
         <LoadingState variant="table" rows={4} />
       </div>
@@ -34,7 +35,7 @@ export const ScoringQualityPage: React.FC = () => {
   if (qualityQuery.isError || !qualityQuery.data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Candidate Match Quality & Analytics" description="Match metrics data" />
+        <PageHeader title="Match results" description="Match results could not be loaded." />
         <ErrorState error={qualityQuery.error} onRetry={() => qualityQuery.refetch()} />
       </div>
     );
@@ -49,14 +50,38 @@ export const ScoringQualityPage: React.FC = () => {
   const coverage = Number.isFinite(Number(m.coveragePercentage)) ? Number(m.coveragePercentage) : 100;
   const p95Latency = m.knnLatencyP95 || 42;
 
+  if (totalCalculated === 0) {
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          title="Match results"
+          description="See how candidate matching is performing."
+          breadcrumbs={[{ label: "Administration", href: "/admin" }, { label: "Match results" }]}
+          actions={
+            <Link to="/admin/scoring">
+              <Button variant="primary" size="sm" leftIcon={<Sliders className="w-3.5 h-3.5" />}>
+                Edit matching settings
+              </Button>
+            </Link>
+          }
+        />
+        <EmptyState
+          icon={<BarChart3 className="w-5 h-5" />}
+          title="No match results yet"
+          description="Candidate scores will appear here after applications are evaluated."
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Candidate matching quality"
-        description="Distribution breakdown of candidate match scores, qualification benchmarks, and assessment system response time"
+        title="Match results"
+        description="See how candidate matching is performing and where scores are falling."
         breadcrumbs={[
-          { label: "Admin Operations", href: "/admin" },
-          { label: "Scoring Quality & Metrics" },
+          { label: "Administration", href: "/admin" },
+          { label: "Match results" },
         ]}
         actions={
           <div className="flex items-center gap-2">
@@ -75,32 +100,32 @@ export const ScoringQualityPage: React.FC = () => {
                 size="sm"
                 leftIcon={<Sliders className="w-3.5 h-3.5" />}
               >
-                Configure Weights
+                Edit matching settings
               </Button>
             </Link>
           </div>
         }
       />
 
-      {/* 4 Core Metrics Ribbon */}
-      <div className="border border-slate-300 bg-white grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 divide-x divide-slate-300">
+       {/* Core Metrics */}
+       <div className="border border-slate-300 bg-white grid grid-cols-2 lg:grid-cols-3 divide-y lg:divide-y-0 divide-x divide-slate-300">
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-            Total Scored Profiles
+            Candidates scored
           </div>
-          <div className="text-2xl font-bold font-mono text-slate-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-bold font-sans text-slate-950 mt-0.5 tabular-nums">
             {totalCalculated}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
-            Evaluated applications
+            Applications evaluated
           </div>
         </div>
 
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-wider">
-            Average Fit Score
+            Average match score
           </div>
-          <div className="text-2xl font-bold font-mono text-teal-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-bold font-sans text-teal-950 mt-0.5 tabular-nums">
             {avgFit.toFixed(1)}%
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
@@ -110,45 +135,34 @@ export const ScoringQualityPage: React.FC = () => {
 
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-blue-800 uppercase tracking-wider">
-            Processed Profiles
+            Candidates ready for matching
           </div>
-          <div className="text-2xl font-bold font-mono text-blue-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-bold font-sans text-blue-950 mt-0.5 tabular-nums">
             {coverage.toFixed(0)}%
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
-            Profiles indexed for matching
+            Profiles ready for matching
           </div>
         </div>
 
-        <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase tracking-wider">
-            Match Calculation Time (P95)
-          </div>
-          <div className="text-2xl font-bold font-mono text-emerald-950 mt-0.5 tabular-nums">
-            {p95Latency} <span className="text-xs text-slate-400 font-normal">ms</span>
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
-            Average matching speed
-          </div>
-        </div>
       </div>
 
       {/* Score Distribution Histogram */}
       <div className="border border-slate-300 bg-white">
         <div className="p-3 border-b border-slate-300 flex items-center gap-2 bg-slate-100">
           <BarChart3 className="w-4 h-4 text-teal-700" />
-          <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
-            Candidate Match Score Distribution
+          <h3 className="text-xs font-semibold font-sans text-slate-900">
+            Score distribution
           </h3>
         </div>
 
         <div className="p-4 space-y-3">
           {[
-            { range: "80% - 100% (High Suitability)", key: "80-100", color: "bg-emerald-600" },
-            { range: "60% - 79% (Moderate Match)", key: "60-79", color: "bg-teal-600" },
-            { range: "40% - 59% (Baseline Match)", key: "40-59", color: "bg-amber-600" },
-            { range: "20% - 39% (Low Match)", key: "20-39", color: "bg-orange-600" },
-            { range: "0% - 19% (Unmatched)", key: "0-19", color: "bg-rose-600" },
+            { range: "80%–100% · Strong match", key: "80-100", color: "bg-emerald-600" },
+            { range: "60%–79% · Good match", key: "60-79", color: "bg-teal-600" },
+            { range: "40%–59% · Needs review", key: "40-59", color: "bg-amber-600" },
+            { range: "20%–39% · Low match", key: "20-39", color: "bg-orange-600" },
+            { range: "0%–19% · Very low match", key: "0-19", color: "bg-rose-600" },
           ].map((bucket) => {
             const count = dist[bucket.key] || 0;
             const percentage = totalCalculated > 0 ? (count / totalCalculated) * 100 : 0;
@@ -173,15 +187,20 @@ export const ScoringQualityPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Fairness & Model Governance Notes */}
+      <details className="border border-slate-300 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-900">Technical performance</summary>
+        <p className="mt-2 text-sm text-slate-600">The slowest 5% of match calculations take about {p95Latency} milliseconds.</p>
+      </details>
+
+      {/* Matching guidance */}
       <div className="border border-slate-300 bg-white p-4 space-y-2">
-        <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700 border-b border-slate-200 pb-1.5">
-          Scoring Guidelines & Evaluation Consistency
+        <h4 className="text-xs font-semibold font-sans text-slate-900 border-b border-slate-200 pb-1.5">
+          How matching works
         </h4>
         <p className="text-xs text-slate-600 leading-relaxed font-sans">
-          Candidate match scores are calculated across standardized recruitment criteria including skills, experience, location, pre-employment compliance, and educational background. Evaluation weights can be adjusted dynamically in{" "}
+            Candidate match scores consider skills, experience, location, requirements, and education. You can change their importance in{" "}
           <Link to="/admin/scoring" className="font-mono text-teal-900 font-bold underline hover:text-teal-700">
-            Scoring Configuration
+            Matching settings
           </Link>{" "}
           to match specific hiring requirements.
         </p>

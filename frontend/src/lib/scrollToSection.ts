@@ -1,23 +1,18 @@
 /**
- * Smoothly scrolls to an on-page section by its ID or href with header offset.
+ * Instantly triggers smooth scrolling to an on-page section by its ID or href.
  */
 export const scrollToSection = (
-  e: React.MouseEvent<HTMLElement>,
-  href: string,
-  offset = 70
+  e?: React.MouseEvent<HTMLElement>,
+  href?: string
 ) => {
-  if (href.startsWith("#")) {
+  if (e) {
     e.preventDefault();
+  }
+  if (href && href.startsWith("#")) {
     const targetId = href.substring(1);
     const targetElement = document.getElementById(targetId);
     if (targetElement) {
-      const elementPosition = targetElement.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.pageYOffset - offset;
-
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: "smooth",
-      });
+      targetElement.scrollIntoView({ behavior: "smooth" });
       window.history.pushState(null, "", href);
     }
   }

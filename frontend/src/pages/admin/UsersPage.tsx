@@ -10,6 +10,7 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
+  ActionMenu,
 } from "../../components/common";
 import { Button, Dialog, Input, Select } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
@@ -24,6 +25,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
+import { formatAdminRole } from "../../lib/admin-copy";
 
 export const UsersPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -47,6 +49,7 @@ export const UsersPage: React.FC = () => {
   const [mfaModalUser, setMfaModalUser] = useState<{ id: string; email: string } | null>(null);
   const [resendModalUser, setResendModalUser] = useState<{ id: string; email: string } | null>(null);
   const [cancelModalUser, setCancelModalUser] = useState<{ id: string; email: string } | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -65,7 +68,7 @@ export const UsersPage: React.FC = () => {
       setInviteEmail("");
       setInviteFirstName("");
       setInviteLastName("");
-      const msg = "Invitation sent! The TA specialist has been emailed a secure, single-use activation link.";
+       const msg = "A secure account setup link was emailed to the recruiter.";
       setFeedback({
         type: "success",
         message: msg,
@@ -75,7 +78,7 @@ export const UsersPage: React.FC = () => {
     onError: (err: any) => {
       setFeedback({
         type: "error",
-        message: "Failed to send invitation: " + err.message,
+         message: "We couldn't send the invitation. Please check the email address and try again.",
       });
       notify.error("Invitation Failed", err);
     },
@@ -86,8 +89,9 @@ export const UsersPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
-      setResendModalUser(null);
-      notify.success("Invitation Resent", "A new secure single-use invitation link has been dispatched.");
+       setResendModalUser(null);
+       setSelectedUserId(null);
+       notify.success("Invitation sent", "A new account setup link was emailed.");
     },
     onError: (err: any) => {
       notify.error("Resend Failed", err);
@@ -99,8 +103,9 @@ export const UsersPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
-      setCancelModalUser(null);
-      notify.success("Invitation Cancelled", "The pending invitation has been revoked.");
+       setCancelModalUser(null);
+       setSelectedUserId(null);
+       notify.success("Invitation cancelled", "The pending invitation can no longer be used.");
     },
     onError: (err: any) => {
       notify.error("Cancellation Failed", err);
@@ -113,8 +118,9 @@ export const UsersPage: React.FC = () => {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
-      setRoleModalUser(null);
-      notify.success("Security Role Updated", `User role changed to ${vars.role}.`);
+       setRoleModalUser(null);
+       setSelectedUserId(null);
+       notify.success("Access updated", `This user's access is now ${formatAdminRole(vars.role)}.`);
     },
     onError: (err: any) => {
       notify.error("Role Update Failed", err);
@@ -127,10 +133,11 @@ export const UsersPage: React.FC = () => {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
-      setStatusModalUser(null);
+       setStatusModalUser(null);
+       setSelectedUserId(null);
       notify.success(
-        "Account Status Updated",
-        `User account ${vars.isActive ? "reactivated" : "deactivated"} successfully.`
+        "Account status updated",
+        `The user can ${vars.isActive ? "now" : "no longer"} sign in.`
       );
     },
     onError: (err: any) => {
@@ -143,18 +150,20 @@ export const UsersPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
-      setMfaModalUser(null);
+       setMfaModalUser(null);
+       setSelectedUserId(null);
       notify.success(
-        "MFA Reset Successfully",
-        "The staff member will be prompted to re-enroll their authenticator app on their next sign-in."
+        "Two-step verification reset",
+        "The user will set up two-step verification again at their next sign-in."
       );
     },
     onError: (err: any) => {
-      notify.error("MFA Reset Failed", err);
+       notify.error("Couldn't reset two-step verification", err);
     },
   });
 
   const users = usersQuery.data || [];
+  const selectedUser = selectedUserId ? users.find((user) => user.id === selectedUserId) : null;
 
 
   const filteredUsers = users.filter((u) => {
@@ -196,10 +205,10 @@ export const UsersPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="User access"
-        description="Manage system accounts, provision Talent Acquisition credentials, and configure role assignments"
+        title="Users and access"
+        description="Invite recruiters, review accounts, and manage who can use each part of MEGS."
         breadcrumbs={[
-          { label: "Admin Operations", href: "/admin" },
+          { label: "Administration", href: "/admin" },
           { label: "Users" },
         ]}
         actions={
@@ -209,14 +218,16 @@ export const UsersPage: React.FC = () => {
             leftIcon={<UserPlus className="w-3.5 h-3.5" />}
             onClick={() => setInviteModalOpen(true)}
           >
-            Add
+            Invite recruiter
           </Button>
         }
       />
 
       {feedback && (
         <div
-          className={`p-3 border-l-4 border text-xs font-mono flex items-center justify-between ${
+           role={feedback.type === "error" ? "alert" : "status"}
+           aria-live="polite"
+           className={`p-3 border text-sm flex items-center justify-between ${
             feedback.type === "success"
               ? "bg-teal-50 border-teal-700 text-teal-950"
               : "bg-rose-50 border-rose-700 text-rose-950"
@@ -227,7 +238,8 @@ export const UsersPage: React.FC = () => {
           </div>
           <button
             onClick={() => setFeedback(null)}
-            className="text-slate-400 hover:text-slate-700 font-bold ml-4"
+             aria-label="Dismiss message"
+             className="min-h-11 min-w-11 inline-flex items-center justify-center text-slate-400 hover:text-slate-700 font-bold ml-4"
           >
             ×
           </button>
@@ -244,11 +256,11 @@ export const UsersPage: React.FC = () => {
         filters={[
           {
             key: "role",
-            label: "Account Role",
+             label: "Access level",
             options: [
-              { value: Role.ADMINISTRATOR, label: "ADMINISTRATOR" },
-              { value: Role.TALENT_ACQUISITION, label: "TALENT ACQUISITION" },
-              { value: Role.APPLICANT, label: "APPLICANT" },
+               { value: Role.ADMINISTRATOR, label: "Administrator" },
+               { value: Role.TALENT_ACQUISITION, label: "Recruiter" },
+               { value: Role.APPLICANT, label: "Applicant" },
             ],
           },
         ]}
@@ -263,29 +275,108 @@ export const UsersPage: React.FC = () => {
         <div className="bg-white border border-slate-300 p-6">
           <EmptyState
             icon={<Users className="w-5 h-5" />}
-            title="No Users Found"
-            description="No user accounts matched your search or role filters."
+             title="No users found"
+             description="No accounts match your search or access-level filter."
             action={
               <Button variant="outline" size="sm" onClick={handleReset}>
-                Reset Filters
+                Clear filters
               </Button>
             }
           />
         </div>
       ) : (
         <div className="bg-white border border-slate-300 overflow-hidden">
-          <div className="overflow-x-auto">
+          {selectedUser && (
+            <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 text-sm text-amber-950" role="status" aria-live="polite">
+              Selected account: <strong>{selectedUser.applicantProfile ? `${selectedUser.applicantProfile.firstName} ${selectedUser.applicantProfile.lastName}` : selectedUser.email}</strong>
+            </div>
+          )}
+          <div className="md:hidden divide-y divide-slate-200">
+            {paginatedUsers.map((u) => {
+              const isSelf = currentAdmin?.id === u.id;
+              const profile = u.applicantProfile;
+              const fullName = profile ? `${profile.firstName} ${profile.lastName}` : null;
+              return (
+                <div
+                  key={u.id}
+                  aria-selected={selectedUserId === u.id}
+                  className={`p-4 space-y-3 transition-colors ${selectedUserId === u.id ? "bg-amber-50 ring-2 ring-inset ring-amber-400" : ""}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-sm text-slate-950 break-words">
+                        {fullName || u.email}
+                        {isSelf && <span className="ml-2 text-xs text-teal-800">(you)</span>}
+                      </div>
+                      {fullName && <div className="text-sm text-slate-600 break-all">{u.email}</div>}
+                    </div>
+                    <ActionMenu
+                      label={`Actions for ${u.email}`}
+                      onOpenChange={(open) => setSelectedUserId(open ? u.id : null)}
+                      items={
+                        u.accountStatus === "PENDING" || u.accountStatus === "INVITED"
+                          ? [
+                              { label: "Resend invitation", onSelect: () => setResendModalUser({ id: u.id, email: u.email }) },
+                              { label: "Cancel invitation", tone: "danger", onSelect: () => setCancelModalUser({ id: u.id, email: u.email }) },
+                            ]
+                          : [
+                              {
+                                label: "Change access",
+                                disabled: isSelf,
+                                onSelect: () => {
+                                  setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
+                                  setTargetRole(u.role);
+                                },
+                              },
+                              ...(u.role !== Role.APPLICANT
+                                ? [{ label: "Reset two-step verification", disabled: isSelf, onSelect: () => setMfaModalUser({ id: u.id, email: u.email }) }]
+                                : []),
+                              {
+                                label: u.isActive ? "Deactivate account" : "Reactivate account",
+                                tone: u.isActive ? "danger" : "default",
+                                disabled: isSelf,
+                                onSelect: () => setStatusModalUser({ id: u.id, email: u.email, isActive: u.isActive }),
+                              },
+                            ]
+                      }
+                    />
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    <div>
+                      <dt className="text-xs text-slate-500">Access level</dt>
+                      <dd className="font-medium text-slate-800">{formatAdminRole(u.role)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Status</dt>
+                      <dd className="font-medium text-slate-800">
+                        {!u.isActive || u.accountStatus === "DEACTIVATED"
+                          ? "Inactive"
+                          : u.accountStatus === "PENDING" || u.accountStatus === "INVITED"
+                          ? u.invitationStatus === "EXPIRED" ? "Invitation expired" : "Invitation pending"
+                          : "Active"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Created</dt>
+                      <dd className="text-slate-700">{formatDate(u.createdAt)}</dd>
+                    </div>
+                  </dl>
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-100 text-slate-700 font-mono uppercase text-[10px] border-b border-slate-300">
                 <tr>
-                  <th className="px-3.5 py-2.5 font-bold">User Account</th>
-                  <th className="px-3.5 py-2.5 font-bold">System Role</th>
+                  <th className="px-3.5 py-2.5 font-bold">Account</th>
+                  <th className="px-3.5 py-2.5 font-bold">Access level</th>
                   <th className="px-3.5 py-2.5 font-bold">Status</th>
-                  <th className="px-3.5 py-2.5 font-bold">Created Date</th>
+                  <th className="px-3.5 py-2.5 font-bold">Created</th>
                   <th className="px-3.5 py-2.5 font-bold text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 font-mono">
+              <tbody className="divide-y divide-slate-200">
                 {paginatedUsers.map((u) => {
                   const isSelf = currentAdmin?.id === u.id;
                   const profile = u.applicantProfile;
@@ -294,25 +385,29 @@ export const UsersPage: React.FC = () => {
                     : null;
 
                   return (
-                    <tr key={u.id} className="hover:bg-slate-100/70 transition-colors">
+                    <tr
+                      key={u.id}
+                      aria-selected={selectedUserId === u.id}
+                      className={`transition-colors ${selectedUserId === u.id ? "bg-amber-50" : "hover:bg-slate-100/70"}`}
+                    >
                       <td className="px-3.5 py-2.5">
                         <div className="font-bold text-slate-950 flex items-center gap-1.5 font-sans">
                           <span>{u.email}</span>
                           {isSelf && (
                             <span className="text-[9px] font-mono font-bold px-1 py-0.2 bg-teal-100 border border-teal-300 text-teal-800">
-                              YOU
+                               (you)
                             </span>
                           )}
                         </div>
                         {fullName && (
-                          <div className="text-[10px] text-slate-500 font-mono">
+                           <div className="text-sm text-slate-600">
                             {fullName}
                           </div>
                         )}
                       </td>
                       <td className="px-3.5 py-2.5">
                         <span
-                          className={`inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 border uppercase ${
+                           className={`inline-flex items-center gap-1 text-xs font-sans font-semibold px-2 py-1 border ${
                             u.role === Role.ADMINISTRATOR
                               ? "bg-purple-50 text-purple-950 border-purple-300"
                               : u.role === Role.TALENT_ACQUISITION
@@ -320,103 +415,84 @@ export const UsersPage: React.FC = () => {
                               : "bg-slate-100 text-slate-800 border-slate-300"
                           }`}
                         >
-                          {u.role === Role.ADMINISTRATOR ? (
+                           {u.role === Role.ADMINISTRATOR ? (
                             <Shield className="w-3 h-3 text-purple-700" />
                           ) : (
                             <ShieldCheck className="w-3 h-3 text-teal-700" />
                           )}
-                          <span>{u.role.replace(/_/g, " ")}</span>
+                           <span>{formatAdminRole(u.role)}</span>
                         </span>
                       </td>
                       <td className="px-3.5 py-2.5">
                         {!u.isActive || u.accountStatus === "DEACTIVATED" ? (
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 border uppercase bg-rose-50 text-rose-950 border-rose-300">
-                            DISABLED
+                           <span className="text-xs font-sans font-semibold px-2 py-1 border bg-rose-50 text-rose-950 border-rose-300">
+                             Inactive
                           </span>
                         ) : u.accountStatus === "PENDING" || u.accountStatus === "INVITED" ? (
                           <span
-                            className={`text-[10px] font-mono font-bold px-2 py-0.5 border uppercase ${
+                             className={`text-xs font-sans font-semibold px-2 py-1 border ${
                               u.invitationStatus === "EXPIRED"
                                 ? "bg-amber-50 text-amber-950 border-amber-300"
                                 : "bg-blue-50 text-blue-950 border-blue-300"
                             }`}
                           >
-                            {u.invitationStatus === "EXPIRED" ? "EXPIRED INVITATION" : "PENDING INVITATION"}
+                             {u.invitationStatus === "EXPIRED" ? "Invitation expired" : "Invitation pending"}
                           </span>
                         ) : (
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 border uppercase bg-emerald-50 text-emerald-950 border-emerald-300">
-                            ACTIVE
+                           <span className="text-xs font-sans font-semibold px-2 py-1 border bg-emerald-50 text-emerald-950 border-emerald-300">
+                            Active
                           </span>
                         )}
                       </td>
                       <td className="px-3.5 py-2.5 text-slate-600 text-[11px]">
                         {formatDate(u.createdAt)}
                       </td>
-                      <td className="px-3.5 py-2.5 text-right font-sans">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {u.accountStatus === "PENDING" || u.accountStatus === "INVITED" ? (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setResendModalUser({ id: u.id, email: u.email })}
-                                title="Resend secure activation link"
-                                className="text-teal-700 hover:text-teal-900 border-teal-300 hover:bg-teal-50"
-                              >
-                                Resend
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setCancelModalUser({ id: u.id, email: u.email })}
-                                title="Cancel pending invitation"
-                                className="text-rose-600 hover:text-rose-800"
-                              >
-                                Cancel
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={isSelf}
-                                onClick={() => {
-                                  setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
-                                  setTargetRole(u.role);
-                                }}
-                                title={isSelf ? "Cannot change your own role" : "Change Role"}
-                              >
-                                Role
-                              </Button>
-                              {u.role !== Role.APPLICANT && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={isSelf}
-                                  onClick={() => setMfaModalUser({ id: u.id, email: u.email })}
-                                  title={isSelf ? "Cannot reset your own MFA from here" : "Reset Staff Two-Factor Authentication"}
-                                  className="text-amber-700 hover:text-amber-900 border-amber-300 hover:bg-amber-50"
-                                >
-                                  Reset MFA
-                                </Button>
-                              )}
-                              <Button
-                                variant={u.isActive ? "ghost" : "primary"}
-                                size="sm"
-                                disabled={isSelf}
-                                onClick={() =>
-                                  setStatusModalUser({ id: u.id, email: u.email, isActive: u.isActive })
-                                }
-                                title={isSelf ? "Cannot deactivate yourself" : "Toggle Status"}
-                                className={u.isActive ? "text-rose-600 hover:text-rose-800" : ""}
-                              >
-                                {u.isActive ? "Deactivate" : "Activate"}
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </td>
+                       <td className="px-3.5 py-2.5 text-right font-sans">
+                         <ActionMenu
+                           label={`Actions for ${u.email}`}
+                           onOpenChange={(open) => setSelectedUserId(open ? u.id : null)}
+                           items={
+                             u.accountStatus === "PENDING" || u.accountStatus === "INVITED"
+                               ? [
+                                   {
+                                     label: "Resend invitation",
+                                     onSelect: () => setResendModalUser({ id: u.id, email: u.email }),
+                                   },
+                                   {
+                                     label: "Cancel invitation",
+                                     tone: "danger",
+                                     onSelect: () => setCancelModalUser({ id: u.id, email: u.email }),
+                                   },
+                                 ]
+                               : [
+                                   {
+                                     label: "Change access",
+                                     disabled: isSelf,
+                                     onSelect: () => {
+                                       setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
+                                       setTargetRole(u.role);
+                                     },
+                                   },
+                                   ...(u.role !== Role.APPLICANT
+                                     ? [
+                                         {
+                                           label: "Reset two-step verification",
+                                           disabled: isSelf,
+                                           onSelect: () => setMfaModalUser({ id: u.id, email: u.email }),
+                                         } as const,
+                                       ]
+                                     : []),
+                                   {
+                                     label: u.isActive ? "Deactivate account" : "Reactivate account",
+                                     tone: u.isActive ? "danger" : "default",
+                                     disabled: isSelf,
+                                     onSelect: () =>
+                                       setStatusModalUser({ id: u.id, email: u.email, isActive: u.isActive }),
+                                   },
+                                 ]
+                           }
+                         />
+                       </td>
                     </tr>
                   );
                 })}
@@ -432,6 +508,7 @@ export const UsersPage: React.FC = () => {
               totalItems={filteredUsers.length}
               pageSize={pageSize}
               onPageChange={setPage}
+              itemLabel="users"
             />
           </div>
         </div>
@@ -441,8 +518,8 @@ export const UsersPage: React.FC = () => {
       <Dialog
         open={inviteModalOpen}
         onClose={() => setInviteModalOpen(false)}
-        title="Add Talent Acquisition Specialist"
-        description="Provision an internal TA recruiter account with temporary setup credentials"
+        title="Invite a recruiter"
+        description="We'll email a secure account setup link to this person."
       >
         <form
           onSubmit={(e) => {
@@ -456,7 +533,7 @@ export const UsersPage: React.FC = () => {
           className="space-y-4"
         >
           <Input
-            label="Corporate / Official Email"
+             label="Work email"
             type="email"
             placeholder="e.g. recruiter@megs.ph"
             value={inviteEmail}
@@ -464,14 +541,14 @@ export const UsersPage: React.FC = () => {
             required
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="First Name"
+             <Input
+               label="First name (optional)"
               placeholder="e.g. Maria"
               value={inviteFirstName}
               onChange={(e) => setInviteFirstName(e.target.value)}
             />
-            <Input
-              label="Last Name"
+             <Input
+               label="Last name (optional)"
               placeholder="e.g. Santos"
               value={inviteLastName}
               onChange={(e) => setInviteLastName(e.target.value)}
@@ -489,7 +566,7 @@ export const UsersPage: React.FC = () => {
               leftIcon={<UserPlus className="w-3.5 h-3.5" />}
               className="w-full sm:w-auto"
             >
-              Add
+              Send invitation
             </Button>
           </div>
         </form>
@@ -498,23 +575,23 @@ export const UsersPage: React.FC = () => {
       {/* Change Role Modal */}
       <Dialog
         open={Boolean(roleModalUser)}
-        onClose={() => setRoleModalUser(null)}
-        title="Update User Security Role"
-        description={`Modify access permissions for ${roleModalUser?.email}`}
+        onClose={() => { setRoleModalUser(null); setSelectedUserId(null); }}
+        title="Change access"
+        description={`Choose what ${roleModalUser?.email} can access.`}
       >
         <div className="space-y-4">
           <Select
-            label="Target Security Role"
+             label="Access level"
             value={targetRole}
             onChange={(e) => setTargetRole(e.target.value as Role)}
             options={[
-              { value: Role.TALENT_ACQUISITION, label: "TALENT ACQUISITION (Recruitment Portal)" },
-              { value: Role.ADMINISTRATOR, label: "ADMINISTRATOR (Full System Access)" },
-              { value: Role.APPLICANT, label: "APPLICANT (Standard Candidate)" },
+               { value: Role.TALENT_ACQUISITION, label: "Recruiter — hiring workspace" },
+               { value: Role.ADMINISTRATOR, label: "Administrator — full admin access" },
+               { value: Role.APPLICANT, label: "Applicant — candidate portal" },
             ]}
           />
           <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setRoleModalUser(null)} className="w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={() => { setRoleModalUser(null); setSelectedUserId(null); }} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
@@ -528,7 +605,7 @@ export const UsersPage: React.FC = () => {
                 }
               }}
             >
-              Confirm Role Change
+              Save access level
             </Button>
           </div>
         </div>
@@ -537,18 +614,18 @@ export const UsersPage: React.FC = () => {
       {/* Status Toggle Modal */}
       <Dialog
         open={Boolean(statusModalUser)}
-        onClose={() => setStatusModalUser(null)}
-        title={statusModalUser?.isActive ? "Deactivate Account" : "Reactivate Account"}
-        description={`Are you sure you want to ${statusModalUser?.isActive ? "deactivate" : "reactivate"} access for ${statusModalUser?.email}?`}
+        onClose={() => { setStatusModalUser(null); setSelectedUserId(null); }}
+        title={statusModalUser?.isActive ? "Deactivate account" : "Reactivate account"}
+        description={`Are you sure you want to ${statusModalUser?.isActive ? "deactivate" : "reactivate"} ${statusModalUser?.email}?`}
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-600 leading-relaxed">
             {statusModalUser?.isActive
-              ? "Deactivating this account will prevent the user from logging in or performing system actions."
-              : "Reactivating will restore login access with previous security roles."}
+               ? "They will no longer be able to sign in or use MEGS."
+               : "They will be able to sign in again with their current access level."}
           </p>
           <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setStatusModalUser(null)} className="w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={() => { setStatusModalUser(null); setSelectedUserId(null); }} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
@@ -565,7 +642,7 @@ export const UsersPage: React.FC = () => {
                 }
               }}
             >
-              {statusModalUser?.isActive ? "Deactivate User" : "Reactivate User"}
+              {statusModalUser?.isActive ? "Deactivate account" : "Reactivate account"}
             </Button>
           </div>
         </div>
@@ -574,19 +651,19 @@ export const UsersPage: React.FC = () => {
       {/* Reset MFA Modal */}
       <Dialog
         open={Boolean(mfaModalUser)}
-        onClose={() => setMfaModalUser(null)}
-        title="Reset Two-Factor Authentication"
-        description={`Reset MFA security configuration for ${mfaModalUser?.email}`}
+        onClose={() => { setMfaModalUser(null); setSelectedUserId(null); }}
+        title="Reset two-step verification"
+        description={`Reset sign-in verification for ${mfaModalUser?.email}`}
       >
         <div className="space-y-4">
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2.5 text-xs text-amber-900">
             <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
             <p className="leading-relaxed">
-              This action will <strong>delete all enrolled authenticator factors</strong> and <strong>invalidate all emergency backup codes</strong> for this staff account. The user will be required to configure a new authenticator app upon their next login.
+               Their current verification app and recovery codes will stop working. They must set up two-step verification again at their next sign-in.
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setMfaModalUser(null)} className="w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={() => { setMfaModalUser(null); setSelectedUserId(null); }} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
@@ -601,7 +678,7 @@ export const UsersPage: React.FC = () => {
                 }
               }}
             >
-              Confirm MFA Reset
+              Reset two-step verification
             </Button>
           </div>
         </div>
@@ -610,16 +687,16 @@ export const UsersPage: React.FC = () => {
       {/* Resend Invitation Modal */}
       <Dialog
         open={Boolean(resendModalUser)}
-        onClose={() => setResendModalUser(null)}
-        title="Resend Talent Acquisition Invitation"
-        description={`Dispatch a fresh single-use activation link to ${resendModalUser?.email}`}
+        onClose={() => { setResendModalUser(null); setSelectedUserId(null); }}
+        title="Resend invitation"
+        description={`Send a new account setup link to ${resendModalUser?.email}`}
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-600 leading-relaxed">
-            Resending the invitation will <strong>generate a fresh 48-hour activation link</strong> and invalidate any previously sent invitation links for this user.
+             The previous link will stop working and a new link will be valid for 48 hours.
           </p>
           <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setResendModalUser(null)} className="w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={() => { setResendModalUser(null); setSelectedUserId(null); }} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
@@ -634,7 +711,7 @@ export const UsersPage: React.FC = () => {
                 }
               }}
             >
-              Resend Invitation Link
+              Resend invitation
             </Button>
           </div>
         </div>
@@ -643,16 +720,16 @@ export const UsersPage: React.FC = () => {
       {/* Cancel Invitation Modal */}
       <Dialog
         open={Boolean(cancelModalUser)}
-        onClose={() => setCancelModalUser(null)}
-        title="Cancel Pending Invitation"
-        description={`Revoke invitation for ${cancelModalUser?.email}`}
+        onClose={() => { setCancelModalUser(null); setSelectedUserId(null); }}
+        title="Cancel invitation"
+        description={`Stop the pending invitation for ${cancelModalUser?.email}`}
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-600 leading-relaxed">
-            Are you sure you want to cancel this pending invitation? The activation link will immediately become invalid and the pending account will be removed.
+             The setup link will stop working and the pending account will be removed.
           </p>
           <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setCancelModalUser(null)} className="w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={() => { setCancelModalUser(null); setSelectedUserId(null); }} className="w-full sm:w-auto">
               Keep Invitation
             </Button>
             <Button
@@ -666,7 +743,7 @@ export const UsersPage: React.FC = () => {
                 }
               }}
             >
-              Revoke Invitation
+              Cancel invitation
             </Button>
           </div>
         </div>

@@ -13,6 +13,7 @@ import {
 } from "../../components/common";
 import { Button, Dialog, Select, ComboBox } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
+import { formatAdminPipelineStage } from "../../lib/admin-copy";
 import { COMPLIANCE_201_PRESETS } from "../../lib/hr-constants";
 import {
   ArrowLeft,
@@ -46,6 +47,19 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
 
   const [activeTab, setActiveTab] = useState<MRFDetailTab>("deployments");
   const [personnelSearch, setPersonnelSearch] = useState("");
+  const tabOrder: MRFDetailTab[] = ["deployments", "jobs", "specifications"];
+
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, tab: MRFDetailTab) => {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    event.preventDefault();
+    const currentIndex = tabOrder.indexOf(tab);
+    const offset = event.key === "ArrowRight" ? 1 : -1;
+    const nextIndex = (currentIndex + offset + tabOrder.length) % tabOrder.length;
+    setActiveTab(tabOrder[nextIndex]);
+    event.currentTarget.parentElement
+      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      [nextIndex]?.focus();
+  };
 
   const [linkJobModalOpen, setLinkJobModalOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<number>(0);
@@ -125,8 +139,8 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Manpower Request"
-          description={readOnly ? "Loading request details..." : "Loading MRF order..."}
+          title={readOnly ? "Hiring request" : "Manpower Request"}
+          description={readOnly ? "Loading hiring request details..." : "Loading request details..."}
         />
         <LoadingState variant="detail" />
       </div>
@@ -141,8 +155,8 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Manpower Request Not Found"
-          description={`MRF Reference #${mrfId || "Unknown"}`}
+          title={readOnly ? "Hiring request not found" : "Manpower Request Not Found"}
+          description={readOnly ? `Request #${mrfId || "unknown"}` : `MRF Reference #${mrfId || "Unknown"}`}
           breadcrumbs={
             readOnly
               ? [
@@ -159,7 +173,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           actions={
             <Link to={baseBackPath}>
               <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                {readOnly ? "Back to Notifications" : "Back to Requests"}
+                {readOnly ? "Back to notifications" : "Back to requests"}
               </Button>
             </Link>
           }
@@ -167,12 +181,12 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
         <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
           <EmptyState
             icon={<Briefcase className="w-6 h-6 text-slate-400" />}
-            title="Manpower Request Not Available"
-            description={`The Manpower Request record (#${mrfId}) was not found or may have been deleted.`}
+             title={readOnly ? "This hiring request is no longer available" : "Manpower Request Not Available"}
+             description={readOnly ? "It may have been removed. Return to Notifications to continue." : `The Manpower Request record (#${mrfId}) was not found or may have been deleted.`}
             action={
               <Link to={baseBackPath}>
                 <Button variant="primary" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                  {readOnly ? "Return to Notifications" : "Return to Requests"}
+                  {readOnly ? "Return to notifications" : "Return to requests"}
                 </Button>
               </Link>
             }
@@ -185,7 +199,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   if (mrfQuery.isError || !mrfQuery.data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Manpower Request" description="MRF details" />
+        <PageHeader title={readOnly ? "Hiring request" : "Manpower Request"} description={readOnly ? "Hiring request details" : "Request details"} />
         <ErrorState
           error={mrfQuery.error || new Error("Unable to load Manpower Request")}
           onRetry={() => mrfQuery.refetch()}
@@ -229,7 +243,9 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     <div className="space-y-6">
       <PageHeader
         title={mrf.title}
-        description={`MRF Reference #${mrf.id} • Client: ${mrf.client?.name || "Client Account"}${readOnly ? " • Read-Only Oversight" : ""}`}
+        description={readOnly
+          ? `Request #${mrf.id} · Client: ${mrf.client?.name || "Client"} · View only`
+          : `MRF Reference #${mrf.id} · Client: ${mrf.client?.name || "Client Account"}`}
         breadcrumbs={
           readOnly
             ? [
@@ -247,7 +263,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           <div className="flex items-center gap-2">
             <Link to={baseBackPath}>
               <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                {readOnly ? "Back to Notifications" : "Back to Requests"}
+                 {readOnly ? "Back to notifications" : "Back to requests"}
               </Button>
             </Link>
             {!readOnly && (
@@ -272,7 +288,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3 text-emerald-900 shadow-xs">
           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
           <p className="text-xs text-emerald-900">
-            <strong className="font-bold">Order 100% Fulfilled.</strong> Target headcount reached. Linked job postings have been closed.
+             <strong className="font-bold">All positions filled.</strong> The target was reached and linked job openings have been closed.
           </p>
         </div>
       )}
@@ -282,11 +298,11 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
           <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-slate-500 uppercase">
             <Users className="w-3.5 h-3.5 text-slate-400" />
-            <span>Manpower Fulfillment</span>
+            <span>{readOnly ? "Positions filled" : "Manpower Fulfillment"}</span>
           </div>
-          <div className="text-2xl font-bold font-mono text-slate-900 mt-1 tabular-nums">
+          <div className="text-2xl font-bold font-sans text-slate-900 mt-1 tabular-nums">
             {deployedCount} / <span>{mrf.headcount}</span>{" "}
-            <span className="text-xs text-slate-400 font-normal">pax</span>
+             {!readOnly && <span className="text-xs text-slate-400 font-normal">people</span>}
           </div>
           <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-2">
             <div
@@ -301,19 +317,19 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             />
           </div>
           <div className="text-[11px] text-slate-500 mt-2 font-mono">
-            {fulfillmentRate}% • {remainingCount} slots remaining
+             {fulfillmentRate}% • {remainingCount} {readOnly ? "positions" : "slots"} remaining
           </div>
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
           <div className="text-[11px] font-mono font-bold text-teal-700 uppercase">
-            Order Status
+             {readOnly ? "Request status" : "Order Status"}
           </div>
           <div className="text-2xl font-bold font-mono text-teal-900 mt-1 uppercase">
-            {mrf.status}
+             {readOnly ? formatAdminPipelineStage(mrf.status) : mrf.status}
           </div>
           <div className="text-[11px] text-slate-500 mt-1 font-mono">
-            Priority: {mrf.priority}
+             Priority: {String(mrf.priority || "Standard").replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
           </div>
         </div>
 
@@ -351,6 +367,9 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           type="button"
           role="tab"
           aria-selected={activeTab === "deployments"}
+          aria-controls="mrf-tab-deployments"
+          tabIndex={activeTab === "deployments" ? 0 : -1}
+          onKeyDown={(event) => handleTabKeyDown(event, "deployments")}
           onClick={() => setActiveTab("deployments")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
             activeTab === "deployments"
@@ -359,7 +378,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           }`}
         >
           <Users className="w-4 h-4 text-teal-600" />
-          <span>Deployed Personnel</span>
+           <span>{readOnly ? "Placed workers" : "Deployed Personnel"}</span>
           <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-slate-100 text-slate-700">
             {deployments.length} / {mrf.headcount}
           </span>
@@ -369,6 +388,9 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           type="button"
           role="tab"
           aria-selected={activeTab === "jobs"}
+          aria-controls="mrf-tab-jobs"
+          tabIndex={activeTab === "jobs" ? 0 : -1}
+          onKeyDown={(event) => handleTabKeyDown(event, "jobs")}
           onClick={() => setActiveTab("jobs")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
             activeTab === "jobs"
@@ -377,7 +399,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           }`}
         >
           <Briefcase className="w-4 h-4 text-teal-600" />
-          <span>Linked Job Openings</span>
+           <span>{readOnly ? "Job openings" : "Linked Job Openings"}</span>
           <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-slate-100 text-slate-700">
             {linkedJobs.length}
           </span>
@@ -387,6 +409,9 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           type="button"
           role="tab"
           aria-selected={activeTab === "specifications"}
+          aria-controls="mrf-tab-specifications"
+          tabIndex={activeTab === "specifications" ? 0 : -1}
+          onKeyDown={(event) => handleTabKeyDown(event, "specifications")}
           onClick={() => setActiveTab("specifications")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
             activeTab === "specifications"
@@ -395,10 +420,10 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           }`}
         >
           <FileText className="w-4 h-4 text-teal-600" />
-          <span>Order Specifications</span>
+           <span>{readOnly ? "Request details" : "Order Specifications"}</span>
           {templates.length > 0 && (
             <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-slate-100 text-slate-700">
-              {templates.length} reqs
+               {templates.length} requirements
             </span>
           )}
         </button>
@@ -409,6 +434,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
         {/* Tab 1: Deployed Personnel */}
         <div
           role="tabpanel"
+          id="mrf-tab-deployments"
           aria-label="Deployed Personnel"
           className={activeTab === "deployments" ? "block space-y-4" : "hidden"}
         >
@@ -420,8 +446,8 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 </h3>
                 <p className="text-xs text-slate-500">
                   {readOnly
-                    ? "Active workers and site assignments fulfilling this order (Read-Only Audit)"
-                    : "Active workers and site assignments fulfilling this order"}
+                     ? "Workers and sites assigned to this hiring request (view only)"
+                     : "Active workers and site assignments fulfilling this order"}
                 </p>
               </div>
               <div className="relative w-full sm:w-80">
@@ -430,7 +456,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   type="text"
                   value={personnelSearch}
                   onChange={(e) => setPersonnelSearch(e.target.value)}
-                  placeholder="Search deployed personnel by name, ID, or site..."
+                   placeholder={readOnly ? "Search workers by name, employee ID, or site..." : "Search deployed personnel by name, ID, or site..."}
                   className="w-full pl-9 pr-8 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 bg-white"
                 />
                 {personnelSearch && (
@@ -439,6 +465,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     onClick={() => setPersonnelSearch("")}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
                     title="Clear search"
+                    aria-label="Clear worker search"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -460,7 +487,27 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 </Button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="md:hidden divide-y divide-slate-200">
+                {filteredDeployments.map((d: any) => {
+                  const profile = d.employee?.user?.applicantProfile || d.application?.user?.applicantProfile;
+                  const workerName = profile
+                    ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || "Unnamed worker"
+                    : d.employee?.user?.email || "Unnamed worker";
+                  return (
+                    <div key={d.id} className="p-4 space-y-2">
+                      <div className="font-semibold text-sm text-slate-900">{workerName}</div>
+                      <dl className="grid grid-cols-2 gap-2 text-sm">
+                        <div><dt className="text-xs text-slate-500">Employee ID</dt><dd>{d.employee?.employeeNumber || "Not assigned"}</dd></div>
+                        <div><dt className="text-xs text-slate-500">Site</dt><dd>{d.site || mrf.location || "Main site"}</dd></div>
+                        <div><dt className="text-xs text-slate-500">Contract</dt><dd>{d.contractStart ? formatDate(d.contractStart) : "Not set"} – {d.contractEnd ? formatDate(d.contractEnd) : "Ongoing"}</dd></div>
+                        <div><dt className="text-xs text-slate-500">Status</dt><dd><StatusBadge status={d.status} type="deployment" size="sm" /></dd></div>
+                      </dl>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-xs text-slate-700">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-mono text-[11px] uppercase tracking-wider">
                     <tr>
@@ -521,6 +568,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         </div>
@@ -528,6 +576,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
         {/* Tab 2: Linked Job Openings */}
         <div
           role="tabpanel"
+          id="mrf-tab-jobs"
           aria-label="Linked Job Openings"
           className={activeTab === "jobs" ? "block space-y-4" : "hidden"}
         >
@@ -535,10 +584,10 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
               <div className="space-y-0.5">
                 <h3 className="text-sm font-bold text-slate-900">
-                  Linked Job Requisitions ({linkedJobs.length})
+                    {readOnly ? "Job openings" : "Linked Job Requisitions"} ({linkedJobs.length})
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Openings actively collecting candidate applications for this MRF
+                  Openings actively collecting candidate applications for this hiring request
                 </p>
               </div>
               {!readOnly && (
@@ -548,7 +597,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   leftIcon={<Plus className="w-3.5 h-3.5" />}
                   onClick={() => setLinkJobModalOpen(true)}
                 >
-                  Link Requisition
+                    Link job opening
                 </Button>
               )}
             </div>
@@ -557,8 +606,8 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
               <div className="p-8 text-center space-y-3">
                 <p className="text-xs text-slate-400">
                   {readOnly
-                    ? "No job postings linked to this MRF yet."
-                    : "No job postings linked to this MRF yet. Link a requisition to connect applicant traffic."}
+                     ? "No job openings linked to this request yet."
+                     : "No job openings linked to this request yet. Link one to connect applications."}
                 </p>
                 {!readOnly && (
                   <Button
@@ -567,7 +616,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     leftIcon={<Plus className="w-3.5 h-3.5" />}
                     onClick={() => setLinkJobModalOpen(true)}
                   >
-                    Link First Requisition
+                    Link first job opening
                   </Button>
                 )}
               </div>
@@ -583,15 +632,19 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                             Keep Open After Fill
                           </span>
                         )}
-                        <StatusBadge status={job.status} type="raw" size="sm" />
+                         {readOnly ? (
+                           <span className="px-2 py-0.5 text-xs border border-slate-300 text-slate-700 bg-slate-50">
+                             {String(job.status || "Unknown").replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
+                           </span>
+                         ) : <StatusBadge status={job.status} type="raw" size="sm" />}
                       </div>
                       <div className="text-[11px] text-slate-500 font-mono">
-                        Requisition #{job.id} • {job.location || "Philippines"}
+                         {readOnly ? "Job opening" : "Requisition"} #{job.id} • {job.location || "Philippines"}
                       </div>
                     </div>
                     {readOnly ? (
                       <span className="px-2 py-1 bg-slate-100 border border-slate-200 rounded text-[11px] font-mono font-medium text-slate-700">
-                        Requisition #{job.id}
+                         Job opening #{job.id}
                       </span>
                     ) : (
                       <Link to="/ta/jobs/$jobId" params={{ jobId: String(job.id) }}>
@@ -610,6 +663,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
         {/* Tab 3: Order Specifications */}
         <div
           role="tabpanel"
+          id="mrf-tab-specifications"
           aria-label="Order Specifications"
           className={activeTab === "specifications" ? "block space-y-4" : "hidden"}
         >
@@ -618,7 +672,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
                 <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-                  Order Description & Client Criteria
+                  Request details and client criteria
                 </h3>
                 <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
                   {mrf.description || "No additional description provided for this order."}
@@ -627,7 +681,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 {mrf.requiredSkills && (
                   <div className="pt-2">
                     <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                      Required Competencies:
+                  Required skills:
                     </span>
                     <p className="text-xs text-slate-800 font-semibold mt-0.5">{mrf.requiredSkills}</p>
                   </div>
@@ -636,7 +690,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 {mrf.requiredExperience && (
                   <div className="pt-2">
                     <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                      Required Experience:
+                  Required experience:
                     </span>
                     <p className="text-xs text-slate-800 font-semibold mt-0.5">{mrf.requiredExperience}</p>
                   </div>
@@ -649,7 +703,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
               {/* Client Account Box */}
               <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3">
                 <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-                  Client Account Information
+                  Client information
                 </h3>
                 <div className="space-y-2 text-xs">
                   <div className="font-bold text-slate-900">{mrf.client?.name || "Client Account"}</div>
@@ -663,7 +717,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-slate-700 uppercase">
                     <ShieldCheck className="w-4 h-4 text-teal-600" />
-                    <span>Requirements Templates</span>
+                    <span>Required documents</span>
                   </div>
                   {!readOnly && (
                     <Button
@@ -680,8 +734,8 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 {templates.length === 0 ? (
                   <p className="text-xs text-slate-400">
                     {readOnly
-                      ? "No compliance document templates assigned to this MRF."
-                      : "No templates assigned. Add required document types (NBI, SSS, Medical)."}
+                       ? "No required documents assigned to this request."
+                       : "No required documents assigned. Add the document types candidates must provide."}
                   </p>
                 ) : (
                   <div className="divide-y divide-slate-100">

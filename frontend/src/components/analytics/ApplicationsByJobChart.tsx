@@ -10,8 +10,8 @@ interface ApplicationsByJobChartProps {
 
 export const ApplicationsByJobChart: React.FC<ApplicationsByJobChartProps> = ({
   data = [],
-  title = "Applications by Job Posting & MRF Demand",
-  subtitle = "Recruitment intake volume, active pipeline density, and target headcount per client requisition",
+  title = "Applications by job opening",
+  subtitle = "Applications, candidates in progress, and placements for each opening",
 }) => {
   const maxApplications = Math.max(1, ...data.map((j) => j.totalApplications));
 
@@ -29,14 +29,14 @@ export const ApplicationsByJobChart: React.FC<ApplicationsByJobChartProps> = ({
           </div>
         </div>
         <div className="text-xs font-mono text-slate-500">
-          <span className="font-bold text-slate-900">{data.length}</span> active postings
+          <span className="font-bold text-slate-900">{data.length}</span> job openings
         </div>
       </div>
 
       {/* Content */}
       {data.length === 0 ? (
         <div className="p-8 text-center text-xs font-mono text-slate-400">
-          No job postings or manpower requests recorded for this selection.
+          No job openings are available for this selection.
         </div>
       ) : (
         <div className="divide-y divide-slate-200">
@@ -49,19 +49,19 @@ export const ApplicationsByJobChart: React.FC<ApplicationsByJobChartProps> = ({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-slate-950 font-sans text-xs">{job.jobTitle}</span>
-                    <span className="text-[10px] font-mono text-slate-500 px-1.5 py-0.2 bg-slate-100 border border-slate-300 uppercase">
-                      {job.status}
+                    <span className="text-xs text-slate-600 px-1.5 py-0.5 bg-slate-100 border border-slate-300">
+                      {job.status.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-3 text-[11px] font-mono text-slate-600">
                     <div className="flex items-center gap-1">
                       <Building2 className="w-3 h-3 text-slate-400" />
-                      <span>{job.clientName || "Direct Job"}</span>
+                      <span>{job.clientName || "Direct opening"}</span>
                     </div>
                     {job.mrfTitle && (
                       <span className="text-slate-400 truncate max-w-[150px]">
-                        ({job.mrfTitle})
+                        ({job.mrfTitle === "Direct Requisition" ? "Direct opening" : job.mrfTitle})
                       </span>
                     )}
                   </div>
@@ -81,15 +81,15 @@ export const ApplicationsByJobChart: React.FC<ApplicationsByJobChartProps> = ({
 
                   <div className="flex items-center gap-3 text-[11px] font-mono shrink-0">
                     <div>
-                      <span className="text-slate-400">Active: </span>
+                      <span className="text-slate-400">In progress: </span>
                       <span className="font-bold text-slate-900 tabular-nums">{job.activeCandidates}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400">Target: </span>
+                      <span className="text-slate-400">Positions: </span>
                       <span className="font-bold text-slate-900 tabular-nums">{job.targetHeadcount}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400">Deployed: </span>
+                      <span className="text-slate-400">Placed: </span>
                       <span className="font-bold text-emerald-800 tabular-nums">{job.deployedCount}</span>
                     </div>
                   </div>

@@ -22,10 +22,12 @@ import {
 
 const router = Router();
 
+// Publicly browse open job listings
+router.get("/jobs", getOpenJobs);
+
 router.use(authenticateJWT);
 router.use(requireRole("APPLICANT"));
 
-router.get("/jobs", getOpenJobs);
 router.get("/jobs/:id", getJobDetails);
 router.post("/jobs/:id/apply", upload.single("file"), applyToJob);
 router.post("/jobs/:id/save", saveJobHandler);

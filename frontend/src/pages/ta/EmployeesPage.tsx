@@ -203,6 +203,7 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
               totalItems={allEmployees.length}
               pageSize={pageSize}
               onPageChange={setPage}
+              itemLabel="employees"
             />
           </div>
         </div>

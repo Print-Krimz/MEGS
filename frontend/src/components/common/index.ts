@@ -16,3 +16,4 @@ export * from "./DocumentPreviewModal";
 export * from "./FeedbackToaster";
 export * from "./JobImage";
 export * from "./ChangePasswordModal";
+export * from "./ActionMenu";

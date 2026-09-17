@@ -3,6 +3,7 @@ import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Button } from "../ui/Button";
 import { ApiError } from "../../lib/api/client";
 import { cn } from "../../lib/utils";
+import { formatErrorMessage } from "../../lib/feedback";
 
 export interface ErrorStateProps {
   error?: Error | ApiError | null;
@@ -12,11 +13,12 @@ export interface ErrorStateProps {
 }
 
 export const ErrorState: React.FC<ErrorStateProps> = ({
+  error,
   message,
   onRetry,
   className,
 }) => {
-  const displayMessage = message || "We couldn't load this information.";
+  const displayMessage = message || (error ? formatErrorMessage(error) : "We couldn't load this information.");
 
   return (
     <div
@@ -24,6 +26,8 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
         "flex flex-col items-center justify-center p-8 sm:p-12 text-center bg-rose-50/40 border border-rose-200 rounded-lg my-4",
         className,
       )}
+      role="alert"
+      aria-live="assertive"
     >
       <div className="w-11 h-11 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mb-3 border border-rose-200">
         <AlertTriangle className="w-6 h-6" />

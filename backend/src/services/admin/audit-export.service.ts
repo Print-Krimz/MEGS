@@ -1,7 +1,23 @@
-import PDFDocument from "pdfkit";
-import ExcelJS from "exceljs";
 import { fetchAuditLogs } from "./admin.service.js";
 import { logAudit } from "../../utils/audit.js";
+import { getReportMetadata } from "../analytics/report-theme.js";
+import {
+  createHRDocument,
+  renderCorporateHeader,
+  renderSummaryKPIs,
+  renderGridTable,
+  renderFootersAndPagination,
+  ColumnDef,
+} from "../analytics/report-pdf-builder.js";
+import {
+  createHRExcelWorkbook,
+  applySpreadsheetHeaderBlock,
+  applyTableHeaders,
+  applyDataRowsAndFormatting,
+  writeWorkbookToBuffer,
+  ExcelColumnDef,
+} from "../analytics/report-excel-builder.js";
+import ExcelJS from "exceljs";
 
 const safeFormatDate = (date: Date | string | null | undefined): string => {
   if (!date) return "N/A";
@@ -43,7 +59,38 @@ const resolveActorName = (log: any): string => {
   if (action.includes("COMPLIANCE")) {
     return "Compliance Officer";
   }
-  return "Talent Acquisition Specialist";
+  return "System Administrator";
+};
+
+const resolveDetailsSummary = (log: any): string => {
+  if (!log.details) return "N/A";
+  try {
+    const parsed = typeof log.details === "string" ? JSON.parse(log.details) : log.details;
+    if (typeof parsed === "object") {
+      const parts: string[] = [];
+      if (parsed.ip) parts.push(`IP: ${parsed.ip}`);
+      if (parsed.target) parts.push(`Target: ${parsed.target}`);
+      if (parsed.reason) parts.push(`Reason: ${parsed.reason}`);
+      if (parsed.status) parts.push(`Status: ${parsed.status}`);
+      return parts.length > 0 ? parts.join(", ") : JSON.stringify(parsed).slice(0, 40);
+    }
+    return String(parsed).slice(0, 40);
+  } catch {
+    return String(log.details).slice(0, 40);
+  }
+};
+
+const buildAuditFilterSummary = (filters?: any): string => {
+  if (!filters || Object.keys(filters).length === 0) return "All Audit Events (Unfiltered)";
+  const parts: string[] = [];
+  if (filters.action) parts.push(`Action: ${filters.action}`);
+  if (filters.entity) parts.push(`Entity: ${filters.entity}`);
+  if (filters.category) parts.push(`Category: ${filters.category}`);
+  if (filters.search) parts.push(`Query: "${filters.search}"`);
+  if (filters.startDate && filters.endDate) {
+    parts.push(`Date: ${filters.startDate} to ${filters.endDate}`);
+  }
+  return parts.length > 0 ? parts.join(" | ") : "All Audit Events";
 };
 
 export const generateAuditReportPDF = async (
@@ -55,64 +102,143 @@ export const generateAuditReportPDF = async (
     limit: filters?.limit ? parseInt(String(filters.limit), 10) : 500,
   });
 
-  return new Promise<Buffer>((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 40, size: "A4" });
-    const chunks: Buffer[] = [];
-
-    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
-    doc.on("end", () => {
-      const buffer = Buffer.concat(chunks);
-      logAudit(
-        requestedBy.id,
-        "SECURITY_AUDIT_REPORT_EXPORT_PDF",
-        "AuditLog",
-        null,
-        {
-          recordsCount: logs.length,
-          filters: filters || {},
-        }
-      ).catch(() => null);
-      resolve(buffer);
-    });
-    doc.on("error", reject);
-
-    // Document Header
-    doc.fontSize(16).font("Helvetica-Bold").text("MEGS - SECURITY AUDIT REPORT", { align: "center" });
-    doc.moveDown(0.2);
-    doc.fontSize(9).font("Helvetica").text("Metropolitan Employment Generation System • Administrative Governance", { align: "center" });
-    doc.moveDown(0.8);
-
-    // Meta Block
-    doc.fontSize(9).font("Helvetica-Bold").text("REPORT METADATA:");
-    doc.font("Helvetica");
-    doc.text(`Generated At: ${new Date().toISOString()}`);
-    doc.text(`Requested By: ${requestedBy.email}`);
-    doc.text(`Total Events Exported: ${logs.length}`);
-    if (filters && Object.keys(filters).length > 0) {
-      doc.text(`Filters Applied: ${JSON.stringify(filters)}`);
-    }
-    doc.moveDown(1);
-
-    // Table Header
-    doc.font("Helvetica-Bold").fontSize(9);
-    doc.text("Timestamp           | Action                         | Actor                         | Target Entity");
-    doc.text("--------------------------------------------------------------------------------------------------");
-    doc.font("Helvetica").fontSize(8);
-
-    if (logs.length === 0) {
-      doc.font("Helvetica-Oblique").text("No audit log events match the selected criteria.");
-    } else {
-      for (const log of logs) {
-        const actor = resolveActorName(log);
-        const target = log.entity ? `${log.entity}${log.entityId ? ` #${log.entityId}` : ""}` : "N/A";
-        const ts = safeFormatDate(log.createdAt);
-
-        doc.text(`${ts.padEnd(20)} | ${log.action.slice(0, 30).padEnd(30)} | ${actor.slice(0, 30).padEnd(30)} | ${target}`);
-      }
-    }
-
-    doc.end();
+  const filterSummary = buildAuditFilterSummary(filters);
+  const meta = getReportMetadata({
+    reportType: "AUDIT",
+    roleScope: "ADMINISTRATOR",
+    requestedByEmail: requestedBy.email,
+    filterSummary,
   });
+
+  const doc = createHRDocument({ orientation: "landscape" });
+  renderCorporateHeader(doc, meta);
+
+  // Compute summary KPI metrics
+  const totalEvents = logs.length;
+  const uniqueActors = new Set(logs.map((l: any) => l.userId || resolveActorName(l))).size;
+  const authEvents = logs.filter((l: any) => (l.action || "").includes("LOGIN") || (l.action || "").includes("AUTH")).length;
+  const adminEvents = logs.filter((l: any) => (l.action || "").includes("CONFIG") || (l.action || "").includes("BACKUP") || (l.action || "").includes("USER_ROLE")).length;
+
+  renderSummaryKPIs(doc, [
+    { label: "Total Audit Events", value: totalEvents },
+    { label: "Distinct Actors", value: uniqueActors },
+    { label: "Authentication Events", value: authEvents },
+    { label: "Administrative Actions", value: adminEvents },
+  ]);
+
+  const columns: ColumnDef[] = [
+    { header: "Log ID", width: 50, align: "center" },
+    { header: "Timestamp (UTC)", width: 105, align: "center" },
+    { header: "Action Taxonomy", width: 135, align: "left", badge: true },
+    { header: "Acting User", width: 130, align: "left" },
+    { header: "Actor Role", width: 90, align: "center" },
+    { header: "Target Entity", width: 100, align: "left" },
+    { header: "Client IP", width: 70, align: "center" },
+    { header: "Context Details", width: 90, align: "left" },
+  ];
+
+  const rows = logs.map((log: any) => {
+    const actor = resolveActorName(log);
+    const target = log.entity ? `${log.entity}${log.entityId ? ` #${log.entityId}` : ""}` : "N/A";
+    let ip = "N/A";
+    try {
+      const details = typeof log.details === "string" ? JSON.parse(log.details) : log.details || {};
+      ip = details.ip || details.ipAddress || "N/A";
+    } catch {}
+
+    return [
+      `#${log.id}`,
+      safeFormatDate(log.createdAt),
+      log.action,
+      actor,
+      log.user?.role || "SYSTEM",
+      target,
+      ip,
+      resolveDetailsSummary(log),
+    ];
+  });
+
+  renderGridTable(doc, { columns, rows });
+
+  const buffer = await renderFootersAndPagination(doc, meta);
+
+  logAudit(
+    requestedBy.id,
+    "SECURITY_AUDIT_REPORT_EXPORT_PDF",
+    "AuditLog",
+    null,
+    { recordsCount: logs.length, filters: filters || {} }
+  ).catch(() => null);
+
+  return buffer;
+};
+
+export const generateAuditReportXLSX = async (
+  requestedBy: { id: string; email: string },
+  filters?: any
+): Promise<Buffer> => {
+  const logs = await fetchAuditLogs({
+    ...filters,
+    limit: filters?.limit ? parseInt(String(filters.limit), 10) : 2000,
+  });
+
+  const filterSummary = buildAuditFilterSummary(filters);
+  const meta = getReportMetadata({
+    reportType: "AUDIT",
+    roleScope: "ADMINISTRATOR",
+    requestedByEmail: requestedBy.email,
+    filterSummary,
+  });
+
+  const { workbook, worksheet } = createHRExcelWorkbook(meta, "Audit Trail");
+  applySpreadsheetHeaderBlock(worksheet, meta);
+
+  const columns: ExcelColumnDef[] = [
+    { header: "Log ID", key: "id", minWidth: 12, align: "center" },
+    { header: "Timestamp (UTC)", key: "createdAt", minWidth: 20, align: "center" },
+    { header: "Action Taxonomy", key: "action", minWidth: 26 },
+    { header: "Acting User", key: "actor", minWidth: 26 },
+    { header: "Actor Role", key: "userRole", minWidth: 18, align: "center" },
+    { header: "Target Entity", key: "entity", minWidth: 18 },
+    { header: "Entity Record ID", key: "entityId", minWidth: 16, align: "center" },
+    { header: "Client IP Address", key: "ipAddress", minWidth: 18, align: "center" },
+    { header: "Audit Details", key: "details", minWidth: 35 },
+  ];
+
+  const rows = logs.map((log: any) => {
+    let ip = "N/A";
+    try {
+      const details = typeof log.details === "string" ? JSON.parse(log.details) : log.details || {};
+      ip = details.ip || details.ipAddress || "N/A";
+    } catch {}
+
+    return {
+      id: log.id,
+      createdAt: safeFormatDate(log.createdAt),
+      action: log.action,
+      actor: resolveActorName(log),
+      userRole: log.user?.role || "SYSTEM",
+      entity: log.entity || "N/A",
+      entityId: log.entityId || "N/A",
+      ipAddress: ip,
+      details: typeof log.details === "object" ? JSON.stringify(log.details) : String(log.details || ""),
+    };
+  });
+
+  applyTableHeaders(worksheet, 7, columns);
+  applyDataRowsAndFormatting(worksheet, 7, columns, rows);
+
+  const buffer = await writeWorkbookToBuffer(workbook);
+
+  await logAudit(
+    requestedBy.id,
+    "SECURITY_AUDIT_REPORT_EXPORT_XLSX",
+    "AuditLog",
+    null,
+    { recordsCount: logs.length, filters: filters || {} }
+  );
+
+  return buffer;
 };
 
 export const generateAuditReportCSV = async (
@@ -140,6 +266,12 @@ export const generateAuditReportCSV = async (
   ];
 
   for (const log of logs) {
+    let ip = "N/A";
+    try {
+      const details = typeof log.details === "string" ? JSON.parse(log.details) : log.details || {};
+      ip = details.ip || details.ipAddress || "N/A";
+    } catch {}
+
     worksheet.addRow({
       id: log.id,
       createdAt: safeFormatDate(log.createdAt),
@@ -148,7 +280,8 @@ export const generateAuditReportCSV = async (
       userRole: log.user?.role || "N/A",
       entity: log.entity || "N/A",
       entityId: log.entityId || "N/A",
-      details: log.details || "",
+      ipAddress: ip,
+      details: typeof log.details === "object" ? JSON.stringify(log.details) : String(log.details || ""),
     });
   }
 

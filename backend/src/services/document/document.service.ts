@@ -140,22 +140,23 @@ export const resolveDocumentSignedUrl = async (
   }
   const match = urlOrPath.match(/\/api\/documents\/(\d+)/);
   const docId = match ? parseInt(match[1], 10) : parseInt(urlOrPath, 10);
-  if (!isNaN(docId)) {
-    try {
-      const doc = await prisma.storedDocument.findUnique({ where: { id: docId } });
-      if (!doc) return urlOrPath;
-      if (doc.ownerId !== requesterId && requesterRole !== "TALENT_ACQUISITION" && requesterRole !== "ADMINISTRATOR") {
-        return urlOrPath;
-      }
-      const { data, error } = await supabase.storage
-        .from(doc.storageBucket)
-        .createSignedUrl(doc.storagePath, expiresInSeconds);
-      if (!error && data?.signedUrl) {
-        return data.signedUrl;
-      }
-    } catch {
+  try {
+    let doc = !isNaN(docId)
+      ? await prisma.storedDocument.findUnique({ where: { id: docId } })
+      : await prisma.storedDocument.findFirst({ where: { storagePath: urlOrPath } });
+
+    if (!doc) return urlOrPath;
+    if (doc.ownerId !== requesterId && requesterRole !== "TALENT_ACQUISITION" && requesterRole !== "ADMINISTRATOR") {
       return urlOrPath;
     }
+    const { data, error } = await supabase.storage
+      .from(doc.storageBucket)
+      .createSignedUrl(doc.storagePath, expiresInSeconds);
+    if (!error && data?.signedUrl) {
+      return data.signedUrl;
+    }
+  } catch {
+    return urlOrPath;
   }
   return urlOrPath;
 };

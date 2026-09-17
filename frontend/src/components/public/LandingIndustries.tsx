@@ -1,13 +1,5 @@
 import React from "react";
-import { 
-  Factory, 
-  Truck, 
-  Warehouse, 
-  ShoppingBag, 
-  UtensilsCrossed, 
-  Gamepad2,
-  ArrowUpRight
-} from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { scrollToSection } from "../../lib/scrollToSection";
 
 export const LandingIndustries: React.FC = () => {
@@ -15,7 +7,6 @@ export const LandingIndustries: React.FC = () => {
     {
       id: "manufacturing",
       name: "Manufacturing",
-      icon: Factory,
       image: "/images/canva-ref/industries/manufacturing.jpg",
       description:
         "Electronics assembly, food processing lines, plastic extrusion, packaging operations, and precision machinery plants across economic zones.",
@@ -24,7 +15,6 @@ export const LandingIndustries: React.FC = () => {
     {
       id: "logistics",
       name: "Logistics & Transport",
-      icon: Truck,
       image: "/images/canva-ref/industries/logistics.jpg",
       description:
         "Multi-modal freight forwarding, delivery fleet operations, courier transport, route planning, and national supply chain dispatching.",
@@ -33,7 +23,6 @@ export const LandingIndustries: React.FC = () => {
     {
       id: "warehousing",
       name: "Warehousing & Storage",
-      icon: Warehouse,
       image: "/images/canva-ref/industries/warehousing.jpg",
       description:
         "High-density distribution centers, inventory scanning, goods receiving, palletizing, order sorting, and industrial forklift maneuvers.",
@@ -42,7 +31,6 @@ export const LandingIndustries: React.FC = () => {
     {
       id: "retail",
       name: "Retail, Sales & Distribution",
-      icon: ShoppingBag,
       image: "/images/canva-ref/industries/retail.jpg",
       description:
         "Hypermarkets, department stores, retail chains, and fast-moving consumer goods (FMCG) distribution networks nationwide.",
@@ -51,7 +39,6 @@ export const LandingIndustries: React.FC = () => {
     {
       id: "hospitality",
       name: "Hotel & Restaurant",
-      icon: UtensilsCrossed,
       image: "/images/canva-ref/industries/hospitality.jpg",
       description:
         "Premier hotels, restaurant chains, catering services, banquet halls, institutional cafeterias, and hospitality dining floors.",
@@ -60,7 +47,6 @@ export const LandingIndustries: React.FC = () => {
     {
       id: "gaming",
       name: "Gaming & Casino",
-      icon: Gamepad2,
       image: "/images/canva-ref/industries/casino.jpg",
       description:
         "Integrated resort gaming facilities, entertainment complexes, high-volume recreation centers, and guest operations support.",
@@ -75,13 +61,13 @@ export const LandingIndustries: React.FC = () => {
         {/* Section Header */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-16 gap-6">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-teal-50 border border-teal-200 text-teal-800 text-[11px] font-mono font-bold uppercase tracking-wider mb-3">
+            <p className="text-xs font-mono uppercase tracking-wider text-[#0f294a] font-bold mb-2">
               Specialized Industry Sectors
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight font-sans">
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0f294a] tracking-tight font-sans">
               Partner Industries We Support
             </h2>
-            <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed">
+            <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed font-sans">
               We deploy vetted, disciplined manpower tailored to the operational workflows, safety standards, and compliance regulations of 6 key Philippine industries.
             </p>
           </div>
@@ -89,7 +75,7 @@ export const LandingIndustries: React.FC = () => {
           <a
             href="#contact"
             onClick={(e) => scrollToSection(e, "#contact")}
-            className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-teal-800 hover:text-teal-900 transition-colors shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-[#0f294a] hover:text-blue-700 transition-colors shrink-0 cursor-pointer"
           >
             <span>Inquire for Your Industry</span>
             <ArrowUpRight className="w-4 h-4" />
@@ -99,54 +85,43 @@ export const LandingIndustries: React.FC = () => {
         {/* 6 Industry Photo Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
           {industries.map((ind) => {
-            const Icon = ind.icon;
             return (
               <div
                 key={ind.id}
-                className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col justify-between hover:border-slate-300 hover:shadow-md transition-all duration-200 group"
+                className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col justify-between hover:border-slate-300 shadow-2xs transition-all duration-200 group"
               >
-                {/* Photo with Overlay */}
-                <div className="relative h-48 sm:h-52 w-full overflow-hidden bg-slate-900">
+                {/* Photo */}
+                <div className="relative h-44 w-full overflow-hidden bg-slate-900">
                   <img
                     src={ind.image}
                     alt={`${ind.name} workforce`}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-90"
+                    className="w-full h-full object-cover opacity-95 group-hover:scale-102 transition-transform duration-300"
                     loading="lazy"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-transparent" />
-                  
-                  {/* Category Header Badge */}
-                  <div className="absolute top-3 left-3 flex items-center gap-2 px-2.5 py-1 bg-white/95 backdrop-blur-xs rounded-md shadow-xs">
-                    <Icon className="w-4 h-4 text-teal-800" />
-                    <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-900">
-                      {ind.name}
-                    </span>
-                  </div>
                 </div>
 
                 {/* Content */}
                 <div className="p-6 flex-1 flex flex-col justify-between">
                   <div>
+                    <div className="mb-3">
+                      <h3 className="text-base font-bold font-mono uppercase text-[#0f294a] tracking-tight">
+                        {ind.name}
+                      </h3>
+                    </div>
+
                     <p className="text-xs text-slate-600 leading-relaxed mb-4 font-sans">
                       {ind.description}
                     </p>
                   </div>
 
-                  {/* Supplied Roles Badges */}
+                  {/* Supplied Roles (Clean inline list instead of decorative sticker pills) */}
                   <div className="pt-4 border-t border-slate-100">
-                    <span className="text-[10px] font-mono uppercase font-bold text-slate-400 block mb-2 tracking-wider">
+                    <span className="text-[10px] font-mono uppercase font-bold text-slate-400 block mb-1 tracking-wider">
                       Key Personnel Supplied:
                     </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {ind.roles.map((role, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-medium rounded"
-                        >
-                          {role}
-                        </span>
-                      ))}
-                    </div>
+                    <p className="text-xs text-slate-700 font-sans leading-relaxed">
+                      {ind.roles.join(" • ")}
+                    </p>
                   </div>
                 </div>
 

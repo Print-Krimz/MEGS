@@ -85,7 +85,7 @@ export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputPro
             }
             className={cn(
               "block w-full min-h-11 md:min-h-10 rounded-md border text-sm text-slate-900 bg-white placeholder-slate-400 transition-colors",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-1 focus:border-teal-700",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-1 focus:border-[#0B315D]",
               leftIcon ? "pl-8" : "pl-2.5",
               showToggle ? "pr-10" : "pr-2.5",
               "py-2",
@@ -109,7 +109,7 @@ export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputPro
                 title={showPassword ? "Hide password" : "Show password"}
                 className={cn(
                   "p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors",
-                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-1",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] focus-visible:ring-offset-1",
                   disabled && "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-slate-400"
                 )}
               >

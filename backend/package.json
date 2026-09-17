@@ -17,6 +17,7 @@
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:clean": "tsx scripts/clean-database.ts",
+    "db:purge-mock": "tsx scripts/purge-mock-data.ts",
     "db:restore": "tsx scripts/restore-database.ts",
     "db:studio": "prisma studio"
   },

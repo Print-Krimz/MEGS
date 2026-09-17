@@ -51,9 +51,9 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
   return (
     <div className="space-y-6">
       {showHeader && (
-        <div className="border-b border-slate-100 pb-4">
-          <h3 className="text-base font-bold text-slate-900">Technical & Practical Skills</h3>
-          <p className="text-xs text-slate-500">
+        <div className="border-b border-[#D9E2EC] pb-4">
+          <h3 className="text-base font-bold text-[#102A43]">Technical & Practical Skills</h3>
+          <p className="text-xs text-[#627D98]">
             List competencies and credentials used for automated candidate matching and requisition placement.
           </p>
         </div>
@@ -87,7 +87,7 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
       {/* Suggested Skills Carousel */}
       {availableSuggestions.length > 0 && (
         <div className="space-y-2 pt-1">
-          <div className="text-xs font-medium text-slate-600">
+          <div className="text-xs font-medium text-[#627D98]">
             Suggested Skills (click to add instantly):
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -96,7 +96,7 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
                 key={suggestion}
                 type="button"
                 onClick={() => onAddSkill(suggestion)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-sans bg-slate-50 hover:bg-[#E8EEF6] border border-slate-200 hover:border-[#0F294A]/30 text-slate-700 hover:text-[#0F294A] rounded-md transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-sans bg-[#F7F9FC] hover:bg-[#EAF0F7] border border-[#D9E2EC] hover:border-[#0B315D]/40 text-[#102A43] hover:text-[#0B315D] rounded-md transition-colors cursor-pointer"
               >
                 <span>+ {suggestion}</span>
               </button>
@@ -107,11 +107,11 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
 
       {/* Active Skills List */}
       <div className="pt-2">
-        <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 pb-2">
+        <div className="text-xs font-mono font-bold uppercase tracking-wider text-[#627D98] pb-2">
           Current Skills ({skills.length})
         </div>
         {skills.length === 0 ? (
-          <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200">
+          <div className="py-8 text-center text-xs text-[#627D98] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
             No skills recorded yet. Add your core technical, vocational, or soft skills above.
           </div>
         ) : (
@@ -121,14 +121,14 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
               return (
                 <span
                   key={rawSkill}
-                  className="inline-flex items-center gap-2 px-2.5 py-1 bg-white border border-slate-300 text-slate-900 text-xs font-medium shadow-2xs hover:border-slate-400 transition-colors"
+                  className="inline-flex items-center gap-2 px-2.5 py-1 bg-white border border-[#D9E2EC] text-[#102A43] text-xs font-medium shadow-2xs hover:border-[#0B315D]/40 transition-colors"
                 >
                   <span>{formatted}</span>
                   <button
                     type="button"
                     onClick={() => onRemoveSkill(rawSkill)}
                     aria-label={`Remove ${formatted}`}
-                    className="p-1 -mr-1 inline-flex items-center justify-center rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                    className="p-1 -mr-1 inline-flex items-center justify-center rounded text-[#627D98] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626]"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>

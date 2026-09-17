@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Bell, CheckCheck, ExternalLink, ArrowUpRight } from "lucide-react";
-import { formatRelativeTime, formatNotificationMessage } from "../../lib/utils";
+import { formatRelativeTime, formatNotificationMessage, formatNotificationTitle, resolveNotificationLink } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
 import type { Notification } from "../../lib/types/notification.types";
@@ -62,9 +62,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     if (!n.isRead && onMarkAsRead) {
       onMarkAsRead(n.id);
     }
-    if (n.link) {
+    const notificationLink = resolveNotificationLink(n.link, user?.role);
+    if (notificationLink) {
       setOpen(false);
-      navigate({ to: n.link as any });
+      navigate({ to: notificationLink as any });
     }
   };
 
@@ -130,7 +131,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                   >
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-medium text-slate-900 truncate">
-                        {n.title}
+                         {formatNotificationTitle(n.title, user?.role)}
                       </span>
                       {n.link && <ArrowUpRight className="w-3 h-3 text-teal-600 shrink-0" />}
                     </div>

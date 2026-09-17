@@ -119,35 +119,35 @@ export const JobInvitationsPage: React.FC = () => {
     switch (status) {
       case "ACCEPTED":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#ECFDF5] text-[#047857] border border-[#047857]/20">
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#047857]" />
             <span>ACCEPTED</span>
           </span>
         );
       case "DECLINED":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-rose-50 text-rose-800 border border-rose-200">
-            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#FEF2F2] text-[#DC2626] border border-[#DC2626]/20">
+            <XCircle className="w-3.5 h-3.5 text-[#DC2626]" />
             <span>DECLINED</span>
           </span>
         );
       case "EXPIRED":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
-            <Clock className="w-3.5 h-3.5 text-slate-500" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#F7F9FC] text-[#627D98] border border-[#D9E2EC]">
+            <Clock className="w-3.5 h-3.5 text-[#627D98]" />
             <span>EXPIRED</span>
           </span>
         );
       case "CANCELLED":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-500 border border-slate-200">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#F7F9FC] text-[#627D98] border border-[#D9E2EC]">
             <span>CANCELLED</span>
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
-            <Mail className="w-3.5 h-3.5 text-amber-600" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#FFF7ED] text-[#B45309] border border-[#B45309]/20">
+            <Mail className="w-3.5 h-3.5 text-[#B45309]" />
             <span>ACTION REQUIRED</span>
           </span>
         );
@@ -169,14 +169,14 @@ export const JobInvitationsPage: React.FC = () => {
         <div
           className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
             feedback.type === "success"
-              ? "bg-[#E8EEF6] border-[#0F294A]/20 text-[#0F294A]"
-              : "bg-rose-50 border-rose-200 text-rose-800"
+              ? "bg-[#EAF0F7] border-[#D9E2EC] text-[#0B315D]"
+              : "bg-[#FEF2F2] border-[#DC2626]/30 text-[#DC2626]"
           }`}
         >
           <span>{feedback.message}</span>
           <button
             onClick={() => setFeedback(null)}
-            className="text-slate-400 hover:text-slate-600 font-bold ml-4"
+            className="text-[#627D98] hover:text-[#102A43] font-bold ml-4"
           >
             ×
           </button>
@@ -188,9 +188,9 @@ export const JobInvitationsPage: React.FC = () => {
       ) : invitationsQuery.isError ? (
         <ErrorState error={invitationsQuery.error} onRetry={() => invitationsQuery.refetch()} />
       ) : invitations.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
+        <div className="bg-white rounded-xl border border-[#D9E2EC] p-8 shadow-xs">
           <EmptyState
-            icon={<Mail className="w-8 h-8 text-slate-400" />}
+            icon={<Mail className="w-8 h-8 text-[#627D98]" />}
             title="No job invitations right now"
             description="When recruiters match your profile to open positions, invitations will appear here for you to accept or decline."
             action={
@@ -211,19 +211,19 @@ export const JobInvitationsPage: React.FC = () => {
               <div
                 key={inv.id}
                 className={`bg-white rounded-xl border p-5 shadow-xs transition-all space-y-4 ${
-                  isPending ? "border-[#0F294A]/30 ring-1 ring-[#0F294A]/20" : "border-slate-200"
+                  isPending ? "border-[#0B315D]/40 ring-1 ring-[#0B315D]/20" : "border-[#D9E2EC]"
                 }`}
               >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-[#D9E2EC] pb-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-slate-900">{inv.title}</h3>
+                      <h3 className="text-base font-bold text-[#102A43]">{inv.title}</h3>
                       {getStatusBadge(inv.status)}
                     </div>
-                    <div className="text-xs text-slate-500 font-mono flex items-center gap-3 mt-1">
+                    <div className="text-xs text-[#627D98] font-mono flex items-center gap-3 mt-1">
                       {inv.location && (
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                          <MapPin className="w-3.5 h-3.5 text-[#627D98]" />
                           <span>{inv.location}</span>
                         </span>
                       )}
@@ -232,7 +232,7 @@ export const JobInvitationsPage: React.FC = () => {
                       {inv.expiresAt && isPending && (
                         <>
                           <span>•</span>
-                          <span className="text-amber-700 font-semibold">
+                          <span className="text-[#B45309] font-semibold">
                             Expires {formatDate(inv.expiresAt)}
                           </span>
                         </>
@@ -246,7 +246,7 @@ export const JobInvitationsPage: React.FC = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => handleOpenDecline(inv)}
-                        leftIcon={<XCircle className="w-3.5 h-3.5 text-rose-500" />}
+                        leftIcon={<XCircle className="w-3.5 h-3.5 text-[#DC2626]" />}
                       >
                         Decline
                       </Button>
@@ -264,30 +264,30 @@ export const JobInvitationsPage: React.FC = () => {
 
                 {/* Recruiter Message */}
                 {inv.message && (
-                  <div className="p-3 bg-[#E8EEF6]/60 border border-[#0F294A]/20 rounded-lg text-xs space-y-1">
-                    <div className="text-[#0F294A] font-semibold flex items-center gap-1.5">
-                      <MessageSquare className="w-3.5 h-3.5 text-[#0F294A]" />
+                  <div className="p-3 bg-[#EAF0F7] border border-[#D9E2EC] rounded-lg text-xs space-y-1">
+                    <div className="text-[#0B315D] font-semibold flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 text-[#0B315D]" />
                       <span>Note from Recruiter ({inv.invitedBy || "Talent Acquisition"})</span>
                     </div>
-                    <p className="text-slate-700 leading-relaxed italic">"{inv.message}"</p>
+                    <p className="text-[#102A43] leading-relaxed italic">"{inv.message}"</p>
                   </div>
                 )}
 
                 {/* Job Description & Requirements */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs leading-relaxed">
                   <div>
-                    <h4 className="font-mono font-bold text-slate-700 uppercase mb-1">
+                    <h4 className="font-mono font-bold text-[#102A43] uppercase mb-1">
                       Role Overview
                     </h4>
-                    <p className="text-slate-600 whitespace-pre-line line-clamp-3">
+                    <p className="text-[#627D98] whitespace-pre-line line-clamp-3">
                       {inv.description}
                     </p>
                   </div>
                   <div>
-                    <h4 className="font-mono font-bold text-slate-700 uppercase mb-1">
+                    <h4 className="font-mono font-bold text-[#102A43] uppercase mb-1">
                       Key Qualifications
                     </h4>
-                    <p className="text-slate-600 whitespace-pre-line line-clamp-3">
+                    <p className="text-[#627D98] whitespace-pre-line line-clamp-3">
                       {inv.requirements}
                     </p>
                   </div>
@@ -306,12 +306,12 @@ export const JobInvitationsPage: React.FC = () => {
         description={`Submit your job application for ${selectedInvitation?.title}`}
       >
         <div className="space-y-4">
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 space-y-1">
+          <div className="p-3 bg-[#ECFDF5] border border-[#047857]/20 rounded-lg text-xs text-[#047857] space-y-1">
             <div className="font-semibold flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 text-[#047857]" />
               <span>Ready to submit your application?</span>
             </div>
-            <p className="text-slate-600 leading-relaxed">
+            <p className="text-[#627D98] leading-relaxed">
               Your profile information and resume on file will be submitted directly to the Talent Acquisition team for immediate review.
             </p>
           </div>
@@ -324,7 +324,7 @@ export const JobInvitationsPage: React.FC = () => {
             rows={3}
           />
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-3 border-t border-[#D9E2EC]">
             <Button variant="outline" size="sm" onClick={() => setAcceptModalOpen(false)} disabled={respondMutation.isPending}>
               Cancel
             </Button>
@@ -349,8 +349,8 @@ export const JobInvitationsPage: React.FC = () => {
         description={`Decline invitation for ${selectedInvitation?.title}`}
       >
         <div className="space-y-4">
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+          <div className="p-3 bg-[#F7F9FC] border border-[#D9E2EC] rounded-lg text-xs text-[#102A43] flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
             <span>
               Please let us know why you are declining so we can match you with better opportunities in the future.
             </span>
@@ -377,7 +377,7 @@ export const JobInvitationsPage: React.FC = () => {
             rows={3}
           />
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-3 border-t border-[#D9E2EC]">
             <Button variant="outline" size="sm" onClick={() => setDeclineModalOpen(false)} disabled={respondMutation.isPending}>
               Cancel
             </Button>

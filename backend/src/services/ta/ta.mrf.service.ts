@@ -142,7 +142,7 @@ export const syncMRFFulfillmentStatus = async (
       "MRF Quota Met & Jobs Closed",
       `MRF "${mrf.title}" for ${mrf.client.name} is 100% fulfilled (${stats.deployedCount}/${stats.headcount} pax). ${closedJobCount > 0 ? `${closedJobCount} linked job opening(s) closed.` : ""}`,
       "SUCCESS",
-      `/ta/mrfs/${mrf.id}`,
+      `/admin/mrfs/${mrf.id}`,
       actorId
     );
 
@@ -161,7 +161,7 @@ export const syncMRFFulfillmentStatus = async (
       "MRF Quota Reopened",
       `MRF "${mrf.title}" for ${mrf.client.name} reopened due to deployment cancellation (${stats.deployedCount}/${stats.headcount} pax). ${reopenedJobCount > 0 ? `${reopenedJobCount} job(s) reopened.` : ""}`,
       "INFO",
-      `/ta/mrfs/${mrf.id}`,
+      `/admin/mrfs/${mrf.id}`,
       actorId
     );
   }

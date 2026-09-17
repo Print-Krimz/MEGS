@@ -32,8 +32,8 @@ export interface SearchFiltersProps {
 }
 
 export const SearchFilters: React.FC<SearchFiltersProps> = ({
-  searchLabel = "Search records",
-  searchPlaceholder = "Search records...",
+  searchLabel = "Search",
+  searchPlaceholder = "Search...",
   searchValue = "",
   onSearchChange,
   filters = [],
@@ -59,7 +59,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
       <div className="flex flex-1 flex-wrap items-center gap-2.5">
         {/* Search Bar */}
         {onSearchChange && (
-          <div className="w-full sm:w-64 md:w-80">
+          <div className="w-full sm:w-72 md:w-96">
             <label htmlFor={`${idPrefix}-search`} className="sr-only">
               {searchLabel}
             </label>
@@ -110,7 +110,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                 id={`${idPrefix}-${filter.key}`}
                 value={filterValues[filter.key] || ""}
                 onChange={(e) => onFilterChange?.(filter.key, e.target.value)}
-                className="w-full min-h-10 px-3 py-2 text-sm border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-offset-1 focus:border-teal-700 transition-colors cursor-pointer"
+                className="w-full min-h-11 md:min-h-10 px-3 py-2 text-sm border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-offset-1 focus:border-teal-700 transition-colors cursor-pointer"
               >
                 <option value="">
                   {filter.placeholder ||

@@ -8,24 +8,23 @@ import {
   EmptyState,
   SearchFilters,
   Pagination,
+  ActionMenu,
 } from "../../components/common";
 import { Button, Dialog } from "../../components/ui";
 import { formatDateTime } from "../../lib/utils";
 import {
   Database,
-  ShieldCheck,
-  Download,
   RefreshCw,
   AlertTriangle,
   CheckCircle2,
   HardDrive,
-  Lock,
   RotateCcw,
   Upload,
   Calendar,
-  Pencil,
 } from "lucide-react";
 import type { DatabaseBackupRecord } from "../../lib/types/admin.types";
+import { formatAdminBackupStatus } from "../../lib/admin-copy";
+import { formatErrorMessage } from "../../lib/feedback";
 
 const formatBytes = (bytes: number | null | undefined): string => {
   if (!bytes || bytes === 0) return "0 Bytes";
@@ -85,7 +84,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
       setBackupNameInput("");
       setLastActionResult({
         type: "SUCCESS",
-        message: "Database backup created successfully.",
+         message: "Backup created.",
         details: newBackup?.filename
           ? `File ${newBackup.filename} (${formatBytes(newBackup.sizeBytes)}) is ready for download.`
           : "Backup created and secured.",
@@ -95,11 +94,8 @@ export const DatabaseMaintenancePage: React.FC = () => {
       setIsConfirmOpen(false);
       setLastActionResult({
         type: "FAILED",
-        message: "Could not create database backup.",
-        details:
-          err?.response?.data?.error ||
-          err?.message ||
-          "Please try again or contact system support.",
+         message: "We couldn't create the backup.",
+         details: formatErrorMessage(err),
       });
     },
   });
@@ -114,7 +110,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
       setRenameInput("");
       setLastActionResult({
         type: "SUCCESS",
-        message: "Backup renamed successfully.",
+         message: "Backup renamed.",
         details: `Saved as ${updated.filename}.`,
       });
     },
@@ -123,8 +119,8 @@ export const DatabaseMaintenancePage: React.FC = () => {
       setRenameInput("");
       setLastActionResult({
         type: "FAILED",
-        message: "Could not rename backup.",
-        details: err?.response?.data?.error || err?.message || "Please check the name and try again.",
+         message: "We couldn't rename this backup.",
+         details: formatErrorMessage(err),
       });
     },
   });
@@ -143,8 +139,8 @@ export const DatabaseMaintenancePage: React.FC = () => {
       setRestoreConfirmInput("");
       setLastActionResult({
         type: "SUCCESS",
-        message: "Database restored successfully.",
-        details: `Restored ${res.totalRecords || "all"} records in ${res.durationMs || 0}ms.`,
+         message: "Backup restored.",
+         details: `Current data now matches the selected backup${res.totalRecords ? ` (${res.totalRecords} records restored)` : ""}.`,
       });
     },
     onError: (err: any) => {
@@ -152,11 +148,8 @@ export const DatabaseMaintenancePage: React.FC = () => {
       setRestoreConfirmInput("");
       setLastActionResult({
         type: "FAILED",
-        message: "Failed to restore database.",
-        details:
-          err?.response?.data?.error ||
-          err?.message ||
-          "Please verify that the backup file is valid and undamaged.",
+         message: "We couldn't restore this backup.",
+         details: formatErrorMessage(err),
       });
     },
   });
@@ -174,7 +167,11 @@ export const DatabaseMaintenancePage: React.FC = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err: any) {
-      alert(err?.message || "Failed to download backup file");
+      setLastActionResult({
+        type: "FAILED",
+        message: "We couldn't download this backup.",
+        details: formatErrorMessage(err),
+      });
     } finally {
       setDownloadingId(null);
     }
@@ -191,7 +188,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
     }
   };
 
-  const backups = backupsQuery.data || [];
+  const backups = useMemo(() => backupsQuery.data || [], [backupsQuery.data]);
   const latestBackup = backups[0];
   const successfulBackups = backups.filter((b) => b.status === "SUCCESS").length;
 
@@ -305,11 +302,11 @@ export const DatabaseMaintenancePage: React.FC = () => {
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
       <PageHeader
-        title="Database maintenance"
-        description="Create, manage, and download secure backups of candidate, job, and application data."
+        title="Backups and recovery"
+        description="Create a safe copy of recruitment data or restore an earlier copy when needed."
         breadcrumbs={[
           { href: "/admin", label: "Administration" },
-          { label: "Database maintenance" },
+          { label: "Backups and recovery" },
         ]}
         actions={
           <div className="flex items-center gap-2">
@@ -323,20 +320,11 @@ export const DatabaseMaintenancePage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              leftIcon={<Upload className="w-3.5 h-3.5" />}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={restoreMutation.isPending}
-            >
-              Upload & Restore
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
               onClick={() => backupsQuery.refetch()}
               disabled={backupsQuery.isFetching}
             >
-              Refresh
+               Refresh list
             </Button>
             <Button
               variant="primary"
@@ -345,7 +333,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
               onClick={() => setIsConfirmOpen(true)}
               disabled={triggerBackupMutation.isPending}
             >
-              {triggerBackupMutation.isPending ? "Creating Backup..." : "Create Backup"}
+               {triggerBackupMutation.isPending ? "Creating backup..." : "Create backup"}
             </Button>
           </div>
         }
@@ -354,6 +342,8 @@ export const DatabaseMaintenancePage: React.FC = () => {
       {/* Notification Banners */}
       {lastActionResult && (
         <div
+          role={lastActionResult.type === "FAILED" ? "alert" : "status"}
+          aria-live="polite"
           className={`p-3.5 border rounded-sm flex items-start justify-between ${
             lastActionResult.type === "SUCCESS"
               ? "bg-emerald-50 border-emerald-300 text-emerald-950"
@@ -385,76 +375,64 @@ export const DatabaseMaintenancePage: React.FC = () => {
         </div>
       )}
 
-      {/* 4 Summary Stat Tiles */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Summary Stat Tiles */}
+      {backupsQuery.isLoading ? <LoadingState variant="cards" /> : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="p-3 bg-white border border-slate-300 rounded-sm">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Total Backups</span>
+           <span className="text-sm font-medium">Total backups</span>
             <HardDrive className="w-3.5 h-3.5 text-slate-400" />
           </div>
           <div className="text-lg font-bold text-slate-900">{backups.length}</div>
-          <p className="text-[10px] text-slate-500 mt-0.5">{successfulBackups} available to download or restore</p>
+          <p className="text-xs text-slate-500 mt-0.5">{successfulBackups} available to download or restore</p>
         </div>
 
         <div className="p-3 bg-white border border-slate-300 rounded-sm">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Latest Backup</span>
+           <span className="text-sm font-medium">Latest backup</span>
             <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
           </div>
           <div className="text-lg font-bold text-slate-900">
-            {latestBackup ? (latestBackup.status === "SUCCESS" ? "Completed" : "In Progress") : "None Yet"}
+             {latestBackup ? formatAdminBackupStatus(latestBackup.status) : "None yet"}
           </div>
-          <p className="text-[10px] text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             {latestBackup ? formatDateTime(latestBackup.createdAt) : "Ready to create"}
           </p>
         </div>
 
-        <div className="p-3 bg-white border border-slate-300 rounded-sm">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Protection</span>
-            <Lock className="w-3.5 h-3.5 text-indigo-600" />
-          </div>
-          <div className="text-lg font-bold text-slate-900">Encrypted</div>
-          <p className="text-[10px] text-slate-500 mt-0.5">Tamper-proof verified</p>
-        </div>
+      </div>}
 
-        <div className="p-3 bg-white border border-slate-300 rounded-sm">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Access Level</span>
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          </div>
-          <div className="text-lg font-bold text-slate-900">Administrator</div>
-          <p className="text-[10px] text-slate-500 mt-0.5">Restricted access</p>
+      <div className="border border-slate-300 bg-white p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900">Recovery options</h2>
+          <p className="text-sm text-slate-600 mt-0.5">Restore a saved backup only when you need to replace current data.</p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          leftIcon={<Upload className="w-3.5 h-3.5" />}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={restoreMutation.isPending}
+        >
+          Restore from a file
+        </Button>
       </div>
 
       {/* Main Filter Bar */}
       <SearchFilters
-        searchPlaceholder="Search backup filename, initiator email, or type..."
+        searchPlaceholder="Search backup name or creator..."
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
         onFilterChange={handleFilterChange}
         onReset={handleReset}
-        filters={[
-          {
-            key: "status",
-            label: "Status",
-            placeholder: "All Statuses",
-            options: [
-              { value: "SUCCESS", label: "Completed" },
-              { value: "FAILED", label: "Failed" },
-              { value: "IN_PROGRESS", label: "In Progress" },
-            ],
-          },
-        ]}
+        filters={[]}
       />
 
       {/* Status & Date Quick Filter Toolbar */}
       <div className="bg-white p-3 border border-slate-300 flex flex-wrap items-center justify-between gap-3 text-xs">
         {/* Status Toggle Buttons */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold text-slate-600">Status:</span>
+          <span className="text-sm font-semibold text-slate-600">Status:</span>
           <div className="inline-flex rounded-sm border border-slate-300 p-0.5 bg-slate-100">
             {[
               { id: "ALL", label: "All" },
@@ -466,7 +444,8 @@ export const DatabaseMaintenancePage: React.FC = () => {
                 key={s.id}
                 type="button"
                 onClick={() => handleStatusFilterChange(s.id)}
-                className={`px-2 py-0.5 text-[11px] font-medium transition-colors rounded-xs cursor-pointer ${
+                aria-pressed={statusFilter === s.id}
+                  className={`min-h-9 px-3 py-1 text-sm font-medium transition-colors rounded-xs cursor-pointer ${
                   statusFilter === s.id
                     ? "bg-white text-slate-950 font-bold shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -480,7 +459,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
 
         {/* Date Range Presets */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+          <span className="text-sm font-semibold text-slate-600 flex items-center gap-1">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
             Date:
           </span>
@@ -497,7 +476,8 @@ export const DatabaseMaintenancePage: React.FC = () => {
                 key={p.id}
                 type="button"
                 onClick={() => handleDatePresetChange(p.id)}
-                className={`px-2 py-0.5 text-[11px] font-medium transition-colors rounded-xs cursor-pointer ${
+                aria-pressed={datePreset === p.id}
+                className={`min-h-9 px-3 py-1 text-sm font-medium transition-colors rounded-xs cursor-pointer ${
                   datePreset === p.id
                     ? "bg-white text-slate-950 font-bold shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -517,7 +497,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
                   setStartDate(e.target.value);
                   setPage(1);
                 }}
-                className="px-2 py-0.5 border border-slate-300 rounded text-xs bg-white"
+                 className="min-h-10 px-2 py-1 border border-slate-300 rounded text-sm bg-white"
                 aria-label="Start date"
               />
               <span className="text-slate-400 text-xs">to</span>
@@ -528,7 +508,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
                   setEndDate(e.target.value);
                   setPage(1);
                 }}
-                className="px-2 py-0.5 border border-slate-300 rounded text-xs bg-white"
+                 className="min-h-10 px-2 py-1 border border-slate-300 rounded text-sm bg-white"
                 aria-label="End date"
               />
             </div>
@@ -541,12 +521,12 @@ export const DatabaseMaintenancePage: React.FC = () => {
         <div className="px-3.5 py-2.5 border-b border-slate-300 flex items-center justify-between bg-slate-100">
           <div className="flex items-center gap-2">
             <Database className="w-4 h-4 text-slate-700" />
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Backup History
+             <h3 className="text-sm font-semibold text-slate-900">
+               Backup history
             </h3>
           </div>
           <span className="text-[11px] text-slate-600 font-medium">
-            Showing {filteredBackups.length} {filteredBackups.length === 1 ? "backup" : "backups"}
+             Showing {filteredBackups.length} {filteredBackups.length === 1 ? "backup" : "backups"}
           </span>
         </div>
 
@@ -559,8 +539,8 @@ export const DatabaseMaintenancePage: React.FC = () => {
           />
         ) : backups.length === 0 ? (
           <EmptyState
-            title="No backups created yet"
-            description="Create a backup to protect candidate records, jobs, and applications."
+            title="No backups yet"
+            description="Create a backup to protect candidates, jobs, applications, and settings."
             action={
               <Button
                 variant="primary"
@@ -568,34 +548,62 @@ export const DatabaseMaintenancePage: React.FC = () => {
                 onClick={() => setIsConfirmOpen(true)}
                 disabled={triggerBackupMutation.isPending}
               >
-                Create Backup
+                Create backup
               </Button>
             }
           />
         ) : filteredBackups.length === 0 ? (
           <EmptyState
             title="No backups match your filters"
-            description="Try changing your search keywords, status filter, or date range."
+            description="Try a different search or clear your filters."
             action={
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleReset}
               >
-                Reset Filters
+                Clear filters
               </Button>
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="md:hidden divide-y divide-slate-200">
+            {paginatedBackups.map((b) => (
+              <div key={b.id} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm text-slate-950 break-words">{b.filename.replace(/\.enc\.gz$/, "")}</div>
+                    <div className="text-xs text-slate-500 mt-1">{formatDateTime(b.createdAt)}</div>
+                  </div>
+                  <ActionMenu
+                    label={`Actions for ${b.filename.replace(/\.enc\.gz$/, "")}`}
+                    items={[
+                      { label: "Rename backup", onSelect: () => { setRenameTarget(b); setRenameInput(b.filename.replace(/\.enc\.gz$/, "")); } },
+                      ...(b.status === "SUCCESS" ? [
+                        { label: "Download backup", onSelect: () => handleDownload(b) },
+                        { label: "Restore this backup", tone: "danger" as const, onSelect: () => { setRestoreTarget({ mode: "RECORD", backup: b }); setRestoreConfirmInput(""); } },
+                      ] : []),
+                    ]}
+                  />
+                </div>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div><dt className="text-xs text-slate-500">Size</dt><dd className="text-slate-700">{formatBytes(b.sizeBytes)}</dd></div>
+                  <div><dt className="text-xs text-slate-500">Status</dt><dd className="text-slate-700">{formatAdminBackupStatus(b.status)}</dd></div>
+                  <div><dt className="text-xs text-slate-500">Created by</dt><dd className="text-slate-700 break-all">{b.initiatedBy?.email || "System"}</dd></div>
+                </dl>
+              </div>
+            ))}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-50 text-slate-700 font-semibold text-[11px] border-b border-slate-300">
                 <tr>
-                  <th className="px-3.5 py-2.5">Date Created</th>
-                  <th className="px-3.5 py-2.5">File Name</th>
-                  <th className="px-3.5 py-2.5">File Size</th>
+                   <th className="px-3.5 py-2.5">Created</th>
+                   <th className="px-3.5 py-2.5">Backup name</th>
+                   <th className="px-3.5 py-2.5">Size</th>
                   <th className="px-3.5 py-2.5">Status</th>
-                  <th className="px-3.5 py-2.5">Created By</th>
+                   <th className="px-3.5 py-2.5">Created by</th>
                   <th className="px-3.5 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -605,22 +613,8 @@ export const DatabaseMaintenancePage: React.FC = () => {
                     <td className="px-3.5 py-2.5 text-slate-600 whitespace-nowrap">
                       {formatDateTime(b.createdAt)}
                     </td>
-                    <td className="px-3.5 py-2.5 font-medium text-slate-900">
-                      <div className="flex items-center gap-1.5 group">
-                        <span className="font-mono text-xs text-slate-900">{b.filename}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setRenameTarget(b);
-                            setRenameInput(b.filename.replace(/\.enc\.gz$/, ""));
-                          }}
-                          className="text-slate-400 hover:text-teal-700 p-0.5 rounded cursor-pointer opacity-70 group-hover:opacity-100 transition-opacity"
-                          title="Rename Backup"
-                          aria-label={`Rename backup ${b.filename}`}
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                      </div>
+                     <td className="px-3.5 py-2.5 font-medium text-slate-900">
+                       <span className="text-sm text-slate-900">{b.filename.replace(/\.enc\.gz$/, "")}</span>
                     </td>
                     <td className="px-3.5 py-2.5 text-slate-600">
                       {formatBytes(b.sizeBytes)}
@@ -635,44 +629,30 @@ export const DatabaseMaintenancePage: React.FC = () => {
                             : "bg-blue-50 text-blue-800 border-blue-200"
                         }`}
                       >
-                        {b.status === "SUCCESS" ? "Completed" : b.status === "FAILED" ? "Failed" : "In Progress"}
+                         {formatAdminBackupStatus(b.status)}
                       </span>
                     </td>
                     <td className="px-3.5 py-2.5 text-slate-700">
                       {b.initiatedBy?.email || "System"}
                     </td>
                     <td className="px-3.5 py-2.5 text-right">
-                      {b.status === "SUCCESS" && (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            leftIcon={<RotateCcw className="w-3 h-3 text-amber-600" />}
-                            onClick={() => {
-                              setRestoreTarget({ mode: "RECORD", backup: b });
-                              setRestoreConfirmInput("");
-                            }}
-                            disabled={restoreMutation.isPending}
-                          >
-                            Restore
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            leftIcon={<Download className="w-3 h-3" />}
-                            onClick={() => handleDownload(b)}
-                            disabled={downloadingId === b.id}
-                          >
-                            {downloadingId === b.id ? "Downloading..." : "Download"}
-                          </Button>
-                        </div>
-                      )}
+                       <ActionMenu
+                         label={`Actions for ${b.filename.replace(/\.enc\.gz$/, "")}`}
+                         items={[
+                           { label: "Rename backup", onSelect: () => { setRenameTarget(b); setRenameInput(b.filename.replace(/\.enc\.gz$/, "")); } },
+                           ...(b.status === "SUCCESS" ? [
+                             { label: downloadingId === b.id ? "Downloading..." : "Download backup", onSelect: () => handleDownload(b), disabled: downloadingId === b.id },
+                             { label: "Restore this backup", tone: "danger" as const, onSelect: () => { setRestoreTarget({ mode: "RECORD", backup: b }); setRestoreConfirmInput(""); }, disabled: restoreMutation.isPending },
+                           ] : []),
+                         ]}
+                       />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         {/* Pagination Controls */}
@@ -684,6 +664,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
               onPageChange={setPage}
               totalItems={filteredBackups.length}
               pageSize={pageSize}
+              itemLabel="backups"
             />
           </div>
         )}
@@ -697,14 +678,14 @@ export const DatabaseMaintenancePage: React.FC = () => {
             setIsConfirmOpen(false);
             setBackupNameInput("");
           }}
-          title="Create Database Backup"
-          description="Generate a secure copy of your recruitment database for safekeeping."
+           title="Create a backup"
+           description="Save a secure copy of candidates, jobs, applications, and settings."
           size="md"
         >
           <div className="space-y-4 font-sans text-xs">
             <div className="space-y-1">
               <label className="block font-semibold text-slate-800 text-xs">
-                Backup Label / Name (Optional)
+                 Backup name (optional)
               </label>
               <input
                 type="text"
@@ -715,16 +696,16 @@ export const DatabaseMaintenancePage: React.FC = () => {
                 disabled={triggerBackupMutation.isPending}
               />
               <p className="text-[10px] text-slate-500">
-                Leave blank to use the standard timestamped filename.
+                 Leave blank to use an automatically generated name.
               </p>
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-sm space-y-2 text-xs">
-              <span className="font-semibold text-slate-900 block">Backup Summary</span>
+               <span className="font-semibold text-slate-900 block">This backup includes</span>
               <ul className="space-y-1.5 text-slate-700 list-disc list-inside">
                 <li>Includes all candidates, job applications, interview notes, and system settings</li>
-                <li>Encrypted and secured for administrator-only access</li>
-                <li>Ready to download immediately upon completion</li>
+                 <li>Encrypted and available only to administrators</li>
+                 <li>Ready to download when complete</li>
               </ul>
             </div>
 
@@ -747,7 +728,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
                 onClick={() => triggerBackupMutation.mutate(backupNameInput.trim() || undefined)}
                 disabled={triggerBackupMutation.isPending}
               >
-                {triggerBackupMutation.isPending ? "Creating Backup..." : "Create Backup"}
+                 {triggerBackupMutation.isPending ? "Creating backup..." : "Create backup"}
               </Button>
             </div>
           </div>
@@ -764,14 +745,14 @@ export const DatabaseMaintenancePage: React.FC = () => {
               setRenameInput("");
             }
           }}
-          title="Rename Database Backup"
-          description="Update the filename or label for this database snapshot."
+           title="Rename backup"
+           description="Give this backup a name that is easy to recognize."
           size="sm"
         >
           <div className="space-y-4 font-sans text-xs">
             <div className="space-y-1.5">
               <label className="block font-semibold text-slate-800 text-xs">
-                New Backup Name
+                 Backup name
               </label>
               <input
                 type="text"
@@ -783,7 +764,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
                 autoFocus
               />
               <p className="text-[10px] text-slate-500">
-                The secure <span className="font-mono">.enc.gz</span> extension will be preserved automatically.
+                 The secure file format is kept automatically.
               </p>
             </div>
 
@@ -812,7 +793,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
                 }}
                 disabled={!renameInput.trim() || renameMutation.isPending}
               >
-                {renameMutation.isPending ? "Saving..." : "Save Name"}
+                 {renameMutation.isPending ? "Saving..." : "Save name"}
               </Button>
             </div>
           </div>
@@ -829,32 +810,32 @@ export const DatabaseMaintenancePage: React.FC = () => {
               setRestoreConfirmInput("");
             }
           }}
-          title="Restore Database from Backup"
-          description="Recover database records to the state captured in this backup file."
+           title="Restore this backup"
+           description="Replace current data with the version saved in this backup."
           size="md"
         >
           <div className="space-y-4 font-sans text-xs">
             <div className="p-3 bg-amber-50 border border-amber-300 rounded-sm space-y-2 text-xs">
               <div className="flex items-center gap-1.5 text-amber-900 font-bold">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Important Safety Warning</span>
+                 <span>Before you continue</span>
               </div>
               <p className="text-amber-800 text-[11px] leading-relaxed">
-                Restoring will update all candidate, job, application, and system configuration records to match the selected backup snapshot. Any unsaved data created after this backup date will be replaced.
+                 Changes made after this backup date will be replaced. Create or download a current backup first if you may need those changes.
               </p>
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-sm space-y-1.5 text-xs text-slate-700">
-              <span className="font-semibold text-slate-900 block">Backup Source</span>
+               <span className="font-semibold text-slate-900 block">Backup details</span>
               {restoreTarget.mode === "RECORD" ? (
                 <div className="space-y-1">
-                  <div><strong>File:</strong> {restoreTarget.backup.filename}</div>
+                  <div><strong>Name:</strong> {restoreTarget.backup.filename.replace(/\.enc\.gz$/, "")}</div>
                   <div><strong>Size:</strong> {formatBytes(restoreTarget.backup.sizeBytes)}</div>
                   <div><strong>Created:</strong> {formatDateTime(restoreTarget.backup.createdAt)}</div>
                 </div>
               ) : (
                 <div className="space-y-1">
-                  <div><strong>Uploaded File:</strong> {restoreTarget.file.name}</div>
+                  <div><strong>File:</strong> {restoreTarget.file.name.replace(/\.enc\.gz$/, "")}</div>
                   <div><strong>Size:</strong> {formatBytes(restoreTarget.file.size)}</div>
                 </div>
               )}
@@ -862,7 +843,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
 
             <div className="space-y-1.5">
               <label className="block font-semibold text-slate-800 text-xs">
-                To confirm, type <span className="font-mono text-amber-700 font-bold">RESTORE</span> in the box below:
+                 To confirm, type <span className="font-mono text-rose-700 font-bold">RESTORE</span> below:
               </label>
               <input
                 type="text"
@@ -887,9 +868,9 @@ export const DatabaseMaintenancePage: React.FC = () => {
                 Cancel
               </Button>
               <Button
-                variant="primary"
+                variant="danger"
                 size="sm"
-                className="bg-amber-600 hover:bg-amber-700 text-white border-amber-700"
+                className="border-rose-700"
                 leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
                 onClick={() => restoreMutation.mutate(restoreTarget)}
                 disabled={
@@ -897,7 +878,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
                   restoreMutation.isPending
                 }
               >
-                {restoreMutation.isPending ? "Restoring Database..." : "Restore Database"}
+                 {restoreMutation.isPending ? "Restoring backup..." : "Restore backup"}
               </Button>
             </div>
           </div>

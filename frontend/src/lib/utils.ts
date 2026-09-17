@@ -110,18 +110,36 @@ export function getApplicationStatusPresentation(
 } {
   if (audience === "applicant") {
     switch (status) {
+      case ApplicationStatus.SUBMITTED:
+        return { label: "Submitted", badgeClass: "bg-[#EAF0F7] text-[#0B315D] border-[#D9E2EC]" };
       case ApplicationStatus.PARSING:
       case ApplicationStatus.MATCHED:
-        return { label: "Application received", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
+        return { label: "Application received", badgeClass: "bg-[#EAF0F7] text-[#0B315D] border-[#D9E2EC]" };
+      case ApplicationStatus.REVIEW:
+        return { label: "Under Review", badgeClass: "bg-[#EAF0F7] text-[#0B315D] border-[#D9E2EC]" };
+      case ApplicationStatus.INITIAL_SCREENING:
+        return { label: "Initial Screening", badgeClass: "bg-[#F3F0FF] text-[#6D4FD3] border-[#DDD6FE]" };
+      case ApplicationStatus.CLIENT_ENDORSEMENT:
+        return { label: "Client Endorsement", badgeClass: "bg-[#F3F0FF] text-[#6D4FD3] border-[#DDD6FE]" };
+      case ApplicationStatus.FINAL_INTERVIEW:
+        return { label: "Final Interview", badgeClass: "bg-[#F3F0FF] text-[#6D4FD3] border-[#DDD6FE]" };
       case ApplicationStatus.NEEDS_ATTENTION:
-        return { label: "Action needed", badgeClass: "bg-amber-100 text-amber-800 border-amber-300" };
+        return { label: "Action needed", badgeClass: "bg-[#FFF7ED] text-[#B45309] border-[#FED7AA]" };
       case ApplicationStatus.COMPLIANCE:
-        return { label: "Requirements", badgeClass: "bg-orange-100 text-orange-800 border-orange-300" };
+        return { label: "Requirements", badgeClass: "bg-[#FFF7ED] text-[#B45309] border-[#FED7AA]" };
       case ApplicationStatus.ONBOARDING:
       case ApplicationStatus.CONTRACT_AND_ORIENTATION:
-        return { label: "Contract & Orientation", badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
+        return { label: "Contract & Orientation", badgeClass: "bg-[#F3F0FF] text-[#6D4FD3] border-[#DDD6FE]" };
+      case ApplicationStatus.DEPLOYED:
+        return { label: "Deployed", badgeClass: "bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]" };
       case ApplicationStatus.TALENT_POOL:
-        return { label: "Future Opportunities", badgeClass: "bg-violet-100 text-violet-800 border-violet-300" };
+        return { label: "Future Opportunities", badgeClass: "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]" };
+      case ApplicationStatus.BACKOUT:
+        return { label: "Backed Out", badgeClass: "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]" };
+      case ApplicationStatus.ARCHIVED:
+        return { label: "Archived", badgeClass: "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]" };
+      default:
+        return { label: status || "Unknown", badgeClass: "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]" };
     }
   }
 
@@ -287,6 +305,41 @@ export function getTimeBasedGreeting(name?: string | null, date: Date = new Date
   return cleanName ? `${salutation}, ${cleanName}` : `${salutation}, Candidate`;
 }
 
+/** Makes shared notification titles understandable in the Admin/Recruiter views. */
+export function formatNotificationTitle(title?: string | null, role?: string): string {
+  if (!title || (role !== "ADMINISTRATOR" && role !== "TALENT_ACQUISITION")) {
+    return title || "Notification";
+  }
+
+  return title
+    .replace(/^New Manpower Request \(MRF\)$/i, "New hiring request")
+    .replace(/^MRF Quota Met & Jobs Closed$/i, "Hiring request filled")
+    .replace(/^MRF Quota Reopened$/i, "Hiring request reopened");
+}
+
+/** Keeps legacy notification links inside the recipient's permitted workspace. */
+export function resolveNotificationLink(link?: string | null, role?: string): string | undefined {
+  if (!link) return undefined;
+  if (role === "ADMINISTRATOR" && link.startsWith("/ta/mrfs/")) {
+    return link.replace(/^\/ta\/mrfs\//, "/admin/mrfs/");
+  }
+  return link;
+}
+
+function formatAdminNotificationMessage(message: string): string {
+  return message
+    .replace(/\bMRF\b/g, "Hiring request")
+    .replace(/\bPAX\b/gi, "positions")
+    .replace(/\bHeadcount:/gi, "Positions:")
+    .replace(/100% fulfilled \((\d+)\/(\d+) positions\)/gi, "fully filled ($1 of $2 positions)")
+    .replace(/100% fulfilled \((\d+)\/(\d+) pax\)/gi, "fully filled ($1 of $2 positions)")
+    .replace(/reopened due to deployment cancellation/gi, "reopened after a placement was cancelled")
+    .replace(/linked job opening\(s\) closed/gi, "linked job openings closed")
+    .replace(/job\(s\) reopened/gi, "job openings reopened")
+    .replace(/\s+\d{10,}(?= is | reopened|$)/g, "")
+    .replace(/\bquota\b/gi, "position limit");
+}
+
 /**
  * Sanitizes and formats notification messages for the recipient audience.
  * Converts legacy raw status enum notifications (e.g., "moved to TALENT POOL", "moved to REVIEW")
@@ -297,6 +350,10 @@ export function formatNotificationMessage(
   role?: string
 ): string {
   if (!message) return "";
+
+  if (role === "ADMINISTRATOR" || role === "TALENT_ACQUISITION") {
+    return formatAdminNotificationMessage(message);
+  }
 
   // Only rewrite status update notices for applicant/candidate view
   if (!role || role === "APPLICANT") {
@@ -406,6 +463,7 @@ export function formatWorkArrangement(arrangement?: string | null): string {
   if (!arrangement) return "On-site";
   switch (arrangement.toUpperCase()) {
     case "ONSITE":
+    case "ON_SITE":
       return "On-site";
     case "REMOTE":
       return "Remote";

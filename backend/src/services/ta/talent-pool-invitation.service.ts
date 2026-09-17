@@ -94,6 +94,17 @@ export const sendTalentPoolJobInvitation = async (input: SendInvitationInput) =>
     throw new InvalidKnnRequestError("An active pending invitation for this requisition already exists for this candidate.");
   }
 
+  const previousInvitationCount = await prisma.talentPoolInvitation.count({
+    where: {
+      membershipId: profile.talentPoolMembership.id,
+      jobPostingId: targetJobId,
+    },
+  });
+
+  if (previousInvitationCount >= 2) {
+    throw new InvalidKnnRequestError("This applicant has already been invited twice for this job.");
+  }
+
   const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
 
   const invitation = await prisma.$transaction(async (tx) => {

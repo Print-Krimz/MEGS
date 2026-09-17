@@ -1,7 +1,25 @@
-import PDFDocument from "pdfkit";
-import ExcelJS from "exceljs";
 import prisma from "../../utils/prisma.js";
 import type { AnalyticsFilterDto } from "./analytics.service.js";
+import {
+  getReportMetadata,
+  ReportRoleScope,
+} from "./report-theme.js";
+import {
+  createHRDocument,
+  renderCorporateHeader,
+  renderSummaryKPIs,
+  renderGridTable,
+  renderFootersAndPagination,
+  ColumnDef,
+} from "./report-pdf-builder.js";
+import {
+  createHRExcelWorkbook,
+  applySpreadsheetHeaderBlock,
+  applyTableHeaders,
+  applyDataRowsAndFormatting,
+  writeWorkbookToBuffer,
+  ExcelColumnDef,
+} from "./report-excel-builder.js";
 
 const safeFormatDate = (date: Date | string | null | undefined): string => {
   if (!date) return "N/A";
@@ -11,6 +29,15 @@ const safeFormatDate = (date: Date | string | null | undefined): string => {
   } catch {
     return "N/A";
   }
+};
+
+const resolveRoleScope = (
+  requestedBy: { id: string; email: string; role?: string },
+  explicitScope?: ReportRoleScope
+): ReportRoleScope => {
+  if (explicitScope) return explicitScope;
+  if (requestedBy.role === "ADMINISTRATOR") return "ADMINISTRATOR";
+  return "TALENT_ACQUISITION";
 };
 
 const buildFilterDescription = (filters?: AnalyticsFilterDto): string => {
@@ -96,20 +123,23 @@ const buildDeploymentWhere = (filters?: AnalyticsFilterDto) => {
 };
 
 export const generatePipelineReportPDF = async (
-  requestedBy: { id: string; email: string },
-  filters?: AnalyticsFilterDto
+  requestedBy: { id: string; email: string; role?: string },
+  filters?: AnalyticsFilterDto,
+  roleScopeOverride?: ReportRoleScope
 ): Promise<Buffer> => {
+  const roleScope = resolveRoleScope(requestedBy, roleScopeOverride);
   const where = buildApplicationWhere(filters);
 
   const applications = await prisma.application.findMany({
     where,
-    take: 200,
+    take: 300,
     orderBy: { createdAt: "desc" },
     include: {
       jobPosting: {
         select: {
           title: true,
-          mrf: { select: { id: true, title: true } },
+          mrf: { select: { id: true, title: true, client: { select: { name: true } } } },
+          postedBy: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
         },
       },
       user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
@@ -117,119 +147,234 @@ export const generatePipelineReportPDF = async (
   });
 
   const filterSummary = buildFilterDescription(filters);
-
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 40 });
-    const chunks: Buffer[] = [];
-
-    doc.on("data", (chunk) => chunks.push(chunk));
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
-    doc.on("error", (err) => reject(err));
-
-    // Header
-    doc.fontSize(18).text("MEGS Recruitment - Pipeline Analytics Report", { align: "center" });
-    doc.moveDown(0.5);
-    doc.fontSize(9).text(`Generated: ${new Date().toISOString()}`);
-    doc.text(`Requested By: ${requestedBy.email}`);
-    doc.text(`Applied Filters: ${filterSummary}`);
-    doc.text(`Total Matching Records: ${applications.length}`);
-    doc.moveDown(1);
-
-    // Table Header
-    doc.fontSize(10).font("Helvetica-Bold").text("App ID | Applicant Name | Job Title | MRF | Status | Applied Date");
-    doc.moveDown(0.3);
-    doc.font("Helvetica").fontSize(9);
-
-    if (applications.length === 0) {
-      doc.font("Helvetica-Oblique").text("No records found matching the specified filter criteria.");
-      doc.font("Helvetica");
-    } else {
-      for (const app of applications) {
-        const name = app.user.applicantProfile
-          ? `${app.user.applicantProfile.firstName} ${app.user.applicantProfile.lastName}`
-          : app.user.email;
-        const mrfTitle = app.jobPosting?.mrf?.title ? `MRF-${app.jobPosting.mrf.id}` : "Direct";
-        doc.text(`#${app.id} | ${name} | ${app.jobPosting?.title || "N/A"} | ${mrfTitle} | ${app.status} | ${safeFormatDate(app.createdAt)}`);
-      }
-    }
-
-    doc.end();
+  const meta = getReportMetadata({
+    reportType: "PIPELINE",
+    roleScope,
+    requestedByEmail: requestedBy.email,
+    filterSummary,
   });
+
+  const doc = createHRDocument({ orientation: "landscape" });
+  renderCorporateHeader(doc, meta);
+
+  // Compute summary KPI metrics
+  const totalApps = applications.length;
+  const activeScreening = applications.filter((a) =>
+    ["INITIAL_SCREENING", "AI_SCREENING", "INTERVIEW"].includes(a.status)
+  ).length;
+  const endorsedOrHired = applications.filter((a) =>
+    ["CLIENT_ENDORSEMENT", "HIRED", "DEPLOYED"].includes(a.status)
+  ).length;
+  const avgScore =
+    totalApps > 0
+      ? (
+          applications.reduce((acc, a) => acc + (a.aiScore || 0), 0) /
+          applications.filter((a) => a.aiScore !== null && a.aiScore !== undefined).length || 0
+        ).toFixed(1) + "%"
+      : "N/A";
+
+  renderSummaryKPIs(doc, [
+    { label: "Total Applications", value: totalApps },
+    { label: "Active in Pipeline", value: activeScreening },
+    { label: "Endorsed / Placed", value: endorsedOrHired },
+    { label: "Avg AI Match Score", value: avgScore },
+  ]);
+
+  let columns: ColumnDef[];
+  let rows: (string | number | null | undefined)[][];
+
+  if (roleScope === "TALENT_ACQUISITION") {
+    columns = [
+      { header: "App ID", width: 55, align: "center" },
+      { header: "Candidate Name", width: 135, align: "left" },
+      { header: "Candidate Email", width: 130, align: "left" },
+      { header: "Applied Job Role", width: 150, align: "left" },
+      { header: "MRF Order", width: 90, align: "left" },
+      { header: "Pipeline Stage", width: 100, align: "center", badge: true },
+      { header: "AI Match", width: 55, align: "right" },
+      { header: "Applied", width: 55, align: "center" },
+    ];
+
+    rows = applications.map((app) => {
+      const name = app.user.applicantProfile
+        ? `${app.user.applicantProfile.firstName} ${app.user.applicantProfile.lastName}`
+        : "N/A";
+      const mrfTitle = app.jobPosting?.mrf?.title ? `MRF-${app.jobPosting.mrf.id}` : "Direct";
+      const score = app.aiScore !== null && app.aiScore !== undefined ? `${app.aiScore}%` : "N/A";
+      return [
+        `#${app.id}`,
+        name,
+        app.user.email,
+        app.jobPosting?.title || "N/A",
+        mrfTitle,
+        app.status,
+        score,
+        safeFormatDate(app.createdAt),
+      ];
+    });
+  } else {
+    // Administrator Role: Executive governance view
+    columns = [
+      { header: "Record ID", width: 50, align: "center" },
+      { header: "Candidate Name", width: 125, align: "left" },
+      { header: "Client Partner", width: 125, align: "left" },
+      { header: "MRF Requisition", width: 110, align: "left" },
+      { header: "Assigned Recruiter", width: 120, align: "left" },
+      { header: "Processing Stage", width: 105, align: "center", badge: true },
+      { header: "AI Match", width: 60, align: "right" },
+      { header: "Submission Date", width: 75, align: "center" },
+    ];
+
+    rows = applications.map((app) => {
+      const name = app.user.applicantProfile
+        ? `${app.user.applicantProfile.firstName} ${app.user.applicantProfile.lastName}`
+        : "N/A";
+      const clientName = app.jobPosting?.mrf?.client?.name || "Direct Requisition";
+      const mrfTitle = app.jobPosting?.mrf?.title || (app.jobPosting?.mrf?.id ? `MRF-${app.jobPosting.mrf.id}` : "N/A");
+      const recruiter = app.jobPosting?.postedBy?.applicantProfile
+        ? `${app.jobPosting.postedBy.applicantProfile.firstName} ${app.jobPosting.postedBy.applicantProfile.lastName}`
+        : app.jobPosting?.postedBy?.email || "Unassigned";
+      const score = app.aiScore !== null && app.aiScore !== undefined ? `${app.aiScore}%` : "N/A";
+
+      return [
+        `#${app.id}`,
+        name,
+        clientName,
+        mrfTitle,
+        recruiter,
+        app.status,
+        score,
+        safeFormatDate(app.createdAt),
+      ];
+    });
+  }
+
+  renderGridTable(doc, { columns, rows });
+  return renderFootersAndPagination(doc, meta);
 };
 
 export const generatePipelineReportXLSX = async (
-  requestedBy: { id: string; email: string },
-  filters?: AnalyticsFilterDto
+  requestedBy: { id: string; email: string; role?: string },
+  filters?: AnalyticsFilterDto,
+  roleScopeOverride?: ReportRoleScope
 ): Promise<Buffer> => {
+  const roleScope = resolveRoleScope(requestedBy, roleScopeOverride);
   const where = buildApplicationWhere(filters);
 
   const applications = await prisma.application.findMany({
     where,
-    take: 500,
+    take: 1000,
     orderBy: { createdAt: "desc" },
     include: {
       jobPosting: {
         select: {
           title: true,
-          mrf: { select: { id: true, title: true } },
+          mrf: { select: { id: true, title: true, client: { select: { name: true } } } },
+          postedBy: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
         },
       },
       user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
     },
   });
 
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("Pipeline Report");
+  const filterSummary = buildFilterDescription(filters);
+  const meta = getReportMetadata({
+    reportType: "PIPELINE",
+    roleScope,
+    requestedByEmail: requestedBy.email,
+    filterSummary,
+  });
 
-  sheet.columns = [
-    { header: "Application ID", key: "id", width: 15 },
-    { header: "Applicant Email", key: "email", width: 25 },
-    { header: "Applicant Name", key: "name", width: 25 },
-    { header: "Job Title", key: "job", width: 25 },
-    { header: "MRF Order", key: "mrf", width: 25 },
-    { header: "Status", key: "status", width: 20 },
-    { header: "AI Score", key: "aiScore", width: 12 },
-    { header: "Created At", key: "createdAt", width: 20 },
-  ];
+  const { workbook, worksheet } = createHRExcelWorkbook(meta, "Candidate Pipeline");
+  applySpreadsheetHeaderBlock(worksheet, meta);
 
-  for (const app of applications) {
-    const name = app.user.applicantProfile
-      ? `${app.user.applicantProfile.firstName} ${app.user.applicantProfile.lastName}`
-      : "N/A";
-    sheet.addRow({
-      id: app.id,
-      email: app.user.email,
-      name,
-      job: app.jobPosting?.title || "N/A",
-      mrf: app.jobPosting?.mrf?.title || "Direct",
-      status: app.status,
-      aiScore: app.aiScore ?? "N/A",
-      createdAt: safeFormatDate(app.createdAt),
+  let columns: ExcelColumnDef[];
+  let rows: Record<string, any>[];
+
+  if (roleScope === "TALENT_ACQUISITION") {
+    columns = [
+      { header: "Application ID", key: "id", minWidth: 15, align: "center" },
+      { header: "Candidate Name", key: "name", minWidth: 24 },
+      { header: "Applicant Email", key: "email", minWidth: 26 },
+      { header: "Job Title", key: "job", minWidth: 26 },
+      { header: "MRF Order", key: "mrf", minWidth: 20 },
+      { header: "Pipeline Status", key: "status", minWidth: 22, align: "center" },
+      { header: "AI Match Score", key: "aiScore", minWidth: 16, align: "right" },
+      { header: "Applied Date", key: "createdAt", minWidth: 16, align: "center" },
+    ];
+
+    rows = applications.map((app) => {
+      const name = app.user.applicantProfile
+        ? `${app.user.applicantProfile.firstName} ${app.user.applicantProfile.lastName}`
+        : "N/A";
+      return {
+        id: app.id,
+        name,
+        email: app.user.email,
+        job: app.jobPosting?.title || "N/A",
+        mrf: app.jobPosting?.mrf?.title || (app.jobPosting?.mrf?.id ? `MRF-${app.jobPosting.mrf.id}` : "Direct"),
+        status: app.status,
+        aiScore: app.aiScore !== null && app.aiScore !== undefined ? app.aiScore : "N/A",
+        createdAt: safeFormatDate(app.createdAt),
+      };
+    });
+  } else {
+    // Administrator View
+    columns = [
+      { header: "Record ID", key: "id", minWidth: 14, align: "center" },
+      { header: "Candidate Name", key: "name", minWidth: 24 },
+      { header: "Candidate Email", key: "email", minWidth: 26 },
+      { header: "Client Partner", key: "client", minWidth: 26 },
+      { header: "MRF Order", key: "mrf", minWidth: 20 },
+      { header: "Job Title", key: "job", minWidth: 24 },
+      { header: "Responsible Recruiter", key: "recruiter", minWidth: 24 },
+      { header: "Processing Stage", key: "status", minWidth: 22, align: "center" },
+      { header: "AI Match Score", key: "aiScore", minWidth: 16, align: "right" },
+      { header: "Submission Date", key: "createdAt", minWidth: 16, align: "center" },
+    ];
+
+    rows = applications.map((app) => {
+      const name = app.user.applicantProfile
+        ? `${app.user.applicantProfile.firstName} ${app.user.applicantProfile.lastName}`
+        : "N/A";
+      const clientName = app.jobPosting?.mrf?.client?.name || "Direct Requisition";
+      const mrfTitle = app.jobPosting?.mrf?.title || (app.jobPosting?.mrf?.id ? `MRF-${app.jobPosting.mrf.id}` : "N/A");
+      const recruiter = app.jobPosting?.postedBy?.applicantProfile
+        ? `${app.jobPosting.postedBy.applicantProfile.firstName} ${app.jobPosting.postedBy.applicantProfile.lastName}`
+        : app.jobPosting?.postedBy?.email || "Unassigned";
+
+      return {
+        id: app.id,
+        name,
+        email: app.user.email,
+        client: clientName,
+        mrf: mrfTitle,
+        job: app.jobPosting?.title || "N/A",
+        recruiter,
+        status: app.status,
+        aiScore: app.aiScore !== null && app.aiScore !== undefined ? app.aiScore : "N/A",
+        createdAt: safeFormatDate(app.createdAt),
+      };
     });
   }
 
-  // Metadata footer row
-  sheet.addRow({});
-  sheet.addRow({
-    id: `Generated At: ${new Date().toISOString()}`,
-    email: `Requested By: ${requestedBy.email}`,
-    name: `Filters: ${buildFilterDescription(filters)}`,
-    job: `Count: ${applications.length}`,
-  });
+  applyTableHeaders(worksheet, 7, columns);
+  applyDataRowsAndFormatting(worksheet, 7, columns, rows);
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  return Buffer.from(buffer as any);
+  return writeWorkbookToBuffer(workbook);
 };
 
 export const generateDeploymentReportPDF = async (
-  requestedBy: { id: string; email: string },
-  filters?: AnalyticsFilterDto
+  requestedBy: { id: string; email: string; role?: string },
+  filters?: AnalyticsFilterDto,
+  roleScopeOverride?: ReportRoleScope
 ): Promise<Buffer> => {
+  const roleScope = resolveRoleScope(requestedBy, roleScopeOverride);
   const where = buildDeploymentWhere(filters);
 
   const deployments = await prisma.deployment.findMany({
     where,
-    take: 200,
+    take: 300,
     orderBy: { createdAt: "desc" },
     include: {
       client: { select: { name: true } },
@@ -240,53 +385,107 @@ export const generateDeploymentReportPDF = async (
   });
 
   const filterSummary = buildFilterDescription(filters);
-
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 40 });
-    const chunks: Buffer[] = [];
-
-    doc.on("data", (chunk) => chunks.push(chunk));
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
-    doc.on("error", (err) => reject(err));
-
-    doc.fontSize(18).text("MEGS Recruitment - Deployment Lifecycle Report", { align: "center" });
-    doc.moveDown(0.5);
-    doc.fontSize(9).text(`Generated: ${new Date().toISOString()}`);
-    doc.text(`Requested By: ${requestedBy.email}`);
-    doc.text(`Applied Filters: ${filterSummary}`);
-    doc.text(`Total Matching Records: ${deployments.length}`);
-    doc.moveDown(1);
-
-    doc.fontSize(10).font("Helvetica-Bold").text("ID | Client | Candidate | Status | Site | Contract Start");
-    doc.moveDown(0.3);
-    doc.font("Helvetica").fontSize(9);
-
-    if (deployments.length === 0) {
-      doc.font("Helvetica-Oblique").text("No deployments found matching the specified filter criteria.");
-      doc.font("Helvetica");
-    } else {
-      for (const dep of deployments) {
-        const user = dep.employee?.user || dep.application?.user;
-        const name = user?.applicantProfile
-          ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
-          : user?.email || "Unknown";
-        doc.text(`#${dep.id} | ${dep.client.name} | ${name} | ${dep.status} | ${dep.site || "N/A"} | ${safeFormatDate(dep.contractStart)}`);
-      }
-    }
-
-    doc.end();
+  const meta = getReportMetadata({
+    reportType: "DEPLOYMENT",
+    roleScope,
+    requestedByEmail: requestedBy.email,
+    filterSummary,
   });
+
+  const doc = createHRDocument({ orientation: "landscape" });
+  renderCorporateHeader(doc, meta);
+
+  const totalDeployments = deployments.length;
+  const activeDeployments = deployments.filter((d) => ["DEPLOYED", "ON_SITE", "ACTIVE"].includes(d.status)).length;
+  const pendingDeployments = deployments.filter((d) => ["PENDING", "PROCESSING", "SCHEDULED"].includes(d.status)).length;
+  const clientCount = new Set(deployments.map((d) => d.client?.name).filter(Boolean)).size;
+
+  renderSummaryKPIs(doc, [
+    { label: "Total Deployments", value: totalDeployments },
+    { label: "Active on Site", value: activeDeployments },
+    { label: "Pending Processing", value: pendingDeployments },
+    { label: "Client Partners", value: clientCount },
+  ]);
+
+  let columns: ColumnDef[];
+  let rows: (string | number | null | undefined)[][];
+
+  if (roleScope === "TALENT_ACQUISITION") {
+    columns = [
+      { header: "Placement ID", width: 65, align: "center" },
+      { header: "Candidate Name", width: 140, align: "left" },
+      { header: "Client Partner", width: 140, align: "left" },
+      { header: "MRF Role", width: 120, align: "left" },
+      { header: "Deployment Status", width: 110, align: "center", badge: true },
+      { header: "Site Location", width: 95, align: "left" },
+      { header: "Contract Start", width: 50, align: "center" },
+      { header: "Contract End", width: 50, align: "center" },
+    ];
+
+    rows = deployments.map((dep) => {
+      const user = dep.employee?.user || dep.application?.user;
+      const name = user?.applicantProfile
+        ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
+        : user?.email || "Unknown";
+
+      return [
+        `#${dep.id}`,
+        name,
+        dep.client.name,
+        dep.mrf?.title || "N/A",
+        dep.status,
+        dep.site || "N/A",
+        safeFormatDate(dep.contractStart),
+        safeFormatDate(dep.contractEnd),
+      ];
+    });
+  } else {
+    // Administrator View
+    columns = [
+      { header: "Deployment ID", width: 65, align: "center" },
+      { header: "Client Organization", width: 145, align: "left" },
+      { header: "Department / MRF", width: 120, align: "left" },
+      { header: "Placed Employee", width: 135, align: "left" },
+      { header: "Placement Status", width: 110, align: "center", badge: true },
+      { header: "Assigned Facility", width: 95, align: "left" },
+      { header: "Contract Period", width: 100, align: "center" },
+    ];
+
+    rows = deployments.map((dep) => {
+      const user = dep.employee?.user || dep.application?.user;
+      const name = user?.applicantProfile
+        ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
+        : user?.email || "Unknown";
+
+      const period = `${safeFormatDate(dep.contractStart)} to ${safeFormatDate(dep.contractEnd)}`;
+
+      return [
+        `#${dep.id}`,
+        dep.client.name,
+        dep.mrf?.title || "N/A",
+        name,
+        dep.status,
+        dep.site || "N/A",
+        period,
+      ];
+    });
+  }
+
+  renderGridTable(doc, { columns, rows });
+  return renderFootersAndPagination(doc, meta);
 };
 
 export const generateDeploymentReportXLSX = async (
-  requestedBy: { id: string; email: string },
-  filters?: AnalyticsFilterDto
+  requestedBy: { id: string; email: string; role?: string },
+  filters?: AnalyticsFilterDto,
+  roleScopeOverride?: ReportRoleScope
 ): Promise<Buffer> => {
+  const roleScope = resolveRoleScope(requestedBy, roleScopeOverride);
   const where = buildDeploymentWhere(filters);
 
   const deployments = await prisma.deployment.findMany({
     where,
-    take: 500,
+    take: 1000,
     orderBy: { createdAt: "desc" },
     include: {
       client: { select: { name: true } },
@@ -296,46 +495,83 @@ export const generateDeploymentReportXLSX = async (
     },
   });
 
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("Deployments Report");
+  const filterSummary = buildFilterDescription(filters);
+  const meta = getReportMetadata({
+    reportType: "DEPLOYMENT",
+    roleScope,
+    requestedByEmail: requestedBy.email,
+    filterSummary,
+  });
 
-  sheet.columns = [
-    { header: "Deployment ID", key: "id", width: 15 },
-    { header: "Client Name", key: "client", width: 25 },
-    { header: "MRF Title", key: "mrf", width: 25 },
-    { header: "Candidate Name", key: "candidate", width: 25 },
-    { header: "Status", key: "status", width: 22 },
-    { header: "Site Location", key: "site", width: 20 },
-    { header: "Contract Start", key: "start", width: 15 },
-    { header: "Contract End", key: "end", width: 15 },
-  ];
+  const { workbook, worksheet } = createHRExcelWorkbook(meta, "Deployments");
+  applySpreadsheetHeaderBlock(worksheet, meta);
 
-  for (const dep of deployments) {
-    const user = dep.employee?.user || dep.application?.user;
-    const name = user?.applicantProfile
-      ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
-      : user?.email || "Unknown";
-    sheet.addRow({
-      id: dep.id,
-      client: dep.client.name,
-      mrf: dep.mrf?.title || "N/A",
-      candidate: name,
-      status: dep.status,
-      site: dep.site || "N/A",
-      start: safeFormatDate(dep.contractStart),
-      end: safeFormatDate(dep.contractEnd),
+  let columns: ExcelColumnDef[];
+  let rows: Record<string, any>[];
+
+  if (roleScope === "TALENT_ACQUISITION") {
+    columns = [
+      { header: "Deployment ID", key: "id", minWidth: 15, align: "center" },
+      { header: "Candidate Name", key: "candidate", minWidth: 24 },
+      { header: "Client Partner", key: "client", minWidth: 25 },
+      { header: "MRF Title", key: "mrf", minWidth: 25 },
+      { header: "Deployment Status", key: "status", minWidth: 22, align: "center" },
+      { header: "Site Location", key: "site", minWidth: 22 },
+      { header: "Contract Start", key: "start", minWidth: 16, align: "center" },
+      { header: "Contract End", key: "end", minWidth: 16, align: "center" },
+    ];
+
+    rows = deployments.map((dep) => {
+      const user = dep.employee?.user || dep.application?.user;
+      const name = user?.applicantProfile
+        ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
+        : user?.email || "Unknown";
+
+      return {
+        id: dep.id,
+        candidate: name,
+        client: dep.client.name,
+        mrf: dep.mrf?.title || "N/A",
+        status: dep.status,
+        site: dep.site || "N/A",
+        start: safeFormatDate(dep.contractStart),
+        end: safeFormatDate(dep.contractEnd),
+      };
+    });
+  } else {
+    // Administrator View
+    columns = [
+      { header: "Deployment ID", key: "id", minWidth: 15, align: "center" },
+      { header: "Client Organization", key: "client", minWidth: 26 },
+      { header: "Department / MRF", key: "mrf", minWidth: 24 },
+      { header: "Placed Employee", key: "candidate", minWidth: 24 },
+      { header: "Placement Status", key: "status", minWidth: 22, align: "center" },
+      { header: "Assigned Facility", key: "site", minWidth: 22 },
+      { header: "Contract Start", key: "start", minWidth: 16, align: "center" },
+      { header: "Contract End", key: "end", minWidth: 16, align: "center" },
+    ];
+
+    rows = deployments.map((dep) => {
+      const user = dep.employee?.user || dep.application?.user;
+      const name = user?.applicantProfile
+        ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
+        : user?.email || "Unknown";
+
+      return {
+        id: dep.id,
+        client: dep.client.name,
+        mrf: dep.mrf?.title || "N/A",
+        candidate: name,
+        status: dep.status,
+        site: dep.site || "N/A",
+        start: safeFormatDate(dep.contractStart),
+        end: safeFormatDate(dep.contractEnd),
+      };
     });
   }
 
-  sheet.addRow({});
-  sheet.addRow({
-    id: `Generated At: ${new Date().toISOString()}`,
-    client: `Requested By: ${requestedBy.email}`,
-    mrf: `Filters: ${buildFilterDescription(filters)}`,
-    candidate: `Count: ${deployments.length}`,
-  });
+  applyTableHeaders(worksheet, 7, columns);
+  applyDataRowsAndFormatting(worksheet, 7, columns, rows);
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  return Buffer.from(buffer as any);
+  return writeWorkbookToBuffer(workbook);
 };
-

@@ -39,28 +39,28 @@ const adminNavSections: NavSection[] = [
   {
     label: "Overview",
     items: [
-      { to: "/admin", label: "Dashboard", icon: ShieldAlert },
+      { to: "/admin", label: "Overview", icon: ShieldAlert },
       { to: "/admin/analytics", label: "Reports", icon: BarChart3 },
     ],
   },
   {
-    label: "Access & Personnel",
+    label: "People & access",
     items: [
-      { to: "/admin/users", label: "User & role management", icon: Users2 },
+      { to: "/admin/users", label: "Users", icon: Users2 },
     ],
   },
   {
-    label: "AI Scoring & Matching",
+    label: "Candidate matching",
     items: [
-      { to: "/admin/scoring", label: "Candidate score settings", icon: Sliders },
-      { to: "/admin/scoring/quality", label: "Score quality", icon: Activity },
+      { to: "/admin/scoring", label: "Matching settings", icon: Sliders },
+      { to: "/admin/scoring/quality", label: "Match results", icon: Activity },
     ],
   },
   {
-    label: "Governance & Security",
+    label: "Records & recovery",
     items: [
-      { to: "/admin/audit", label: "Audit logs", icon: History },
-      { to: "/admin/maintenance", label: "Database maintenance", icon: Database },
+      { to: "/admin/audit", label: "Activity history", icon: History },
+      { to: "/admin/maintenance", label: "Backups & recovery", icon: Database },
     ],
   },
 ];
@@ -76,6 +76,8 @@ export const AdminLayout: React.FC = () => {
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const menuItemsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = useRef<HTMLElement>(null);
 
   const {
     unreadCount,
@@ -104,6 +106,48 @@ export const AdminLayout: React.FC = () => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, [accountMenuOpen]);
+
+  // Keep the mobile navigation usable with a keyboard and return focus to its opener.
+  useEffect(() => {
+    if (!mobileMenuOpen) {
+      mobileMenuButtonRef.current?.focus();
+      return;
+    }
+
+    const drawer = mobileMenuRef.current;
+    const getFocusable = () =>
+      Array.from(
+        drawer?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      );
+
+    const first = getFocusable()[0];
+    requestAnimationFrame(() => first?.focus());
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileMenuOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = getFocusable();
+      if (focusable.length === 0) return;
+      const firstElement = focusable[0];
+      const lastElement = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [mobileMenuOpen]);
 
   // Keyboard navigation for account menu
   useEffect(() => {
@@ -151,12 +195,19 @@ export const AdminLayout: React.FC = () => {
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          <aside className="relative flex-1 flex flex-col max-w-xs w-full bg-slate-950 text-slate-300 border-r border-slate-800 shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+          <aside
+            id="admin-mobile-navigation"
+            ref={mobileMenuRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Admin navigation"
+            className="relative flex-1 flex flex-col max-w-xs w-full bg-slate-950 text-slate-300 border-r border-slate-800 shadow-2xl z-10 animate-in slide-in-from-left duration-200"
+          >
             {/* Drawer Header */}
             <div className="h-14 flex items-center justify-between px-4 bg-slate-900 border-b border-slate-800">
               <div className="leading-tight">
                 <div className="text-base font-bold font-mono tracking-tight text-white">MEGS</div>
-                <div className="text-xs text-amber-300">Administration</div>
+                <div className="text-xs text-amber-300">Admin portal</div>
               </div>
               <button
                 type="button"
@@ -213,7 +264,7 @@ export const AdminLayout: React.FC = () => {
           {!collapsed && (
             <div className="leading-tight">
               <div className="text-base font-bold font-mono tracking-tight text-white">MEGS</div>
-              <div className="text-xs text-amber-300">Administration</div>
+                <div className="text-xs text-amber-300">Admin portal</div>
             </div>
           )}
 
@@ -280,19 +331,19 @@ export const AdminLayout: React.FC = () => {
         <header className="sticky top-0 z-30 h-14 bg-white border-b border-slate-300 flex items-center justify-between px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
+              ref={mobileMenuButtonRef}
               type="button"
               onClick={() => setMobileMenuOpen(true)}
               className="lg:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 border border-slate-300 hover:bg-slate-50 transition-colors rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
               aria-label="Open navigation menu"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="admin-mobile-navigation"
             >
               <Menu className="w-4 h-4" />
             </button>
-            <div className="px-2 py-1 bg-amber-100 text-amber-900 border border-amber-300 text-xs font-medium shrink-0">
-              Admin
+             <div className="px-2 py-1 bg-amber-100 text-amber-900 border border-amber-300 text-xs font-medium shrink-0">
+              Admin portal
             </div>
-            <span className="text-sm text-slate-600 truncate hidden sm:inline">
-              Manage access, score settings, and activity
-            </span>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">

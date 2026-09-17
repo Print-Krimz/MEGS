@@ -267,6 +267,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
               totalItems={filteredDeployments.length}
               pageSize={pageSize}
               onPageChange={setPage}
+              itemLabel="deployments"
             />
           </div>
         </div>

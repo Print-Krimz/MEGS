@@ -10,6 +10,7 @@ export interface PaginationProps {
   totalItems?: number;
   pageSize?: number;
   className?: string;
+  itemLabel?: string;
 }
 
 export const Pagination: React.FC<PaginationProps> = ({
@@ -19,6 +20,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   totalItems,
   pageSize,
   className,
+  itemLabel,
 }) => {
   if (totalPages <= 1 && !totalItems) return null;
 
@@ -32,7 +34,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   return (
     <div
       className={cn(
-        "flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-2 text-sm text-slate-600 border-t border-slate-300",
+        "flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-2 text-sm text-[#627D98] border-t border-[#D9E2EC]",
         className
       )}
     >
@@ -40,14 +42,14 @@ export const Pagination: React.FC<PaginationProps> = ({
       <div>
         {totalItems !== undefined && startItem !== undefined && endItem !== undefined ? (
           <span>
-            Showing <strong className="text-slate-900">{startItem}</strong>–
-            <strong className="text-slate-900">{endItem}</strong> of{" "}
-            <strong className="text-slate-900">{totalItems}</strong> records
+            Showing <strong className="text-[#102A43]">{startItem}</strong>–
+            <strong className="text-[#102A43]">{endItem}</strong> of{" "}
+            <strong className="text-[#102A43]">{totalItems}</strong> {itemLabel || "records"}
           </span>
         ) : (
           <span>
-            Page <strong className="text-slate-900">{currentPage}</strong> of{" "}
-            <strong className="text-slate-900">{totalPages || 1}</strong>
+            Page <strong className="text-[#102A43]">{currentPage}</strong> of{" "}
+            <strong className="text-[#102A43]">{totalPages || 1}</strong>
           </span>
         )}
       </div>
@@ -66,7 +68,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           <ChevronLeft className="w-3.5 h-3.5" />
         </Button>
 
-        <span className="px-2 text-slate-800 text-sm font-medium">
+        <span className="px-2 text-[#102A43] text-sm font-medium">
           {currentPage} / {totalPages || 1}
         </span>
 

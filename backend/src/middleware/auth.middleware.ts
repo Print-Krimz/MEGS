@@ -62,14 +62,19 @@ export const authenticateJWT = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const authHeader = req.headers.authorization;
+  let token: string | null = null;
+  const authHeader = req.headers?.authorization;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
+  } else if (req.query && typeof req.query.token === "string" && req.query.token.trim()) {
+    token = req.query.token.trim();
+  }
+
+  if (!token) {
     sendError(res, "No token provided", 401);
     return;
   }
-
-  const token = authHeader.split(" ")[1];
 
   // 1. Fast-path: local cryptographic verification (< 0.1 ms)
   let userId: string | null = null;

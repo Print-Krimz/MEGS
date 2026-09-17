@@ -219,7 +219,7 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
           skills: extractedData.skills,
           trainings: extractedData.trainings,
           characterReferences: extractedData.characterReferences,
-          overwriteExistingPersonal: false,
+          overwriteExistingPersonal: true,
         });
       } catch (applyErr: any) {
         console.warn("[Resume Auto-Fill] Failed to auto-apply extracted details:", applyErr.message);

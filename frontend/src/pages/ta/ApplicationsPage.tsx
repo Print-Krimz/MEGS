@@ -511,6 +511,7 @@ export const ApplicationsPage: React.FC = () => {
               totalItems={totalItems}
               pageSize={pageSize}
               onPageChange={setPage}
+              itemLabel="applications"
             />
           </div>
         </div>

@@ -129,7 +129,7 @@ export const JobDetailPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title={job.title}
-        description={`${job.location || "Philippines"} · ${employmentTypeDisplay} · ${workArrangementDisplay}`}
+        description={job.department ? `${job.department} · ${job.location || "Philippines"}` : (job.location || "Philippines")}
         breadcrumbs={[
           { label: "My career", href: "/app" },
           { label: "Explore jobs", href: "/app/jobs" },
@@ -139,7 +139,7 @@ export const JobDetailPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2">
             <Link
               to="/app/jobs"
-              className="inline-flex min-h-[44px] items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A] focus-visible:ring-offset-2 transition-colors"
+              className="inline-flex min-h-[44px] items-center rounded-md border border-[#D9E2EC] bg-white px-4 text-sm font-medium text-[#102A43] hover:bg-[#EAF0F7] hover:text-[#0B315D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors"
             >
               Back to jobs
             </Link>
@@ -147,31 +147,35 @@ export const JobDetailPage: React.FC = () => {
             <Button
               variant="outline"
               size="md"
-              leftIcon={<Bookmark className={`w-4 h-4 ${isSaved ? "fill-[#0F294A] text-[#0F294A]" : ""}`} />}
+              leftIcon={<Bookmark className={`w-4 h-4 ${isSaved ? "fill-[#0B315D] text-[#0B315D]" : ""}`} />}
               onClick={handleToggleSave}
             >
               {isSaved ? "Saved for Later" : "Save for Later"}
             </Button>
 
             {job.alreadyApplied ? (
-              <Link to="/app/applications">
-                <Button
-                  variant="outline"
-                  size="md"
-                  leftIcon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                >
-                  Application submitted (View in Tracker)
-                </Button>
-              </Link>
+              <div className="lg:hidden">
+                <Link to="/app/applications">
+                  <Button
+                    variant="outline"
+                    size="md"
+                    leftIcon={<CheckCircle2 className="w-4 h-4 text-[#047857]" />}
+                  >
+                    Application submitted (View in Tracker)
+                  </Button>
+                </Link>
+              </div>
             ) : (
-              <Button
-                variant="primary"
-                size="md"
-                leftIcon={<Send className="w-4 h-4" />}
-                onClick={() => setApplyModalOpen(true)}
-              >
-                Apply for this job
-              </Button>
+              <div className="lg:hidden">
+                <Button
+                  variant="primary"
+                  size="md"
+                  leftIcon={<Send className="w-4 h-4" />}
+                  onClick={() => setApplyModalOpen(true)}
+                >
+                  Apply for this job
+                </Button>
+              </div>
             )}
           </div>
         }
@@ -180,47 +184,25 @@ export const JobDetailPage: React.FC = () => {
       {/* Position Details Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* Compensation & Working Terms Bar */}
-          <div className="bg-[#E8EEF6] border border-[#0F294A]/20 rounded-lg p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
-            <div className="space-y-0.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                Monthly Salary Range
-              </span>
-              <div className="text-xl font-bold font-mono text-[#0F294A]">
-                {salaryDisplay}
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-white text-slate-800 border border-slate-300 text-xs font-semibold">
-                <Briefcase className="w-3.5 h-3.5 text-slate-500" />
-                <span>{employmentTypeDisplay}</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-white text-slate-800 border border-slate-300 text-xs font-semibold">
-                <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                <span>{workArrangementDisplay}</span>
-              </span>
-            </div>
-          </div>
-
           {/* Main Description */}
-          <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-xs space-y-4">
-            <h3 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-[#0F294A]" />
+          <div className="bg-white border border-[#D9E2EC] rounded-lg p-6 shadow-xs space-y-4">
+            <h3 className="text-sm font-semibold text-[#102A43] border-b border-[#D9E2EC] pb-3 flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-[#0B315D]" />
               <span>Position Overview</span>
             </h3>
-            <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+            <div className="text-sm text-[#102A43] leading-relaxed whitespace-pre-line">
               {job.description}
             </div>
           </div>
 
           {/* Requirements & Criteria */}
           {job.requirements && (
-            <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-xs space-y-4">
-              <h3 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#0F294A]" />
+            <div className="bg-white border border-[#D9E2EC] rounded-lg p-6 shadow-xs space-y-4">
+              <h3 className="text-sm font-semibold text-[#102A43] border-b border-[#D9E2EC] pb-3 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-[#0B315D]" />
                 <span>What you need for this role</span>
               </h3>
-              <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+              <div className="text-sm text-[#102A43] leading-relaxed whitespace-pre-line">
                 {job.requirements}
               </div>
             </div>
@@ -229,50 +211,52 @@ export const JobDetailPage: React.FC = () => {
 
         {/* Sidebar Metadata Card */}
         <div className="space-y-4">
-          <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-xs space-y-5 sticky top-6">
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+          <div className="bg-white border border-[#D9E2EC] rounded-lg p-5 shadow-xs space-y-5 sticky top-6">
+            <div className="flex items-center gap-3 border-b border-[#D9E2EC] pb-4">
               <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="md" />
               <div>
-                <h3 className="text-sm font-semibold text-slate-900">
+                <h3 className="text-sm font-semibold text-[#102A43]">
                   Role Summary
                 </h3>
-                <div className="text-xs font-mono text-slate-500">Job ID #{job.id}</div>
+                {job.department && (
+                  <div className="text-xs text-[#627D98]">{job.department}</div>
+                )}
               </div>
             </div>
 
             <div className="space-y-3.5 text-xs">
               <div className="flex items-start gap-3">
-                <Banknote className="w-4 h-4 text-[#0F294A] shrink-0 mt-0.5" />
+                <Banknote className="w-4 h-4 text-[#0B315D] shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-slate-500 text-[11px] font-medium">Monthly Compensation</div>
-                  <div className="text-[#0F294A] font-bold text-sm mt-0.5 font-mono">
+                  <div className="text-[#627D98] text-[11px] font-medium">Monthly Compensation</div>
+                  <div className="text-[#0B315D] font-bold text-sm mt-0.5 font-mono">
                     {salaryDisplay}
                   </div>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <Briefcase className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <Briefcase className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-slate-500 text-[11px] font-medium">Employment Type</div>
-                  <div className="text-slate-900 font-medium text-xs mt-0.5">{employmentTypeDisplay}</div>
+                  <div className="text-[#627D98] text-[11px] font-medium">Employment Type</div>
+                  <div className="text-[#102A43] font-medium text-xs mt-0.5">{employmentTypeDisplay}</div>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <Building2 className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <Building2 className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-slate-500 text-[11px] font-medium">Work Arrangement</div>
-                  <div className="text-slate-900 font-medium text-xs mt-0.5">{workArrangementDisplay}</div>
+                  <div className="text-[#627D98] text-[11px] font-medium">Work Arrangement</div>
+                  <div className="text-[#102A43] font-medium text-xs mt-0.5">{workArrangementDisplay}</div>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <Briefcase className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <Briefcase className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-slate-500 text-[11px] font-medium">Position Status</div>
-                  <div className="text-slate-900 font-semibold text-xs mt-0.5">
-                    <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px]">
+                  <div className="text-[#627D98] text-[11px] font-medium">Position Status</div>
+                  <div className="text-[#102A43] font-semibold text-xs mt-0.5">
+                    <span className="inline-block px-2 py-0.5 rounded bg-[#ECFDF5] text-[#047857] border border-[#A7F3D0] text-[11px]">
                       {job.status}
                     </span>
                   </div>
@@ -280,26 +264,26 @@ export const JobDetailPage: React.FC = () => {
               </div>
 
               <div className="flex items-start gap-3">
-                <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <MapPin className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-slate-500 text-[11px] font-medium">Job Location</div>
-                  <div className="text-slate-900 font-medium text-xs mt-0.5">{job.location || "Nationwide"}</div>
+                  <div className="text-[#627D98] text-[11px] font-medium">Job Location</div>
+                  <div className="text-[#102A43] font-medium text-xs mt-0.5">{job.location || "Nationwide"}</div>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <Clock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <Clock className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-slate-500 text-[11px] font-medium">Posted Date</div>
-                  <div className="text-slate-900 font-medium text-xs mt-0.5">{formatDate(job.createdAt)}</div>
+                  <div className="text-[#627D98] text-[11px] font-medium">Posted Date</div>
+                  <div className="text-[#102A43] font-medium text-xs mt-0.5">{formatDate(job.createdAt)}</div>
                 </div>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-100">
+            <div className="pt-3 border-t border-[#D9E2EC]">
               {job.alreadyApplied ? (
                 <Link to="/app/applications" className="block w-full">
-                  <Button variant="outline" size="md" className="w-full" leftIcon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}>
+                  <Button variant="outline" size="md" className="w-full" leftIcon={<CheckCircle2 className="w-4 h-4 text-[#047857]" />}>
                     Track Application
                   </Button>
                 </Link>
@@ -311,7 +295,7 @@ export const JobDetailPage: React.FC = () => {
                   leftIcon={<Send className="w-4 h-4" />}
                   onClick={() => setApplyModalOpen(true)}
                 >
-                  Apply Now
+                  Apply for this job
                 </Button>
               )}
             </div>
@@ -331,12 +315,12 @@ export const JobDetailPage: React.FC = () => {
       >
         {submissionSuccess ? (
           <div className="space-y-4 text-center py-4">
-            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
+            <div className="w-12 h-12 rounded-full bg-[#ECFDF5] text-[#047857] flex items-center justify-center mx-auto border border-[#047857]/20">
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <div className="space-y-1">
-              <h4 className="text-base font-bold text-slate-900">Application Submitted</h4>
-              <p className="text-xs text-slate-600 leading-relaxed max-w-sm mx-auto">
+              <h4 className="text-base font-bold text-[#102A43]">Application Submitted</h4>
+              <p className="text-xs text-[#627D98] leading-relaxed max-w-sm mx-auto">
                 Your application has been received and is now being reviewed by our recruitment team.
               </p>
             </div>
@@ -364,15 +348,15 @@ export const JobDetailPage: React.FC = () => {
           </div>
         ) : (
           <form onSubmit={handleApply} className="space-y-4">
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 space-y-1">
-              <div className="font-semibold text-slate-900">Applicant Profile Information:</div>
+            <div className="p-3 bg-[#F7F9FC] border border-[#D9E2EC] rounded-lg text-xs text-[#102A43] space-y-1">
+              <div className="font-semibold text-[#102A43]">Applicant Profile Information:</div>
               <p>
                 Your saved education, work experience, and character references will automatically be attached to this job application.
               </p>
             </div>
 
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-700">
+              <label className="block text-xs font-semibold text-[#102A43]">
                 Custom Resume for this Role (Optional)
               </label>
               <div className="flex items-center gap-3">
@@ -392,33 +376,33 @@ export const JobDetailPage: React.FC = () => {
                       }
                     }}
                   />
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-xs">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#D9E2EC] bg-white hover:bg-[#F7F9FC] text-xs font-semibold text-[#102A43] shadow-xs">
                     <Upload className="w-3.5 h-3.5" />
                     <span>{customResume ? "Replace PDF" : "Attach Tailored Resume (PDF up to 5 MB)"}</span>
                   </span>
                 </label>
                 {customResume && (
-                  <span className="text-xs font-mono text-[#0F294A] font-medium flex items-center gap-1 truncate max-w-[200px]">
+                  <span className="text-xs font-mono text-[#0B315D] font-medium flex items-center gap-1 truncate max-w-[200px]">
                     <FileText className="w-3.5 h-3.5 shrink-0" />
                     {customResume.name}
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-[#627D98]">
                 If omitted, your active profile resume on file will be used.
               </p>
             </div>
 
             {applyMutation.isError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2 text-xs text-rose-800">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <div className="p-3 bg-[#FEF2F2] border border-[#DC2626]/30 rounded-lg flex items-center gap-2 text-xs text-[#DC2626]">
+                <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
                 <span>
                   {formatErrorMessage(applyMutation.error)}
                 </span>
               </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#D9E2EC]">
               <Button
                 variant="outline"
                 size="sm"

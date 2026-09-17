@@ -15,17 +15,17 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
   const health = computeProfileHealth(profile);
 
   return (
-    <div className="bg-white border border-slate-200 p-4 shadow-2xs">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+    <div className="bg-white border border-[#D9E2EC] p-4 shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#D9E2EC]">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-900">
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#102A43]">
               Profile Strength:
             </span>
-            <span className="text-xs font-bold font-sans text-[#0F294A]">
+            <span className="text-xs font-bold font-sans text-[#0B315D]">
               {health.score}%
             </span>
-            <span className="inline-flex items-center px-1.5 py-0.5 bg-slate-100 border border-slate-300 text-[10px] font-mono font-bold uppercase text-slate-700">
+            <span className="inline-flex items-center px-1.5 py-0.5 bg-[#EAF0F7] border border-[#D9E2EC] text-[10px] font-mono font-bold uppercase text-[#102A43]">
               {health.tier}
             </span>
           </div>
@@ -44,7 +44,7 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
               else if (firstMissing.includes("reference")) onJumpToTab("references");
               else onJumpToTab("personal");
             }}
-            className="inline-flex items-center gap-1.5 min-h-11 px-2.5 py-1 text-xs font-medium text-[#0F294A] hover:text-[#07192F] hover:bg-[#E8EEF6] rounded-md transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0F294A]"
+            className="inline-flex items-center gap-1.5 min-h-11 px-2.5 py-1 text-xs font-medium text-[#0B315D] hover:text-[#082747] hover:bg-[#EAF0F7] rounded-md transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
           >
             <span>Complete Next Section</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -54,9 +54,9 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
 
       {/* Progress Bar */}
       <div className="pt-3 space-y-2">
-        <div className="w-full bg-slate-100 h-2 border border-slate-200 overflow-hidden rounded-full">
+        <div className="w-full bg-[#EAF0F7]/60 h-2 border border-[#D9E2EC] overflow-hidden rounded-full">
           <div
-            className="h-full bg-[#0F294A] transition-all duration-300"
+            className="h-full bg-[#0B315D] transition-all duration-300"
             style={{ width: `${health.score}%` }}
             role="progressbar"
             aria-valuenow={health.score}
@@ -65,16 +65,16 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
           />
         </div>
 
-        <div className="flex items-center justify-between text-[11px] text-slate-600">
+        <div className="flex items-center justify-between text-[11px] text-[#627D98]">
           <div className="flex items-center gap-1.5">
             {health.score >= 85 ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#0F294A] shrink-0" />
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#047857] shrink-0" />
             ) : (
-              <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <AlertCircle className="w-3.5 h-3.5 text-[#B45309] shrink-0" />
             )}
             <span>{health.nextActionTip}</span>
           </div>
-          <span className="font-mono text-slate-400 hidden md:inline">
+          <span className="font-mono text-[#627D98] hidden md:inline">
             {health.score >= 85 ? "Job Ready" : `${100 - health.score}% to 100%`}
           </span>
         </div>

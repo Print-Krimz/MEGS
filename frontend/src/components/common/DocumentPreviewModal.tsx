@@ -21,6 +21,7 @@ export interface DocumentPreviewModalProps {
   open: boolean;
   onClose: () => void;
   documentId?: number | null;
+  fileUrl?: string | null;
   title?: string;
   applicantName?: string;
   requirementStatus?: string;
@@ -33,6 +34,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   open,
   onClose,
   documentId,
+  fileUrl,
   title = "Document Preview",
   applicantName,
   requirementStatus,
@@ -44,6 +46,8 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectNotes, setRejectNotes] = useState("");
 
+  const hasDocId = Boolean(documentId && !isNaN(Number(documentId)));
+
   const {
     data: preview,
     isLoading,
@@ -53,7 +57,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   } = useQuery({
     queryKey: ["document-preview", documentId],
     queryFn: () => documentsApi.getPreview(documentId!),
-    enabled: Boolean(documentId && open),
+    enabled: Boolean(hasDocId && open),
     staleTime: 1000 * 60 * 4, // 4 minutes (URL valid for 5 min)
     retry: 1,
   });
@@ -74,8 +78,16 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     }
   };
 
-  const isImage = preview?.mimeType?.startsWith("image/");
-  const isPdf = preview?.mimeType === "application/pdf";
+  const resolvedUrl = preview?.url || fileUrl;
+  const isImage =
+    preview?.mimeType?.startsWith("image/") ||
+    (resolvedUrl
+      ? /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(resolvedUrl) ||
+        (!resolvedUrl.toLowerCase().includes(".pdf") && resolvedUrl.startsWith("http"))
+      : false);
+  const isPdf =
+    preview?.mimeType === "application/pdf" ||
+    (resolvedUrl ? /\.pdf(\?.*)?$/i.test(resolvedUrl) : false);
 
 
   return (
@@ -121,12 +133,12 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {preview?.url && (
+            {resolvedUrl && (
               <a
-                href={preview.url}
+                href={resolvedUrl}
                 target="_blank"
                 rel="noreferrer"
-                download={preview.originalName || "document"}
+                download={preview?.originalName || "document"}
                 className="inline-flex items-center gap-1 min-h-11 text-xs font-mono font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 px-3 py-1.5 sm:px-3 rounded hover:bg-slate-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
                 title="Download original file"
               >
@@ -173,7 +185,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
         {/* Content Viewer Body */}
         <div className="p-3 sm:p-4 overflow-y-auto flex-1 bg-slate-100 flex items-center justify-center min-h-[300px] sm:min-h-[360px]">
-          {!documentId ? (
+          {!hasDocId && !fileUrl ? (
             <div className="text-center p-6 sm:p-8 bg-white border border-dashed border-slate-300 rounded-lg max-w-sm">
               <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
               <h3 className="text-sm font-bold text-slate-900 mb-1">
@@ -183,14 +195,14 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 The applicant has not uploaded a file for this requirement yet.
               </p>
             </div>
-          ) : isLoading ? (
+          ) : isLoading && !fileUrl ? (
             <div className="text-center p-8 space-y-3">
               <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
               <p className="text-xs font-mono text-slate-600">
                 Fetching secure document preview...
               </p>
             </div>
-          ) : isError ? (
+          ) : isError && !fileUrl ? (
             <div className="text-center p-6 sm:p-8 bg-white border border-rose-200 rounded-lg max-w-md space-y-3">
               <XCircle className="w-8 h-8 text-rose-600 mx-auto" />
               <h3 className="text-sm font-bold text-slate-900">
@@ -204,58 +216,68 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 <Button variant="outline" size="sm" onClick={() => refetch()}>
                   Retry Loading
                 </Button>
-                <a
-                  href={documentsApi.getDownloadUrl(documentId)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Try Direct Download
-                </a>
+                {documentId && (
+                  <a
+                    href={documentsApi.getDownloadUrl(documentId)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Try Direct Download
+                  </a>
+                )}
               </div>
             </div>
-          ) : isImage && preview ? (
+          ) : isImage && resolvedUrl ? (
             <div className="max-w-full max-h-full flex items-center justify-center p-2 bg-white rounded border border-slate-300 shadow-inner">
               <img
-                src={preview.url}
-                alt={preview.originalName}
+                src={resolvedUrl}
+                alt={preview?.originalName || title}
                 className="max-h-[58vh] max-w-full object-contain rounded"
               />
             </div>
-          ) : isPdf && preview ? (
+          ) : isPdf && resolvedUrl ? (
             <div className="w-full h-[58vh] bg-white rounded border border-slate-300 overflow-hidden shadow-inner">
               <iframe
-                src={preview.url}
-                title={preview.originalName}
+                src={resolvedUrl}
+                title={preview?.originalName || title}
                 className="w-full h-full border-none"
               />
             </div>
-          ) : (
+          ) : resolvedUrl ? (
             <div className="text-center p-6 sm:p-8 bg-white border border-slate-300 rounded-lg max-w-md space-y-3">
               <FileText className="w-12 h-12 text-slate-500 mx-auto" />
               <div>
                 <h3 className="text-sm font-bold text-slate-900">
-                  {preview?.originalName}
+                  {preview?.originalName || title}
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Preview is not supported inline for this file type ({preview?.mimeType}).
+                  Preview is not supported inline for this file type ({preview?.mimeType || "unknown"}).
                 </p>
               </div>
-              {preview?.url && (
-                <div className="pt-2">
-                  <a
-                    href={preview.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    download={preview.originalName || "document"}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-sm"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download to View
-                  </a>
-                </div>
-              )}
+              <div className="pt-2">
+                <a
+                  href={resolvedUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  download={preview?.originalName || "document"}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Download to View
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center p-6 sm:p-8 bg-white border border-dashed border-slate-300 rounded-lg max-w-sm">
+              <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
+              <h3 className="text-sm font-bold text-slate-900 mb-1">
+                No Document Available
+              </h3>
+              <p className="text-xs text-slate-500">
+                Document could not be located.
+              </p>
             </div>
           )}
         </div>
@@ -306,7 +328,11 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           ) : (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="text-[11px] sm:text-xs text-slate-500 font-mono">
-                {documentId ? "Verify document authenticity before approving." : "No action available."}
+                {documentId
+                  ? onApprove
+                    ? "Verify document authenticity before approving."
+                    : "Previewing submitted document."
+                  : "No action available."}
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={handleClose}>

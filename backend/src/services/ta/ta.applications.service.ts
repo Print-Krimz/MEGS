@@ -5,6 +5,7 @@ import { scoringFlags } from '../../utils/scoring-flags.js';
 import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.service.js";
 import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
 import { logAudit } from '../../utils/audit.js';
+import { resolveDocumentSignedUrl } from '../document/document.service.js';
 
 // Authoritative State Machine governing valid applicant pipeline stage transitions
 export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
@@ -201,8 +202,33 @@ export const listTAApplications = async (
       return (right.candidateFitScore ?? right.aiScore ?? -1) - (left.candidateFitScore ?? left.aiScore ?? -1) || right.createdAt.getTime() - left.createdAt.getTime();
     });
 
+  const resolvedData = await Promise.all(
+    formatted.map(async (application) => {
+      const photo = application.user?.applicantProfile?.photoUrl;
+      if (photo && application.user) {
+        try {
+          const resolved = await resolveDocumentSignedUrl(photo, application.user.id, "TALENT_ACQUISITION");
+          if (resolved) {
+            return {
+              ...application,
+              user: {
+                ...application.user,
+                applicantProfile: application.user.applicantProfile
+                  ? { ...application.user.applicantProfile, photoUrl: resolved }
+                  : null,
+              },
+            };
+          }
+        } catch {
+          // fallback to stored photoUrl
+        }
+      }
+      return application;
+    })
+  );
+
   return {
-    data: formatted,
+    data: resolvedData,
     total,
     page: page || 1,
     limit: limit || total,
@@ -316,8 +342,51 @@ export const getTAApplication = async (id: number) => {
     explanation: score.explanation,
   }));
 
+  let photoUrl = application.user?.applicantProfile?.photoUrl ?? null;
+  if (photoUrl && application.user) {
+    try {
+      const resolved = await resolveDocumentSignedUrl(
+        photoUrl,
+        application.user.id,
+        "TALENT_ACQUISITION"
+      );
+      if (resolved) photoUrl = resolved;
+    } catch {
+      // fallback to stored photoUrl
+    }
+  }
+
+  let resolvedAppResumeUrl = application.resumeUrl;
+  if (resolvedAppResumeUrl && application.user) {
+    try {
+      const resolved = await resolveDocumentSignedUrl(
+        resolvedAppResumeUrl,
+        application.user.id,
+        "TALENT_ACQUISITION"
+      );
+      if (resolved) resolvedAppResumeUrl = resolved;
+    } catch {
+      // fallback to stored resumeUrl
+    }
+  }
+
+  let resolvedProfileResumeUrl = application.user?.applicantProfile?.resumeUrl ?? null;
+  if (resolvedProfileResumeUrl && application.user) {
+    try {
+      const resolved = await resolveDocumentSignedUrl(
+        resolvedProfileResumeUrl,
+        application.user.id,
+        "TALENT_ACQUISITION"
+      );
+      if (resolved) resolvedProfileResumeUrl = resolved;
+    } catch {
+      // fallback to stored profile resumeUrl
+    }
+  }
+
   return {
     ...application,
+    resumeUrl: resolvedAppResumeUrl,
     candidateFitScore: candidateScores?.[0] ? candidateScores[0].finalFitScore : null,
     candidateScores,
     user: {
@@ -325,6 +394,8 @@ export const getTAApplication = async (id: number) => {
       applicantProfile: application.user.applicantProfile
         ? {
             ...application.user.applicantProfile,
+            photoUrl,
+            resumeUrl: resolvedProfileResumeUrl,
             skills: application.user.applicantProfile.skills.map((s) => s.skill.name),
           }
         : null,

@@ -1,6 +1,7 @@
 import React from "react";
 import { AlertTriangle, Clock, CheckCircle2, ShieldAlert } from "lucide-react";
 import type { BottleneckItem } from "../../lib/types/analytics.types";
+import { formatAdminPipelineStage } from "../../lib/admin-copy";
 
 interface BottlenecksWidgetProps {
   bottlenecks?: BottleneckItem[];
@@ -10,8 +11,8 @@ interface BottlenecksWidgetProps {
 
 export const BottlenecksWidget: React.FC<BottlenecksWidgetProps> = ({
   bottlenecks = [],
-  title = "Pipeline Review Bottlenecks",
-  subtitle = "Stages where candidate reviews exceed target SLAs",
+  title = "Reviews that need attention",
+  subtitle = "Hiring stages where candidates have waited longer than the target",
 }) => {
   return (
     <div className="border border-slate-300 bg-white">
@@ -31,7 +32,7 @@ export const BottlenecksWidget: React.FC<BottlenecksWidgetProps> = ({
       {/* Bottlenecks Grid */}
       {bottlenecks.length === 0 ? (
         <div className="p-8 text-center text-xs font-mono text-slate-400">
-          No pipeline bottlenecks detected for this selection.
+          No delayed reviews found for this selection.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-300">
@@ -44,7 +45,7 @@ export const BottlenecksWidget: React.FC<BottlenecksWidgetProps> = ({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-mono font-bold uppercase text-slate-600 tracking-wider truncate">
-                      {item.stageLabel}
+                       {formatAdminPipelineStage(item.stageKey || item.stageLabel)}
                     </span>
                     <span
                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase border ${
@@ -62,7 +63,7 @@ export const BottlenecksWidget: React.FC<BottlenecksWidgetProps> = ({
                       ) : (
                         <CheckCircle2 className="w-2.5 h-2.5" />
                       )}
-                      <span>{item.severity}</span>
+                      <span>{isCritical ? "Needs attention" : isWarning ? "Watch" : "On track"}</span>
                     </span>
                   </div>
 
@@ -79,7 +80,7 @@ export const BottlenecksWidget: React.FC<BottlenecksWidgetProps> = ({
                 {/* Review SLA Metrics */}
                 <div className="pt-2 border-t border-slate-200 space-y-1 text-xs font-mono">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Average Time in Stage:</span>
+                    <span className="text-slate-500">Average wait:</span>
                     <span
                       className={`font-bold tabular-nums ${
                         item.averageAgingDays > item.slaThresholdDays ? "text-amber-800" : "text-slate-900"
@@ -90,12 +91,12 @@ export const BottlenecksWidget: React.FC<BottlenecksWidgetProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Target Review SLA:</span>
+                    <span className="text-slate-500">Target wait:</span>
                     <span className="text-slate-700 font-medium">{item.slaThresholdDays} days</span>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Overdue Reviews:</span>
+                    <span className="text-slate-500">Past-due reviews:</span>
                     <span
                       className={`font-bold tabular-nums ${
                         item.overdueCount > 0 ? "text-rose-700" : "text-slate-900"

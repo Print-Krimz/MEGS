@@ -1,4 +1,4 @@
-﻿import type { ApplicantProfile } from "./types/applicant.types";
+import type { ApplicantProfile } from "./types/applicant.types";
 
 const KNOWN_SKILL_CASING: Record<string, string> = {
   html: "HTML",
@@ -58,7 +58,7 @@ export interface TabStatus {
 
 export interface ProfileHealthResult {
   score: number;
-  tier: "Incomplete" | "Basic" | "Good" | "Placement-Ready";
+  tier: "Incomplete" | "Basic" | "Good" | "Job Ready";
   missingItems: string[];
   nextActionTip: string;
   tabStatuses: Record<string, TabStatus>;
@@ -79,7 +79,6 @@ export function computeProfileHealth(profile?: ApplicantProfile | null): Profile
         skills: { id: "skills", isComplete: false, itemCount: 0 },
         trainings: { id: "trainings", isComplete: false, itemCount: 0 },
         references: { id: "references", isComplete: false, itemCount: 0 },
-        assets: { id: "assets", isComplete: false, itemCount: 0 },
       },
     };
   }
@@ -129,14 +128,10 @@ export function computeProfileHealth(profile?: ApplicantProfile | null): Profile
   if (refCount > 0) earnedPoints += 5;
   else missingItems.push("Add at least 1 Character Reference");
 
-  // 8. Clearances / Assets (5 points)
-  const assetCount = profile.assets?.length || 0;
-  if (assetCount > 0) earnedPoints += 5;
-
   const score = Math.min(100, earnedPoints);
 
   let tier: ProfileHealthResult["tier"] = "Incomplete";
-  if (score >= 85) tier = "Placement-Ready";
+  if (score >= 85) tier = "Job Ready";
   else if (score >= 60) tier = "Good";
   else if (score >= 35) tier = "Basic";
 
@@ -187,12 +182,6 @@ export function computeProfileHealth(profile?: ApplicantProfile | null): Profile
       isComplete: refCount > 0,
       badgeText: `${refCount} contacts`,
       itemCount: refCount,
-    },
-    assets: {
-      id: "assets",
-      isComplete: assetCount > 0,
-      badgeText: `${assetCount} files`,
-      itemCount: assetCount,
     },
   };
 

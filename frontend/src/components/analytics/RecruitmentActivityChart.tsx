@@ -22,7 +22,7 @@ const METRICS: MetricConfig[] = [
   },
   {
     key: "initialInterviewsCompleted",
-    label: "Initial Interviews",
+    label: "Initial reviews",
     color: "#2563eb", // blue-600
     bgBadge: "bg-blue-50",
     borderBadge: "border-blue-300",
@@ -30,7 +30,7 @@ const METRICS: MetricConfig[] = [
   },
   {
     key: "clientEndorsements",
-    label: "Client Endorsements",
+    label: "Client reviews",
     color: "#7c3aed", // violet-600
     bgBadge: "bg-purple-50",
     borderBadge: "border-purple-300",
@@ -38,7 +38,7 @@ const METRICS: MetricConfig[] = [
   },
   {
     key: "finalInterviewsCompleted",
-    label: "Final Interviews",
+    label: "Final interviews",
     color: "#d97706", // amber-600
     bgBadge: "bg-amber-50",
     borderBadge: "border-amber-300",
@@ -46,7 +46,7 @@ const METRICS: MetricConfig[] = [
   },
   {
     key: "candidatesMovedToCompliance",
-    label: "Moved to Compliance",
+    label: "Moved to requirements",
     color: "#e11d48", // rose-600
     bgBadge: "bg-rose-50",
     borderBadge: "border-rose-300",
@@ -54,7 +54,7 @@ const METRICS: MetricConfig[] = [
   },
   {
     key: "candidatesDeployed",
-    label: "Site Deployments",
+    label: "Placements",
     color: "#059669", // emerald-600
     bgBadge: "bg-emerald-50",
     borderBadge: "border-emerald-300",
@@ -70,8 +70,8 @@ interface RecruitmentActivityChartProps {
 
 export const RecruitmentActivityChart: React.FC<RecruitmentActivityChartProps> = ({
   data,
-  title = "Daily Recruitment Activity Trend",
-  subtitle = "Daily volume of candidate applications, screening milestones, endorsements, and site deployments over time",
+  title = "Hiring activity",
+  subtitle = "Applications, reviews, interviews, requirements, and placements over time",
 }) => {
   const [activeKeys, setActiveKeys] = useState<Record<string, boolean>>({
     applicationsReceived: true,
@@ -154,7 +154,7 @@ export const RecruitmentActivityChart: React.FC<RecruitmentActivityChartProps> =
         <div>
           <div className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-teal-800" />
-            <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
+            <h3 className="text-sm font-semibold text-slate-900">
               {title}
             </h3>
           </div>
@@ -171,7 +171,8 @@ export const RecruitmentActivityChart: React.FC<RecruitmentActivityChartProps> =
                 key={m.key}
                 type="button"
                 onClick={() => toggleMetric(m.key)}
-                className={`px-2 py-0.5 text-[10px] font-mono font-bold uppercase border flex items-center gap-1.5 transition-all cursor-pointer ${
+                aria-pressed={isActive}
+                className={`min-h-9 px-2 py-1 text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
                   isActive
                     ? `${m.bgBadge} ${m.borderBadge} ${m.textColor}`
                     : "bg-slate-100 border-slate-300 text-slate-400 opacity-60 hover:opacity-100"
@@ -200,11 +201,11 @@ export const RecruitmentActivityChart: React.FC<RecruitmentActivityChartProps> =
         <div className="p-12 text-center flex flex-col items-center justify-center space-y-2">
           <AlertCircle className="w-6 h-6 text-slate-400" />
           <div className="text-xs font-mono font-bold uppercase text-slate-800">
-            No recruitment activity was recorded for this period.
+            No hiring activity was recorded for this period.
           </div>
           <p className="text-[11px] text-slate-500 max-w-md">
-            No candidate applications, interviews, endorsements, or site deployments occurred during the selected dates.
-            Try selecting a broader date range or resetting your filters.
+            No applications, reviews, interviews, or placements occurred during the selected dates.
+            Try a broader date range or clear a filter.
           </p>
         </div>
       ) : (

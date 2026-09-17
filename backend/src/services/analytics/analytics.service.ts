@@ -729,7 +729,7 @@ export const getAdminBottlenecks = async (filters: AnalyticsFilterDto = {}): Pro
     },
     {
       stageKey: "COMPLIANCE",
-      stageLabel: "201 Statutory Clearances",
+      stageLabel: "Pre-Employment Clearances",
       candidateCount: complianceApps.length,
       averageAgingDays: complianceAvg,
       slaThresholdDays: 7,

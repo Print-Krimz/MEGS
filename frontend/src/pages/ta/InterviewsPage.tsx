@@ -337,6 +337,7 @@ export const InterviewsPage: React.FC = () => {
                 totalItems={filteredItems.length}
                 pageSize={pageSize}
                 onPageChange={setPage}
+                itemLabel="interviews"
               />
             </div>
           </>

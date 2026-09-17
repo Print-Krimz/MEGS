@@ -47,8 +47,8 @@ export const AdminAnalyticsPage: React.FC = () => {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Organization Recruitment Analytics"
-          description="Loading real-time recruitment metrics..."
+          title="Hiring reports"
+          description="Loading hiring reports..."
         />
         <LoadingState variant="cards" />
         <LoadingState variant="table" rows={4} />
@@ -60,8 +60,8 @@ export const AdminAnalyticsPage: React.FC = () => {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Organization Recruitment Analytics"
-          description="Recruitment metrics & pipeline health"
+          title="Hiring reports"
+          description="Hiring activity and pipeline progress"
         />
         <ErrorState
           error={dashboardQuery.error}
@@ -91,8 +91,8 @@ export const AdminAnalyticsPage: React.FC = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      setExportError("Failed to export pipeline report: " + err.message);
+    } catch {
+       setExportError("We couldn't download the candidate pipeline report. Please try again.");
     } finally {
       setDownloadingReport(null);
     }
@@ -111,8 +111,8 @@ export const AdminAnalyticsPage: React.FC = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      setExportError("Failed to export deployment report: " + err.message);
+    } catch {
+       setExportError("We couldn't download the deployment report. Please try again.");
     } finally {
       setDownloadingReport(null);
     }
@@ -121,20 +121,21 @@ export const AdminAnalyticsPage: React.FC = () => {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Organization Recruitment Reports"
-        description="Company-wide hiring progress, daily recruitment activity, stage conversion rates, and review bottlenecks"
+        title="Hiring reports"
+        description="Hiring progress, activity, stage movement, and review bottlenecks."
         breadcrumbs={[
-          { label: "Admin Operations", href: "/admin" },
+          { label: "Administration", href: "/admin" },
           { label: "Reports" },
         ]}
       />
 
       {exportError && (
-        <div className="p-3 border-l-4 border-rose-600 bg-rose-50 border border-slate-300 text-rose-900 text-xs font-mono flex items-center justify-between">
+        <div role="alert" aria-live="assertive" className="p-3 border border-rose-300 bg-rose-50 text-rose-900 text-sm flex items-center justify-between">
           <span>{exportError}</span>
           <button
             onClick={() => setExportError(null)}
-            className="text-slate-400 hover:text-slate-700 font-bold ml-4"
+            aria-label="Dismiss download error"
+            className="min-h-11 min-w-11 inline-flex items-center justify-center text-slate-400 hover:text-slate-700 font-bold ml-4"
           >
             ×
           </button>
@@ -155,84 +156,84 @@ export const AdminAnalyticsPage: React.FC = () => {
         {/* Total Applications */}
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-            Total Applications
+            Applications received
           </div>
           <div className="text-2xl font-bold font-sans text-slate-950 mt-0.5 tabular-nums">
             {overview?.totalApplications ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
             <Users className="w-3 h-3 text-slate-400 shrink-0" />
-            <span>Intake volume</span>
+            <span>New applications in this period</span>
           </div>
         </div>
 
         {/* Active Candidates */}
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-wider">
-            Active Candidates
+            Candidates in progress
           </div>
           <div className="text-2xl font-bold font-sans text-teal-950 mt-0.5 tabular-nums">
             {overview?.activeCandidates ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
             <UserCheck className="w-3 h-3 text-teal-700 shrink-0" />
-            <span>In active pipeline</span>
+            <span>Moving through the hiring process</span>
           </div>
         </div>
 
         {/* Talent Pool Candidates */}
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-purple-800 uppercase tracking-wider">
-            Talent Pool
+            Talent pool
           </div>
-          <div className="text-2xl font-bold font-sans text-purple-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-bold font-sans text-slate-950 mt-0.5 tabular-nums">
             {overview?.talentPoolCandidates ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
             <Users className="w-3 h-3 text-purple-700 shrink-0" />
-            <span>Sourced & reactivatable</span>
+            <span>Available for future openings</span>
           </div>
         </div>
 
         {/* Client Endorsements */}
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-blue-800 uppercase tracking-wider">
-            Client Endorsements
+            Client reviews
           </div>
           <div className="text-2xl font-bold font-sans text-blue-950 mt-0.5 tabular-nums">
             {overview?.clientEndorsements ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
             <Building2 className="w-3 h-3 text-blue-700 shrink-0" />
-            <span>Presented to clients</span>
+            <span>Sent to clients for review</span>
           </div>
         </div>
 
         {/* Candidates in Compliance */}
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-amber-800 uppercase tracking-wider">
-            In Requirements
+            In requirements
           </div>
           <div className="text-2xl font-bold font-sans text-amber-950 mt-0.5 tabular-nums">
             {overview?.candidatesInCompliance ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
             <FileCheck2 className="w-3 h-3 text-amber-700 shrink-0" />
-            <span>Pre-employment requirements</span>
+            <span>Documents being completed</span>
           </div>
         </div>
 
         {/* Total Deployments */}
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase tracking-wider">
-            Total Deployments
+            Deployed
           </div>
           <div className="text-2xl font-bold font-sans text-emerald-950 mt-0.5 tabular-nums">
             {overview?.totalDeployments ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
             <Send className="w-3 h-3 text-emerald-700 shrink-0" />
-            <span>Deployed personnel</span>
+            <span>Placed at client sites</span>
           </div>
         </div>
       </div>
@@ -240,8 +241,8 @@ export const AdminAnalyticsPage: React.FC = () => {
       {/* Row 2: Prominent Daily Recruitment Activity Trend Graph */}
       <RecruitmentActivityChart
         data={activity}
-        title="Organization Recruitment Activity Trend"
-        subtitle="Daily breakdown of candidate intake, initial interviews, client endorsements, final interviews, compliance clearances, and site deployments"
+         title="Hiring activity"
+         subtitle="Applications, reviews, interviews, requirements, and placements over time"
       />
 
       {/* Row 3: Funnel & Requisition Demand Distribution */}
@@ -260,20 +261,20 @@ export const AdminAnalyticsPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <FileSpreadsheet className="w-4 h-4 text-slate-700" />
               <h3 className="text-xs font-semibold font-sans text-slate-900">
-                Export Reports
+                 Download reports
               </h3>
               <span className="px-1.5 py-0.5 text-[10px] font-mono font-medium rounded bg-slate-200 text-slate-700 border border-slate-300">
-                Admin
+                 Administrator
               </span>
             </div>
             <p className="text-[11px] text-slate-500 font-sans">
-              Download pipeline and deployment records in PDF or Excel
+               Download candidate and deployment reports as PDF or Excel files
             </p>
           </div>
 
           <div className="w-48">
             <Select
-              label=""
+               label="File type"
               value={exportFormat}
               onChange={(e) => setExportFormat(e.target.value as "pdf" | "xlsx")}
               options={[
@@ -288,10 +289,10 @@ export const AdminAnalyticsPage: React.FC = () => {
           <div className="p-4 flex items-center justify-between gap-4">
             <div>
               <div className="font-semibold font-sans text-slate-900 text-xs">
-                Candidate Pipeline
+                 Candidate pipeline
               </div>
               <div className="text-[11px] text-slate-500 font-sans">
-                Applications, stages, and match evaluations
+                 Applications and hiring stages
               </div>
             </div>
             <Button
@@ -301,17 +302,17 @@ export const AdminAnalyticsPage: React.FC = () => {
               loading={downloadingReport === "pipeline"}
               onClick={handleExportPipeline}
             >
-              Export Report
+               Download candidate pipeline
             </Button>
           </div>
 
           <div className="p-4 flex items-center justify-between gap-4">
             <div>
               <div className="font-semibold font-sans text-slate-900 text-xs">
-                Deployments
+                 Deployment report
               </div>
               <div className="text-[11px] text-slate-500 font-sans">
-                Client assignments, sites, and contract dates
+                 Client placements, sites, and contract dates
               </div>
             </div>
             <Button
@@ -321,7 +322,7 @@ export const AdminAnalyticsPage: React.FC = () => {
               loading={downloadingReport === "deployments"}
               onClick={handleExportDeployments}
             >
-              Export Report
+               Download deployment report
             </Button>
           </div>
         </div>

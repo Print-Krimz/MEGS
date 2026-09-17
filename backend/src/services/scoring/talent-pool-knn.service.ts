@@ -227,6 +227,12 @@ export const discoverTalentPoolForJob = async (jobPostingId: number, requested: 
           WHERE dep_app."userId" = u."id"
             AND dep."status" NOT IN ('ENDED', 'CANCELLED')
         )
+        AND NOT EXISTS (
+          SELECT 1 FROM "Application" app_active
+          WHERE app_active."userId" = u."id"
+            AND app_active."jobPostingId" = ${jobPostingId}
+            AND app_active."status" NOT IN ('REJECTED', 'WITHDRAWN')
+        )
         AND (1 - (cfp."embedding" <=> ${vectorStr}::vector)) >= ${knn.minimumSimilarity}
       ORDER BY (1 - (cfp."embedding" <=> ${vectorStr}::vector)) DESC, ap."id" ASC
       LIMIT ${knn.k}
@@ -246,6 +252,10 @@ export const discoverTalentPoolForJob = async (jobPostingId: number, requested: 
                 OR: [
                   { status: { in: ["HIRED", "ONBOARDING"] } },
                   { deployments: { some: { status: { notIn: ["ENDED", "CANCELLED"] } } } },
+                  {
+                    jobPostingId,
+                    status: { notIn: ["REJECTED", "WITHDRAWN"] as any },
+                  },
                 ],
               },
             },

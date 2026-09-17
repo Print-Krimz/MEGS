@@ -179,18 +179,6 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
         </div>
       </div>
 
-      {/* Compliance Overview Guidance */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-          <ShieldCheck className="w-4 h-4 text-teal-600" />
-          <h3 className="text-xs font-bold font-mono uppercase text-slate-900">
-            Mandatory Compliance Policy for Manpower Dispatch
-          </h3>
-        </div>
-        <p className="text-xs text-slate-600 leading-relaxed max-w-3xl font-sans">
-          Under Philippine Labor regulations and agency standards, candidate applications cannot be transitioned to <span className="font-mono font-bold text-teal-800">DEPLOYED</span> status until all assigned mandatory compliance clearances (NBI Clearance, SSS Static Form, PhilHealth Member Data Record, Pag-IBIG MID, and Medical Certificate) are uploaded and marked <span className="font-mono font-bold text-emerald-700">APPROVED</span>.
-        </p>
-      </div>
 
       {/* Active Compliance Verification Queue */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
@@ -288,6 +276,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
               totalItems={complianceApps.length}
               pageSize={queuePageSize}
               onPageChange={setQueuePage}
+              itemLabel="clearances"
             />
           </div>
         )}

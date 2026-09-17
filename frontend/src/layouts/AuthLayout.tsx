@@ -25,25 +25,25 @@ export const AuthLayout: React.FC = () => {
     : "/app";
 
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-slate-50 px-3 py-4 sm:px-6 sm:py-6 lg:px-8 overflow-x-hidden">
+    <div className="min-h-screen flex flex-col justify-between bg-[#F7F9FC] px-4 py-6 sm:px-6 lg:px-8">
       {/* Top Back Navigation Bar */}
-      <div className="max-w-4xl w-full mx-auto flex items-center justify-between pb-3 sm:pb-4">
+      <header className="max-w-4xl w-full mx-auto flex items-center justify-between pb-4">
         {backDest ? (
           <Link
             to={backDest.to}
-            className="inline-flex items-center gap-1.5 sm:gap-2 text-sm font-medium text-slate-600 hover:text-teal-800 transition-colors group py-2 px-2 rounded-md hover:bg-white"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#627D98] hover:text-[#0B315D] transition-colors group py-2 px-3 rounded-lg hover:bg-white border border-transparent hover:border-[#D9E2EC]"
           >
-            <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+            <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
             <span>{backDest.label}</span>
           </Link>
         ) : (
-          <div className="text-xs text-slate-500 font-medium">Account Security Update</div>
+          <div className="text-xs text-[#627D98] font-medium">Account Security Update</div>
         )}
 
         <div className="flex items-center gap-4">
           <Link
             to={portalHome}
-            className="text-sm text-slate-500 hover:text-slate-800 transition-colors hidden sm:inline-block"
+            className="text-xs text-[#627D98] hover:text-[#102A43] transition-colors hidden sm:inline-block font-medium"
           >
             MAR Employment for Good Services Inc.
           </Link>
@@ -52,7 +52,7 @@ export const AuthLayout: React.FC = () => {
             <button
               type="button"
               onClick={() => logout()}
-              className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-rose-600 font-medium py-1 px-2 rounded hover:bg-slate-100 transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs text-[#627D98] hover:text-[#DC2626] font-medium py-1 px-2.5 rounded-lg hover:bg-[#EAF0F7] transition-colors"
               title="Sign Out"
             >
               <LogOut className="w-3.5 h-3.5" />
@@ -60,33 +60,30 @@ export const AuthLayout: React.FC = () => {
             </button>
           )}
         </div>
-      </div>
+      </header>
 
       {/* Center Auth Card */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-md my-auto w-full">
-        <div className="text-center mb-5 sm:mb-6">
+      <main className="sm:mx-auto sm:w-full sm:max-w-[460px] my-auto w-full py-4">
+        <div className="text-center mb-6">
           <Link to={portalHome} className="inline-block group focus:outline-none">
-            <h1 className="text-2xl sm:text-3xl font-extrabold font-mono tracking-tight text-slate-950 group-hover:text-teal-800 transition-colors">
-              MEGS INC.
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#102A43] group-hover:text-[#0B315D] transition-colors font-sans">
+              MEGS
             </h1>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mt-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#627D98] mt-1">
               Recruitment & Manpower Services
             </p>
           </Link>
-          <p className="mt-2 text-sm text-slate-600">
-            Find work and manage recruitment with confidence.
-          </p>
         </div>
 
-        <div className="bg-white py-6 px-4 sm:py-8 sm:px-10 rounded-lg border border-slate-200 shadow-sm">
+        <div className="bg-white py-8 px-6 sm:px-8 rounded-xl border border-[#D9E2EC] shadow-xs">
           <Outlet />
         </div>
-      </div>
+      </main>
 
       {/* Footer Branding */}
-      <div className="max-w-4xl w-full mx-auto pt-4 sm:pt-6 text-center text-xs sm:text-sm text-slate-500">
-        © {new Date().getFullYear()} MAR Employment for Good Services Inc. • DOLE-licensed agency
-      </div>
+      <footer className="max-w-4xl w-full mx-auto pt-6 text-center text-xs text-[#627D98]">
+        © {new Date().getFullYear()} MAR Employment for Good Services Inc. • Licensed by DOLE
+      </footer>
     </div>
   );
 };

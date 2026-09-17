@@ -21,6 +21,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
 }) => {
   // Local draft state for user configuration before clicking "Apply Filters"
   const [draftFilters, setDraftFilters] = useState<AnalyticsFilterState>(filters);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
   // Sync draft filters whenever external filters change (e.g. parent reset or chip removal)
   useEffect(() => {
@@ -112,7 +113,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
     return list.map((m) => ({
       value: String(m.id),
       label: m.title,
-      subtitle: `MRF-${m.id}`,
+       subtitle: `Request #${m.id}`,
     }));
   }, [options?.mrfs, draftFilters.clientId]);
 
@@ -120,7 +121,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
     return availableJobPostings.map((j) => ({
       value: String(j.id),
       label: j.title,
-      subtitle: j.mrfId ? `Linked to MRF-${j.mrfId}` : "Direct Requisition",
+       subtitle: j.mrfId ? `Linked to request #${j.mrfId}` : "Direct job opening",
     }));
   }, [availableJobPostings]);
 
@@ -159,12 +160,12 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
 
     if (filters.mrfId) {
       const m = options?.mrfs.find((x) => x.id === filters.mrfId);
-      chips.push({ key: "mrfId", label: "MRF", value: m?.title || `MRF #${filters.mrfId}` });
+       chips.push({ key: "mrfId", label: "Hiring request", value: m?.title || `Request #${filters.mrfId}` });
     }
 
     if (filters.jobPostingId) {
       const j = options?.jobPostings.find((x) => x.id === filters.jobPostingId);
-      chips.push({ key: "jobPostingId", label: "Job", value: j?.title || `Job #${filters.jobPostingId}` });
+       chips.push({ key: "jobPostingId", label: "Job opening", value: j?.title || `Job #${filters.jobPostingId}` });
     }
 
     if (filters.stage) {
@@ -187,7 +188,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
         <div className="flex flex-wrap items-center gap-1.5">
           <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase text-slate-700 mr-2">
             <CalendarIcon className="w-3.5 h-3.5 text-slate-500" />
-            <span>Date Range:</span>
+            <span>Date range:</span>
           </div>
 
           {(
@@ -204,7 +205,8 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
                 key={preset.key}
                 type="button"
                 onClick={() => handleRangePreset(preset.key)}
-                className={`px-2.5 py-1 text-xs font-mono font-bold border transition-colors cursor-pointer ${
+                 aria-pressed={isActive}
+                 className={`min-h-10 md:min-h-9 px-2.5 py-1 text-sm font-semibold border transition-colors cursor-pointer ${
                   isActive
                     ? "bg-slate-900 text-white border-slate-900"
                     : "bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
@@ -224,9 +226,9 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               size="sm"
               onClick={handleClearAll}
               leftIcon={<RotateCcw className="w-3 h-3 text-slate-500" />}
-              className="text-slate-700 hover:text-slate-950 text-xs font-mono"
+              className="text-slate-700 hover:text-slate-950 text-sm"
             >
-              Clear Filters
+              Clear filters
             </Button>
           )}
 
@@ -235,10 +237,22 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
             size="sm"
             onClick={handleApply}
             leftIcon={hasUnappliedChanges ? <SlidersHorizontal className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
-            className="text-xs font-mono font-bold uppercase"
+             className="text-sm font-semibold"
           >
-            {hasUnappliedChanges ? "Apply Filters" : "Applied"}
+            {hasUnappliedChanges ? "Apply filters" : "Filters applied"}
           </Button>
+          {options && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowMoreFilters((current) => !current)}
+              aria-expanded={showMoreFilters || hasActiveFilters}
+              aria-controls="admin-analytics-more-filters"
+              className="text-sm"
+            >
+              {showMoreFilters || hasActiveFilters ? "Hide filters" : "More filters"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -246,10 +260,11 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
       {draftFilters.range === "custom" && (
         <div className="p-2.5 bg-slate-50 border border-slate-200 flex flex-wrap items-center gap-3 animate-in fade-in duration-150">
           <div className="flex items-center gap-2 text-xs font-mono">
-            <span className="text-slate-600 font-bold uppercase">From:</span>
+            <label htmlFor="analytics-start-date" className="text-slate-600 font-semibold">From</label>
             <input
               type="date"
-              value={draftFilters.startDate || ""}
+               id="analytics-start-date"
+               value={draftFilters.startDate || ""}
               onChange={(e) =>
                 setDraftFilters({ ...draftFilters, range: "custom", startDate: e.target.value })
               }
@@ -258,10 +273,11 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
           </div>
 
           <div className="flex items-center gap-2 text-xs font-mono">
-            <span className="text-slate-600 font-bold uppercase">To:</span>
+            <label htmlFor="analytics-end-date" className="text-slate-600 font-semibold">To</label>
             <input
               type="date"
-              value={draftFilters.endDate || ""}
+               id="analytics-end-date"
+               value={draftFilters.endDate || ""}
               onChange={(e) =>
                 setDraftFilters({ ...draftFilters, range: "custom", endDate: e.target.value })
               }
@@ -272,12 +288,12 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
       )}
 
       {/* Relational Searchable ComboBox Dropdowns */}
-      {options && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
+      {options && (showMoreFilters || hasActiveFilters) && (
+        <div id="admin-analytics-more-filters" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
           {/* Client Filter (Admin only) */}
           {showClientFilter && options.clients && options.clients.length > 0 && (
             <ComboBox
-              label="Client Account"
+               label="Client"
               options={clientOptions}
               value={draftFilters.clientId ? String(draftFilters.clientId) : ""}
               onChange={(val) => {
@@ -304,7 +320,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
           {/* Manpower Request (MRF) Combobox */}
           {options.mrfs && options.mrfs.length > 0 && (
             <ComboBox
-              label="Manpower Request (MRF)"
+               label="Hiring request"
               options={mrfOptions}
               value={draftFilters.mrfId ? String(draftFilters.mrfId) : ""}
               onChange={(val) => {
@@ -321,7 +337,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
                   return next;
                 });
               }}
-              placeholder="All MRF Orders"
+               placeholder="All hiring requests"
               clearable={true}
               size="sm"
             />
@@ -330,7 +346,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
           {/* Job Posting / Requisition Combobox (Cascaded from MRF) */}
           {options.jobPostings && options.jobPostings.length > 0 && (
             <ComboBox
-              label="Job Posting / Requisition"
+               label="Job opening"
               options={jobOptions}
               value={draftFilters.jobPostingId ? String(draftFilters.jobPostingId) : ""}
               onChange={(val) => {
@@ -340,7 +356,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
                   jobPostingId,
                 }));
               }}
-              placeholder={draftFilters.mrfId ? "Select Job under MRF..." : "All Requisitions"}
+               placeholder={draftFilters.mrfId ? "Select job opening" : "All job openings"}
               clearable={true}
               size="sm"
             />
@@ -349,7 +365,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
           {/* Recruitment Stage Combobox */}
           {options.stages && options.stages.length > 0 && (
             <ComboBox
-              label="Recruitment Stage"
+               label="Hiring stage"
               options={stageOptions}
               value={draftFilters.stage || ""}
               onChange={(val) => {
@@ -358,7 +374,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
                   stage: val || undefined,
                 }));
               }}
-              placeholder="All Pipeline Stages"
+               placeholder="All hiring stages"
               clearable={true}
               size="sm"
             />
@@ -367,7 +383,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
           {/* Recruiter / TA Specialist Combobox (Admin only) */}
           {showRecruiterFilter && options.recruiters && options.recruiters.length > 0 && (
             <ComboBox
-              label="TA Specialist"
+               label="Recruiter"
               options={recruiterOptions}
               value={draftFilters.recruiterId || ""}
               onChange={(val) => {
@@ -376,7 +392,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
                   recruiterId: val || undefined,
                 }));
               }}
-              placeholder="All TA Specialists"
+               placeholder="All recruiters"
               clearable={true}
               size="sm"
             />
@@ -389,7 +405,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
         <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-700 mr-1">
             <Filter className="w-3.5 h-3.5 text-teal-800" />
-            <span>Active Filters:</span>
+            <span>Filters applied:</span>
             <span className="px-1.5 py-0.2 bg-teal-100 text-teal-900 text-[10px] border border-teal-300 font-mono font-bold">
               {activeChips.length}
             </span>
@@ -420,11 +436,10 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
             onClick={handleClearAll}
             className="text-[11px] font-mono text-slate-500 hover:text-rose-700 underline ml-2 cursor-pointer"
           >
-            Clear All
+             Clear all
           </button>
         </div>
       )}
     </div>
   );
 };
-

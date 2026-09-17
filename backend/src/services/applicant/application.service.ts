@@ -36,6 +36,24 @@ export const fetchOpenJobs = async (filters?: { search?: string; location?: stri
       status: true,
       createdAt: true,
       _count: { select: { applications: true } },
+      mrf: {
+        select: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              tradeName: true,
+              industry: true,
+              city: true,
+              province: true,
+            },
+          },
+          employmentType: true,
+          workArrangement: true,
+          salaryRangeMin: true,
+          salaryRangeMax: true,
+        },
+      },
     },
   });
 };

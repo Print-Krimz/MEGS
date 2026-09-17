@@ -186,7 +186,7 @@ export const MRFCreatePage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
-              label="Deployment Location"
+              label="Work / Site Location"
               placeholder="e.g. Calamba, Laguna Plant"
               value={location}
               onChange={(e) => setLocation(e.target.value)}

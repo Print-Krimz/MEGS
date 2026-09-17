@@ -322,6 +322,17 @@ export const triggerDatabaseBackupRoutine = async (
 };
 
 export const listDatabaseBackups = async (limit = 50) => {
+  const cutoff = new Date(Date.now() - 15 * 60 * 1000);
+  await prisma.databaseBackupRecord.updateMany({
+    where: {
+      status: "IN_PROGRESS",
+      createdAt: { lt: cutoff },
+    },
+    data: {
+      status: "FAILED",
+    },
+  });
+
   const records = await prisma.databaseBackupRecord.findMany({
     take: limit,
     orderBy: { createdAt: "desc" },

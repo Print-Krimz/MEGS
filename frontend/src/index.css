@@ -1,35 +1,35 @@
 @import "tailwindcss";
 
 @theme {
-  /* Calm professional HR palette */
-  --color-primary: #0f766e;
-  --color-primary-hover: #0d9488;
-  --color-primary-light: #ccfbf1;
-  --color-primary-dark: #115e59;
+  /* Authoritative MEGS recruitment palette */
+  --color-primary: #0B315D;
+  --color-primary-hover: #082747;
+  --color-primary-light: #EAF0F7;
+  --color-primary-dark: #082747;
 
-  --color-page: #f8fafc;
-  --color-surface: #ffffff;
-  --color-surface-hover: #f1f5f9;
-  --color-surface-active: #e2e8f0;
+  --color-page: #F7F9FC;
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #EAF0F7;
+  --color-surface-active: #D9E2EC;
 
-  --color-border: #e2e8f0;
-  --color-border-strong: #cbd5e1;
-  --color-border-dark: #94a3b8;
+  --color-border: #D9E2EC;
+  --color-border-strong: #D9E2EC;
+  --color-border-dark: #627D98;
 
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #334155;
-  --color-text-muted: #64748b;
-  --color-text-inverse: #ffffff;
+  --color-text-primary: #102A43;
+  --color-text-secondary: #627D98;
+  --color-text-muted: #627D98;
+  --color-text-inverse: #FFFFFF;
 
   /* Semantic Feedback */
-  --color-success: #10b981;
-  --color-success-light: #d1fae5;
-  --color-warning: #f59e0b;
-  --color-warning-light: #fef3c7;
-  --color-danger: #ef4444;
-  --color-danger-light: #fee2e2;
-  --color-info: #0284c7;
-  --color-info-light: #e0f2fe;
+  --color-success: #047857;
+  --color-success-light: #ECFDF5;
+  --color-warning: #B45309;
+  --color-warning-light: #FFF7ED;
+  --color-danger: #DC2626;
+  --color-danger-light: #FEF2F2;
+  --color-info: #6D4FD3;
+  --color-info-light: #F3F0FF;
 
   /* Typography */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -52,6 +52,7 @@
 /* Respect motion preferences for non-essential movement. */
 html {
   scroll-padding-top: 5rem;
+  scroll-behavior: smooth;
 }
 
 /* Base Body Styles */

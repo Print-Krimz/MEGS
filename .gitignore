@@ -56,6 +56,9 @@ playwright/.cache/
 # 6. Audit Suites, Dev Scripts & Screenshots
 frontend-audit/
 screenshots/
+audit_screenshots/
+audit_scripts/
+audit_test_files/
 backend/scripts/
 backend/src/scripts/
 src/pages/dev/
@@ -66,6 +69,7 @@ scratch/
 # 7. Internal AI Agents, Superpowers & Sprint Documentation
 .agents/
 .superpowers/
+.docs/
 agent/
 AGENTS.md
 docs/

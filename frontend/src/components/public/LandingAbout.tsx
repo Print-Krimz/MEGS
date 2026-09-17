@@ -1,5 +1,5 @@
 import React from "react";
-import { Award, CheckSquare, Target, Compass, ArrowRight } from "lucide-react";
+import { Target, Compass, ArrowRight } from "lucide-react";
 import { scrollToSection } from "../../lib/scrollToSection";
 
 export const LandingAbout: React.FC = () => {
@@ -11,30 +11,30 @@ export const LandingAbout: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center mb-16">
           
           <div className="lg:col-span-8 space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-teal-50 border border-teal-200 text-teal-800 text-[11px] font-mono font-bold uppercase tracking-wider">
+            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
               Company Background & Heritage
-            </div>
+            </p>
             
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight font-sans">
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0f294a] tracking-tight font-sans">
               Trusted Workforce Partner to the Philippines&apos; Top 1,000 Corporations
             </h2>
             
-            <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
+            <p className="text-sm sm:text-base text-slate-600 leading-relaxed font-sans">
               Founded in <strong className="text-slate-900 font-semibold">May 1997</strong>, <strong className="text-slate-900 font-semibold">MAR EMPLOYMENT FOR GOOD SERVICES INC. (MEGS)</strong> has steadily expanded to rank among the nation&apos;s most reputable manpower and human resources organizations. For nearly three decades, we have provided leading Philippine enterprises with the strategic people management, compliant employment governance, and disciplined manpower required to thrive in a competitive and evolving job-contracting market.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="text-2xl font-black text-teal-800 font-mono block">May 1997</span>
-                <span className="text-xs text-slate-600 font-medium mt-1 block">Founded & Serving Nationwide</span>
+                <span className="text-2xl font-bold text-[#0f294a] block">May 1997</span>
+                <span className="text-xs text-slate-600 font-medium mt-1 block font-sans">Founded & Serving Nationwide</span>
               </div>
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="text-2xl font-black text-teal-800 font-mono block">Top 1,000</span>
-                <span className="text-xs text-slate-600 font-medium mt-1 block">Philippine Corporate Clientele</span>
+                <span className="text-2xl font-bold text-[#0f294a] block">Top 1,000</span>
+                <span className="text-xs text-slate-600 font-medium mt-1 block font-sans">Philippine Corporate Clientele</span>
               </div>
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="text-2xl font-black text-teal-800 font-mono block">6 Branches</span>
-                <span className="text-xs text-slate-600 font-medium mt-1 block">Luzon, Visayas & Mindanao</span>
+                <span className="text-2xl font-bold text-[#0f294a] block">6 Branches</span>
+                <span className="text-xs text-slate-600 font-medium mt-1 block font-sans">Luzon, Visayas & Mindanao</span>
               </div>
             </div>
           </div>
@@ -49,10 +49,10 @@ export const LandingAbout: React.FC = () => {
                 loading="lazy"
               />
             </div>
-            <h3 className="text-sm font-bold font-mono uppercase text-slate-900 tracking-wide">
+            <h3 className="text-sm font-bold uppercase text-[#0f294a] tracking-wide">
               MAR Employment for Good Services Inc.
             </h3>
-            <p className="text-xs font-mono text-teal-700 font-semibold mt-1">
+            <p className="text-xs text-slate-600 font-medium mt-1">
               &ldquo;Better People for Better Result&rdquo;
             </p>
           </div>
@@ -63,48 +63,49 @@ export const LandingAbout: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
           {/* Mission Card */}
-          <div className="p-8 bg-slate-900 text-white rounded-xl border border-slate-800 flex flex-col justify-between">
+          <div className="p-8 bg-slate-50/70 text-slate-900 rounded-xl border border-slate-200 flex flex-col justify-between">
             <div>
-              <div className="w-10 h-10 rounded-lg bg-teal-900/80 border border-teal-500/30 flex items-center justify-center text-teal-400 mb-5">
-                <Target className="w-5 h-5" />
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded-lg bg-blue-50 text-[#0f294a] flex items-center justify-center border border-blue-100/60">
+                  <Target className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Corporate Mission
+                </span>
               </div>
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-teal-400 block mb-2">
-                Corporate Mission
-              </span>
-              <h3 className="text-xl font-bold tracking-tight text-white mb-3">
+              <h3 className="text-xl font-bold tracking-tight text-[#0f294a] mb-3 font-sans">
                 Empowering Filipino Enterprise
               </h3>
-              <p className="text-sm text-slate-300 leading-relaxed font-sans">
+              <blockquote className="text-sm text-slate-600 leading-relaxed italic border-l-2 border-blue-600/60 pl-3.5 my-2 font-sans">
                 &ldquo;To provide Filipino businesses with only the best trained and qualified employees available in the country.&rdquo;
-              </p>
-            </div>
-            <div className="pt-6 mt-6 border-t border-slate-800 text-xs text-slate-400 font-mono">
-              Comprehensive recruitment, rigorous screening, and certified candidate onboarding.
+              </blockquote>
             </div>
           </div>
 
           {/* Vision Card */}
-          <div className="p-8 bg-slate-50 text-slate-900 rounded-xl border border-slate-200 flex flex-col justify-between">
+          <div className="p-8 bg-slate-50/70 text-slate-900 rounded-xl border border-slate-200 flex flex-col justify-between">
             <div>
-              <div className="w-10 h-10 rounded-lg bg-teal-100 border border-teal-200 flex items-center justify-center text-teal-800 mb-5">
-                <Compass className="w-5 h-5" />
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded-lg bg-blue-50 text-[#0f294a] flex items-center justify-center border border-blue-100/60">
+                  <Compass className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  5-Year Strategic Vision
+                </span>
               </div>
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-teal-700 block mb-2">
-                5-Year Strategic Vision
-              </span>
-              <h3 className="text-xl font-bold tracking-tight text-slate-900 mb-3">
+              <h3 className="text-xl font-bold tracking-tight text-[#0f294a] mb-3 font-sans">
                 Better People for Better Results
               </h3>
-              <p className="text-sm text-slate-700 leading-relaxed font-sans">
+              <blockquote className="text-sm text-slate-600 leading-relaxed italic border-l-2 border-blue-600/60 pl-3.5 my-2 font-sans">
                 &ldquo;To deliver &lsquo;Better people for better results&rsquo; to 200 client firms and provide a great employment experience to 15,000 deployed personnel across the Philippines.&rdquo;
-              </p>
+              </blockquote>
             </div>
-            <div className="pt-6 mt-6 border-t border-slate-200 flex items-center justify-between text-xs font-mono">
-              <span className="text-slate-500">Target: 200 Firms · 15,000 Personnel</span>
+            <div className="pt-6 mt-6 border-t border-slate-200 flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium">Target: 200 Client Firms &middot; 15,000 Personnel</span>
               <a
                 href="#contact"
                 onClick={(e) => scrollToSection(e, "#contact")}
-                className="text-teal-800 font-bold hover:underline inline-flex items-center gap-1 cursor-pointer"
+                className="text-[#0f294a] font-semibold hover:text-blue-700 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <span>Partner With Us</span>
                 <ArrowRight className="w-3.5 h-3.5" />

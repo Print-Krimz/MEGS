@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { Input, PasswordInput, Button } from "../../components/ui";
 import { authApi } from "../../lib/api/auth.api";
-import { UserPlus, AlertCircle, CheckCircle2, ArrowRight, ArrowLeft, ShieldCheck, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, ArrowRight, ArrowLeft, ShieldCheck, RefreshCw } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { maskEmail } from "../../lib/utils";
 
@@ -154,13 +154,33 @@ export const RegisterPage: React.FC = () => {
   if (step === "SUCCESS") {
     return (
       <div className="space-y-6 text-center py-2">
-        <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
+        {/* Step Progress Indicator */}
+        <nav aria-label="Registration progress" className="border-b border-slate-100 pb-4 text-left">
+          <ol className="flex items-center justify-between text-xs">
+            <li className="flex items-center gap-1.5 font-medium text-[#047857]">
+              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#047857] text-white">✓</span>
+              <span>Account</span>
+            </li>
+            <div className="flex-1 h-px bg-[#D9E2EC] mx-2" aria-hidden="true" />
+            <li className="flex items-center gap-1.5 font-medium text-[#047857]">
+              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#047857] text-white">✓</span>
+              <span>Verification</span>
+            </li>
+            <div className="flex-1 h-px bg-[#D9E2EC] mx-2" aria-hidden="true" />
+            <li className="flex items-center gap-1.5 font-bold text-[#0B315D]">
+              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#0B315D] text-white">3</span>
+              <span>Ready</span>
+            </li>
+          </ol>
+        </nav>
+
+        <div className="w-12 h-12 rounded-full bg-[#ECFDF5] text-[#047857] flex items-center justify-center mx-auto border border-[#047857]/20">
           <CheckCircle2 className="w-6 h-6" />
         </div>
         <div className="space-y-1">
-          <h2 className="text-xl font-bold text-slate-900">Email Verified Successfully</h2>
-          <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
-            Your candidate portal account (<strong className="font-mono text-slate-800">{maskEmail(formData.email)}</strong>) is now active. You can sign in to build your profile and apply for opportunities.
+          <h2 className="text-xl font-bold text-[#102A43]">Email Verified Successfully</h2>
+          <p className="text-xs text-[#627D98] max-w-sm mx-auto leading-relaxed">
+            Your candidate portal account (<strong className="font-mono text-[#102A43]">{maskEmail(formData.email)}</strong>) is now active. You can sign in to build your profile and apply for opportunities.
           </p>
         </div>
         <div className="pt-2">
@@ -177,17 +197,37 @@ export const RegisterPage: React.FC = () => {
   if (step === "VERIFY_OTP") {
     return (
       <div className="space-y-6">
+        {/* Step Progress Indicator */}
+        <nav aria-label="Registration progress" className="border-b border-[#D9E2EC] pb-4">
+          <ol className="flex items-center justify-between text-xs">
+            <li className="flex items-center gap-1.5 font-medium text-[#047857]">
+              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#047857] text-white">✓</span>
+              <span>Account</span>
+            </li>
+            <div className="flex-1 h-px bg-[#D9E2EC] mx-2" aria-hidden="true" />
+            <li className="flex items-center gap-1.5 font-bold text-[#0B315D]">
+              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#0B315D] text-white">2</span>
+              <span>Verification</span>
+            </li>
+            <div className="flex-1 h-px bg-[#D9E2EC] mx-2" aria-hidden="true" />
+            <li className="flex items-center gap-1.5 font-medium text-[#627D98]">
+              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#F7F9FC] text-[#627D98] border border-[#D9E2EC]">3</span>
+              <span>Ready</span>
+            </li>
+          </ol>
+        </nav>
+
         {/* Header */}
-        <div className="space-y-1 text-center sm:text-left">
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 text-[11px] font-medium border border-teal-200 mb-1">
+        <div className="space-y-1 text-left">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#EAF0F7] text-[#0B315D] text-[11px] font-semibold border border-[#D9E2EC] mb-1">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>Email Verification Required</span>
           </div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
+          <h2 className="text-xl font-bold text-[#102A43] tracking-tight font-sans">
             Enter 6-Digit Code
           </h2>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            We sent a 6-digit verification code to <strong className="font-mono text-slate-800">{maskEmail(formData.email)}</strong>. Enter it below to activate your account.
+          <p className="text-xs text-[#627D98] leading-relaxed">
+            We sent a 6-digit verification code to <strong className="font-mono text-[#102A43]">{maskEmail(formData.email)}</strong>. Enter it below to activate your account.
           </p>
         </div>
 
@@ -222,12 +262,12 @@ export const RegisterPage: React.FC = () => {
                   setValidationErrors({});
                 }
               }}
-              className="w-full text-center text-2xl font-mono tracking-[0.4em] font-bold py-2.5 px-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent bg-white text-slate-900"
+              className="w-full text-center text-2xl font-mono tracking-[0.4em] font-bold py-2.5 px-3 rounded-lg border border-[#D9E2EC] focus:outline-none focus:ring-2 focus:ring-[#0B315D] focus:border-transparent bg-white text-[#102A43]"
             />
             {validationErrors.otp && (
               <p className="text-xs text-rose-600 mt-1 font-medium">{validationErrors.otp}</p>
             )}
-            <p className="text-[11px] text-slate-400 mt-1.5 text-center">Code expires in 10 minutes</p>
+            <p className="text-[11px] text-[#627D98] mt-1.5 text-center">Code expires in 10 minutes</p>
           </div>
 
           <Button
@@ -244,14 +284,14 @@ export const RegisterPage: React.FC = () => {
         </form>
 
         {/* Resend Cooldown Controls */}
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+        <div className="pt-3 border-t border-[#D9E2EC] flex items-center justify-between text-xs">
           <button
             type="button"
             onClick={() => {
               setStep("REGISTER");
               setServerError(null);
             }}
-            className="text-slate-500 hover:text-slate-800 hover:underline inline-flex items-center gap-1 text-[11px]"
+            className="text-[#627D98] hover:text-[#102A43] hover:underline inline-flex items-center gap-1 text-[11px]"
           >
             <ArrowLeft className="w-3 h-3" />
             <span>Edit Email</span>
@@ -263,8 +303,8 @@ export const RegisterPage: React.FC = () => {
             onClick={handleResend}
             className={`inline-flex items-center gap-1 font-medium ${
               cooldown > 0
-                ? "text-slate-400 cursor-not-allowed"
-                : "text-teal-700 hover:text-teal-900 hover:underline cursor-pointer"
+                ? "text-[#627D98] cursor-not-allowed"
+                : "text-[#0B315D] hover:text-[#082747] hover:underline cursor-pointer"
             }`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${resendMutation.isPending ? "animate-spin" : ""}`} />
@@ -277,13 +317,33 @@ export const RegisterPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Step Progress Indicator */}
+      <nav aria-label="Registration progress" className="border-b border-[#D9E2EC] pb-4">
+        <ol className="flex items-center justify-between text-xs">
+          <li className="flex items-center gap-1.5 font-bold text-[#0B315D]">
+            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#0B315D] text-white">1</span>
+            <span>Account</span>
+          </li>
+          <div className="flex-1 h-px bg-[#D9E2EC] mx-2" aria-hidden="true" />
+          <li className="flex items-center gap-1.5 font-medium text-[#627D98]">
+            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#F7F9FC] text-[#627D98] border border-[#D9E2EC]">2</span>
+            <span>Verification</span>
+          </li>
+          <div className="flex-1 h-px bg-[#D9E2EC] mx-2" aria-hidden="true" />
+          <li className="flex items-center gap-1.5 font-medium text-[#627D98]">
+            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#F7F9FC] text-[#627D98] border border-[#D9E2EC]">3</span>
+            <span>Ready</span>
+          </li>
+        </ol>
+      </nav>
+
       {/* Header */}
-      <div className="space-y-1 text-center sm:text-left">
+      <div className="space-y-1 text-left">
         <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
           Create Candidate Account
         </h2>
         <p className="text-xs text-slate-500">
-          Register to explore job opportunities and track application milestones.
+          Register to search open opportunities and track application milestones.
         </p>
       </div>
 
@@ -334,7 +394,6 @@ export const RegisterPage: React.FC = () => {
           variant="primary"
           size="md"
           loading={registerMutation.isPending}
-          leftIcon={<UserPlus className="w-4 h-4" />}
           className="w-full mt-2"
         >
           Create Candidate Account
@@ -342,11 +401,11 @@ export const RegisterPage: React.FC = () => {
       </form>
 
       {/* Login link */}
-      <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-600">
+      <div className="pt-4 border-t border-[#D9E2EC] text-center text-xs text-[#627D98]">
         Already have an account?{" "}
         <Link
           to="/login"
-          className="font-semibold text-teal-700 hover:text-teal-900 hover:underline"
+          className="font-semibold text-[#0B315D] hover:text-[#082747] hover:underline"
         >
           Sign In
         </Link>

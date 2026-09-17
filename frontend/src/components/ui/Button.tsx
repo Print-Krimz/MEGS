@@ -27,19 +27,19 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const baseStyles =
-      "inline-flex items-center justify-center min-h-11 md:min-h-9 rounded-md font-medium font-sans border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed select-none";
+      "inline-flex items-center justify-center min-h-11 md:min-h-9 rounded-md font-medium font-sans border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed select-none";
 
     const variantStyles = {
       primary:
-        "bg-teal-700 hover:bg-teal-800 text-white border-teal-800 focus:ring-teal-600 active:bg-teal-900",
+        "bg-[#0B315D] hover:bg-[#082747] text-white border-[#0B315D] focus:ring-[#0B315D] active:bg-[#082747]",
       secondary:
-        "bg-slate-800 hover:bg-slate-900 text-white border-slate-900 focus:ring-slate-700 active:bg-slate-950",
+        "bg-white hover:bg-[#EAF0F7] text-[#0B315D] hover:text-[#082747] border-[#D9E2EC] focus:ring-[#0B315D] active:bg-[#D9E2EC]",
       outline:
-        "border-slate-300 bg-white hover:bg-slate-100 text-slate-800 focus:ring-teal-600 active:bg-slate-200",
+        "bg-white hover:bg-[#EAF0F7] text-[#0B315D] hover:text-[#082747] border-[#D9E2EC] focus:ring-[#0B315D] active:bg-[#D9E2EC]",
       ghost:
-        "border-transparent text-slate-700 hover:text-slate-950 hover:bg-slate-200/70 focus:ring-slate-400 active:bg-slate-300",
+        "border-transparent text-[#0B315D] hover:text-[#082747] hover:bg-[#EAF0F7] focus:ring-[#0B315D] active:bg-[#D9E2EC]",
       danger:
-        "bg-rose-700 hover:bg-rose-800 text-white border-rose-800 focus:ring-rose-600 active:bg-rose-900",
+        "bg-[#DC2626] hover:bg-red-700 text-white border-[#DC2626] focus:ring-[#DC2626] active:bg-red-800",
     };
 
     const sizeStyles = {

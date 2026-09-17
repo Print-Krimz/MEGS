@@ -49,6 +49,7 @@ export const AuditLogsPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingXlsx, setIsExportingXlsx] = useState(false);
 
@@ -92,7 +93,7 @@ export const AuditLogsPage: React.FC = () => {
       }),
   });
 
-  const allLogs: AuditLog[] = auditLogsQuery.data || [];
+  const allLogs: AuditLog[] = useMemo(() => auditLogsQuery.data || [], [auditLogsQuery.data]);
 
   // Summary Metrics
   const summaryStats = useMemo(() => {
@@ -257,22 +258,22 @@ export const AuditLogsPage: React.FC = () => {
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
       <PageHeader
-        title="Activity log"
-        description="Immutable, tamper-evident security audit trail capturing authentication, role changes, recruitment milestones, and configuration events."
+        title="Activity history"
+        description="See who changed accounts, hiring records, settings, or backups."
         breadcrumbs={[
           { label: "Administration", href: "/admin" },
-          { label: "Activity log" },
+          { label: "Activity history" },
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
+             <Button
+               variant="outline"
               size="sm"
               leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-teal-700" />}
               onClick={handleExportXLSX}
               disabled={isExportingXlsx || allLogs.length === 0}
             >
-              {isExportingXlsx ? "Exporting..." : "Export Excel"}
+               {isExportingXlsx ? "Preparing..." : "Download Excel"}
             </Button>
             <Button
               variant="primary"
@@ -281,80 +282,91 @@ export const AuditLogsPage: React.FC = () => {
               onClick={handleExportPDF}
               disabled={isExportingPdf || allLogs.length === 0}
             >
-              {isExportingPdf ? "Generating..." : "Export PDF Report"}
+               {isExportingPdf ? "Preparing..." : "Download PDF"}
             </Button>
           </div>
         }
       />
 
       {/* Summary Metrics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {auditLogsQuery.isLoading ? <LoadingState variant="cards" /> : <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="p-3 bg-white border border-slate-300 rounded-sm">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Total Events</span>
+            <span className="text-sm font-medium">All activity</span>
             <Layers className="w-3.5 h-3.5 text-slate-400" />
           </div>
           <div className="text-lg font-bold text-slate-900">{summaryStats.total}</div>
-          <p className="text-[10px] text-slate-500 mt-0.5">Recorded across all modules</p>
+            <p className="text-xs text-slate-500 mt-0.5">Across the selected period</p>
         </div>
 
         <div className="p-3 bg-white border border-slate-300 rounded-sm">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Security & Attention</span>
+            <span className="text-sm font-medium">Needs attention</span>
             <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
           </div>
           <div className="text-lg font-bold text-slate-900">{summaryStats.securityAttention}</div>
-          <p className="text-[10px] text-slate-500 mt-0.5">Critical or warning findings</p>
+            <p className="text-xs text-slate-500 mt-0.5">Warnings and security events</p>
         </div>
 
         <div className="p-3 bg-white border border-slate-300 rounded-sm">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Recruitment Actions</span>
+            <span className="text-sm font-medium">Hiring activity</span>
             <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
           </div>
           <div className="text-lg font-bold text-slate-900">{summaryStats.recruitment}</div>
-          <p className="text-[10px] text-slate-500 mt-0.5">Stage & compliance events</p>
+            <p className="text-xs text-slate-500 mt-0.5">Hiring and requirements changes</p>
         </div>
 
         <div className="p-3 bg-white border border-slate-300 rounded-sm">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">System & Recovery</span>
+            <span className="text-sm font-medium">Account and settings changes</span>
             <Shield className="w-3.5 h-3.5 text-indigo-600" />
           </div>
           <div className="text-lg font-bold text-slate-900">{summaryStats.configuration}</div>
-          <p className="text-[10px] text-slate-500 mt-0.5">Backups & global settings</p>
+            <p className="text-xs text-slate-500 mt-0.5">Access, settings, and backups</p>
         </div>
-      </div>
+      </div>}
 
       {/* Main Filter Bar */}
       <SearchFilters
-        searchPlaceholder="Search events, actors, or targets..."
+        searchPlaceholder="Search what happened, who did it, or what changed..."
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
         onFilterChange={handleFilterChange}
         onReset={handleReset}
-        filters={[
+        filters={showAdvancedFilters ? [
           {
             key: "category",
-            label: "Category",
-            placeholder: "All Categories",
+             label: "Area",
+             placeholder: "All areas",
             options: categoryFilterOptions,
           },
           {
             key: "action",
-            label: "Event Type",
-            placeholder: "All Event Types",
+             label: "Change type",
+             placeholder: "All change types",
             options: actionFilterOptions,
           },
-        ]}
+        ] : []}
+        actions={
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={showAdvancedFilters}
+            aria-controls="activity-advanced-filters"
+            onClick={() => setShowAdvancedFilters((current) => !current)}
+          >
+            {showAdvancedFilters ? "Hide filters" : "More filters"}
+          </Button>
+        }
       />
 
       {/* Toolbar: Severity Filter & Date Range Filter */}
-      <div className="bg-white p-3 border border-slate-300 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div id="activity-advanced-filters" className="bg-white p-3 border border-slate-300 flex flex-wrap items-center justify-between gap-3 text-sm">
         {/* Severity Quick Filter */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold text-slate-600">Severity:</span>
+          <span className="text-sm font-semibold text-slate-600">Importance:</span>
           <div className="inline-flex rounded-sm border border-slate-300 p-0.5 bg-slate-100">
             {[
               { id: "ALL", label: "All" },
@@ -369,7 +381,8 @@ export const AuditLogsPage: React.FC = () => {
                   setSeverityFilter(s.id);
                   setPage(1);
                 }}
-                className={`px-2 py-0.5 text-[11px] font-medium transition-colors rounded-xs ${
+                 aria-pressed={severityFilter === s.id}
+                 className={`min-h-9 px-3 py-1 text-sm font-medium transition-colors rounded-xs ${
                   severityFilter === s.id
                     ? "bg-white text-slate-950 font-bold shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -385,7 +398,7 @@ export const AuditLogsPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            Date:
+             Date:
           </span>
 
           <div className="inline-flex rounded-sm border border-slate-300 p-0.5 bg-slate-100">
@@ -400,7 +413,8 @@ export const AuditLogsPage: React.FC = () => {
                 key={p.id}
                 type="button"
                 onClick={() => handleDatePresetChange(p.id)}
-                className={`px-2 py-0.5 text-[11px] font-medium transition-colors rounded-xs ${
+                 aria-pressed={datePreset === p.id}
+                 className={`min-h-9 px-3 py-1 text-sm font-medium transition-colors rounded-xs ${
                   datePreset === p.id
                     ? "bg-white text-slate-950 font-bold shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -420,7 +434,7 @@ export const AuditLogsPage: React.FC = () => {
                   setStartDate(e.target.value);
                   setPage(1);
                 }}
-                className="px-2 py-0.5 border border-slate-300 rounded text-xs bg-white"
+                 className="min-h-10 px-2 py-1 border border-slate-300 rounded text-sm bg-white"
                 aria-label="Start date"
               />
               <span className="text-slate-400 text-xs">to</span>
@@ -431,7 +445,7 @@ export const AuditLogsPage: React.FC = () => {
                   setEndDate(e.target.value);
                   setPage(1);
                 }}
-                className="px-2 py-0.5 border border-slate-300 rounded text-xs bg-white"
+                 className="min-h-10 px-2 py-1 border border-slate-300 rounded text-sm bg-white"
                 aria-label="End date"
               />
             </div>
@@ -444,12 +458,12 @@ export const AuditLogsPage: React.FC = () => {
         <div className="px-3.5 py-2.5 border-b border-slate-300 flex items-center justify-between bg-slate-100">
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-slate-700" />
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Security & Activity Ledger
+             <h3 className="text-sm font-semibold text-slate-900">
+               Activity records
             </h3>
           </div>
           <span className="text-[11px] text-slate-600 font-medium">
-            Showing {filteredLogs.length} matching events
+             Showing {filteredLogs.length} matching records
           </span>
         </div>
 
@@ -462,27 +476,54 @@ export const AuditLogsPage: React.FC = () => {
           />
         ) : filteredLogs.length === 0 ? (
           <EmptyState
-            title="No audit events found"
-            description="Try changing your search criteria or resetting filters."
+             title="No activity found"
+             description="Try a different search or clear your filters."
             action={
               <Button variant="outline" size="sm" onClick={handleReset}>
-                Reset Filters
+                 Clear filters
               </Button>
             }
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <>
+           <div className="md:hidden divide-y divide-slate-200">
+             {paginatedLogs.map((log) => {
+               const category = getActionCategory(log.action);
+               const severity = getAuditSeverity(log);
+               const targetEntity = formatTargetEntity(log);
+               const actor = formatActor(log);
+               return (
+                 <div key={log.id} className="p-4 space-y-2">
+                   <div className="flex items-start justify-between gap-3">
+                     <div>
+                       <div className="font-semibold text-sm text-slate-950">{formatAction(log.action)}</div>
+                       <div className="text-xs text-slate-600">{category} · {severity === "CRITICAL" ? "Needs attention" : severity === "WARNING" ? "Watch" : "Info"}</div>
+                     </div>
+                     <span className="shrink-0 text-xs text-slate-500">{formatDateTime(log.createdAt)}</span>
+                   </div>
+                   <div className="text-sm text-slate-700">
+                     <span className="font-medium">{targetEntity.label}</span>
+                     {targetEntity.secondary && <span className="text-slate-500"> · {targetEntity.secondary}</span>}
+                   </div>
+                   <div className="flex items-center justify-between gap-3">
+                     <span className="text-xs text-slate-500">{actor.name}</span>
+                     <Button variant="outline" size="sm" onClick={() => setSelectedLog(log)}>View details</Button>
+                   </div>
+                 </div>
+               );
+             })}
+           </div>
+           <div className="hidden md:block overflow-x-auto">
+             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-50 text-slate-700 font-semibold text-[11px] border-b border-slate-300">
                 <tr>
-                  <th className="px-3.5 py-2.5">Event & Severity</th>
-                  <th className="px-3.5 py-2.5">Category</th>
-                  <th className="px-3.5 py-2.5">Actor</th>
-                  <th className="px-3.5 py-2.5">Target Subject</th>
-                  <th className="px-3.5 py-2.5">Details</th>
-                  <th className="px-3.5 py-2.5">IP Address</th>
-                  <th className="px-3.5 py-2.5 text-right">Date & Time</th>
-                  <th className="px-3.5 py-2.5 text-center">Action</th>
+                   <th className="px-3.5 py-2.5">What happened</th>
+                   <th className="px-3.5 py-2.5">Area</th>
+                   <th className="px-3.5 py-2.5">Performed by</th>
+                   <th className="px-3.5 py-2.5">Affected record</th>
+                   <th className="px-3.5 py-2.5">Details</th>
+                   <th className="px-3.5 py-2.5 text-right">When</th>
+                   <th className="px-3.5 py-2.5 text-center">View</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -506,7 +547,7 @@ export const AuditLogsPage: React.FC = () => {
                               severity
                             )}`}
                           >
-                            {severity}
+                            {severity === "CRITICAL" ? "Needs attention" : severity === "WARNING" ? "Watch" : "Info"}
                           </span>
                         </div>
                       </td>
@@ -549,9 +590,6 @@ export const AuditLogsPage: React.FC = () => {
                           ? summary.map((s) => `${s.label}: ${s.value}`).join(" • ")
                           : "—"}
                       </td>
-                      <td className="px-3.5 py-2.5 text-slate-500 text-[11px] whitespace-nowrap">
-                        {formatIpAddress(log.ipAddress)}
-                      </td>
                       <td className="px-3.5 py-2.5 text-right text-[11px] text-slate-600 whitespace-nowrap">
                         {formatDateTime(log.createdAt)}
                       </td>
@@ -562,7 +600,7 @@ export const AuditLogsPage: React.FC = () => {
                           leftIcon={<Eye className="w-3 h-3 text-slate-600" />}
                           onClick={() => setSelectedLog(log)}
                         >
-                          Details
+                           View details
                         </Button>
                       </td>
                     </tr>
@@ -570,7 +608,8 @@ export const AuditLogsPage: React.FC = () => {
                 })}
               </tbody>
             </table>
-          </div>
+           </div>
+          </>
         )}
 
         {/* Pagination */}
@@ -606,7 +645,7 @@ export const AuditLogsPage: React.FC = () => {
             open={!!selectedLog}
             onClose={() => setSelectedLog(null)}
             title={formatAction(selectedLog.action)}
-            description={`Recorded on ${formatDateTime(selectedLog.createdAt)}`}
+             description={`Recorded ${formatDateTime(selectedLog.createdAt)}`}
             size="md"
           >
             <div className="space-y-3 font-sans text-xs">
@@ -615,7 +654,7 @@ export const AuditLogsPage: React.FC = () => {
                 <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-sm flex items-start gap-2">
                   <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div className="space-y-0.5">
-                    <span className="font-semibold text-xs">Security Notice</span>
+                     <span className="font-semibold text-sm">Security notice</span>
                     <p className="text-[11px] text-amber-800 leading-normal">
                       {explanation.whyItMatters || "This action involves elevated system privileges or security verification."}
                     </p>
@@ -628,7 +667,7 @@ export const AuditLogsPage: React.FC = () => {
                 {/* Subject & Candidate */}
                 {targetEntity.label && (
                   <div className="py-2 first:pt-0 flex items-start justify-between gap-3">
-                    <span className="text-slate-500 font-medium shrink-0">Subject</span>
+                     <span className="text-slate-500 font-medium shrink-0">Affected record</span>
                     <div className="text-right">
                       <span className="font-bold text-slate-900">{targetEntity.label}</span>
                       {targetEntity.secondary && (
@@ -650,7 +689,7 @@ export const AuditLogsPage: React.FC = () => {
 
                 {/* Performed By */}
                 <div className="py-2 last:pb-0 flex items-start justify-between gap-3">
-                  <span className="text-slate-500 font-medium shrink-0">Performed By</span>
+                   <span className="text-slate-500 font-medium shrink-0">Performed by</span>
                   <div className="text-right">
                     <span className="font-semibold text-slate-900 block">
                       {actor.name}
@@ -667,15 +706,15 @@ export const AuditLogsPage: React.FC = () => {
               {/* Minimalist Advanced Details (Hidden by default) */}
               <details className="text-[11px] text-slate-400">
                 <summary className="cursor-pointer hover:text-slate-600 select-none py-1">
-                  Technical information
+                   Technical information
                 </summary>
                 <div className="mt-1.5 p-2 bg-slate-100 border border-slate-200 rounded-xs space-y-1 font-mono text-[10px] text-slate-600">
                   <div className="flex justify-between">
-                    <span>IP Address:</span>
+                   <span>IP address:</span>
                     <span>{formatIpAddress(selectedLog.ipAddress)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Event Code:</span>
+                   <span>Event code:</span>
                     <span>{selectedLog.action}</span>
                   </div>
                 </div>

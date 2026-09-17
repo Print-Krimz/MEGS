@@ -4,6 +4,7 @@ import { fetchAuditLogs } from '../../services/admin/admin.service.js';
 import {
   generateAuditReportPDF,
   generateAuditReportCSV,
+  generateAuditReportXLSX,
 } from "../../services/admin/audit-export.service.js";
 
 // GET /api/admin/audit-logs - Query audit trail with optional action/user/entity filters
@@ -26,7 +27,7 @@ export const listAuditLogs = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-// GET /api/admin/audit-logs/export - Export filtered audit logs as PDF or CSV
+// GET /api/admin/audit-logs/export - Export filtered audit logs as PDF, XLSX, or CSV
 export const exportAuditReportHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const user = (req as any).user;
@@ -42,29 +43,35 @@ export const exportAuditReportHandler = async (req: Request, res: Response): Pro
     };
 
     const timestamp = new Date().toISOString().slice(0, 10);
+    const requestedBy = { id: user?.id || "system", email: user?.email || "admin@megs.system" };
+
+    if (String(format).toLowerCase() === "xlsx") {
+      const xlsxBuffer = await generateAuditReportXLSX(requestedBy, filters);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="MEGS_Admin_Security_Audit_${timestamp}.xlsx"`
+      );
+      res.send(xlsxBuffer);
+      return;
+    }
 
     if (String(format).toLowerCase() === "csv") {
-      const csvBuffer = await generateAuditReportCSV(
-        { id: user?.id || "system", email: user?.email || "admin@megs.system" },
-        filters
-      );
+      const csvBuffer = await generateAuditReportCSV(requestedBy, filters);
       res.setHeader("Content-Type", "text/csv");
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="megs-security-audit-${timestamp}.csv"`
+        `attachment; filename="MEGS_Admin_Security_Audit_${timestamp}.csv"`
       );
       res.send(csvBuffer);
       return;
     }
 
-    const pdfBuffer = await generateAuditReportPDF(
-      { id: user?.id || "system", email: user?.email || "admin@megs.system" },
-      filters
-    );
+    const pdfBuffer = await generateAuditReportPDF(requestedBy, filters);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="megs-security-audit-${timestamp}.pdf"`
+      `inline; filename="MEGS_Admin_Security_Audit_${timestamp}.pdf"`
     );
     res.send(pdfBuffer);
   } catch (error: any) {

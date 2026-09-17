@@ -121,7 +121,7 @@ export const adminApi = {
     return api.get<AuditLog[]>(`/api/admin/audit-logs${qs ? `?${qs}` : ""}`);
   },
 
-  exportAuditReport: (format: "pdf" | "csv" = "pdf", filters?: AuditLogQueryFilters) => {
+  exportAuditReport: (format: "pdf" | "csv" | "xlsx" = "pdf", filters?: AuditLogQueryFilters) => {
     const params = new URLSearchParams();
     params.append("format", format);
     if (filters?.action) params.append("action", filters.action);

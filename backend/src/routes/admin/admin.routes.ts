@@ -42,15 +42,13 @@ import {
   getAdminJobDemandsHandler,
   getAdminFilterOptionsHandler,
   getAdminDashboardSummaryHandler,
+  exportAdminPipelineReportHandler,
+  exportAdminDeploymentReportHandler,
 } from '../../controllers/admin/admin.analytics.controller.js';
 import {
   listMRFsHandler,
   getMRFDetailsHandler,
 } from '../../controllers/ta/ta.mrf.controller.js';
-import {
-  exportPipelineReportHandler,
-  exportDeploymentReportHandler,
-} from '../../controllers/ta/ta.analytics.controller.js';
 
 const router = Router();
 
@@ -108,8 +106,8 @@ router.get("/mrfs", listMRFsHandler);
 router.get("/mrfs/:id", getMRFDetailsHandler);
 
 // Analytics Reports Export
-router.get("/reports/pipeline", exportPipelineReportHandler);
-router.get("/reports/deployments", exportDeploymentReportHandler);
+router.get("/reports/pipeline", exportAdminPipelineReportHandler);
+router.get("/reports/deployments", exportAdminDeploymentReportHandler);
 
 export default router;
 

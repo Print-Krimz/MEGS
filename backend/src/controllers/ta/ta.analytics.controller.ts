@@ -153,16 +153,23 @@ export const exportPipelineReportHandler = async (req: Request, res: Response): 
     const format = (req.query.format as string || "pdf").toLowerCase();
     const filters = extractTAFilters(req.query);
     const user = req.user!;
+    const dateStr = new Date().toISOString().slice(0, 10);
 
     if (format === "xlsx") {
-      const buffer = await generatePipelineReportXLSX(user, filters);
+      const buffer = await generatePipelineReportXLSX(user, filters, "TALENT_ACQUISITION");
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.setHeader("Content-Disposition", `attachment; filename="pipeline-report-${Date.now()}.xlsx"`);
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="MEGS_TA_Candidate_Pipeline_Report_${dateStr}.xlsx"`
+      );
       res.send(buffer);
     } else {
-      const buffer = await generatePipelineReportPDF(user, filters);
+      const buffer = await generatePipelineReportPDF(user, filters, "TALENT_ACQUISITION");
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `inline; filename="pipeline-report-${Date.now()}.pdf"`);
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="MEGS_TA_Candidate_Pipeline_Report_${dateStr}.pdf"`
+      );
       res.send(buffer);
     }
   } catch (error: any) {
@@ -175,16 +182,23 @@ export const exportDeploymentReportHandler = async (req: Request, res: Response)
     const format = (req.query.format as string || "pdf").toLowerCase();
     const filters = extractTAFilters(req.query);
     const user = req.user!;
+    const dateStr = new Date().toISOString().slice(0, 10);
 
     if (format === "xlsx") {
-      const buffer = await generateDeploymentReportXLSX(user, filters);
+      const buffer = await generateDeploymentReportXLSX(user, filters, "TALENT_ACQUISITION");
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.setHeader("Content-Disposition", `attachment; filename="deployment-report-${Date.now()}.xlsx"`);
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="MEGS_TA_Deployment_Report_${dateStr}.xlsx"`
+      );
       res.send(buffer);
     } else {
-      const buffer = await generateDeploymentReportPDF(user, filters);
+      const buffer = await generateDeploymentReportPDF(user, filters, "TALENT_ACQUISITION");
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `inline; filename="deployment-report-${Date.now()}.pdf"`);
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="MEGS_TA_Deployment_Report_${dateStr}.pdf"`
+      );
       res.send(buffer);
     }
   } catch (error: any) {

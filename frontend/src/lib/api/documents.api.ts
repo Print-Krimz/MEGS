@@ -13,7 +13,12 @@ export interface DocumentPreviewResponse {
 }
 
 export const documentsApi = {
-  getDownloadUrl: (id: number | string) => `/api/documents/${id}/download`,
+  getDownloadUrl: (id: number | string) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+    return token
+      ? `/api/documents/${id}/download?token=${encodeURIComponent(token)}`
+      : `/api/documents/${id}/download`;
+  },
   getPreview: (id: number | string) =>
     api.get<DocumentPreviewResponse>(`/api/documents/${id}/preview`),
 };

@@ -27,9 +27,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       <div className="w-10 h-10 bg-slate-100 border border-slate-300 text-slate-500 flex items-center justify-center mb-2.5">
         {icon || <FolderOpen className="w-5 h-5" />}
       </div>
-      <h3 className="text-xs sm:text-sm font-bold font-mono uppercase text-slate-900 mb-1">{title}</h3>
+      <h3 className="text-sm sm:text-base font-semibold text-slate-900 mb-1">{title}</h3>
       {description && (
-        <p className="text-xs text-slate-600 max-w-sm mb-3 leading-normal">
+        <p className="text-sm text-slate-600 max-w-sm mb-3 leading-normal">
           {description}
         </p>
       )}

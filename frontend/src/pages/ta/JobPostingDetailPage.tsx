@@ -12,7 +12,7 @@ import {
   JobImage,
 } from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
-import { formatDate } from "../../lib/utils";
+import { formatDate, formatSalaryRange, formatEmploymentType } from "../../lib/utils";
 import { JobStatus } from "../../lib/types/enums";
 import {
   RefreshCw,
@@ -262,11 +262,27 @@ export const JobPostingDetailPage: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className="text-xs text-slate-500 font-mono flex items-center gap-3">
+              <div className="text-xs text-slate-500 font-mono flex flex-wrap items-center gap-2.5">
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-slate-400" />
                   <span>{job.location || "Philippines"}</span>
                 </span>
+                {job.mrf?.client?.name && (
+                  <>
+                    <span>•</span>
+                    <span className="font-semibold text-slate-700">{job.mrf.client.name}</span>
+                  </>
+                )}
+                {job.mrf?.salaryRangeMin || job.mrf?.salaryRangeMax ? (
+                  <span className="font-medium text-[#047857] bg-[#ECFDF5] px-2 py-0.5 rounded text-[11px] border border-[#A7F3D0]">
+                    {formatSalaryRange(job.mrf.salaryRangeMin, job.mrf.salaryRangeMax)}
+                  </span>
+                ) : null}
+                {job.mrf?.employmentType && (
+                  <span className="text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded text-[10px] border border-slate-200">
+                    {formatEmploymentType(job.mrf.employmentType)}
+                  </span>
+                )}
                 <span>•</span>
                 <span className="flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
