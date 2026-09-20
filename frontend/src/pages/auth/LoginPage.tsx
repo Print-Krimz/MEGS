@@ -239,9 +239,15 @@ export const LoginPage: React.FC = () => {
               onExpire={() => {
                 setTurnstileToken("");
               }}
-              onError={() => {
+              onError={(error) => {
+                const code = typeof error === "string" ? error : (error as Error)?.message || "";
+                console.error("[Turnstile error]", error);
                 setTurnstileToken("");
-                setTurnstileError("Security verification failed to load. Please refresh and try again.");
+                setTurnstileError(
+                  code
+                    ? `Security verification failed to load (Cloudflare Code: ${code}). Please verify widget configuration.`
+                    : "Security verification failed to load. Please refresh and try again."
+                );
               }}
             />
           </div>
