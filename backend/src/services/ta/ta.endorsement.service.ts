@@ -165,7 +165,18 @@ export const updateClientEndorsement = async (
 ) => {
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { id: true, status: true, userId: true, isArchived: true },
+    select: {
+      id: true,
+      status: true,
+      userId: true,
+      isArchived: true,
+      jobPosting: {
+        select: {
+          title: true,
+          postedById: true,
+        },
+      },
+    },
   });
   if (!application) throw new Error("Application not found");
   if (application.isArchived) throw new Error("Cannot update endorsement on an archived application");
@@ -224,6 +235,19 @@ export const updateClientEndorsement = async (
       notifType,
       `/app/applications/${applicationId}`
     );
+
+    // If recorded by another team member/coordinator, notify requisition owner
+    const jobOwnerId = application.jobPosting?.postedById;
+    const jobTitle = application.jobPosting?.title || "Requisition";
+    if (jobOwnerId && actorId && jobOwnerId !== actorId) {
+      await sendNotification(
+        jobOwnerId,
+        "Client Endorsement Decision Recorded",
+        `Client decision for candidate on "${jobTitle}" was recorded as ${outcome}.`,
+        outcome === "APPROVED" ? "SUCCESS" : "WARNING",
+        `/ta/applications/${applicationId}`
+      );
+    }
   }
 
   void logAudit(actorId || null, "CLIENT_ENDORSEMENT_UPDATED", "Application", applicationId, {
@@ -268,3 +292,5 @@ export const updateClientEndorsement = async (
 
   return updated;
 };
+
+export const updateEndorsementDecision = updateClientEndorsement;

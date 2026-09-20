@@ -43,15 +43,16 @@ export const streamNotifications = (req: Request, res: Response): void => {
 export const listNotifications = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { limit = 20, cursor, isRead } = req.query;
+    const { limit = 20, cursor, isRead, page } = req.query;
 
     const take = parseInt(String(limit), 10) || 20;
+    const pageNum = page ? parseInt(String(page), 10) : undefined;
     const cursorId = cursor ? parseInt(String(cursor), 10) : undefined;
     const filterIsRead = String(isRead) === "true" ? true : String(isRead) === "false" ? false : undefined;
 
-    const notifications = await getNotificationsService(userId, take, cursorId, filterIsRead);
+    const result = await getNotificationsService(userId, take, cursorId, filterIsRead, pageNum);
 
-    sendSuccess(res, "Notifications retrieved", notifications);
+    sendSuccess(res, "Notifications retrieved", result);
   } catch (error: any) {
     sendError(res, error.message, 500);
   }

@@ -1,6 +1,6 @@
 import prisma from '../../utils/prisma.js';
 import { ApplicationStatus } from "@prisma/client";
-import { sendNotification } from '../../utils/notification.js';
+import { sendNotification, sendRoleNotification } from '../../utils/notification.js';
 import { scoringFlags } from '../../utils/scoring-flags.js';
 import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.service.js";
 import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
@@ -173,6 +173,16 @@ export const listTAApplications = async (
           orderBy: { calculatedAt: "desc" },
           take: 1,
           select: { id: true, jobPostingId: true, configurationId: true, status: true, finalFitScore: true, calculatedAt: true },
+        },
+        complianceRequirements: {
+          select: {
+            id: true,
+            documentLabel: true,
+            reviewStatus: true,
+            isRequired: true,
+            updatedAt: true,
+            deadline: true,
+          },
         },
       },
     }),
@@ -969,7 +979,27 @@ export const restoreTAApplication = async (id: number, actorId?: string, reason?
 export const applyScoreCategorization = async (applicationId: number, score: number, customThreshold?: number) => {
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { id: true, status: true }
+    select: {
+      id: true,
+      status: true,
+      user: {
+        select: {
+          email: true,
+          applicantProfile: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      },
+      jobPosting: {
+        select: {
+          title: true,
+          postedById: true,
+        },
+      },
+    },
   });
 
   if (!application) return;
@@ -1001,5 +1031,25 @@ export const applyScoreCategorization = async (applicationId: number, score: num
       undefined, 
       `AI Score (${score}) resulted in categorization: ${nextStatus}`
     );
+
+    if (nextStatus === "MATCHED") {
+      const candProfile = application.user?.applicantProfile;
+      const candidateName = (candProfile?.firstName || candProfile?.lastName)
+        ? `${candProfile.firstName || ""} ${candProfile.lastName || ""}`.trim()
+        : application.user?.email || "Candidate";
+      const jobTitle = application.jobPosting?.title || "Requisition";
+      const postedById = application.jobPosting?.postedById;
+
+      const notifTitle = "Candidate Matched by AI";
+      const notifMessage = `${candidateName} achieved a match score of ${score}% for "${jobTitle}".`;
+      const notifType = "SUCCESS";
+      const link = `/ta/applications/${applicationId}`;
+
+      if (postedById) {
+        await sendNotification(postedById, notifTitle, notifMessage, notifType, link);
+      } else {
+        await sendRoleNotification("TALENT_ACQUISITION", notifTitle, notifMessage, notifType, link);
+      }
+    }
   }
 };

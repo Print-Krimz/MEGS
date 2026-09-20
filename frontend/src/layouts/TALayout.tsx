@@ -59,6 +59,7 @@ export const TALayout: React.FC = () => {
     markAsRead,
     activeToasts,
     dismissToast,
+    handleToastClick,
   } = useRealtimeNotifications();
 
   const profile = user?.applicantProfile;
@@ -198,7 +199,7 @@ export const TALayout: React.FC = () => {
 
   return (
     <div className="ta-portal min-h-screen bg-slate-100 flex flex-col lg:flex-row overflow-x-hidden">
-      <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} />
+      <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
 
       <a
         href="#ta-main-content"

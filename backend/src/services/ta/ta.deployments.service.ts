@@ -262,13 +262,28 @@ export const createDeployment = async (
   });
 
   const candidateUserId = deployment.employee?.user?.id || application?.userId;
+  const candidateLink = application?.id || deployment.applicationId
+    ? `/app/applications/${application?.id || deployment.applicationId}`
+    : `/app/profile`;
+
   if (candidateUserId) {
     void sendNotification(
       candidateUserId,
       "Deployment Scheduled",
       `Your deployment record has been created for site: ${resolvedSite || "Main Site"}.`,
       "SUCCESS",
-      `/app/profile`
+      candidateLink
+    );
+  }
+
+  const ownerId = application?.jobPosting?.postedById || application?.jobPosting?.mrf?.createdById || (deployment as any).mrf?.createdById;
+  if (ownerId && createdById !== ownerId) {
+    void sendNotification(
+      ownerId,
+      "Candidate Deployed",
+      `Deployment record for candidate at ${resolvedSite || "Main Site"} is now ${deployment.status}.`,
+      "SUCCESS",
+      `/ta/deployments/${deployment.id}`
     );
   }
 
@@ -286,6 +301,13 @@ export const updateDeploymentStatus = async (
     include: {
       client: { select: { name: true } },
       employee: { select: { id: true, userId: true, employeeNumber: true, status: true } },
+      mrf: { select: { createdById: true } },
+      application: {
+        select: {
+          id: true,
+          jobPosting: { select: { postedById: true } },
+        },
+      },
     },
   });
   if (!deployment) throw new Error("Deployment not found");
@@ -386,13 +408,28 @@ export const updateDeploymentStatus = async (
     notes,
   });
 
+  const candidateLink = deployment.applicationId || deployment.application?.id
+    ? `/app/applications/${deployment.applicationId || deployment.application?.id}`
+    : `/app/profile`;
+
   if (deployment.employee?.userId) {
     void sendNotification(
       deployment.employee.userId,
       "Deployment Update",
       `Your deployment status has been updated to ${status.replace(/_/g, " ")}.`,
       "INFO",
-      `/app/profile`
+      candidateLink
+    );
+  }
+
+  const ownerId = deployment.mrf?.createdById || deployment.application?.jobPosting?.postedById;
+  if (ownerId && actorId && ownerId !== actorId) {
+    void sendNotification(
+      ownerId,
+      "Deployment Status Updated",
+      `Deployment record for candidate at ${deployment.site || "Main Site"} is now ${status}.`,
+      "SUCCESS",
+      `/ta/deployments/${deployment.id}`
     );
   }
 
@@ -536,6 +573,13 @@ export const signDeploymentContract = async (
     where: { id },
     include: {
       client: true,
+      mrf: { select: { createdById: true } },
+      application: {
+        select: {
+          id: true,
+          jobPosting: { select: { postedById: true } },
+        },
+      },
       employee: { include: { user: true } },
     },
   });
@@ -589,14 +633,31 @@ export const signDeploymentContract = async (
     notes,
   });
 
+  const candidateLink = deployment.applicationId || deployment.application?.id
+    ? `/app/applications/${deployment.applicationId || deployment.application?.id}`
+    : `/app/profile`;
+
   if (deployment.employee?.userId) {
     void sendNotification(
       deployment.employee.userId,
       "Contract Signed",
       `Deployment contract has been signed by ${party === "WORKER" ? "Candidate" : "Client Partner"}. Status: ${contractStatus}`,
       "SUCCESS",
-      `/app/profile`
+      candidateLink
     );
+  }
+
+  if (party === "WORKER" || party === "CLIENT") {
+    const recruiterId = deployment.mrf?.createdById || deployment.application?.jobPosting?.postedById || deployment.createdById;
+    if (recruiterId && actorId !== recruiterId) {
+      void sendNotification(
+        recruiterId,
+        "Deployment Contract Signed",
+        `Deployment contract for candidate at ${deployment.site || "Main Site"} was signed by ${party === "WORKER" ? "Candidate" : "Client Partner"}.`,
+        "SUCCESS",
+        `/ta/deployments/${deployment.id}`
+      );
+    }
   }
 
   return updated;

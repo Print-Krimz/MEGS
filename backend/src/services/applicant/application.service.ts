@@ -308,7 +308,18 @@ export const uploadApplicantComplianceDocument = async (
         select: {
           id: true,
           userId: true,
-          jobPosting: { select: { postedById: true } },
+          user: {
+            select: {
+              email: true,
+              applicantProfile: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
+          jobPosting: { select: { postedById: true, title: true } },
         },
       },
     },
@@ -325,6 +336,8 @@ export const uploadApplicantComplianceDocument = async (
   if (!file) {
     throw new Error("Document file is required");
   }
+
+  const wasRejected = requirement.reviewStatus === "REJECTED";
 
   // Upload to secure documents bucket with category VAULT_201
   await uploadAndStoreDocument(
@@ -356,26 +369,62 @@ export const uploadApplicantComplianceDocument = async (
     `/app/applications/${requirement.applicationId}`
   );
 
+  const candProfile = requirement.application?.user?.applicantProfile;
+  const candidateName = (candProfile?.firstName || candProfile?.lastName)
+    ? `${candProfile.firstName || ""} ${candProfile.lastName || ""}`.trim()
+    : requirement.application?.user?.email || "Candidate";
+  const jobTitle = requirement.application?.jobPosting?.title || "Requisition";
   const jobOwnerId = requirement.application?.jobPosting?.postedById;
+
+  const taNotifTitle = wasRejected ? "Compliance Document Re-Submitted" : "Compliance Document Uploaded";
+  const taNotifMsg = wasRejected
+    ? `${candidateName} re-uploaded '${requirement.documentLabel}' for "${jobTitle}".`
+    : `${candidateName} uploaded '${requirement.documentLabel}' for "${jobTitle}".`;
+  const directLink = `/ta/applications/${requirement.applicationId}`;
+
   if (jobOwnerId) {
     void sendNotification(
       jobOwnerId,
-      "Compliance Document Submitted",
-      `A compliance document for "${requirement.documentLabel}" was uploaded and is ready for verification.`,
+      taNotifTitle,
+      taNotifMsg,
       "INFO",
-      `/ta/compliance`
+      directLink
     );
   } else {
     void sendRoleNotification(
       "TALENT_ACQUISITION",
-      "Compliance Document Submitted",
-      `A compliance document for "${requirement.documentLabel}" was uploaded and is ready for verification.`,
+      taNotifTitle,
+      taNotifMsg,
       "INFO",
-      `/ta/compliance`,
+      directLink,
       userId
     );
   }
 
+  // Milestone check: verify if all mandatory requirements now have documents submitted
+  const mandatoryReqs = await prisma.complianceRequirement.findMany({
+    where: {
+      applicationId: requirement.applicationId,
+      isRequired: true,
+    },
+    select: { id: true, documentId: true },
+  });
+
+  const allMandatorySubmitted = mandatoryReqs.length > 0 && mandatoryReqs.every((r) => r.documentId !== null);
+  if (allMandatorySubmitted) {
+    const milestoneTitle = "All Compliance Documents Submitted";
+    const milestoneMsg = `All mandatory compliance documents for ${candidateName} on "${jobTitle}" have been submitted and are ready for verification.`;
+    const milestoneType = "SUCCESS";
+
+    if (jobOwnerId) {
+      void sendNotification(jobOwnerId, milestoneTitle, milestoneMsg, milestoneType, directLink);
+    } else {
+      void sendRoleNotification("TALENT_ACQUISITION", milestoneTitle, milestoneMsg, milestoneType, directLink, userId);
+    }
+  }
+
   return updated;
 };
+
+export const submitComplianceRequirementService = uploadApplicantComplianceDocument;
 

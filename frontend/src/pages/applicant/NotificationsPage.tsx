@@ -32,10 +32,12 @@ export const NotificationsPage: React.FC = () => {
   const pageSize = 10;
 
   const notificationsQuery = useQuery({
-    queryKey: ["notifications", { filterUnread }],
+    queryKey: ["notifications", { filterUnread, page }],
     queryFn: () =>
       notificationApi.getNotifications({
         isRead: filterUnread ? false : undefined,
+        page,
+        limit: pageSize,
       }),
   });
 
@@ -55,10 +57,10 @@ export const NotificationsPage: React.FC = () => {
     },
   });
 
-  const notifications = notificationsQuery.data || [];
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-  const totalPages = Math.max(1, Math.ceil(notifications.length / pageSize));
-  const paginatedNotifications = notifications.slice((page - 1) * pageSize, page * pageSize);
+  const notifications = notificationsQuery.data?.items || [];
+  const totalItems = notificationsQuery.data?.total || 0;
+  const unreadCount = notificationsQuery.data?.unreadCount || 0;
+  const totalPages = Math.max(1, notificationsQuery.data?.totalPages || 1);
 
   const getHeaderConfig = () => {
     if (user?.role === Role.TALENT_ACQUISITION) {
@@ -144,7 +146,11 @@ export const NotificationsPage: React.FC = () => {
               : "text-[#627D98] hover:text-[#102A43] hover:bg-[#EAF0F7]"
           }`}
         >
-           {notificationsQuery.isLoading ? "All notifications" : `All notifications (${notifications.length})`}
+          {notificationsQuery.isLoading
+            ? "All notifications"
+            : !filterUnread
+            ? `All notifications (${totalItems})`
+            : "All notifications"}
         </button>
         <button
           type="button"
@@ -159,7 +165,7 @@ export const NotificationsPage: React.FC = () => {
               : "text-[#627D98] hover:text-[#102A43] hover:bg-[#EAF0F7]"
           }`}
         >
-          Unread Only
+          {notificationsQuery.isLoading ? "Unread Only" : `Unread Only (${unreadCount})`}
         </button>
       </div>
 
@@ -186,7 +192,7 @@ export const NotificationsPage: React.FC = () => {
       ) : (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-[#D9E2EC] shadow-xs divide-y divide-[#D9E2EC] overflow-hidden">
-             {paginatedNotifications.map((n) => {
+             {notifications.map((n) => {
                const notificationLink = resolveNotificationLink(n.link, user?.role);
                return (
                    <div
@@ -227,7 +233,13 @@ export const NotificationsPage: React.FC = () => {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!n.isRead) markReadMutation.mutate(n.id);
-                         navigate({ to: notificationLink as any });
+                        if (notificationLink.includes("?")) {
+                          const [path, qs] = notificationLink.split("?");
+                          const searchParams = qs ? Object.fromEntries(new URLSearchParams(qs)) : undefined;
+                          navigate({ to: path as any, search: searchParams as any });
+                        } else {
+                          navigate({ to: notificationLink as any });
+                        }
                       }}
                        title="View linked record"
                        className="text-[#102A43] text-sm"
@@ -262,7 +274,7 @@ export const NotificationsPage: React.FC = () => {
             <Pagination
               currentPage={page}
               totalPages={totalPages}
-              totalItems={notifications.length}
+              totalItems={totalItems}
               pageSize={pageSize}
               onPageChange={setPage}
             />

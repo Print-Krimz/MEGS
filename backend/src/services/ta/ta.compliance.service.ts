@@ -129,6 +129,17 @@ export const reviewComplianceRequirement = async (
       application: {
         select: {
           userId: true,
+          user: {
+            select: {
+              email: true,
+              applicantProfile: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
           jobPosting: { select: { postedById: true, title: true } },
         },
       },
@@ -154,11 +165,17 @@ export const reviewComplianceRequirement = async (
     reviewNotes,
   });
 
+  const candProfile = requirement.application?.user?.applicantProfile;
+  const candidateName = (candProfile?.firstName || candProfile?.lastName)
+    ? `${candProfile.firstName || ""} ${candProfile.lastName || ""}`.trim()
+    : requirement.application?.user?.email || "Candidate";
+  const jobTitle = requirement.application?.jobPosting?.title || "Requisition";
+
   const isApproved = reviewStatus === "APPROVED";
   const notifTitle = isApproved ? "Compliance Document Approved" : "Compliance Document Rejected";
   const notifMsg = isApproved
-    ? `Your document '${requirement.documentLabel}' has been verified and approved.`
-    : `Your document '${requirement.documentLabel}' was rejected: ${reviewNotes || "Please review requirements and re-upload."}`;
+    ? `Your document '${requirement.documentLabel}' for "${jobTitle}" has been verified and approved.`
+    : `Your document '${requirement.documentLabel}' for "${jobTitle}" was rejected: ${reviewNotes || "Please review requirements and re-upload."}`;
   const notifType = isApproved ? "SUCCESS" : "WARNING";
 
   if (requirement.application?.userId) {
@@ -176,10 +193,36 @@ export const reviewComplianceRequirement = async (
     void sendNotification(
       jobOwnerId,
       `Compliance Document ${isApproved ? "Approved" : "Rejected"}`,
-      `Document '${requirement.documentLabel}' was ${reviewStatus.toLowerCase()} by reviewer.`,
+      `Document '${requirement.documentLabel}' for ${candidateName} on "${jobTitle}" was ${reviewStatus.toLowerCase()} by reviewer.`,
       notifType,
       `/ta/applications/${requirement.applicationId}`
     );
+  }
+
+  // If approved, check if all mandatory requirements are satisfied
+  if (isApproved) {
+    const compliant = await isFullyCompliant(requirement.applicationId);
+    if (compliant) {
+      if (requirement.application?.userId) {
+        void sendNotification(
+          requirement.application.userId,
+          "Pre-Employment Requirements Complete",
+          "All mandatory compliance documents approved. Ready for contract signing.",
+          "SUCCESS",
+          `/app/applications/${requirement.applicationId}`
+        );
+      }
+
+      if (jobOwnerId) {
+        void sendNotification(
+          jobOwnerId,
+          "Candidate Compliance Complete",
+          `${candidateName} on "${jobTitle}" has completed all mandatory compliance documents and is ready for contract signing.`,
+          "SUCCESS",
+          `/ta/applications/${requirement.applicationId}`
+        );
+      }
+    }
   }
 
   return updated;

@@ -2,6 +2,7 @@ import PQueue from "p-queue";
 import prisma from "../utils/prisma.js";
 import supabase from "../utils/supabase.js";
 import { analyzeResume } from "../utils/gemini.js";
+import { sendNotification, sendRoleNotification } from "../utils/notification.js";
 
 // @ts-ignore
 import pdfParseModule from "pdf-parse/lib/pdf-parse.js";
@@ -61,6 +62,23 @@ export const fetchResumeBuffer = async (resumeUrl: string): Promise<Buffer> => {
   return Buffer.from(arrayBuffer);
 };
 
+const notifyNeedsAttention = async (
+  applicationId: number,
+  jobTitle: string,
+  postedById?: string | null
+): Promise<void> => {
+  const title = "Application Needs Attention";
+  const message = `Resume analysis failed for an applicant on "${jobTitle}". Manual review required.`;
+  const type = "WARNING";
+  const link = `/ta/applications/${applicationId}`;
+
+  if (postedById) {
+    await sendNotification(postedById, title, message, type, link);
+  } else {
+    await sendRoleNotification("TALENT_ACQUISITION", title, message, type, link);
+  }
+};
+
 export const processResumeJob = async (applicationId: number): Promise<void> => {
   console.log(`[Worker] Starting analysis for application #${applicationId}`);
 
@@ -73,6 +91,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
       jobPosting: {
         select: {
           title: true,
+          postedById: true,
           requirements: true,
           mrf: {
             select: {
@@ -94,6 +113,9 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
     return;
   }
 
+  const jobTitle = application.jobPosting?.title || "Requisition";
+  const postedById = application.jobPosting?.postedById;
+
   if (!application.resumeUrl) {
     console.error(`[Worker] Application #${applicationId} has no resume URL. Skipping.`);
     await prisma.application.update({
@@ -103,6 +125,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
         status: "NEEDS_ATTENTION",
       },
     });
+    await notifyNeedsAttention(applicationId, jobTitle, postedById);
     return;
   }
 
@@ -124,6 +147,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
         status: "NEEDS_ATTENTION",
       },
     });
+    await notifyNeedsAttention(applicationId, jobTitle, postedById);
     return;
   }
 
@@ -159,6 +183,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
           aiSummary: `Analysis failed: Gemini API error. (${err.message})`,
         },
       });
+      await notifyNeedsAttention(applicationId, jobTitle, postedById);
     } catch {
       // ignore if record was deleted concurrently
     }

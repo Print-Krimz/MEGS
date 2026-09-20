@@ -244,7 +244,7 @@ export const updateTAJob = async (jobId: number, data: any) => {
     isEvergreen: updated.isEvergreen,
   });
 
-  if (updated.status === "OPEN") {
+  if (existing.status !== "OPEN" && updated.status === "OPEN") {
     void triggerTalentPoolAutoDiscovery(updated.id, existing.postedById);
   }
 
@@ -276,7 +276,7 @@ export const updateTAJobStatus = async (jobId: number, status: any) => {
     status: updated.status,
   });
 
-  if (updated.status === "OPEN") {
+  if (existing.status !== "OPEN" && updated.status === "OPEN") {
     void triggerTalentPoolAutoDiscovery(updated.id, existing.postedById);
   }
 

@@ -9,6 +9,7 @@ export interface AnalyticsFilterState {
   jobPostingId?: number;
   stage?: string;
   recruiterId?: string;
+  mineOnly?: boolean;
 }
 
 export interface DailyActivityPoint {

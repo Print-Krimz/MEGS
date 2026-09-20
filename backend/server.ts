@@ -109,5 +109,6 @@ process.on("uncaughtException", (error) => {
   console.error("⚠️ [Uncaught Exception]", error);
 });
 
-startEmailWorker();
+// Email worker polling loop decommissioned to prevent empty database queries
+// startEmailWorker();
 

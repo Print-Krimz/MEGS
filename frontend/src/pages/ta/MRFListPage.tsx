@@ -24,15 +24,18 @@ import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 export const MRFListPage: React.FC = () => {
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+  const [sortBy, setSortBy] = useState<string>("priority");
   const [page, setPage] = useState(1);
   const pageSize = 8;
 
   const mrfsQuery = useQuery({
-    queryKey: ["ta", "mrfs", filterValues],
+    queryKey: ["ta", "mrfs", filterValues, sortBy],
     queryFn: () =>
       taApi.listMRFs({
         status: filterValues.status || undefined,
+        priority: filterValues.priority || undefined,
         clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
+        sortBy,
       }),
   });
 
@@ -68,6 +71,7 @@ export const MRFListPage: React.FC = () => {
   const handleReset = () => {
     setSearch("");
     setFilterValues({});
+    setSortBy("priority");
     setPage(1);
   };
 
@@ -111,6 +115,17 @@ export const MRFListPage: React.FC = () => {
             ],
           },
           {
+            key: "priority",
+            label: "Priority",
+            placeholder: "All priorities",
+            options: [
+              { value: "URGENT", label: "Urgent" },
+              { value: "HIGH", label: "High" },
+              { value: "NORMAL", label: "Normal" },
+              { value: "LOW", label: "Low" },
+            ],
+          },
+          {
             key: "clientId",
             label: "Client",
             placeholder: "All client accounts",
@@ -122,6 +137,27 @@ export const MRFListPage: React.FC = () => {
             })),
           },
         ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <label htmlFor="mrf-sort-select" className="text-xs text-slate-600 font-medium shrink-0">
+              Sort by:
+            </label>
+            <select
+              id="mrf-sort-select"
+              value={sortBy}
+              onChange={(e) => {
+                setSortBy(e.target.value);
+                setPage(1);
+              }}
+              className="min-h-11 md:min-h-10 px-3 py-2 text-sm border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-offset-1 focus:border-teal-700 transition-colors cursor-pointer"
+            >
+              <option value="priority">Priority (Urgent & High first)</option>
+              <option value="created_desc">Newest created</option>
+              <option value="created_asc">Oldest created</option>
+              <option value="target_date">Target fill date (soonest)</option>
+            </select>
+          </div>
+        }
       />
 
       {/* MRF List */}

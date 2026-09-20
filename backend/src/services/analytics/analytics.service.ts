@@ -10,6 +10,7 @@ export interface AnalyticsFilterDto {
   jobPostingId?: number;
   stage?: string;
   recruiterId?: string;
+  mineOnly?: boolean;
 }
 
 export interface UserScope {
@@ -181,28 +182,33 @@ export const getRecruitmentActivityTrend = async (
 ): Promise<RecruitmentActivityTrendResult> => {
   const { start, end, days, dateKeys } = parseDateRange(filters);
 
+  const shouldScopeToUser = filters.mineOnly !== undefined
+    ? filters.mineOnly && userScope?.role === "TALENT_ACQUISITION"
+    : userScope?.role === "TALENT_ACQUISITION";
+
+  // Build reusable jobPosting filter clause
+  const jobClause: any = {};
+  if (shouldScopeToUser) {
+    jobClause.postedById = userScope!.userId;
+  } else if (filters.recruiterId) {
+    jobClause.postedById = filters.recruiterId;
+  }
+  if (filters.mrfId) {
+    jobClause.mrfId = filters.mrfId;
+  }
+  if (filters.clientId) {
+    jobClause.mrf = { clientId: filters.clientId };
+  }
+
   // Common application filter clause
   const appWhere: any = {
     createdAt: { gte: start, lte: end },
   };
-
-  if (userScope?.role === "TALENT_ACQUISITION") {
-    appWhere.jobPosting = { postedById: userScope.userId };
-  } else if (filters.recruiterId) {
-    appWhere.jobPosting = { postedById: filters.recruiterId };
+  if (Object.keys(jobClause).length > 0) {
+    appWhere.jobPosting = jobClause;
   }
-
   if (filters.jobPostingId) {
     appWhere.jobPostingId = filters.jobPostingId;
-  }
-  if (filters.mrfId) {
-    appWhere.jobPosting = { ...(appWhere.jobPosting || {}), mrfId: filters.mrfId };
-  }
-  if (filters.clientId) {
-    appWhere.jobPosting = {
-      ...(appWhere.jobPosting || {}),
-      mrf: { clientId: filters.clientId },
-    };
   }
   if (filters.stage) {
     appWhere.status = filters.stage as ApplicationStatus;
@@ -215,50 +221,35 @@ export const getRecruitmentActivityTrend = async (
       { conductedAt: null, createdAt: { gte: start, lte: end }, result: { in: ["PASS", "FAIL", "PASSED", "FAILED"] } },
     ],
   };
-  if (userScope?.role === "TALENT_ACQUISITION") {
-    interviewWhere.application = { jobPosting: { postedById: userScope.userId } };
-  } else if (filters.recruiterId) {
-    interviewWhere.application = { jobPosting: { postedById: filters.recruiterId } };
+  if (Object.keys(jobClause).length > 0) {
+    interviewWhere.application = { jobPosting: jobClause };
   }
   if (filters.jobPostingId) {
     interviewWhere.application = { ...(interviewWhere.application || {}), jobPostingId: filters.jobPostingId };
-  }
-  if (filters.mrfId) {
-    interviewWhere.application = { ...(interviewWhere.application || {}), jobPosting: { mrfId: filters.mrfId } };
-  }
-  if (filters.clientId) {
-    interviewWhere.application = {
-      ...(interviewWhere.application || {}),
-      jobPosting: { mrf: { clientId: filters.clientId } },
-    };
   }
 
   // 3. Client Endorsements Filter
   const endorsementWhere: any = {
     createdAt: { gte: start, lte: end },
   };
-  if (userScope?.role === "TALENT_ACQUISITION") {
+  if (shouldScopeToUser) {
     endorsementWhere.OR = [
-      { endorsedById: userScope.userId },
-      { application: { jobPosting: { postedById: userScope.userId } } },
+      { endorsedById: userScope!.userId },
+      { application: Object.keys(jobClause).length > 0 ? { jobPosting: jobClause } : undefined },
     ];
   } else if (filters.recruiterId) {
     endorsementWhere.OR = [
       { endorsedById: filters.recruiterId },
-      { application: { jobPosting: { postedById: filters.recruiterId } } },
+      { application: Object.keys(jobClause).length > 0 ? { jobPosting: jobClause } : undefined },
     ];
+  } else if (Object.keys(jobClause).length > 0) {
+    endorsementWhere.application = { jobPosting: jobClause };
   }
   if (filters.clientId) {
     endorsementWhere.clientId = filters.clientId;
   }
   if (filters.jobPostingId) {
     endorsementWhere.application = { ...(endorsementWhere.application || {}), jobPostingId: filters.jobPostingId };
-  }
-  if (filters.mrfId) {
-    endorsementWhere.application = {
-      ...(endorsementWhere.application || {}),
-      jobPosting: { ...(endorsementWhere.application?.jobPosting || {}), mrfId: filters.mrfId },
-    };
   }
   if (filters.stage) {
     endorsementWhere.application = { ...(endorsementWhere.application || {}), status: filters.stage };
@@ -269,19 +260,11 @@ export const getRecruitmentActivityTrend = async (
     createdAt: { gte: start, lte: end },
     toStatus: { in: ["COMPLIANCE"] },
   };
-  if (userScope?.role === "TALENT_ACQUISITION") {
-    decisionWhere.application = { jobPosting: { postedById: userScope.userId } };
-  } else if (filters.recruiterId) {
-    decisionWhere.application = { jobPosting: { postedById: filters.recruiterId } };
+  if (Object.keys(jobClause).length > 0) {
+    decisionWhere.application = { jobPosting: jobClause };
   }
   if (filters.jobPostingId) {
     decisionWhere.application = { ...(decisionWhere.application || {}), jobPostingId: filters.jobPostingId };
-  }
-  if (filters.mrfId) {
-    decisionWhere.application = {
-      ...(decisionWhere.application || {}),
-      jobPosting: { ...(decisionWhere.application?.jobPosting || {}), mrfId: filters.mrfId },
-    };
   }
   if (filters.stage) {
     decisionWhere.application = { ...(decisionWhere.application || {}), status: filters.stage };
@@ -291,16 +274,18 @@ export const getRecruitmentActivityTrend = async (
   const deploymentWhere: any = {
     createdAt: { gte: start, lte: end },
   };
-  if (userScope?.role === "TALENT_ACQUISITION") {
+  if (shouldScopeToUser) {
     deploymentWhere.OR = [
-      { createdById: userScope.userId },
-      { application: { jobPosting: { postedById: userScope.userId } } },
+      { createdById: userScope!.userId },
+      { application: Object.keys(jobClause).length > 0 ? { jobPosting: jobClause } : undefined },
     ];
   } else if (filters.recruiterId) {
     deploymentWhere.OR = [
       { createdById: filters.recruiterId },
-      { application: { jobPosting: { postedById: filters.recruiterId } } },
+      { application: Object.keys(jobClause).length > 0 ? { jobPosting: jobClause } : undefined },
     ];
+  } else if (Object.keys(jobClause).length > 0) {
+    deploymentWhere.application = { jobPosting: jobClause };
   }
   if (filters.clientId) {
     deploymentWhere.clientId = filters.clientId;
@@ -541,7 +526,7 @@ export const getAdminFunnelAnalytics = async (filters: AnalyticsFilterDto = {}):
       id: true,
       status: true,
       recruiterDecisions: {
-        select: { toStatus: true },
+        select: { toStatus: true, fromStatus: true },
       },
     },
   });
@@ -563,15 +548,15 @@ export const getAdminFunnelAnalytics = async (filters: AnalyticsFilterDto = {}):
     if (stageKey === "APPLICATIONS") return true;
 
     const currentStatus = app.status;
-    const historyStatuses = app.recruiterDecisions?.map((d) => d.toStatus) || [];
+    const historyStatuses = (app.recruiterDecisions || []).flatMap((d) => [d.toStatus, d.fromStatus]).filter(Boolean);
     const allKnown = [currentStatus, ...historyStatuses];
 
     const hierarchy: Record<string, string[]> = {
-      INITIAL_SCREENING: ["INITIAL_SCREENING", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
-      CLIENT_ENDORSEMENT: ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
-      FINAL_INTERVIEW: ["FINAL_INTERVIEW", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
-      COMPLIANCE: ["COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
-      CONTRACT_AND_ORIENTATION: ["CONTRACT_AND_ORIENTATION", "DEPLOYED"],
+      INITIAL_SCREENING: ["INITIAL_SCREENING", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "HIRED", "ONBOARDING", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
+      CLIENT_ENDORSEMENT: ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "HIRED", "ONBOARDING", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
+      FINAL_INTERVIEW: ["FINAL_INTERVIEW", "HIRED", "ONBOARDING", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
+      COMPLIANCE: ["COMPLIANCE", "CONTRACT_AND_ORIENTATION", "ONBOARDING", "DEPLOYED"],
+      CONTRACT_AND_ORIENTATION: ["CONTRACT_AND_ORIENTATION", "ONBOARDING", "DEPLOYED"],
       DEPLOYED: ["DEPLOYED"],
     };
 
@@ -823,10 +808,17 @@ export const getTAOverviewStats = async (
   taUserId: string,
   filters: AnalyticsFilterDto = {}
 ): Promise<TAOverviewStatsResult> => {
-  const jobScope: any = { postedById: taUserId };
+  const jobScope: any = {};
+  if (filters.mineOnly) {
+    jobScope.postedById = taUserId;
+  } else if (filters.recruiterId) {
+    jobScope.postedById = filters.recruiterId;
+  }
   if (filters.mrfId) jobScope.mrfId = filters.mrfId;
   if (filters.jobPostingId) jobScope.id = filters.jobPostingId;
+  if (filters.clientId) jobScope.mrf = { clientId: filters.clientId };
 
+  const hasJobScope = Object.keys(jobScope).length > 0;
   const stageFilter = filters.stage ? (filters.stage as ApplicationStatus) : undefined;
 
   // Parallelize all 6 TA KPI counts concurrently
@@ -841,7 +833,7 @@ export const getTAOverviewStats = async (
     // My Active Applications
     prisma.application.count({
       where: {
-        jobPosting: jobScope,
+        ...(hasJobScope ? { jobPosting: jobScope } : {}),
         isArchived: false,
         status: stageFilter || { notIn: [ApplicationStatus.BACKOUT, ApplicationStatus.ARCHIVED, ApplicationStatus.DEPLOYED] },
       },
@@ -850,7 +842,7 @@ export const getTAOverviewStats = async (
     // Initial Interviews Pending
     prisma.application.count({
       where: {
-        jobPosting: jobScope,
+        ...(hasJobScope ? { jobPosting: jobScope } : {}),
         isArchived: false,
         status: stageFilter || { in: ["SUBMITTED", "INITIAL_SCREENING"] },
       },
@@ -859,7 +851,7 @@ export const getTAOverviewStats = async (
     // Ready for Client Endorsement
     prisma.application.count({
       where: {
-        jobPosting: jobScope,
+        ...(hasJobScope ? { jobPosting: jobScope } : {}),
         isArchived: false,
         status: stageFilter || "INITIAL_SCREENING",
         interviews: {
@@ -872,17 +864,25 @@ export const getTAOverviewStats = async (
     prisma.clientEndorsement.count({
       where: {
         outcome: "PENDING",
-        OR: [
-          { endorsedById: taUserId },
-          { application: { jobPosting: jobScope, ...(stageFilter ? { status: stageFilter } : {}) } },
-        ],
+        ...(filters.mineOnly
+          ? {
+              OR: [
+                { endorsedById: taUserId },
+                { application: { ...(hasJobScope ? { jobPosting: jobScope } : {}), ...(stageFilter ? { status: stageFilter } : {}) } },
+              ],
+            }
+          : hasJobScope
+          ? { application: { jobPosting: jobScope, ...(stageFilter ? { status: stageFilter } : {}) } }
+          : stageFilter
+          ? { application: { status: stageFilter } }
+          : {}),
       },
     }),
 
     // Final Interviews Pending
     prisma.application.count({
       where: {
-        jobPosting: jobScope,
+        ...(hasJobScope ? { jobPosting: jobScope } : {}),
         isArchived: false,
         status: stageFilter || "FINAL_INTERVIEW",
       },
@@ -891,7 +891,7 @@ export const getTAOverviewStats = async (
     // Awaiting Compliance
     prisma.application.count({
       where: {
-        jobPosting: jobScope,
+        ...(hasJobScope ? { jobPosting: jobScope } : {}),
         isArchived: false,
         status: stageFilter || "COMPLIANCE",
       },
@@ -918,9 +918,17 @@ export const getTAPendingActions = async (
   const actions: TAPendingActionItem[] = [];
   const now = new Date();
 
-  const jobScope: any = { postedById: taUserId };
+  const jobScope: any = {};
+  if (filters.mineOnly) {
+    jobScope.postedById = taUserId;
+  } else if (filters.recruiterId) {
+    jobScope.postedById = filters.recruiterId;
+  }
   if (filters.mrfId) jobScope.mrfId = filters.mrfId;
   if (filters.jobPostingId) jobScope.id = filters.jobPostingId;
+  if (filters.clientId) jobScope.mrf = { clientId: filters.clientId };
+
+  const hasJobScope = Object.keys(jobScope).length > 0;
 
   const stage = filters.stage;
   const includeInterviews = !stage || stage === "SUBMITTED" || stage === "INITIAL_SCREENING";
@@ -936,7 +944,7 @@ export const getTAPendingActions = async (
             type: "INITIAL_SCREENING",
             isActive: true,
             OR: [{ result: "PENDING" }, { result: null }],
-            application: { jobPosting: jobScope, isArchived: false },
+            application: { ...(hasJobScope ? { jobPosting: jobScope } : {}), isArchived: false },
           },
           include: {
             application: {
@@ -956,10 +964,16 @@ export const getTAPendingActions = async (
       ? prisma.clientEndorsement.findMany({
           where: {
             outcome: "PENDING",
-            OR: [
-              { endorsedById: taUserId },
-              { application: { jobPosting: jobScope } },
-            ],
+            ...(filters.mineOnly
+              ? {
+                  OR: [
+                    { endorsedById: taUserId },
+                    { application: hasJobScope ? { jobPosting: jobScope } : {} },
+                  ],
+                }
+              : hasJobScope
+              ? { application: { jobPosting: jobScope } }
+              : {}),
           },
           include: {
             client: { select: { name: true } },
@@ -980,7 +994,7 @@ export const getTAPendingActions = async (
       ? prisma.complianceRequirement.findMany({
           where: {
             reviewStatus: "SUBMITTED",
-            application: { jobPosting: jobScope, isArchived: false },
+            application: { ...(hasJobScope ? { jobPosting: jobScope } : {}), isArchived: false },
           },
           include: {
             application: {

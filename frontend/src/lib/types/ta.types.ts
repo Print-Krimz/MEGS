@@ -310,5 +310,6 @@ export interface InterviewSLASummary {
     scheduledAt: string;
     deadline: string;
     status: "HEALTHY" | "WARNING" | "BREACHED";
+    currentStage?: string;
   }>;
 }

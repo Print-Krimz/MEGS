@@ -48,6 +48,7 @@ const buildFilterDescription = (filters?: AnalyticsFilterDto): string => {
   if (filters.stage) parts.push(`Stage: ${filters.stage}`);
   if (filters.clientId) parts.push(`Client #${filters.clientId}`);
   if (filters.recruiterId) parts.push(`Recruiter: ${filters.recruiterId}`);
+  if (filters.mineOnly) parts.push("My Requisitions Only");
   if (filters.startDate && filters.endDate) {
     parts.push(`Date: ${filters.startDate} to ${filters.endDate}`);
   } else if (filters.range) {
@@ -56,7 +57,7 @@ const buildFilterDescription = (filters?: AnalyticsFilterDto): string => {
   return parts.length > 0 ? parts.join(" | ") : "All Records (Last 30 Days)";
 };
 
-const buildApplicationWhere = (filters?: AnalyticsFilterDto) => {
+const buildApplicationWhere = (filters?: AnalyticsFilterDto, requestedBy?: { id: string }) => {
   const where: any = {};
   const jobWhere: any = {};
 
@@ -68,6 +69,8 @@ const buildApplicationWhere = (filters?: AnalyticsFilterDto) => {
   }
   if (filters?.recruiterId) {
     jobWhere.postedById = filters.recruiterId;
+  } else if (filters?.mineOnly && requestedBy?.id) {
+    jobWhere.postedById = requestedBy.id;
   }
 
   if (Object.keys(jobWhere).length > 0) {
@@ -96,7 +99,7 @@ const buildApplicationWhere = (filters?: AnalyticsFilterDto) => {
   return where;
 };
 
-const buildDeploymentWhere = (filters?: AnalyticsFilterDto) => {
+const buildDeploymentWhere = (filters?: AnalyticsFilterDto, requestedBy?: { id: string }) => {
   const where: any = {};
 
   if (filters?.mrfId) {
@@ -108,6 +111,12 @@ const buildDeploymentWhere = (filters?: AnalyticsFilterDto) => {
   if (filters?.jobPostingId) {
     where.application = { jobPostingId: filters.jobPostingId };
   }
+  if (filters?.recruiterId) {
+    where.createdById = filters.recruiterId;
+  } else if (filters?.mineOnly && requestedBy?.id) {
+    where.createdById = requestedBy.id;
+  }
+
   if (filters?.startDate && filters?.endDate) {
     where.createdAt = {
       gte: new Date(filters.startDate),
@@ -128,7 +137,7 @@ export const generatePipelineReportPDF = async (
   roleScopeOverride?: ReportRoleScope
 ): Promise<Buffer> => {
   const roleScope = resolveRoleScope(requestedBy, roleScopeOverride);
-  const where = buildApplicationWhere(filters);
+  const where = buildApplicationWhere(filters, requestedBy);
 
   const applications = await prisma.application.findMany({
     where,
@@ -160,17 +169,15 @@ export const generatePipelineReportPDF = async (
   // Compute summary KPI metrics
   const totalApps = applications.length;
   const activeScreening = applications.filter((a) =>
-    ["INITIAL_SCREENING", "AI_SCREENING", "INTERVIEW"].includes(a.status)
+    ["SUBMITTED", "REVIEW", "MATCHED", "INITIAL_SCREENING", "FINAL_INTERVIEW"].includes(a.status)
   ).length;
   const endorsedOrHired = applications.filter((a) =>
-    ["CLIENT_ENDORSEMENT", "HIRED", "DEPLOYED"].includes(a.status)
+    ["CLIENT_ENDORSEMENT", "HIRED", "ONBOARDING", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"].includes(a.status)
   ).length;
+  const scoredApps = applications.filter((a) => a.aiScore !== null && a.aiScore !== undefined && !isNaN(Number(a.aiScore)));
   const avgScore =
-    totalApps > 0
-      ? (
-          applications.reduce((acc, a) => acc + (a.aiScore || 0), 0) /
-          applications.filter((a) => a.aiScore !== null && a.aiScore !== undefined).length || 0
-        ).toFixed(1) + "%"
+    scoredApps.length > 0
+      ? (scoredApps.reduce((acc, a) => acc + (a.aiScore || 0), 0) / scoredApps.length).toFixed(1) + "%"
       : "N/A";
 
   renderSummaryKPIs(doc, [
@@ -259,7 +266,7 @@ export const generatePipelineReportXLSX = async (
   roleScopeOverride?: ReportRoleScope
 ): Promise<Buffer> => {
   const roleScope = resolveRoleScope(requestedBy, roleScopeOverride);
-  const where = buildApplicationWhere(filters);
+  const where = buildApplicationWhere(filters, requestedBy);
 
   const applications = await prisma.application.findMany({
     where,
@@ -370,7 +377,7 @@ export const generateDeploymentReportPDF = async (
   roleScopeOverride?: ReportRoleScope
 ): Promise<Buffer> => {
   const roleScope = resolveRoleScope(requestedBy, roleScopeOverride);
-  const where = buildDeploymentWhere(filters);
+  const where = buildDeploymentWhere(filters, requestedBy);
 
   const deployments = await prisma.deployment.findMany({
     where,
@@ -381,6 +388,7 @@ export const generateDeploymentReportPDF = async (
       mrf: { select: { title: true } },
       employee: { select: { user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
       application: { select: { user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
+      createdBy: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
     },
   });
 
@@ -396,8 +404,10 @@ export const generateDeploymentReportPDF = async (
   renderCorporateHeader(doc, meta);
 
   const totalDeployments = deployments.length;
-  const activeDeployments = deployments.filter((d) => ["DEPLOYED", "ON_SITE", "ACTIVE"].includes(d.status)).length;
-  const pendingDeployments = deployments.filter((d) => ["PENDING", "PROCESSING", "SCHEDULED"].includes(d.status)).length;
+  const activeDeployments = deployments.filter((d) => ["ACTIVE", "DISPATCHED"].includes(d.status)).length;
+  const pendingDeployments = deployments.filter((d) =>
+    ["READY_FOR_DEPLOYMENT", "PENDING_ORIENTATION", "READY"].includes(d.status)
+  ).length;
   const clientCount = new Set(deployments.map((d) => d.client?.name).filter(Boolean)).size;
 
   renderSummaryKPIs(doc, [
@@ -448,7 +458,8 @@ export const generateDeploymentReportPDF = async (
       { header: "Placed Employee", width: 135, align: "left" },
       { header: "Placement Status", width: 110, align: "center", badge: true },
       { header: "Assigned Facility", width: 95, align: "left" },
-      { header: "Contract Period", width: 100, align: "center" },
+      { header: "Deployment Officer", width: 125, align: "left" },
+      { header: "Effective Date", width: 50, align: "center" },
     ];
 
     rows = deployments.map((dep) => {
@@ -457,16 +468,19 @@ export const generateDeploymentReportPDF = async (
         ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
         : user?.email || "Unknown";
 
-      const period = `${safeFormatDate(dep.contractStart)} to ${safeFormatDate(dep.contractEnd)}`;
+      const recruiter = dep.createdBy?.applicantProfile
+        ? `${dep.createdBy.applicantProfile.firstName} ${dep.createdBy.applicantProfile.lastName}`
+        : dep.createdBy?.email || "System";
 
       return [
         `#${dep.id}`,
         dep.client.name,
-        dep.mrf?.title || "N/A",
+        dep.mrf?.title || "Direct Assignment",
         name,
         dep.status,
         dep.site || "N/A",
-        period,
+        recruiter,
+        safeFormatDate(dep.contractStart),
       ];
     });
   }
@@ -481,7 +495,7 @@ export const generateDeploymentReportXLSX = async (
   roleScopeOverride?: ReportRoleScope
 ): Promise<Buffer> => {
   const roleScope = resolveRoleScope(requestedBy, roleScopeOverride);
-  const where = buildDeploymentWhere(filters);
+  const where = buildDeploymentWhere(filters, requestedBy);
 
   const deployments = await prisma.deployment.findMany({
     where,

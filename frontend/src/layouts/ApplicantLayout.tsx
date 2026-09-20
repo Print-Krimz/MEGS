@@ -35,6 +35,7 @@ export const ApplicantLayout: React.FC = () => {
     markAsRead,
     activeToasts,
     dismissToast,
+    handleToastClick,
   } = useRealtimeNotifications();
 
   const profileQuery = useQuery({
@@ -113,7 +114,7 @@ export const ApplicantLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-slate-900 selection:text-white">
-      <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} />
+      <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
 
       {/* Top Navigation Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-2xs">

@@ -56,6 +56,7 @@ function buildTAAnalyticsQueryString(filters?: Partial<AnalyticsFilterState>): s
   if (filters.mrfId) params.append("mrfId", String(filters.mrfId));
   if (filters.jobPostingId) params.append("jobPostingId", String(filters.jobPostingId));
   if (filters.stage) params.append("stage", filters.stage);
+  if (filters.mineOnly !== undefined) params.append("mineOnly", String(filters.mineOnly));
   const qs = params.toString();
   return qs ? `?${qs}` : "";
 }
@@ -270,10 +271,17 @@ export const taApi = {
   updateClient: (id: number | string, data: UpdateClientDto) =>
     api.patch<Client>(`/api/ta/clients/${id}`, data),
 
-  listMRFs: (filters?: { clientId?: number | string; status?: string }) => {
+  listMRFs: (filters?: {
+    clientId?: number | string;
+    status?: string;
+    priority?: string;
+    sortBy?: string;
+  }) => {
     const params = new URLSearchParams();
     if (filters?.clientId) params.append("clientId", String(filters.clientId));
     if (filters?.status) params.append("status", filters.status);
+    if (filters?.priority) params.append("priority", filters.priority);
+    if (filters?.sortBy) params.append("sortBy", filters.sortBy);
     const qs = params.toString();
     return api.get<ManpowerRequest[]>(`/api/ta/mrfs${qs ? `?${qs}` : ""}`);
   },

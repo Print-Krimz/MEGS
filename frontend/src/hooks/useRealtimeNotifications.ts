@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { notificationApi } from "../lib/api/notification.api";
 import { resolveApiBase } from "../lib/api/client";
+import { resolveNotificationLink } from "../lib/utils";
 import { useAuth } from "./useAuth";
 
 export interface RealtimeToast {
@@ -10,10 +12,13 @@ export interface RealtimeToast {
   title: string;
   message: string;
   createdAt: string;
+  link?: string | null;
+  type?: string;
 }
 
 export function useRealtimeNotifications() {
   const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeToasts, setActiveToasts] = useState<RealtimeToast[]>([]);
 
@@ -80,6 +85,8 @@ export function useRealtimeNotifications() {
             title: data.title || "New Notification",
             message: data.message || "",
             createdAt: data.createdAt || new Date().toISOString(),
+            link: data.link ?? null,
+            type: data.type,
           };
 
           setActiveToasts((prev) => [newToast, ...prev.slice(0, 2)]);
@@ -109,11 +116,27 @@ export function useRealtimeNotifications() {
     setActiveToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const handleToastClick = (toast: RealtimeToast) => {
+    dismissToast(toast.id);
+    markAsReadMutation.mutate(toast.id);
+    const notificationLink = resolveNotificationLink(toast.link, user?.role);
+    if (notificationLink) {
+      if (notificationLink.includes("?")) {
+        const [path, qs] = notificationLink.split("?");
+        const searchParams = qs ? Object.fromEntries(new URLSearchParams(qs)) : undefined;
+        navigate({ to: path as any, search: searchParams as any });
+      } else {
+        navigate({ to: notificationLink as any });
+      }
+    }
+  };
+
   return {
     unreadCount: unreadCountQuery.data || 0,
-    notifications: recentNotificationsQuery.data || [],
+    notifications: recentNotificationsQuery.data?.items || (Array.isArray(recentNotificationsQuery.data) ? recentNotificationsQuery.data : []),
     markAsRead: (id: number) => markAsReadMutation.mutate(id),
     activeToasts,
     dismissToast,
+    handleToastClick,
   };
 }

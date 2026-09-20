@@ -168,13 +168,23 @@ export const scheduleNewInterview = async (
   const jobOwnerId = (application as any).jobPosting?.postedById;
   const jobTitle = (application as any).jobPosting?.title || "Job";
   if (jobOwnerId && actorId && jobOwnerId !== actorId) {
-    void sendNotification(
-      jobOwnerId,
-      "Interview Scheduled for Candidate",
-      `An interview (${type.replace("_", " ")}) has been scheduled for candidate on "${jobTitle}".`,
-      "INFO",
-      `/ta/applications/${applicationId}`
-    );
+    if (existingPending) {
+      void sendNotification(
+        jobOwnerId,
+        "Interview Rescheduled",
+        `An interview (${type.replace(/_/g, " ")}) for candidate on "${jobTitle}" was rescheduled.`,
+        "INFO",
+        `/ta/applications/${applicationId}`
+      );
+    } else {
+      void sendNotification(
+        jobOwnerId,
+        "Interview Scheduled for Candidate",
+        `An interview (${type.replace(/_/g, " ")}) has been scheduled for candidate on "${jobTitle}".`,
+        "INFO",
+        `/ta/applications/${applicationId}`
+      );
+    }
   }
 
   return interview;
@@ -198,7 +208,12 @@ export const recordDirectInterviewResult = async (
 
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { status: true, isArchived: true, userId: true },
+    select: {
+      status: true,
+      isArchived: true,
+      userId: true,
+      jobPosting: { select: { postedById: true, title: true } },
+    },
   });
 
   if (!application) throw new Error("Application not found");
@@ -283,6 +298,18 @@ export const recordDirectInterviewResult = async (
     );
   }
 
+  const jobOwnerId = application.jobPosting?.postedById;
+  const jobTitle = application.jobPosting?.title || "Requisition";
+  if (jobOwnerId && actorId && jobOwnerId !== actorId) {
+    void sendNotification(
+      jobOwnerId,
+      "Interview Result Recorded",
+      `${type.replace(/_/g, " ")} result for candidate on "${jobTitle}" recorded as ${result}.`,
+      ["PASS", "PASSED"].includes(result) ? "SUCCESS" : "WARNING",
+      `/ta/applications/${applicationId}`
+    );
+  }
+
   void logAudit(actorId || null, "INTERVIEW_RESULT_RECORDED", "Application", applicationId, {
     interviewId: newInterview.id,
     type,
@@ -310,7 +337,15 @@ export const updateInterviewResult = async (
 
   const interview = await prisma.interview.findUnique({
     where: { id: interviewId, applicationId },
-    include: { application: { select: { userId: true, status: true } } },
+    include: {
+      application: {
+        select: {
+          userId: true,
+          status: true,
+          jobPosting: { select: { postedById: true, title: true } },
+        },
+      },
+    },
   });
 
   if (!interview) throw new Error("Interview not found");
@@ -368,6 +403,18 @@ export const updateInterviewResult = async (
       `Your ${interview.type.replace(/_/g, " ")} result has been recorded as ${result}.`,
       notifType,
       `/app/applications/${applicationId}`
+    );
+  }
+
+  const jobOwnerId = interview.application?.jobPosting?.postedById;
+  const jobTitle = interview.application?.jobPosting?.title || "Requisition";
+  if (jobOwnerId && actorId && jobOwnerId !== actorId) {
+    void sendNotification(
+      jobOwnerId,
+      "Interview Result Recorded",
+      `${interview.type.replace(/_/g, " ")} result for candidate on "${jobTitle}" recorded as ${result}.`,
+      ["PASS", "PASSED"].includes(result) ? "SUCCESS" : "WARNING",
+      `/ta/applications/${applicationId}`
     );
   }
 

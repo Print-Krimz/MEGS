@@ -144,28 +144,29 @@ export const AnalyticsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Relational Filter Ribbon (No Recruiter selector for TA, only MRF, Job, Stage, Dates) */}
+      {/* Relational Filter Ribbon (No Recruiter selector for TA, only MRF, Job, Stage, Dates, Mine Only) */}
       <AnalyticsFilterBar
         filters={filters}
         onChange={setFilters}
         options={options}
         showClientFilter={false}
         showRecruiterFilter={false}
+        showMineOnlyFilter={true}
       />
 
       {/* Row 1: 6 TA-Scoped Workload KPI Cards */}
       <div className="border border-slate-300 bg-white grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 divide-y md:divide-y-0 divide-x divide-slate-300">
-        {/* My Active Applications */}
+        {/* Active Applications */}
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-            My Active Pipeline
+            {filters.mineOnly ? "My Active Pipeline" : "Active Pipeline"}
           </div>
           <div className="text-2xl font-sans font-bold text-slate-950 mt-0.5 tabular-nums">
             {overview?.myActiveApplications ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
             <Users className="w-3 h-3 text-slate-400 shrink-0" />
-            <span>Assigned candidates</span>
+            <span>{filters.mineOnly ? "Assigned candidates" : "All active candidates"}</span>
           </div>
         </div>
 

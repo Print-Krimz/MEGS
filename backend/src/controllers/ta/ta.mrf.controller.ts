@@ -12,7 +12,9 @@ export const listMRFsHandler = async (req: Request, res: Response): Promise<void
   try {
     const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
     const status = req.query.status as string | undefined;
-    const mrfs = await listMRFs(clientId, status);
+    const priority = req.query.priority as string | undefined;
+    const sortBy = (req.query.sortBy as any) || "priority";
+    const mrfs = await listMRFs(clientId, status, priority, sortBy);
     sendSuccess(res, "Manpower Requests retrieved successfully", mrfs);
   } catch (error: any) {
     sendError(res, error.message, 500);

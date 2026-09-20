@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, CheckCheck, ExternalLink, ArrowUpRight } from "lucide-react";
 import { formatRelativeTime, formatNotificationMessage, formatNotificationTitle, resolveNotificationLink } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
 import type { Notification } from "../../lib/types/notification.types";
+import { notificationApi } from "../../lib/api/notification.api";
 
 export interface NotificationBellProps {
   notifications?: Notification[];
@@ -21,10 +23,19 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownId = "notifications-menu";
+
+  const markAllReadMutation = useMutation({
+    mutationFn: notificationApi.markAllAsRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+    },
+  });
 
   const resolvedViewAllLink =
     viewAllLink ??
@@ -59,13 +70,19 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   }, [open]);
 
   const handleItemClick = (n: Notification) => {
+    setOpen(false);
     if (!n.isRead && onMarkAsRead) {
       onMarkAsRead(n.id);
     }
     const notificationLink = resolveNotificationLink(n.link, user?.role);
     if (notificationLink) {
-      setOpen(false);
-      navigate({ to: notificationLink as any });
+      if (notificationLink.includes("?")) {
+        const [path, qs] = notificationLink.split("?");
+        const searchParams = qs ? Object.fromEntries(new URLSearchParams(qs)) : undefined;
+        navigate({ to: path as any, search: searchParams as any });
+      } else {
+        navigate({ to: notificationLink as any });
+      }
     }
   };
 
@@ -91,25 +108,38 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       {open && (
         <div id={dropdownId} className="absolute right-0 mt-1 w-[min(24rem,calc(100vw-1.5rem))] bg-white shadow-modal border border-slate-300 z-50 overflow-hidden">
           {/* Header */}
-          <div className="p-3 bg-slate-100 border-b border-slate-300 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-900">
+          <div className="p-3 bg-slate-100 border-b border-slate-300 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm font-semibold text-slate-900 truncate">
                 Notifications
               </span>
               {unreadCount > 0 && (
-                <span className="px-1.5 py-0.5 bg-teal-100 text-teal-900 border border-teal-300 text-xs font-medium">
+                <span className="px-1.5 py-0.5 bg-teal-100 text-teal-900 border border-teal-300 text-xs font-medium shrink-0">
                   {unreadCount} unread
                 </span>
               )}
             </div>
-            <Link
-              to={resolvedViewAllLink}
-              onClick={() => setOpen(false)}
-              className="text-xs text-teal-700 hover:text-teal-900 font-medium flex items-center gap-1"
-            >
-              <span>View all</span>
-              <ExternalLink className="w-3 h-3" />
-            </Link>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => markAllReadMutation.mutate()}
+                disabled={unreadCount === 0 || markAllReadMutation.isPending}
+                className="text-xs font-medium text-teal-700 hover:text-teal-900 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center gap-1 px-1.5 py-1 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 cursor-pointer"
+                aria-label="Mark all notifications as read"
+                title="Mark all as read"
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                <span>Mark all read</span>
+              </button>
+              <Link
+                to={resolvedViewAllLink}
+                onClick={() => setOpen(false)}
+                className="text-xs text-teal-700 hover:text-teal-900 font-medium flex items-center gap-1 px-1.5 py-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+              >
+                <span>View all</span>
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+            </div>
           </div>
 
           {/* List */}

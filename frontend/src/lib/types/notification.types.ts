@@ -13,3 +13,12 @@ export interface NotificationListQuery {
   limit?: number;
   cursor?: number;
 }
+
+export interface PaginatedNotifications {
+  items: Notification[];
+  total: number;
+  unreadCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}

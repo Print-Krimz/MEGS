@@ -164,6 +164,16 @@ export const syncMRFFulfillmentStatus = async (
       `/admin/mrfs/${mrf.id}`,
       actorId
     );
+
+    if (mrf.createdById) {
+      void sendNotification(
+        mrf.createdById,
+        "MRF Quota Reopened",
+        `MRF "${mrf.title}" has reopened due to deployment cancellation (${stats.deployedCount}/${stats.headcount} pax).`,
+        "INFO",
+        `/ta/mrfs/${mrf.id}`
+      );
+    }
   }
 
   return {
@@ -176,10 +186,20 @@ export const syncMRFFulfillmentStatus = async (
   };
 };
 
-export const listMRFs = async (clientId?: number, status?: string) => {
+export const syncMRFStatusWithHeadcount = syncMRFFulfillmentStatus;
+
+export type MRFSortOption = "priority" | "created_desc" | "created_asc" | "target_date";
+
+export const listMRFs = async (
+  clientId?: number,
+  status?: string,
+  priority?: string,
+  sortBy: MRFSortOption = "priority"
+) => {
   const where: any = {};
   if (clientId) where.clientId = clientId;
   if (status) where.status = status;
+  if (priority) where.priority = priority;
 
   const mrfs = await prisma.manpowerRequest.findMany({
     where,
@@ -210,7 +230,22 @@ export const listMRFs = async (clientId?: number, status?: string) => {
     orderBy: { createdAt: "desc" },
   });
 
-  return mrfs.map((mrf) => {
+  const PRIORITY_RANK: Record<string, number> = {
+    URGENT: 4,
+    HIGH: 3,
+    NORMAL: 2,
+    LOW: 1,
+  };
+
+  const STATUS_ACTIVE_RANK: Record<string, number> = {
+    OPEN: 2,
+    IN_PROGRESS: 2,
+    ON_HOLD: 1,
+    FILLED: 0,
+    CANCELLED: 0,
+  };
+
+  const mapped = mrfs.map((mrf) => {
     const headcount = Math.max(1, mrf.headcount || 1);
     const deployedCount = mrf.deployments.length;
     const remainingCount = Math.max(0, headcount - deployedCount);
@@ -229,6 +264,46 @@ export const listMRFs = async (clientId?: number, status?: string) => {
         isFulfilled,
       },
     };
+  });
+
+  return mapped.sort((a, b) => {
+    if (sortBy === "priority") {
+      // 1. Active status first (OPEN / IN_PROGRESS > ON_HOLD > FILLED / CANCELLED)
+      const statusDiff = (STATUS_ACTIVE_RANK[b.status] ?? 1) - (STATUS_ACTIVE_RANK[a.status] ?? 1);
+      if (statusDiff !== 0) return statusDiff;
+
+      // 2. Priority rank (URGENT > HIGH > NORMAL > LOW)
+      const priorityDiff = (PRIORITY_RANK[b.priority] ?? 2) - (PRIORITY_RANK[a.priority] ?? 2);
+      if (priorityDiff !== 0) return priorityDiff;
+
+      // 3. Target Fill Date (soonest first)
+      if (a.targetFillDate && b.targetFillDate) {
+        const dateDiff = new Date(a.targetFillDate).getTime() - new Date(b.targetFillDate).getTime();
+        if (dateDiff !== 0) return dateDiff;
+      } else if (a.targetFillDate && !b.targetFillDate) {
+        return -1;
+      } else if (!a.targetFillDate && b.targetFillDate) {
+        return 1;
+      }
+
+      // 4. Chronological fallback (newest first)
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+
+    if (sortBy === "created_asc") {
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    }
+
+    if (sortBy === "target_date") {
+      if (a.targetFillDate && b.targetFillDate) {
+        return new Date(a.targetFillDate).getTime() - new Date(b.targetFillDate).getTime();
+      }
+      if (a.targetFillDate) return -1;
+      if (b.targetFillDate) return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 };
 

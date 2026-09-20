@@ -28,6 +28,7 @@ function extractTAFilters(query: any): AnalyticsFilterDto {
     mrfId: query.mrfId ? parseInt(query.mrfId as string, 10) : undefined,
     jobPostingId: query.jobPostingId ? parseInt(query.jobPostingId as string, 10) : undefined,
     stage: query.stage as string,
+    mineOnly: query.mineOnly === "true" || query.mineOnly === true,
   };
 }
 
@@ -59,7 +60,7 @@ export const getTAPipelineFunnelHandler = async (req: Request, res: Response): P
     const filters = extractTAFilters(req.query);
     const funnel = await getAdminFunnelAnalytics({
       ...filters,
-      recruiterId: req.user!.id,
+      recruiterId: filters.mineOnly ? req.user!.id : undefined,
     });
     sendSuccess(res, "TA pipeline funnel analytics retrieved", funnel);
   } catch (error: any) {
@@ -93,7 +94,10 @@ export const getTADashboardSummaryHandler = async (req: Request, res: Response):
     const [overview, activity, funnel, pendingActions, filterOptions] = await Promise.all([
       getTAOverviewStats(userId, filters),
       getRecruitmentActivityTrend(filters, { role: req.user!.role, userId }),
-      getAdminFunnelAnalytics({ ...filters, recruiterId: userId }),
+      getAdminFunnelAnalytics({
+        ...filters,
+        recruiterId: filters.mineOnly ? userId : undefined,
+      }),
       getTAPendingActions(userId, filters),
       getAnalyticsFilterOptions("TALENT_ACQUISITION", userId),
     ]);

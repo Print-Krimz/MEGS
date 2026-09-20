@@ -10,6 +10,7 @@ interface AnalyticsFilterBarProps {
   options?: AnalyticsFilterOptions;
   showRecruiterFilter?: boolean;
   showClientFilter?: boolean;
+  showMineOnlyFilter?: boolean;
 }
 
 export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
@@ -18,6 +19,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
   options,
   showRecruiterFilter = false,
   showClientFilter = false,
+  showMineOnlyFilter = false,
 }) => {
   // Local draft state for user configuration before clicking "Apply Filters"
   const [draftFilters, setDraftFilters] = useState<AnalyticsFilterState>(filters);
@@ -51,6 +53,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
       jobPostingId: undefined,
       stage: undefined,
       recruiterId: undefined,
+      mineOnly: undefined,
     };
     setDraftFilters(cleared);
     onChange(cleared);
@@ -85,6 +88,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
       filters.jobPostingId !== undefined ||
       filters.stage !== undefined ||
       filters.recruiterId !== undefined ||
+      filters.mineOnly === true ||
       Boolean(filters.startDate) ||
       Boolean(filters.endDate)
     );
@@ -178,6 +182,10 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
       chips.push({ key: "recruiterId", label: "Recruiter", value: r?.name || filters.recruiterId });
     }
 
+    if (filters.mineOnly) {
+      chips.push({ key: "mineOnly", label: "Scope", value: "My requisitions only" });
+    }
+
     return chips;
   }, [filters, options]);
 
@@ -216,6 +224,28 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               </button>
             );
           })}
+
+          {showMineOnlyFilter && (
+            <label className="ml-2 flex items-center gap-2 text-xs font-mono font-medium text-slate-700 cursor-pointer select-none bg-slate-50 px-2.5 py-1.5 border border-slate-300 hover:bg-slate-100">
+              <input
+                type="checkbox"
+                checked={Boolean(draftFilters.mineOnly)}
+                onChange={(e) => {
+                  const nextMineOnly = e.target.checked ? true : undefined;
+                  setDraftFilters((prev) => ({
+                    ...prev,
+                    mineOnly: nextMineOnly,
+                  }));
+                  onChange({
+                    ...filters,
+                    mineOnly: nextMineOnly,
+                  });
+                }}
+                className="rounded border-slate-300 text-teal-700 focus:ring-teal-600 h-4 w-4 cursor-pointer"
+              />
+              <span>My requisitions only</span>
+            </label>
+          )}
         </div>
 
         {/* Action Controls: Apply Filters & Clear Filters */}
