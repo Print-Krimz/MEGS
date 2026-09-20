@@ -462,6 +462,7 @@ export const ForgotPasswordPage: React.FC = () => {
 
         <TurnstileWidget
           ref={turnstileRef}
+          action="forgot_password"
           onSuccess={setTurnstileToken}
           onExpire={() => setTurnstileToken("")}
         />

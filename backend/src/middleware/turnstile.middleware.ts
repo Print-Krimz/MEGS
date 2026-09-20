@@ -18,19 +18,20 @@ export async function verifyTurnstile(
 
   const token =
     (req.headers["x-turnstile-token"] as string) ||
-    req.body?.turnstileToken;
+    req.body?.turnstileToken ||
+    req.body?.["cf-turnstile-response"];
 
-  if (!token) {
-    res.status(400).json({
+  if (!token || typeof token !== "string" || token.length === 0 || token.length > 2048) {
+    res.status(403).json({
       success: false,
       message: "Security verification required. Please complete the CAPTCHA.",
     });
     return;
   }
 
-  const secretKey = process.env.TURNSTILE_SECRET_KEY;
+  const secretKey = process.env.TURNSTILE_SECRET || process.env.TURNSTILE_SECRET_KEY;
   if (!secretKey) {
-    console.error("[Turnstile] Missing TURNSTILE_SECRET_KEY in environment");
+    console.error("[Turnstile] Missing TURNSTILE_SECRET in environment");
     res.status(500).json({
       success: false,
       message: "Captcha verification service misconfigured.",
@@ -53,20 +54,42 @@ export async function verifyTurnstile(
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
+      signal: AbortSignal.timeout(10_000),
     });
 
     const outcome = (await cfResponse.json()) as {
       success: boolean;
       "error-codes"?: string[];
+      action?: string;
+      hostname?: string;
     };
 
     if (!outcome.success) {
-      res.status(400).json({
+      res.status(403).json({
         success: false,
         message: "Security verification failed. Please try again.",
         errors: outcome["error-codes"],
       });
       return;
+    }
+
+    // If allowed hostnames are configured, enforce matching frontend hostname
+    const rawAllowedHostnames = process.env.TURNSTILE_HOSTNAMES;
+    if (rawAllowedHostnames && outcome.hostname) {
+      const allowedSet = new Set(
+        rawAllowedHostnames
+          .split(",")
+          .map((h) => h.trim().toLowerCase())
+          .filter(Boolean)
+      );
+      if (allowedSet.size > 0 && !allowedSet.has(outcome.hostname.toLowerCase())) {
+        console.warn(`[Turnstile] Hostname mismatch: got '${outcome.hostname}', expected one of ${Array.from(allowedSet).join(", ")}`);
+        res.status(403).json({
+          success: false,
+          message: "Security verification hostname mismatch.",
+        });
+        return;
+      }
     }
 
     next();

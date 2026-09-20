@@ -229,6 +229,7 @@ export const LoginPage: React.FC = () => {
           >
             <TurnstileWidget
               ref={turnstileRef}
+              action="login"
               theme="light"
               size="flexible"
               onSuccess={(token) => {

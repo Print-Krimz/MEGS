@@ -12,6 +12,7 @@ export interface TurnstileWidgetProps {
   className?: string;
   theme?: "light" | "dark" | "auto";
   size?: "normal" | "compact" | "flexible";
+  action?: string;
 }
 
 export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetProps>(
@@ -23,6 +24,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
       className = "",
       theme = "light",
       size = "flexible",
+      action,
     },
     ref
   ) => {
@@ -61,6 +63,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
           options={{
             theme,
             size,
+            action,
           }}
         />
       </div>

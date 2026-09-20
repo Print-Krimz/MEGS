@@ -400,6 +400,7 @@ export const RegisterPage: React.FC = () => {
 
         <TurnstileWidget
           ref={turnstileRef}
+          action="signup"
           onSuccess={setTurnstileToken}
           onExpire={() => setTurnstileToken("")}
         />
