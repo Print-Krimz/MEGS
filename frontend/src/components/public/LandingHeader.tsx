@@ -7,7 +7,7 @@ import { scrollToSection } from "../../lib/scrollToSection";
 
 export const LandingHeader: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [activeNav, setActiveNav] = useState<string>("#about");
+  const [activeNav, setActiveNav] = useState<string>("");
   const navContainerRef = useRef<HTMLDivElement>(null);
   const linkRefs = useRef<{ [key: string]: HTMLAnchorElement | null }>({});
   const [sliderStyle, setSliderStyle] = useState<{ left: number; width: number; opacity: number }>({

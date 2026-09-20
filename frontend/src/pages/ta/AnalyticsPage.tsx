@@ -24,6 +24,8 @@ import {
   Download,
   CheckCircle2,
 } from "lucide-react";
+import { formatErrorMessage } from "../../lib/feedback";
+import { TA_COPY } from "../../lib/ta-copy";
 
 export const AnalyticsPage: React.FC = () => {
   const [filters, setFilters] = useState<AnalyticsFilterState>({
@@ -47,8 +49,8 @@ export const AnalyticsPage: React.FC = () => {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Recruitment Operations Intelligence"
-          description="Loading personal recruitment workload and activity..."
+          title="Recruitment reports"
+          description="Loading recruitment activity..."
         />
         <LoadingState variant="cards" />
         <LoadingState variant="table" rows={4} />
@@ -60,8 +62,8 @@ export const AnalyticsPage: React.FC = () => {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Recruitment Operations Intelligence"
-          description="Personal recruitment pipeline & workload intelligence"
+          title="Recruitment reports"
+          description="Track your recruitment activity and pending work."
         />
         <ErrorState
           error={dashboardQuery.error}
@@ -91,7 +93,7 @@ export const AnalyticsPage: React.FC = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      setExportError("Failed to export pipeline report: " + err.message);
+      setExportError(`Unable to export the pipeline report. ${formatErrorMessage(err)}`);
     } finally {
       setDownloadingReport(null);
     }
@@ -111,7 +113,7 @@ export const AnalyticsPage: React.FC = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      setExportError("Failed to export deployment report: " + err.message);
+      setExportError(`Unable to export the deployment report. ${formatErrorMessage(err)}`);
     } finally {
       setDownloadingReport(null);
     }
@@ -123,16 +125,18 @@ export const AnalyticsPage: React.FC = () => {
         title="Recruitment reports"
         description="Track active candidate stages, overdue reviews, and daily recruitment activity"
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Reports" },
+          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.navigation.reports },
         ]}
       />
 
       {exportError && (
-        <div className="p-3 border-l-4 border-rose-600 bg-rose-50 border border-slate-300 text-rose-900 text-sm font-sans flex items-center justify-between">
+        <div className="p-3 border border-rose-200 bg-rose-50 text-rose-900 text-sm font-sans flex items-center justify-between">
           <span>{exportError}</span>
           <button
+            type="button"
             onClick={() => setExportError(null)}
+            aria-label="Dismiss export error"
             className="text-slate-400 hover:text-slate-700 font-bold ml-4"
           >
             ×
@@ -182,7 +186,7 @@ export const AnalyticsPage: React.FC = () => {
         {/* Ready for Endorsement */}
         <div className="p-3.5">
           <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-wider">
-            Ready to Endorse
+            Ready to send to client
           </div>
           <div className="text-2xl font-sans font-bold text-teal-950 mt-0.5 tabular-nums">
             {overview?.readyForEndorsement ?? 0}
@@ -195,14 +199,14 @@ export const AnalyticsPage: React.FC = () => {
 
         {/* Pending Client Acceptance */}
         <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-purple-800 uppercase tracking-wider">
+          <div className="text-[10px] font-mono font-bold text-[#0B315D] uppercase tracking-wider">
             Client Acceptance
           </div>
-          <div className="text-2xl font-sans font-bold text-purple-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-sans font-bold text-[#082747] mt-0.5 tabular-nums">
             {overview?.pendingClientDecisions ?? 0}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
-            <Building2 className="w-3 h-3 text-purple-700 shrink-0" />
+            <Building2 className="w-3 h-3 text-[#0B315D] shrink-0" />
             <span>Under client review</span>
           </div>
         </div>
@@ -239,16 +243,16 @@ export const AnalyticsPage: React.FC = () => {
       {/* Row 2: TA-Scoped Daily Recruitment Trend Graph */}
       <RecruitmentActivityChart
         data={activity}
-        title="My Recruitment Activity Trend"
-        subtitle="Daily volume of candidate reviews, initial screening interviews, client submissions, final evaluations, and site deployments for your requisitions"
+        title="Recruitment activity"
+        subtitle="Daily candidate reviews, interviews, client reviews, and deployments."
       />
 
       {/* Row 3: Funnel & Pending Workload Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <RecruitmentFunnel
           data={funnel}
-          title="My Candidate Pipeline Funnel"
-          subtitle="Candidate conversion progression across stages for your assigned job requisitions"
+          title="Candidate pipeline"
+          subtitle="How candidates move through each hiring stage."
         />
 
         <PendingActionsWidget actions={actions} />
@@ -261,14 +265,14 @@ export const AnalyticsPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <FileSpreadsheet className="w-4 h-4 text-teal-700" />
               <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
-                Export Reports
+                Export reports
               </h3>
               <span className="px-1.5 py-0.5 text-[10px] font-mono font-medium rounded bg-teal-50 text-teal-800 border border-teal-200">
                 TA Portal
               </span>
             </div>
             <p className="text-[11px] text-slate-500 font-sans">
-              Download pipeline and deployment records in PDF or Excel
+              Download candidate pipeline and deployment records as PDF or Excel.
             </p>
           </div>
 
@@ -302,7 +306,7 @@ export const AnalyticsPage: React.FC = () => {
               loading={downloadingReport === "pipeline"}
               onClick={handleExportPipeline}
             >
-              Export Report
+                Export report
             </Button>
           </div>
 
@@ -322,7 +326,7 @@ export const AnalyticsPage: React.FC = () => {
               loading={downloadingReport === "deployments"}
               onClick={handleExportDeployments}
             >
-              Export Report
+                Export report
             </Button>
           </div>
         </div>

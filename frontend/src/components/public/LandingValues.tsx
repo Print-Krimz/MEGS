@@ -27,14 +27,14 @@ export const LandingValues: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
-        <div className="max-w-3xl mb-12">
-          <p className="text-xs font-mono uppercase tracking-wider text-[#0f294a] font-bold mb-2">
+        <div className="max-w-3xl mb-10">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 mb-2">
             Guiding Principles
           </p>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0f294a] tracking-tight font-sans">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0f294a] tracking-tight">
             Our 3 Corporate Values
           </h2>
-          <p className="mt-2 text-sm text-slate-600 font-sans">
+          <p className="mt-2 text-sm sm:text-base text-slate-600">
             Observed across every MEGS office and deployment site to maintain professional excellence and mutual trust.
           </p>
         </div>
@@ -49,19 +49,19 @@ export const LandingValues: React.FC = () => {
               >
                 <div>
                   <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
-                    <span className="text-xs font-mono font-bold tracking-widest text-[#0f294a]">
+                    <span className="text-xs font-semibold tracking-[0.1em] text-slate-500">
                       PRINCIPLE 0{idx + 1}
                     </span>
                   </div>
 
-                  <h3 className="text-lg font-bold font-mono uppercase text-[#0f294a] tracking-tight mb-1">
+                  <h3 className="text-lg font-bold text-[#0f294a] tracking-tight mb-1">
                     {v.name}
                   </h3>
-                  <span className="text-xs font-semibold text-blue-800 block mb-3 font-sans">
+                  <span className="text-xs font-semibold text-slate-600 block mb-3">
                     {v.tagline}
                   </span>
 
-                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans">
+                  <p className="text-sm text-slate-600 leading-relaxed">
                     {v.description}
                   </p>
                 </div>

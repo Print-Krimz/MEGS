@@ -37,19 +37,19 @@ export const LandingServices: React.FC = () => {
   ];
 
   return (
-    <section id="services" className="py-16 sm:py-24 bg-white border-b border-slate-200">
+    <section id="services" className="py-16 sm:py-20 bg-white border-b border-slate-200 scroll-mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-16 gap-6">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
           <div className="max-w-3xl">
-            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 mb-2">
               Services & Contractual Protections
             </p>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0f294a] tracking-tight font-sans">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0f294a] tracking-tight">
               Salient Features of Our Manpower Services
             </h2>
-            <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed font-sans">
+            <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed">
               Designed to eliminate corporate staffing bottlenecks, guarantee DOLE compliance, and provide reliable, insured personnel across Philippine commercial and industrial operations.
             </p>
           </div>
@@ -82,11 +82,11 @@ export const LandingServices: React.FC = () => {
                     </span>
                   </div>
 
-                  <h3 className="text-base font-bold text-slate-900 tracking-tight mb-2 font-sans">
+                  <h3 className="text-base font-bold text-slate-900 tracking-tight mb-2">
                     {feat.title}
                   </h3>
 
-                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans">
+                  <p className="text-sm text-slate-600 leading-relaxed">
                     {feat.desc}
                   </p>
                 </div>

@@ -17,11 +17,19 @@ import type {
 } from "../types/auth.types";
 
 export const authApi = {
-  login: (data: LoginRequest) =>
-    api.post<LoginResponse>("/api/auth/login", data),
+  login: (data: LoginRequest, turnstileToken?: string) =>
+    api.post<LoginResponse>(
+      "/api/auth/login",
+      data,
+      turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : undefined
+    ),
 
-  register: (data: RegisterRequest) =>
-    api.post<RegisterResponse>("/api/auth/register", data),
+  register: (data: RegisterRequest, turnstileToken?: string) =>
+    api.post<RegisterResponse>(
+      "/api/auth/register",
+      data,
+      turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : undefined
+    ),
 
   verifyOtp: (data: VerifyOtpRequest) =>
     api.post<VerifyOtpResponse>("/api/auth/verify-otp", data),
@@ -29,8 +37,12 @@ export const authApi = {
   resendOtp: (data: ResendOtpRequest) =>
     api.post<ResendOtpResponse>("/api/auth/resend-otp", data),
 
-  forgotPassword: (data: ForgotPasswordRequest) =>
-    api.post<{ message: string }>("/api/auth/forgot-password", data),
+  forgotPassword: (data: ForgotPasswordRequest, turnstileToken?: string) =>
+    api.post<{ message: string }>(
+      "/api/auth/forgot-password",
+      data,
+      turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : undefined
+    ),
 
   resetPassword: (data: ResetPasswordRequest) =>
     api.post<{ message: string }>("/api/auth/reset-password", data),

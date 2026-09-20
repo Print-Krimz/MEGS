@@ -7,6 +7,7 @@ import {
   StatusBadge,
   LoadingState,
   ErrorState,
+  Tabs,
 } from "../../components/common";
 import { Button, Dialog, Select, Textarea } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
@@ -20,6 +21,7 @@ import {
   ArrowLeft,
   Edit,
 } from "lucide-react";
+import { TA_COPY } from "../../lib/ta-copy";
 
 type TabKey =
   | "identity"
@@ -81,7 +83,7 @@ export const EmployeeDetailPage: React.FC = () => {
   if (digital201Query.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Digital 201 File" description="Loading personnel record..." />
+        <PageHeader title="Employee record (201)" description="Loading employee details..." />
         <LoadingState variant="detail" />
       </div>
     );
@@ -90,7 +92,7 @@ export const EmployeeDetailPage: React.FC = () => {
   if (digital201Query.isError || !digital201Query.data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Digital 201 File" description="Personnel file" />
+        <PageHeader title="Employee record (201)" description="Employee details" />
         <ErrorState error={digital201Query.error} onRetry={() => digital201Query.refetch()} />
       </div>
     );
@@ -107,18 +109,18 @@ export const EmployeeDetailPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Digital 201: ${empName}`}
-        description={`Employee Number: ${emp.employeeNumber} • Hired ${formatDate(emp.hireDate)}`}
+        title={empName}
+        description={`Employee no. ${emp.employeeNumber} • Hired ${formatDate(emp.hireDate)}`}
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Deployments & 201", href: "/ta/workforce?tab=employees" },
+          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.navigation.workforce, href: "/ta/workforce?tab=employees" },
           { label: emp.employeeNumber },
         ]}
         actions={
           <div className="flex items-center gap-2">
             <Link to="/ta/workforce" search={{ tab: "employees" }}>
               <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                Back to 201 Directory
+                Back to employee records
               </Button>
             </Link>
             <Button
@@ -130,7 +132,7 @@ export const EmployeeDetailPage: React.FC = () => {
                 setStatusModalOpen(true);
               }}
             >
-              Change Employment Status
+              Change employment status
             </Button>
           </div>
         }
@@ -141,80 +143,56 @@ export const EmployeeDetailPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
-              <span className="text-xs font-mono font-bold uppercase text-slate-500">Status:</span>
-              <span
-                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase ${
-                  emp.status === EmploymentStatus.ACTIVE
-                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                    : emp.status === EmploymentStatus.AVAILABLE_FOR_REDEPLOYMENT
-                    ? "bg-teal-50 text-teal-800 border border-teal-200"
-                    : "bg-slate-100 text-slate-700"
-                }`}
-              >
-                {emp.status.replace(/_/g, " ")}
-              </span>
+              <span className="text-sm font-medium text-slate-600">Status</span>
+              <StatusBadge status={emp.status} type="employment" size="sm" />
             </div>
             <div className="text-xs text-slate-500 font-mono">
-              Position: {emp.position || "General Staff"} • Department: {emp.department || "Operations"}
+              Position: {emp.position || "General staff"} • Department: {emp.department || "Operations"}
             </div>
           </div>
 
           <div className="text-xs text-slate-600 font-mono text-right">
-            <div>Hire Date: {formatDate(emp.hireDate)}</div>
-            <div>Total Deployments: {deployments.length}</div>
+            <div>Hire date: {formatDate(emp.hireDate)}</div>
+            <div>Total deployments: {deployments.length}</div>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1 overflow-x-auto pt-1">
-          {[
-            { id: "identity", label: "Legal Identity & Statutory", icon: User },
-            { id: "history", label: `Event Timeline (${events.length})`, icon: History },
-            { id: "deployments", label: `Deployments (${deployments.length})`, icon: Truck },
-            { id: "compliance", label: `Clearance Vault (${compliance.length})`, icon: ShieldCheck },
-            { id: "qualifications", label: "Qualifications on File", icon: GraduationCap },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => handleTabChange(tab.id as TabKey)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-                  isActive
-                    ? "bg-teal-50 text-teal-900 border border-teal-200 font-bold"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                }`}
-              >
-                <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-teal-700" : "text-slate-400"}`} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <Tabs
+          value={activeTab}
+          onChange={(tab) => handleTabChange(tab as TabKey)}
+          ariaLabel="Employee record sections"
+          items={[
+            { id: "identity", label: "Identity and IDs", icon: User, panelId: "employee-identity" },
+            { id: "history", label: `History (${events.length})`, icon: History, panelId: "employee-history" },
+            { id: "deployments", label: `Deployments (${deployments.length})`, icon: Truck, panelId: "employee-deployments" },
+            { id: "compliance", label: `Requirements (${compliance.length})`, icon: ShieldCheck, panelId: "employee-compliance" },
+            { id: "qualifications", label: "Qualifications", icon: GraduationCap, panelId: "employee-qualifications" },
+          ]}
+          className="border-b-0"
+        />
       </div>
 
       {/* Tab Body */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
+      <div id={`employee-${activeTab}`} role="tabpanel" tabIndex={0} className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700">
         {/* TAB 1: IDENTITY & STATUTORY */}
         {activeTab === "identity" && (
           <div className="space-y-6">
             <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-              Statutory Government IDs & Civil Demographics
+              Government IDs and personal details
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs">
               <div className="space-y-2">
-                <span className="font-mono text-slate-400 block uppercase text-[10px]">SSS Number</span>
+                <span className="text-slate-500 block">SSS number</span>
                 <span className="font-bold font-mono text-slate-900">{cand.sss || "Pending Submission"}</span>
               </div>
               <div className="space-y-2">
-                <span className="font-mono text-slate-400 block uppercase text-[10px]">PhilHealth PIN</span>
+                <span className="text-slate-500 block">PhilHealth PIN</span>
                 <span className="font-bold font-mono text-slate-900">{cand.philhealth || "Pending Submission"}</span>
               </div>
               <div className="space-y-2">
-                <span className="font-mono text-slate-400 block uppercase text-[10px]">Pag-IBIG MID</span>
+                <span className="text-slate-500 block">Pag-IBIG MID</span>
                 <span className="font-bold font-mono text-slate-900">{cand.pagibig || "Pending Submission"}</span>
               </div>
             </div>
@@ -242,7 +220,7 @@ export const EmployeeDetailPage: React.FC = () => {
         {activeTab === "history" && (
           <div className="space-y-4">
             <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-              Career Milestone Audit Log
+              Employment history
             </h3>
             {events.length === 0 ? (
               <p className="text-xs text-slate-400 py-4">No historical employment events recorded.</p>
@@ -268,11 +246,11 @@ export const EmployeeDetailPage: React.FC = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
-                Client Site Deployments ({deployments.length})
+              Client site deployments ({deployments.length})
               </h3>
               <Link to="/ta/workforce" search={{ tab: "deployments" }}>
                 <span className="text-xs text-teal-700 hover:text-teal-900 font-semibold">
-                  All Site Deployments →
+                  View all deployments →
                 </span>
               </Link>
             </div>
@@ -292,7 +270,7 @@ export const EmployeeDetailPage: React.FC = () => {
                       <StatusBadge status={dep.status} type="deployment" />
                       <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(dep.id) }}>
                         <Button variant="outline" size="sm">
-                          View Assignment
+                        View deployment
                         </Button>
                       </Link>
                     </div>
@@ -307,7 +285,7 @@ export const EmployeeDetailPage: React.FC = () => {
         {activeTab === "compliance" && (
           <div className="space-y-4">
             <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-              Pre-Employment Clearances & Vault 201
+              Pre-employment requirements
             </h3>
             {compliance.length === 0 ? (
               <p className="text-xs text-slate-400 py-4">No compliance documents attached.</p>
@@ -317,11 +295,8 @@ export const EmployeeDetailPage: React.FC = () => {
                   <div key={req.id} className="py-3 flex items-center justify-between gap-4 text-xs">
                     <div>
                       <div className="font-bold text-slate-900">{req.documentLabel}</div>
-                      <div className="text-[11px] text-slate-400 font-mono">Status: {req.reviewStatus}</div>
                     </div>
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800">
-                      {req.reviewStatus}
-                    </span>
+                    <StatusBadge status={req.reviewStatus} type="raw" size="sm" />
                   </div>
                 ))}
               </div>
@@ -333,10 +308,10 @@ export const EmployeeDetailPage: React.FC = () => {
         {activeTab === "qualifications" && (
           <div className="space-y-4">
             <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-              Verified Qualifications
+              Qualifications on file
             </h3>
             <div className="space-y-2">
-              <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">Skills on Record:</span>
+              <span className="text-sm font-medium text-slate-600">Skills on record</span>
               <div className="flex flex-wrap gap-1.5">
                 {data.skills && data.skills.length > 0 ? (
                   data.skills.map((s, idx) => (
@@ -357,27 +332,27 @@ export const EmployeeDetailPage: React.FC = () => {
       <Dialog
         open={statusModalOpen}
         onClose={() => setStatusModalOpen(false)}
-        title="Update Personnel Status"
+        title="Change employment status"
         description={`Set employment state for ${empName}`}
       >
         <div className="space-y-4">
           <Select
-            label="Employment Status"
+            label="Employment status"
             value={newStatus}
             onChange={(e) => setNewStatus(e.target.value as EmploymentStatus)}
             options={[
-              { value: EmploymentStatus.ACTIVE, label: "ACTIVE" },
+              { value: EmploymentStatus.ACTIVE, label: "Active" },
               {
                 value: EmploymentStatus.AVAILABLE_FOR_REDEPLOYMENT,
-                label: "AVAILABLE FOR REDEPLOYMENT",
+                label: "Available for redeployment",
               },
-              { value: EmploymentStatus.INACTIVE, label: "INACTIVE" },
-              { value: EmploymentStatus.SEPARATED, label: "SEPARATED" },
+              { value: EmploymentStatus.INACTIVE, label: "Inactive" },
+              { value: EmploymentStatus.SEPARATED, label: "Separated" },
             ]}
           />
           <Textarea
-            label="Administrative Reason / Audit Note"
-            placeholder="e.g. End of contract at Client site; returned to redeployment pool"
+            label="Reason (optional)"
+            placeholder="e.g. End of contract; available for redeployment"
             value={statusReason}
             onChange={(e) => setStatusReason(e.target.value)}
             rows={3}
@@ -397,7 +372,7 @@ export const EmployeeDetailPage: React.FC = () => {
                 })
               }
             >
-              Save Status
+              Save status
             </Button>
           </div>
         </div>

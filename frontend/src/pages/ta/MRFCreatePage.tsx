@@ -7,6 +7,7 @@ import { Button, Input, Select, Textarea, ComboBox } from "../../components/ui";
 import { ArrowLeft, Send, Building2 } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { EMPLOYMENT_TYPE_OPTIONS, WORK_ARRANGEMENT_OPTIONS } from "../../lib/hr-constants";
+import { TA_COPY } from "../../lib/ta-copy";
 
 export const MRFCreatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ export const MRFCreatePage: React.FC = () => {
     mutationFn: taApi.createMRF,
     onSuccess: (newMRF) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
-      notify.success("Manpower Request Created", `Requisition #${newMRF.id} (${newMRF.title}) registered.`);
+      notify.success("Manpower request created", `Request #${newMRF.id} (${newMRF.title}) is ready.`);
       navigate({
         to: "/ta/mrfs/$mrfId",
         params: { mrfId: String(newMRF.id) },
@@ -44,8 +45,8 @@ export const MRFCreatePage: React.FC = () => {
     },
     onError: (err: any) => {
       const formatted = formatErrorMessage(err);
-      setValidationError("Failed to create MRF: " + formatted);
-      notify.error("Creation Failed", err);
+      setValidationError("Unable to create this manpower request: " + formatted);
+      notify.error("Unable to create request", err);
     },
   });
 
@@ -101,27 +102,29 @@ export const MRFCreatePage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Create Manpower Request (MRF)"
-        description="Register a client labor requisition order with headcount allocation and compliance templates"
+        title="Create manpower request (MRF)"
+        description="Tell us how many workers the client needs and when they are needed."
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Manpower Requests", href: "/ta/mrfs" },
+          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.navigation.manpowerRequests, href: "/ta/mrfs" },
           { label: "Create" },
         ]}
         actions={
           <Link to="/ta/mrfs">
             <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-              Back to List
+              Back to requests
             </Button>
           </Link>
         }
       />
 
       {validationError && (
-        <div className="p-3 rounded-lg border bg-rose-50 border-rose-200 text-rose-800 text-xs font-mono flex items-center justify-between">
+        <div className="p-3 rounded-lg border bg-rose-50 border-rose-200 text-rose-800 text-xs font-mono flex items-center justify-between" role="alert" aria-live="assertive">
           <span>{validationError}</span>
           <button
+            type="button"
             onClick={() => setValidationError(null)}
+            aria-label="Dismiss error"
             className="text-slate-400 hover:text-slate-600 font-bold ml-4"
           >
             ×
@@ -133,12 +136,12 @@ export const MRFCreatePage: React.FC = () => {
         {/* Core Order Information */}
         <div className="space-y-4">
           <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-            Requisition Details
+            Request details
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ComboBox
-              label="Client Account"
+              label="Client"
               placeholder="Search or select client account..."
               leftIcon={<Building2 className="w-3.5 h-3.5 text-slate-400" />}
               value={clientId ? String(clientId) : ""}
@@ -148,7 +151,7 @@ export const MRFCreatePage: React.FC = () => {
               required
             />
             <Input
-              label="Requisition Order Title"
+              label="Request title"
               placeholder="e.g. 50x Forklift Operators - Warehouse Expansion"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -158,7 +161,7 @@ export const MRFCreatePage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
-              label="Target Headcount (pax)"
+              label="Number of workers needed"
               type="number"
               min={1}
               value={headcount}
@@ -166,18 +169,18 @@ export const MRFCreatePage: React.FC = () => {
               required
             />
             <Select
-              label="Fulfillment Priority"
+              label="Priority"
               value={priority}
               onChange={(e) => setPriority(e.target.value as any)}
               options={[
-                { value: "LOW", label: "LOW" },
-                { value: "NORMAL", label: "NORMAL" },
-                { value: "HIGH", label: "HIGH" },
-                { value: "URGENT", label: "URGENT (Critical Need)" },
+                { value: "LOW", label: "Low" },
+                { value: "NORMAL", label: "Normal" },
+                { value: "HIGH", label: "High" },
+                { value: "URGENT", label: "Urgent — critical need" },
               ]}
             />
             <Input
-              label="Target Fill Date"
+              label="Target fill date"
               type="date"
               value={targetFillDate}
               onChange={(e) => setTargetFillDate(e.target.value)}
@@ -186,7 +189,7 @@ export const MRFCreatePage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
-              label="Work / Site Location"
+              label="Work site"
               placeholder="e.g. Calamba, Laguna Plant"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
@@ -215,19 +218,19 @@ export const MRFCreatePage: React.FC = () => {
         {/* Skills & Compensation */}
         <div className="space-y-4 pt-4 border-t border-slate-100">
           <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-            Qualifications & Compensation Range
+            Skills and monthly salary range
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Minimum Monthly Compensation (PHP)"
+              label="Minimum monthly salary (PHP)"
               type="number"
               placeholder="e.g. 18000"
               value={salaryMin}
               onChange={(e) => setSalaryMin(e.target.value)}
             />
             <Input
-              label="Maximum Monthly Compensation (PHP)"
+              label="Maximum monthly salary (PHP)"
               type="number"
               placeholder="e.g. 25000"
               value={salaryMax}
@@ -236,14 +239,14 @@ export const MRFCreatePage: React.FC = () => {
           </div>
 
           <Input
-            label="Required Competencies / Keywords"
+            label="Required skills"
             placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
             value={requiredSkills}
             onChange={(e) => setRequiredSkills(e.target.value)}
           />
 
           <Textarea
-            label="Order Description & Client Specifics"
+            label="Notes for this client"
             placeholder="Specify shift schedules, client site notes, uniform provisions..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -265,7 +268,7 @@ export const MRFCreatePage: React.FC = () => {
             leftIcon={<Send className="w-3.5 h-3.5" />}
             className="w-full sm:w-auto"
           >
-            Create Manpower Request
+              Create request
           </Button>
         </div>
       </form>

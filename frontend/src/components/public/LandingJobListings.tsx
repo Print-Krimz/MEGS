@@ -32,6 +32,9 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
 
   const jobs = jobsQuery.data || [];
   const hasActiveFilter = Boolean(searchQuery || locationQuery);
+  const MAX_VISIBLE_JOBS = 6;
+  const visibleJobs = jobs.slice(0, MAX_VISIBLE_JOBS);
+  const remainingCount = jobs.length - visibleJobs.length;
 
   const handleApplyClick = (jobId: number) => {
     if (isAuthenticated && user?.role === Role.APPLICANT) {
@@ -45,19 +48,38 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
     }
   };
 
+  const handleViewAllJobs = () => {
+    const params = new URLSearchParams();
+    if (searchQuery.trim()) params.set("q", searchQuery.trim());
+    if (locationQuery.trim()) params.set("location", locationQuery.trim());
+    const qs = params.toString();
+
+    if (isAuthenticated && user?.role === Role.APPLICANT) {
+      navigate({
+        to: "/app/jobs",
+        search: Object.fromEntries(params) as any,
+      });
+    } else {
+      navigate({
+        to: "/login",
+        search: { redirect: qs ? `/app/jobs?${qs}` : "/app/jobs" },
+      });
+    }
+  };
+
   return (
-    <section id="jobs" className="py-14 sm:py-20 bg-slate-50 border-b border-slate-200 scroll-mt-14">
+    <section id="jobs" className="py-16 sm:py-20 bg-slate-50 border-b border-slate-200 scroll-mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-slate-200">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-[#0f294a]">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
               Active Opportunities
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-1">
+            </p>
+            <h2 id="jobs-heading" tabIndex={-1} className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1 focus:outline-none">
               Latest Job Openings
             </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            <p className="text-sm text-slate-500 mt-1.5">
               Direct openings currently accepting applications through our recruitment network.
             </p>
           </div>
@@ -145,8 +167,9 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
         )}
 
         {!jobsQuery.isLoading && !jobsQuery.isError && jobs.length > 0 && (
+          <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-8">
-            {jobs.map((job) => {
+            {visibleJobs.map((job) => {
               const clientName = (job as any).mrf?.client?.name || "Verified Client";
               const industry = (job as any).mrf?.client?.industry;
               const employmentType = (job as any).mrf?.employmentType;
@@ -219,6 +242,25 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
               );
             })}
           </div>
+
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 pt-6">
+            <p className="text-xs text-slate-500" role="status">
+              {hasActiveFilter
+                ? `Showing ${visibleJobs.length} of ${jobs.length} matching ${jobs.length === 1 ? "role" : "roles"}`
+                : `Showing ${visibleJobs.length} of ${jobs.length} open ${jobs.length === 1 ? "role" : "roles"}`}
+            </p>
+            {remainingCount > 0 && (
+              <button
+                type="button"
+                onClick={handleViewAllJobs}
+                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 text-sm font-bold text-white bg-[#0f294a] hover:bg-[#163b66] rounded-lg transition-colors cursor-pointer min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] focus-visible:ring-offset-2"
+              >
+                <span>View all {jobs.length} jobs</span>
+                <ArrowRight className="w-4 h-4" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+          </>
         )}
       </div>
     </section>

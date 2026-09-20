@@ -4,18 +4,18 @@ import { scrollToSection } from "../../lib/scrollToSection";
 
 export const LandingAbout: React.FC = () => {
   return (
-    <section id="about" className="py-16 sm:py-24 bg-white border-b border-slate-200">
+    <section id="about" className="py-16 sm:py-20 bg-white border-b border-slate-200 scroll-mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header & Main Company Intro */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center mb-16">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center mb-10">
           
           <div className="lg:col-span-8 space-y-4">
-            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
               Company Background & Heritage
             </p>
             
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0f294a] tracking-tight font-sans">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0f294a] tracking-tight">
               Trusted Workforce Partner to the Philippines&apos; Top 1,000 Corporations
             </h2>
             

@@ -52,7 +52,7 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
     if (!candidate) return;
     const finalJobId = initialTargetJobId || selectedJobId;
     if (!finalJobId || finalJobId <= 0) {
-      setJobError("Please select a target job requisition for this invitation.");
+      setJobError("Choose a job opening for this invitation.");
       return;
     }
     setJobError(null);
@@ -71,8 +71,8 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      title="Invite Candidate to Apply"
-      description={`Send an in-app and email job invitation to ${candidate.firstName} ${candidate.lastName}`}
+      title="Invite candidate to apply"
+      description={`Send an invitation to ${candidate.firstName} ${candidate.lastName}.`}
       overflowVisible
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -88,14 +88,14 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
           </div>
           <div className="text-slate-500 font-mono">{candidate.email}</div>
           {candidate.currentRole && (
-            <div className="text-slate-600">Role: {candidate.currentRole}</div>
+            <div className="text-slate-600">Current role: {candidate.currentRole}</div>
           )}
         </div>
 
         {/* Target Job Selection */}
         {initialTargetJobId ? (
           <div className="text-xs">
-            <label className="block text-slate-600 font-mono font-medium mb-1">Target Requisition</label>
+            <label className="block text-slate-600 font-medium mb-1">Job opening</label>
             <div className="p-2.5 bg-teal-50 border border-teal-200 rounded-lg text-teal-900 font-semibold flex items-center gap-2">
               <Briefcase className="w-3.5 h-3.5 text-teal-600 shrink-0" />
               <span>#{initialTargetJobId} — {targetJobTitle}</span>
@@ -103,7 +103,7 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
           </div>
         ) : (
           <ComboBox
-            label="Target Job Requisition *"
+            label="Job opening"
             placeholder="Search target job opening..."
             value={selectedJobId ? String(selectedJobId) : ""}
             error={jobError || undefined}
@@ -114,18 +114,18 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
             options={jobs.map((j) => ({
               value: String(j.id),
               label: j.title,
-              subtitle: `REQ #${j.id} • ${j.location || "Philippines"}`,
+              subtitle: `Job opening #${j.id} • ${j.location || "Philippines"}`,
               badge: j.status,
             }))}
-            emptyText="No open job requisitions found"
+            emptyText="No open job openings found"
             required
           />
         )}
 
         {/* Invitation Message */}
         <Textarea
-          label="Personalized Outreach Message"
-          placeholder="Include details about why the candidate is a great fit..."
+          label="Message to the candidate (optional)"
+          placeholder="Explain why this opening may be a good fit..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           rows={3}
@@ -133,14 +133,14 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
 
         {/* Expiration Duration */}
         <Select
-          label="Invitation Expiration Window"
+          label="Invitation expires after"
           value={expiresInDays}
           onChange={(e) => setExpiresInDays(Number(e.target.value))}
           options={[
-            { value: 3, label: "3 Days" },
-            { value: 7, label: "7 Days (Standard)" },
-            { value: 14, label: "14 Days (Extended)" },
-            { value: 30, label: "30 Days" },
+            { value: 3, label: "3 days" },
+            { value: 7, label: "7 days (standard)" },
+            { value: 14, label: "14 days" },
+            { value: 30, label: "30 days" },
           ]}
         />
 
@@ -155,7 +155,7 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
             loading={loading}
             leftIcon={<Send className="w-3.5 h-3.5" />}
           >
-            Send Job Invitation
+            Send invitation
           </Button>
         </div>
       </form>

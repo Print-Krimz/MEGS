@@ -10,6 +10,8 @@ import {
   EmptyState,
   Pagination,
   JobImage,
+  StatusBadge,
+  Tabs,
 } from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
 import { formatDate, formatSalaryRange, formatEmploymentType } from "../../lib/utils";
@@ -30,6 +32,7 @@ import { notify } from "../../lib/feedback";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
 import { SendInvitationModal } from "../../components/ta/SendInvitationModal";
 import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTrackerDrawer";
+import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 
 export const JobPostingDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -87,19 +90,19 @@ export const JobPostingDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "job", jobId, "ranked"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "job", jobId, "talent-pool"] });
       const count = data?.rankedCount ?? 0;
-      const msg = `Candidate match ranking updated. Evaluated ${count} candidate profile${count === 1 ? "" : "s"}.`;
+      const msg = `Candidate matches updated. Reviewed ${count} candidate profile${count === 1 ? "" : "s"}.`;
       setFeedback({
         type: "success",
         message: msg,
       });
-      notify.success("Matching Completed", msg);
+      notify.success("Candidate matches updated", msg);
     },
     onError: (err: any) => {
       setFeedback({
         type: "error",
-        message: `Failed to match candidates: ${err.message}`,
+        message: "Unable to update candidate matches. Please try again.",
       });
-      notify.error("Matching Failed", err);
+      notify.error("Unable to update candidate matches", err);
     },
   });
 
@@ -109,10 +112,10 @@ export const JobPostingDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "job", jobId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "jobs"] });
       setEditModalOpen(false);
-      notify.success("Requisition Updated", "Job details saved successfully.");
+      notify.success("Job opening updated", "The job details were saved.");
     },
     onError: (err: any) => {
-      notify.error("Update Failed", err);
+      notify.error("Unable to update job opening", err);
     },
   });
 
@@ -127,8 +130,8 @@ export const JobPostingDetailPage: React.FC = () => {
       notify.success("Invitation Sent", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to send invitation: " + err.message });
-      notify.error("Invitation Failed", err);
+      setFeedback({ type: "error", message: "Unable to send this invitation. Please try again." });
+      notify.error("Unable to send invitation", err);
     },
   });
 
@@ -150,7 +153,7 @@ export const JobPostingDetailPage: React.FC = () => {
   if (jobQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Job Requisition" description="Loading details..." />
+        <PageHeader title={TA_COPY.navigation.openings} description="Loading job opening details..." />
         <LoadingState variant="detail" />
       </div>
     );
@@ -159,7 +162,7 @@ export const JobPostingDetailPage: React.FC = () => {
   if (jobQuery.isError || !job) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Job Requisition" description="Requisition details" />
+        <PageHeader title={TA_COPY.navigation.openings} description="Job opening details" />
         <ErrorState error={jobQuery.error} onRetry={() => jobQuery.refetch()} />
       </div>
     );
@@ -178,17 +181,17 @@ export const JobPostingDetailPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title={job.title}
-        description={`Requisition #${job.id} • Posted ${formatDate(job.createdAt)}`}
+        description={`Job opening #${job.id} • Posted ${formatDate(job.createdAt)}`}
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Job Postings", href: "/ta/jobs" },
+          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.navigation.openings, href: "/ta/jobs" },
           { label: job.title },
         ]}
         actions={
           <div className="flex items-center gap-2">
             <Link to="/ta/jobs">
               <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                Back to Requisitions
+                Back to job openings
               </Button>
             </Link>
             <Button
@@ -208,7 +211,7 @@ export const JobPostingDetailPage: React.FC = () => {
                 setEditModalOpen(true);
               }}
             >
-              Edit Requisition
+              Edit job opening
             </Button>
             <Button
               variant="outline"
@@ -217,7 +220,7 @@ export const JobPostingDetailPage: React.FC = () => {
               loading={rankCandidatesMutation.isPending}
               onClick={() => rankCandidatesMutation.mutate()}
             >
-              Refresh Match Scores
+              Recalculate match scores
             </Button>
           </div>
         }
@@ -225,6 +228,8 @@ export const JobPostingDetailPage: React.FC = () => {
 
       {feedback && (
         <div
+          role={feedback.type === "error" ? "alert" : "status"}
+          aria-live="polite"
           className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
             feedback.type === "success"
               ? "bg-teal-50 border-teal-200 text-teal-800"
@@ -235,7 +240,9 @@ export const JobPostingDetailPage: React.FC = () => {
             <span>{feedback.message}</span>
           </div>
           <button
+            type="button"
             onClick={() => setFeedback(null)}
+            aria-label="Dismiss message"
             className="text-slate-400 hover:text-slate-600 font-bold ml-4"
           >
             ×
@@ -250,16 +257,14 @@ export const JobPostingDetailPage: React.FC = () => {
             <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="lg" />
             <div className="space-y-1">
               <div className="flex items-center gap-3">
-                <span className="text-xs font-mono font-bold uppercase text-slate-500">Status:</span>
+                <span className="text-sm font-medium text-slate-600">Status</span>
                 <div className="flex items-center gap-1.5">
                   {job.isEvergreen && (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-teal-50 text-teal-700 border border-teal-200">
-                      Keep Open
+                      Always open
                     </span>
                   )}
-                  <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    {job.status}
-                  </span>
+                  <StatusBadge status={formatTaStatus(job.status)} type="raw" size="sm" />
                 </div>
               </div>
               <div className="text-xs text-slate-500 font-mono flex flex-wrap items-center gap-2.5">
@@ -296,13 +301,13 @@ export const JobPostingDetailPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs leading-relaxed">
           <div>
             <h4 className="font-mono font-bold text-slate-700 uppercase mb-1">
-              Position Responsibilities
+              Responsibilities
             </h4>
             <p className="text-slate-600 whitespace-pre-line">{job.description}</p>
           </div>
           <div>
             <h4 className="font-mono font-bold text-slate-700 uppercase mb-1">
-              Requirements & Criteria
+              Required skills and qualifications
             </h4>
             <p className="text-slate-600 whitespace-pre-line">{job.requirements}</p>
           </div>
@@ -312,55 +317,41 @@ export const JobPostingDetailPage: React.FC = () => {
       {/* Candidate Sourcing & Matching Section */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden space-y-0">
         {/* Navigation Tabs */}
-        <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab("applicants")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                activeTab === "applicants"
-                  ? "bg-teal-700 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Direct Applicants ({rankedScores.length})</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("talentPool")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                activeTab === "talentPool"
-                  ? "bg-teal-700 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Talent Pool Matches ({talentPoolMatches.length})</span>
-            </button>
-          </div>
+        <div className="border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <Tabs
+            value={activeTab}
+            onChange={(tab) => setActiveTab(tab as "applicants" | "talentPool")}
+            ariaLabel="Job opening candidate views"
+            items={[
+              { id: "applicants", label: `Applicants (${rankedScores.length})`, icon: Users, panelId: "job-applicants" },
+              { id: "talentPool", label: `Candidate pool matches (${talentPoolMatches.length})`, icon: Users, panelId: "job-talent-pool" },
+            ]}
+            className="border-b-0 flex-1"
+          />
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-4 pb-3 sm:pb-0">
             <Button
               variant="outline"
               size="sm"
               leftIcon={<ListOrdered className="w-3.5 h-3.5 text-slate-500" />}
               onClick={() => setTrackerDrawerOpen(true)}
             >
-              Outgoing Invitations
+              Sent invitations
             </Button>
           </div>
         </div>
 
         {/* Tab 1: Direct Applicants */}
         {activeTab === "applicants" && (
-          <div>
+          <div id="job-applicants" role="tabpanel" tabIndex={0}>
             {rankedCandidatesQuery.isLoading ? (
               <LoadingState variant="table" rows={4} />
             ) : rankedScores.length === 0 ? (
               <div className="p-8">
                 <EmptyState
                   icon={<Users className="w-6 h-6" />}
-                  title="No direct applicant matches yet"
-                  description="Click 'Calculate Match Scores' to evaluate active applicants against this position's requirements."
+                  title="No applicant matches yet"
+                  description="Recalculate match scores to compare applicants with this opening’s requirements."
                   action={
                     <Button
                       variant="primary"
@@ -369,7 +360,7 @@ export const JobPostingDetailPage: React.FC = () => {
                       loading={rankCandidatesMutation.isPending}
                       onClick={() => rankCandidatesMutation.mutate()}
                     >
-                      Calculate Match Scores
+                      Recalculate match scores
                     </Button>
                   }
                 />
@@ -381,12 +372,12 @@ export const JobPostingDetailPage: React.FC = () => {
                     <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                       <tr>
                         <th className="px-4 py-3 font-semibold text-center w-12">Rank</th>
-                        <th className="px-4 py-3 font-semibold">Candidate Application</th>
+                        <th className="px-4 py-3 font-semibold">Candidate</th>
                         <th className="px-4 py-3 font-semibold text-center">Match Score</th>
                         <th className="px-4 py-3 font-semibold text-center">Skills</th>
                         <th className="px-4 py-3 font-semibold text-center">Experience</th>
                         <th className="px-4 py-3 font-semibold text-center">Location</th>
-                        <th className="px-4 py-3 font-semibold text-center">Compliance</th>
+                        <th className="px-4 py-3 font-semibold text-center">Requirements</th>
                         <th className="px-4 py-3 font-semibold text-right">Actions</th>
                       </tr>
                     </thead>
@@ -439,7 +430,7 @@ export const JobPostingDetailPage: React.FC = () => {
                                   size="sm"
                                   rightIcon={<ExternalLink className="w-3 h-3" />}
                                 >
-                                  View Application
+                                  View application
                                 </Button>
                               </Link>
                             </td>
@@ -468,14 +459,14 @@ export const JobPostingDetailPage: React.FC = () => {
 
         {/* Tab 2: Discovered Talent Pool Candidates */}
         {activeTab === "talentPool" && (
-          <div>
+          <div id="job-talent-pool" role="tabpanel" tabIndex={0}>
             {talentPoolQuery.isLoading ? (
               <LoadingState variant="cards" />
             ) : talentPoolMatches.length === 0 ? (
               <div className="p-8">
                 <EmptyState
                   icon={<Users className="w-6 h-6 text-slate-400" />}
-                  title="No talent pool matches for this requisition"
+                  title="No candidate pool matches for this opening"
                   description="All available talent pool members have already been considered or have no matching skills."
                 />
               </div>
@@ -594,8 +585,8 @@ export const JobPostingDetailPage: React.FC = () => {
       <Dialog
         open={editModalOpen}
         onClose={() => setEditModalOpen(false)}
-        title="Edit Job Requisition"
-        description={`Update requisition #${job.id}`}
+        title="Edit job opening"
+        description={`Update job opening #${job.id}`}
       >
         <form
           onSubmit={(e) => {
@@ -625,20 +616,20 @@ export const JobPostingDetailPage: React.FC = () => {
               onChange={(e) => setEditLocation(e.target.value)}
             />
             <Input
-              label="Job / Company Image URL (Optional)"
+            label="Image web address (optional)"
               placeholder="https://example.com/company-banner.jpg"
               value={editImageUrl}
               onChange={(e) => setEditImageUrl(e.target.value)}
             />
           </div>
           <Select
-            label="Requisition Status"
+            label="Opening status"
             value={editStatus}
             onChange={(e) => setEditStatus(e.target.value as JobStatus)}
             options={[
-              { value: JobStatus.OPEN, label: "OPEN" },
-              { value: JobStatus.DRAFT, label: "DRAFT" },
-              { value: JobStatus.CLOSED, label: "CLOSED" },
+              { value: JobStatus.OPEN, label: "Open" },
+              { value: JobStatus.DRAFT, label: "Draft" },
+              { value: JobStatus.CLOSED, label: "Closed" },
             ]}
           />
           <Textarea
@@ -666,9 +657,9 @@ export const JobPostingDetailPage: React.FC = () => {
                 onChange={(e) => setEditIsEvergreen(e.target.checked)}
               />
               <div>
-                <span className="text-xs font-semibold text-slate-800">Keep Open After Fill</span>
+                <span className="text-xs font-semibold text-slate-800">Keep open after positions are filled</span>
                 <p className="text-[11px] text-slate-500 leading-tight">
-                  Do not auto-close when target headcount is reached.
+                  Leave this opening open for future applicants.
                 </p>
               </div>
             </label>
@@ -679,7 +670,7 @@ export const JobPostingDetailPage: React.FC = () => {
               Cancel
             </Button>
             <Button variant="primary" size="sm" type="submit" loading={updateJobMutation.isPending}>
-              Save Requisition
+              Save job opening
             </Button>
           </div>
         </form>

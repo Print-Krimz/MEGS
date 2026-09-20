@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { Input, PasswordInput, Button } from "../../components/ui";
 import { authApi } from "../../lib/api/auth.api";
+import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
 import {
   KeyRound,
   AlertCircle,
@@ -44,6 +45,8 @@ export const ForgotPasswordPage: React.FC = () => {
   const [otpCode, setOtpCode] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [passwordData, setPasswordData] = useState({ password: "", confirmPassword: "" });
+  const [turnstileToken, setTurnstileToken] = useState<string>("");
+  const turnstileRef = React.useRef<TurnstileWidgetRef>(null);
 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
@@ -67,7 +70,8 @@ export const ForgotPasswordPage: React.FC = () => {
 
   // Step 1 Mutation: Request OTP
   const forgotMutation = useMutation({
-    mutationFn: authApi.forgotPassword,
+    mutationFn: (variables: { data: { email: string }; turnstileToken?: string }) =>
+      authApi.forgotPassword(variables.data, variables.turnstileToken),
     onSuccess: () => {
       setServerError(null);
       setStep("VERIFY_OTP");
@@ -75,6 +79,8 @@ export const ForgotPasswordPage: React.FC = () => {
       notify.success("Verification Code Sent", "Please check your Gmail inbox for the 6-digit code.");
     },
     onError: (err) => {
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
       notify.error("Recovery Request Failed", err);
@@ -142,7 +148,10 @@ export const ForgotPasswordPage: React.FC = () => {
     }
 
     setValidationErrors({});
-    forgotMutation.mutate({ email: result.data.email });
+    forgotMutation.mutate({
+      data: { email: result.data.email },
+      turnstileToken,
+    });
   };
 
   const handleOtpSubmit = (e: React.FormEvent) => {
@@ -451,11 +460,22 @@ export const ForgotPasswordPage: React.FC = () => {
           required
         />
 
+        <TurnstileWidget
+          ref={turnstileRef}
+          onSuccess={setTurnstileToken}
+          onExpire={() => setTurnstileToken("")}
+        />
+
         <Button
           type="submit"
           variant="primary"
           size="md"
           loading={forgotMutation.isPending}
+          disabled={Boolean(
+            import.meta.env.VITE_TURNSTILE_SITE_KEY &&
+            !turnstileToken &&
+            import.meta.env.MODE !== "test"
+          )}
           leftIcon={<KeyRound className="w-4 h-4" />}
           className="w-full mt-2"
         >

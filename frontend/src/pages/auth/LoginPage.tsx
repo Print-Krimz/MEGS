@@ -10,6 +10,7 @@ import { AlertCircle } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { MfaChallengeModal } from "../../components/auth/MfaChallengeModal";
 import { MfaSetupModal } from "../../components/auth/MfaSetupModal";
+import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
 import type { LoginResponse } from "../../lib/types/auth.types";
 
 const loginSchema = z.object({
@@ -26,6 +27,10 @@ export const LoginPage: React.FC = () => {
     email: search?.email || "",
     password: "",
   });
+
+  const [turnstileToken, setTurnstileToken] = useState<string>("");
+  const [turnstileError, setTurnstileError] = useState<string | null>(null);
+  const turnstileRef = React.useRef<TurnstileWidgetRef>(null);
 
   const [mfaChallenge, setMfaChallenge] = useState<{
     factorId: string;
@@ -79,7 +84,8 @@ export const LoginPage: React.FC = () => {
   };
 
   const loginMutation = useMutation({
-    mutationFn: authApi.login,
+    mutationFn: (variables: { data: z.infer<typeof loginSchema>; turnstileToken?: string }) =>
+      authApi.login(variables.data, variables.turnstileToken),
     onSuccess: (data) => {
       if (data.mfaRequired && data.factorId && data.challengeId && data.tempToken) {
         setMfaChallenge({
@@ -102,6 +108,9 @@ export const LoginPage: React.FC = () => {
       handleFinalSuccess(data);
     },
     onError: (err) => {
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
+      setTurnstileError(null);
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
       notify.error("Sign In Failed", err);
@@ -126,7 +135,7 @@ export const LoginPage: React.FC = () => {
     }
 
     setValidationErrors({});
-    loginMutation.mutate(result.data);
+    loginMutation.mutate({ data: result.data, turnstileToken });
   };
 
   const handleChange = (field: keyof typeof formData, value: string) => {
@@ -198,12 +207,62 @@ export const LoginPage: React.FC = () => {
           />
         </div>
 
+        {/* Security Verification Section */}
+        <div className="space-y-1.5 text-left pt-1">
+          <div className="flex items-center justify-between">
+            <span
+              id="turnstile-label"
+              className="block text-xs font-semibold text-slate-700 select-none"
+            >
+              Security Verification <span className="text-rose-500" aria-hidden="true">*</span>
+            </span>
+            <span className="text-[11px] text-[#627D98] select-none font-normal">
+              Cloudflare Turnstile
+            </span>
+          </div>
+
+          <div
+            role="region"
+            aria-labelledby="turnstile-label"
+            aria-live="polite"
+            className="w-full max-w-full overflow-hidden flex justify-center items-center py-1 min-h-[65px]"
+          >
+            <TurnstileWidget
+              ref={turnstileRef}
+              theme="light"
+              size="flexible"
+              onSuccess={(token) => {
+                setTurnstileToken(token);
+                setTurnstileError(null);
+              }}
+              onExpire={() => {
+                setTurnstileToken("");
+              }}
+              onError={() => {
+                setTurnstileToken("");
+                setTurnstileError("Security verification failed to load. Please refresh and try again.");
+              }}
+            />
+          </div>
+
+          {turnstileError && (
+            <p className="text-xs text-rose-600 font-medium animate-fade-in" role="alert">
+              {turnstileError}
+            </p>
+          )}
+        </div>
+
         <Button
           type="submit"
           variant="primary"
           size="md"
           loading={loginMutation.isPending}
-          className="w-full mt-2"
+          disabled={Boolean(
+            import.meta.env.VITE_TURNSTILE_SITE_KEY &&
+            !turnstileToken &&
+            import.meta.env.MODE !== "test"
+          )}
+          className="w-full mt-1"
         >
           Sign In
         </Button>

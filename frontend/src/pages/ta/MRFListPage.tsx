@@ -9,6 +9,7 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
+  StatusBadge,
 } from "../../components/common";
 import { Button } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
@@ -18,6 +19,7 @@ import {
   ArrowRight,
   Building2,
 } from "lucide-react";
+import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 
 export const MRFListPage: React.FC = () => {
   const [search, setSearch] = useState("");
@@ -72,16 +74,16 @@ export const MRFListPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Client Requisitions (MRF)"
-        description="Client labor requisition orders, target headcount fulfillment, and compliance templates"
+        title={TA_COPY.navigation.manpowerRequests}
+        description="Track client staffing requests, positions to fill, and required documents."
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Requisitions (MRF)" },
+          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.navigation.manpowerRequests },
         ]}
         actions={
           <Link to="/ta/mrfs/create">
             <Button variant="primary" size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />}>
-              New Requisition (MRF)
+              New manpower request
             </Button>
           </Link>
         }
@@ -89,7 +91,7 @@ export const MRFListPage: React.FC = () => {
 
       {/* Filter Bar */}
       <SearchFilters
-        searchPlaceholder="Search MRF by title or client name..."
+        searchPlaceholder="Search requests by title or client name..."
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
@@ -98,18 +100,19 @@ export const MRFListPage: React.FC = () => {
         filters={[
           {
             key: "status",
-            label: "Request Status",
+            label: "Request status",
+            placeholder: "All request statuses",
             options: [
-              { value: "OPEN", label: "OPEN" },
-              { value: "IN_PROGRESS", label: "IN PROGRESS" },
-              { value: "FILLED", label: "FILLED" },
-              { value: "ON_HOLD", label: "ON HOLD" },
-              { value: "CANCELLED", label: "CANCELLED" },
+              { value: "OPEN", label: "Open" },
+              { value: "IN_PROGRESS", label: "In progress" },
+              { value: "FILLED", label: "Filled" },
+              { value: "ON_HOLD", label: "On hold" },
+              { value: "CANCELLED", label: "Cancelled" },
             ],
           },
           {
             key: "clientId",
-            label: "Client Account",
+            label: "Client",
             placeholder: "All client accounts",
             searchable: true,
             options: clients.map((c) => ({
@@ -130,11 +133,11 @@ export const MRFListPage: React.FC = () => {
         <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
           <EmptyState
             icon={<Briefcase className="w-6 h-6" />}
-            title="No Requisitions Found"
-            description="Create a client requisition order or reset your filters."
+            title="No manpower requests found"
+            description="Create a request for client staffing needs or reset your filters."
             action={
               <Button variant="outline" size="sm" onClick={handleReset}>
-                Reset Filters
+                Reset filters
               </Button>
             }
           />
@@ -158,17 +161,7 @@ export const MRFListPage: React.FC = () => {
                         <span>{mrf.client?.name || "Client Account"}</span>
                       </div>
                     </div>
-                    <span
-                      className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase ${
-                        mrf.status === "OPEN"
-                          ? "bg-blue-50 text-blue-800 border border-blue-200"
-                          : mrf.status === "FILLED"
-                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                          : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      {mrf.status}
-                    </span>
+                    <StatusBadge status={formatTaStatus(mrf.status)} type="raw" size="sm" />
                   </div>
 
                   {(() => {
@@ -187,9 +180,9 @@ export const MRFListPage: React.FC = () => {
                     return (
                       <div className="grid grid-cols-3 gap-2 text-xs font-mono pt-1">
                         <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 flex flex-col justify-between">
-                          <span className="text-[10px] text-slate-400 uppercase block">Fulfillment</span>
+                          <span className="text-xs text-slate-500 block">Positions filled</span>
                           <span className="font-bold text-slate-900 truncate block my-0.5">
-                            {deployed} / {mrf.headcount} pax
+                            {deployed} / {mrf.headcount} positions
                           </span>
                           <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                             <div
@@ -199,16 +192,17 @@ export const MRFListPage: React.FC = () => {
                           </div>
                         </div>
                         <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 text-center flex flex-col justify-between">
-                          <span className="text-[10px] text-slate-400 uppercase block">Priority</span>
-                          <span className={`font-bold my-auto ${mrf.priority === "URGENT" ? "text-rose-600" : "text-slate-800"}`}>
-                            {mrf.priority}
-                          </span>
+                          <span className="text-xs text-slate-500 block">Priority</span>
+                          <StatusBadge status={mrf.priority} type="priority" size="sm" appearance="text" />
                         </div>
                         <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 text-center flex flex-col justify-between">
-                          <span className="text-[10px] text-slate-400 uppercase block">Target Date</span>
-                          <span className="font-bold text-slate-800 truncate block my-auto">
-                            {mrf.targetFillDate ? formatDate(mrf.targetFillDate) : "ASAP"}
-                          </span>
+                          <span className="text-xs text-slate-500 block">Target date</span>
+                          <StatusBadge
+                            status={mrf.targetFillDate ? formatDate(mrf.targetFillDate) : undefined}
+                            type="targetDate"
+                            size="sm"
+                            appearance="text"
+                          />
                         </div>
                       </div>
                     );
@@ -217,7 +211,7 @@ export const MRFListPage: React.FC = () => {
 
                 <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between">
                   <span className="text-xs font-mono text-slate-500">
-                    MRF #{mrf.id} • {mrf._count?.jobPostings || 0} Requisitions
+                    Request #{mrf.id} • {mrf._count?.jobPostings || 0} job openings
                   </span>
                   <Link
                     to="/ta/mrfs/$mrfId"
@@ -228,7 +222,7 @@ export const MRFListPage: React.FC = () => {
                       size="sm"
                       rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
                     >
-                      View MRF Details
+                      View request
                     </Button>
                   </Link>
                 </div>

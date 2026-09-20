@@ -22,6 +22,7 @@ import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
 import { NotificationBell, RealtimeToastContainer, SignOutDialog, ChangePasswordModal } from "../components/common";
 import { getInitials } from "../lib/utils";
 import { Role } from "../lib/types/enums";
+import { TA_COPY } from "../lib/ta-copy";
 
 export const TALayout: React.FC = () => {
   const { user } = useAuth();
@@ -49,6 +50,8 @@ export const TALayout: React.FC = () => {
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const menuItemsRef = useRef<(HTMLAnchorElement | HTMLButtonElement | null)[]>([]);
+  const mobileMenuRef = useRef<HTMLElement>(null);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
 
   const {
     unreadCount,
@@ -77,6 +80,51 @@ export const TALayout: React.FC = () => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, [accountMenuOpen]);
+
+  // Treat the mobile navigation as a modal drawer: keep focus inside it,
+  // close on Escape, and return focus to the trigger when it closes.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const menuTrigger = mobileMenuButtonRef.current;
+    const getFocusableElements = () =>
+      Array.from(
+        mobileMenuRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+        ) ?? []
+      );
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileMenuOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = getFocusableElements();
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    requestAnimationFrame(() => getFocusableElements()[0]?.focus());
+
+    return () => {
+      document.body.style.overflow = "";
+      document.removeEventListener("keydown", handleKeyDown);
+      requestAnimationFrame(() => previousFocus?.focus() || menuTrigger?.focus());
+    };
+  }, [mobileMenuOpen]);
 
   // Keyboard navigation for account menu
   useEffect(() => {
@@ -120,37 +168,44 @@ export const TALayout: React.FC = () => {
     {
       label: "Recruitment",
       items: [
-        { to: "/ta", label: "Overview", icon: LayoutDashboard },
-        { to: "/ta/applications", label: "Applications", icon: Users },
-        { to: "/ta/jobs", label: "Job Postings", icon: Briefcase },
-        { to: "/ta/mrfs", label: "Requisitions (MRF)", icon: ClipboardList },
+        { to: "/ta", label: TA_COPY.navigation.overview, icon: LayoutDashboard },
+        { to: "/ta/applications", label: TA_COPY.navigation.applications, icon: Users },
+        { to: "/ta/jobs", label: TA_COPY.navigation.openings, icon: Briefcase },
+        { to: "/ta/mrfs", label: TA_COPY.navigation.manpowerRequests, icon: ClipboardList },
       ],
     },
     {
-      label: "Candidates & Interviews",
+      label: "Candidates & clients",
       items: [
-        { to: "/ta/talent-pool", label: "Candidate pool", icon: Users },
-        { to: "/ta/interviews", label: "Interviews", icon: Calendar },
-        { to: "/ta/clients", label: "Clients & Endorsements", icon: Building2 },
+        { to: "/ta/talent-pool", label: TA_COPY.navigation.candidatePool, icon: Users },
+        { to: "/ta/interviews", label: TA_COPY.navigation.interviews, icon: Calendar },
+        { to: "/ta/clients", label: TA_COPY.navigation.clients, icon: Building2 },
       ],
     },
     {
-      label: "Field operations",
+      label: "Workforce",
       items: [
-        { to: "/ta/workforce", label: "Deployments & 201", icon: Send },
+        { to: "/ta/workforce", label: TA_COPY.navigation.workforce, icon: Send },
       ],
     },
     {
       label: "Reports",
       items: [
-        { to: "/ta/analytics", label: "Reports", icon: BarChart3 },
+        { to: "/ta/analytics", label: TA_COPY.navigation.reports, icon: BarChart3 },
       ],
     },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col lg:flex-row overflow-x-hidden">
+    <div className="ta-portal min-h-screen bg-slate-100 flex flex-col lg:flex-row overflow-x-hidden">
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} />
+
+      <a
+        href="#ta-main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-slate-900 focus:shadow-modal focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+      >
+        Skip to main content
+      </a>
 
       {/* Mobile Slide-Over Navigation Drawer */}
       {mobileMenuOpen && (
@@ -160,12 +215,19 @@ export const TALayout: React.FC = () => {
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          <aside className="relative flex-1 flex flex-col max-w-xs w-full bg-slate-950 text-slate-300 border-r border-slate-800 shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+          <aside
+            ref={mobileMenuRef}
+            id="ta-mobile-navigation"
+            role="dialog"
+            aria-modal="true"
+            aria-label="TA portal navigation"
+            className="relative flex-1 flex flex-col max-w-xs w-full bg-slate-950 text-slate-300 border-r border-slate-800 shadow-2xl z-10 animate-in slide-in-from-left duration-200"
+          >
             {/* Drawer Header */}
             <div className="h-14 flex items-center justify-between px-4 bg-slate-950 border-b border-slate-800">
               <div className="leading-tight">
                 <div className="text-base font-bold font-mono tracking-tight text-white">MEGS</div>
-                <div className="text-xs text-slate-400">Talent acquisition</div>
+                <div className="text-xs text-slate-400">Talent Acquisition</div>
               </div>
               <button
                 type="button"
@@ -181,8 +243,8 @@ export const TALayout: React.FC = () => {
             <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-5">
               {navSections.map((section, idx) => (
                 <div key={idx} className="space-y-1">
-                  <div className="px-2 text-xs font-medium text-slate-400">
-                    {section.label}
+                      <div className="px-2 text-xs font-medium text-slate-400">
+                        {section.label}
                   </div>
                   <div className="space-y-0.5">
                     {section.items.map((item) => {
@@ -223,7 +285,7 @@ export const TALayout: React.FC = () => {
           {!collapsed && (
             <div className="leading-tight">
               <div className="text-base font-bold font-mono tracking-tight text-white">MEGS</div>
-              <div className="text-xs text-slate-400">Talent acquisition</div>
+                <div className="text-xs text-slate-400">Talent Acquisition</div>
             </div>
           )}
 
@@ -261,7 +323,7 @@ export const TALayout: React.FC = () => {
                     <Link
                       key={item.to}
                       to={item.to}
-                      className={`flex min-h-9 items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                      className={`flex min-h-10 items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
                         isActive
                           ? "bg-teal-700 text-white font-medium border-l-2 border-teal-400"
                           : "text-slate-200 hover:text-white hover:bg-slate-850"
@@ -291,10 +353,13 @@ export const TALayout: React.FC = () => {
         <header className="sticky top-0 z-30 h-14 bg-white border-b border-slate-300 flex items-center justify-between px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
+              ref={mobileMenuButtonRef}
               type="button"
               onClick={() => setMobileMenuOpen(true)}
               className="lg:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 border border-slate-300 hover:bg-slate-50 transition-colors rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
               aria-label="Open navigation menu"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="ta-mobile-navigation"
             >
               <Menu className="w-4 h-4" />
             </button>
@@ -395,7 +460,7 @@ export const TALayout: React.FC = () => {
                       className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700 text-left cursor-pointer"
                     >
                       <Shield className="w-4 h-4 text-slate-500 shrink-0" />
-                      <span className="text-slate-900 font-medium">Account Security</span>
+                      <span className="text-slate-900 font-medium">Change password</span>
                     </button>
                   </div>
 
@@ -413,7 +478,7 @@ export const TALayout: React.FC = () => {
                       className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 transition-colors focus-visible:outline-none focus-visible:bg-rose-50 focus-visible:text-rose-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700 text-left cursor-pointer"
                     >
                       <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span className="text-rose-900 font-medium">Sign Out</span>
+                      <span className="text-rose-900 font-medium">Sign out</span>
                     </button>
                   </div>
                 </div>
@@ -429,7 +494,7 @@ export const TALayout: React.FC = () => {
         />
 
         {/* Content Container */}
-        <main className="flex-1 p-3 sm:p-5 lg:p-6 max-w-[1600px] w-full mx-auto min-w-0">
+        <main id="ta-main-content" className="flex-1 p-3 sm:p-5 lg:p-6 max-w-[1600px] w-full mx-auto min-w-0">
           <Outlet />
         </main>
       </div>

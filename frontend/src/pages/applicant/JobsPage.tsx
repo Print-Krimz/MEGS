@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import React, { useState, useEffect } from "react";
+import { Link, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
 import {
@@ -23,11 +23,24 @@ import { notify } from "../../lib/feedback";
 
 export const JobsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const routeSearch = useSearch({ strict: false }) as { q?: string; location?: string };
   const [scope, setScope] = useState<"all" | "saved">("all");
-  const [searchValue, setSearchValue] = useState("");
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+  const [searchValue, setSearchValue] = useState(routeSearch.q ?? "");
+  const [filterValues, setFilterValues] = useState<Record<string, string>>(
+    routeSearch.location ? { location: routeSearch.location } : {},
+  );
   const [page, setPage] = useState(1);
   const pageSize = 8;
+
+  // Pick up search filters carried over from the landing page (e.g. /app/jobs?q=forklift).
+  useEffect(() => {
+    if (routeSearch.q !== undefined) setSearchValue(routeSearch.q);
+    if (routeSearch.location !== undefined) {
+      setFilterValues((prev) => ({ ...prev, location: routeSearch.location as string }));
+    }
+    setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeSearch.q, routeSearch.location]);
 
   const jobsQuery = useQuery({
     queryKey: ["applicant", "jobs", searchValue, filterValues],

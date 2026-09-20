@@ -81,33 +81,33 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
     // Fully deployed
   } else if (!isStep1Complete) {
     blockingStepNumber = 1;
-    blockingStepLabel = "01 · Pre-Employment Clearances";
+    blockingStepLabel = "01 · Requirements";
     const pendingCount = Math.max(0, totalCompReqs - approvedCompReqs);
     blockerExplanation =
       totalCompReqs === 0
-        ? "Pre-employment requirements checklist must be configured."
-        : `${pendingCount} of ${totalCompReqs} mandatory pre-employment clearances pending verification.`;
-    nextActionLabel = "Review Pre-Employment Clearances";
+        ? "The pre-employment requirements list is not ready yet."
+        : `${pendingCount} of ${totalCompReqs} required documents still need review.`;
+    nextActionLabel = "Review requirements";
   } else if (isComplianceStage) {
     blockingStepNumber = 1;
-    blockingStepLabel = "01 · Pre-Employment Clearances";
+    blockingStepLabel = "01 · Requirements";
     blockerExplanation =
-      "All mandatory clearances approved. Advance candidate to Contract & Orientation stage to proceed with onboarding.";
-    nextActionLabel = "Advance to Contract & Orientation";
+      "All required documents are approved. Move the candidate to contract and orientation.";
+    nextActionLabel = "Move to contract and orientation";
   } else if (!isStep2Complete) {
     blockingStepNumber = 2;
-    blockingStepLabel = "02 · Employment Contract";
+    blockingStepLabel = "02 · Employment contract";
     blockerExplanation =
-      "Employment contract pending signature. An executed contract is required before scheduling corporate orientation.";
-    nextActionLabel = "Record Executed Contract";
+      "The employment contract still needs to be signed before orientation can be scheduled.";
+    nextActionLabel = "Record signed contract";
   } else if (!isStep3Complete) {
     blockingStepNumber = 3;
-    blockingStepLabel = "03 · Corporate Orientation";
+    blockingStepLabel = "03 · Orientation";
     blockerExplanation =
-      "Corporate Orientation must be completed before Site Deployment can begin.";
-    nextActionLabel = "Complete Corporate Orientation";
+      "Orientation must be completed before the employee can start at the site.";
+    nextActionLabel = "Record orientation";
   } else {
-    nextActionLabel = "Deploy Candidate to Site";
+    nextActionLabel = "Activate deployment";
   }
 
   // Completed steps calculation (out of 4 milestones)
@@ -152,10 +152,10 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  Active Workforce Site Deployment
+                  Active site deployment
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Candidate onboarding is 100% complete and deployed on active client assignment.
+                  All requirements are complete and the employee is assigned to a client site.
                 </p>
               </div>
             </div>
@@ -187,7 +187,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
         {/* Deployment Specifications Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono">
           <div className="space-y-1">
-            <span className="text-slate-500 uppercase text-[10px] block">Client Partner</span>
+            <span className="text-slate-500 block">Client</span>
             <div className="font-bold text-slate-900 flex items-center gap-1.5 truncate">
               <Building2 className="w-3.5 h-3.5 text-teal-700 shrink-0" />
               <span className="truncate">{clientName}</span>
@@ -195,21 +195,21 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
           </div>
 
           <div className="space-y-1">
-            <span className="text-slate-500 uppercase text-[10px] block">Site Location</span>
+            <span className="text-slate-500 block">Site</span>
             <div className="font-semibold text-slate-800 truncate">
               {siteLocation}
             </div>
           </div>
 
           <div className="space-y-1">
-            <span className="text-slate-500 uppercase text-[10px] block">Designation</span>
+            <span className="text-slate-500 block">Position</span>
             <div className="font-semibold text-slate-800 truncate">
               {position}
             </div>
           </div>
 
           <div className="space-y-1">
-            <span className="text-slate-500 uppercase text-[10px] block">Contract Schedule</span>
+            <span className="text-slate-500 block">Contract dates</span>
             <div className="font-semibold text-slate-800">
               {primaryDeployment?.contractStart ? formatDate(primaryDeployment.contractStart) : "Immediate"} – {primaryDeployment?.contractEnd ? formatDate(primaryDeployment.contractEnd) : "Open-ended"}
             </div>
@@ -220,22 +220,22 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2 border-t border-slate-100 text-xs">
           <div className="space-y-1.5">
             <span className="text-[11px] font-mono uppercase text-slate-500 font-semibold block">
-              Verified Onboarding Milestones
+              Completed steps
             </span>
             <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-slate-700">
               <div className="flex items-center gap-1 text-emerald-800 font-medium">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>Pre-Employment Clearances ({approvedCompReqs}/{totalCompReqs})</span>
+                <span>Requirements approved ({approvedCompReqs}/{totalCompReqs})</span>
               </div>
               <span className="text-slate-300">•</span>
               <div className="flex items-center gap-1 text-emerald-800 font-medium">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>Contract Executed ({formatDate(app.contractSignedAt)})</span>
+                <span>Contract signed ({formatDate(app.contractSignedAt)})</span>
               </div>
               <span className="text-slate-300">•</span>
               <div className="flex items-center gap-1 text-emerald-800 font-medium">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>Corporate Orientation ({formatDate(app.orientationDate)})</span>
+                <span>Orientation complete ({formatDate(app.orientationDate)})</span>
               </div>
             </div>
           </div>
@@ -244,7 +244,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
             {primaryDeployment?.id && (
               <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(primaryDeployment.id) }}>
                 <Button variant="primary" size="sm" leftIcon={<Truck className="w-3.5 h-3.5" />}>
-                  View Field Deployment Record
+                  View deployment
                 </Button>
               </Link>
             )}
@@ -254,7 +254,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               leftIcon={<ExternalLink className="w-3.5 h-3.5" />}
               onClick={onOpenComplianceTab}
             >
-              View Requirements
+              View requirements
             </Button>
           </div>
         </div>
@@ -272,22 +272,22 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
         <div className="space-y-1">
           <div className="flex items-center gap-2.5 flex-wrap">
             <h3 className="text-base font-bold text-slate-900">
-              Deployment Readiness
+              Deployment readiness
             </h3>
             {effectiveCanDeploy ? (
               <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase tracking-wide">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                READY TO DEPLOY
+                Ready to deploy
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 uppercase tracking-wide">
                 <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                BLOCKED
+                Waiting for earlier steps
               </span>
             )}
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
-            <span className="font-mono uppercase text-[10px] text-slate-500 font-semibold">Current Stage:</span>
+            <span className="text-slate-500 font-medium">Current stage</span>
             <span className="font-semibold text-slate-800">{currentStageLabel}</span>
           </div>
         </div>
@@ -295,7 +295,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
         {/* Compact Horizontal Progress Bar (Point 15) */}
         <div className="w-full sm:w-56 space-y-1.5 bg-slate-50 border border-slate-200 p-2.5 rounded-lg shrink-0">
           <div className="flex items-center justify-between text-xs font-mono">
-            <span className="font-bold text-slate-900">{completedMilestonesCount} of 4 completed</span>
+            <span className="font-bold text-slate-900">{completedMilestonesCount} of 4 steps complete</span>
             <span className="font-semibold text-slate-700">{progressPercent}%</span>
           </div>
           <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
@@ -306,7 +306,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
           </div>
           <div className="text-[10px] font-mono text-slate-500 text-right">
             {remainingActionsCount === 0
-              ? "All milestones cleared"
+            ? "All steps complete"
               : `${remainingActionsCount} ${remainingActionsCount === 1 ? "action" : "actions"} remaining`}
           </div>
         </div>
@@ -319,11 +319,11 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold font-mono uppercase text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
-                DEPLOYMENT BLOCKED
+                Waiting for earlier steps
               </span>
               {blockingStepLabel && (
                 <span className="text-xs font-mono font-semibold text-amber-900">
-                  Blocking Step: {blockingStepLabel}
+                  Waiting on: {blockingStepLabel}
                 </span>
               )}
             </div>
@@ -331,7 +331,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               {blockerExplanation}
             </p>
             <div className="text-xs font-semibold text-amber-950">
-              Next Action: <span className="font-normal text-slate-800">{nextActionLabel}</span>
+              Next step: <span className="font-normal text-slate-800">{nextActionLabel}</span>
             </div>
           </div>
         </div>
@@ -340,10 +340,10 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
           <div className="space-y-0.5 min-w-0">
             <span className="font-bold font-mono uppercase text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 tracking-wide">
-              READY TO DEPLOY
+              Ready to deploy
             </span>
             <p className="text-slate-800 leading-normal text-xs mt-1">
-              Pre-employment clearances, employment contract, and corporate orientation are verified. Candidate is cleared for field assignment.
+              Requirements, contract, and orientation are complete. The employee can be assigned to a site.
             </p>
           </div>
         </div>
@@ -355,7 +355,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
         <div
           className={`p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
             blockingStepNumber === 1
-              ? "bg-amber-50/30 border-l-4 border-l-amber-500"
+              ? "bg-amber-50/50 ring-1 ring-inset ring-amber-200"
               : isStep1Complete
               ? "bg-white"
               : "bg-slate-50/50"
@@ -377,18 +377,18 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-xs font-mono uppercase text-slate-900 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-                  01 · Pre-Employment Clearances
+                  01 · Requirements
                 </span>
               </div>
               <div className="text-xs font-mono text-slate-600">
-                Approved Clearances: <span className="font-semibold text-slate-900">{approvedCompReqs} / {totalCompReqs}</span>
+                Approved: <span className="font-semibold text-slate-900">{approvedCompReqs} / {totalCompReqs}</span>
                 <span className="text-slate-300 mx-1.5">•</span>
                 <span className={isStep1Complete ? "text-emerald-700" : totalCompReqs === 0 ? "text-slate-500" : "text-amber-800"}>
                   {isStep1Complete
-                    ? "All mandatory clearances verified"
+                    ? "All required documents approved"
                     : totalCompReqs === 0
                     ? "No requirements configured yet"
-                    : `${totalCompReqs - approvedCompReqs} clearances pending verification`}
+                    : `${totalCompReqs - approvedCompReqs} documents still need review`}
                 </span>
               </div>
             </div>
@@ -407,12 +407,12 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               }`}
             >
               {isStep1Complete
-                ? "COMPLETE"
+                ? "Complete"
                 : blockingStepNumber === 1
-                ? "ACTION REQUIRED"
+                ? "Action needed"
                 : totalCompReqs === 0
-                ? "AWAITING SETUP"
-                : "IN PROGRESS"}
+                ? "Not set up"
+                : "In progress"}
             </span>
 
             <Button
@@ -420,7 +420,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               size="sm"
               onClick={onOpenComplianceTab}
             >
-              View Requirements
+              View requirements
             </Button>
           </div>
         </div>
@@ -429,7 +429,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
         <div
           className={`p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
             blockingStepNumber === 2
-              ? "bg-amber-50/30 border-l-4 border-l-amber-500"
+              ? "bg-amber-50/50 ring-1 ring-inset ring-amber-200"
               : isStep2Complete
               ? "bg-white"
               : "bg-slate-50/50"
@@ -456,18 +456,18 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
             <div className="space-y-0.5 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-xs font-mono uppercase text-slate-900">
-                  02 · Employment Contract
+                  02 · Employment contract
                 </span>
               </div>
               <div className="text-xs font-mono text-slate-600">
                 {isStep2Complete ? (
-                  <span>Signed & Executed {app.contractSignedAt && `• Date: ${formatDate(app.contractSignedAt)}`}</span>
+                  <span>Signed {app.contractSignedAt && `• ${formatDate(app.contractSignedAt)}`}</span>
                 ) : !isStep1Complete ? (
-                  <span className="text-slate-500">Locked until pre-employment clearances are verified</span>
+                  <span className="text-slate-500">Available after requirements are approved</span>
                 ) : isComplianceStage ? (
-                  <span className="text-slate-500">Locked until candidate advances to Contract & Orientation stage</span>
+                  <span className="text-slate-500">Available after the candidate moves to contract and orientation</span>
                 ) : (
-                  <span className="text-amber-800">Awaiting executed employment agreement signature</span>
+                  <span className="text-amber-800">Waiting for signed contract</span>
                 )}
               </div>
             </div>
@@ -484,10 +484,10 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               }`}
             >
               {isStep2Complete
-                ? "COMPLETE"
+                ? "Complete"
                 : blockingStepNumber === 2
-                ? "ACTION REQUIRED"
-                : "LOCKED"}
+                ? "Action needed"
+                : "Locked"}
             </span>
 
             {isStep2Complete ? (
@@ -497,7 +497,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                 leftIcon={<FileSignature className="w-3.5 h-3.5" />}
                 onClick={onRecordContract}
               >
-                Update Contract
+                Update contract
               </Button>
             ) : isContractAndOrientationStage && isStep1Complete ? (
               <Button
@@ -506,11 +506,11 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                 leftIcon={<FileSignature className="w-3.5 h-3.5" />}
                 onClick={onRecordContract}
               >
-                Record Contract
+                Record contract
               </Button>
             ) : (
               <span className="text-xs font-mono text-slate-500 px-2 py-1">
-                Locked
+                Not available yet
               </span>
             )}
           </div>
@@ -520,7 +520,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
         <div
           className={`p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
             blockingStepNumber === 3
-              ? "bg-amber-50/30 border-l-4 border-l-amber-500"
+              ? "bg-amber-50/50 ring-1 ring-inset ring-amber-200"
               : isStep3Complete
               ? "bg-white"
               : "bg-slate-50/50"
@@ -541,14 +541,14 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
             <div className="space-y-0.5 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-xs font-mono uppercase text-slate-900">
-                  03 · Corporate Orientation
+                  03 · Orientation
                 </span>
               </div>
               <div className="text-xs font-mono text-slate-600">
                 {isStep3Complete ? (
-                  <span>Orientation Completed {app.orientationDate && `• Date: ${formatDate(app.orientationDate)}`}</span>
+                  <span>Complete {app.orientationDate && `• ${formatDate(app.orientationDate)}`}</span>
                 ) : !isStep2Complete ? (
-                  <span className="text-slate-500">Locked until employment contract is signed</span>
+                  <span className="text-slate-500">Available after the contract is signed</span>
                 ) : (
                   <span className="text-amber-800">Required before site deployment</span>
                 )}
@@ -569,12 +569,12 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               }`}
             >
               {isStep3Complete
-                ? "COMPLETE"
+                ? "Complete"
                 : blockingStepNumber === 3
-                ? "ACTION REQUIRED"
+                ? "Action needed"
                 : !isStep2Complete
-                ? "LOCKED"
-                : "PENDING"}
+                ? "Locked"
+                : "Pending"}
             </span>
 
             {isStep2Complete ? (
@@ -584,21 +584,21 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                 leftIcon={<GraduationCap className="w-3.5 h-3.5" />}
                 onClick={onRecordOrientation}
               >
-                {isStep3Complete ? "Update Orientation" : "Record Orientation"}
+                {isStep3Complete ? "Update orientation" : "Record orientation"}
               </Button>
             ) : (
               <span className="text-xs font-mono text-slate-500 px-2 py-1">
-                Locked
+                Not available yet
               </span>
             )}
           </div>
         </div>
 
-        {/* MILESTONE 4: Site Deployment & Digital 201 */}
+        {/* MILESTONE 4: Site deployment and employee record */}
         <div
           className={`p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
             isStep4Ready
-              ? "bg-emerald-50/30 border-l-4 border-l-emerald-600"
+              ? "bg-emerald-50/50 ring-1 ring-inset ring-emerald-200"
               : isDeployed
               ? "bg-white"
               : "bg-slate-50/50"
@@ -615,21 +615,21 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
             <div className="space-y-0.5 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-xs font-mono uppercase text-slate-900">
-                  04 · Site Deployment & Digital 201
+                  04 · Site deployment
                 </span>
               </div>
               <div className="text-xs font-mono text-slate-600">
                 {isDeployed ? (
                   <span className="text-emerald-800 font-semibold">
-                    Candidate active on field deployment assignment
+                    Employee active at the client site
                   </span>
                 ) : isStep4Ready ? (
                   <span className="text-emerald-800 font-semibold">
-                    All pre-employment clearances, contract execution, and orientation are verified.
+                    Requirements, contract, and orientation are complete.
                   </span>
                 ) : (
                   <span className="text-slate-500">
-                    Awaiting {!isStep1Complete ? "clearances" : !isStep2Complete ? "contract signing" : "corporate orientation"} before deployment activation
+                    Waiting for {!isStep1Complete ? "requirements" : !isStep2Complete ? "contract signing" : "orientation"} before deployment activation
                   </span>
                 )}
               </div>
@@ -646,7 +646,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                   : "bg-slate-100 text-slate-500 border-slate-200"
               }`}
             >
-              {isDeployed ? "DEPLOYED" : isStep4Ready ? "READY TO DEPLOY" : "LOCKED"}
+              {isDeployed ? "Deployed" : isStep4Ready ? "Ready to deploy" : "Locked"}
             </span>
 
             {isStep4Ready ? (
@@ -656,11 +656,11 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                 leftIcon={<Truck className="w-3.5 h-3.5" />}
                 onClick={onDeployCandidate}
               >
-                Deploy Candidate
+                Activate deployment
               </Button>
             ) : (
               <span className="text-xs font-mono text-slate-500 px-2 py-1">
-                Locked until Steps 1–3 complete
+                Available after steps 1–3 are complete
               </span>
             )}
           </div>

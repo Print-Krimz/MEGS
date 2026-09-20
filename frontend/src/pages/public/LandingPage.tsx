@@ -28,6 +28,9 @@ export const LandingPage: React.FC = () => {
     if (jobsEl && typeof jobsEl.scrollIntoView === "function") {
       jobsEl.scrollIntoView({ behavior: "smooth" });
     }
+    window.setTimeout(() => {
+      document.getElementById("jobs-heading")?.focus({ preventScroll: true });
+    }, 450);
   };
 
   const handleClearSearch = () => {

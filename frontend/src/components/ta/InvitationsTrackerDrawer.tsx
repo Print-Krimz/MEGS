@@ -42,7 +42,7 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
       notify.success("Invitation Cancelled", "The candidate invitation was cancelled.");
     },
     onError: (err: any) => {
-      notify.error("Cancellation Failed", err);
+      notify.error("Unable to cancel invitation", err);
     },
   });
 
@@ -93,11 +93,11 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
     <Dialog
       open={open}
       onClose={onClose}
-      title="Talent Pool Job Invitations Tracker"
+      title="Sent invitations"
       description={
         jobPostingId
-          ? `Tracking outgoing invitations for Requisition #${jobPostingId}`
-          : "Overview of all candidate invitations sent across open requisitions"
+          ? `Invitations for job opening #${jobPostingId}`
+          : "Review invitations sent to candidates"
       }
       size="lg"
     >
@@ -106,14 +106,14 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="w-48">
             <Select
-              label="Filter Status"
+              label="Filter status"
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setPage(1);
               }}
               options={[
-                { value: "ALL", label: "All Statuses" },
+                { value: "ALL", label: "All statuses" },
                 { value: "PENDING", label: "Pending" },
                 { value: "ACCEPTED", label: "Accepted" },
                 { value: "DECLINED", label: "Declined" },
@@ -145,7 +145,7 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
                 <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                   <tr>
                     <th className="px-3 py-2 font-semibold">Candidate</th>
-                    <th className="px-3 py-2 font-semibold">Target Job</th>
+                    <th className="px-3 py-2 font-semibold">Job opening</th>
                     <th className="px-3 py-2 font-semibold text-center">Status</th>
                     <th className="px-3 py-2 font-semibold">Sent / Expires</th>
                     <th className="px-3 py-2 font-semibold text-right">Actions</th>
@@ -160,7 +160,7 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="font-medium text-slate-800 font-sans">{inv.jobPostingTitle}</div>
-                        <div className="text-[10px] text-slate-400">REQ #{inv.jobPostingId}</div>
+                        <div className="text-xs text-slate-500">Job opening #{inv.jobPostingId}</div>
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         {getStatusBadge(inv.status)}

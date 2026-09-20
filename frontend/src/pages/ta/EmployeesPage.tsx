@@ -9,10 +9,12 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
+  StatusBadge,
 } from "../../components/common";
 import { Button } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { EmploymentStatus } from "../../lib/types/enums";
+import { TA_COPY } from "../../lib/ta-copy";
 import {
   Users,
   FileCheck2,
@@ -62,16 +64,18 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
       {!hideHeader && (
         <PageHeader
           title="Employee records (201)"
-          description="Comprehensive employee roster, redeployment pool management, and historical personnel archives"
+          description="View active employees, redeployment availability, and personnel history."
           breadcrumbs={[
-            { label: "TA Portal", href: "/ta" },
-            { label: "Personnel & 201" },
+            { label: TA_COPY.navigation.overview, href: "/ta" },
+            { label: TA_COPY.navigation.workforce },
           ]}
         />
       )}
 
       {/* Filter Bar */}
       <SearchFilters
+        searchLabel="Search employee records"
+        searchPlaceholder="Search employee name, number, or department..."
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
@@ -82,13 +86,13 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
             key: "status",
             label: "Employment Status",
             options: [
-              { value: EmploymentStatus.ACTIVE, label: "ACTIVE" },
+              { value: EmploymentStatus.ACTIVE, label: "Active" },
               {
                 value: EmploymentStatus.AVAILABLE_FOR_REDEPLOYMENT,
-                label: "AVAILABLE FOR REDEPLOYMENT",
+                label: "Available for redeployment",
               },
-              { value: EmploymentStatus.INACTIVE, label: "INACTIVE" },
-              { value: EmploymentStatus.SEPARATED, label: "SEPARATED" },
+              { value: EmploymentStatus.INACTIVE, label: "Inactive" },
+              { value: EmploymentStatus.SEPARATED, label: "Separated" },
             ],
           },
         ]}
@@ -103,25 +107,53 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
         <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
           <EmptyState
             icon={<Users className="w-6 h-6" />}
-            title="No Employee Records Found"
-            description="When candidates are hired through the recruitment pipeline, their Digital 201 personnel records will appear here."
+            title="No employee records found"
+            description="Employee records will appear here after candidates are hired through the recruitment process."
             action={
               <Button variant="outline" size="sm" onClick={handleReset}>
-                Reset Filters
+                Reset filters
               </Button>
             }
           />
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="md:hidden divide-y divide-slate-200">
+            {paginatedEmployees.map((emp) => {
+              const profile = emp.user?.applicantProfile;
+              const employeeName = profile ? `${profile.firstName} ${profile.lastName}` : emp.employeeNumber;
+              return (
+                <article key={emp.id} className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-slate-950 break-words">{employeeName}</h4>
+                      <p className="mt-0.5 text-sm text-slate-600 break-words">{emp.position || "General staff"}</p>
+                    </div>
+                    <StatusBadge status={emp.status} type="employment" size="sm" />
+                  </div>
+                  <dl className="grid grid-cols-2 gap-3 text-sm">
+                    <div><dt className="text-slate-500">Employee number</dt><dd className="mt-0.5 text-slate-800">{emp.employeeNumber}</dd></div>
+                    <div><dt className="text-slate-500">Hire date</dt><dd className="mt-0.5 text-slate-800">{formatDate(emp.hireDate)}</dd></div>
+                  </dl>
+                  <Link
+                    to="/ta/employees/$employeeId"
+                    params={{ employeeId: String(emp.id) }}
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-[#0B315D] px-3 text-sm font-medium text-white hover:bg-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2"
+                  >
+                    View employee record
+                  </Link>
+                </article>
+              );
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Employee ID / Number</th>
-                  <th className="px-4 py-3 font-semibold">Personnel Full Name</th>
-                  <th className="px-4 py-3 font-semibold">Designation & Department</th>
-                  <th className="px-4 py-3 font-semibold">Hire Date</th>
+                  <th className="px-4 py-3 font-semibold">Employee number</th>
+                  <th className="px-4 py-3 font-semibold">Employee</th>
+                  <th className="px-4 py-3 font-semibold">Position & department</th>
+                  <th className="px-4 py-3 font-semibold">Hire date</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold text-right">Actions</th>
                 </tr>
@@ -162,17 +194,7 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
                         {formatDate(emp.hireDate)}
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase ${
-                            emp.status === EmploymentStatus.ACTIVE
-                              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                              : emp.status === EmploymentStatus.AVAILABLE_FOR_REDEPLOYMENT
-                              ? "bg-teal-50 text-teal-800 border border-teal-200"
-                              : "bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          {emp.status.replace(/_/g, " ")}
-                        </span>
+                        <StatusBadge status={emp.status} type="employment" size="sm" />
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Link
@@ -184,7 +206,7 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
                             size="sm"
                             leftIcon={<FileCheck2 className="w-3.5 h-3.5 text-teal-600" />}
                           >
-                            Digital 201 File
+                            View employee record
                           </Button>
                         </Link>
                       </td>

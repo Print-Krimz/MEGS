@@ -110,18 +110,18 @@ export const LandingContact: React.FC = () => {
   };
 
   return (
-    <section id="contact" className="py-16 sm:py-24 bg-slate-50 border-b border-slate-200">
+    <section id="contact" className="py-16 sm:py-20 bg-slate-50 border-b border-slate-200 scroll-mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
-        <div className="max-w-3xl mb-16">
-          <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">
+        <div className="max-w-3xl mb-10">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 mb-2">
             Inquiries & Business Development
           </p>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0f294a] tracking-tight font-sans">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0f294a] tracking-tight">
             Request a Service Proposal or Company Profile
           </h2>
-          <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed font-sans">
+          <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed">
             Connect directly with our executive operations team to receive customized billing rates, DOLE compliance documentation, and rapid manpower deployment proposals.
           </p>
         </div>
@@ -256,7 +256,7 @@ export const LandingContact: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="field-companyName" className="block text-xs font-mono font-bold uppercase text-slate-700 mb-1">
+                    <label htmlFor="field-companyName" className="block text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 mb-1">
                       Company Name *
                     </label>
                     <input
@@ -283,7 +283,7 @@ export const LandingContact: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="field-contactPerson" className="block text-xs font-mono font-bold uppercase text-slate-700 mb-1">
+                    <label htmlFor="field-contactPerson" className="block text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 mb-1">
                       Contact Person & Title *
                     </label>
                     <input
@@ -312,7 +312,7 @@ export const LandingContact: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="field-email" className="block text-xs font-mono font-bold uppercase text-slate-700 mb-1">
+                    <label htmlFor="field-email" className="block text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 mb-1">
                       Corporate Email *
                     </label>
                     <input
@@ -339,7 +339,7 @@ export const LandingContact: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="field-phone" className="block text-xs font-mono font-bold uppercase text-slate-700 mb-1">
+                    <label htmlFor="field-phone" className="block text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 mb-1">
                       Contact Number *
                     </label>
                     <input
@@ -371,7 +371,7 @@ export const LandingContact: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-mono font-bold uppercase text-slate-700 mb-1">
+                    <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 mb-1">
                       Target Industry
                     </label>
                     <select
@@ -390,7 +390,7 @@ export const LandingContact: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-mono font-bold uppercase text-slate-700 mb-1">
+                    <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 mb-1">
                       Serving Branch
                     </label>
                     <select
@@ -409,7 +409,7 @@ export const LandingContact: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-mono font-bold uppercase text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 mb-1">
                     Workforce Volume Needed
                   </label>
                   <select
@@ -426,7 +426,7 @@ export const LandingContact: React.FC = () => {
 
                 <div>
                   <div className="flex justify-between items-center mb-1">
-                    <label htmlFor="field-notes" className="block text-xs font-mono font-bold uppercase text-slate-700">
+                    <label htmlFor="field-notes" className="block text-xs font-semibold uppercase tracking-[0.08em] text-slate-700">
                       Specific Role or Skill Requirements (Optional)
                     </label>
                     <span className="text-[10px] font-mono text-slate-400">
@@ -458,7 +458,7 @@ export const LandingContact: React.FC = () => {
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 px-6 bg-[#0f294a] hover:bg-[#163b66] text-white font-mono font-bold uppercase text-xs tracking-wider rounded-lg transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                  className="w-full py-3.5 px-6 bg-[#0f294a] hover:bg-[#163b66] text-white font-bold text-sm rounded-lg transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer min-h-[48px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] focus-visible:ring-offset-2"
                 >
                   <Send className="w-4 h-4" />
                   <span>Submit Service Proposal Request</span>

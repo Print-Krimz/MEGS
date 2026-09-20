@@ -249,16 +249,16 @@ export const LandingBranches: React.FC = () => {
   }, [regionFilter]);
 
   return (
-    <section id="branches" className="py-16 sm:py-24 bg-white border-b border-slate-200">
+    <section id="branches" className="py-16 sm:py-20 bg-white border-b border-slate-200 scroll-mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-16 gap-6">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
           <div className="max-w-3xl">
-            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 mb-2">
               Nationwide Service Network
             </p>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0f294a] tracking-tight font-sans">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0f294a] tracking-tight">
               6 Strategic Branch Offices Across the Philippines
             </h2>
             <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed font-sans">
@@ -291,7 +291,8 @@ export const LandingBranches: React.FC = () => {
                   }}
                   type="button"
                   onClick={() => setRegionFilter(r)}
-                  className={`relative z-10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-md transition-colors duration-200 cursor-pointer ${
+                  aria-pressed={isActive}
+                  className={`relative z-10 px-3 py-2 text-xs font-semibold uppercase tracking-wider rounded-md transition-colors duration-200 cursor-pointer min-h-[40px] focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${
                     isActive
                       ? "text-white"
                       : "text-slate-600 hover:text-[#0f294a]"
@@ -436,10 +437,12 @@ export const LandingBranches: React.FC = () => {
               {filteredBranches.map((branch) => {
                 const isActive = branch.id === selectedBranchId;
                 return (
-                  <div
+                  <button
                     key={branch.id}
+                    type="button"
                     onClick={() => setSelectedBranchId(branch.id)}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer text-left ${
+                    aria-pressed={isActive}
+                    className={`p-4 rounded-xl border transition-all cursor-pointer text-left min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] focus-visible:ring-offset-2 ${
                       isActive
                         ? "bg-[#0f294a] text-white border-[#0f294a] shadow-xs"
                         : "bg-white text-slate-900 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
@@ -475,7 +478,7 @@ export const LandingBranches: React.FC = () => {
                     >
                       {branch.address}
                     </p>
-                  </div>
+                  </button>
                 );
               })}
             </div>

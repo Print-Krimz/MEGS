@@ -6,6 +6,7 @@ import {
   PageHeader,
   LoadingState,
   ErrorState,
+  StatusBadge,
 } from "../../components/common";
 import { Button, Dialog, Input, PhoneInput } from "../../components/ui";
 import { ComboBox } from "../../components/ui/ComboBox";
@@ -22,6 +23,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
+import { TA_COPY, formatPriority, formatTaStatus } from "../../lib/ta-copy";
 
 export const ClientDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -65,10 +67,10 @@ export const ClientDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "client", clientId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "clients"] });
       setEditModalOpen(false);
-      notify.success("Client Updated", "Client profile details saved successfully.");
+      notify.success("Client updated", "The client details were saved.");
     },
     onError: (err: any) => {
-      notify.error("Update Failed", err);
+      notify.error("Unable to update client", err);
     },
   });
 
@@ -102,7 +104,7 @@ export const ClientDetailPage: React.FC = () => {
   if (clientQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Client Account Details" description="Loading client data..." />
+        <PageHeader title="Client details" description="Loading client information..." />
         <LoadingState variant="detail" />
       </div>
     );
@@ -111,7 +113,7 @@ export const ClientDetailPage: React.FC = () => {
   if (clientQuery.isError || !client) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Client Account Details" description="Account details" />
+        <PageHeader title="Client details" description="Account details" />
         <ErrorState error={clientQuery.error} onRetry={() => clientQuery.refetch()} />
       </div>
     );
@@ -121,17 +123,18 @@ export const ClientDetailPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title={client.name}
-        description={`Client Account #${client.id} • Registered ${formatDate(client.createdAt)}`}
+        description={`Client #${client.id} • Registered ${formatDate(client.createdAt)}`}
+        meta={<StatusBadge status={client.isActive ? "Active client" : "Inactive"} type="raw" size="sm" />}
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Clients", href: "/ta/clients" },
+          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.navigation.clients, href: "/ta/clients" },
           { label: client.name },
         ]}
         actions={
           <div className="flex items-center gap-2">
             <Link to="/ta/clients">
               <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                Back to Clients
+                Back to clients
               </Button>
             </Link>
             <Button
@@ -140,11 +143,11 @@ export const ClientDetailPage: React.FC = () => {
               leftIcon={<Edit className="w-3.5 h-3.5" />}
               onClick={() => setEditModalOpen(true)}
             >
-              Edit Account
+              Edit client
             </Button>
             <Link to="/ta/mrfs/create">
               <Button variant="primary" size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />}>
-                Create MRF Order
+                Create manpower request
               </Button>
             </Link>
           </div>
@@ -155,7 +158,7 @@ export const ClientDetailPage: React.FC = () => {
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
           <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
-            Corporate Information
+            Company information
           </h3>
           {client.tradeName && (
             <span className="text-xs font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 font-bold">
@@ -165,15 +168,15 @@ export const ClientDetailPage: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
           <div>
-            <span className="text-slate-400 font-mono block">Industry Sector</span>
+            <span className="text-slate-500 block">Industry</span>
             <span className="font-semibold text-slate-900">{client.industry || "General Commercial"}</span>
           </div>
           <div>
-            <span className="text-slate-400 font-mono block">Contact Representative</span>
+            <span className="text-slate-500 block">Contact</span>
             <span className="font-semibold text-slate-900">{client.contactName || "N/A"}</span>
           </div>
           <div>
-            <span className="text-slate-400 font-mono block">Email & Phone</span>
+            <span className="text-slate-500 block">Email and phone</span>
             <span className="text-slate-800 font-mono">
               {client.contactEmail || "No email"} {client.contactPhone ? `• ${client.contactPhone}` : ""}
             </span>
@@ -183,7 +186,7 @@ export const ClientDetailPage: React.FC = () => {
           <div className="pt-2 border-t border-slate-100 flex items-start gap-2 text-xs text-slate-700">
             <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
             <div>
-              <span className="font-mono text-[10px] uppercase text-slate-400 block">Facility / Registered Address</span>
+              <span className="text-slate-500 block">Facility address</span>
               <span>
                 {client.street || client.city || client.province
                   ? [client.street, client.city, client.province, client.postalCode].filter(Boolean).join(", ")
@@ -200,8 +203,8 @@ export const ClientDetailPage: React.FC = () => {
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <div className="space-y-0.5">
-              <h3 className="text-sm font-bold text-slate-900">Manpower Orders ({mrfs.length})</h3>
-              <p className="text-xs text-slate-500">Active labor requisitions for this client</p>
+              <h3 className="text-sm font-bold text-slate-900">Manpower requests ({mrfs.length})</h3>
+              <p className="text-xs text-slate-500">Staffing requests for this client</p>
             </div>
             <Link to="/ta/mrfs/create">
               <Button variant="ghost" size="sm" leftIcon={<Plus className="w-3 h-3" />}>
@@ -221,12 +224,12 @@ export const ClientDetailPage: React.FC = () => {
                   <div>
                     <div className="font-bold text-slate-900">{mrf.title}</div>
                     <div className="text-[11px] text-slate-500 font-mono">
-                      {mrf.headcount} pax • Priority: {mrf.priority} • Status: {mrf.status}
+                      {mrf.headcount} positions • Priority: {formatPriority(mrf.priority)} • {formatTaStatus(mrf.status)}
                     </div>
                   </div>
                   <Link to="/ta/mrfs/$mrfId" params={{ mrfId: String(mrf.id) }}>
                     <Button variant="outline" size="sm">
-                      View
+                      View request
                     </Button>
                   </Link>
                 </div>
@@ -239,7 +242,7 @@ export const ClientDetailPage: React.FC = () => {
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <div className="space-y-0.5">
-              <h3 className="text-sm font-bold text-slate-900">Active Site Deployments ({deployments.length})</h3>
+              <h3 className="text-sm font-bold text-slate-900">Active site deployments ({deployments.length})</h3>
               <p className="text-xs text-slate-500">Personnel currently dispatched on client sites</p>
             </div>
             <Link to="/ta/workforce" search={{ tab: "deployments" }}>
@@ -263,12 +266,12 @@ export const ClientDetailPage: React.FC = () => {
                       {dep.employee?.user?.applicantProfile?.lastName || ""}
                     </div>
                     <div className="text-[11px] text-slate-500 font-mono">
-                      Site: {dep.site || "General Facility"} • Status: {dep.status}
+                      Site: {dep.site || "General facility"} • {formatTaStatus(dep.status)}
                     </div>
                   </div>
                   <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(dep.id) }}>
                     <Button variant="outline" size="sm">
-                      Deployment
+                      View deployment
                     </Button>
                   </Link>
                 </div>
@@ -282,7 +285,7 @@ export const ClientDetailPage: React.FC = () => {
       <Dialog
         open={editModalOpen}
         onClose={() => setEditModalOpen(false)}
-        title="Edit Client Information"
+        title="Edit client"
         description={`Update details for ${client.name}`}
       >
         <form
@@ -311,20 +314,20 @@ export const ClientDetailPage: React.FC = () => {
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
-              label="Registered Legal Corporate Name"
+              label="Legal company name"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
               required
             />
             <Input
-              label="Trade Name / Operating Brand"
+              label="Brand name (optional)"
               placeholder="e.g. Acme Logistics"
               value={editTradeName}
               onChange={(e) => setEditTradeName(e.target.value)}
             />
           </div>
           <ComboBox
-            label="Industry / Sector"
+            label="Industry"
             placeholder="Select or enter industry sector..."
             value={editIndustry}
             onChange={(val) => setEditIndustry(val)}
@@ -333,13 +336,13 @@ export const ClientDetailPage: React.FC = () => {
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
-              label="Contact Person First Name"
+              label="Contact first name"
               placeholder="e.g. Roberto"
               value={editContactFirstName}
               onChange={(e) => setEditContactFirstName(e.target.value)}
             />
             <Input
-              label="Contact Person Last Name"
+              label="Contact last name"
               placeholder="e.g. Tan"
               value={editContactLastName}
               onChange={(e) => setEditContactLastName(e.target.value)}
@@ -347,13 +350,13 @@ export const ClientDetailPage: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <PhoneInput
-              label="Contact Phone"
+              label="Contact phone"
               placeholder="0917 123 4567"
               value={editContactPhone}
               onChange={setEditContactPhone}
             />
             <Input
-              label="Official Contact Email"
+              label="Contact email"
               type="email"
               placeholder="e.g. hr.acmecorp@gmail.com"
               value={editContactEmail}
@@ -367,11 +370,11 @@ export const ClientDetailPage: React.FC = () => {
 
           <div className="pt-2 border-t border-slate-100 space-y-3">
             <div className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
-              Facility / Corporate Address
+              Facility address
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <ComboBox
-                label="Province / Region"
+                label="Province or region"
                 placeholder="Select or enter province..."
                 value={editProvince}
                 onChange={(val) => {
@@ -382,7 +385,7 @@ export const ClientDetailPage: React.FC = () => {
                 allowCustom
               />
               <ComboBox
-                label="City / Municipality"
+                label="City or municipality"
                 placeholder={editProvince ? "Select city..." : "Select province first"}
                 value={editCity}
                 onChange={setEditCity}
@@ -393,7 +396,7 @@ export const ClientDetailPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
                 <Input
-                  label="Street / Building Address"
+                  label="Street or building address"
                   placeholder="e.g. Bldg 4, Light Industry Park"
                   value={editStreet}
                   onChange={(e) => setEditStreet(e.target.value)}
@@ -415,7 +418,7 @@ export const ClientDetailPage: React.FC = () => {
               Cancel
             </Button>
             <Button variant="primary" size="sm" type="submit" loading={updateClientMutation.isPending}>
-              Save Client
+              Save client
             </Button>
           </div>
         </form>

@@ -16,12 +16,7 @@ export const LandingFeaturedCompanies: React.FC<LandingFeaturedCompaniesProps> =
   // Extract unique companies from real job postings that have client records
   const companyMap = new Map<string, { name: string; industry?: string; jobCount: number }>();
 
-  // Add default verified client partners known to the system
-  companyMap.set("Star Meg", { name: "Star Meg", industry: "Logistics", jobCount: 0 });
-  companyMap.set("Global Freight Corp", { name: "Global Freight Corp", industry: "Supply Chain", jobCount: 0 });
-  companyMap.set("Apex Retail Distribution", { name: "Apex Retail Distribution", industry: "Retail Logistics", jobCount: 0 });
-
-  // Update counts from real active jobs
+  // Update counts from real active jobs only — never invent placeholder employers
   jobs.forEach((job) => {
     const client = (job as any).mrf?.client;
     if (client?.name) {
@@ -45,16 +40,16 @@ export const LandingFeaturedCompanies: React.FC<LandingFeaturedCompaniesProps> =
   }
 
   return (
-    <section id="companies" className="py-14 sm:py-20 bg-slate-50 border-b border-slate-200 scroll-mt-14">
+    <section id="companies" className="py-16 sm:py-20 bg-slate-50 border-b border-slate-200 scroll-mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="pb-6 border-b border-slate-200">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#0f294a]">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
             Verified Partners
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-1">
+          </p>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
             Featured Companies
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          <p className="text-sm text-slate-500 mt-1.5">
             Partner employers currently deploying staff through the MEGS recruitment system.
           </p>
         </div>
@@ -82,22 +77,18 @@ export const LandingFeaturedCompanies: React.FC<LandingFeaturedCompaniesProps> =
                 )}
               </div>
 
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
                 <span className="text-slate-500">
-                  {comp.jobCount > 0
-                    ? `${comp.jobCount} open ${comp.jobCount === 1 ? "vacancy" : "vacancies"}`
-                    : "Active manpower client"}
+                  {`${comp.jobCount} open ${comp.jobCount === 1 ? "vacancy" : "vacancies"}`}
                 </span>
 
-                {comp.jobCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => onSelectCompany(comp.name)}
-                    className="font-bold text-[#0f294a] hover:underline cursor-pointer"
-                  >
-                    View Jobs
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => onSelectCompany(comp.name)}
+                  className="font-bold text-[#0f294a] hover:underline cursor-pointer min-h-[32px] px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] rounded"
+                >
+                  View Jobs
+                </button>
               </div>
             </div>
           ))}

@@ -18,6 +18,7 @@ import {
   ListOrdered,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
+import { TA_COPY } from "../../lib/ta-copy";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
 import { SendInvitationModal } from "../../components/ta/SendInvitationModal";
 import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTrackerDrawer";
@@ -64,8 +65,8 @@ export const TalentPoolPage: React.FC = () => {
       notify.success("Invitation Sent", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to send invitation: " + err.message });
-      notify.error("Invitation Failed", err);
+      setFeedback({ type: "error", message: "Unable to send this invitation. Please try again." });
+      notify.error("Unable to send invitation", err);
     },
   });
 
@@ -78,11 +79,11 @@ export const TalentPoolPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "talent-pool"] });
       const msg = "Candidate outreach log saved successfully.";
       setFeedback({ type: "success", message: msg });
-      notify.success("Contact Logged", msg);
+      notify.success("Contact saved", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to log contact outcome: " + err.message });
-      notify.error("Logging Failed", err);
+      setFeedback({ type: "error", message: "Unable to save this contact record. Please try again." });
+      notify.error("Unable to save contact", err);
     },
   });
 
@@ -90,11 +91,11 @@ export const TalentPoolPage: React.FC = () => {
     e.preventDefault();
     const query = searchText.trim();
     if (!query && !selectedJobId) {
-      setValidationError("Please enter keywords (at least 2 characters) or select a job requisition.");
+      setValidationError("Enter at least 2 search characters or choose a job opening.");
       return;
     }
     if (query && query.length < 2) {
-      setValidationError("Search query must be at least 2 characters long.");
+      setValidationError("Search must be at least 2 characters long.");
       return;
     }
     setValidationError(null);
@@ -127,7 +128,7 @@ export const TalentPoolPage: React.FC = () => {
 
   const handleSaveContact = () => {
     if (!contactJobId || contactJobId <= 0) {
-      setContactJobError("Please select a target job requisition for this contact record.");
+      setContactJobError("Choose a job opening for this contact record.");
       return;
     }
     setContactJobError(null);
@@ -143,10 +144,10 @@ export const TalentPoolPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Candidate pool"
-        description="Search past applicants, pre-screened talent, and redeployment candidates across qualifications and experience"
+        description="Find past applicants and available candidates by skills and experience."
         breadcrumbs={[
           { label: "TA Portal", href: "/ta" },
-          { label: "Talent Pool" },
+          { label: TA_COPY.navigation.candidatePool },
         ]}
         actions={
           <Button
@@ -162,6 +163,8 @@ export const TalentPoolPage: React.FC = () => {
 
       {feedback && (
         <div
+          role={feedback.type === "error" ? "alert" : "status"}
+          aria-live="polite"
           className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
             feedback.type === "success"
               ? "bg-teal-50 border-teal-200 text-teal-800"
@@ -172,7 +175,9 @@ export const TalentPoolPage: React.FC = () => {
             <span>{feedback.message}</span>
           </div>
           <button
+            type="button"
             onClick={() => setFeedback(null)}
+            aria-label="Dismiss message"
             className="text-slate-400 hover:text-slate-600 font-bold ml-4"
           >
             ×
@@ -188,14 +193,14 @@ export const TalentPoolPage: React.FC = () => {
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
           <Search className="w-4 h-4 text-teal-600 shrink-0" />
           <h3 className="text-xs font-mono font-bold uppercase text-slate-800">
-            Candidate Search & Match
+            Search candidate pool
           </h3>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
           <div className="sm:col-span-7">
             <Input
-              label="Search by Skills, Keywords, or Qualifications"
+            label="Search skills, keywords, or qualifications"
               placeholder="e.g. Electrician with TESDA NC II, industrial machinery repair, Laguna area"
               value={searchText}
               error={validationError || undefined}
@@ -208,19 +213,19 @@ export const TalentPoolPage: React.FC = () => {
 
           <div className="sm:col-span-5">
             <ComboBox
-              label="Match Against Job (Optional)"
-              placeholder="Search or select job requisition..."
+            label="Compare with a job opening (optional)"
+            placeholder="Search or select a job opening..."
               value={selectedJobId ? String(selectedJobId) : ""}
               onChange={(val) => {
                 setSelectedJobId(Number(val) || 0);
                 if (validationError) setValidationError(null);
               }}
               options={[
-                { value: "", label: "All Job Categories (Keyword Search)" },
+                { value: "", label: "All job categories (keyword search)" },
                 ...jobs.map((j) => ({
                   value: String(j.id),
                   label: j.title,
-                  subtitle: `Requisition #${j.id} • ${j.location || "Philippines"}`,
+                  subtitle: `Job opening #${j.id} • ${j.location || "Philippines"}`,
                   badge: j.status,
                 })),
               ]}
@@ -249,7 +254,7 @@ export const TalentPoolPage: React.FC = () => {
             leftIcon={<Search className="w-3.5 h-3.5" />}
             className="w-full sm:w-auto"
           >
-            Search Talent Pool
+            Search candidate pool
           </Button>
         </div>
       </form>
@@ -285,7 +290,7 @@ export const TalentPoolPage: React.FC = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs font-mono text-slate-500">
             <span>Found {results.length} matching candidates</span>
-            <span>Sorted by Match Score</span>
+            <span>Sorted by match score</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -373,7 +378,7 @@ export const TalentPoolPage: React.FC = () => {
                       leftIcon={<PhoneCall className="w-3.5 h-3.5 text-slate-600" />}
                       onClick={() => handleOpenContactModal(c)}
                     >
-                      Log Contact
+                        Log contact
                     </Button>
 
                     <Button
@@ -386,7 +391,7 @@ export const TalentPoolPage: React.FC = () => {
                         setInviteModalOpen(true);
                       }}
                     >
-                      Invite to Apply
+                        Invite to apply
                     </Button>
                   </div>
                 </div>
@@ -397,9 +402,9 @@ export const TalentPoolPage: React.FC = () => {
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs text-center space-y-3">
           <Search className="w-8 h-8 text-slate-400 mx-auto" />
-          <h4 className="text-sm font-bold text-slate-900">Search Candidate Talent Pool</h4>
+          <h4 className="text-sm font-bold text-slate-900">Search the candidate pool</h4>
           <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-            Use the search bar above to find matching profiles across past applicants and pre-screened candidate records.
+            Use the search fields above to find past applicants and pre-screened candidates.
           </p>
         </div>
       )}
@@ -408,13 +413,13 @@ export const TalentPoolPage: React.FC = () => {
       <Dialog
         open={contactModalOpen}
         onClose={() => setContactModalOpen(false)}
-        title="Log Candidate Contact Outcome"
+        title="Log candidate contact"
         description={`Record outreach notes for ${contactCandidateName}`}
         overflowVisible
       >
         <div className="space-y-4">
           <ComboBox
-            label="Associated Job Requisition *"
+            label="Job opening"
             placeholder="Search target job opening..."
             value={contactJobId ? String(contactJobId) : ""}
             error={contactJobError || undefined}
@@ -425,14 +430,14 @@ export const TalentPoolPage: React.FC = () => {
             options={jobs.map((j) => ({
               value: String(j.id),
               label: j.title,
-              subtitle: `Requisition #${j.id} • ${j.location || "Philippines"}`,
+              subtitle: `Job opening #${j.id} • ${j.location || "Philippines"}`,
               badge: j.status,
             }))}
             emptyText="No matching job openings found"
             required
           />
           <Select
-            label="Candidate Response / Outcome *"
+            label="Candidate response or outcome"
             value={contactOutcome}
             onChange={(e) => setContactOutcome(e.target.value)}
             options={[
@@ -443,7 +448,7 @@ export const TalentPoolPage: React.FC = () => {
             ]}
           />
           <Textarea
-            label="Recruiter Outreach Notes"
+            label="Contact notes"
             placeholder="Document phone conversation notes, availability window, salary expectations..."
             value={contactNotes}
             onChange={(e) => setContactNotes(e.target.value)}
@@ -459,7 +464,7 @@ export const TalentPoolPage: React.FC = () => {
               loading={recordContactMutation.isPending}
               onClick={handleSaveContact}
             >
-              Save Contact Record
+              Save contact
             </Button>
           </div>
         </div>

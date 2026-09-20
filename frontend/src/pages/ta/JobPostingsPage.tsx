@@ -23,6 +23,9 @@ import {
 } from "lucide-react";
 
 import { notify } from "../../lib/feedback";
+import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
+
+const EMPTY_LIST: any[] = [];
 
 export const JobPostingsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -46,7 +49,7 @@ export const JobPostingsPage: React.FC = () => {
     queryFn: () => taApi.listClients(),
   });
 
-  const clients = clientsQuery.data || [];
+  const clients = clientsQuery.data ?? EMPTY_LIST;
 
   const jobsQuery = useQuery({
     queryKey: ["ta", "jobs", { search, filterValues, mineOnly }],
@@ -59,7 +62,7 @@ export const JobPostingsPage: React.FC = () => {
       }),
   });
 
-  const jobs = jobsQuery.data || [];
+  const jobs = jobsQuery.data ?? EMPTY_LIST;
 
   // Dynamically derive client options for current TA scope (deduplicated)
   const availableClients = React.useMemo(() => {
@@ -131,10 +134,10 @@ export const JobPostingsPage: React.FC = () => {
       setFormDescription("");
       setFormRequirements("");
       setFormIsEvergreen(false);
-      notify.success("Job Posting Created", `Requisition #${newJob?.id || ""} created successfully.`);
+      notify.success("Job opening created", `Job opening #${newJob?.id || ""} is ready.`);
     },
     onError: (err: any) => {
-      notify.error("Creation Failed", err);
+      notify.error("Unable to create job opening", err);
     },
   });
 
@@ -160,11 +163,11 @@ export const JobPostingsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Active Job Postings"
-        description="Create and publish job openings, set criteria, and monitor incoming candidates"
+        title="Job openings"
+        description="Create openings, set requirements, and review incoming candidates."
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Job Postings" },
+          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.navigation.openings },
         ]}
         actions={
           <Button
@@ -176,14 +179,14 @@ export const JobPostingsPage: React.FC = () => {
               setCreateModalOpen(true);
             }}
           >
-            Create Requisition
+            Create job opening
           </Button>
         }
       />
 
       {/* Filter Bar */}
       <SearchFilters
-        searchPlaceholder="Search requisitions by title, location, client..."
+        searchPlaceholder="Search job openings by title, location, or client..."
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
@@ -192,17 +195,17 @@ export const JobPostingsPage: React.FC = () => {
         filters={[
           {
             key: "status",
-            label: "Requisition Status",
+            label: "Opening status",
             options: [
-              { value: JobStatus.OPEN, label: "OPEN" },
-              { value: JobStatus.DRAFT, label: "DRAFT" },
-              { value: JobStatus.CLOSED, label: "CLOSED" },
+              { value: JobStatus.OPEN, label: "Open" },
+              { value: JobStatus.DRAFT, label: "Draft" },
+              { value: JobStatus.CLOSED, label: "Closed" },
             ],
           },
           {
             key: "clientId",
-            label: "Client Account",
-            placeholder: mineOnly ? "My client accounts" : "All client accounts",
+            label: "Client",
+            placeholder: mineOnly ? "My clients" : "All clients",
             searchable: true,
             options: availableClients.map((c) => ({
               value: String(c.id),
@@ -225,7 +228,7 @@ export const JobPostingsPage: React.FC = () => {
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              All Company
+              All openings
             </button>
             <button
               type="button"
@@ -244,7 +247,7 @@ export const JobPostingsPage: React.FC = () => {
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              My Requisitions
+              My openings
             </button>
           </div>
         }
@@ -259,8 +262,8 @@ export const JobPostingsPage: React.FC = () => {
         <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
           <EmptyState
             icon={<Briefcase className="w-6 h-6" />}
-            title="No job requisitions found"
-            description="Create a new job posting to begin receiving candidate applications."
+            title="No job openings found"
+            description="Create a job opening to begin receiving candidate applications."
             action={
               <Button
                 variant="primary"
@@ -271,7 +274,7 @@ export const JobPostingsPage: React.FC = () => {
                   setCreateModalOpen(true);
                 }}
               >
-                Create Requisition
+                Create job opening
               </Button>
             }
           />
@@ -320,7 +323,7 @@ export const JobPostingsPage: React.FC = () => {
                     <div className="flex items-center gap-1.5 shrink-0">
                       {job.isEvergreen && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-teal-50 text-teal-700 border border-teal-200">
-                          Keep Open
+                          Always open
                         </span>
                       )}
                       <span
@@ -332,7 +335,7 @@ export const JobPostingsPage: React.FC = () => {
                             : "bg-slate-100 text-slate-700"
                         }`}
                       >
-                        {job.status}
+                        {formatTaStatus(job.status)}
                       </span>
                     </div>
                   </div>
@@ -345,7 +348,7 @@ export const JobPostingsPage: React.FC = () => {
                     <div className="flex items-center gap-4">
                       <span className="flex items-center gap-1">
                         <Users className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{job._count?.applications || 0} Applicants</span>
+                        <span>{job._count?.applications || 0} applicants</span>
                       </span>
                       <span>•</span>
                       <span>Posted {formatDate(job.createdAt)}</span>
@@ -367,7 +370,7 @@ export const JobPostingsPage: React.FC = () => {
 
                 <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between">
                   <span className="text-xs font-mono font-semibold text-slate-500">
-                    Requisition #{job.id}
+                    Job opening #{job.id}
                   </span>
                   <div className="flex items-center gap-2">
                     <Link
@@ -379,7 +382,7 @@ export const JobPostingsPage: React.FC = () => {
                         size="sm"
                         leftIcon={<Briefcase className="w-3.5 h-3.5 text-teal-600" />}
                       >
-                        View Job
+                        View opening
                       </Button>
                     </Link>
                   </div>
@@ -396,7 +399,7 @@ export const JobPostingsPage: React.FC = () => {
               totalItems={jobs.length}
               pageSize={pageSize}
               onPageChange={setPage}
-              itemLabel="requisitions"
+              itemLabel="job openings"
             />
           </div>
         </div>
@@ -406,8 +409,8 @@ export const JobPostingsPage: React.FC = () => {
       <Dialog
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
-        title="Create Job Requisition"
-        description="Publish a new manpower opening for applicant intake"
+        title="Create job opening"
+        description="Publish an opening so applicants can apply."
       >
         <form
           onSubmit={(e) => {
@@ -427,23 +430,23 @@ export const JobPostingsPage: React.FC = () => {
         >
           {/* Optional MRF Auto-Population Selector */}
           <ComboBox
-            label="Link to Manpower Request (MRF) (Optional)"
-            placeholder="Search open client MRFs to auto-fill requisition..."
+            label="Link to a manpower request (optional)"
+            placeholder="Search requests to fill this opening automatically..."
             leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-slate-400" />}
             value={selectedMrfId ? String(selectedMrfId) : ""}
             onChange={handleSelectMRF}
             options={mrfs.map((m) => ({
               value: String(m.id),
-              label: `${m.title} (MRF #${m.id})`,
-              subtitle: `Client: ${m.client?.name || "Corporate Account"} • ${m.location || "Nationwide"} • ${m.headcount} pax`,
+              label: `${m.title} (Request #${m.id})`,
+              subtitle: `Client: ${m.client?.name || "Client"} • ${m.location || "Nationwide"} • ${m.headcount} positions`,
               badge: m.status,
             }))}
-            helperText="Selecting an MRF auto-fills title, location, description, and qualifications"
-            emptyText="No open Manpower Requests found"
+            helperText="Selecting a request fills the title, location, description, and skills."
+            emptyText="No open manpower requests found"
           />
 
           <Input
-            label="Job Requisition Title"
+            label="Job opening title"
             placeholder="e.g. Senior Electrician / Line Specialist"
             value={formTitle}
             onChange={(e) => setFormTitle(e.target.value)}
@@ -451,20 +454,20 @@ export const JobPostingsPage: React.FC = () => {
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
-              label="Workplace Location"
+            label="Work site"
               placeholder="e.g. Batangas City Facility"
               value={formLocation}
               onChange={(e) => setFormLocation(e.target.value)}
             />
             <Input
-              label="Job / Company Image URL (Optional)"
+            label="Image web address (optional)"
               placeholder="https://example.com/company-banner.jpg"
               value={formImageUrl}
               onChange={(e) => setFormImageUrl(e.target.value)}
             />
           </div>
           <Textarea
-            label="Job Description & Responsibilities"
+            label="Description and responsibilities"
             placeholder="Describe role responsibilities..."
             value={formDescription}
             onChange={(e) => setFormDescription(e.target.value)}
@@ -472,7 +475,7 @@ export const JobPostingsPage: React.FC = () => {
             required
           />
           <Textarea
-            label="Qualifications & Criteria"
+            label="Required skills and qualifications"
             placeholder="e.g. TESDA NC II, 2+ years experience..."
             value={formRequirements}
             onChange={(e) => setFormRequirements(e.target.value)}
@@ -490,9 +493,9 @@ export const JobPostingsPage: React.FC = () => {
                 onChange={(e) => setFormIsEvergreen(e.target.checked)}
               />
               <div>
-                <span className="text-xs font-semibold text-slate-800">Keep Open After Fill</span>
+                <span className="text-xs font-semibold text-slate-800">Keep open after positions are filled</span>
                 <p className="text-[11px] text-slate-500 leading-tight">
-                  Do not auto-close when target headcount is reached.
+                  Leave this opening open for future applicants.
                 </p>
               </div>
             </label>
@@ -508,7 +511,7 @@ export const JobPostingsPage: React.FC = () => {
               type="submit"
               loading={createJobMutation.isPending}
             >
-              Publish Requisition
+              Publish job opening
             </Button>
           </div>
         </form>

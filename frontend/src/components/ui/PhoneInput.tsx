@@ -62,6 +62,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
           inputMode="numeric"
           autoComplete="tel"
           disabled={disabled}
+          required={required}
           placeholder={placeholder}
           value={value}
           onChange={handleInputChange}

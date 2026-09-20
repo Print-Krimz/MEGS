@@ -18,6 +18,7 @@ import {
   Truck,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
+import { TA_COPY } from "../../lib/ta-copy";
 
 export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
   const queryClient = useQueryClient();
@@ -54,7 +55,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
       notify.success("Deployment Status Updated", `Deployment moved to ${getDeploymentStatusMeta(vars.status).label}.`);
     },
     onError: (err: any) => {
-      notify.error("Status Update Failed", err);
+      notify.error("Unable to update deployment status", err);
     },
   });
 
@@ -103,18 +104,18 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
     <div className="space-y-6">
       {!hideHeader && (
         <PageHeader
-          title="Workforce Site Deployments"
-          description="Monitor field site assignments, employee deployments, and active client personnel contracts"
+          title="Site deployments"
+          description="Monitor employee assignments, client sites, and contract dates."
           breadcrumbs={[
-            { label: "TA Portal", href: "/ta" },
-            { label: "Deployments" },
+            { label: TA_COPY.navigation.overview, href: "/ta" },
+            { label: TA_COPY.navigation.workforce },
           ]}
         />
       )}
 
       {/* Filters Bar */}
       <SearchFilters
-        searchPlaceholder="Search employee name, number, or site..."
+        searchPlaceholder="Search employee, employee number, client, or site..."
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
@@ -152,24 +153,65 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
         <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
           <EmptyState
             icon={<Truck className="w-6 h-6" />}
-            title="No Deployments Found"
-            description="Personnel transitioned from hired candidates and assigned to client sites will appear here."
+            title="No site deployments found"
+            description="Employees assigned to client sites will appear here after deployment is activated."
             action={
               <Button variant="outline" size="sm" onClick={handleReset}>
-                Reset Filters
+                Reset filters
               </Button>
             }
           />
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="md:hidden divide-y divide-slate-200">
+            {paginatedDeployments.map((dep) => {
+              const profile = dep.employee?.user?.applicantProfile;
+              const employeeName = profile
+                ? `${profile.firstName} ${profile.lastName}`
+                : dep.employee?.employeeNumber || "Employee";
+              const allowedNext = ALLOWED_DEPLOYMENT_TRANSITIONS[dep.status] || [];
+              return (
+                <article key={dep.id} className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-slate-950 break-words">{employeeName}</h4>
+                      <p className="mt-0.5 text-sm text-slate-600 break-words">{dep.client?.name || "Client not recorded"}</p>
+                    </div>
+                    <StatusBadge status={dep.status} type="deployment" size="sm" />
+                  </div>
+                  <dl className="grid grid-cols-2 gap-3 text-sm">
+                    <div><dt className="text-slate-500">Site</dt><dd className="mt-0.5 text-slate-800 break-words">{dep.site || "Client site"}</dd></div>
+                    <div><dt className="text-slate-500">Contract</dt><dd className="mt-0.5 text-slate-800">{dep.contractStart ? formatDate(dep.contractStart) : "Not set"}</dd></div>
+                  </dl>
+                  <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+                    {allowedNext.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setStatusModalDeployment({ id: dep.id, currentStatus: dep.status });
+                          setNewStatus(allowedNext[0]);
+                        }}
+                      >
+                        Update status
+                      </Button>
+                    )}
+                    <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(dep.id) }}>
+                      <Button variant="primary" size="sm">View details</Button>
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Assigned Employee</th>
-                  <th className="px-4 py-3 font-semibold">Client Company</th>
-                  <th className="px-4 py-3 font-semibold">Deployment Site</th>
+                  <th className="px-4 py-3 font-semibold">Employee</th>
+                  <th className="px-4 py-3 font-semibold">Client</th>
+                  <th className="px-4 py-3 font-semibold">Site</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Contract Schedule</th>
                   <th className="px-4 py-3 font-semibold text-right">Actions</th>
@@ -199,7 +241,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                           <div className="font-bold text-slate-900">{empName}</div>
                         )}
                         <div className="text-[11px] text-slate-400 font-mono">
-                          ID: {emp?.employeeNumber || "N/A"}
+                          Employee no.: {emp?.employeeNumber || "Not recorded"}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -215,7 +257,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                           <div className="font-semibold text-slate-800">{dep.client?.name}</div>
                         )}
                         <div className="text-[11px] text-slate-400 font-mono">
-                          MRF #{dep.mrfId || "Direct"}
+                          Request #{dep.mrfId || "Direct"}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-slate-700 font-medium">
@@ -239,7 +281,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                                 setNewStatus(allowedNext[0]);
                               }}
                             >
-                              Update Status
+                              Update status
                             </Button>
                           )}
                           <Link
@@ -247,7 +289,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                             params={{ deploymentId: String(dep.id) }}
                           >
                             <Button variant="outline" size="sm">
-                              View Details
+                            View details
                             </Button>
                           </Link>
                         </div>
@@ -278,17 +320,17 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
         open={Boolean(statusModalDeployment)}
         onClose={() => setStatusModalDeployment(null)}
         title="Update Deployment Status"
-        description="Update the employee's current deployment status."
+            description="Update the employee’s current site assignment status."
       >
         <div className="space-y-4">
           {statusModalDeployment && (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex items-center justify-between">
-              <span className="text-slate-500 font-mono">Current Status:</span>
+              <span className="text-slate-500 font-medium">Current status</span>
               <StatusBadge status={statusModalDeployment.currentStatus} type="deployment" />
             </div>
           )}
           <Select
-            label="Target Status"
+            label="New status"
             value={newStatus}
             onChange={(e) => setNewStatus(e.target.value as DeploymentStatus)}
             options={
@@ -301,8 +343,8 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
             }
           />
           <Textarea
-            label="Status Notes / Coordinator Remarks"
-            placeholder="Document reason or remarks for this status update..."
+            label="Notes (optional)"
+            placeholder="Add a reason or note for this change..."
             value={statusNotes}
             onChange={(e) => setStatusNotes(e.target.value)}
             rows={3}
@@ -325,7 +367,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                 }
               }}
             >
-              Confirm Status
+              Save status
             </Button>
           </div>
         </div>

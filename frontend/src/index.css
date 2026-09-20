@@ -87,6 +87,15 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Prevent mobile browsers from zooming the form while keeping desktop density. */
+@media (max-width: 767px) {
+  .ta-portal input,
+  .ta-portal select,
+  .ta-portal textarea {
+    font-size: 16px;
+  }
+}
 ::-webkit-scrollbar-track {
   background: transparent;
 }

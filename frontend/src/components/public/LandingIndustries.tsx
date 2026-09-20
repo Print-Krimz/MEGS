@@ -55,19 +55,19 @@ export const LandingIndustries: React.FC = () => {
   ];
 
   return (
-    <section id="industries" className="py-16 sm:py-24 bg-slate-50 border-b border-slate-200">
+    <section id="industries" className="py-16 sm:py-20 bg-slate-50 border-b border-slate-200 scroll-mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-16 gap-6">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
           <div className="max-w-3xl">
-            <p className="text-xs font-mono uppercase tracking-wider text-[#0f294a] font-bold mb-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 mb-2">
               Specialized Industry Sectors
             </p>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0f294a] tracking-tight font-sans">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0f294a] tracking-tight">
               Partner Industries We Support
             </h2>
-            <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed font-sans">
+            <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed">
               We deploy vetted, disciplined manpower tailored to the operational workflows, safety standards, and compliance regulations of 6 key Philippine industries.
             </p>
           </div>
@@ -75,7 +75,7 @@ export const LandingIndustries: React.FC = () => {
           <a
             href="#contact"
             onClick={(e) => scrollToSection(e, "#contact")}
-            className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-[#0f294a] hover:text-blue-700 transition-colors shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-[#0f294a] hover:text-blue-700 transition-colors shrink-0 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] rounded py-1"
           >
             <span>Inquire for Your Industry</span>
             <ArrowUpRight className="w-4 h-4" />
@@ -104,22 +104,22 @@ export const LandingIndustries: React.FC = () => {
                 <div className="p-6 flex-1 flex flex-col justify-between">
                   <div>
                     <div className="mb-3">
-                      <h3 className="text-base font-bold font-mono uppercase text-[#0f294a] tracking-tight">
+                      <h3 className="text-base font-bold text-[#0f294a] tracking-tight">
                         {ind.name}
                       </h3>
                     </div>
 
-                    <p className="text-xs text-slate-600 leading-relaxed mb-4 font-sans">
+                    <p className="text-sm text-slate-600 leading-relaxed mb-4">
                       {ind.description}
                     </p>
                   </div>
 
                   {/* Supplied Roles (Clean inline list instead of decorative sticker pills) */}
                   <div className="pt-4 border-t border-slate-100">
-                    <span className="text-[10px] font-mono uppercase font-bold text-slate-400 block mb-1 tracking-wider">
-                      Key Personnel Supplied:
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500 block mb-1.5">
+                      Key Personnel Supplied
                     </span>
-                    <p className="text-xs text-slate-700 font-sans leading-relaxed">
+                    <p className="text-xs text-slate-700 leading-relaxed">
                       {ind.roles.join(" • ")}
                     </p>
                   </div>

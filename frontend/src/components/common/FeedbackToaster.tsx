@@ -30,11 +30,11 @@ export const FeedbackToaster: React.FC = () => {
             "px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-[11px] font-medium transition-colors",
           closeButton:
             "text-slate-400 hover:text-slate-700 p-1 transition-colors border border-transparent hover:border-slate-200",
-          success: "border-l-4 border-l-emerald-600 bg-white",
-          error: "border-l-4 border-l-rose-600 bg-white",
-          warning: "border-l-4 border-l-amber-500 bg-white",
-          info: "border-l-4 border-l-teal-600 bg-white",
-          loading: "border-l-4 border-l-slate-400 bg-white",
+          success: "border border-emerald-200 bg-emerald-50/40",
+          error: "border border-rose-200 bg-rose-50/40",
+          warning: "border border-amber-200 bg-amber-50/40",
+          info: "border border-teal-200 bg-teal-50/40",
+          loading: "border border-slate-200 bg-white",
         },
       }}
     />

@@ -3,6 +3,7 @@ import { Check, AlertCircle } from "lucide-react";
 import { ApplicationStatus } from "../../lib/types/enums";
 import { ApplicationStatusAudience, cn, getApplicationStatusPresentation } from "../../lib/utils";
 import { getPipelineStageIndex } from "../../lib/pipeline-stages";
+import { TA_COPY } from "../../lib/ta-copy";
 
 export interface PipelineIndicatorProps {
   currentStatus: string;
@@ -12,13 +13,13 @@ export interface PipelineIndicatorProps {
 }
 
 const CANONICAL_STAGES = [
-  { id: ApplicationStatus.SUBMITTED, label: "Submitted" },
-  { id: ApplicationStatus.INITIAL_SCREENING, label: "Initial Review" },
-  { id: ApplicationStatus.CLIENT_ENDORSEMENT, label: "Client Review" },
-  { id: ApplicationStatus.FINAL_INTERVIEW, label: "Final Interview" },
-  { id: ApplicationStatus.COMPLIANCE, label: "Requirements" },
-  { id: ApplicationStatus.CONTRACT_AND_ORIENTATION, label: "Contract & Orientation" },
-  { id: ApplicationStatus.DEPLOYED, label: "Deployed" },
+  { id: ApplicationStatus.SUBMITTED, label: TA_COPY.pipeline.submitted },
+  { id: ApplicationStatus.INITIAL_SCREENING, label: "Initial review" },
+  { id: ApplicationStatus.CLIENT_ENDORSEMENT, label: "Client review" },
+  { id: ApplicationStatus.FINAL_INTERVIEW, label: "Final interview" },
+  { id: ApplicationStatus.COMPLIANCE, label: TA_COPY.pipeline.requirements },
+  { id: ApplicationStatus.CONTRACT_AND_ORIENTATION, label: TA_COPY.pipeline.contractAndOrientation },
+  { id: ApplicationStatus.DEPLOYED, label: TA_COPY.pipeline.deployed },
 ];
 
 const TERMINAL_STATUSES: string[] = [
@@ -89,6 +90,7 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
                   "relative z-10 w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold border transition-all shrink-0",
                   circleClass
                 )}
+                aria-current={isCurrent ? "step" : undefined}
               >
                 {isCompleted || isFinalDeployed ? (
                   <Check className="w-3.5 h-3.5 stroke-[2.5]" />

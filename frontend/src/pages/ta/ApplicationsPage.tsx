@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
@@ -25,16 +25,86 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
+import type { TAApplicationSearch } from "../../routes";
+import { TA_COPY } from "../../lib/ta-copy";
+
+const EMPTY_LIST: any[] = [];
+
+const readApplicationSearch = (): TAApplicationSearch => {
+  const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
+  const stage = params.get("stage");
+  const number = (value: string | null) => {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+  };
+  return {
+    q: params.get("q") || undefined,
+    stage: stage && PIPELINE_FILTER_STAGES.includes(stage as ApplicationStatus) ? stage as ApplicationStatus : undefined,
+    clientId: number(params.get("clientId")),
+    jobId: number(params.get("jobId")),
+    mine: params.get("mine") === "true" || params.get("mine") === "1" ? true : undefined,
+    archived: params.get("archived") === "true" || params.get("archived") === "1" ? true : undefined,
+    page: number(params.get("page")),
+  };
+};
 
 export const ApplicationsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  // Re-read on router renders so browser back/forward and in-place search
+  // navigation restore the visible filters instead of keeping a stale snapshot.
+  const routeSearch = readApplicationSearch();
 
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(routeSearch.page || 1);
   const pageSize = 10;
-  const [search, setSearch] = useState("");
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
-  const [showArchived, setShowArchived] = useState(false);
-  const [mineOnly, setMineOnly] = useState(false);
+  const [search, setSearch] = useState(routeSearch.q || "");
+  const [filterValues, setFilterValues] = useState<Record<string, string>>(() => ({
+    ...(routeSearch.stage ? { status: routeSearch.stage } : {}),
+    ...(routeSearch.clientId ? { clientId: String(routeSearch.clientId) } : {}),
+    ...(routeSearch.jobId ? { jobId: String(routeSearch.jobId) } : {}),
+  }));
+  const [showArchived, setShowArchived] = useState(Boolean(routeSearch.archived));
+  const [mineOnly, setMineOnly] = useState(Boolean(routeSearch.mine));
+
+  useEffect(() => {
+    setPage(routeSearch.page || 1);
+    setSearch(routeSearch.q || "");
+    setFilterValues({
+      ...(routeSearch.stage ? { status: routeSearch.stage } : {}),
+      ...(routeSearch.clientId ? { clientId: String(routeSearch.clientId) } : {}),
+      ...(routeSearch.jobId ? { jobId: String(routeSearch.jobId) } : {}),
+    });
+    setShowArchived(Boolean(routeSearch.archived));
+    setMineOnly(Boolean(routeSearch.mine));
+  }, [routeSearch.page, routeSearch.q, routeSearch.stage, routeSearch.clientId, routeSearch.jobId, routeSearch.archived, routeSearch.mine]);
+
+  const updateListUrl = (next: Partial<TAApplicationSearch>) => {
+    const valueFor = <K extends keyof TAApplicationSearch>(key: K, fallback: TAApplicationSearch[K]) =>
+      Object.prototype.hasOwnProperty.call(next, key) ? next[key] : fallback;
+    void navigate({
+      to: "/ta/applications",
+      search: {
+        q: valueFor("q", search || undefined),
+        stage: valueFor("stage", filterValues.status as ApplicationStatus | undefined),
+        clientId: valueFor("clientId", filterValues.clientId ? Number(filterValues.clientId) : undefined),
+        jobId: valueFor("jobId", filterValues.jobId ? Number(filterValues.jobId) : undefined),
+        mine: valueFor("mine", mineOnly || undefined),
+        archived: valueFor("archived", showArchived || undefined),
+        page: valueFor("page", page > 1 ? page : undefined),
+      },
+      replace: true,
+    });
+  };
+
+  const listSearch = {
+    q: search || undefined,
+    stage: (filterValues.status as ApplicationStatus | undefined) || undefined,
+    clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
+    jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
+    mine: mineOnly || undefined,
+    archived: showArchived || undefined,
+    page: page > 1 ? page : undefined,
+  };
 
   // Modal states for archive
   const [archiveModalApp, setArchiveModalApp] = useState<{ id: number; name: string; isArchived: boolean } | null>(null);
@@ -95,8 +165,8 @@ export const ApplicationsPage: React.FC = () => {
       notify.success("Application Archived", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to archive application: " + err.message });
-      notify.error("Archive Failed", err);
+      setFeedback({ type: "error", message: "Unable to archive this application. Please try again." });
+      notify.error("Unable to archive application", err);
     },
   });
 
@@ -127,8 +197,8 @@ export const ApplicationsPage: React.FC = () => {
       notify.success("Application Restored", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to restore application: " + err.message });
-      notify.error("Restore Failed", err);
+      setFeedback({ type: "error", message: "Unable to restore this application. Please try again." });
+      notify.error("Unable to restore application", err);
     },
   });
 
@@ -138,8 +208,8 @@ export const ApplicationsPage: React.FC = () => {
   const totalPages = Array.isArray(queryData)
     ? Math.max(1, Math.ceil(queryData.length / pageSize))
     : queryData?.totalPages || 1;
-  const jobs = jobsQuery.data || [];
-  const clients = clientsQuery.data || [];
+  const jobs = jobsQuery.data ?? EMPTY_LIST;
+  const clients = clientsQuery.data ?? EMPTY_LIST;
 
   // Dynamically derive client options for current TA scope (deduplicated)
   const availableClients = React.useMemo(() => {
@@ -175,11 +245,11 @@ export const ApplicationsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Applications"
+        title={TA_COPY.navigation.applications}
         description="Review applications, see their current stage, and continue the next hiring action."
         breadcrumbs={[
-          { label: "Recruitment", href: "/ta" },
-          { label: "Applications" },
+          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.navigation.applications },
         ]}
         actions={
           <div className="flex items-center gap-2">
@@ -188,11 +258,13 @@ export const ApplicationsPage: React.FC = () => {
               size="sm"
               leftIcon={<Archive className="w-3.5 h-3.5" />}
               onClick={() => {
-                setShowArchived(!showArchived);
+                const nextArchived = !showArchived;
+                setShowArchived(nextArchived);
                 setPage(1);
+                updateListUrl({ archived: nextArchived || undefined, page: undefined });
               }}
             >
-              {showArchived ? "Viewing Archived" : "View Archived"}
+              {showArchived ? "Viewing archived" : "View archived"}
             </Button>
           </div>
         }
@@ -200,6 +272,8 @@ export const ApplicationsPage: React.FC = () => {
 
       {feedback && (
         <div
+          role={feedback.type === "error" ? "alert" : "status"}
+          aria-live="polite"
           className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
             feedback.type === "success"
               ? "bg-teal-50 border-teal-200 text-teal-800"
@@ -210,7 +284,9 @@ export const ApplicationsPage: React.FC = () => {
             <span>{feedback.message}</span>
           </div>
           <button
+            type="button"
             onClick={() => setFeedback(null)}
+            aria-label="Dismiss message"
             className="text-slate-400 hover:text-slate-600 font-bold ml-4"
           >
             ×
@@ -222,29 +298,35 @@ export const ApplicationsPage: React.FC = () => {
       <SearchFilters
         searchPlaceholder="Search applications by candidate, email, job title..."
         searchValue={search}
-        onSearchChange={(v) => {
-          setSearch(v);
-          setPage(1);
-        }}
+          onSearchChange={(v) => {
+            setSearch(v);
+            setPage(1);
+            updateListUrl({ q: v || undefined, page: undefined });
+          }}
         filterValues={filterValues}
-        onFilterChange={(k, v) => {
-          setFilterValues((prev) => {
-            const next = { ...prev, [k]: v };
-            // If changing client, clear selected job if not belonging to that client
-            if (k === "clientId" && prev.jobId) {
-              const jobBelongs = jobs.some((j: any) => String(j.id) === prev.jobId && (!v || j.mrf?.clientId === Number(v)));
-              if (!jobBelongs) {
-                delete next.jobId;
-              }
+          onFilterChange={(k, v) => {
+            const nextValues = { ...filterValues };
+            if (v) nextValues[k] = v;
+            else delete nextValues[k];
+            // If changing client, clear selected job if it no longer belongs to that client.
+            if (k === "clientId" && nextValues.jobId) {
+              const jobBelongs = jobs.some((j: any) => String(j.id) === nextValues.jobId && (!v || j.mrf?.clientId === Number(v)));
+              if (!jobBelongs) delete nextValues.jobId;
             }
-            return next;
-          });
-          setPage(1);
-        }}
+            setFilterValues(nextValues);
+            setPage(1);
+            updateListUrl({
+              stage: k === "status" ? (v as ApplicationStatus) || undefined : (nextValues.status as ApplicationStatus | undefined),
+              clientId: nextValues.clientId ? Number(nextValues.clientId) : undefined,
+              jobId: nextValues.jobId ? Number(nextValues.jobId) : undefined,
+              page: undefined,
+            });
+          }}
         onReset={() => {
           setSearch("");
           setFilterValues({});
           setPage(1);
+          updateListUrl({ q: undefined, stage: undefined, clientId: undefined, jobId: undefined, page: undefined });
         }}
         filters={[
           {
@@ -286,6 +368,7 @@ export const ApplicationsPage: React.FC = () => {
               onClick={() => {
                 setMineOnly(false);
                 setPage(1);
+                updateListUrl({ mine: undefined, clientId: undefined, jobId: undefined, page: undefined });
               }}
               className={`px-2.5 py-1 rounded transition-colors ${
                 !mineOnly
@@ -293,7 +376,7 @@ export const ApplicationsPage: React.FC = () => {
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              All Company
+              All candidates
             </button>
             <button
               type="button"
@@ -306,6 +389,7 @@ export const ApplicationsPage: React.FC = () => {
                   return next;
                 });
                 setPage(1);
+                updateListUrl({ mine: true, clientId: undefined, jobId: undefined, page: undefined });
               }}
               className={`px-2.5 py-1 rounded transition-colors ${
                 mineOnly
@@ -313,7 +397,7 @@ export const ApplicationsPage: React.FC = () => {
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              My Candidates
+              My candidates
             </button>
           </div>
         }
@@ -345,6 +429,8 @@ export const ApplicationsPage: React.FC = () => {
                   onClick={() => {
                     setSearch("");
                     setFilterValues({});
+                    setPage(1);
+                    updateListUrl({ q: undefined, stage: undefined, clientId: undefined, jobId: undefined, page: undefined });
                   }}
                 >
                   Reset All Filters
@@ -385,6 +471,7 @@ export const ApplicationsPage: React.FC = () => {
                     <Link
                       to="/ta/applications/$applicationId"
                       params={{ applicationId: String(app.id) }}
+                      search={listSearch}
                       className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
                     >
                       View application
@@ -453,13 +540,14 @@ export const ApplicationsPage: React.FC = () => {
                           <Link
                             to="/ta/applications/$applicationId"
                             params={{ applicationId: String(app.id) }}
+                            search={listSearch}
                           >
                             <Button
                               variant="outline"
                               size="sm"
                               leftIcon={<Eye className="w-3.5 h-3.5" />}
                             >
-                              View Details
+                              View application
                             </Button>
                           </Link>                          {!app.isArchived ? (
                             <Button
@@ -510,7 +598,10 @@ export const ApplicationsPage: React.FC = () => {
               totalPages={totalPages}
               totalItems={totalItems}
               pageSize={pageSize}
-              onPageChange={setPage}
+              onPageChange={(nextPage) => {
+                setPage(nextPage);
+                updateListUrl({ page: nextPage > 1 ? nextPage : undefined });
+              }}
               itemLabel="applications"
             />
           </div>
@@ -526,7 +617,7 @@ export const ApplicationsPage: React.FC = () => {
       >
         <div className="space-y-4">
           <Textarea
-            label="Administrative Reason / Audit Note"
+            label="Reason for this change"
             placeholder={
               archiveModalApp?.isArchived
                 ? "e.g. Candidate recontacted and available for consideration"

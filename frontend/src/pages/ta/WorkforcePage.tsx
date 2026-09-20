@@ -4,7 +4,8 @@ import { DeploymentsPage } from "./DeploymentsPage";
 import { EmployeesPage } from "./EmployeesPage";
 import { CompliancePage } from "./CompliancePage";
 import { Send, IdCard, FileCheck2 } from "lucide-react";
-import { PageHeader } from "../../components/common";
+import { PageHeader, Tabs } from "../../components/common";
+import { TA_COPY } from "../../lib/ta-copy";
 
 export type WorkforceTab = "deployments" | "employees" | "clearances";
 
@@ -45,58 +46,28 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Deployments & 201 Records"
-        description="Monitor field site assignments, employee 201 records, and pre-employment clearances."
+        title={TA_COPY.navigation.workforce}
+        description="Manage site deployments, employee records, and pre-employment requirements."
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Deployments & 201" },
+          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.navigation.workforce },
         ]}
       />
 
       {/* Sub-navigation tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-0 overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => handleTabChange("deployments")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-mono font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === "deployments"
-              ? "border-teal-700 text-teal-800 bg-white"
-              : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
-          }`}
-        >
-          <Send className="w-3.5 h-3.5" />
-          <span>Site Deployments</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange("employees")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-mono font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === "employees"
-              ? "border-teal-700 text-teal-800 bg-white"
-              : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
-          }`}
-        >
-          <IdCard className="w-3.5 h-3.5" />
-          <span>201 Employee Files</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange("clearances")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-mono font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === "clearances"
-              ? "border-teal-700 text-teal-800 bg-white"
-              : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
-          }`}
-        >
-          <FileCheck2 className="w-3.5 h-3.5" />
-          <span>Pre-Employment Clearances</span>
-        </button>
-      </div>
+      <Tabs
+        value={activeTab}
+        onChange={(tab) => handleTabChange(tab as WorkforceTab)}
+        ariaLabel="Workforce views"
+        items={[
+          { id: "deployments", label: "Deployments", icon: Send, panelId: "workforce-deployments" },
+          { id: "employees", label: "Employee Records (201)", icon: IdCard, panelId: "workforce-employees" },
+          { id: "clearances", label: "Pre-employment Requirements", icon: FileCheck2, panelId: "workforce-clearances" },
+        ]}
+      />
 
       {/* Active Tab View */}
-      <div>
+      <div id={`workforce-${activeTab}`} role="tabpanel" aria-label={`${activeTab} view`} tabIndex={0}>
         {activeTab === "deployments" && <DeploymentsPage hideHeader />}
         {activeTab === "employees" && <EmployeesPage hideHeader />}
         {activeTab === "clearances" && <CompliancePage hideHeader />}

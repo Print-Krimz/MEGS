@@ -38,11 +38,11 @@ export const InlineResumeViewer: React.FC<InlineResumeViewerProps> = ({
             <FileText className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-900 truncate">
-              Application Resume (CV)
+            <h3 className="text-sm font-semibold text-slate-900 truncate">
+              Resume
             </h3>
-            <p className="text-[11px] text-slate-500 truncate">
-              {candidateName} • Curriculum Vitae
+            <p className="text-xs text-slate-500 truncate">
+              {candidateName} • Candidate document
             </p>
           </div>
         </div>
@@ -57,8 +57,8 @@ export const InlineResumeViewer: React.FC<InlineResumeViewerProps> = ({
                   size="sm"
                   leftIcon={<Maximize2 className="w-3.5 h-3.5 text-slate-600" />}
                   onClick={onOpenFullscreen}
-                  aria-label="Open Fullscreen"
-                  title="Open resume in full-screen modal"
+                  aria-label="Open resume full screen"
+                  title="Open resume full screen"
                   className="h-8 text-xs font-sans text-slate-700"
                 >
                   <span className="hidden sm:inline">Fullscreen</span>
@@ -69,12 +69,12 @@ export const InlineResumeViewer: React.FC<InlineResumeViewerProps> = ({
                 target="_blank"
                 rel="noreferrer"
                 download={`${candidateName.replace(/\s+/g, "_")}_Resume`}
-                aria-label="Download PDF"
-                title="Download original resume file"
+                aria-label="Download resume"
+                title="Download original resume"
                 className="inline-flex items-center justify-center h-8 px-3 gap-1.5 text-xs font-sans font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 hover:text-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] select-none"
               >
                 <Download className="w-3.5 h-3.5 text-slate-600" />
-                <span className="hidden sm:inline">Download PDF</span>
+                <span className="hidden sm:inline">Download resume</span>
               </a>
             </>
           )}
@@ -84,11 +84,11 @@ export const InlineResumeViewer: React.FC<InlineResumeViewerProps> = ({
               size="sm"
               leftIcon={<ChevronRight className="w-3.5 h-3.5 text-slate-600" />}
               onClick={onCollapse}
-              aria-label="Hide Resume"
+              aria-label="Hide resume"
               title="Hide resume panel"
               className="h-8 text-xs font-sans text-slate-700"
             >
-              <span className="hidden sm:inline">Hide Resume</span>
+              <span className="hidden sm:inline">Hide resume</span>
             </Button>
           )}
         </div>
@@ -101,31 +101,31 @@ export const InlineResumeViewer: React.FC<InlineResumeViewerProps> = ({
         {!hasResume ? (
           <div className="text-center p-6 bg-white border border-dashed border-slate-300 rounded-lg max-w-sm mx-4 space-y-2">
             <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
-            <h4 className="text-sm font-bold text-slate-900">No Resume Attached</h4>
+            <h4 className="text-sm font-bold text-slate-900">No resume attached</h4>
             <p className="text-xs text-slate-500 leading-relaxed">
-              No CV document has been uploaded for this applicant. Structured profile details are recorded on the left.
+              This applicant has not uploaded a resume. Profile details are shown on the left.
             </p>
           </div>
         ) : isPdf ? (
           <iframe
             src={resumeUrl!}
-            title={`${candidateName} - Application Resume`}
+            title={`${candidateName} - Resume`}
             className="w-full h-full border-none bg-white"
           />
         ) : isImage ? (
           <div className="w-full h-full overflow-auto flex items-center justify-center p-4">
             <img
               src={resumeUrl!}
-              alt={`${candidateName} Resume Document`}
+              alt={`${candidateName} resume`}
               className="max-h-full max-w-full object-contain rounded border border-slate-300 bg-white shadow-xs"
             />
           </div>
         ) : (
           <div className="text-center p-8 bg-white border border-slate-300 rounded-lg max-w-sm mx-4 space-y-3">
             <FileText className="w-10 h-10 text-slate-500 mx-auto" />
-            <h4 className="text-sm font-bold text-slate-900">Document Available</h4>
+            <h4 className="text-sm font-bold text-slate-900">Document available</h4>
             <p className="text-xs text-slate-500">
-              Inline preview is not supported for this document format.
+              This document type cannot be previewed here.
             </p>
             <a
               href={resumeUrl!}
@@ -135,7 +135,7 @@ export const InlineResumeViewer: React.FC<InlineResumeViewerProps> = ({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-700 text-white rounded text-xs font-semibold hover:bg-teal-800 shadow-xs"
             >
               <Download className="w-3.5 h-3.5" />
-              Download Document
+              Download document
             </a>
           </div>
         )}

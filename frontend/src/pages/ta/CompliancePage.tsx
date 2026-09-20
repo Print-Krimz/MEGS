@@ -8,12 +8,14 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
+  StatusBadge,
 } from "../../components/common";
 import { Button, Dialog, Select, Textarea } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
 import { ShieldCheck } from "lucide-react";
 import { notify } from "../../lib/feedback";
+import { TA_COPY } from "../../lib/ta-copy";
 
 export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
   const queryClient = useQueryClient();
@@ -57,20 +59,22 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
       queryClient.invalidateQueries({ queryKey: ["ta"] });
       setReviewReqId(null);
       setReviewNotes("");
-      const msg = `Compliance document requirement marked as ${vars.data.reviewStatus}.`;
+      const msg = vars.data.reviewStatus === "APPROVED"
+        ? "The requirement was approved."
+        : "The requirement was rejected and needs correction.";
       setFeedback({ type: "success", message: msg });
-      notify.success("Compliance Review Saved", msg);
+      notify.success("Review saved", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to record compliance review: " + err.message });
-      notify.error("Review Failed", err);
+      setFeedback({ type: "error", message: "Unable to save this review. Please try again." });
+      notify.error("Review failed", err);
     },
   });
 
   if (complianceAnalyticsQuery.isLoading) {
     return (
       <div className="space-y-6">
-        {!hideHeader && <PageHeader title="Requirements Tracking" description="Loading requirements statistics..." />}
+        {!hideHeader && <PageHeader title={TA_COPY.navigation.workforce} description="Loading pre-employment requirements..." />}
         <LoadingState variant="table" rows={6} />
       </div>
     );
@@ -79,7 +83,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   if (complianceAnalyticsQuery.isError) {
     return (
       <div className="space-y-6">
-        {!hideHeader && <PageHeader title="Requirements Tracking" description="Pre-employment verification" />}
+        {!hideHeader && <PageHeader title={TA_COPY.navigation.workforce} description="Pre-employment requirements" />}
         <ErrorState
           error={complianceAnalyticsQuery.error}
           onRetry={() => complianceAnalyticsQuery.refetch()}
@@ -99,17 +103,19 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     <div className="space-y-6">
       {!hideHeader && (
         <PageHeader
-          title="Requirements Documents"
-          description="Verify government clearances (NBI, SSS, PhilHealth, Pag-IBIG, Medical) prior to field site deployment"
+          title="Pre-employment requirements"
+          description="Review required documents before a candidate starts at a client site."
           breadcrumbs={[
-            { label: "TA Portal", href: "/ta" },
-            { label: "Requirements Tracking" },
+            { label: TA_COPY.navigation.overview, href: "/ta" },
+            { label: TA_COPY.navigation.workforce },
           ]}
         />
       )}
 
       {feedback && (
         <div
+          role={feedback.type === "error" ? "alert" : "status"}
+          aria-live="polite"
           className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
             feedback.type === "success"
               ? "bg-teal-50 border-teal-200 text-teal-800"
@@ -120,7 +126,9 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
             <span>{feedback.message}</span>
           </div>
           <button
+            type="button"
             onClick={() => setFeedback(null)}
+            aria-label="Dismiss message"
             className="text-slate-400 hover:text-slate-600 font-bold ml-4"
           >
             ×
@@ -131,50 +139,50 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
       {/* Compliance Overview Metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-          <div className="text-[11px] font-mono font-bold text-slate-500 uppercase">
-            Total Clearances Tracked
+          <div className="text-xs font-semibold text-slate-600">
+            Requirements tracked
           </div>
           <div className="text-2xl font-bold font-mono text-slate-900 mt-1 tabular-nums">
             {total}
           </div>
           <div className="text-[11px] text-slate-400 mt-1 font-mono">
-            Across active applications
+            Across active candidates
           </div>
         </div>
 
         <div className="bg-white rounded-xl border border-amber-200 p-4 shadow-xs bg-amber-50/20">
-          <div className="text-[11px] font-mono font-bold text-amber-800 uppercase">
-            Pending / Awaiting Upload
+          <div className="text-xs font-semibold text-amber-800">
+            Waiting for candidate
           </div>
           <div className="text-2xl font-bold font-mono text-amber-900 mt-1 tabular-nums">
             {pending}
           </div>
           <div className="text-[11px] text-amber-700 mt-1 font-mono">
-            Candidates notified
+            Candidate still needs to submit
           </div>
         </div>
 
         <div className="bg-white rounded-xl border border-blue-200 p-4 shadow-xs bg-blue-50/20">
-          <div className="text-[11px] font-mono font-bold text-blue-800 uppercase">
-            Submitted / Needs Review
+          <div className="text-xs font-semibold text-blue-800">
+            Waiting for review
           </div>
           <div className="text-2xl font-bold font-mono text-blue-900 mt-1 tabular-nums">
             {submitted}
           </div>
           <div className="text-[11px] text-blue-700 mt-1 font-mono">
-            Requires TA sign-off
+            TA review needed
           </div>
         </div>
 
         <div className="bg-white rounded-xl border border-emerald-200 p-4 shadow-xs bg-emerald-50/20">
-          <div className="text-[11px] font-mono font-bold text-emerald-800 uppercase">
-            Verified & Approved
+          <div className="text-xs font-semibold text-emerald-800">
+            Approved
           </div>
           <div className="text-2xl font-bold font-mono text-emerald-900 mt-1 tabular-nums">
             {approved}
           </div>
           <div className="text-[11px] text-emerald-700 mt-1 font-mono">
-            Deployment ready
+            Ready for deployment
           </div>
         </div>
       </div>
@@ -185,15 +193,15 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
           <div>
             <h3 className="text-sm font-bold text-slate-900 font-mono uppercase">
-              Operational Requirements Verification Queue
+              Requirements waiting for review
             </h3>
             <p className="text-xs text-slate-500 font-sans mt-0.5">
-              Active candidates undergoing pre-employment documentation
+              Candidates with documents that need checking
             </p>
           </div>
           <Link to="/ta/applications">
             <Button variant="outline" size="sm">
-              View All Applications Pipeline
+              View applications
             </Button>
           </Link>
         </div>
@@ -204,20 +212,46 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           <div className="p-6">
             <EmptyState
               icon={<ShieldCheck className="w-5 h-5 text-emerald-600" />}
-              title="No Pending Compliance Clearances"
-              description="All active candidates currently have their clearances processed or are in earlier pipeline stages."
+              title="No requirements need review"
+              description="All active candidates are either waiting to submit documents or have already been reviewed."
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="md:hidden divide-y divide-slate-200">
+            {paginatedApps.map((app) => {
+              const profile = app.user?.applicantProfile;
+              const candidateName = profile ? `${profile.firstName} ${profile.lastName}` : app.user?.email || "Candidate";
+              return (
+                <article key={app.id} className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-slate-950 break-words">{candidateName}</h4>
+                      <p className="mt-0.5 text-sm text-slate-600 break-words">{app.jobPosting?.title || "Job opening"}</p>
+                    </div>
+                    <StatusBadge status={app.status} size="sm" />
+                  </div>
+                  <p className="text-sm text-slate-600">Submitted {formatDate(app.createdAt)}</p>
+                  <Link
+                    to="/ta/applications/$applicationId"
+                    params={{ applicationId: String(app.id) }}
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+                  >
+                    Review requirements
+                  </Link>
+                </article>
+              );
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Candidate Application</th>
-                  <th className="px-4 py-3 font-semibold">Target Job Requisition</th>
-                  <th className="px-4 py-3 font-semibold">Current Pipeline Stage</th>
-                  <th className="px-4 py-3 font-semibold">Submitted Date</th>
-                  <th className="px-4 py-3 font-semibold text-right">Verification Action</th>
+                  <th className="px-4 py-3 font-semibold">Candidate</th>
+                  <th className="px-4 py-3 font-semibold">Job opening</th>
+                  <th className="px-4 py-3 font-semibold">Stage</th>
+                  <th className="px-4 py-3 font-semibold">Submitted</th>
+                  <th className="px-4 py-3 font-semibold text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono">
@@ -231,20 +265,18 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                     <tr key={app.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="px-4 py-3">
                         <div className="font-bold text-slate-900 font-sans">{candidateName}</div>
-                        <div className="text-[11px] text-slate-400">
-                          App #{app.id} • {app.user?.email}
+                        <div className="text-xs text-slate-500">
+                          Application #{app.id} • {app.user?.email}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-slate-800 font-sans">
-                        <div className="font-semibold">{app.jobPosting?.title || "Requisition"}</div>
+                        <div className="font-semibold">{app.jobPosting?.title || "Job opening"}</div>
                         <div className="text-[11px] text-slate-400 font-mono">
                           {app.jobPosting?.location || "Philippines"}
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-amber-50 text-amber-900 border border-amber-300">
-                          {app.status}
-                        </span>
+                        <StatusBadge status={app.status} size="sm" />
                       </td>
                       <td className="px-4 py-3 text-slate-500 text-[11px]">
                         {formatDate(app.createdAt)}
@@ -255,7 +287,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                           params={{ applicationId: String(app.id) }}
                         >
                           <Button variant="outline" size="sm">
-                            Review Requirements Checklist →
+                            Review requirements
                           </Button>
                         </Link>
                       </td>
@@ -265,6 +297,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         {/* Queue Pagination */}
@@ -286,22 +319,22 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
       <Dialog
         open={Boolean(reviewReqId)}
         onClose={() => setReviewReqId(null)}
-        title="Review Compliance Document"
-        description="Verify candidate submission and set approval state"
+        title="Review requirement"
+        description="Check the candidate’s document and record your decision."
       >
         <div className="space-y-4">
           <Select
-            label="Verification Decision"
+            label="Review decision"
             value={reviewStatus}
             onChange={(e) => setReviewStatus(e.target.value as any)}
             options={[
-              { value: "APPROVED", label: "APPROVE (Clearance Verified)" },
-              { value: "REJECTED", label: "REJECT (Unclear / Invalid Document)" },
+              { value: "APPROVED", label: "Approve — document is valid" },
+              { value: "REJECTED", label: "Reject — document needs correction" },
             ]}
           />
           <Textarea
-            label="Reviewer Notes"
-            placeholder="e.g. Clearance verified authentic with no derogatory records"
+            label="Notes for the candidate"
+            placeholder="Explain what was verified or what needs to be corrected..."
             value={reviewNotes}
             onChange={(e) => setReviewNotes(e.target.value)}
             rows={2}

@@ -49,6 +49,9 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
 }) => {
   const generatedId = useId();
   const inputId = customId || generatedId;
+  const errorId = `${inputId}-error`;
+  const helperId = `${inputId}-helper`;
+  const listId = `${inputId}-list`;
 
   // Normalize string[] or ComboBoxOption[] into ComboBoxOption[]
   const normalizedOptions: ComboBoxOption[] = React.useMemo(() => {
@@ -287,9 +290,14 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
           type="text"
           role="combobox"
           aria-expanded={isOpen}
+          aria-haspopup="listbox"
           aria-autocomplete="list"
-          aria-controls={`${inputId}-list`}
+          aria-controls={listId}
+          aria-activedescendant={isOpen && filteredOptions[highlightedIndex] ? `${listId}-option-${highlightedIndex}` : undefined}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : helperText ? helperId : undefined}
           disabled={disabled}
+          required={required}
           placeholder={placeholder}
           value={searchQuery}
           onChange={handleInputChange}
@@ -352,7 +360,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
       {isOpen && !disabled && (
         <div className="absolute z-[70] w-full mt-1 bg-white border border-slate-300 shadow-xl max-h-60 overflow-y-auto font-sans animate-fade-in text-xs">
           <ul
-            id={`${inputId}-list`}
+            id={listId}
             role="listbox"
             ref={listRef}
             className="divide-y divide-slate-100 py-0.5"
@@ -364,6 +372,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
               return (
                 <li
                   key={opt.value}
+                  id={`${listId}-option-${idx}`}
                   role="option"
                   aria-selected={isSelected}
                   onMouseEnter={() => setHighlightedIndex(idx)}
@@ -403,6 +412,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
             {allowCustom && searchQuery.trim() && !filteredOptions.some(o => o.label.toLowerCase() === searchQuery.trim().toLowerCase()) && (
               <li
                 role="option"
+                id={`${listId}-option-${filteredOptions.length}`}
                 onMouseEnter={() => setHighlightedIndex(filteredOptions.length)}
                 onClick={() => handleCommitCustom(searchQuery)}
                 className={cn(
@@ -428,10 +438,10 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
       )}
 
       {error && (
-        <p className="text-[11px] text-rose-600 font-medium">{error}</p>
+        <p id={errorId} className="text-xs text-rose-600 font-medium">{error}</p>
       )}
       {!error && helperText && (
-        <p className="text-[11px] text-slate-500">{helperText}</p>
+        <p id={helperId} className="text-xs text-slate-500">{helperText}</p>
       )}
     </div>
   );

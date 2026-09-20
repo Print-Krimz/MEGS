@@ -1,4 +1,5 @@
 import { ApplicationStatus, DeploymentStatus, EmploymentStatus } from "./types/enums";
+import { TA_COPY } from "./ta-copy";
 
 /**
  * Merge class names safely
@@ -147,30 +148,30 @@ export function getApplicationStatusPresentation(
     case ApplicationStatus.SUBMITTED:
       return { label: "Submitted", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
     case ApplicationStatus.PARSING:
-      return { label: "Resume review in progress", badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
+      return { label: "Resume review", badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
     case ApplicationStatus.REVIEW:
-      return { label: "Under Review", badgeClass: "bg-indigo-100 text-indigo-800 border-indigo-300" };
+      return { label: "Under review", badgeClass: "bg-indigo-100 text-indigo-800 border-indigo-300" };
     case ApplicationStatus.NEEDS_ATTENTION:
-      return { label: "Needs Attention", badgeClass: "bg-amber-100 text-amber-800 border-amber-300" };
+      return { label: "Needs attention", badgeClass: "bg-amber-100 text-amber-800 border-amber-300" };
     case ApplicationStatus.MATCHED:
-      return { label: "Matched", badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
+      return { label: "Match found", badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
     case ApplicationStatus.INITIAL_SCREENING:
-      return { label: "Initial Screening", badgeClass: "bg-blue-100 text-blue-800 border-blue-300" };
+      return { label: TA_COPY.pipeline.initialScreening, badgeClass: "bg-blue-100 text-blue-800 border-blue-300" };
     case ApplicationStatus.CLIENT_ENDORSEMENT:
-      return { label: "Client Endorsement", badgeClass: "bg-cyan-100 text-cyan-800 border-cyan-300" };
+      return { label: TA_COPY.pipeline.clientEndorsement, badgeClass: "bg-cyan-100 text-cyan-800 border-cyan-300" };
     case ApplicationStatus.FINAL_INTERVIEW:
-      return { label: "Final Interview", badgeClass: "bg-sky-100 text-sky-800 border-sky-300" };
+      return { label: TA_COPY.pipeline.finalInterview, badgeClass: "bg-sky-100 text-sky-800 border-sky-300" };
     case ApplicationStatus.COMPLIANCE:
       return { label: "Requirements", badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
     case ApplicationStatus.ONBOARDING:
     case ApplicationStatus.CONTRACT_AND_ORIENTATION:
-      return { label: "Contract & Orientation", badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
+      return { label: TA_COPY.pipeline.contractAndOrientation, badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
     case ApplicationStatus.DEPLOYED:
       return { label: "Deployed", badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300" };
     case ApplicationStatus.TALENT_POOL:
       return { label: "Talent Pool", badgeClass: "bg-violet-100 text-violet-800 border-violet-300" };
     case ApplicationStatus.BACKOUT:
-      return { label: "Backed Out", badgeClass: "bg-rose-100 text-rose-800 border-rose-300" };
+      return { label: "Withdrawn", badgeClass: "bg-rose-100 text-rose-800 border-rose-300" };
     case ApplicationStatus.ARCHIVED:
       return { label: "Archived", badgeClass: "bg-gray-100 text-gray-600 border-gray-300" };
     default:
@@ -336,6 +337,13 @@ function formatAdminNotificationMessage(message: string): string {
     .replace(/reopened due to deployment cancellation/gi, "reopened after a placement was cancelled")
     .replace(/linked job opening\(s\) closed/gi, "linked job openings closed")
     .replace(/job\(s\) reopened/gi, "job openings reopened")
+    .replace(/INITIAL_SCREENING/g, "initial review")
+    .replace(/CLIENT_ENDORSEMENT/g, "client review")
+    .replace(/FINAL_INTERVIEW/g, "final interview")
+    .replace(/CONTRACT_AND_ORIENTATION/g, "contract and orientation")
+    .replace(/COMPLIANCE/g, "requirements")
+    .replace(/TALENT_POOL/g, "candidate pool")
+    .replace(/BACKOUT/g, "withdrawn")
     .replace(/\s+\d{10,}(?= is | reopened|$)/g, "")
     .replace(/\bquota\b/gi, "position limit");
 }

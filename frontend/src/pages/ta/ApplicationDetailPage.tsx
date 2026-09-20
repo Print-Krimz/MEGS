@@ -10,6 +10,7 @@ import {
   LoadingState,
   ErrorState,
   DocumentPreviewModal,
+  Tabs,
 } from "../../components/common";
 import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
 import { InlineResumeViewer } from "../../components/ta/InlineResumeViewer";
@@ -45,7 +46,9 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { notify } from "../../lib/feedback";
+import { notify, formatErrorMessage } from "../../lib/feedback";
+import type { TAApplicationSearch } from "../../routes";
+import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 
 type TabKey = "evaluation" | "compliance" | "history";
 
@@ -76,6 +79,39 @@ const normalizeTab = (tab: string | null): TabKey => {
 export const ApplicationDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { applicationId } = useParams({ strict: false }) as { applicationId: string };
+  const routeSearch: TAApplicationSearch = (() => {
+    const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
+    const number = (value: string | null) => {
+      const parsed = Number(value);
+      return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+    };
+    return {
+      q: params.get("q") || undefined,
+      stage: (params.get("stage") as TAApplicationSearch["stage"]) || undefined,
+      clientId: number(params.get("clientId")),
+      jobId: number(params.get("jobId")),
+      mine: params.get("mine") === "true" || params.get("mine") === "1" ? true : undefined,
+      archived: params.get("archived") === "true" || params.get("archived") === "1" ? true : undefined,
+      page: number(params.get("page")),
+    };
+  })();
+  const listSearch: TAApplicationSearch = {
+    q: routeSearch.q,
+    stage: routeSearch.stage,
+    clientId: routeSearch.clientId,
+    jobId: routeSearch.jobId,
+    mine: routeSearch.mine,
+    archived: routeSearch.archived,
+    page: routeSearch.page,
+  };
+  const applicationListHref = (() => {
+    const params = new URLSearchParams();
+    Object.entries(listSearch).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+    });
+    const query = params.toString();
+    return query ? `/ta/applications?${query}` : "/ta/applications";
+  })();
 
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     if (typeof window !== "undefined") {
@@ -244,15 +280,15 @@ export const ApplicationDetailPage: React.FC = () => {
         type: "success",
         message: msg,
       });
-      notify.success("Pipeline Stage Updated", msg);
+      notify.success("Stage updated", msg);
     },
     onError: (err: any) => {
-      const errMsg = err?.message || "Failed to update candidate pipeline stage.";
+      const errMsg = formatErrorMessage(err);
       setFeedback({
         type: "error",
-        message: "Failed to advance stage: " + errMsg,
+        message: "Unable to update the candidate’s stage. " + errMsg,
       });
-      notify.error("Stage Update Failed", err);
+      notify.error("Unable to update stage", err);
     },
   });
 
@@ -304,12 +340,12 @@ export const ApplicationDetailPage: React.FC = () => {
       notify.success("Candidate Status Updated", msg);
     },
     onError: (err: any) => {
-      const errMsg = err?.message || "Failed to reject candidate.";
+      const errMsg = formatErrorMessage(err);
       setFeedback({
         type: "error",
-        message: "Failed to reject candidate: " + errMsg,
+        message: "Unable to archive this candidate. " + errMsg,
       });
-      notify.error("Status Update Failed", err);
+      notify.error("Unable to archive candidate", err);
     },
   });
 
@@ -334,17 +370,17 @@ export const ApplicationDetailPage: React.FC = () => {
       setContractModalOpen(false);
       setFeedback({
         type: "success",
-        message: "Employment contract successfully recorded as signed.",
+        message: "The employment contract was recorded as signed.",
       });
-      notify.success("Contract Signed", "Employment contract recorded successfully.");
+      notify.success("Contract recorded", "The employment contract was recorded as signed.");
     },
     onError: (err: any) => {
-      const errMsg = err?.message || "Failed to record contract signing.";
+      const errMsg = formatErrorMessage(err);
       setFeedback({
         type: "error",
-        message: "Contract update error: " + errMsg,
+        message: "Unable to record the contract. " + errMsg,
       });
-      notify.error("Contract Update Failed", err);
+      notify.error("Unable to record contract", err);
     },
   });
 
@@ -369,17 +405,17 @@ export const ApplicationDetailPage: React.FC = () => {
       setOrientationModalOpen(false);
       setFeedback({
         type: "success",
-        message: "Candidate orientation marked as completed.",
+        message: "The candidate’s orientation was marked complete.",
       });
-      notify.success("Orientation Completed", "Orientation recorded successfully.");
+      notify.success("Orientation recorded", "The candidate’s orientation was marked complete.");
     },
     onError: (err: any) => {
-      const errMsg = err?.message || "Failed to record orientation.";
+      const errMsg = formatErrorMessage(err);
       setFeedback({
         type: "error",
-        message: "Orientation update error: " + errMsg,
+        message: "Unable to record orientation. " + errMsg,
       });
-      notify.error("Orientation Update Failed", err);
+      notify.error("Unable to record orientation", err);
     },
   });
 
@@ -473,19 +509,19 @@ export const ApplicationDetailPage: React.FC = () => {
       setInterviewOutcomeModalOpen(false);
       setSelectedInterviewForOutcome(null);
       setInterviewOutcomeNotes("");
-      const msg = `Interview evaluation recorded as ${vars.result}.`;
+      const msg = `Interview outcome saved as ${vars.result === "PASS" ? "passed" : vars.result === "FAIL" ? "not passed" : "no show"}.`;
       setFeedback({
         type: "success",
         message: msg,
       });
-      notify.success("Evaluation Result Logged", msg);
+      notify.success("Interview outcome saved", msg);
     },
     onError: (err: any) => {
       setFeedback({
         type: "error",
-        message: "Failed to update interview: " + (err.message || "An error occurred"),
+        message: "Unable to save the interview outcome. Please try again.",
       });
-      notify.error("Interview Update Failed", err);
+      notify.error("Unable to save interview outcome", err);
     },
   });
 
@@ -495,11 +531,11 @@ export const ApplicationDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       const msg = "Candidate assessment and match score updated successfully.";
       setFeedback({ type: "success", message: msg });
-      notify.success("AI Assessment Refreshed", msg);
+      notify.success("Candidate assessment updated", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to refresh candidate assessment: " + err.message });
-      notify.error("Assessment Failed", err);
+      setFeedback({ type: "error", message: "Unable to refresh the candidate assessment. Please try again." });
+      notify.error("Unable to refresh assessment", err);
     },
   });
 
@@ -517,11 +553,11 @@ export const ApplicationDetailPage: React.FC = () => {
       setInterviewNotes("");
       const msg = "Interview scheduled successfully.";
       setFeedback({ type: "success", message: msg });
-      notify.success("Interview Scheduled", msg);
+      notify.success("Interview scheduled", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to schedule interview: " + err.message });
-      notify.error("Scheduling Failed", err);
+      setFeedback({ type: "error", message: "Unable to schedule the interview. Please try again." });
+      notify.error("Unable to schedule interview", err);
     },
   });
 
@@ -553,19 +589,19 @@ export const ApplicationDetailPage: React.FC = () => {
       setEndorseOutcome("PENDING");
       setEndorseNotes("");
       setEndorseModalOpen(false);
-      const msg = "Candidate endorsed to client successfully. Candidate pipeline stage updated to Client Endorsement.";
+      const msg = "The candidate was sent to the client for review.";
       setFeedback({
         type: "success",
         message: msg,
       });
-      notify.success("Client Endorsement Submitted", msg);
+      notify.success("Candidate sent to client", msg);
     },
     onError: (err: any) => {
       setFeedback({
         type: "error",
-        message: "Failed to record endorsement: " + (err?.response?.data?.message || err.message),
+        message: "Unable to send the candidate to the client. Please try again.",
       });
-      notify.error("Endorsement Failed", err);
+      notify.error("Unable to send candidate", err);
     },
   });
 
@@ -603,23 +639,23 @@ export const ApplicationDetailPage: React.FC = () => {
       setUpdateEndorsementNotes("");
       const outcomeLabel =
         vars.outcome === "APPROVED"
-          ? "Approved by Client"
+          ? "Approved by client"
           : vars.outcome === "DECLINED"
-          ? "Declined by Client"
-          : "Pending Client Review";
-      const msg = `Client acceptance recorded as ${outcomeLabel}.`;
+          ? "Declined by client"
+          : "Waiting for client review";
+      const msg = `Client decision saved: ${outcomeLabel}.`;
       setFeedback({
         type: "success",
         message: msg,
       });
-      notify.success("Client Acceptance Saved", msg);
+      notify.success("Client decision saved", msg);
     },
     onError: (err: any) => {
       setFeedback({
         type: "error",
-        message: "Failed to update client endorsement: " + (err?.message || "An error occurred"),
+        message: "Unable to save the client decision. Please try again.",
       });
-      notify.error("Update Failed", err);
+      notify.error("Unable to save client decision", err);
     },
   });
 
@@ -631,13 +667,13 @@ export const ApplicationDetailPage: React.FC = () => {
       setComplianceModalOpen(false);
       setComplianceDocLabel("");
       setComplianceDeadline("");
-      const msg = "Compliance requirement added.";
+      const msg = "The requirement was added.";
       setFeedback({ type: "success", message: msg });
-      notify.success("Requirement Added", msg);
+      notify.success("Requirement added", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to add compliance requirement: " + err.message });
-      notify.error("Addition Failed", err);
+      setFeedback({ type: "error", message: "Unable to add the requirement. Please try again." });
+      notify.error("Unable to add requirement", err);
     },
   });
 
@@ -648,13 +684,13 @@ export const ApplicationDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       setReviewReqId(null);
       setReviewReqNotes("");
-      const msg = "Compliance requirement review saved.";
+      const msg = "The requirement review was saved.";
       setFeedback({ type: "success", message: msg });
-      notify.success("Review Saved", msg);
+      notify.success("Review saved", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to review requirement: " + err.message });
-      notify.error("Review Failed", err);
+      setFeedback({ type: "error", message: "Unable to save the requirement review. Please try again." });
+      notify.error("Unable to save review", err);
     },
   });
 
@@ -666,13 +702,13 @@ export const ApplicationDetailPage: React.FC = () => {
       setEditDeadlineModalOpen(false);
       setEditDeadlineReqId(null);
       setEditDeadlineDate("");
-      const msg = "Compliance requirement deadline updated.";
+      const msg = "The requirement deadline was updated.";
       setFeedback({ type: "success", message: msg });
-      notify.success("Deadline Updated", msg);
+      notify.success("Deadline updated", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to update deadline: " + err.message });
-      notify.error("Update Failed", err);
+      setFeedback({ type: "error", message: "Unable to update the deadline. Please try again." });
+      notify.error("Unable to update deadline", err);
     },
   });
 
@@ -713,13 +749,13 @@ export const ApplicationDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       setDeployModalOpen(false);
       setDeployNotes("");
-      const msg = "Workforce deployment successfully created and activated.";
+      const msg = "The employee was assigned to the client site.";
       setFeedback({ type: "success", message: msg });
-      notify.success("Deployment Activated", msg);
+      notify.success("Deployment activated", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to create deployment: " + err.message });
-      notify.error("Deployment Failed", err);
+      setFeedback({ type: "error", message: "Unable to activate this deployment. Please try again." });
+      notify.error("Unable to activate deployment", err);
     },
   });
 
@@ -748,7 +784,7 @@ export const ApplicationDetailPage: React.FC = () => {
   if (applicationQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Candidate Application Details" description="Loading application record..." />
+        <PageHeader title="Application details" description="Loading candidate information..." />
         <LoadingState variant="detail" />
       </div>
     );
@@ -757,7 +793,7 @@ export const ApplicationDetailPage: React.FC = () => {
   if (applicationQuery.isError || !applicationQuery.data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Application Details" description="Recruitment record" />
+        <PageHeader title="Application details" description="Candidate information" />
         <ErrorState error={applicationQuery.error} onRetry={() => applicationQuery.refetch()} />
       </div>
     );
@@ -897,7 +933,7 @@ export const ApplicationDetailPage: React.FC = () => {
   }[] = [
     {
       id: "evaluation",
-      label: "Candidate & Evaluation",
+      label: "Profile & interviews",
       icon: UserCheck,
       badge: evaluationBadge
         ? {
@@ -908,7 +944,7 @@ export const ApplicationDetailPage: React.FC = () => {
     },
     {
       id: "compliance",
-      label: "Compliance & Deployment",
+      label: "Client review & deployment",
       icon: ShieldCheck,
       badge: complianceBadge
         ? {
@@ -922,7 +958,7 @@ export const ApplicationDetailPage: React.FC = () => {
           }
         : undefined,
     },
-    { id: "history", label: "Activity & Audit", icon: History },
+    { id: "history", label: "Activity history", icon: History },
   ];
 
   return (
@@ -930,17 +966,17 @@ export const ApplicationDetailPage: React.FC = () => {
       {/* Top Header */}
       <PageHeader
         title={candidateName}
-        description={`Application Reference #${app.id} • Target Requisition: ${app.jobPosting?.title || "N/A"}`}
+        description={`Application #${app.id} • Job opening: ${app.jobPosting?.title || "Not specified"}`}
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Applications", href: "/ta/applications" },
+          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.navigation.applications, href: applicationListHref },
           { label: candidateName },
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Link to="/ta/applications">
+            <Link to="/ta/applications" search={listSearch}>
               <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                Back to Pipeline
+                Back to applications
               </Button>
             </Link>
             <Button
@@ -950,7 +986,7 @@ export const ApplicationDetailPage: React.FC = () => {
               loading={analyzeMutation.isPending}
               onClick={() => analyzeMutation.mutate()}
             >
-              Reassess Candidate
+              Refresh assessment
             </Button>
             {canReject && (
               <Button
@@ -965,7 +1001,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   setRejectModalOpen(true);
                 }}
               >
-                Reject Candidate
+                Archive candidate
               </Button>
             )}
           </div>
@@ -974,6 +1010,8 @@ export const ApplicationDetailPage: React.FC = () => {
 
       {feedback && (
         <div
+          role={feedback.type === "error" ? "alert" : "status"}
+          aria-live="polite"
           className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
             feedback.type === "success"
               ? "bg-teal-50 border-teal-200 text-teal-800"
@@ -984,7 +1022,9 @@ export const ApplicationDetailPage: React.FC = () => {
             <span>{feedback.message}</span>
           </div>
           <button
+            type="button"
             onClick={() => setFeedback(null)}
+            aria-label="Dismiss message"
             className="text-slate-400 hover:text-slate-600 font-bold ml-4"
           >
             ×
@@ -997,8 +1037,8 @@ export const ApplicationDetailPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-2.5">
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
-              <span className="text-[10px] font-mono font-bold uppercase text-slate-500">
-                Pipeline:
+              <span className="text-sm font-semibold text-slate-600">
+                Current stage
               </span>
               <StatusBadge status={app.status} size="sm" />
               <ScoreBadge score={scores?.finalFitScore ?? app.candidateFitScore ?? app.aiScore} size="sm" />
@@ -1035,7 +1075,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   setInterviewModalOpen(true);
                 }}
               >
-                Schedule Initial Interview
+                Schedule interview
               </Button>
             )}
             {canRecordInitialInterview && (
@@ -1051,7 +1091,7 @@ export const ApplicationDetailPage: React.FC = () => {
                     setInterviewOutcomeModalOpen(true);
                   }}
                 >
-                  Record Screening Result
+                  Record screening outcome
                 </Button>
                 <Button
                   variant="outline"
@@ -1083,7 +1123,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   setEndorseModalOpen(true);
                 }}
               >
-                Endorse to Client
+                Send to client
               </Button>
             )}
 
@@ -1101,7 +1141,7 @@ export const ApplicationDetailPage: React.FC = () => {
                       setEndorseModalOpen(true);
                     }}
                   >
-                    Endorse to Client
+                    Send to client
                   </Button>
                 )}
                 {latestEndorsement && isPendingClientReview && (
@@ -1117,7 +1157,7 @@ export const ApplicationDetailPage: React.FC = () => {
                       setUpdateEndorsementModalOpen(true);
                     }}
                   >
-                    Record Client Acceptance
+                    Record client decision
                   </Button>
                 )}
                 {latestEndorsement && (isClientApproved || isClientDeclined) && (
@@ -1133,7 +1173,7 @@ export const ApplicationDetailPage: React.FC = () => {
                       setUpdateEndorsementModalOpen(true);
                     }}
                   >
-                    Update Client Acceptance
+                    Update client decision
                   </Button>
                 )}
               </>
@@ -1153,7 +1193,7 @@ export const ApplicationDetailPage: React.FC = () => {
                     setInterviewModalOpen(true);
                   }}
                 >
-                  Schedule Client Interview
+                  Schedule client interview
                 </Button>
                 <Button
                   variant="outline"
@@ -1166,7 +1206,7 @@ export const ApplicationDetailPage: React.FC = () => {
                     setInterviewOutcomeModalOpen(true);
                   }}
                 >
-                  Record Client Result
+                  Record client interview outcome
                 </Button>
               </>
             )}
@@ -1183,7 +1223,7 @@ export const ApplicationDetailPage: React.FC = () => {
                     setInterviewOutcomeModalOpen(true);
                   }}
                 >
-                  Record Client Result
+                  Record client interview outcome
                 </Button>
                 <Button
                   variant="outline"
@@ -1217,7 +1257,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   });
                 }}
               >
-                Advance to Requirements
+                Move to requirements
               </Button>
             )}
 
@@ -1237,11 +1277,11 @@ export const ApplicationDetailPage: React.FC = () => {
                       });
                     }}
                   >
-                    Advance to Contract & Orientation
+                    Move to contract and orientation
                   </Button>
                 ) : (
                   <span className="text-[11px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded">
-                    Pending Mandatory Clearances
+                    Required items still pending
                   </span>
                 )}
               </>
@@ -1261,7 +1301,7 @@ export const ApplicationDetailPage: React.FC = () => {
                       setDeployModalOpen(true);
                     }}
                   >
-                    Deploy Candidate
+                    Activate deployment
                   </Button>
                 )}
                 {!isReadyForDeployment && activeTab !== "compliance" && (
@@ -1270,7 +1310,7 @@ export const ApplicationDetailPage: React.FC = () => {
                     size="sm"
                     onClick={() => handleTabChange("compliance")}
                   >
-                    Manage Onboarding
+                    Manage contract and orientation
                   </Button>
                 )}
               </div>
@@ -1287,60 +1327,35 @@ export const ApplicationDetailPage: React.FC = () => {
       {/* Main Tabs Container */}
       <div className="bg-white border border-slate-300 overflow-hidden">
         {/* Navigation Tabs Header */}
-        <div role="tablist" className="flex items-center border-b border-slate-300 overflow-x-auto bg-slate-100 divide-x divide-slate-300 no-scrollbar">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => handleTabChange(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-mono uppercase tracking-wider whitespace-nowrap transition-colors ${
-                  isActive
-                    ? "bg-white text-teal-950 font-bold border-b-2 border-b-teal-800 -mb-[1px]"
-                    : "text-slate-600 hover:text-slate-950 hover:bg-slate-200/60"
-                }`}
-              >
-                <Icon
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    isActive ? "text-teal-700" : "text-slate-400"
-                  }`}
-                />
-                <span>{tab.label}</span>
-                {tab.badge && (
-                  <span
-                    className={`ml-1 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold tracking-tight border ${
-                      tab.badge.variant === "success"
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        : tab.badge.variant === "info"
-                        ? "bg-blue-50 text-blue-800 border-blue-200"
-                        : "bg-amber-50 text-amber-800 border-amber-200"
-                    }`}
-                  >
-                    {tab.badge.text}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <Tabs
+          value={activeTab}
+          onChange={(tab) => handleTabChange(tab as TabKey)}
+          ariaLabel="Candidate record sections"
+          items={tabs.map((tab) => ({
+            ...tab,
+            panelId: `application-tabpanel-${tab.id}`,
+          }))}
+        />
 
         {/* Tab Body */}
-        <div className="p-3.5 sm:p-6">
+        <div
+          id={`application-tabpanel-${activeTab}`}
+          role="tabpanel"
+          tabIndex={0}
+          aria-label={tabs.find((tab) => tab.id === activeTab)?.label}
+          className="p-3.5 sm:p-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700"
+        >
           {/* ========================================================================= */}
           {/* TAB 1: CANDIDATE & EVALUATION */}
           {/* ========================================================================= */}
           {activeTab === "evaluation" && (
             <div className="space-y-8">
-              {/* SECTION A: Candidate Demographics, Records & Inline Resume Viewer */}
+              {/* SECTION A: Candidate profile and resume */}
               <div id="eval-profile" className="space-y-4">
                 {!isResumeOpen && (
                   <div className="flex items-center justify-between pb-1 border-b border-slate-200">
-                    <span className="text-xs font-mono font-bold uppercase text-slate-500">
-                      Candidate Dossier & Profile
+                    <span className="text-sm font-semibold text-slate-600">
+                      Candidate profile
                     </span>
                     <Button
                       variant="outline"
@@ -1361,11 +1376,11 @@ export const ApplicationDetailPage: React.FC = () => {
                     <div className={isResumeOpen ? "space-y-6" : "grid grid-cols-1 md:grid-cols-2 gap-6 items-start"}>
                       {/* Left Sub-Group in Collapsed, or First Group in Split */}
                       <div className="space-y-6">
-                        {/* 1. Personal & Contact Demographics */}
+                        {/* 1. Personal and contact details */}
                         <div className="space-y-3">
                           <div className="border-b border-slate-200 pb-2">
-                            <h4 className="text-xs font-mono font-bold uppercase text-slate-600">
-                              Personal & Contact Demographics
+                            <h4 className="text-sm font-semibold text-slate-800">
+                              Personal and contact details
                             </h4>
                           </div>
 
@@ -1425,10 +1440,10 @@ export const ApplicationDetailPage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* 2. Target Job Requisition & Suitability */}
+                        {/* 2. Job opening and suitability */}
                         <div className="space-y-3 pt-4 border-t border-slate-200">
-                          <h4 className="text-xs font-mono font-bold uppercase text-slate-600 border-b border-slate-100 pb-2">
-                            Target Job Requisition
+                          <h4 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2">
+                            Job opening
                           </h4>
                           <div className="space-y-2 text-xs">
                             <div className="grid grid-cols-3">
@@ -1441,7 +1456,7 @@ export const ApplicationDetailPage: React.FC = () => {
                             </div>
                             <div className="grid grid-cols-3">
                               <span className="text-slate-600 font-mono font-medium">Status:</span>
-                              <span className="col-span-2 font-mono">{app.jobPosting?.status || "OPEN"}</span>
+                              <span className="col-span-2 font-mono">{formatTaStatus(app.jobPosting?.status || "OPEN")}</span>
                             </div>
                             <div className="grid grid-cols-3 items-center">
                               <span className="text-slate-600 font-mono font-medium">
@@ -1466,8 +1481,8 @@ export const ApplicationDetailPage: React.FC = () => {
                       <div className="space-y-6">
                         {/* 4. Employment History (Prioritized before Skills) */}
                         <div className={`space-y-3 ${isResumeOpen ? "pt-4 border-t border-slate-200" : "pt-4 md:pt-0 border-t md:border-t-0 border-slate-200"}`}>
-                          <h4 className="text-xs font-mono font-bold uppercase text-slate-600 border-b border-slate-200 pb-2">
-                            Employment History
+                            <h4 className="text-sm font-semibold text-slate-800 border-b border-slate-200 pb-2">
+                              Employment history
                           </h4>
                           {!profile?.workExperiences || profile.workExperiences.length === 0 ? (
                             <p className="text-xs text-slate-400">No recorded employment entries.</p>
@@ -1487,11 +1502,11 @@ export const ApplicationDetailPage: React.FC = () => {
                           )}
                         </div>
 
-                        {/* 5. Educational Attainment */}
+                        {/* 5. Education */}
                         <div className="space-y-3 pt-4 border-t border-slate-200">
                           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                            <h4 className="text-xs font-mono font-bold uppercase text-slate-600">
-                              Educational Attainment
+                            <h4 className="text-sm font-semibold text-slate-800">
+                              Education
                             </h4>
                             {profile?.educations && profile.educations.length > 1 && (
                               <button
@@ -1520,11 +1535,11 @@ export const ApplicationDetailPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* 6. Competencies & Skills (Appears after Work Experience and Education) */}
+                      {/* 6. Skills */}
                       <div className={`space-y-3 pt-4 border-t border-slate-200 ${!isResumeOpen ? "md:col-span-2" : ""}`}>
                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                          <h4 className="text-xs font-mono font-bold uppercase text-slate-600">
-                            Competencies & Skills
+                            <h4 className="text-sm font-semibold text-slate-800">
+                              Skills
                           </h4>
                           {profile?.skills && profile.skills.length > 8 && (
                             <button
@@ -1585,7 +1600,7 @@ export const ApplicationDetailPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <Award className="w-4 h-4 text-teal-600" />
                       <h3 className="text-sm font-bold text-slate-900">
-                        Candidate Suitability & Match Score
+                        Candidate match score
                       </h3>
                     </div>
                     <p className="text-[11px] text-slate-500 font-sans">
@@ -1610,7 +1625,7 @@ export const ApplicationDetailPage: React.FC = () => {
                       <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.locationScore).toFixed(0)}%</div>
                     </div>
                     <div className="p-3 text-center">
-                      <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Compliance Match</div>
+                      <div className="text-xs font-semibold text-slate-600">Requirements match</div>
                       <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.complianceScore).toFixed(0)}%</div>
                     </div>
                     <div className="p-3 text-center">
@@ -1635,7 +1650,7 @@ export const ApplicationDetailPage: React.FC = () => {
                         </h4>
                       </div>
                       <span className="text-[11px] font-mono font-semibold px-2 py-0.5 bg-white text-teal-900 border border-slate-300 rounded-md">
-                        AI Qualitative Analysis
+                        Assessment summary
                       </span>
                     </div>
 
@@ -1644,7 +1659,7 @@ export const ApplicationDetailPage: React.FC = () => {
                       {parsedAiAssessment.summary && (
                         <div className="space-y-1.5">
                           <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-                            Executive Evaluation Summary
+                            Summary
                           </div>
                           <p className="text-slate-900 leading-relaxed font-sans text-xs">
                             {parsedAiAssessment.summary}
@@ -1956,14 +1971,14 @@ export const ApplicationDetailPage: React.FC = () => {
           {activeTab === "compliance" && (
             <div className="space-y-8">
               {/* ========================================================================= */}
-              {/* SECTION 1: Client Endorsements & Presentation History */}
+              {/* SECTION 1: Client review history */}
               {/* ========================================================================= */}
               <div id="compliance-endorsements-section" className="space-y-4">
                 {isPastClientReview && (!app.clientEndorsements || app.clientEndorsements.length === 0) ? (
                   <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs">
                     <div className="flex items-center gap-2 text-slate-600">
                       <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
-                      <span className="font-semibold text-slate-800">Client Endorsement:</span>
+                      <span className="font-semibold text-slate-800">Client review:</span>
                       <span className="text-slate-500">None Recorded</span>
                     </div>
                     <Button
@@ -1977,17 +1992,17 @@ export const ApplicationDetailPage: React.FC = () => {
                         setEndorseModalOpen(true);
                       }}
                     >
-                      Record Endorsement
+                      Record client review
                     </Button>
                   </div>
                 ) : isPastClientReview && !endorsementsExpanded ? (
                   <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Building2 className="w-4 h-4 text-teal-600 shrink-0" />
-                      <span className="font-semibold text-slate-800">Client Endorsement:</span>
+                      <span className="font-semibold text-slate-800">Client review:</span>
                       {isClientApproved ? (
                         <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                          ✓ {latestEndorsement?.client?.name || "Client"} (Accepted)
+                          ✓ {latestEndorsement?.client?.name || "Client"} (Approved)
                         </span>
                       ) : isClientDeclined ? (
                         <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-800 border border-rose-200">
@@ -1995,7 +2010,7 @@ export const ApplicationDetailPage: React.FC = () => {
                         </span>
                       ) : (
                         <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
-                          {latestEndorsement?.client?.name || "Client"} (Pending)
+                          {latestEndorsement?.client?.name || "Client"} (Waiting for review)
                         </span>
                       )}
                       <span className="text-slate-400 text-[11px] hidden sm:inline font-mono">
@@ -2008,7 +2023,7 @@ export const ApplicationDetailPage: React.FC = () => {
                         size="sm"
                         onClick={() => setEndorsementsExpanded(true)}
                       >
-                        Details ({app.clientEndorsements?.length || 0}) ↓
+                        View details ({app.clientEndorsements?.length || 0}) ↓
                       </Button>
                       <Button
                         variant="outline"
@@ -2031,9 +2046,9 @@ export const ApplicationDetailPage: React.FC = () => {
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
                           <Building2 className="w-4 h-4 text-teal-600" />
-                          <h3 className="text-sm font-bold text-slate-900">Client Endorsement Records</h3>
+                      <h3 className="text-sm font-bold text-slate-900">Client review records</h3>
                           <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
-                            {app.clientEndorsements?.length || 0} Records
+                            {app.clientEndorsements?.length || 0} records
                           </span>
                         </div>
                         <p className="text-xs text-slate-500">
@@ -2061,7 +2076,7 @@ export const ApplicationDetailPage: React.FC = () => {
                             setEndorseModalOpen(true);
                           }}
                         >
-                          Record Endorsement
+                          Record client review
                         </Button>
                       </div>
                     </div>
@@ -2119,16 +2134,16 @@ export const ApplicationDetailPage: React.FC = () => {
               </div>
 
               {/* ========================================================================= */}
-              {/* SECTION 2: 201 Pre-employment Clearances & Document Checklist */}
+              {/* SECTION 2: Pre-employment requirements */}
               {/* ========================================================================= */}
               <div id="compliance-checklist-section" className="pt-6 border-t border-slate-200 space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4 text-teal-600" />
-                      <h3 className="text-sm font-bold text-slate-900">Pre-Employment Requirements Checklist</h3>
+                      <h3 className="text-sm font-bold text-slate-900">Pre-employment requirements</h3>
                       <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
-                        201 Clearances
+                        Required documents
                       </span>
                     </div>
                     <p className="text-xs text-slate-500">
@@ -2168,7 +2183,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   <div className="flex items-center justify-between p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-md text-xs font-mono text-emerald-900">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="font-semibold">All {totalCompReqs} Pre-Employment Clearances Approved</span>
+                      <span className="font-semibold">All {totalCompReqs} requirements approved</span>
                       <span className="text-slate-300">•</span>
                       <span className="text-emerald-800 font-normal">All clearances verified · Ready for contract</span>
                     </div>
@@ -2196,7 +2211,7 @@ export const ApplicationDetailPage: React.FC = () => {
                       </div>
                       {hasUnapprovedMandatoryCompliance ? (
                         <span className="text-[11px] font-semibold text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                          Clearances pending verification
+                          Requirements pending review
                         </span>
                       ) : totalCompReqs > 0 && approvedCompReqs === totalCompReqs ? (
                         <span className="text-[11px] font-semibold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
@@ -2296,13 +2311,13 @@ export const ApplicationDetailPage: React.FC = () => {
                                     )}
 
                                     {isApproved && !req.documentId && (
-                                      <span className="text-emerald-700 font-sans">• Clearance verified</span>
+                                      <span className="text-emerald-700 font-sans">• Requirement approved</span>
                                     )}
                                   </div>
 
                                   {req.reviewNotes && (
                                     <p className="text-[11px] text-slate-600 italic mt-0.5">
-                                      Reviewer note: {req.reviewNotes}
+                                      Review note: {req.reviewNotes}
                                     </p>
                                   )}
                                 </div>
@@ -2481,7 +2496,7 @@ export const ApplicationDetailPage: React.FC = () => {
               <div className="border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <History className="w-4 h-4 text-teal-600" />
-                  <h3 className="text-sm font-bold text-slate-900">Activity & Audit Trail</h3>
+                  <h3 className="text-sm font-bold text-slate-900">Activity history</h3>
                 </div>
                 <p className="text-xs text-slate-500">
                   Chronological record of recruiter decisions, pipeline status changes, and administrative actions
@@ -2539,8 +2554,8 @@ export const ApplicationDetailPage: React.FC = () => {
         onClose={() => setInterviewOutcomeModalOpen(false)}
         title={
           app?.status === ApplicationStatus.FINAL_INTERVIEW
-            ? "Record Client Final Evaluation"
-            : "Record Interview Assessment"
+            ? "Record client interview outcome"
+            : "Record interview outcome"
         }
         description={
           app?.status === ApplicationStatus.FINAL_INTERVIEW
@@ -2552,35 +2567,35 @@ export const ApplicationDetailPage: React.FC = () => {
           <Select
             label={
               app?.status === ApplicationStatus.FINAL_INTERVIEW
-                ? "Client Evaluation Decision / Result"
-                : "Interview Outcome / Result"
+                ? "Client outcome"
+                : "Interview outcome"
             }
             value={interviewOutcomeResult}
             onChange={(e) => setInterviewOutcomeResult(e.target.value as "PASS" | "FAIL" | "NO_SHOW")}
             options={
               app?.status === ApplicationStatus.FINAL_INTERVIEW
                 ? [
-                    { value: "PASS", label: "PASS — Client Accepts / Selected for Hire" },
-                    { value: "FAIL", label: "FAIL — Client Rejected Candidate" },
-                    { value: "NO_SHOW", label: "NO SHOW — Candidate Did Not Attend Client Evaluation" },
+                    { value: "PASS", label: "Passed — client approved the candidate" },
+                    { value: "FAIL", label: "Not passed — client declined the candidate" },
+                    { value: "NO_SHOW", label: "No show — candidate missed the interview" },
                   ]
                 : [
-                    { value: "PASS", label: "PASS — Candidate Meets Technical & Behavioral Requirements" },
-                    { value: "FAIL", label: "FAIL — Candidate Does Not Qualify" },
-                    { value: "NO_SHOW", label: "NO SHOW — Candidate Did Not Attend (Auto-archive)" },
+                    { value: "PASS", label: "Passed — move to the next stage" },
+                    { value: "FAIL", label: "Not passed — do not advance" },
+                    { value: "NO_SHOW", label: "No show — archive this application" },
                   ]
             }
           />
           <Textarea
             label={
               app?.status === ApplicationStatus.FINAL_INTERVIEW
-                ? "Client Feedback & Decision Notes"
-                : "Evaluation Notes & Interviewer Remarks"
+                ? "Client notes"
+                : "Interview notes"
             }
             placeholder={
               app?.status === ApplicationStatus.FINAL_INTERVIEW
-                ? "Document client interview feedback, agreed salary, or remarks"
-                : "Document technical competencies, communication skills, or panel remarks"
+                ? "Record client feedback, agreed salary, or other notes."
+                : "Record strengths, concerns, and recommended next steps."
             }
             value={interviewOutcomeNotes}
             onChange={(e) => setInterviewOutcomeNotes(e.target.value)}
@@ -2608,7 +2623,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 });
               }}
             >
-              {app?.status === ApplicationStatus.FINAL_INTERVIEW ? "Save Evaluation Result" : "Save Result"}
+              {app?.status === ApplicationStatus.FINAL_INTERVIEW ? "Save client outcome" : "Save outcome"}
             </Button>
           </div>
         </div>
@@ -2620,39 +2635,39 @@ export const ApplicationDetailPage: React.FC = () => {
         onClose={() => setInterviewModalOpen(false)}
         title={
           interviewType === InterviewType.INITIAL_SCREENING
-            ? (pendingScreeningInterview ? "Reschedule Initial Screening Interview" : "Schedule Initial Screening Interview")
-            : (pendingFinalInterview ? "Reschedule Final Client Interview" : "Schedule Final Technical / Client Interview")
+            ? (pendingScreeningInterview ? "Reschedule interview" : "Schedule interview")
+            : (pendingFinalInterview ? "Reschedule final interview" : "Schedule final interview")
         }
         description={
           (interviewType === InterviewType.INITIAL_SCREENING ? pendingScreeningInterview : pendingFinalInterview)
             ? `Update scheduled date and time for ${candidateName}`
-            : `Book ${interviewType === InterviewType.INITIAL_SCREENING ? "initial screening" : "final technical / client"} interview for ${candidateName}`
+            : `Book an ${interviewType === InterviewType.INITIAL_SCREENING ? "initial" : "final"} interview for ${candidateName}`
         }
       >
         <div className="space-y-4">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1">
-            <span className="text-slate-500 font-mono text-[10px] uppercase block">Interview Milestone:</span>
+            <span className="text-slate-500 text-sm font-medium block">Interview type</span>
             <div className="font-bold font-mono text-slate-900 text-sm flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-teal-600" />
               <span>
                 {interviewType === InterviewType.INITIAL_SCREENING
-                  ? "Initial Screening Interview"
-                  : "Final Technical / Client Interview"}
+                  ? "Initial interview"
+                  : "Final interview"}
               </span>
             </div>
             <p className="text-[11px] text-slate-500 font-mono">
-              7-Day Compliance SLA begins upon scheduling.
+              The 7-day interview deadline starts when this is scheduled.
             </p>
           </div>
           <Input
-            label="Scheduled Date & Time"
+            label="Date and time"
             type="datetime-local"
             value={interviewDate}
             onChange={(e) => setInterviewDate(e.target.value)}
             required
           />
           <Textarea
-            label="Coordinator Notes / Meeting Link"
+            label="Meeting details (optional)"
             placeholder="e.g. Google Meet link or room number"
             value={interviewNotes}
             onChange={(e) => setInterviewNotes(e.target.value)}
@@ -2676,8 +2691,8 @@ export const ApplicationDetailPage: React.FC = () => {
               }
             >
               {(interviewType === InterviewType.INITIAL_SCREENING ? pendingScreeningInterview : pendingFinalInterview)
-                ? "Save Rescheduled Interview"
-                : "Schedule Interview"}
+                ? "Save new time"
+                : "Schedule interview"}
             </Button>
           </div>
         </div>
@@ -2687,15 +2702,15 @@ export const ApplicationDetailPage: React.FC = () => {
       <Dialog
         open={endorseModalOpen}
         onClose={() => setEndorseModalOpen(false)}
-        title="Endorse Candidate to Client"
-        description={`Forward ${candidateName} to client hiring team for evaluation`}
+        title="Send candidate to client"
+        description={`Share ${candidateName} with the client for review.`}
         overflowVisible
       >
         <div className="space-y-4">
           {linkedClientId ? (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
               <span className="text-slate-500 font-mono text-[10px] uppercase block">
-                Target Client (Auto-Linked from Requisition MRF):
+                Client (linked from manpower request):
               </span>
               <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
                 <Building2 className="w-4 h-4 text-teal-600" />
@@ -2703,13 +2718,13 @@ export const ApplicationDetailPage: React.FC = () => {
               </div>
               <div className="text-[11px] text-slate-500 font-mono">
                 Position: {app.jobPosting?.title || "Specialist"}
-                {app.jobPosting?.mrf?.title ? ` • MRF: ${app.jobPosting.mrf.title}` : ""}
+                {app.jobPosting?.mrf?.title ? ` • Request: ${app.jobPosting.mrf.title}` : ""}
               </div>
             </div>
           ) : (
             <div className="space-y-2">
               <ComboBox
-                label="Select Target Client Account"
+              label="Client"
                 placeholder="Search verified corporate client..."
                 leftIcon={<Building2 className="w-3.5 h-3.5 text-slate-400" />}
                 value={manualClientId ? String(manualClientId) : ""}
@@ -2719,25 +2734,25 @@ export const ApplicationDetailPage: React.FC = () => {
                   label: c.name,
                   subtitle: `${c.industry || "General"} • ${c.address || "Philippines"}`,
                 }))}
-                helperText="Requisition is not linked to an MRF. Select client manually to proceed."
+              helperText="This opening is not linked to a manpower request, so choose the client manually."
                 required
               />
             </div>
           )}
 
           <Select
-            label="Initial Endorsement Status"
+            label="Client review status"
             value={endorseOutcome}
             onChange={(e) => setEndorseOutcome(e.target.value as any)}
             options={[
-              { value: "PENDING", label: "PENDING — Under Client Review" },
-              { value: "APPROVED", label: "APPROVED — Client Accepted Candidate" },
-              { value: "DECLINED", label: "DECLINED — Client Rejected Candidate" },
+              { value: "PENDING", label: "Waiting for client review" },
+              { value: "APPROVED", label: "Approved by client" },
+              { value: "DECLINED", label: "Declined by client" },
             ]}
           />
           <Textarea
-            label="Endorsement Notes / Profile Summary"
-            placeholder="Key screening strengths, communication skills, or coordinator remarks for client..."
+            label="Notes for the client"
+            placeholder="Summarize strengths, interview findings, or other useful context."
             value={endorseNotes}
             onChange={(e) => setEndorseNotes(e.target.value)}
             rows={2}
@@ -2761,7 +2776,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 });
               }}
             >
-              Submit Endorsement to Client
+              Send to client
             </Button>
           </div>
         </div>
@@ -2771,13 +2786,13 @@ export const ApplicationDetailPage: React.FC = () => {
       <Dialog
         open={updateEndorsementModalOpen}
         onClose={() => setUpdateEndorsementModalOpen(false)}
-        title="Record Client Acceptance"
-        description={`Record evaluation feedback and acceptance status from ${selectedEndorsementClientName || linkedClientName}`}
+        title="Record client decision"
+        description={`Save the decision from ${selectedEndorsementClientName || linkedClientName}.`}
       >
         <div className="space-y-4">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
             <span className="text-slate-500 font-mono text-[10px] uppercase block">
-              Target Client & Requisition:
+              Client and job opening:
             </span>
             <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
               <Building2 className="w-4 h-4 text-teal-600" />
@@ -2790,18 +2805,18 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
 
           <Select
-            label="Client Acceptance Outcome"
+            label="Client outcome"
             value={updateEndorsementOutcome}
             onChange={(e) => setUpdateEndorsementOutcome(e.target.value as any)}
             options={[
-              { value: "PENDING", label: "PENDING — Under Client Review" },
-              { value: "APPROVED", label: "APPROVED — Client Accepted Candidate" },
-              { value: "DECLINED", label: "DECLINED — Client Rejected Candidate" },
+              { value: "PENDING", label: "Waiting for client review" },
+              { value: "APPROVED", label: "Approved by client" },
+              { value: "DECLINED", label: "Declined by client" },
             ]}
           />
           <Textarea
-            label="Client Feedback / Evaluation Notes"
-            placeholder="Feedback from client hiring manager regarding qualifications, technical fit, or interview schedule..."
+            label="Client notes"
+            placeholder="Record client feedback, salary details, or interview notes..."
             value={updateEndorsementNotes}
             onChange={(e) => setUpdateEndorsementNotes(e.target.value)}
             rows={3}
@@ -2824,7 +2839,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 }
               }}
             >
-              Save Client Acceptance
+            Save client decision
             </Button>
           </div>
         </div>
@@ -2834,23 +2849,23 @@ export const ApplicationDetailPage: React.FC = () => {
       <Dialog
         open={complianceModalOpen}
         onClose={() => setComplianceModalOpen(false)}
-        title="Add Custom Requirement"
-        description="Assign an exceptional or role-specific clearance not covered by the standard requirements checklist."
+        title="Add requirement"
+        description="Add a document needed for this specific role or client."
         overflowVisible
       >
         <div className="space-y-4">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
             <span className="text-slate-500 font-mono text-[10px] uppercase block">
-              Standard Requirements Checklist Notice:
+              Standard requirements
             </span>
             <p className="text-slate-600">
-              Government IDs, NBI Clearance, Medical Exam, SSS, PhilHealth, Pag-IBIG, and Contracts are auto-generated. Use this form only for unique role/client requirements.
+              Government IDs, NBI clearance, medical exam, SSS, PhilHealth, Pag-IBIG, and contract documents are added automatically. Use this form for extra requirements only.
             </p>
           </div>
 
           {/* Quick preset selector buttons */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-slate-700">Quick Presets / Templates</label>
+            <label className="block text-sm font-medium text-slate-700">Common requirements</label>
             <div className="flex flex-wrap gap-1.5">
               {[
                 "Driver's License (Professional)",
@@ -2877,7 +2892,7 @@ export const ApplicationDetailPage: React.FC = () => {
                         : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
                     }`}
                   >
-                    {preset} {isAlreadyAdded && "(Already Added)"}
+                    {preset} {isAlreadyAdded && "(Already added)"}
                   </button>
                 );
               })}
@@ -2886,8 +2901,8 @@ export const ApplicationDetailPage: React.FC = () => {
 
           <div className="space-y-1">
             <ComboBox
-              label="Document Label / Requirement Name"
-              placeholder="Search standard requirement or type custom name..."
+              label="Requirement name"
+              placeholder="Search or type a requirement..."
               value={complianceDocLabel}
               onChange={(val) => setComplianceDocLabel(val || "")}
               options={COMPLIANCE_201_PRESETS.map((p) => ({
@@ -2912,14 +2927,14 @@ export const ApplicationDetailPage: React.FC = () => {
               if (isDuplicate) {
                 return (
                   <p className="text-xs text-rose-600 font-mono mt-1">
-                    ⚠️ This requirement already exists in the candidate's compliance checklist.
+                    This requirement is already on the candidate’s list.
                   </p>
                 );
               }
               if (hasBundleDelimiters) {
                 return (
                   <p className="text-xs text-amber-600 font-mono mt-1">
-                    ⚠️ Please enter a single document name rather than combining multiple items.
+                    Enter one requirement at a time.
                   </p>
                 );
               }
@@ -2928,7 +2943,7 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
 
           <Input
-            label="Submission Deadline (Optional)"
+            label="Submission deadline (optional)"
             type="date"
             value={complianceDeadline}
             onChange={(e) => setComplianceDeadline(e.target.value)}
@@ -2958,7 +2973,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 })
               }
             >
-              Add Custom Requirement
+              Add requirement
             </Button>
           </div>
         </div>
@@ -2971,19 +2986,19 @@ export const ApplicationDetailPage: React.FC = () => {
           setEditDeadlineModalOpen(false);
           setEditDeadlineReqId(null);
         }}
-        title="Adjust Compliance Deadline"
-        description="Set or extend the submission target date for this clearance requirement."
+        title="Change requirement deadline"
+        description="Set or extend the date the candidate should submit this requirement."
       >
         <div className="space-y-4">
           {(() => {
             const selectedReq = app.complianceRequirements?.find((r) => r.id === editDeadlineReqId);
             return (
               <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1">
-                <span className="text-slate-400 font-mono text-[10px] uppercase block">Selected Requirement</span>
+                <span className="text-slate-500 text-sm font-medium block">Selected requirement</span>
                 <span className="font-bold text-slate-900 block">{selectedReq?.documentLabel}</span>
                 {selectedReq?.deadline && (
                   <span className="text-slate-500 font-mono text-[11px] block">
-                    Current Deadline: {formatDate(selectedReq.deadline)}
+                    Current deadline: {formatDate(selectedReq.deadline)}
                   </span>
                 )}
               </div>
@@ -2991,7 +3006,7 @@ export const ApplicationDetailPage: React.FC = () => {
           })()}
 
           <Input
-            label="Target Submission Deadline"
+            label="Submission deadline"
             type="date"
             value={editDeadlineDate}
             onChange={(e) => setEditDeadlineDate(e.target.value)}
@@ -2999,13 +3014,13 @@ export const ApplicationDetailPage: React.FC = () => {
           />
 
           <div className="space-y-1.5">
-            <span className="text-[10px] text-slate-500 font-mono uppercase block">Quick Extend SLA</span>
+            <span className="text-sm font-medium text-slate-600 block">Quick extensions</span>
             <div className="flex flex-wrap gap-1.5">
               {[
-                { label: "+3 Days", days: 3 },
-                { label: "+7 Days", days: 7 },
-                { label: "+14 Days", days: 14 },
-                { label: "+30 Days", days: 30 },
+                { label: "+3 days", days: 3 },
+                { label: "+7 days", days: 7 },
+                { label: "+14 days", days: 14 },
+                { label: "+30 days", days: 30 },
               ].map((opt) => (
                 <button
                   key={opt.label}
@@ -3048,7 +3063,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 }
               }}
             >
-              Save Deadline
+              Save deadline
             </Button>
           </div>
         </div>
@@ -3058,8 +3073,8 @@ export const ApplicationDetailPage: React.FC = () => {
       <Dialog
         open={Boolean(reviewReqId)}
         onClose={() => setReviewReqId(null)}
-        title="Review Compliance Document"
-        description="Verify candidate submission and set approval state"
+        title="Review requirement"
+        description="Check the candidate’s document and record your decision."
       >
         <div className="space-y-4">
           {(() => {
@@ -3068,7 +3083,7 @@ export const ApplicationDetailPage: React.FC = () => {
               <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
                 <div className="font-bold text-slate-900 flex items-center justify-between">
                   <span>Requirement: {selectedReq?.documentLabel}</span>
-                  <span className="font-mono text-[10px] uppercase text-slate-600">{selectedReq?.reviewStatus}</span>
+                  <span className="text-xs text-slate-600">{selectedReq?.reviewStatus === "APPROVED" ? "Approved" : selectedReq?.reviewStatus === "SUBMITTED" ? "Waiting for review" : "Waiting for candidate"}</span>
                 </div>
                 {selectedReq?.documentId ? (
                   <div className="pt-1">
@@ -3087,12 +3102,12 @@ export const ApplicationDetailPage: React.FC = () => {
                       className="inline-flex items-center gap-1 font-mono text-blue-600 hover:text-blue-800 underline font-semibold cursor-pointer"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
-                      Open / Inspect Uploaded Document
+                      Open uploaded document
                     </button>
                   </div>
                 ) : (
                   <div className="text-amber-700 text-[11px] font-mono">
-                    No document has been uploaded by candidate yet.
+                    The candidate has not uploaded this document yet.
                   </div>
                 )}
               </div>
@@ -3100,17 +3115,17 @@ export const ApplicationDetailPage: React.FC = () => {
           })()}
 
           <Select
-            label="Verification Decision"
+            label="Review decision"
             value={reviewReqStatus}
             onChange={(e) => setReviewReqStatus(e.target.value as any)}
             options={[
-              { value: "APPROVED", label: "APPROVE (Clearance Verified)" },
-              { value: "REJECTED", label: "REJECT (Unclear / Invalid Document)" },
+              { value: "APPROVED", label: "Approve — document is valid" },
+              { value: "REJECTED", label: "Reject — document needs correction" },
             ]}
           />
           <Textarea
-            label="Reviewer Notes / Feedback to Candidate"
-            placeholder="e.g. Clearance verified authentic with no derogatory records OR specify reason for rejection..."
+            label="Notes for the candidate"
+            placeholder="Explain what was verified or what needs to be corrected..."
             value={reviewReqNotes}
             onChange={(e) => setReviewReqNotes(e.target.value)}
             rows={2}
@@ -3135,7 +3150,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 }
               }}
             >
-              Confirm Review
+              Save review
             </Button>
           </div>
         </div>
@@ -3175,15 +3190,15 @@ export const ApplicationDetailPage: React.FC = () => {
       <Dialog
         open={deployModalOpen}
         onClose={() => setDeployModalOpen(false)}
-        title="Activate Workforce Site Deployment"
-        description={`Deploy ${candidateName} to client work location`}
+        title="Activate site deployment"
+        description={`Assign ${candidateName} to the client work site.`}
         overflowVisible
       >
         <div className="space-y-4">
           {linkedClientId ? (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
               <span className="text-slate-500 font-mono text-[10px] uppercase block">
-                Assigned Client (Auto-Linked):
+                Client (linked automatically):
               </span>
               <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
                 <Building2 className="w-4 h-4 text-teal-600" />
@@ -3192,14 +3207,14 @@ export const ApplicationDetailPage: React.FC = () => {
               {app.jobPosting?.title && (
                 <div className="text-[11px] text-slate-500 font-mono">
                   Position: {app.jobPosting.title}
-                  {app.jobPosting?.mrf?.title ? ` • MRF: ${app.jobPosting.mrf.title}` : ""}
+                  {app.jobPosting?.mrf?.title ? ` • Request: ${app.jobPosting.mrf.title}` : ""}
                 </div>
               )}
             </div>
           ) : (
             <div className="space-y-2">
               <ComboBox
-                label="Select Target Client Account *"
+                label="Client"
                 placeholder="Search verified corporate client..."
                 leftIcon={<Building2 className="w-3.5 h-3.5 text-slate-400" />}
                 value={deployClientId ? String(deployClientId) : ""}
@@ -3209,15 +3224,15 @@ export const ApplicationDetailPage: React.FC = () => {
                   label: c.name,
                   subtitle: `${c.industry || "General"} • ${c.address || "Philippines"}`,
                 }))}
-                helperText="Requisition is not linked to an MRF client. Select client manually to activate deployment."
+                helperText="This opening is not linked to a manpower request, so choose the client manually."
                 required
               />
             </div>
           )}
 
           <ComboBox
-            label="Deployment Site / Location"
-            placeholder="Select inherited site or specify custom location..."
+            label="Site"
+            placeholder="Select a site or enter a location..."
             value={deploySite}
             onChange={(val) => setDeploySite(val || "")}
             options={Array.from(
@@ -3232,7 +3247,7 @@ export const ApplicationDetailPage: React.FC = () => {
             ).map((loc) => ({
               value: loc,
               label: loc,
-              subtitle: loc === (app.jobPosting?.mrf as any)?.location ? "Inherited from MRF" : "Corporate Facility",
+              subtitle: loc === (app.jobPosting?.mrf as any)?.location ? "From manpower request" : "Client facility",
             }))}
             allowCustom
             required
@@ -3240,13 +3255,13 @@ export const ApplicationDetailPage: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Contract Start Date (Optional)"
+              label="Contract start date (optional)"
               type="date"
               value={deployContractStart}
               onChange={(e) => setDeployContractStart(e.target.value)}
             />
             <Input
-              label="Contract End Date (Optional)"
+              label="Contract end date (optional)"
               type="date"
               value={deployContractEnd}
               onChange={(e) => setDeployContractEnd(e.target.value)}
@@ -3254,8 +3269,8 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
 
           <Textarea
-            label="Deployment Notes / Shift Instructions (Optional)"
-            placeholder="Shift assignment, site supervisor, reporting instructions..."
+            label="Deployment notes (optional)"
+            placeholder="Add shift, supervisor, or reporting instructions..."
             value={deployNotes}
             onChange={(e) => setDeployNotes(e.target.value)}
             rows={2}
@@ -3273,7 +3288,7 @@ export const ApplicationDetailPage: React.FC = () => {
               onClick={() => {
                 const targetClientId = linkedClientId || deployClientId;
                 if (!targetClientId) {
-                  notify.error("Client Required", "Please select a target client for this deployment.");
+                  notify.error("Client required", "Choose a client before activating this deployment.");
                   return;
                 }
                 deployMutation.mutate({
@@ -3285,7 +3300,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 });
               }}
             >
-              Activate Deployment
+              Activate deployment
             </Button>
           </div>
         </div>
@@ -3295,37 +3310,37 @@ export const ApplicationDetailPage: React.FC = () => {
       <Dialog
         open={rejectModalOpen}
         onClose={() => setRejectModalOpen(false)}
-        title="Reject Candidate / Archive Application"
-        description={`Record formal decision and reason for removing ${candidateName} from active pipeline`}
+        title="Archive candidate"
+        description={`Record why ${candidateName} is no longer in the active pipeline.`}
       >
         <div className="space-y-4">
           <Select
-            label="Rejection Reason Category"
+            label="Reason"
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
             options={[
-              { value: "Qualifications Mismatch", label: "Qualifications / Skills Mismatch" },
-              { value: "Failed Screening Interview", label: "Failed Initial Screening Interview" },
-              { value: "Client Declined Endorsement", label: "Client Declined / Rejected Endorsement" },
-              { value: "Failed Final Interview", label: "Failed Final Technical / Client Interview" },
-              { value: "Candidate Withdrew / Backout", label: "Candidate Withdrew Application / Backout" },
-              { value: "Salary Expectation Unmet", label: "Salary / Compensation Expectation Mismatch" },
-              { value: "Failed Compliance Verification", label: "Failed Requirements Verification / Derogatory Record" },
-              { value: "Other / Discretionary", label: "Other Discretionary Reason" },
+              { value: "Qualifications Mismatch", label: "Skills or qualifications do not match" },
+              { value: "Failed Screening Interview", label: "Did not pass initial interview" },
+              { value: "Client Declined Endorsement", label: "Client declined" },
+              { value: "Failed Final Interview", label: "Did not pass final interview" },
+              { value: "Candidate Withdrew / Backout", label: "Candidate withdrew" },
+              { value: "Salary Expectation Unmet", label: "Salary expectations did not match" },
+              { value: "Failed Compliance Verification", label: "Requirements could not be verified" },
+              { value: "Other / Discretionary", label: "Other reason" },
             ]}
           />
           <Select
-            label="Target Disposition Status"
+            label="What should happen next"
             value={rejectTargetStatus}
             onChange={(e) => setRejectTargetStatus(e.target.value as ApplicationStatus)}
             options={[
-              { value: ApplicationStatus.ARCHIVED, label: "Archive Application (ARCHIVED)" },
-              { value: ApplicationStatus.TALENT_POOL, label: "Retain in Talent Pool for Future Roles (TALENT_POOL)" },
+              { value: ApplicationStatus.ARCHIVED, label: "Archive application" },
+              { value: ApplicationStatus.TALENT_POOL, label: "Keep in candidate pool for future openings" },
             ]}
           />
           <Textarea
-            label="Decision Notes / Remarks"
-            placeholder="Detailed notes explaining the rejection rationale..."
+            label="Notes (optional)"
+            placeholder="Add details about this decision..."
             value={rejectNotes}
             onChange={(e) => setRejectNotes(e.target.value)}
             rows={3}
@@ -3345,7 +3360,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 })
               }
             >
-              Confirm Rejection
+              Archive candidate
             </Button>
           </div>
         </div>
@@ -3355,8 +3370,8 @@ export const ApplicationDetailPage: React.FC = () => {
       <Dialog
         open={contractModalOpen}
         onClose={() => setContractModalOpen(false)}
-        title="Record Employment Contract Signing"
-        description={`Record signed employment contract for ${candidateName}`}
+        title="Record signed contract"
+        description={`Save the signed contract for ${candidateName}.`}
       >
         <div className="space-y-4">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1 font-mono">
@@ -3365,14 +3380,14 @@ export const ApplicationDetailPage: React.FC = () => {
             <div className="text-slate-600">Client: <strong className="text-slate-900">{linkedClientName || "Direct / Internal"}</strong></div>
           </div>
           <Input
-            label="Contract Document URL / Storage Reference (Optional)"
-            placeholder="https://... or storage reference..."
+            label="Contract document link (optional)"
+            placeholder="Paste a link to the contract..."
             value={contractDocumentUrl}
             onChange={(e) => setContractDocumentUrl(e.target.value)}
           />
           <Textarea
-            label="Contract Notes / Remarks (Optional)"
-            placeholder="Contract terms, duration, compensation acknowledgment, or witness details..."
+            label="Contract notes (optional)"
+            placeholder="Add contract terms or other notes..."
             value={contractNotes}
             onChange={(e) => setContractNotes(e.target.value)}
             rows={3}
@@ -3392,7 +3407,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 })
               }
             >
-              Confirm Contract Signed
+              Save signed contract
             </Button>
           </div>
         </div>
@@ -3402,24 +3417,24 @@ export const ApplicationDetailPage: React.FC = () => {
       <Dialog
         open={orientationModalOpen}
         onClose={() => setOrientationModalOpen(false)}
-        title="Record Corporate Orientation"
-        description={`Record company policy briefing and job site orientation for ${candidateName}`}
+        title="Record orientation"
+        description={`Save the orientation details for ${candidateName}.`}
       >
         <div className="space-y-4">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1 font-mono">
             <div className="text-slate-600">Candidate: <strong className="text-slate-900">{candidateName}</strong></div>
-            <div className="text-slate-600">Assigned Site: <strong className="text-slate-900">{app.jobPosting?.location || "Main Site"}</strong></div>
+            <div className="text-slate-600">Site: <strong className="text-slate-900">{app.jobPosting?.location || "Main site"}</strong></div>
           </div>
           <Input
-            label="Orientation Date"
+            label="Orientation date"
             type="date"
             value={orientationDate}
             onChange={(e) => setOrientationDate(e.target.value)}
             required
           />
           <Textarea
-            label="Orientation Notes / Topics Covered (Optional)"
-            placeholder="Company policies, site safety protocols, dress code, reporting supervisor briefed..."
+            label="Orientation notes (optional)"
+            placeholder="Add policies, safety topics, dress code, or supervisor notes..."
             value={orientationNotes}
             onChange={(e) => setOrientationNotes(e.target.value)}
             rows={3}
@@ -3439,7 +3454,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 })
               }
             >
-              Record Orientation
+              Save orientation
             </Button>
           </div>
         </div>

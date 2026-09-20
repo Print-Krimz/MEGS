@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { Input, PasswordInput, Button } from "../../components/ui";
 import { authApi } from "../../lib/api/auth.api";
+import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
 import { AlertCircle, CheckCircle2, ArrowRight, ArrowLeft, ShieldCheck, RefreshCw } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { maskEmail } from "../../lib/utils";
@@ -31,6 +32,8 @@ export const RegisterPage: React.FC = () => {
   });
 
   const [otpCode, setOtpCode] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string>("");
+  const turnstileRef = React.useRef<TurnstileWidgetRef>(null);
   const [step, setStep] = useState<"REGISTER" | "VERIFY_OTP" | "SUCCESS">("REGISTER");
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
@@ -47,7 +50,8 @@ export const RegisterPage: React.FC = () => {
   }, [step, cooldown]);
 
   const registerMutation = useMutation({
-    mutationFn: authApi.register,
+    mutationFn: (variables: { data: { email: string; password: string }; turnstileToken?: string }) =>
+      authApi.register(variables.data, variables.turnstileToken),
     onSuccess: () => {
       setServerError(null);
       setStep("VERIFY_OTP");
@@ -55,6 +59,8 @@ export const RegisterPage: React.FC = () => {
       notify.success("Verification Code Sent", "Please check your Gmail inbox for the 6-digit code.");
     },
     onError: (err) => {
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
       notify.error("Registration Failed", err);
@@ -108,8 +114,11 @@ export const RegisterPage: React.FC = () => {
 
     setValidationErrors({});
     registerMutation.mutate({
-      email: result.data.email,
-      password: result.data.password,
+      data: {
+        email: result.data.email,
+        password: result.data.password,
+      },
+      turnstileToken,
     });
   };
 
@@ -389,11 +398,22 @@ export const RegisterPage: React.FC = () => {
           required
         />
 
+        <TurnstileWidget
+          ref={turnstileRef}
+          onSuccess={setTurnstileToken}
+          onExpire={() => setTurnstileToken("")}
+        />
+
         <Button
           type="submit"
           variant="primary"
           size="md"
           loading={registerMutation.isPending}
+          disabled={Boolean(
+            import.meta.env.VITE_TURNSTILE_SITE_KEY &&
+            !turnstileToken &&
+            import.meta.env.MODE !== "test"
+          )}
           className="w-full mt-2"
         >
           Create Candidate Account

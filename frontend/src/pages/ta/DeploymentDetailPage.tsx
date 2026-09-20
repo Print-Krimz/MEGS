@@ -17,6 +17,7 @@ import {
   Edit,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
+import { TA_COPY } from "../../lib/ta-copy";
 
 export const DeploymentDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -41,17 +42,17 @@ export const DeploymentDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
       setStatusModalOpen(false);
       setStatusNotes("");
-      notify.success("Deployment Status Updated", `Deployment status transitioned to ${getDeploymentStatusMeta(vars.status).label}.`);
+      notify.success("Deployment status updated", `The assignment is now ${getDeploymentStatusMeta(vars.status).label}.`);
     },
     onError: (err: any) => {
-      notify.error("Status Update Failed", err);
+      notify.error("Unable to update deployment status", err);
     },
   });
 
   if (deploymentQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Deployment Record" description="Loading assignment data..." />
+        <PageHeader title="Deployment details" description="Loading assignment details..." />
         <LoadingState variant="detail" />
       </div>
     );
@@ -60,7 +61,7 @@ export const DeploymentDetailPage: React.FC = () => {
   if (deploymentQuery.isError || !deploymentQuery.data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Deployment Record" description="Assignment details" />
+        <PageHeader title="Deployment details" description="Assignment details" />
         <ErrorState error={deploymentQuery.error} onRetry={() => deploymentQuery.refetch()} />
       </div>
     );
@@ -81,15 +82,15 @@ export const DeploymentDetailPage: React.FC = () => {
         title={`Deployment: ${empName}`}
         description={`Record #${dep.id} • Assigned to ${dep.client?.name || "Client Site"}`}
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Deployments & 201", href: "/ta/workforce?tab=deployments" },
-          { label: `Assignment #${dep.id}` },
+          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.navigation.workforce, href: "/ta/workforce?tab=deployments" },
+          { label: `Deployment #${dep.id}` },
         ]}
         actions={
           <div className="flex items-center gap-2">
             <Link to="/ta/workforce" search={{ tab: "deployments" }}>
               <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                Back to Deployments
+                Back to deployments
               </Button>
             </Link>
             {allowedNext.length > 0 && (
@@ -102,7 +103,7 @@ export const DeploymentDetailPage: React.FC = () => {
                   setStatusModalOpen(true);
                 }}
               >
-                Update Status
+                Update status
               </Button>
             )}
           </div>
@@ -114,30 +115,30 @@ export const DeploymentDetailPage: React.FC = () => {
         {/* Assignment Metadata */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
           <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-            Deployment Specifications
+            Deployment details
           </h3>
           <div className="space-y-2.5 text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 font-mono">Current Status:</span>
+              <span className="text-slate-500">Current status</span>
               <StatusBadge status={dep.status} type="deployment" />
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 font-mono">Client Account:</span>
+              <span className="text-slate-500">Client</span>
               <span className="font-bold text-slate-900">{dep.client?.name}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 font-mono">Designated Site:</span>
+              <span className="text-slate-500">Site</span>
               <span className="font-semibold text-slate-800">{dep.site || "General Facility"}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 font-mono">Contract Schedule:</span>
+              <span className="text-slate-500">Contract dates</span>
               <span className="font-mono text-slate-800">
                 {dep.contractStart ? formatDate(dep.contractStart) : "N/A"} to {dep.contractEnd ? formatDate(dep.contractEnd) : "Open"}
               </span>
             </div>
             {dep.notes && (
               <div className="pt-2 border-t border-slate-100">
-                <span className="text-slate-400 font-mono block">Notes:</span>
+                <span className="text-slate-500 block">Notes</span>
                 <p className="text-slate-600 mt-0.5">{dep.notes}</p>
               </div>
             )}
@@ -147,29 +148,29 @@ export const DeploymentDetailPage: React.FC = () => {
         {/* Employee Info */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
           <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-            Employee Personnel Details
+            Employee details
           </h3>
           <div className="space-y-2.5 text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 font-mono">Personnel Name:</span>
+              <span className="text-slate-500">Employee</span>
               <span className="font-bold text-slate-900">{empName}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 font-mono">Employee Number:</span>
+              <span className="text-slate-500">Employee number</span>
               <span className="font-mono text-slate-800">{emp?.employeeNumber}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 font-mono">Contact Phone:</span>
+              <span className="text-slate-500">Phone</span>
               <span className="font-mono text-slate-800">{profile?.mobileNumber || "N/A"}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 font-mono">Official Email:</span>
+              <span className="text-slate-500">Email</span>
               <span className="font-mono text-slate-800">{emp?.user?.email || "N/A"}</span>
             </div>
             <div className="pt-2">
               <Link to="/ta/employees/$employeeId" params={{ employeeId: String(emp?.id || 0) }}>
                 <Button variant="outline" size="sm" className="w-full">
-                  View Digital 201 File
+                  View employee record
                 </Button>
               </Link>
             </div>
@@ -182,7 +183,7 @@ export const DeploymentDetailPage: React.FC = () => {
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
           <History className="w-4 h-4 text-teal-600" />
           <h3 className="text-sm font-bold text-slate-900">
-            Deployment Lifecycle State Transitions
+            Status history
           </h3>
         </div>
 
@@ -216,17 +217,17 @@ export const DeploymentDetailPage: React.FC = () => {
       <Dialog
         open={statusModalOpen}
         onClose={() => setStatusModalOpen(false)}
-        title="Update Deployment Status"
-        description="Update the employee's current deployment status."
+        title="Update deployment status"
+        description="Update the employee’s current site assignment status."
       >
         <div className="space-y-4">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex items-center justify-between">
-            <span className="text-slate-500 font-mono">Current Status:</span>
+            <span className="text-slate-500">Current status</span>
             <StatusBadge status={dep.status} type="deployment" />
           </div>
 
           <Select
-            label="Target Status"
+            label="New status"
             value={newStatus}
             onChange={(e) => setNewStatus(e.target.value as DeploymentStatus)}
             options={allowedNext.map((s) => ({
@@ -235,8 +236,8 @@ export const DeploymentDetailPage: React.FC = () => {
             }))}
           />
           <Textarea
-            label="Status Notes / Coordinator Remarks"
-            placeholder="Document reason or remarks for this status update..."
+            label="Notes (optional)"
+            placeholder="Add a reason or note for this change..."
             value={statusNotes}
             onChange={(e) => setStatusNotes(e.target.value)}
             rows={3}
@@ -256,7 +257,7 @@ export const DeploymentDetailPage: React.FC = () => {
                 })
               }
             >
-              Confirm Status
+              Save status
             </Button>
           </div>
         </div>

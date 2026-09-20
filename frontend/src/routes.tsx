@@ -1,3 +1,4 @@
+import React from "react";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -7,7 +8,7 @@ import {
 } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import type { AuthContextType } from "./context/AuthContext";
-import { Role } from "./lib/types/enums";
+import { ApplicationStatus, PIPELINE_FILTER_STAGES, Role } from "./lib/types/enums";
 import { AuthLayout } from "./layouts/AuthLayout";
 import { ApplicantLayout } from "./layouts/ApplicantLayout";
 import { TALayout } from "./layouts/TALayout";
@@ -30,23 +31,36 @@ import { MyApplicationsPage } from "./pages/applicant/MyApplicationsPage";
 import { ApplicationDetailPage as ApplicantApplicationDetailPage } from "./pages/applicant/ApplicationDetailPage";
 import { NotificationsPage } from "./pages/applicant/NotificationsPage";
 
-// Talent Acquisition (TA) Pages
-import { TADashboard } from "./pages/ta/TADashboard";
-import { ApplicationsPage as TAApplicationsPage } from "./pages/ta/ApplicationsPage";
-import { ApplicationDetailPage as TAApplicationDetailPage } from "./pages/ta/ApplicationDetailPage";
-import { JobPostingsPage } from "./pages/ta/JobPostingsPage";
-import { JobPostingDetailPage } from "./pages/ta/JobPostingDetailPage";
-import { MRFListPage } from "./pages/ta/MRFListPage";
-import { MRFCreatePage } from "./pages/ta/MRFCreatePage";
-import { MRFDetailPage } from "./pages/ta/MRFDetailPage";
-import { TalentPoolPage } from "./pages/ta/TalentPoolPage";
-import { InterviewsPage } from "./pages/ta/InterviewsPage";
-import { ClientsPage } from "./pages/ta/ClientsPage";
-import { ClientDetailPage } from "./pages/ta/ClientDetailPage";
-import { DeploymentDetailPage } from "./pages/ta/DeploymentDetailPage";
-import { EmployeeDetailPage } from "./pages/ta/EmployeeDetailPage";
-import { WorkforcePage } from "./pages/ta/WorkforcePage";
-import { AnalyticsPage } from "./pages/ta/AnalyticsPage";
+// Talent Acquisition (TA) Pages are loaded on demand so the login and first
+// dashboard paint do not pay for every detail workflow up front.
+const withRouteSuspense = (Page: React.ComponentType<any>) => (props: any) => (
+  <React.Suspense
+    fallback={
+      <div className="flex min-h-32 items-center justify-center text-sm text-slate-600" role="status">
+        Loading workspace…
+      </div>
+    }
+  >
+    <Page {...props} />
+  </React.Suspense>
+);
+
+const TADashboard = withRouteSuspense(React.lazy(() => import("./pages/ta/TADashboard").then((module) => ({ default: module.TADashboard }))));
+const TAApplicationsPage = withRouteSuspense(React.lazy(() => import("./pages/ta/ApplicationsPage").then((module) => ({ default: module.ApplicationsPage }))));
+const TAApplicationDetailPage = withRouteSuspense(React.lazy(() => import("./pages/ta/ApplicationDetailPage").then((module) => ({ default: module.ApplicationDetailPage }))));
+const JobPostingsPage = withRouteSuspense(React.lazy(() => import("./pages/ta/JobPostingsPage").then((module) => ({ default: module.JobPostingsPage }))));
+const JobPostingDetailPage = withRouteSuspense(React.lazy(() => import("./pages/ta/JobPostingDetailPage").then((module) => ({ default: module.JobPostingDetailPage }))));
+const MRFListPage = withRouteSuspense(React.lazy(() => import("./pages/ta/MRFListPage").then((module) => ({ default: module.MRFListPage }))));
+const MRFCreatePage = withRouteSuspense(React.lazy(() => import("./pages/ta/MRFCreatePage").then((module) => ({ default: module.MRFCreatePage }))));
+const MRFDetailPage = withRouteSuspense(React.lazy(() => import("./pages/ta/MRFDetailPage").then((module) => ({ default: module.MRFDetailPage }))));
+const TalentPoolPage = withRouteSuspense(React.lazy(() => import("./pages/ta/TalentPoolPage").then((module) => ({ default: module.TalentPoolPage }))));
+const InterviewsPage = withRouteSuspense(React.lazy(() => import("./pages/ta/InterviewsPage").then((module) => ({ default: module.InterviewsPage }))));
+const ClientsPage = withRouteSuspense(React.lazy(() => import("./pages/ta/ClientsPage").then((module) => ({ default: module.ClientsPage }))));
+const ClientDetailPage = withRouteSuspense(React.lazy(() => import("./pages/ta/ClientDetailPage").then((module) => ({ default: module.ClientDetailPage }))));
+const DeploymentDetailPage = withRouteSuspense(React.lazy(() => import("./pages/ta/DeploymentDetailPage").then((module) => ({ default: module.DeploymentDetailPage }))));
+const EmployeeDetailPage = withRouteSuspense(React.lazy(() => import("./pages/ta/EmployeeDetailPage").then((module) => ({ default: module.EmployeeDetailPage }))));
+const WorkforcePage = withRouteSuspense(React.lazy(() => import("./pages/ta/WorkforcePage").then((module) => ({ default: module.WorkforcePage }))));
+const AnalyticsPage = withRouteSuspense(React.lazy(() => import("./pages/ta/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage }))));
 
 // Admin Pages
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
@@ -284,6 +298,47 @@ export const taLayoutRoute = createRoute({
   component: TALayout,
 });
 
+export interface TAApplicationSearch {
+  q?: string;
+  stage?: ApplicationStatus;
+  clientId?: number;
+  jobId?: number;
+  mine?: boolean;
+  archived?: boolean;
+  page?: number;
+  tab?: string;
+}
+
+const parsePositiveNumber = (value: unknown): number | undefined => {
+  const numberValue = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : undefined;
+};
+
+const parseBoolean = (value: unknown): boolean | undefined => {
+  if (value === true || value === "true" || value === "1") return true;
+  if (value === false || value === "false" || value === "0") return false;
+  return undefined;
+};
+
+const parseTAApplicationSearch = (
+  search: Record<string, unknown>,
+  includeTab = false,
+): TAApplicationSearch => {
+  const stage = typeof search.stage === "string" && PIPELINE_FILTER_STAGES.includes(search.stage as ApplicationStatus)
+    ? (search.stage as ApplicationStatus)
+    : undefined;
+  return {
+    q: typeof search.q === "string" && search.q.trim() ? search.q : undefined,
+    stage,
+    clientId: parsePositiveNumber(search.clientId),
+    jobId: parsePositiveNumber(search.jobId),
+    mine: parseBoolean(search.mine),
+    archived: parseBoolean(search.archived),
+    page: parsePositiveNumber(search.page),
+    tab: includeTab && typeof search.tab === "string" ? search.tab : undefined,
+  };
+};
+
 export const taDashboardRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
   path: "/ta",
@@ -293,12 +348,14 @@ export const taDashboardRoute = createRoute({
 export const taApplicationsRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
   path: "/ta/applications",
+  validateSearch: (search: Record<string, unknown>): TAApplicationSearch => parseTAApplicationSearch(search),
   component: TAApplicationsPage,
 });
 
 export const taApplicationDetailRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
   path: "/ta/applications/$applicationId",
+  validateSearch: (search: Record<string, unknown>): TAApplicationSearch => parseTAApplicationSearch(search, true),
   component: TAApplicationDetailPage,
 });
 

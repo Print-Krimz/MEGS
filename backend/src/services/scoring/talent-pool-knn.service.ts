@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { ApplicationStatus, Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
 import { calculateAndPersistCandidateScore } from "./candidate-scoring.service.js";
 import { getActiveScoringConfiguration } from "./scoring-configuration.service.js";
@@ -231,7 +231,7 @@ export const discoverTalentPoolForJob = async (jobPostingId: number, requested: 
           SELECT 1 FROM "Application" app_active
           WHERE app_active."userId" = u."id"
             AND app_active."jobPostingId" = ${jobPostingId}
-            AND app_active."status" NOT IN ('REJECTED', 'WITHDRAWN')
+            AND app_active."status" NOT IN ('BACKOUT', 'ARCHIVED')
         )
         AND (1 - (cfp."embedding" <=> ${vectorStr}::vector)) >= ${knn.minimumSimilarity}
       ORDER BY (1 - (cfp."embedding" <=> ${vectorStr}::vector)) DESC, ap."id" ASC
@@ -254,7 +254,7 @@ export const discoverTalentPoolForJob = async (jobPostingId: number, requested: 
                   { deployments: { some: { status: { notIn: ["ENDED", "CANCELLED"] } } } },
                   {
                     jobPostingId,
-                    status: { notIn: ["REJECTED", "WITHDRAWN"] as any },
+                    status: { notIn: [ApplicationStatus.BACKOUT, ApplicationStatus.ARCHIVED] },
                   },
                 ],
               },

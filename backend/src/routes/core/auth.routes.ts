@@ -25,17 +25,19 @@ import {
   authLimiter,
   forgotPasswordLimiter,
 } from '../../middleware/rate-limiter.middleware.js';
+import { verifyTurnstile } from '../../middleware/turnstile.middleware.js';
 
 const router = Router();
 
-// Public Auth Endpoints (Rate Limited)
-router.post("/register", authLimiter, validate(authSchema.register), register);
+// Public Auth Endpoints (Rate Limited & Bot Protected)
+router.post("/register", authLimiter, verifyTurnstile, validate(authSchema.register), register);
 router.post("/verify-otp", authLimiter, validate(authSchema.verifyOtp), verifyOtp);
 router.post("/resend-otp", forgotPasswordLimiter, validate(authSchema.resendOtp), resendOtp);
-router.post("/login", authLimiter, validate(authSchema.login), login);
+router.post("/login", authLimiter, verifyTurnstile, validate(authSchema.login), login);
 router.post(
   "/forgot-password",
   forgotPasswordLimiter,
+  verifyTurnstile,
   validate(authSchema.forgotPassword),
   forgotPassword
 );

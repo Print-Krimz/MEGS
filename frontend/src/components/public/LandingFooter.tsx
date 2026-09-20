@@ -113,9 +113,6 @@ export const LandingFooter: React.FC = () => {
               <a href="#industries" onClick={(e) => scrollToSection(e, "#industries")} className="hover:text-white transition-colors cursor-pointer">
                 Industries
               </a>
-              <a href="#specializations" onClick={(e) => scrollToSection(e, "#specializations")} className="hover:text-white transition-colors cursor-pointer">
-                Specializations
-              </a>
               <a href="#branches" onClick={(e) => scrollToSection(e, "#branches")} className="hover:text-white transition-colors cursor-pointer">
                 Branches Map
               </a>
@@ -145,10 +142,10 @@ export const LandingFooter: React.FC = () => {
                   <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                   <span className="text-xs font-semibold text-white font-sans">{b.name}</span>
                 </div>
-                <p className="text-xs text-slate-400 font-sans leading-relaxed pl-5.5">
+                <p className="text-xs text-slate-400 font-sans leading-relaxed pl-5">
                   {b.address}
                 </p>
-                <div className="flex items-center gap-2 text-xs text-slate-400 pl-5.5 pt-0.5">
+                <div className="flex items-center gap-2 text-xs text-slate-400 pl-5 pt-0.5">
                   <Phone className="w-3 h-3 text-slate-500 shrink-0" />
                   <span className="font-mono text-[11px] text-slate-300">{b.phone}</span>
                 </div>

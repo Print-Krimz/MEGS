@@ -21,7 +21,7 @@ export const LandingAffiliates: React.FC = () => {
               </span>
             </div>
             <div>
-              <p className="text-xs font-mono uppercase tracking-wider text-blue-300 font-bold">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-300">
                 Conglomerate Network
               </p>
               <h3 className="text-base sm:text-lg font-bold tracking-tight text-white mt-1 font-sans">
@@ -47,7 +47,7 @@ export const LandingAffiliates: React.FC = () => {
               />
             </div>
             <div>
-              <p className="text-xs font-mono uppercase tracking-wider text-blue-300 font-bold">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-300">
                 Industry Accreditation
               </p>
               <h3 className="text-base sm:text-lg font-bold tracking-tight text-white mt-1 font-sans">
@@ -66,7 +66,7 @@ export const LandingAffiliates: React.FC = () => {
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
             <div className="text-left">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-400 block">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-emerald-400 block">
                 DOLE D.O. 174 & D.O. 40
               </span>
               <span className="text-xs font-semibold text-slate-200">

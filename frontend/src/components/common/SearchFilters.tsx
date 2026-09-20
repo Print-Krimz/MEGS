@@ -50,8 +50,10 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
 
   return (
     <div
+      role="search"
+      aria-label="Search and filter records"
       className={cn(
-        "bg-white p-3 border border-slate-300 mb-4 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5",
+        "bg-white p-3 border border-slate-300 mb-4 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3",
         className
       )}
     >
@@ -133,7 +135,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
           <button
             type="button"
             onClick={onReset}
-            className="min-h-10 text-sm text-rose-700 hover:text-rose-900 flex items-center gap-1 font-medium select-none px-2 py-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-700"
+            className="min-h-11 text-sm text-rose-700 hover:text-rose-900 flex items-center gap-1 font-medium select-none px-2 py-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-700 focus-visible:ring-offset-1 rounded"
           >
             <X className="w-3.5 h-3.5" />
             <span>Reset Filters</span>

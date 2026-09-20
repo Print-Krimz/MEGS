@@ -12,6 +12,7 @@ import {
 } from "../../components/common";
 import { Button, Dialog, Select, Textarea } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
+import { formatInterviewDeadlineStatus, TA_COPY } from "../../lib/ta-copy";
 import {
   Calendar,
   CheckCircle2,
@@ -69,10 +70,10 @@ export const InterviewsPage: React.FC = () => {
       setResultModalOpen(false);
       setTargetInterview(null);
       setResultNotes("");
-      notify.success("Interview Outcome Recorded", `Interview marked as ${vars.result}.`);
+      notify.success("Interview outcome saved", `The interview was marked as ${vars.result === "PASS" ? "passed" : vars.result === "FAIL" ? "not passed" : "no show"}.`);
     },
     onError: (err: any) => {
-      notify.error("Update Failed", err);
+      notify.error("Unable to save interview outcome", err);
     },
   });
 
@@ -111,7 +112,7 @@ export const InterviewsPage: React.FC = () => {
   if (slaQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Interview Operations & SLA Tracking" description="Loading SLA records..." />
+        <PageHeader title="Interview schedule" description="Loading interview deadlines..." />
         <LoadingState variant="table" rows={6} />
       </div>
     );
@@ -120,7 +121,7 @@ export const InterviewsPage: React.FC = () => {
   if (slaQuery.isError) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Interview Operations & SLA Tracking" description="SLA tracking" />
+        <PageHeader title="Interview schedule" description="Interview deadlines" />
         <ErrorState error={slaQuery.error} onRetry={() => slaQuery.refetch()} />
       </div>
     );
@@ -130,10 +131,10 @@ export const InterviewsPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Interview schedule"
-        description="Monitor interview screening deadlines, SLA adherence, and assessment evaluations"
+        description="Track interview deadlines and record interview outcomes."
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
-          { label: "Interviews & SLA" },
+          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.navigation.interviews },
         ]}
       />
 
@@ -150,7 +151,7 @@ export const InterviewsPage: React.FC = () => {
           }`}
         >
           <div className="text-[11px] font-mono font-bold text-slate-500 uppercase">
-            Total Active Scheduled
+            Scheduled interviews
           </div>
           <div className="text-2xl font-bold font-mono text-slate-900 mt-1 tabular-nums">
             {summary.total}
@@ -172,7 +173,7 @@ export const InterviewsPage: React.FC = () => {
           }`}
         >
           <div className="text-[11px] font-mono font-bold text-rose-700 uppercase">
-            SLA Breached (&gt;7 Days)
+            Overdue interviews
           </div>
           <div className="text-2xl font-bold font-mono text-rose-700 mt-1 tabular-nums">
             {summary.breached}
@@ -194,7 +195,7 @@ export const InterviewsPage: React.FC = () => {
           }`}
         >
           <div className="text-[11px] font-mono font-bold text-amber-800 uppercase">
-            SLA Warning (&lt;48h)
+            Due within 48 hours
           </div>
           <div className="text-2xl font-bold font-mono text-amber-900 mt-1 tabular-nums">
             {summary.warning}
@@ -216,14 +217,14 @@ export const InterviewsPage: React.FC = () => {
           }`}
         >
           <div className="text-[11px] font-mono font-bold text-emerald-700 uppercase">
-            SLA Compliant
+            On track
           </div>
           <div className="text-2xl font-bold font-mono text-emerald-900 mt-1 tabular-nums">
             {summary.healthy}
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-mono">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Within SLA window</span>
+            <span>Within the 7-day deadline</span>
           </div>
         </button>
       </div>
@@ -240,9 +241,9 @@ export const InterviewsPage: React.FC = () => {
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
           <div className="space-y-0.5">
-            <h3 className="text-sm font-bold text-slate-900">7-Day Interview SLA Attention Matrix</h3>
+            <h3 className="text-sm font-bold text-slate-900">Interviews needing attention</h3>
             <p className="text-xs text-slate-500">
-              Applications requiring prompt interviewer engagement to avoid SLA breaches
+              Applications that need an interviewer response before the 7-day deadline
             </p>
           </div>
         </div>
@@ -251,21 +252,61 @@ export const InterviewsPage: React.FC = () => {
           <div className="p-8">
             <EmptyState
               icon={<CheckCircle2 className="w-6 h-6 text-emerald-600" />}
-              title="All interviews are SLA compliant"
-              description="There are no pending interview schedule breaches or overdue assessments."
+              title="All interviews are on track"
+              description="There are no overdue or soon-due interview outcomes."
             />
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="md:hidden divide-y divide-slate-200">
+              {paginatedItems.map((row) => (
+                <article key={row.interviewId} className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-slate-950 break-words">{row.candidateName}</h4>
+                      <p className="mt-0.5 text-sm text-slate-600 break-words">{row.jobTitle}</p>
+                    </div>
+                    <span className={`shrink-0 rounded border px-2 py-1 text-xs font-semibold ${
+                      row.status === "BREACHED"
+                        ? "bg-rose-50 text-rose-800 border-rose-200"
+                        : row.status === "WARNING"
+                        ? "bg-amber-50 text-amber-800 border-amber-200"
+                        : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                    }`}>
+                      {formatInterviewDeadlineStatus(row.status)}
+                    </span>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-3 text-sm">
+                    <div><dt className="text-slate-500">Scheduled</dt><dd className="mt-0.5 text-slate-800">{formatDateTime(row.scheduledAt)}</dd></div>
+                    <div><dt className="text-slate-500">Deadline</dt><dd className="mt-0.5 text-slate-800">{formatDate(row.deadline)}</dd></div>
+                  </dl>
+                  <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        setTargetInterview({ id: row.interviewId, applicationId: row.applicationId, candidateName: row.candidateName });
+                        setResultModalOpen(true);
+                      }}
+                    >
+                      Record outcome
+                    </Button>
+                    <Link to="/ta/applications/$applicationId" params={{ applicationId: String(row.applicationId) }}>
+                      <Button variant="outline" size="sm">View application</Button>
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Candidate</th>
                     <th className="px-4 py-3 font-semibold">Target Position</th>
                     <th className="px-4 py-3 font-semibold">Scheduled Date</th>
-                    <th className="px-4 py-3 font-semibold">7-Day Deadline</th>
-                    <th className="px-4 py-3 font-semibold text-center">SLA Health</th>
+                    <th className="px-4 py-3 font-semibold">Deadline</th>
+                    <th className="px-4 py-3 font-semibold text-center">Status</th>
                     <th className="px-4 py-3 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -294,7 +335,7 @@ export const InterviewsPage: React.FC = () => {
                               : "bg-emerald-50 text-emerald-800 border border-emerald-200"
                           }`}
                         >
-                          {row.status}
+                          {formatInterviewDeadlineStatus(row.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right font-sans">
@@ -348,23 +389,23 @@ export const InterviewsPage: React.FC = () => {
       <Dialog
         open={resultModalOpen}
         onClose={() => setResultModalOpen(false)}
-        title="Record Interview Evaluation Outcome"
+        title="Record interview outcome"
         description={`Record screening result for ${targetInterview?.candidateName}`}
       >
         <div className="space-y-4">
           <Select
-            label="Assessment Outcome"
+            label="Outcome"
             value={interviewResult}
             onChange={(e) => setInterviewResult(e.target.value as any)}
             options={[
-              { value: "PASS", label: "PASS (Endorse to next hiring stage)" },
-              { value: "FAIL", label: "FAIL (Does not meet requisition criteria)" },
-              { value: "NO_SHOW", label: "NO SHOW (Candidate missed scheduled appointment)" },
+              { value: "PASS", label: "Passed — move to the next stage" },
+              { value: "FAIL", label: "Not passed — do not advance" },
+              { value: "NO_SHOW", label: "No show — candidate missed the interview" },
             ]}
           />
           <Textarea
-            label="Interviewer Feedback & Notes"
-            placeholder="Detailed assessment notes, technical strengths, and behavioral observations..."
+            label="Interview notes"
+            placeholder="Record strengths, concerns, and recommended next steps..."
             value={resultNotes}
             onChange={(e) => setResultNotes(e.target.value)}
             rows={3}
