@@ -1,5 +1,6 @@
-import { useImperativeHandle, forwardRef, useRef } from "react";
+import { useImperativeHandle, forwardRef, useRef, useState, useEffect, useCallback } from "react";
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
+import { RefreshCw, AlertCircle } from "lucide-react";
 
 export interface TurnstileWidgetRef {
   reset: () => void;
@@ -30,16 +31,52 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
   ) => {
     const turnstileRef = useRef<TurnstileInstance | null>(null);
     const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+    const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
+
+    const [reloadKey, setReloadKey] = useState(0);
+    const [status, setStatus] = useState<"idle" | "verifying" | "success" | "error" | "expired">("idle");
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [isTimedOut, setIsTimedOut] = useState(false);
+
+    // Auto-bypass if explicitly disabled via environment variable
+    useEffect(() => {
+      if (isCaptchaDisabled) {
+        onSuccess("bypassed");
+      }
+    }, [isCaptchaDisabled, onSuccess]);
+
+    const handleReset = useCallback(() => {
+      setStatus("verifying");
+      setErrorMessage(null);
+      setIsTimedOut(false);
+      try {
+        turnstileRef.current?.reset();
+      } catch {
+        // Fallback: force full remount if instance reset fails
+      }
+      setReloadKey((k) => k + 1);
+    }, []);
 
     useImperativeHandle(ref, () => ({
-      reset: () => {
-        try {
-          turnstileRef.current?.reset();
-        } catch {
-          // Ignore if widget is not ready
-        }
-      },
+      reset: handleReset,
     }));
+
+    // Timeout detection: after 7 seconds of pending, suggest reload
+    useEffect(() => {
+      if (isCaptchaDisabled || !siteKey || status === "success") return;
+
+      const timer = setTimeout(() => {
+        if (status === "verifying" || status === "idle") {
+          setIsTimedOut(true);
+        }
+      }, 7000);
+
+      return () => clearTimeout(timer);
+    }, [reloadKey, status, isCaptchaDisabled, siteKey]);
+
+    if (isCaptchaDisabled) {
+      return null;
+    }
 
     if (!siteKey) {
       return (
@@ -53,19 +90,74 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
     }
 
     return (
-      <div className={`w-full max-w-full flex justify-center items-center min-h-[65px] overflow-hidden ${className}`}>
-        <Turnstile
-          ref={turnstileRef}
-          siteKey={siteKey}
-          onSuccess={onSuccess}
-          onExpire={onExpire}
-          onError={onError}
-          options={{
-            theme,
-            size,
-            action,
-          }}
-        />
+      <div className={`w-full max-w-full flex flex-col justify-center items-center py-1 min-h-[65px] ${className}`}>
+        {errorMessage ? (
+          <div className="w-full p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center justify-between gap-2 animate-fade-in">
+            <div className="flex items-start gap-1.5 text-left">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-rose-900">Security Check Notice</p>
+                <p className="text-[11px] text-rose-700 leading-snug">{errorMessage}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-white border border-rose-300 rounded shadow-xs hover:bg-rose-100 transition-colors focus:outline-hidden focus:ring-2 focus:ring-rose-500 cursor-pointer"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Retry</span>
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="w-full flex justify-center items-center overflow-hidden">
+              <Turnstile
+                key={reloadKey}
+                ref={turnstileRef}
+                siteKey={siteKey}
+                onSuccess={(token) => {
+                  setStatus("success");
+                  setIsTimedOut(false);
+                  setErrorMessage(null);
+                  onSuccess(token);
+                }}
+                onExpire={() => {
+                  setStatus("expired");
+                  onExpire?.();
+                }}
+                onError={(err) => {
+                  setStatus("error");
+                  const code = typeof err === "string" ? err : (err as Error)?.message || "";
+                  const displayErr = code
+                    ? `Verification failed to load (Cloudflare Code: ${code}). Please verify widget configuration.`
+                    : "Verification failed to load. Please try again.";
+                  setErrorMessage(displayErr);
+                  onError?.(err);
+                }}
+                options={{
+                  theme,
+                  size,
+                  action,
+                }}
+              />
+            </div>
+
+            {isTimedOut && status !== "success" && !errorMessage && (
+              <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[11px] text-slate-500 animate-fade-in">
+                <span>Verification taking longer than usual?</span>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="inline-flex items-center gap-1 font-semibold text-[#0B315D] hover:underline cursor-pointer"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Reload verification</span>
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
     );
   }

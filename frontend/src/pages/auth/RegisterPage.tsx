@@ -113,6 +113,15 @@ export const RegisterPage: React.FC = () => {
     }
 
     setValidationErrors({});
+
+    const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
+    const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
+
+    if (hasSiteKey && !isCaptchaDisabled && !turnstileToken && import.meta.env.MODE !== "test") {
+      setServerError("Please complete or retry the security verification before creating an account.");
+      return;
+    }
+
     registerMutation.mutate({
       data: {
         email: result.data.email,
@@ -398,23 +407,24 @@ export const RegisterPage: React.FC = () => {
           required
         />
 
-        <TurnstileWidget
-          ref={turnstileRef}
-          action="signup"
-          onSuccess={setTurnstileToken}
-          onExpire={() => setTurnstileToken("")}
-        />
+        {import.meta.env.VITE_DISABLE_CAPTCHA !== "true" && (
+          <TurnstileWidget
+            ref={turnstileRef}
+            action="signup"
+            onSuccess={(token) => {
+              setTurnstileToken(token);
+              setServerError(null);
+            }}
+            onExpire={() => setTurnstileToken("")}
+          />
+        )}
 
         <Button
           type="submit"
           variant="primary"
           size="md"
           loading={registerMutation.isPending}
-          disabled={Boolean(
-            import.meta.env.VITE_TURNSTILE_SITE_KEY &&
-            !turnstileToken &&
-            import.meta.env.MODE !== "test"
-          )}
+          disabled={registerMutation.isPending}
           className="w-full mt-2"
         >
           Create Candidate Account

@@ -135,6 +135,15 @@ export const LoginPage: React.FC = () => {
     }
 
     setValidationErrors({});
+
+    const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
+    const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
+
+    if (hasSiteKey && !isCaptchaDisabled && !turnstileToken && import.meta.env.MODE !== "test") {
+      setServerError("Please complete or retry the security verification before signing in.");
+      return;
+    }
+
     loginMutation.mutate({ data: result.data, turnstileToken });
   };
 
@@ -208,67 +217,66 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Security Verification Section */}
-        <div className="space-y-1.5 text-left pt-1">
-          <div className="flex items-center justify-between">
-            <span
-              id="turnstile-label"
-              className="block text-xs font-semibold text-slate-700 select-none"
+        {import.meta.env.VITE_DISABLE_CAPTCHA !== "true" && (
+          <div className="space-y-1.5 text-left pt-1">
+            <div className="flex items-center justify-between">
+              <span
+                id="turnstile-label"
+                className="block text-xs font-semibold text-slate-700 select-none"
+              >
+                Security Verification <span className="text-rose-500" aria-hidden="true">*</span>
+              </span>
+              <span className="text-[11px] text-[#627D98] select-none font-normal">
+                Cloudflare Turnstile
+              </span>
+            </div>
+
+            <div
+              role="region"
+              aria-labelledby="turnstile-label"
+              aria-live="polite"
+              className="w-full max-w-full overflow-hidden flex justify-center items-center py-1 min-h-[65px]"
             >
-              Security Verification <span className="text-rose-500" aria-hidden="true">*</span>
-            </span>
-            <span className="text-[11px] text-[#627D98] select-none font-normal">
-              Cloudflare Turnstile
-            </span>
-          </div>
+              <TurnstileWidget
+                ref={turnstileRef}
+                action="login"
+                theme="light"
+                size="flexible"
+                onSuccess={(token) => {
+                  setTurnstileToken(token);
+                  setTurnstileError(null);
+                  setServerError(null);
+                }}
+                onExpire={() => {
+                  setTurnstileToken("");
+                }}
+                onError={(error) => {
+                  const code = typeof error === "string" ? error : (error as Error)?.message || "";
+                  console.error("[Turnstile error]", error);
+                  setTurnstileToken("");
+                  setTurnstileError(
+                    code
+                      ? `Security verification failed to load (Cloudflare Code: ${code}). Please verify widget configuration.`
+                      : "Security verification failed to load. Please refresh and try again."
+                  );
+                }}
+              />
+            </div>
 
-          <div
-            role="region"
-            aria-labelledby="turnstile-label"
-            aria-live="polite"
-            className="w-full max-w-full overflow-hidden flex justify-center items-center py-1 min-h-[65px]"
-          >
-            <TurnstileWidget
-              ref={turnstileRef}
-              action="login"
-              theme="light"
-              size="flexible"
-              onSuccess={(token) => {
-                setTurnstileToken(token);
-                setTurnstileError(null);
-              }}
-              onExpire={() => {
-                setTurnstileToken("");
-              }}
-              onError={(error) => {
-                const code = typeof error === "string" ? error : (error as Error)?.message || "";
-                console.error("[Turnstile error]", error);
-                setTurnstileToken("");
-                setTurnstileError(
-                  code
-                    ? `Security verification failed to load (Cloudflare Code: ${code}). Please verify widget configuration.`
-                    : "Security verification failed to load. Please refresh and try again."
-                );
-              }}
-            />
+            {turnstileError && (
+              <p className="text-xs text-rose-600 font-medium animate-fade-in" role="alert">
+                {turnstileError}
+              </p>
+            )}
           </div>
-
-          {turnstileError && (
-            <p className="text-xs text-rose-600 font-medium animate-fade-in" role="alert">
-              {turnstileError}
-            </p>
-          )}
-        </div>
+        )}
 
         <Button
           type="submit"
           variant="primary"
           size="md"
           loading={loginMutation.isPending}
-          disabled={Boolean(
-            import.meta.env.VITE_TURNSTILE_SITE_KEY &&
-            !turnstileToken &&
-            import.meta.env.MODE !== "test"
-          )}
+          disabled={loginMutation.isPending}
           className="w-full mt-1"
         >
           Sign In

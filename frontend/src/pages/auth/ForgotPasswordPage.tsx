@@ -148,6 +148,15 @@ export const ForgotPasswordPage: React.FC = () => {
     }
 
     setValidationErrors({});
+
+    const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
+    const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
+
+    if (hasSiteKey && !isCaptchaDisabled && !turnstileToken && import.meta.env.MODE !== "test") {
+      setServerError("Please complete or retry the security verification before continuing.");
+      return;
+    }
+
     forgotMutation.mutate({
       data: { email: result.data.email },
       turnstileToken,
@@ -460,23 +469,24 @@ export const ForgotPasswordPage: React.FC = () => {
           required
         />
 
-        <TurnstileWidget
-          ref={turnstileRef}
-          action="forgot_password"
-          onSuccess={setTurnstileToken}
-          onExpire={() => setTurnstileToken("")}
-        />
+        {import.meta.env.VITE_DISABLE_CAPTCHA !== "true" && (
+          <TurnstileWidget
+            ref={turnstileRef}
+            action="forgot_password"
+            onSuccess={(token) => {
+              setTurnstileToken(token);
+              setServerError(null);
+            }}
+            onExpire={() => setTurnstileToken("")}
+          />
+        )}
 
         <Button
           type="submit"
           variant="primary"
           size="md"
           loading={forgotMutation.isPending}
-          disabled={Boolean(
-            import.meta.env.VITE_TURNSTILE_SITE_KEY &&
-            !turnstileToken &&
-            import.meta.env.MODE !== "test"
-          )}
+          disabled={forgotMutation.isPending}
           leftIcon={<KeyRound className="w-4 h-4" />}
           className="w-full mt-2"
         >
