@@ -1,6 +1,16 @@
 import { api } from "./client";
-import type { JobPosting, Application } from "../types/application.types";
+import type { JobPosting as BaseJobPosting, Application } from "../types/application.types";
 import type { ApplicantJobInvitation, RespondInvitationDto } from "../types/applicant.types";
+
+export interface ActiveDeploymentInfo {
+  isCurrentlyDeployed: boolean;
+  clientName?: string;
+  positionTitle?: string;
+}
+
+export interface JobPosting extends BaseJobPosting {
+  activeDeployment?: ActiveDeploymentInfo;
+}
 
 export interface JobQueryFilters {
   search?: string;
@@ -15,6 +25,7 @@ export interface JobDetailResponse extends JobPosting {
   applicationId?: number;
   salaryRange?: string;
   department?: string;
+  activeDeployment?: ActiveDeploymentInfo;
 }
 
 export type ApplicationDetailResponse = Application;

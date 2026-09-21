@@ -50,7 +50,8 @@ export const applyToJob = async (req: Request, res: Response): Promise<void> => 
     sendSuccess(res, "Application submitted successfully", application, 201);
   } catch (error: any) {
     const status = error.message.includes("not found") ? 404 :
-                   error.message.includes("already applied") ? 409 : 400;
+                   error.message.includes("already applied") ? 409 :
+                   (error.message.includes("currently deployed") || error.message.includes("active assignment")) ? 403 : 400;
     sendError(res, error.message, status);
   }
 };

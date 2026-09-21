@@ -58,6 +58,74 @@ export const fetchOpenJobs = async (filters?: { search?: string; location?: stri
   });
 };
 
+export interface ActiveDeploymentStatus {
+  isCurrentlyDeployed: boolean;
+  clientName?: string;
+  positionTitle?: string;
+  deploymentId?: number;
+}
+
+export const getActiveDeploymentStatus = async (userId: string): Promise<ActiveDeploymentStatus> => {
+  const deployedApplication = await prisma.application.findFirst({
+    where: {
+      userId,
+      status: "DEPLOYED",
+      isArchived: false,
+      deployments: {
+        some: {
+          status: { in: ["ACTIVE", "READY_FOR_DEPLOYMENT", "READY", "DISPATCHED"] },
+        },
+      },
+    },
+    include: {
+      jobPosting: {
+        include: {
+          mrf: {
+            include: {
+              client: { select: { name: true } },
+            },
+          },
+        },
+      },
+      deployments: {
+        where: {
+          status: { in: ["ACTIVE", "READY_FOR_DEPLOYMENT", "READY", "DISPATCHED"] },
+        },
+        include: {
+          client: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+    },
+  });
+
+  if (!deployedApplication) {
+    return { isCurrentlyDeployed: false };
+  }
+
+  const employee = await prisma.employee.findUnique({
+    where: { userId },
+    select: { status: true },
+  });
+
+  if (employee?.status === "AVAILABLE_FOR_REDEPLOYMENT" || employee?.status === "SEPARATED") {
+    return { isCurrentlyDeployed: false };
+  }
+
+  const clientName =
+    deployedApplication.deployments[0]?.client?.name ||
+    deployedApplication.jobPosting?.mrf?.client?.name ||
+    "Client Partner";
+
+  return {
+    isCurrentlyDeployed: true,
+    clientName,
+    positionTitle: deployedApplication.jobPosting?.title,
+    deploymentId: deployedApplication.deployments[0]?.id,
+  };
+};
+
 export const fetchJobDetails = async (jobId: number, userId: string) => {
   const job = await prisma.jobPosting.findUnique({
     where: { id: jobId },
@@ -84,6 +152,7 @@ export const fetchJobDetails = async (jobId: number, userId: string) => {
   const existingApplication = await prisma.application.findFirst({
     where: { userId, jobPostingId: jobId },
   });
+  const activeDeployment = await getActiveDeploymentStatus(userId);
 
   return {
     ...job,
@@ -99,6 +168,7 @@ export const fetchJobDetails = async (jobId: number, userId: string) => {
       : null,
     alreadyApplied: !!existingApplication,
     applicationId: existingApplication?.id,
+    activeDeployment,
   };
 };
 
@@ -112,6 +182,13 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     where: { userId, jobPostingId: jobId },
   });
   if (existingApplication) throw new Error("You have already applied for this job");
+
+  const deployment = await getActiveDeploymentStatus(userId);
+  if (deployment.isCurrentlyDeployed) {
+    throw new Error(
+      `You are currently deployed on an active assignment with ${deployment.clientName || "your client"}. Applications for new positions are restricted until your assignment concludes or you are cleared for redeployment.`
+    );
+  }
 
   let resolvedResumeUrl: string | null = null;
 

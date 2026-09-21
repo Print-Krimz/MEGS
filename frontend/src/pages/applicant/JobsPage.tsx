@@ -56,6 +56,15 @@ export const JobsPage: React.FC = () => {
     queryFn: applicantJobsApi.getSavedJobIds,
   });
 
+  const applicationsQuery = useQuery({
+    queryKey: ["applicant", "my-applications"],
+    queryFn: applicantJobsApi.getMyApplications,
+  });
+
+  const isDeployed = (applicationsQuery.data || []).some(
+    (app) => app.status === "DEPLOYED" && !app.isArchived
+  );
+
   const savedJobIds = new Set(savedJobIdsQuery.data || []);
 
   const saveMutation = useMutation({
@@ -156,6 +165,14 @@ export const JobsPage: React.FC = () => {
           </div>
         }
       />
+
+      {isDeployed && (
+        <div className="rounded-lg border border-[#BCCCDC] bg-[#F0F4F8] p-4 text-[#102A43] shadow-xs">
+          <p className="text-xs text-[#486581]">
+            <strong className="text-[#102A43]">Notice:</strong> You are currently on an active assignment. You can browse and bookmark positions for your records, but applications remain locked until your contract reaches redeployment.
+          </p>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <SearchFilters

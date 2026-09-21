@@ -47,7 +47,6 @@ import {
   Send,
   ListOrdered,
   Eye,
-  Sparkles,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
@@ -919,24 +918,6 @@ export const JobPostingDetailPage: React.FC = () => {
                 ]}
               />
 
-              {/* Formatting Guidance */}
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1.5">
-                <div className="font-semibold text-slate-800 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-                  <span>Formatting Guidance</span>
-                </div>
-                <ul className="list-disc list-inside space-y-1 text-slate-600 text-[11px] leading-relaxed">
-                  <li>
-                    <strong>Section Headings:</strong> Use <code className="px-1 py-0.5 bg-slate-200/60 rounded font-mono text-[10px]">### Heading Title</code> or <code className="px-1 py-0.5 bg-slate-200/60 rounded font-mono text-[10px]">**Heading Title**</code> to organize sections.
-                  </li>
-                  <li>
-                    <strong>Bullet Points:</strong> Start lines with hyphens (<code className="px-1 py-0.5 bg-slate-200/60 rounded font-mono text-[10px]">- Responsibility item</code>) to automatically render accessible bullet lists.
-                  </li>
-                  <li>
-                    <strong>Skills & Tags:</strong> Separate skills with commas (e.g., <code className="px-1 py-0.5 bg-slate-200/60 rounded font-mono text-[10px]">Electrical Safety, Blueprint Reading, NC II</code>) to render clean badge chips.
-                  </li>
-                </ul>
-              </div>
 
               <Textarea
                 label="Description"

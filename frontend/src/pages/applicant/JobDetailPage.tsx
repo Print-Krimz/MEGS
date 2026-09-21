@@ -87,8 +87,23 @@ export const JobDetailPage: React.FC = () => {
       setSubmissionSuccess(true);
       notify.success("Application Submitted", "Your candidacy has been received and is now being reviewed.");
     },
-    onError: (err) => {
-      notify.error("Application Failed", err);
+    onError: (err: any) => {
+      const errorMsg = formatErrorMessage(err);
+      if (
+        err?.status === 403 ||
+        errorMsg.toLowerCase().includes("deployed") ||
+        errorMsg.toLowerCase().includes("active assignment") ||
+        errorMsg.toLowerCase().includes("restricted")
+      ) {
+        notify.error(
+          "Application Restricted",
+          errorMsg.toLowerCase().includes("deployed") || errorMsg.toLowerCase().includes("assignment")
+            ? errorMsg
+            : "Applications for new positions are restricted during an active deployment assignment."
+        );
+      } else {
+        notify.error("Application Failed", err);
+      }
     },
   });
 
@@ -122,6 +137,7 @@ export const JobDetailPage: React.FC = () => {
   }
 
   const job = jobQuery.data;
+  const isDeploymentLocked = Boolean(job.activeDeployment?.isCurrentlyDeployed && !job.alreadyApplied);
   const salaryDisplay = formatSalaryRange(job.mrf?.salaryRangeMin, job.mrf?.salaryRangeMax);
   const employmentTypeDisplay = formatEmploymentType(job.mrf?.employmentType);
   const workArrangementDisplay = formatWorkArrangement(job.mrf?.workArrangement);
@@ -166,6 +182,17 @@ export const JobDetailPage: React.FC = () => {
                   </Button>
                 </Link>
               </div>
+            ) : isDeploymentLocked ? (
+              <div className="lg:hidden">
+                <Button
+                  variant="outline"
+                  size="md"
+                  className="opacity-60 cursor-not-allowed bg-gray-50 text-gray-500 border-gray-300"
+                  disabled
+                >
+                  Application Locked
+                </Button>
+              </div>
             ) : (
               <div className="lg:hidden">
                 <Button
@@ -181,6 +208,24 @@ export const JobDetailPage: React.FC = () => {
           </div>
         }
       />
+
+      {/* Active Deployment in Progress Banner */}
+      {isDeploymentLocked && (
+        <div className="rounded-lg border border-[#BCCCDC] bg-[#F0F4F8] p-4 text-[#102A43] shadow-xs">
+          <div className="space-y-1">
+            <h4 className="text-sm font-semibold text-[#102A43]">
+              Active Deployment in Progress
+            </h4>
+            <p className="text-xs text-[#486581] leading-relaxed">
+              You are currently deployed with{" "}
+              <strong className="text-[#102A43]">
+                {job.activeDeployment?.clientName || "our client partner"}
+              </strong>
+              . In compliance with employment agreements, new position applications are restricted during active deployment. For redeployment opportunities, please coordinate with your Talent Acquisition officer.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Position Details Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -284,6 +329,25 @@ export const JobDetailPage: React.FC = () => {
                     Track Application
                   </Button>
                 </Link>
+              ) : isDeploymentLocked ? (
+                <div className="space-y-2">
+                  <div className="rounded-md border border-[#BCCCDC] bg-[#F0F4F8] p-2.5 text-xs text-[#486581] space-y-1">
+                    <div className="font-semibold text-[#102A43]">
+                      Active Assignment
+                    </div>
+                    <p className="text-[11px] leading-tight">
+                      Applications locked while placed with {job.activeDeployment?.clientName || "client"}.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="md"
+                    className="w-full opacity-60 cursor-not-allowed bg-gray-50 text-gray-500 border-gray-300"
+                    disabled
+                  >
+                    Application Locked
+                  </Button>
+                </div>
               ) : (
                 <Button
                   variant="primary"
