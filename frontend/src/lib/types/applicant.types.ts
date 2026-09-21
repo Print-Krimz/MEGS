@@ -245,11 +245,33 @@ export interface ExtractedProfileData {
   characterReferences?: ExtractedProfileReference[];
 }
 
+export interface ResumeChangeSummary {
+  personalFieldsAdded: number;
+  personalFieldsUpdated: number;
+  personalFieldsTotal: number;
+  changedPersonalFields: string[];
+  workExperiencesAdded: number;
+  workExperiencesUpdated: number;
+  workExperiencesTotal: number;
+  educationsAdded: number;
+  educationsUpdated: number;
+  educationsTotal: number;
+  skillsAdded: number;
+  skillsTotal: number;
+  trainingsAdded: number;
+  trainingsUpdated: number;
+  trainingsTotal: number;
+  referencesAdded: number;
+  referencesUpdated: number;
+  referencesTotal: number;
+}
+
 export interface ResumeUploadResult {
   profile: ApplicantProfile;
   resumeUrl: string;
   extractedData: ExtractedProfileData | null;
   extractionStatus: "SUCCESS" | "UNAVAILABLE";
+  changeSummary?: ResumeChangeSummary;
 }
 
 export interface ApplyExtractedProfileDto {

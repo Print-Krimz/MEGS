@@ -488,11 +488,37 @@ export interface ApplyExtractedProfileDto {
   }>;
 }
 
+export interface ResumeChangeSummary {
+  personalFieldsAdded: number;
+  personalFieldsUpdated: number;
+  personalFieldsTotal: number;
+  changedPersonalFields: string[];
+  workExperiencesAdded: number;
+  workExperiencesUpdated: number;
+  workExperiencesTotal: number;
+  educationsAdded: number;
+  educationsUpdated: number;
+  educationsTotal: number;
+  skillsAdded: number;
+  skillsTotal: number;
+  trainingsAdded: number;
+  trainingsUpdated: number;
+  trainingsTotal: number;
+  referencesAdded: number;
+  referencesUpdated: number;
+  referencesTotal: number;
+}
+
+export interface ApplyExtractedProfileResult {
+  profile: any;
+  changeSummary: ResumeChangeSummary;
+}
+
 // Atomically and non-destructively applies extracted resume data into the candidate's profile
 export const applyExtractedProfileService = async (
   userId: string,
   payload: ApplyExtractedProfileDto
-) => {
+): Promise<ApplyExtractedProfileResult> => {
   let profile = await prisma.applicantProfile.findUnique({ where: { userId } });
   if (!profile) {
     profile = await prisma.applicantProfile.create({
@@ -504,9 +530,35 @@ export const applyExtractedProfileService = async (
     });
   }
 
+  const changeSummary: ResumeChangeSummary = {
+    personalFieldsAdded: 0,
+    personalFieldsUpdated: 0,
+    personalFieldsTotal: 0,
+    changedPersonalFields: [],
+    workExperiencesAdded: 0,
+    workExperiencesUpdated: 0,
+    workExperiencesTotal: 0,
+    educationsAdded: 0,
+    educationsUpdated: 0,
+    educationsTotal: 0,
+    skillsAdded: 0,
+    skillsTotal: 0,
+    trainingsAdded: 0,
+    trainingsUpdated: 0,
+    trainingsTotal: 0,
+    referencesAdded: 0,
+    referencesUpdated: 0,
+    referencesTotal: 0,
+  };
+
   const sanitizeString = (val: any) => (val !== undefined && val !== null ? String(val).trim() || null : undefined);
   const sanitizeNumber = (val: any) => (val !== undefined && val !== null && val !== "" && !isNaN(Number(val)) ? Number(val) : val === null ? null : undefined);
   const sanitizeDate = (val: any) => (val ? new Date(val) : val === null ? null : undefined);
+  const toTime = (d: any): number | null => {
+    if (!d) return null;
+    const t = new Date(d).getTime();
+    return isNaN(t) ? null : t;
+  };
 
   // 1. Personal Details Merge (Non-destructive unless overwriteExistingPersonal is true)
   if (payload.personalDetails) {
@@ -538,6 +590,13 @@ export const applyExtractedProfileService = async (
         const isExistingEmpty = existingVal === null || existingVal === undefined || String(existingVal).trim() === "";
         if (overwrite || isExistingEmpty) {
           updateData[field] = incomingVal;
+          if (isExistingEmpty) {
+            changeSummary.personalFieldsAdded++;
+            changeSummary.changedPersonalFields.push(field);
+          } else if (String(existingVal).trim().toLowerCase() !== incomingVal.toLowerCase()) {
+            changeSummary.personalFieldsUpdated++;
+            changeSummary.changedPersonalFields.push(field);
+          }
         }
       }
     }
@@ -547,6 +606,17 @@ export const applyExtractedProfileService = async (
       const isDobEmpty = !profile.dateOfBirth;
       if (incomingDob && (overwrite || isDobEmpty)) {
         updateData.dateOfBirth = incomingDob;
+        if (isDobEmpty) {
+          changeSummary.personalFieldsAdded++;
+          changeSummary.changedPersonalFields.push("dateOfBirth");
+        } else {
+          const existingDobStr = profile.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().substring(0, 10) : "";
+          const incomingDobStr = incomingDob.toISOString().substring(0, 10);
+          if (existingDobStr !== incomingDobStr) {
+            changeSummary.personalFieldsUpdated++;
+            changeSummary.changedPersonalFields.push("dateOfBirth");
+          }
+        }
       }
     }
 
@@ -555,6 +625,13 @@ export const applyExtractedProfileService = async (
       const isHeightEmpty = profile.height === null || profile.height === undefined;
       if (incomingHeight !== undefined && (overwrite || isHeightEmpty)) {
         updateData.height = incomingHeight;
+        if (isHeightEmpty) {
+          changeSummary.personalFieldsAdded++;
+          changeSummary.changedPersonalFields.push("height");
+        } else if (Number(profile.height) !== incomingHeight) {
+          changeSummary.personalFieldsUpdated++;
+          changeSummary.changedPersonalFields.push("height");
+        }
       }
     }
 
@@ -563,8 +640,18 @@ export const applyExtractedProfileService = async (
       const isWeightEmpty = profile.weight === null || profile.weight === undefined;
       if (incomingWeight !== undefined && (overwrite || isWeightEmpty)) {
         updateData.weight = incomingWeight;
+        if (isWeightEmpty) {
+          changeSummary.personalFieldsAdded++;
+          changeSummary.changedPersonalFields.push("weight");
+        } else if (Number(profile.weight) !== incomingWeight) {
+          changeSummary.personalFieldsUpdated++;
+          changeSummary.changedPersonalFields.push("weight");
+        }
       }
     }
+
+    changeSummary.personalFieldsTotal =
+      changeSummary.personalFieldsAdded + changeSummary.personalFieldsUpdated;
 
     if (Object.keys(updateData).length > 0) {
       await prisma.applicantProfile.update({
@@ -588,17 +675,35 @@ export const applyExtractedProfileService = async (
       );
 
       if (existing) {
+        const nextLoc = sanitizeString(exp.location) ?? existing.location;
+        const nextStart = exp.startDate ? new Date(exp.startDate) : existing.startDate;
+        const nextEnd = exp.endDate !== undefined ? (exp.endDate ? new Date(exp.endDate) : null) : existing.endDate;
+        const nextCurrent = exp.isCurrent !== undefined ? Boolean(exp.isCurrent) : existing.isCurrent;
+        const nextSummary = sanitizeString(exp.summary) ?? existing.summary;
+
+        const hasChanged =
+          (nextLoc || "") !== (existing.location || "") ||
+          toTime(nextStart) !== toTime(existing.startDate) ||
+          toTime(nextEnd) !== toTime(existing.endDate) ||
+          Boolean(nextCurrent) !== Boolean(existing.isCurrent) ||
+          (nextSummary || "") !== (existing.summary || "");
+
+        if (hasChanged) {
+          changeSummary.workExperiencesUpdated++;
+        }
+
         await prisma.workExperience.update({
           where: { id: existing.id },
           data: {
-            location: sanitizeString(exp.location) ?? existing.location,
-            startDate: exp.startDate ? new Date(exp.startDate) : existing.startDate,
-            endDate: exp.endDate !== undefined ? (exp.endDate ? new Date(exp.endDate) : null) : existing.endDate,
-            isCurrent: exp.isCurrent !== undefined ? Boolean(exp.isCurrent) : existing.isCurrent,
-            summary: sanitizeString(exp.summary) ?? existing.summary,
+            location: nextLoc,
+            startDate: nextStart,
+            endDate: nextEnd,
+            isCurrent: nextCurrent,
+            summary: nextSummary,
           },
         });
       } else {
+        changeSummary.workExperiencesAdded++;
         await prisma.workExperience.create({
           data: {
             applicantProfileId: profile.id,
@@ -613,6 +718,8 @@ export const applyExtractedProfileService = async (
         });
       }
     }
+    changeSummary.workExperiencesTotal =
+      changeSummary.workExperiencesAdded + changeSummary.workExperiencesUpdated;
   }
 
   // 3. Educations Deduplication & Import
@@ -629,16 +736,32 @@ export const applyExtractedProfileService = async (
       );
 
       if (existing) {
+        const nextField = sanitizeString(edu.fieldOfStudy) ?? existing.fieldOfStudy;
+        const nextStart = edu.startDate ? new Date(edu.startDate) : existing.startDate;
+        const nextEnd = edu.endDate !== undefined ? (edu.endDate ? new Date(edu.endDate) : null) : existing.endDate;
+        const nextNotes = sanitizeString(edu.notes) ?? existing.notes;
+
+        const hasChanged =
+          (nextField || "") !== (existing.fieldOfStudy || "") ||
+          toTime(nextStart) !== toTime(existing.startDate) ||
+          toTime(nextEnd) !== toTime(existing.endDate) ||
+          (nextNotes || "") !== (existing.notes || "");
+
+        if (hasChanged) {
+          changeSummary.educationsUpdated++;
+        }
+
         await prisma.education.update({
           where: { id: existing.id },
           data: {
-            fieldOfStudy: sanitizeString(edu.fieldOfStudy) ?? existing.fieldOfStudy,
-            startDate: edu.startDate ? new Date(edu.startDate) : existing.startDate,
-            endDate: edu.endDate !== undefined ? (edu.endDate ? new Date(edu.endDate) : null) : existing.endDate,
-            notes: sanitizeString(edu.notes) ?? existing.notes,
+            fieldOfStudy: nextField,
+            startDate: nextStart,
+            endDate: nextEnd,
+            notes: nextNotes,
           },
         });
       } else {
+        changeSummary.educationsAdded++;
         await prisma.education.create({
           data: {
             applicantProfileId: profile.id,
@@ -652,6 +775,8 @@ export const applyExtractedProfileService = async (
         });
       }
     }
+    changeSummary.educationsTotal =
+      changeSummary.educationsAdded + changeSummary.educationsUpdated;
   }
 
   // 4. Skills Deduplication & Import
@@ -673,8 +798,10 @@ export const applyExtractedProfileService = async (
           data: { applicantProfileId: profile.id, skillId: skill.id },
         });
         existingSkillNames.add(normalized);
+        changeSummary.skillsAdded++;
       }
     }
+    changeSummary.skillsTotal = changeSummary.skillsAdded;
   }
 
   // 5. Trainings & Certifications Deduplication & Import
@@ -690,16 +817,32 @@ export const applyExtractedProfileService = async (
       );
 
       if (existing) {
+        const nextProvider = sanitizeString(training.provider) ?? existing.provider;
+        const nextDate = training.completionDate ? new Date(training.completionDate) : existing.completionDate;
+        const nextCertNo = sanitizeString(training.certificateNo) ?? existing.certificateNo;
+        const nextNotes = sanitizeString(training.notes) ?? existing.notes;
+
+        const hasChanged =
+          (nextProvider || "") !== (existing.provider || "") ||
+          toTime(nextDate) !== toTime(existing.completionDate) ||
+          (nextCertNo || "") !== (existing.certificateNo || "") ||
+          (nextNotes || "") !== (existing.notes || "");
+
+        if (hasChanged) {
+          changeSummary.trainingsUpdated++;
+        }
+
         await prisma.trainingCertification.update({
           where: { id: existing.id },
           data: {
-            provider: sanitizeString(training.provider) ?? existing.provider,
-            completionDate: training.completionDate ? new Date(training.completionDate) : existing.completionDate,
-            certificateNo: sanitizeString(training.certificateNo) ?? existing.certificateNo,
-            notes: sanitizeString(training.notes) ?? existing.notes,
+            provider: nextProvider,
+            completionDate: nextDate,
+            certificateNo: nextCertNo,
+            notes: nextNotes,
           },
         });
       } else {
+        changeSummary.trainingsAdded++;
         await prisma.trainingCertification.create({
           data: {
             applicantProfileId: profile.id,
@@ -712,6 +855,8 @@ export const applyExtractedProfileService = async (
         });
       }
     }
+    changeSummary.trainingsTotal =
+      changeSummary.trainingsAdded + changeSummary.trainingsUpdated;
   }
 
   // 6. Character References Deduplication & Import
@@ -746,16 +891,32 @@ export const applyExtractedProfileService = async (
       }
 
       if (existing) {
+        const nextRel = relationship ?? existing.relationship;
+        const nextPhone = sanitizeString(ref.phone) ?? existing.phone;
+        const nextEmail = sanitizeString(ref.email) ?? existing.email;
+        const nextNotes = sanitizeString(ref.notes) ?? existing.notes;
+
+        const hasChanged =
+          (nextRel || "") !== (existing.relationship || "") ||
+          (nextPhone || "") !== (existing.phone || "") ||
+          (nextEmail || "") !== (existing.email || "") ||
+          (nextNotes || "") !== (existing.notes || "");
+
+        if (hasChanged) {
+          changeSummary.referencesUpdated++;
+        }
+
         await prisma.characterReference.update({
           where: { id: existing.id },
           data: {
-            relationship: relationship ?? existing.relationship,
-            phone: sanitizeString(ref.phone) ?? existing.phone,
-            email: sanitizeString(ref.email) ?? existing.email,
-            notes: sanitizeString(ref.notes) ?? existing.notes,
+            relationship: nextRel,
+            phone: nextPhone,
+            email: nextEmail,
+            notes: nextNotes,
           },
         });
       } else {
+        changeSummary.referencesAdded++;
         await prisma.characterReference.create({
           data: {
             applicantProfileId: profile.id,
@@ -768,9 +929,15 @@ export const applyExtractedProfileService = async (
         });
       }
     }
+    changeSummary.referencesTotal =
+      changeSummary.referencesAdded + changeSummary.referencesUpdated;
   }
 
   queueProfileRevalidation(profile.id);
-  return await getApplicantProfile(userId);
+  const updatedProfile = await getApplicantProfile(userId);
+  return {
+    profile: updatedProfile,
+    changeSummary,
+  };
 };
 

@@ -179,7 +179,7 @@ export const ProfilePage: React.FC = () => {
 
       if (profile.skills && profile.skills.length > 0) {
         const parsed = profile.skills.map((s: any) =>
-          typeof s === "string" ? s : s.name || s.skillName || ""
+          typeof s === "string" ? s : s.name || s.skillName || s.skill?.name || ""
         ).filter(Boolean);
         setSkillsList(parsed);
       }
@@ -234,25 +234,34 @@ export const ProfilePage: React.FC = () => {
           previousProfile?.characterReferences || [],
           data.extractedData.characterReferences || [],
         );
-        const firstQualificationSection = experienceDiff.newItems.length > 0
+        const cs = data.changeSummary;
+        const personalFieldKeys = cs?.changedPersonalFields || diff.changedOrAddedFields;
+        const expCount = cs ? cs.workExperiencesAdded + cs.workExperiencesUpdated : experienceDiff.totalCount;
+        const eduCount = cs ? cs.educationsAdded + cs.educationsUpdated : educationDiff.totalCount;
+        const skillCount = cs ? (cs.skillsAdded > 0 ? cs.skillsAdded : (data.extractedData.skills?.length || 0)) : (skillsDiff.newItems.length > 0 ? skillsDiff.newItems.length : (data.extractedData.skills?.length || 0));
+        const trainCount = cs ? cs.trainingsAdded + cs.trainingsUpdated : trainingDiff.totalCount;
+        const refCount = cs ? cs.referencesAdded + cs.referencesUpdated : referenceDiff.totalCount;
+
+        const firstQualificationSection = expCount > 0
           ? "experience"
-          : educationDiff.newItems.length > 0
+          : eduCount > 0
             ? "education"
-            : skillsDiff.newItems.length > 0
+            : skillCount > 0
               ? "skills"
-              : trainingDiff.newItems.length > 0
+              : trainCount > 0
                 ? "trainings"
-                : referenceDiff.newItems.length > 0
+                : refCount > 0
                   ? "references"
                   : undefined;
+
         setResumeReview({
-          personalFields: Object.keys(diff.autoFilledFields),
-          workExperienceCount: experienceDiff.newItems.length,
-          educationCount: educationDiff.newItems.length,
-          skillsCount: skillsDiff.newItems.length,
-          trainingCount: trainingDiff.newItems.length,
-          referenceCount: referenceDiff.newItems.length,
-          firstSection: Object.keys(diff.autoFilledFields).length > 0
+          personalFields: personalFieldKeys,
+          workExperienceCount: expCount,
+          educationCount: eduCount,
+          skillsCount: skillCount,
+          trainingCount: trainCount,
+          referenceCount: refCount,
+          firstSection: personalFieldKeys.length > 0
             ? "personal"
             : firstQualificationSection
               ? "qualifications"
@@ -293,20 +302,26 @@ export const ProfilePage: React.FC = () => {
 
         setAutoFilledFields((prev) => {
           const next = new Set(prev);
-          Object.keys(diff.autoFilledFields).forEach((k) => next.add(k));
+          personalFieldKeys.forEach((k) => next.add(k));
           return next;
         });
 
         if (p.skills && p.skills.length > 0) {
-          const parsed = p.skills.map((s: any) => typeof s === "string" ? s : s.name || s.skillName || "").filter(Boolean);
+          const parsed = p.skills.map((s: any) => typeof s === "string" ? s : s.name || s.skillName || s.skill?.name || "").filter(Boolean);
           setSkillsList(parsed);
         } else if (ext.skills && ext.skills.length > 0) {
           setSkillsList(ext.skills);
         }
 
+        const totalChanged =
+          personalFieldKeys.length + expCount + eduCount + skillCount + trainCount + refCount;
+
         setFeedback({
           type: "success",
-          message: "Resume parsed — your profile has been filled automatically. Review the details below.",
+          message:
+            totalChanged > 0
+              ? "Resume parsed — your profile has been updated automatically. Review the details below."
+              : "Resume parsed — your profile is already up to date with this resume.",
         });
       } else if (data?.extractionStatus === "UNAVAILABLE") {
         setResumeReview(null);

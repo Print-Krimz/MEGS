@@ -7,6 +7,7 @@ import {
   LoadingState,
   ErrorState,
   JobImage,
+  JobContentRenderer,
 } from "../../components/common";
 import { Button, Dialog } from "../../components/ui";
 import {
@@ -190,9 +191,7 @@ export const JobDetailPage: React.FC = () => {
               <Briefcase className="w-4 h-4 text-[#0B315D]" />
               <span>Position Overview</span>
             </h3>
-            <div className="text-sm text-[#102A43] leading-relaxed whitespace-pre-line">
-              {job.description}
-            </div>
+            <JobContentRenderer content={job.description} variant="applicant" />
           </div>
 
           {/* Requirements & Criteria */}
@@ -202,9 +201,7 @@ export const JobDetailPage: React.FC = () => {
                 <CheckCircle2 className="w-4 h-4 text-[#0B315D]" />
                 <span>What you need for this role</span>
               </h3>
-              <div className="text-sm text-[#102A43] leading-relaxed whitespace-pre-line">
-                {job.requirements}
-              </div>
+              <JobContentRenderer content={job.requirements} variant="applicant" />
             </div>
           )}
         </div>

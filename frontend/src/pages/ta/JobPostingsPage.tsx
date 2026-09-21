@@ -10,9 +10,10 @@ import {
   EmptyState,
   Pagination,
   JobImage,
+  JobContentRenderer,
 } from "../../components/common";
 import { Button, Dialog, Input, Textarea, ComboBox } from "../../components/ui";
-import { formatDate, formatSalaryRange, formatEmploymentType } from "../../lib/utils";
+import { formatDate, formatSalaryRange, formatEmploymentType, cn } from "../../lib/utils";
 import { JobStatus } from "../../lib/types/enums";
 import {
   Briefcase,
@@ -20,10 +21,36 @@ import {
   MapPin,
   Users,
   FileSpreadsheet,
+  Edit,
+  Eye,
+  FileText,
+  Sparkles,
 } from "lucide-react";
 
 import { notify } from "../../lib/feedback";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
+
+const JOB_TEMPLATE_DESCRIPTION = `### About the Role
+We are seeking a dedicated and qualified professional to join our operations team. In this position, you will collaborate with cross-functional team members and client stakeholders to deliver exceptional outcomes and maintain operational standards.
+
+### Key Responsibilities
+- Execute day-to-day operational responsibilities ensuring high standards of quality and accuracy
+- Collaborate closely with site leads, supervisors, and client representatives to resolve issues promptly
+- Prepare and maintain accurate activity logs, status reports, and required documentation
+- Follow all safety, compliance, and procedural standards established for the facility
+
+### Work Environment
+- Collaborative on-site work environment with modern equipment and safety standards
+- Structured onboarding with opportunities for skill building and career progression`;
+
+const JOB_TEMPLATE_REQUIREMENTS = `### Qualifications
+- Relevant vocational diploma, technical certification, or bachelor's degree
+- 2+ years of relevant practical experience in a similar operational capacity
+- Strong track record of reliability, attention to detail, and safety adherence
+- Effective communication and problem-solving skills
+
+### Preferred Skills
+- Safety compliance, operational reporting, equipment handling, quality inspection`;
 
 const EMPTY_LIST: any[] = [];
 
@@ -35,6 +62,7 @@ export const JobPostingsPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 8;
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createModalTab, setCreateModalTab] = useState<"edit" | "preview">("edit");
 
   const [selectedMrfId, setSelectedMrfId] = useState<number | null>(null);
   const [formTitle, setFormTitle] = useState("");
@@ -134,12 +162,26 @@ export const JobPostingsPage: React.FC = () => {
       setFormDescription("");
       setFormRequirements("");
       setFormIsEvergreen(false);
+      setCreateModalTab("edit");
       notify.success("Job opening created", `Job opening #${newJob?.id || ""} is ready.`);
     },
     onError: (err: any) => {
       notify.error("Unable to create job opening", err);
     },
   });
+
+  const handleLoadTemplate = () => {
+    const hasExisting = Boolean(formDescription.trim() || formRequirements.trim());
+    if (
+      hasExisting &&
+      !window.confirm("Replace current description and requirements with the job template outline?")
+    ) {
+      return;
+    }
+    setFormDescription(JOB_TEMPLATE_DESCRIPTION);
+    setFormRequirements(JOB_TEMPLATE_REQUIREMENTS);
+    notify.info("Template loaded", "Job posting outline inserted into description and requirements.");
+  };
 
   const totalPages = Math.max(1, Math.ceil(jobs.length / pageSize));
   const paginatedJobs = jobs.slice((page - 1) * pageSize, page * pageSize);
@@ -176,6 +218,7 @@ export const JobPostingsPage: React.FC = () => {
             leftIcon={<Plus className="w-3.5 h-3.5" />}
             onClick={() => {
               setFormIsEvergreen(false);
+              setCreateModalTab("edit");
               setCreateModalOpen(true);
             }}
           >
@@ -411,6 +454,7 @@ export const JobPostingsPage: React.FC = () => {
         onClose={() => setCreateModalOpen(false)}
         title="Create job opening"
         description="Publish an opening so applicants can apply."
+        size="xl"
       >
         <form
           onSubmit={(e) => {
@@ -428,78 +472,200 @@ export const JobPostingsPage: React.FC = () => {
           }}
           className="space-y-4"
         >
-          {/* Optional MRF Auto-Population Selector */}
-          <ComboBox
-            label="Link to a manpower request (optional)"
-            placeholder="Search requests to fill this opening automatically..."
-            leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-slate-400" />}
-            value={selectedMrfId ? String(selectedMrfId) : ""}
-            onChange={handleSelectMRF}
-            options={mrfs.map((m) => ({
-              value: String(m.id),
-              label: `${m.title} (Request #${m.id})`,
-              subtitle: `Client: ${m.client?.name || "Client"} • ${m.location || "Nationwide"} • ${m.headcount} positions`,
-              badge: m.status,
-            }))}
-            helperText="Selecting a request fills the title, location, description, and skills."
-            emptyText="No open manpower requests found"
-          />
+          {/* Top Bar with View Tabs and Load Template */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3 mb-4">
+            <div className="inline-flex p-1 bg-slate-100 rounded-lg text-xs font-medium text-slate-600">
+              <button
+                type="button"
+                onClick={() => setCreateModalTab("edit")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all",
+                  createModalTab === "edit"
+                    ? "bg-white text-slate-900 shadow-xs font-semibold"
+                    : "text-slate-600 hover:text-slate-900"
+                )}
+              >
+                <Edit className="w-3.5 h-3.5" />
+                <span>Edit Details</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreateModalTab("preview")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all",
+                  createModalTab === "preview"
+                    ? "bg-white text-slate-900 shadow-xs font-semibold"
+                    : "text-slate-600 hover:text-slate-900"
+                )}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Live Preview</span>
+              </button>
+            </div>
 
-          <Input
-            label="Job opening title"
-            placeholder="e.g. Senior Electrician / Line Specialist"
-            value={formTitle}
-            onChange={(e) => setFormTitle(e.target.value)}
-            required
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-            label="Work site"
-              placeholder="e.g. Batangas City Facility"
-              value={formLocation}
-              onChange={(e) => setFormLocation(e.target.value)}
-            />
-            <Input
-            label="Image web address (optional)"
-              placeholder="https://example.com/company-banner.jpg"
-              value={formImageUrl}
-              onChange={(e) => setFormImageUrl(e.target.value)}
-            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              leftIcon={<FileText className="w-3.5 h-3.5 text-teal-600" />}
+              onClick={handleLoadTemplate}
+              title="Insert standard job posting structure"
+            >
+              Load Template
+            </Button>
           </div>
-          <Textarea
-            label="Description and responsibilities"
-            placeholder="Describe role responsibilities..."
-            value={formDescription}
-            onChange={(e) => setFormDescription(e.target.value)}
-            rows={3}
-            required
-          />
-          <Textarea
-            label="Required skills and qualifications"
-            placeholder="e.g. TESDA NC II, 2+ years experience..."
-            value={formRequirements}
-            onChange={(e) => setFormRequirements(e.target.value)}
-            rows={3}
-            required
-          />
 
-          {/* Keep Open After Fill Toggle */}
-          <div className="pt-2 border-t border-slate-100">
-            <label className="flex items-start gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
-                className="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                checked={formIsEvergreen}
-                onChange={(e) => setFormIsEvergreen(e.target.checked)}
+          {createModalTab === "edit" ? (
+            <div className="space-y-4">
+              {/* Optional MRF Auto-Population Selector */}
+              <ComboBox
+                label="Link to a manpower request (optional)"
+                placeholder="Search requests to fill this opening automatically..."
+                leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-slate-400" />}
+                value={selectedMrfId ? String(selectedMrfId) : ""}
+                onChange={handleSelectMRF}
+                options={mrfs.map((m) => ({
+                  value: String(m.id),
+                  label: `${m.title} (Request #${m.id})`,
+                  subtitle: `Client: ${m.client?.name || "Client"} • ${m.location || "Nationwide"} • ${m.headcount} positions`,
+                  badge: m.status,
+                }))}
+                helperText="Selecting a request fills the title, location, description, and skills."
+                emptyText="No open manpower requests found"
               />
-              <div>
-                <span className="text-xs font-semibold text-slate-800">Keep open after positions are filled</span>
-                <p className="text-[11px] text-slate-500 leading-tight">
-                  Leave this opening open for future applicants.
-                </p>
+
+              <Input
+                label="Job opening title"
+                placeholder="e.g. Senior Electrician / Line Specialist"
+                value={formTitle}
+                onChange={(e) => setFormTitle(e.target.value)}
+                required
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Work site"
+                  placeholder="e.g. Batangas City Facility"
+                  value={formLocation}
+                  onChange={(e) => setFormLocation(e.target.value)}
+                />
+                <Input
+                  label="Image web address (optional)"
+                  placeholder="https://example.com/company-banner.jpg"
+                  value={formImageUrl}
+                  onChange={(e) => setFormImageUrl(e.target.value)}
+                />
               </div>
-            </label>
-          </div>
+
+              {/* Formatting Guidance */}
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1.5">
+                <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Formatting Guidance</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-slate-600 text-[11px] leading-relaxed">
+                  <li>
+                    <strong>Section Headings:</strong> Use <code className="px-1 py-0.5 bg-slate-200/60 rounded font-mono text-[10px]">### Heading Title</code> or <code className="px-1 py-0.5 bg-slate-200/60 rounded font-mono text-[10px]">**Heading Title**</code> to organize sections.
+                  </li>
+                  <li>
+                    <strong>Bullet Points:</strong> Start lines with hyphens (<code className="px-1 py-0.5 bg-slate-200/60 rounded font-mono text-[10px]">- Responsibility item</code>) to automatically render accessible bullet lists.
+                  </li>
+                  <li>
+                    <strong>Skills & Tags:</strong> Separate skills with commas (e.g., <code className="px-1 py-0.5 bg-slate-200/60 rounded font-mono text-[10px]">Safety NC II, Equipment Handling, Reporting</code>) to render clean badge chips.
+                  </li>
+                </ul>
+              </div>
+
+              <Textarea
+                label="Description and responsibilities"
+                placeholder="Describe role responsibilities..."
+                value={formDescription}
+                onChange={(e) => setFormDescription(e.target.value)}
+                rows={4}
+                required
+              />
+              <Textarea
+                label="Required skills and qualifications"
+                placeholder="e.g. TESDA NC II, 2+ years experience..."
+                value={formRequirements}
+                onChange={(e) => setFormRequirements(e.target.value)}
+                rows={4}
+                required
+              />
+
+              {/* Keep Open After Fill Toggle */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                    checked={formIsEvergreen}
+                    onChange={(e) => setFormIsEvergreen(e.target.checked)}
+                  />
+                  <div>
+                    <span className="text-xs font-semibold text-slate-800">Keep open after positions are filled</span>
+                    <p className="text-[11px] text-slate-500 leading-tight">
+                      Leave this opening open for future applicants.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          ) : (
+            /* Live Preview Mode */
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-lg space-y-4">
+                <div className="flex items-start gap-3 pb-3 border-b border-slate-200">
+                  <JobImage src={formImageUrl} title={formTitle || "Job Title"} alt={formTitle || "Job Title"} size="md" />
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-slate-900">{formTitle || "Untitled Job Opening"}</h3>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{formLocation || "Philippines"}</span>
+                      </span>
+                      <span>•</span>
+                      <span className="font-mono uppercase text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 font-semibold">
+                        Open
+                      </span>
+                      {formIsEvergreen && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-50 text-teal-700 border border-teal-200">
+                          Always open
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                  <div className="md:col-span-7 space-y-2">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+                      Role Description & Responsibilities
+                    </h4>
+                    <div className="p-4 bg-white rounded-lg border border-slate-200 min-h-[160px]">
+                      {formDescription ? (
+                        <JobContentRenderer content={formDescription} variant="ta" />
+                      ) : (
+                        <p className="text-xs text-slate-400 italic">No description entered yet.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-5 space-y-2">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+                      Required Skills & Qualifications
+                    </h4>
+                    <div className="p-4 bg-white rounded-lg border border-slate-200 min-h-[160px]">
+                      {formRequirements ? (
+                        <JobContentRenderer content={formRequirements} variant="ta" />
+                      ) : (
+                        <p className="text-xs text-slate-400 italic">No requirements entered yet.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setCreateModalOpen(false)}>

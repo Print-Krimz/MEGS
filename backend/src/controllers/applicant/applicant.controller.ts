@@ -184,9 +184,10 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
     const { extractedData, extractionStatus } = await processResumeExtractionService(file.buffer);
 
     let finalProfile: any = null;
+    let changeSummary: any = null;
     if (extractedData) {
       try {
-        await applyExtractedProfileService(req.user!.id, {
+        const appliedResult = await applyExtractedProfileService(req.user!.id, {
           personalDetails: {
             firstName: extractedData.firstName,
             middleName: extractedData.middleName,
@@ -221,18 +222,23 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
           characterReferences: extractedData.characterReferences,
           overwriteExistingPersonal: true,
         });
+        finalProfile = appliedResult.profile;
+        changeSummary = appliedResult.changeSummary;
       } catch (applyErr: any) {
         console.warn("[Resume Auto-Fill] Failed to auto-apply extracted details:", applyErr.message);
       }
     }
 
-    finalProfile = await getApplicantProfile(req.user!.id);
+    if (!finalProfile) {
+      finalProfile = await getApplicantProfile(req.user!.id);
+    }
 
     sendSuccess(res, "Resume uploaded and profile auto-filled successfully", {
       profile: finalProfile,
       resumeUrl,
       extractedData,
       extractionStatus,
+      changeSummary,
     });
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 500;
@@ -243,8 +249,11 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
 // Apply Extracted Resume Data to Profile
 export const applyExtractedProfile = async (req: Request, res: Response): Promise<void> => {
   try {
-    const updatedProfile = await applyExtractedProfileService(req.user!.id, req.body);
-    sendSuccess(res, "Extracted profile details applied successfully", updatedProfile);
+    const { profile: updatedProfile, changeSummary } = await applyExtractedProfileService(req.user!.id, req.body);
+    sendSuccess(res, "Extracted profile details applied successfully", {
+      profile: updatedProfile,
+      changeSummary,
+    });
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, statusCode);
