@@ -184,7 +184,11 @@ export const reviewComplianceRequirement = async (
       notifTitle,
       notifMsg,
       notifType,
-      `/app/applications/${requirement.applicationId}`
+      `/app/applications/${requirement.applicationId}`,
+      {
+        sendEmail: true,
+        ctaText: isApproved ? "View Application" : "Upload Document",
+      }
     );
   }
 
@@ -209,7 +213,11 @@ export const reviewComplianceRequirement = async (
           "Pre-Employment Requirements Complete",
           "All mandatory compliance documents approved. Ready for contract signing.",
           "SUCCESS",
-          `/app/applications/${requirement.applicationId}`
+          `/app/applications/${requirement.applicationId}`,
+          {
+            sendEmail: true,
+            ctaText: "View Application",
+          }
         );
       }
 

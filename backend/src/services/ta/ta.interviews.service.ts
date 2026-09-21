@@ -127,7 +127,11 @@ export const scheduleNewInterview = async (
       "Interview Rescheduled",
       `Your ${type.replace("_", " ")} has been rescheduled to ${new Date(scheduledAt).toLocaleString()}.`,
       "INFO",
-      `/app/applications/${applicationId}`
+      `/app/applications/${applicationId}`,
+      {
+        sendEmail: true,
+        ctaText: "View Interview Details",
+      }
     );
 
     void logAudit(actorId || application.userId, "INTERVIEW_RESCHEDULED", "Application", applicationId, {
@@ -154,7 +158,11 @@ export const scheduleNewInterview = async (
       "Interview Scheduled",
       `Your ${type.replace("_", " ")} has been scheduled for ${new Date(scheduledAt).toLocaleString()}.`,
       "INFO",
-      `/app/applications/${applicationId}`
+      `/app/applications/${applicationId}`,
+      {
+        sendEmail: true,
+        ctaText: "View Interview Details",
+      }
     );
 
     void logAudit(actorId || application.userId, "INTERVIEW_SCHEDULED", "Application", applicationId, {
@@ -294,7 +302,11 @@ export const recordDirectInterviewResult = async (
       "Interview Update",
       `Your ${type.replace(/_/g, " ")} result has been recorded as ${result}.`,
       notifType,
-      `/app/applications/${applicationId}`
+      `/app/applications/${applicationId}`,
+      {
+        sendEmail: true,
+        ctaText: "Check Application Status",
+      }
     );
   }
 
@@ -402,7 +414,11 @@ export const updateInterviewResult = async (
       "Interview Update",
       `Your ${interview.type.replace(/_/g, " ")} result has been recorded as ${result}.`,
       notifType,
-      `/app/applications/${applicationId}`
+      `/app/applications/${applicationId}`,
+      {
+        sendEmail: true,
+        ctaText: "Check Application Status",
+      }
     );
   }
 
@@ -487,3 +503,8 @@ export const getInterviewComplianceReport = async () => {
     details: complianceReport
   };
 };
+
+// Aliases for consistency with plan & controller terminology
+export const scheduleInterview = scheduleNewInterview;
+export const completeInterview = updateInterviewResult;
+

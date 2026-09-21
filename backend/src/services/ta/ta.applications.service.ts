@@ -782,7 +782,11 @@ export const updateTAApplicationStatus = async (
     "Application Update",
     notificationMessage,
     "INFO",
-    `/app/applications/${application.id}`
+    `/app/applications/${application.id}`,
+    {
+      sendEmail: true,
+      ctaText: "View Application",
+    }
   );
 
 
@@ -835,7 +839,11 @@ export const signApplicationContract = async (
       "Employment Contract Signed",
       "Your employment contract has been successfully recorded.",
       "SUCCESS",
-      `/app/applications/${applicationId}`
+      `/app/applications/${applicationId}`,
+      {
+        sendEmail: true,
+        ctaText: "View Application",
+      }
     );
   }
 
@@ -882,7 +890,11 @@ export const completeApplicationOrientation = async (
       "Orientation Completed",
       "Your company and work site orientation has been marked complete.",
       "SUCCESS",
-      `/app/applications/${applicationId}`
+      `/app/applications/${applicationId}`,
+      {
+        sendEmail: true,
+        ctaText: "View Application",
+      }
     );
   }
 

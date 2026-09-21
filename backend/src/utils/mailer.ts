@@ -13,7 +13,37 @@ export const getFromAddress = (): string => {
 
 export const fromAddress = getFromAddress();
 
+export const isMockTransporterOrNodemailer = (transporter?: any): boolean => {
+  const nm: any = nodemailer;
+  const ct = nm?.createTransport || nm?.default?.createTransport;
+  const isCreateTransportMocked =
+    typeof ct === "function" &&
+    (Boolean(ct._isMockFunction) || Boolean(ct.mock));
+
+  if (isCreateTransportMocked) return true;
+  if (!transporter) return false;
+
+  const isSendMailMocked =
+    Boolean(transporter._isMockFunction) ||
+    Boolean(transporter.mock) ||
+    Boolean((transporter.sendMail as any)?._isMockFunction) ||
+    Boolean((transporter.sendMail as any)?.mock);
+
+  const isNotRealMailInstance = transporter.constructor?.name !== "Mail";
+
+  return isSendMailMocked || isNotRealMailInstance;
+};
+
 export const createMailTransporter = () => {
+  const isTest = process.env.NODE_ENV === "test";
+  const isLiveTest = Boolean(process.env.LIVE_EMAIL_TEST);
+
+  // In test environment without LIVE_EMAIL_TEST, avoid creating live SMTP transport
+  // unless nodemailer.createTransport is a test mock or spy.
+  if (isTest && !isLiveTest && !isMockTransporterOrNodemailer()) {
+    return null;
+  }
+
   const gmailUser = process.env.GMAIL_USER;
   const gmailPass = process.env.GMAIL_APP_PASSWORD;
 
@@ -54,9 +84,16 @@ export const sendMail = async (
   const from = getFromAddress();
   const transporter = createMailTransporter();
 
-  if (!transporter) {
+  const isTest = process.env.NODE_ENV === "test";
+  const isLiveTest = Boolean(process.env.LIVE_EMAIL_TEST);
+  const isMocked = isMockTransporterOrNodemailer(transporter);
+
+  if (!transporter || (isTest && !isLiveTest && !isMocked)) {
     const sanitizedText = text.replace(/\b\d{6}\b/g, "******");
-    console.log(`\n📧 [DEV EMAIL LOG] SMTP / Gmail credentials not configured.`);
+    const reason = !transporter
+      ? "SMTP / Gmail credentials not configured or live SMTP disabled in test."
+      : "SMTP / Gmail live connection skipped in test mode.";
+    console.log(`\n📧 [DEV EMAIL LOG] ${reason}`);
     console.log(`   To: ${to}`);
     console.log(`   From: ${from}`);
     console.log(`   Subject: ${subject}`);
@@ -138,3 +175,59 @@ export const sendTAInvitationEmail = async (
   return sendMail(to, subject, text, html);
 };
 
+export interface NotificationEmailTemplateParams {
+  title: string;
+  message: string;
+  type?: "INFO" | "SUCCESS" | "WARNING" | "ERROR";
+  ctaText?: string;
+  ctaUrl?: string;
+}
+
+export const buildNotificationEmailHtml = (params: NotificationEmailTemplateParams): string => {
+  const type = params.type || "INFO";
+
+  const typeStyles: Record<string, { color: string; bg: string; border: string; label: string }> = {
+    INFO: { color: "#0d9488", bg: "#f0fdfa", border: "#ccfbf1", label: "Information" },
+    SUCCESS: { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", label: "Success" },
+    WARNING: { color: "#d97706", bg: "#fffbeb", border: "#fde68a", label: "Warning" },
+    ERROR: { color: "#dc2626", bg: "#fef2f2", border: "#fecaca", label: "Alert" },
+  };
+
+  const currentType = typeStyles[type] || typeStyles.INFO;
+  const formattedMessage = (params.message || "").replace(/\r?\n/g, "<br/>");
+
+  const appBaseUrl = (process.env.APP_URL || process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+
+  let ctaButtonHtml = "";
+  if (params.ctaUrl) {
+    let fullCtaUrl = params.ctaUrl;
+    if (!fullCtaUrl.startsWith("http://") && !fullCtaUrl.startsWith("https://")) {
+      fullCtaUrl = `${appBaseUrl}${fullCtaUrl.startsWith("/") ? "" : "/"}${fullCtaUrl}`;
+    }
+    const ctaText = params.ctaText || "View in Portal";
+    ctaButtonHtml = `
+      <div style="margin: 28px 0; text-align: center;">
+        <a href="${fullCtaUrl}" style="background-color: #0d9488; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block; font-size: 14px; letter-spacing: 0.025em;">${ctaText}</a>
+      </div>
+    `;
+  }
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;">
+      <div style="margin-bottom: 16px;">
+        <span style="display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: ${currentType.color}; background-color: ${currentType.bg}; border: 1px solid ${currentType.border}; padding: 4px 10px; border-radius: 9999px;">
+          ${currentType.label}
+        </span>
+        <span style="margin-left: 8px; font-size: 12px; color: #64748b; font-weight: 600; vertical-align: middle;">MEGS Recruitment</span>
+      </div>
+      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 20px; font-weight: 700; line-height: 1.3;">${params.title}</h2>
+      <div style="color: #475569; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+        ${formattedMessage}
+      </div>
+      ${ctaButtonHtml}
+      <div style="color: #94a3b8; font-size: 12px; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 12px; line-height: 1.4;">
+        This is an automated notification from MEGS Recruitment Portal. Please do not reply directly to this email.
+      </div>
+    </div>
+  `.trim();
+};

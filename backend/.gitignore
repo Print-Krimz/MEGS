@@ -3,6 +3,13 @@ node_modules/
 
 # Environment variables — NEVER commit this file
 .env
+.env.*
+!.env.example
+
+# Tests & specs
+__tests__/
+*.test.ts
+*.spec.ts
 
 # Prisma generated client
 # (it gets regenerated via `npx prisma generate`)

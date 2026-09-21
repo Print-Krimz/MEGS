@@ -143,7 +143,11 @@ export const sendTalentPoolJobInvitation = async (input: SendInvitationInput) =>
     "Job Invitation Received",
     `You've been invited to apply for ${job.title}! Review requirements and respond.`,
     "INFO",
-    "/app/invitations"
+    "/app/invitations",
+    {
+      sendEmail: true,
+      ctaText: "View Job Opportunity",
+    }
   );
 
   void logAudit(recruiterId, "TALENT_POOL_INVITATION_SENT", "JobPosting", targetJobId, {
