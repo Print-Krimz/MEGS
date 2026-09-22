@@ -8,13 +8,6 @@ import { scrollToSection } from "../../lib/scrollToSection";
 export const LandingHeader: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeNav, setActiveNav] = useState<string>("");
-  const navContainerRef = useRef<HTMLDivElement>(null);
-  const linkRefs = useRef<{ [key: string]: HTMLAnchorElement | null }>({});
-  const [sliderStyle, setSliderStyle] = useState<{ left: number; width: number; opacity: number }>({
-    left: 0,
-    width: 0,
-    opacity: 0,
-  });
   const { isAuthenticated, user } = useAuth();
 
   const getPortalDestination = () => {
@@ -33,20 +26,6 @@ export const LandingHeader: React.FC = () => {
     { label: "Contact", href: "#contact" },
   ];
 
-  const updateSlider = (href: string) => {
-    const container = navContainerRef.current;
-    const linkEl = linkRefs.current[href];
-    if (container && linkEl) {
-      const containerRect = container.getBoundingClientRect();
-      const linkRect = linkEl.getBoundingClientRect();
-      setSliderStyle({
-        left: linkRect.left - containerRect.left,
-        width: linkRect.width,
-        opacity: 1,
-      });
-    }
-  };
-
   const isManualScrollRef = useRef(false);
   const manualScrollTimeoutRef = useRef<number | null>(null);
 
@@ -56,7 +35,6 @@ export const LandingHeader: React.FC = () => {
       window.clearTimeout(manualScrollTimeoutRef.current);
     }
     setActiveNav(href);
-    updateSlider(href);
     scrollToSection(e, href);
 
     manualScrollTimeoutRef.current = window.setTimeout(() => {
@@ -65,11 +43,6 @@ export const LandingHeader: React.FC = () => {
   };
 
   useEffect(() => {
-    updateSlider(activeNav);
-
-    const handleResize = () => updateSlider(activeNav);
-    window.addEventListener("resize", handleResize);
-
     // ScrollSpy to track active section while scrolling
     const sectionIds = navLinks.map((l) => l.href.substring(1));
     let observer: IntersectionObserver | null = null;
@@ -97,14 +70,9 @@ export const LandingHeader: React.FC = () => {
     }
 
     return () => {
-      window.removeEventListener("resize", handleResize);
       observer?.disconnect();
     };
   }, []);
-
-  useEffect(() => {
-    updateSlider(activeNav);
-  }, [activeNav]);
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-2xs">
@@ -134,39 +102,31 @@ export const LandingHeader: React.FC = () => {
             </div>
           </Link>
 
-          {/* Desktop Navigation Links with Animated Slider */}
+          {/* Desktop Navigation Links */}
           <nav
-            ref={navContainerRef}
             aria-label="Main Navigation"
-            className="hidden lg:flex items-center gap-1 xl:gap-2 relative py-1 px-1.5 bg-slate-100/70 rounded-full border border-slate-200/80 shadow-2xs"
+            className="hidden lg:flex items-center gap-1 xl:gap-2"
           >
-            {/* Sliding Pill Indicator */}
-            <span
-              className="absolute top-1 bottom-1 bg-white rounded-full border border-slate-200/90 shadow-2xs transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none"
-              style={{
-                transform: `translateX(${sliderStyle.left}px)`,
-                width: `${sliderStyle.width}px`,
-                opacity: sliderStyle.opacity,
-              }}
-            />
-
             {navLinks.map((item) => {
               const isActive = activeNav === item.href;
               return (
                 <a
                   key={item.href}
-                  ref={(el) => {
-                    linkRefs.current[item.href] = el;
-                  }}
                   href={item.href}
                   onClick={(e) => handleNavClick(e, item.href)}
-                  className={`relative z-10 px-3 py-1.5 text-xs xl:text-sm font-semibold rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] cursor-pointer ${
+                  className={`relative py-2 px-3 text-xs xl:text-sm transition-colors duration-150 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] focus-visible:ring-offset-2 cursor-pointer ${
                     isActive
                       ? "text-[#0f294a] font-bold"
-                      : "text-slate-600 hover:text-slate-900"
+                      : "text-slate-600 hover:text-[#0f294a] font-medium"
                   }`}
                 >
                   {item.label}
+                  {isActive && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute bottom-0 left-2 right-2 h-[2px] bg-[#0f294a] rounded-full"
+                    />
+                  )}
                 </a>
               );
             })}
