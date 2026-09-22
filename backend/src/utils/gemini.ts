@@ -13,6 +13,56 @@ export const getGeminiClient = (): GoogleGenAI => {
   return aiInstance;
 };
 
+export const getCandidateModels = (): string[] => {
+  const envModel = process.env.GEMINI_MODEL?.trim();
+  const models = [
+    envModel,
+    "gemini-2.5-flash-lite",
+    "gemini-3-flash-preview",
+    "gemini-flash-latest",
+    "gemini-3.6-flash",
+  ].filter((m): m is string => Boolean(m && m.length > 0));
+
+  return Array.from(new Set(models));
+};
+
+export const generateContentWithFallback = async (
+  params: {
+    contents: any;
+    config?: any;
+  },
+  timeoutMs: number = 10000
+): Promise<any> => {
+  const ai = getGeminiClient();
+  const candidateModels = getCandidateModels();
+  let lastError: any = null;
+
+  for (const model of candidateModels) {
+    try {
+      const generatePromise = ai.models.generateContent({
+        model,
+        contents: params.contents,
+        config: params.config,
+      });
+
+      const timeoutPromise = new Promise((_, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error(`Model ${model} request timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+        if (typeof timer.unref === "function") timer.unref();
+      });
+
+      const response = (await Promise.race([generatePromise, timeoutPromise])) as any;
+      return response;
+    } catch (err: any) {
+      console.warn(`[Gemini] Model ${model} failed (${err.message}). Trying next fallback model...`);
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error("All Gemini candidate models failed");
+};
+
 export interface ResumeAnalysisResult {
   score: number;       // 0–100 match score
   summary: string;
@@ -26,8 +76,6 @@ export const analyzeResume = async (
   jobTitle: string,
   requirements: string
 ): Promise<ResumeAnalysisResult> => {
-  const ai = getGeminiClient();
-
   const prompt = `
 You are an expert HR analyst. Your task is to evaluate how well a candidate's resume matches a specific job opening.
 
@@ -43,8 +91,8 @@ Analyze the resume against the job requirements and respond with a JSON object m
 {
   "score": <integer from 0 to 100 representing overall fit — 100 is a perfect match>,
   "summary": "<2 to 3 sentence overall assessment of the candidate's fit for this role>",
-  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
-  "gaps": ["<gap 1>", "<gap 2>"]
+  "strengths": ["<strength 1>", "<strength 2>", ...],
+  "gaps": ["<gap 1>", "<gap 2>", ...]
 }
 
 Scoring guide:
@@ -57,10 +105,7 @@ Be objective. Base your score only on the resume content vs the stated requireme
 Respond with valid JSON only. Do not include markdown or any text outside the JSON object.
 `.trim();
 
-  const modelName = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
-
-  const response = await ai.models.generateContent({
-    model: modelName,
+  const response = await generateContentWithFallback({
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -415,7 +460,6 @@ export const extractResumeProfileData = async (
     throw new Error("Resume text is empty or unreadable");
   }
 
-  const ai = getGeminiClient();
   const prompt = `
 You are an expert HR data parser. Your task is to extract structured applicant profile details from the provided resume text.
 
@@ -426,10 +470,7 @@ Extract the following information accurately. Respond with a JSON object matchin
 ${RESUME_EXTRACTION_SCHEMA}
 `.trim();
 
-  const modelName = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
-
-  const response = await ai.models.generateContent({
-    model: modelName,
+  const response = await generateContentWithFallback({
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -448,7 +489,6 @@ export const extractResumeProfileDataFromBuffer = async (
     throw new Error("PDF buffer is empty");
   }
 
-  const ai = getGeminiClient();
   const prompt = `
 You are an expert HR data parser. Your task is to extract structured applicant profile details from the attached resume PDF document.
 
@@ -456,10 +496,7 @@ Extract the following information accurately. Respond with a JSON object matchin
 ${RESUME_EXTRACTION_SCHEMA}
 `.trim();
 
-  const modelName = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
-
-  const response = await ai.models.generateContent({
-    model: modelName,
+  const response = await generateContentWithFallback({
     contents: [
       {
         inlineData: {

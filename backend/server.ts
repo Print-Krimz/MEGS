@@ -11,7 +11,15 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+  })
+);
+app.options("*", cors());
 app.use(express.json());
 
 // Public health check & browser auth forwarder
