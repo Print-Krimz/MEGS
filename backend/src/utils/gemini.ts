@@ -164,23 +164,7 @@ import {
   normalizeSkill,
 } from "./text-case.js";
 
-// Prompts Gemini to parse structured candidate profile details from resume text.
-export const extractResumeProfileData = async (
-  resumeText: string
-): Promise<ExtractedProfileData> => {
-  if (!resumeText || !resumeText.trim()) {
-    throw new Error("Resume text is empty or unreadable");
-  }
-
-  const ai = getGeminiClient();
-
-  const prompt = `
-You are an expert HR data parser. Your task is to extract structured applicant profile details from the provided resume text.
-
-CANDIDATE RESUME:
-${resumeText}
-
-Extract the following information accurately. Respond with a JSON object matching this exact structure:
+const RESUME_EXTRACTION_SCHEMA = `
 {
   "firstName": "<First Name or null if not found>",
   "middleName": "<Middle Name / Initial or null if not found>",
@@ -244,7 +228,7 @@ Extract the following information accurately. Respond with a JSON object matchin
 }
 
 STRICT EXTRACTION RULES:
-1. ONLY extract information that is explicitly stated in the resume text.
+1. ONLY extract information that is explicitly stated in the resume text or document.
 2. Do NOT fabricate, invent, or guess missing information. If a field is not present in the resume, set its value to null (or omit).
 3. Extract skills as a clean list of individual competencies, tools, frameworks, and domain expertise.
 4. For names, properly identify First Name, Middle Name (if any), and Last Name.
@@ -253,31 +237,23 @@ STRICT EXTRACTION RULES:
 7. Respond with valid JSON only. Do not include markdown fences or any text outside the JSON object.
 `.trim();
 
-  const modelName = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
-
-  const response = await ai.models.generateContent({
-    model: modelName,
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-    },
-  });
-
-  let text = response.text;
-  if (!text) {
+export const parseGeminiJsonResponse = (text: string): any => {
+  if (!text || !text.trim()) {
     throw new Error("Gemini returned an empty response");
   }
-
-  // Strip markdown formatting if returned by model
-  text = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "").trim();
-
-  let parsed: any;
+  const stripped = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "").trim();
   try {
-    parsed = JSON.parse(text);
-  } catch (err: any) {
-    throw new Error(`Failed to parse Gemini response as JSON: ${err.message}`);
+    return JSON.parse(stripped);
+  } catch {
+    const match = stripped.match(/\{[\s\S]*\}/);
+    if (match) {
+      return JSON.parse(match[0]);
+    }
+    throw new Error(`Failed to parse Gemini response as JSON: ${text.substring(0, 200)}`);
   }
+};
 
+export const mapParsedProfileData = (parsed: any): ExtractedProfileData => {
   const cleanString = (val: any): string | undefined => {
     if (val === undefined || val === null) return undefined;
     const str = String(val).trim();
@@ -313,22 +289,34 @@ STRICT EXTRACTION RULES:
   const cleanDate = (val: any): string | undefined => {
     const raw = cleanString(val);
     if (!raw) return undefined;
-    // Normalize YYYY/MM/DD to YYYY-MM-DD or standard ISO date string
+    const lower = raw.toLowerCase();
+    if (lower === "present" || lower === "current" || lower === "now" || lower === "ongoing" || lower === "n/a" || lower === "none") {
+      return undefined;
+    }
     const matchIso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
     if (matchIso) {
       const [, y, m, d] = matchIso;
       return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
     }
+    const matchYearMonth = raw.match(/^(\d{4})[-/](\d{1,2})$/);
+    if (matchYearMonth) {
+      const [, y, m] = matchYearMonth;
+      return `${y}-${m.padStart(2, "0")}`;
+    }
+    const matchYear = raw.match(/^(\d{4})$/);
+    if (matchYear) {
+      return matchYear[1];
+    }
     const parsedDate = new Date(raw);
     if (!isNaN(parsedDate.getTime())) {
       return parsedDate.toISOString().substring(0, 10);
     }
-    return raw;
+    return undefined;
   };
 
   const rawRefs = parsed.characterReferences || parsed.character_references || parsed.references || parsed.character_reference || parsed.characterReference;
 
-  const result: ExtractedProfileData = {
+  return {
     firstName: cleanTitleString(parsed.firstName || parsed.first_name || parsed.givenName || parsed.given_name),
     middleName: cleanTitleString(parsed.middleName || parsed.middle_name || parsed.middleInitial),
     lastName: cleanTitleString(parsed.lastName || parsed.last_name || parsed.surname || parsed.family_name),
@@ -361,8 +349,8 @@ STRICT EXTRACTION RULES:
               school: normalizeTitleCase(rawSchool) || rawSchool,
               degree: normalizeTitleCase(rawDegree) || rawDegree,
               fieldOfStudy: normalizeTitleCase(rawField) || rawField,
-              startDate: cleanString(edu.startDate || edu.start_date),
-              endDate: cleanString(edu.endDate || edu.end_date),
+              startDate: cleanDate(edu.startDate || edu.start_date),
+              endDate: cleanDate(edu.endDate || edu.end_date),
               notes: cleanSentenceString(edu.notes),
             };
           })
@@ -373,13 +361,16 @@ STRICT EXTRACTION RULES:
           .map((exp: any) => {
             const rawCompany = String(exp.company || exp.employer).trim();
             const rawRole = String(exp.roleTitle || exp.title || exp.jobTitle).trim();
+            const rawEnd = cleanString(exp.endDate || exp.end_date);
+            const isEndPresent = rawEnd ? /^(present|current|now|ongoing)$/i.test(rawEnd) : false;
+            const isCurrent = Boolean(exp.isCurrent || exp.is_current || isEndPresent);
             return {
               company: normalizeTitleCase(rawCompany) || rawCompany,
               roleTitle: normalizeTitleCase(rawRole) || rawRole,
               location: cleanTitleString(exp.location),
-              startDate: cleanString(exp.startDate || exp.start_date),
-              endDate: cleanString(exp.endDate || exp.end_date),
-              isCurrent: Boolean(exp.isCurrent || exp.is_current),
+              startDate: cleanDate(exp.startDate || exp.start_date),
+              endDate: isCurrent ? undefined : cleanDate(rawEnd),
+              isCurrent,
               summary: cleanSentenceString(exp.summary || exp.description),
             };
           })
@@ -392,7 +383,7 @@ STRICT EXTRACTION RULES:
             return {
               title: normalizeTitleCase(rawTitle) || rawTitle,
               provider: cleanTitleString(t.provider || t.issuer),
-              completionDate: cleanString(t.completionDate || t.completion_date || t.issueDate),
+              completionDate: cleanDate(t.completionDate || t.completion_date || t.issueDate),
               certificateNo: cleanString(t.certificateNo || t.certificate_no || t.licenseNo),
               notes: cleanSentenceString(t.notes),
             };
@@ -414,7 +405,77 @@ STRICT EXTRACTION RULES:
           })
       : [],
   };
-
-  return result;
 };
+
+// Prompts Gemini to parse structured candidate profile details from resume text.
+export const extractResumeProfileData = async (
+  resumeText: string
+): Promise<ExtractedProfileData> => {
+  if (!resumeText || !resumeText.trim()) {
+    throw new Error("Resume text is empty or unreadable");
+  }
+
+  const ai = getGeminiClient();
+  const prompt = `
+You are an expert HR data parser. Your task is to extract structured applicant profile details from the provided resume text.
+
+CANDIDATE RESUME:
+${resumeText}
+
+Extract the following information accurately. Respond with a JSON object matching this exact structure:
+${RESUME_EXTRACTION_SCHEMA}
+`.trim();
+
+  const modelName = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
+
+  const response = await ai.models.generateContent({
+    model: modelName,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+    },
+  });
+
+  const parsed = parseGeminiJsonResponse(response.text || "");
+  return mapParsedProfileData(parsed);
+};
+
+// Multimodal PDF parsing fallback directly using Gemini document understanding
+export const extractResumeProfileDataFromBuffer = async (
+  pdfBuffer: Buffer
+): Promise<ExtractedProfileData> => {
+  if (!pdfBuffer || pdfBuffer.length === 0) {
+    throw new Error("PDF buffer is empty");
+  }
+
+  const ai = getGeminiClient();
+  const prompt = `
+You are an expert HR data parser. Your task is to extract structured applicant profile details from the attached resume PDF document.
+
+Extract the following information accurately. Respond with a JSON object matching this exact structure:
+${RESUME_EXTRACTION_SCHEMA}
+`.trim();
+
+  const modelName = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
+
+  const response = await ai.models.generateContent({
+    model: modelName,
+    contents: [
+      {
+        inlineData: {
+          mimeType: "application/pdf",
+          data: pdfBuffer.toString("base64"),
+        },
+      },
+      prompt,
+    ],
+    config: {
+      responseMimeType: "application/json",
+    },
+  });
+
+  const parsed = parseGeminiJsonResponse(response.text || "");
+  return mapParsedProfileData(parsed);
+};
+
 

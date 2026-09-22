@@ -6,7 +6,11 @@ import { resolveDocumentSignedUrl } from "../document/document.service.js";
 import pdfParseModule from "pdf-parse/lib/pdf-parse.js";
 const pdfParse: (buf: Buffer) => Promise<{ text: string }> =
   typeof pdfParseModule === "function" ? pdfParseModule : ((pdfParseModule as any)?.default ?? pdfParseModule);
-import { extractResumeProfileData, type ExtractedProfileData } from "../../utils/gemini.js";
+import {
+  extractResumeProfileData,
+  extractResumeProfileDataFromBuffer,
+  type ExtractedProfileData,
+} from "../../utils/gemini.js";
 import { normalizeTitleCase, normalizeSentenceCase } from "../../utils/text-case.js";
 
 const queueProfileRevalidation = (profileId: number) => {
@@ -418,17 +422,30 @@ export const updateProfileResumeService = async (userId: string, resumeUrl: stri
 export const processResumeExtractionService = async (
   buffer: Buffer
 ): Promise<{ extractedData: ExtractedProfileData | null; extractionStatus: "SUCCESS" | "UNAVAILABLE" }> => {
+  let text = "";
   try {
     const parsed = await pdfParse(buffer);
-    const text = parsed?.text ? parsed.text.trim() : "";
-    if (!text) {
-      return { extractedData: null, extractionStatus: "UNAVAILABLE" };
-    }
+    text = parsed?.text ? parsed.text.trim() : "";
+  } catch (pdfErr: any) {
+    console.warn("[Resume Parser] pdfParse failed, will attempt multimodal extraction:", pdfErr.message);
+  }
 
-    const extracted = await extractResumeProfileData(text);
+  // If text was successfully extracted and has substantive content, use text-based extraction
+  if (text && text.length >= 30) {
+    try {
+      const extracted = await extractResumeProfileData(text);
+      return { extractedData: extracted, extractionStatus: "SUCCESS" };
+    } catch (textExtErr: any) {
+      console.warn("[Resume Parser] Text-based extraction failed, attempting multimodal extraction:", textExtErr.message);
+    }
+  }
+
+  // Fallback: Multimodal extraction directly from the PDF buffer via Gemini inlineData
+  try {
+    const extracted = await extractResumeProfileDataFromBuffer(buffer);
     return { extractedData: extracted, extractionStatus: "SUCCESS" };
-  } catch (err: any) {
-    console.warn("[Resume Parser] Text extraction or Gemini analysis unavailable:", err.message);
+  } catch (bufExtErr: any) {
+    console.warn("[Resume Parser] Multimodal PDF extraction unavailable:", bufExtErr.message);
     return { extractedData: null, extractionStatus: "UNAVAILABLE" };
   }
 };
@@ -561,7 +578,57 @@ export const applyExtractedProfileService = async (
 
   const sanitizeString = (val: any) => (val !== undefined && val !== null ? String(val).trim() || null : undefined);
   const sanitizeNumber = (val: any) => (val !== undefined && val !== null && val !== "" && !isNaN(Number(val)) ? Number(val) : val === null ? null : undefined);
-  const sanitizeDate = (val: any) => (val ? new Date(val) : val === null ? null : undefined);
+
+  const parseSafeDate = (val: any): Date | null => {
+    if (!val) return null;
+    if (val instanceof Date) {
+      return isNaN(val.getTime()) ? null : val;
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+    const lower = str.toLowerCase();
+    if (
+      lower === "present" ||
+      lower === "current" ||
+      lower === "now" ||
+      lower === "ongoing" ||
+      lower === "n/a" ||
+      lower === "none" ||
+      lower === "null" ||
+      lower === "undefined"
+    ) {
+      return null;
+    }
+
+    const matchIso = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (matchIso) {
+      const [, y, m, d] = matchIso;
+      const date = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
+      return isNaN(date.getTime()) ? null : date;
+    }
+
+    const matchYearMonth = str.match(/^(\d{4})[-/](\d{1,2})$/);
+    if (matchYearMonth) {
+      const [, y, m] = matchYearMonth;
+      const date = new Date(Date.UTC(Number(y), Number(m) - 1, 1));
+      return isNaN(date.getTime()) ? null : date;
+    }
+
+    const matchYear = str.match(/^(\d{4})$/);
+    if (matchYear) {
+      const date = new Date(Date.UTC(Number(matchYear[1]), 0, 1));
+      return isNaN(date.getTime()) ? null : date;
+    }
+
+    const parsed = new Date(str);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const sanitizeDate = (val: any): Date | null | undefined => {
+    if (val === undefined) return undefined;
+    if (val === null) return null;
+    return parseSafeDate(val);
+  };
   const toTime = (d: any): number | null => {
     if (!d) return null;
     const t = new Date(d).getTime();
@@ -692,11 +759,21 @@ export const applyExtractedProfileService = async (
           (e) => e.company.trim().toLowerCase() === companyNorm && e.roleTitle.trim().toLowerCase() === roleNorm
         );
 
+        const isEndPresent = typeof exp.endDate === "string" && (
+          exp.endDate.trim().toLowerCase() === "present" ||
+          exp.endDate.trim().toLowerCase() === "current" ||
+          exp.endDate.trim().toLowerCase() === "ongoing" ||
+          exp.endDate.trim().toLowerCase() === "now"
+        );
+        const resolvedIsCurrent = Boolean(exp.isCurrent || isEndPresent);
+        const parsedStart = parseSafeDate(exp.startDate);
+        const parsedEnd = resolvedIsCurrent ? null : parseSafeDate(exp.endDate);
+
         if (existing) {
           const nextLoc = sanitizeString(exp.location) ?? existing.location;
-          const nextStart = exp.startDate ? new Date(exp.startDate) : existing.startDate;
-          const nextEnd = exp.endDate !== undefined ? (exp.endDate ? new Date(exp.endDate) : null) : existing.endDate;
-          const nextCurrent = exp.isCurrent !== undefined ? Boolean(exp.isCurrent) : existing.isCurrent;
+          const nextStart = exp.startDate ? (parsedStart || existing.startDate) : existing.startDate;
+          const nextEnd = exp.endDate !== undefined || isEndPresent ? parsedEnd : existing.endDate;
+          const nextCurrent = exp.isCurrent !== undefined || isEndPresent ? resolvedIsCurrent : existing.isCurrent;
           const nextSummary = sanitizeString(exp.summary) ?? existing.summary;
 
           const hasChanged =
@@ -728,9 +805,9 @@ export const applyExtractedProfileService = async (
               company: normalizeTitleCase(exp.company.trim()) || exp.company.trim(),
               roleTitle: normalizeTitleCase(exp.roleTitle.trim()) || exp.roleTitle.trim(),
               location: exp.location ? (normalizeTitleCase(exp.location.trim()) || exp.location.trim()) : null,
-              startDate: exp.startDate ? new Date(exp.startDate) : new Date(),
-              endDate: exp.endDate ? new Date(exp.endDate) : null,
-              isCurrent: Boolean(exp.isCurrent),
+              startDate: parsedStart || new Date(),
+              endDate: parsedEnd,
+              isCurrent: resolvedIsCurrent,
               summary: exp.summary ? (normalizeSentenceCase(exp.summary.trim()) || exp.summary.trim()) : null,
             },
           });
@@ -758,10 +835,13 @@ export const applyExtractedProfileService = async (
           (e) => e.school.trim().toLowerCase() === schoolNorm && (e.degree || "").trim().toLowerCase() === degreeNorm
         );
 
+        const parsedStart = parseSafeDate(edu.startDate);
+        const parsedEnd = parseSafeDate(edu.endDate);
+
         if (existing) {
           const nextField = sanitizeString(edu.fieldOfStudy) ?? existing.fieldOfStudy;
-          const nextStart = edu.startDate ? new Date(edu.startDate) : existing.startDate;
-          const nextEnd = edu.endDate !== undefined ? (edu.endDate ? new Date(edu.endDate) : null) : existing.endDate;
+          const nextStart = edu.startDate !== undefined ? parsedStart : existing.startDate;
+          const nextEnd = edu.endDate !== undefined ? parsedEnd : existing.endDate;
           const nextNotes = sanitizeString(edu.notes) ?? existing.notes;
 
           const hasChanged =
@@ -791,8 +871,8 @@ export const applyExtractedProfileService = async (
               school: normalizeTitleCase(edu.school.trim()) || edu.school.trim(),
               degree: edu.degree ? (normalizeTitleCase(edu.degree.trim()) || edu.degree.trim()) : "Degree / Certificate",
               fieldOfStudy: edu.fieldOfStudy ? (normalizeTitleCase(edu.fieldOfStudy.trim()) || edu.fieldOfStudy.trim()) : "General",
-              startDate: edu.startDate ? new Date(edu.startDate) : null,
-              endDate: edu.endDate ? new Date(edu.endDate) : null,
+              startDate: parsedStart,
+              endDate: parsedEnd,
               notes: edu.notes ? (normalizeSentenceCase(edu.notes.trim()) || edu.notes.trim()) : null,
             },
           });
@@ -860,9 +940,11 @@ export const applyExtractedProfileService = async (
           (t) => t.title.trim().toLowerCase() === titleNorm
         );
 
+        const parsedCompletion = parseSafeDate(training.completionDate);
+
         if (existing) {
           const nextProvider = sanitizeString(training.provider) ?? existing.provider;
-          const nextDate = training.completionDate ? new Date(training.completionDate) : existing.completionDate;
+          const nextDate = training.completionDate !== undefined ? parsedCompletion : existing.completionDate;
           const nextCertNo = sanitizeString(training.certificateNo) ?? existing.certificateNo;
           const nextNotes = sanitizeString(training.notes) ?? existing.notes;
 
@@ -892,7 +974,7 @@ export const applyExtractedProfileService = async (
               applicantProfileId: profile.id,
               title: normalizeTitleCase(training.title.trim()) || training.title.trim(),
               provider: training.provider ? (normalizeTitleCase(training.provider.trim()) || training.provider.trim()) : null,
-              completionDate: training.completionDate ? new Date(training.completionDate) : null,
+              completionDate: parsedCompletion,
               certificateNo: sanitizeString(training.certificateNo),
               notes: training.notes ? (normalizeSentenceCase(training.notes.trim()) || training.notes.trim()) : null,
             },
