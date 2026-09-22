@@ -221,6 +221,7 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
           trainings: extractedData.trainings,
           characterReferences: extractedData.characterReferences,
           overwriteExistingPersonal: true,
+          replaceStructuredFields: true,
         });
         finalProfile = appliedResult.profile;
         changeSummary = appliedResult.changeSummary;

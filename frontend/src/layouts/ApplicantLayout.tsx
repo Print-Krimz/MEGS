@@ -18,6 +18,8 @@ import { NotificationBell, RealtimeToastContainer, SignOutDialog, ChangePassword
 import { getInitials } from "../lib/utils";
 import { applicantApi } from "../lib/api/applicant.api";
 
+import { normalizeTitleCase } from "../lib/text-case";
+
 export const ApplicantLayout: React.FC = () => {
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -46,10 +48,14 @@ export const ApplicantLayout: React.FC = () => {
   });
 
   const profile = profileQuery.data || user?.applicantProfile;
+  const rawFirst = profile?.firstName || "";
+  const rawLast = profile?.lastName || "";
+  const cleanFirst = normalizeTitleCase(rawFirst) || rawFirst;
+  const cleanLast = normalizeTitleCase(rawLast) || rawLast;
   const fullName = profile
-    ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || user?.email || "Applicant"
+    ? `${cleanFirst} ${cleanLast}`.trim() || user?.email || "Applicant"
     : user?.email || "Applicant";
-  const initials = getInitials(profile?.firstName, profile?.lastName);
+  const initials = getInitials(cleanFirst, cleanLast);
 
   // Primary Recruitment Navigation Links
   const navLinks = [

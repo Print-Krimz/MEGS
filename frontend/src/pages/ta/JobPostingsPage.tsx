@@ -133,7 +133,12 @@ export const JobPostingsPage: React.FC = () => {
         setFormTitle(chosen.title || "");
         setFormLocation(chosen.location || "");
         setFormDescription(chosen.description || "");
-        setFormRequirements(chosen.requiredSkills || "");
+        const sections: string[] = [];
+        if (chosen.requiredSkills) sections.push(`Required skills:\n${chosen.requiredSkills}`);
+        if (chosen.requiredExperience) sections.push(`Required experience:\n${chosen.requiredExperience}`);
+        if (chosen.requiredEducation) sections.push(`Minimum education:\n${chosen.requiredEducation}`);
+        if (chosen.requiredCertifications) sections.push(`Certifications & licenses:\n${chosen.requiredCertifications}`);
+        setFormRequirements(sections.join("\n\n") || chosen.requiredSkills || "");
       }
     }
   };

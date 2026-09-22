@@ -806,6 +806,23 @@ export const ApplicationDetailPage: React.FC = () => {
     : app.user?.email || "Candidate";
   const candidateInitials = [profile?.firstName?.[0], profile?.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "ID";
   const scores = app.candidateScores?.[0];
+  const scoreExplanation = (() => {
+    if (!scores?.explanation) return null;
+    try {
+      const parsed = typeof scores.explanation === "string" ? JSON.parse(scores.explanation) : scores.explanation;
+      if (parsed && typeof parsed === "object") {
+        return parsed as {
+          dimensionStatuses?: Record<string, string>;
+          dimensionsApplicable?: Record<string, boolean>;
+          missingMandatory?: string[];
+          [key: string]: unknown;
+        };
+      }
+    } catch {
+      // JSON parse fallback
+    }
+    return null;
+  })();
   const decisions = Array.isArray(decisionsQuery.data) ? decisionsQuery.data : [];
   const clients = Array.isArray(clientsQuery.data) ? clientsQuery.data : [];
 
@@ -1612,26 +1629,63 @@ export const ApplicationDetailPage: React.FC = () => {
 
                 {scores ? (
                   <div className="border border-slate-300 bg-white grid grid-cols-2 sm:grid-cols-5 divide-x divide-y sm:divide-y-0 divide-slate-300 rounded-md overflow-hidden">
-                    <div className="p-3 text-center">
-                      <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Skills Match</div>
-                      <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.skillsScore).toFixed(0)}%</div>
-                    </div>
-                    <div className="p-3 text-center">
-                      <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Experience Fit</div>
-                      <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.experienceScore).toFixed(0)}%</div>
-                    </div>
-                    <div className="p-3 text-center">
-                      <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Location Proximity</div>
-                      <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.locationScore).toFixed(0)}%</div>
-                    </div>
-                    <div className="p-3 text-center">
-                      <div className="text-xs font-semibold text-slate-600">Requirements match</div>
-                      <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.complianceScore).toFixed(0)}%</div>
-                    </div>
-                    <div className="p-3 text-center">
-                      <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">Education / Certs</div>
-                      <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">{Number(scores.educationCertificationScore).toFixed(0)}%</div>
-                    </div>
+                    {([
+                      { key: "SKILLS", label: "Skills Match", score: scores.skillsScore },
+                      { key: "EXPERIENCE", label: "Experience Fit", score: scores.experienceScore },
+                      { key: "LOCATION", label: "Location Proximity", score: scores.locationScore },
+                      { key: "COMPLIANCE", label: "Requirements match", score: scores.complianceScore },
+                      { key: "EDUCATION_CERTIFICATIONS", label: "Education / Certs", score: scores.educationCertificationScore },
+                    ] as const).map((dim, idx) => {
+                      const status = scoreExplanation?.dimensionStatuses?.[dim.key];
+                      const isNotRequired =
+                        status === "NOT_REQUIRED" ||
+                        (!status && scoreExplanation?.dimensionsApplicable?.[dim.key] === false && dim.key !== "COMPLIANCE");
+                      const isPendingOnboarding =
+                        dim.key === "COMPLIANCE" &&
+                        (status === "PENDING_ONBOARDING_STAGE" ||
+                          (!status && scoreExplanation?.dimensionsApplicable?.COMPLIANCE === false));
+                      const isMissingMandatory =
+                        Array.isArray(scoreExplanation?.missingMandatory) &&
+                        scoreExplanation.missingMandatory.includes(dim.key);
+
+                      return (
+                        <div
+                          key={dim.key}
+                          className={`p-3 text-center flex flex-col items-center justify-center min-h-[76px] ${
+                            idx === 4 ? "col-span-2 sm:col-span-1" : ""
+                          }`}
+                        >
+                          <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">
+                            {dim.label}
+                          </div>
+
+                          {isNotRequired ? (
+                            <div className="text-xs font-semibold text-slate-500 font-sans mt-1">
+                              Not required
+                            </div>
+                          ) : isPendingOnboarding ? (
+                            <>
+                              <div className="text-xs font-semibold text-amber-700 font-sans mt-1">
+                                Pending onboarding
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-sans mt-0.5 leading-tight">
+                                Collected at requirements stage
+                              </div>
+                            </>
+                          ) : (
+                            <div className="text-xl font-bold font-mono text-slate-950 tabular-nums mt-0.5">
+                              {Number(dim.score ?? 0).toFixed(0)}%
+                            </div>
+                          )}
+
+                          {isMissingMandatory && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] text-rose-600 font-bold bg-rose-50 border border-rose-200 mt-1">
+                              Missing mandatory
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="p-4 bg-slate-50 border border-slate-300 text-center text-xs font-mono text-slate-500 rounded-md">

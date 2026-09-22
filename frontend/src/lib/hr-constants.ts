@@ -152,6 +152,23 @@ export const EDUCATION_DEGREE_PRESETS = [
   "Doctorate / Ph.D.",
 ] as const;
 
+export const MRF_EDUCATION_OPTIONS = [
+  "No minimum education required",
+  "High School / Senior High School Graduate",
+  "Vocational / Technical Course (TESDA)",
+  "Associate Degree",
+  "Bachelor's Degree / College Graduate",
+  "Postgraduate / Master's Degree",
+] as const;
+
+export const MRF_EXPERIENCE_OPTIONS = [
+  "No experience required (Entry-level)",
+  "1 year of relevant experience",
+  "2 years of relevant experience",
+  "3–5 years of relevant experience",
+  "5+ years of relevant experience",
+] as const;
+
 export const GENDER_OPTIONS = [
   "Male",
   "Female",

@@ -38,10 +38,12 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
               const firstMissing = health.missingItems[0].toLowerCase();
               if (firstMissing.includes("personal")) onJumpToTab("personal");
               else if (firstMissing.includes("resume")) onJumpToTab("documents");
+              else if (firstMissing.includes("photo")) onJumpToTab("photo");
               else if (firstMissing.includes("experience")) onJumpToTab("experience");
               else if (firstMissing.includes("education")) onJumpToTab("education");
               else if (firstMissing.includes("skill")) onJumpToTab("skills");
               else if (firstMissing.includes("reference")) onJumpToTab("references");
+              else if (firstMissing.includes("training") || firstMissing.includes("cert")) onJumpToTab("trainings");
               else onJumpToTab("personal");
             }}
             className="inline-flex items-center gap-1.5 min-h-11 px-2.5 py-1 text-xs font-medium text-[#0B315D] hover:text-[#082747] hover:bg-[#EAF0F7] rounded-md transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
@@ -75,7 +77,7 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
             <span>{health.nextActionTip}</span>
           </div>
           <span className="font-mono text-[#627D98] hidden md:inline">
-            {health.score >= 85 ? "Job Ready" : `${100 - health.score}% to 100%`}
+            {health.score >= 100 ? "100% Complete" : `${100 - health.score}% to 100%`}
           </span>
         </div>
       </div>

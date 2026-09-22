@@ -471,6 +471,17 @@ export const updateMRF = async (
   const updateData: any = { ...data };
   if (data.targetFillDate) {
     updateData.targetFillDate = new Date(data.targetFillDate);
+  } else if ((data.targetFillDate as any) === "" || data.targetFillDate === null) {
+    updateData.targetFillDate = null;
+  }
+  if (data.salaryRangeMin !== undefined) {
+    updateData.salaryRangeMin = (data.salaryRangeMin as any) === "" || data.salaryRangeMin === null ? null : Number(data.salaryRangeMin);
+  }
+  if (data.salaryRangeMax !== undefined) {
+    updateData.salaryRangeMax = (data.salaryRangeMax as any) === "" || data.salaryRangeMax === null ? null : Number(data.salaryRangeMax);
+  }
+  if (data.headcount !== undefined) {
+    updateData.headcount = Number(data.headcount);
   }
 
   const updated = await prisma.manpowerRequest.update({

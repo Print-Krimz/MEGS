@@ -28,6 +28,7 @@ import {
   filterDuplicateSkills,
   filterDuplicateTrainings,
 } from "../../lib/resume-autofill";
+import { normalizeTitleCase, normalizeSentenceCase } from "../../lib/text-case";
 import { ProfileApplications } from "./components/profile/ProfileApplications";
 import { ProfileDisclosure } from "./components/profile/ProfileDisclosure";
 import { ProfileOverview } from "./components/profile/ProfileOverview";
@@ -149,23 +150,23 @@ export const ProfilePage: React.FC = () => {
   React.useEffect(() => {
     if (profile) {
       setPersonalForm((prev) => ({
-        firstName: profile.firstName || prev.firstName || "",
-        lastName: profile.lastName || prev.lastName || "",
-        middleName: profile.middleName || prev.middleName || "",
+        firstName: normalizeTitleCase(profile.firstName || prev.firstName) || profile.firstName || prev.firstName || "",
+        lastName: normalizeTitleCase(profile.lastName || prev.lastName) || profile.lastName || prev.lastName || "",
+        middleName: profile.middleName ? (normalizeTitleCase(profile.middleName) || profile.middleName) : prev.middleName || "",
         dateOfBirth: profile.dateOfBirth ? profile.dateOfBirth.substring(0, 10) : prev.dateOfBirth || "",
         mobileNumber: profile.mobileNumber || prev.mobileNumber || "",
-        gender: profile.gender || prev.gender || "",
-        civilStatus: profile.civilStatus || prev.civilStatus || "",
-        nationality: profile.nationality || prev.nationality || "",
-        birthPlace: profile.birthPlace || prev.birthPlace || "",
-        religion: profile.religion || prev.religion || "",
+        gender: normalizeTitleCase(profile.gender || prev.gender) || profile.gender || prev.gender || "",
+        civilStatus: normalizeTitleCase(profile.civilStatus || prev.civilStatus) || profile.civilStatus || prev.civilStatus || "",
+        nationality: normalizeTitleCase(profile.nationality || prev.nationality) || profile.nationality || prev.nationality || "",
+        birthPlace: normalizeTitleCase(profile.birthPlace || prev.birthPlace) || profile.birthPlace || prev.birthPlace || "",
+        religion: normalizeTitleCase(profile.religion || prev.religion) || profile.religion || prev.religion || "",
         height: profile.height !== null && profile.height !== undefined ? String(profile.height) : prev.height || "",
         weight: profile.weight !== null && profile.weight !== undefined ? String(profile.weight) : prev.weight || "",
-        address: profile.address || prev.address || "",
-        province: profile.province || prev.province || "",
-        city: profile.city || prev.city || "",
-        preferredWorkLocations: profile.preferredWorkLocations || prev.preferredWorkLocations || "",
-        professionalSummary: profile.professionalSummary || prev.professionalSummary || "",
+        address: normalizeTitleCase(profile.address || prev.address) || profile.address || prev.address || "",
+        province: normalizeTitleCase(profile.province || prev.province) || profile.province || prev.province || "",
+        city: normalizeTitleCase(profile.city || prev.city) || profile.city || prev.city || "",
+        preferredWorkLocations: normalizeTitleCase(profile.preferredWorkLocations || prev.preferredWorkLocations) || profile.preferredWorkLocations || prev.preferredWorkLocations || "",
+        professionalSummary: normalizeSentenceCase(profile.professionalSummary || prev.professionalSummary) || profile.professionalSummary || prev.professionalSummary || "",
         sss: profile.sss || prev.sss || "",
         philhealth: profile.philhealth || prev.philhealth || "",
         pagibig: profile.pagibig || prev.pagibig || "",
@@ -271,24 +272,38 @@ export const ProfilePage: React.FC = () => {
 
         const p = data.profile || {};
         const ext = data.extractedData || {};
+        const rawFirst = ext.firstName || p.firstName || "";
+        const rawMiddle = ext.middleName ?? p.middleName ?? "";
+        const rawLast = ext.lastName || p.lastName || "";
+        const rawBirthPlace = ext.birthPlace || p.birthPlace || "";
+        const rawReligion = ext.religion || p.religion || "";
+        const rawGender = ext.gender || p.gender || "";
+        const rawCivilStatus = ext.civilStatus || p.civilStatus || "";
+        const rawNationality = ext.nationality || p.nationality || "";
+        const rawAddress = ext.address || p.address || "";
+        const rawProvince = ext.province || p.province || "";
+        const rawCity = ext.city || p.city || "";
+        const rawLocations = ext.preferredWorkLocations || p.preferredWorkLocations || "";
+        const rawSummary = ext.professionalSummary || p.professionalSummary || "";
+
         setPersonalForm({
-          firstName: ext.firstName || p.firstName || "",
-          middleName: ext.middleName ?? p.middleName ?? "",
-          lastName: ext.lastName || p.lastName || "",
+          firstName: normalizeTitleCase(rawFirst) || rawFirst,
+          middleName: rawMiddle ? (normalizeTitleCase(rawMiddle) || rawMiddle) : "",
+          lastName: normalizeTitleCase(rawLast) || rawLast,
           mobileNumber: ext.mobileNumber || p.mobileNumber || "",
           dateOfBirth: ext.dateOfBirth || (p.dateOfBirth ? p.dateOfBirth.substring(0, 10) : "") || "",
-          birthPlace: ext.birthPlace || p.birthPlace || "",
-          religion: ext.religion || p.religion || "",
+          birthPlace: normalizeTitleCase(rawBirthPlace) || rawBirthPlace,
+          religion: normalizeTitleCase(rawReligion) || rawReligion,
           height: ext.height !== null && ext.height !== undefined ? String(ext.height) : p.height !== null && p.height !== undefined ? String(p.height) : "",
           weight: ext.weight !== null && ext.weight !== undefined ? String(ext.weight) : p.weight !== null && p.weight !== undefined ? String(p.weight) : "",
-          gender: ext.gender || p.gender || "",
-          civilStatus: ext.civilStatus || p.civilStatus || "",
-          nationality: ext.nationality || p.nationality || "",
-          address: ext.address || p.address || "",
-          province: ext.province || p.province || "",
-          city: ext.city || p.city || "",
-          preferredWorkLocations: ext.preferredWorkLocations || p.preferredWorkLocations || "",
-          professionalSummary: ext.professionalSummary || p.professionalSummary || "",
+          gender: normalizeTitleCase(rawGender) || rawGender,
+          civilStatus: normalizeTitleCase(rawCivilStatus) || rawCivilStatus,
+          nationality: normalizeTitleCase(rawNationality) || rawNationality,
+          address: normalizeTitleCase(rawAddress) || rawAddress,
+          province: normalizeTitleCase(rawProvince) || rawProvince,
+          city: normalizeTitleCase(rawCity) || rawCity,
+          preferredWorkLocations: normalizeTitleCase(rawLocations) || rawLocations,
+          professionalSummary: normalizeSentenceCase(rawSummary) || rawSummary,
           sss: p.sss || "",
           philhealth: p.philhealth || "",
           pagibig: p.pagibig || "",
@@ -614,10 +629,35 @@ export const ProfilePage: React.FC = () => {
   };
 
   const handleCompleteNextSection = (target: string) => {
-    if (target.includes("resume")) handleSectionChange("overview");
-    else if (target.includes("experience") || target.includes("education") || target.includes("skill") || target.includes("reference")) {
+    if (target === "photo" || target.includes("photo") || target === "documents" || target.includes("resume")) {
+      handleSectionChange("overview");
+      window.setTimeout(() => {
+        if (target.includes("photo")) {
+          const photoInput = document.querySelector<HTMLInputElement>('[data-testid="photo-upload-input"]');
+          photoInput?.focus();
+        } else {
+          document.getElementById("overview-resume-panel")?.focus();
+        }
+      }, 50);
+    } else if (target === "experience" || target.includes("experience")) {
+      setOpenQualificationSection("experience");
       handleSectionChange("qualifications");
-    } else handleSectionChange("personal");
+    } else if (target === "education" || target.includes("education")) {
+      setOpenQualificationSection("education");
+      handleSectionChange("qualifications");
+    } else if (target === "skills" || target.includes("skill")) {
+      setOpenQualificationSection("skills");
+      handleSectionChange("qualifications");
+    } else if (target === "trainings" || target.includes("training") || target.includes("cert")) {
+      setOpenQualificationSection("trainings");
+      handleSectionChange("qualifications");
+    } else if (target === "references" || target.includes("reference")) {
+      setOpenQualificationSection("references");
+      handleSectionChange("qualifications");
+    } else {
+      setOpenPersonalSection("identity");
+      handleSectionChange("personal");
+    }
   };
 
   const handleReviewResume = () => {

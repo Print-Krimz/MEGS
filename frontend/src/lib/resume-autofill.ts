@@ -10,6 +10,7 @@ import type {
   ExtractedProfileTraining,
   ExtractedProfileReference,
 } from "./types/applicant.types";
+import { normalizeTitleCase, normalizeSentenceCase } from "./text-case";
 
 export interface AutoFillDiffResult {
   autoFilledFields: Record<string, string>;
@@ -35,9 +36,15 @@ export function computeAutoFillDiff(
 
   const checkField = (fieldKey: string, extractedVal: string | number | undefined | null) => {
     if (extractedVal === undefined || extractedVal === null) return;
-    const strVal = String(extractedVal).trim();
+    let strVal = String(extractedVal).trim();
     if (!strVal || strVal.toLowerCase() === "null" || strVal.toLowerCase() === "undefined" || strVal.toLowerCase() === "n/a") {
       return;
+    }
+
+    if (fieldKey === "professionalSummary") {
+      strVal = normalizeSentenceCase(strVal) || strVal;
+    } else if (fieldKey !== "mobileNumber" && fieldKey !== "dateOfBirth") {
+      strVal = normalizeTitleCase(strVal) || strVal;
     }
 
     const currentVal = currentForm[fieldKey];

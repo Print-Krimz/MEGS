@@ -152,6 +152,18 @@ export interface ExtractedProfileData {
   characterReferences?: ExtractedProfileReference[];
 }
 
+export {
+  isAllUpper,
+  normalizeTitleCase,
+  normalizeSentenceCase,
+  normalizeSkill,
+} from "./text-case.js";
+import {
+  normalizeTitleCase,
+  normalizeSentenceCase,
+  normalizeSkill,
+} from "./text-case.js";
+
 // Prompts Gemini to parse structured candidate profile details from resume text.
 export const extractResumeProfileData = async (
   resumeText: string
@@ -237,7 +249,8 @@ STRICT EXTRACTION RULES:
 3. Extract skills as a clean list of individual competencies, tools, frameworks, and domain expertise.
 4. For names, properly identify First Name, Middle Name (if any), and Last Name.
 5. If multiple character references are listed in the resume, extract all of them into the characterReferences array.
-6. Respond with valid JSON only. Do not include markdown fences or any text outside the JSON object.
+6. Casing Normalization: Format all names (firstName, middleName, lastName), locations (city, province, birthPlace, address), schools, degrees, fields of study, companies, role titles, certifications, civil status, nationality, religion, and character references in standard Title Case (e.g., "Adrian", "Miguel", "Reyes", "Quezon City", "Metro Manila", "Filipino", "Single", "Roman Catholic", "Bachelor of Science in Computer Science"), even if the source resume writes them in ALL CAPS. Normalize professionalSummary and experience summaries to standard natural sentence case. Preserve standard uppercase acronyms and abbreviations (e.g., "IT", "HR", "QA", "PHP", "AWS", "SQL", "UI/UX", "API", "BS", "MS", "PhD", "TESDA", "NC II", "Jr.", "Sr."). Do NOT output applicant profile values in ALL CAPITAL LETTERS.
+7. Respond with valid JSON only. Do not include markdown fences or any text outside the JSON object.
 `.trim();
 
   const modelName = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
@@ -274,6 +287,16 @@ STRICT EXTRACTION RULES:
     return str;
   };
 
+  const cleanTitleString = (val: any): string | undefined => {
+    const str = cleanString(val);
+    return str ? normalizeTitleCase(str) : undefined;
+  };
+
+  const cleanSentenceString = (val: any): string | undefined => {
+    const str = cleanString(val);
+    return str ? normalizeSentenceCase(str) : undefined;
+  };
+
   const cleanNumber = (val: any): number | undefined => {
     if (val === undefined || val === null) return undefined;
     if (typeof val === "number" && !isNaN(val)) return val > 0 ? val : undefined;
@@ -306,74 +329,89 @@ STRICT EXTRACTION RULES:
   const rawRefs = parsed.characterReferences || parsed.character_references || parsed.references || parsed.character_reference || parsed.characterReference;
 
   const result: ExtractedProfileData = {
-    firstName: cleanString(parsed.firstName || parsed.first_name || parsed.givenName || parsed.given_name),
-    middleName: cleanString(parsed.middleName || parsed.middle_name || parsed.middleInitial),
-    lastName: cleanString(parsed.lastName || parsed.last_name || parsed.surname || parsed.family_name),
-    email: cleanString(parsed.email || parsed.emailAddress),
+    firstName: cleanTitleString(parsed.firstName || parsed.first_name || parsed.givenName || parsed.given_name),
+    middleName: cleanTitleString(parsed.middleName || parsed.middle_name || parsed.middleInitial),
+    lastName: cleanTitleString(parsed.lastName || parsed.last_name || parsed.surname || parsed.family_name),
+    email: cleanString(parsed.email || parsed.emailAddress)?.toLowerCase(),
     mobileNumber: cleanString(parsed.mobileNumber || parsed.mobile_number || parsed.contactNumber || parsed.contact_number || parsed.phone || parsed.phoneNumber),
     dateOfBirth: cleanDate(parsed.dateOfBirth || parsed.date_of_birth || parsed.birthDate || parsed.birth_date || parsed.birthday || parsed.dob),
-    birthPlace: cleanString(parsed.birthPlace || parsed.birth_place || parsed.placeOfBirth || parsed.place_of_birth || parsed.birthLocation),
-    gender: cleanString(parsed.gender || parsed.sex),
-    nationality: cleanString(parsed.nationality || parsed.citizenship),
-    civilStatus: cleanString(parsed.civilStatus || parsed.civil_status || parsed.maritalStatus || parsed.marital_status),
-    religion: cleanString(parsed.religion || parsed.religiousAffiliation),
+    birthPlace: cleanTitleString(parsed.birthPlace || parsed.birth_place || parsed.placeOfBirth || parsed.place_of_birth || parsed.birthLocation),
+    gender: cleanTitleString(parsed.gender || parsed.sex),
+    nationality: cleanTitleString(parsed.nationality || parsed.citizenship),
+    civilStatus: cleanTitleString(parsed.civilStatus || parsed.civil_status || parsed.maritalStatus || parsed.marital_status),
+    religion: cleanTitleString(parsed.religion || parsed.religiousAffiliation),
     height: cleanNumber(parsed.height || parsed.heightCm),
     weight: cleanNumber(parsed.weight || parsed.weightKg),
-    address: cleanString(parsed.address),
-    city: cleanString(parsed.city),
-    province: cleanString(parsed.province),
-    preferredWorkLocations: cleanString(parsed.preferredWorkLocations || parsed.preferred_work_locations || parsed.workLocations),
-    professionalSummary: cleanString(parsed.professionalSummary || parsed.professional_summary || parsed.summary || parsed.objective),
+    address: cleanTitleString(parsed.address),
+    city: cleanTitleString(parsed.city),
+    province: cleanTitleString(parsed.province),
+    preferredWorkLocations: cleanTitleString(parsed.preferredWorkLocations || parsed.preferred_work_locations || parsed.workLocations),
+    professionalSummary: cleanSentenceString(parsed.professionalSummary || parsed.professional_summary || parsed.summary || parsed.objective),
     skills: Array.isArray(parsed.skills)
-      ? parsed.skills.map((s: any) => String(s).trim()).filter(Boolean)
+      ? parsed.skills.map((s: any) => normalizeSkill(s)).filter(Boolean)
       : [],
     educations: Array.isArray(parsed.educations)
       ? parsed.educations
           .filter((edu: any) => edu && typeof (edu.school || edu.institution || edu.schoolName) === "string" && (edu.school || edu.institution || edu.schoolName).trim())
-          .map((edu: any) => ({
-            school: String(edu.school || edu.institution || edu.schoolName).trim(),
-            degree: cleanString(edu.degree) || "Degree / Certificate",
-            fieldOfStudy: cleanString(edu.fieldOfStudy || edu.field) || "General",
-            startDate: cleanString(edu.startDate || edu.start_date),
-            endDate: cleanString(edu.endDate || edu.end_date),
-            notes: cleanString(edu.notes),
-          }))
+          .map((edu: any) => {
+            const rawSchool = String(edu.school || edu.institution || edu.schoolName).trim();
+            const rawDegree = cleanString(edu.degree) || "Degree / Certificate";
+            const rawField = cleanString(edu.fieldOfStudy || edu.field) || "General";
+            return {
+              school: normalizeTitleCase(rawSchool) || rawSchool,
+              degree: normalizeTitleCase(rawDegree) || rawDegree,
+              fieldOfStudy: normalizeTitleCase(rawField) || rawField,
+              startDate: cleanString(edu.startDate || edu.start_date),
+              endDate: cleanString(edu.endDate || edu.end_date),
+              notes: cleanSentenceString(edu.notes),
+            };
+          })
       : [],
     workExperiences: Array.isArray(parsed.workExperiences)
       ? parsed.workExperiences
           .filter((exp: any) => exp && typeof (exp.company || exp.employer) === "string" && typeof (exp.roleTitle || exp.title || exp.jobTitle) === "string")
-          .map((exp: any) => ({
-            company: String(exp.company || exp.employer).trim(),
-            roleTitle: String(exp.roleTitle || exp.title || exp.jobTitle).trim(),
-            location: cleanString(exp.location),
-            startDate: cleanString(exp.startDate || exp.start_date),
-            endDate: cleanString(exp.endDate || exp.end_date),
-            isCurrent: Boolean(exp.isCurrent || exp.is_current),
-            summary: cleanString(exp.summary || exp.description),
-          }))
+          .map((exp: any) => {
+            const rawCompany = String(exp.company || exp.employer).trim();
+            const rawRole = String(exp.roleTitle || exp.title || exp.jobTitle).trim();
+            return {
+              company: normalizeTitleCase(rawCompany) || rawCompany,
+              roleTitle: normalizeTitleCase(rawRole) || rawRole,
+              location: cleanTitleString(exp.location),
+              startDate: cleanString(exp.startDate || exp.start_date),
+              endDate: cleanString(exp.endDate || exp.end_date),
+              isCurrent: Boolean(exp.isCurrent || exp.is_current),
+              summary: cleanSentenceString(exp.summary || exp.description),
+            };
+          })
       : [],
     trainings: Array.isArray(parsed.trainings)
       ? parsed.trainings
           .filter((t: any) => t && typeof (t.title || t.name) === "string" && (t.title || t.name).trim())
-          .map((t: any) => ({
-            title: String(t.title || t.name).trim(),
-            provider: cleanString(t.provider || t.issuer),
-            completionDate: cleanString(t.completionDate || t.completion_date || t.issueDate),
-            certificateNo: cleanString(t.certificateNo || t.certificate_no || t.licenseNo),
-            notes: cleanString(t.notes),
-          }))
+          .map((t: any) => {
+            const rawTitle = String(t.title || t.name).trim();
+            return {
+              title: normalizeTitleCase(rawTitle) || rawTitle,
+              provider: cleanTitleString(t.provider || t.issuer),
+              completionDate: cleanString(t.completionDate || t.completion_date || t.issueDate),
+              certificateNo: cleanString(t.certificateNo || t.certificate_no || t.licenseNo),
+              notes: cleanSentenceString(t.notes),
+            };
+          })
       : [],
     characterReferences: Array.isArray(rawRefs)
       ? rawRefs
           .filter((ref: any) => ref && cleanString(ref.name || ref.full_name || ref.fullName || ref.contactPerson))
-          .map((ref: any) => ({
-            name: String(cleanString(ref.name || ref.full_name || ref.fullName || ref.contactPerson)),
-            relationship: cleanString(ref.relationship || ref.position || ref.role || ref.jobTitle || ref.title),
-            company: cleanString(ref.company || ref.organization || ref.employer || ref.companyName),
-            phone: cleanString(ref.phone || ref.mobileNumber || ref.contactNumber || ref.contact_number || ref.phoneNumber),
-            email: cleanString(ref.email || ref.emailAddress),
-            notes: cleanString(ref.notes || ref.remarks),
-          }))
+          .map((ref: any) => {
+            const rawName = String(cleanString(ref.name || ref.full_name || ref.fullName || ref.contactPerson));
+            return {
+              name: normalizeTitleCase(rawName) || rawName,
+              relationship: cleanTitleString(ref.relationship || ref.position || ref.role || ref.jobTitle || ref.title),
+              company: cleanTitleString(ref.company || ref.organization || ref.employer || ref.companyName),
+              phone: cleanString(ref.phone || ref.mobileNumber || ref.contactNumber || ref.contact_number || ref.phoneNumber),
+              email: cleanString(ref.email || ref.emailAddress)?.toLowerCase(),
+              notes: cleanSentenceString(ref.notes || ref.remarks),
+            };
+          })
       : [],
   };
 

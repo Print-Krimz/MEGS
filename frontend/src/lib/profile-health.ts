@@ -69,7 +69,16 @@ export function computeProfileHealth(profile?: ApplicantProfile | null): Profile
     return {
       score: 0,
       tier: "Incomplete",
-      missingItems: ["Personal Details", "Resume", "Work History", "Education", "Skills"],
+      missingItems: [
+        "Complete Personal Information",
+        "Upload PDF Resume",
+        "Add at least 1 Work Experience",
+        "Add Educational Attainment",
+        "Add at least 3 Technical or Practical Skills",
+        "Add at least 1 Character Reference",
+        "Upload Profile Photo",
+        "Add at least 1 Training or Certification",
+      ],
       nextActionTip: "Start by filling out your legal name and contact details.",
       tabStatuses: {
         personal: { id: "personal", isComplete: false, itemCount: 0 },
@@ -96,12 +105,10 @@ export function computeProfileHealth(profile?: ApplicantProfile | null): Profile
   if (hasPersonal) earnedPoints += 25;
   else missingItems.push("Complete Personal Information");
 
-  // 2. Resume & Photo (20 points)
+  // 2. Resume Upload (20 points)
   const hasResume = Boolean(profile.resumeUrl);
-  const hasPhoto = Boolean(profile.photoUrl);
-  if (hasResume) earnedPoints += 15;
+  if (hasResume) earnedPoints += 20;
   else missingItems.push("Upload PDF Resume");
-  if (hasPhoto) earnedPoints += 5;
 
   // 3. Work Experience (15 points)
   const expCount = profile.workExperiences?.length || 0;
@@ -116,17 +123,27 @@ export function computeProfileHealth(profile?: ApplicantProfile | null): Profile
   // 5. Skills (10 points)
   const skillsCount = profile.skills?.length || 0;
   if (skillsCount >= 3) earnedPoints += 10;
-  else if (skillsCount > 0) earnedPoints += 5;
-  else missingItems.push("Add at least 3 Technical or Practical Skills");
+  else if (skillsCount > 0) {
+    earnedPoints += 5;
+    missingItems.push("Add at least 3 Technical or Practical Skills");
+  } else {
+    missingItems.push("Add at least 3 Technical or Practical Skills");
+  }
 
-  // 6. Trainings & Certifications (5 points)
-  const trainingCount = profile.trainings?.length || 0;
-  if (trainingCount > 0) earnedPoints += 5;
-
-  // 7. References (5 points)
+  // 6. Character References (5 points)
   const refCount = profile.characterReferences?.length || 0;
   if (refCount > 0) earnedPoints += 5;
   else missingItems.push("Add at least 1 Character Reference");
+
+  // 7. Profile Photo (5 points)
+  const hasPhoto = Boolean(profile.photoUrl);
+  if (hasPhoto) earnedPoints += 5;
+  else missingItems.push("Upload Profile Photo");
+
+  // 8. Trainings & Certifications (5 points)
+  const trainingCount = profile.trainings?.length || 0;
+  if (trainingCount > 0) earnedPoints += 5;
+  else missingItems.push("Add at least 1 Training or Certification");
 
   const score = Math.min(100, earnedPoints);
 
@@ -149,8 +166,8 @@ export function computeProfileHealth(profile?: ApplicantProfile | null): Profile
     },
     documents: {
       id: "documents",
-      isComplete: hasResume,
-      badgeText: hasResume ? "Resume On File" : "Missing",
+      isComplete: hasResume && hasPhoto,
+      badgeText: hasResume && hasPhoto ? "Complete" : hasResume ? "Resume on file" : "Missing",
       itemCount: (hasResume ? 1 : 0) + (hasPhoto ? 1 : 0),
     },
     experience: {

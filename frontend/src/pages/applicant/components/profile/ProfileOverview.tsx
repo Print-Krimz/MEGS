@@ -192,7 +192,30 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
         <div className="py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Current experience</dt><dd className="mt-1 text-sm text-[#102A43]">{profile?.workExperiences?.find((item) => item.isCurrent)?.roleTitle || profile?.workExperiences?.[0]?.roleTitle || "Add your work history"}</dd></div>
         <div className="py-3 sm:pl-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Education</dt><dd className="mt-1 text-sm text-[#102A43]">{profile?.educations?.[0]?.degree || "Add your education"}</dd></div>
         <div className="border-t border-[#D9E2EC] py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Skills</dt><dd className="mt-1 text-sm text-[#102A43]">{skills.length ? `${skills.slice(0, 6).join(", ")}${skills.length > 6 ? ` +${skills.length - 6} more` : ""}` : "Add skills"}</dd></div>
-        <div className="border-t border-[#D9E2EC] py-3 sm:pl-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Supporting details</dt><dd className="mt-1 text-sm text-[#102A43]">{skills.length ? `${skills.slice(0, 6).join(", ")}${skills.length > 6 ? ` +${skills.length - 6} more` : ""}` : ""}{(profile?.trainings?.length || 0) + (profile?.characterReferences?.length || 0)} training and reference records</dd></div>
+        <div className="border-t border-[#D9E2EC] py-3 sm:pl-5">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Supporting details</dt>
+          <dd className="mt-1 text-sm text-[#102A43]">
+            {(() => {
+              const trainCount = profile?.trainings?.length || 0;
+              const refCount = profile?.characterReferences?.length || 0;
+              if (trainCount === 0 && refCount === 0) {
+                return "Add certifications or references";
+              }
+              const parts: string[] = [];
+              if (trainCount > 0) {
+                parts.push(`${trainCount} ${trainCount === 1 ? "certification" : "certifications"}`);
+              } else {
+                parts.push("0 certifications");
+              }
+              if (refCount > 0) {
+                parts.push(`${refCount} ${refCount === 1 ? "reference" : "references"}`);
+              } else {
+                parts.push("0 references");
+              }
+              return parts.join(" · ");
+            })()}
+          </dd>
+        </div>
       </dl>
     </section>
   </div>

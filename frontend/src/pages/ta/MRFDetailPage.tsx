@@ -11,10 +11,16 @@ import {
   ConfirmDialog,
   StatusBadge,
 } from "../../components/common";
-import { Button, Dialog, Select, ComboBox } from "../../components/ui";
+import { Button, Dialog, Select, ComboBox, Input, Textarea } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { formatAdminPipelineStage } from "../../lib/admin-copy";
-import { COMPLIANCE_201_PRESETS } from "../../lib/hr-constants";
+import {
+  COMPLIANCE_201_PRESETS,
+  MRF_EDUCATION_OPTIONS,
+  MRF_EXPERIENCE_OPTIONS,
+  EMPLOYMENT_TYPE_OPTIONS,
+  WORK_ARRANGEMENT_OPTIONS,
+} from "../../lib/hr-constants";
 import {
   ArrowLeft,
   Plus,
@@ -72,6 +78,22 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const [editStatusModalOpen, setEditStatusModalOpen] = useState(false);
   const [editStatus, setEditStatus] = useState<any>("OPEN");
 
+  const [editDetailsModalOpen, setEditDetailsModalOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editHeadcount, setEditHeadcount] = useState(1);
+  const [editPriority, setEditPriority] = useState<any>("NORMAL");
+  const [editTargetFillDate, setEditTargetFillDate] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+  const [editEmploymentType, setEditEmploymentType] = useState("Contractual");
+  const [editWorkArrangement, setEditWorkArrangement] = useState("On-site");
+  const [editSalaryMin, setEditSalaryMin] = useState<number | string>("");
+  const [editSalaryMax, setEditSalaryMax] = useState<number | string>("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editSkills, setEditSkills] = useState("");
+  const [editExperience, setEditExperience] = useState("");
+  const [editEducation, setEditEducation] = useState("");
+  const [editCertifications, setEditCertifications] = useState("");
+
   const mrfQuery = useQuery({
     queryKey: [readOnly ? "admin" : "ta", "mrf", mrfId],
     queryFn: () => (readOnly ? adminApi.getMRFDetails(mrfId) : taApi.getMRFDetails(mrfId)),
@@ -127,14 +149,58 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const updateMRFMutation = useMutation({
     mutationFn: (data: any) => taApi.updateMRF(mrfId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ta", "mrf", mrfId] });
+      queryClient.invalidateQueries({ queryKey: [readOnly ? "admin" : "ta", "mrf", mrfId] });
       setEditStatusModalOpen(false);
-      notify.success("Request status updated", "The manpower request was updated.");
+      setEditDetailsModalOpen(false);
+      notify.success("Manpower request updated", "The request details have been saved.");
     },
     onError: (err: any) => {
       notify.error("Unable to update manpower request", err);
     },
   });
+
+  const handleOpenEditDetails = () => {
+    if (!mrfQuery.data) return;
+    const m = mrfQuery.data;
+    setEditTitle(m.title || "");
+    setEditHeadcount(m.headcount || 1);
+    setEditPriority(m.priority || "NORMAL");
+    setEditTargetFillDate(m.targetFillDate ? new Date(m.targetFillDate).toISOString().split("T")[0] : "");
+    setEditLocation(m.location || "");
+    setEditEmploymentType(m.employmentType || "Contractual");
+    setEditWorkArrangement(m.workArrangement || "On-site");
+    setEditSalaryMin(m.salaryRangeMin != null ? m.salaryRangeMin : "");
+    setEditSalaryMax(m.salaryRangeMax != null ? m.salaryRangeMax : "");
+    setEditDescription(m.description || "");
+    setEditSkills(m.requiredSkills || "");
+    setEditExperience(m.requiredExperience || "");
+    setEditEducation(m.requiredEducation || "");
+    setEditCertifications(m.requiredCertifications || "");
+    setEditDetailsModalOpen(true);
+  };
+
+  const handleSaveDetails = () => {
+    if (!editTitle.trim()) {
+      notify.error("Validation error", "Request title is required.");
+      return;
+    }
+    updateMRFMutation.mutate({
+      title: editTitle.trim(),
+      headcount: Number(editHeadcount) || 1,
+      priority: editPriority,
+      targetFillDate: editTargetFillDate || null,
+      location: editLocation.trim() || null,
+      employmentType: editEmploymentType || null,
+      workArrangement: editWorkArrangement || null,
+      salaryRangeMin: editSalaryMin !== "" ? Number(editSalaryMin) : null,
+      salaryRangeMax: editSalaryMax !== "" ? Number(editSalaryMax) : null,
+      description: editDescription.trim() || null,
+      requiredSkills: editSkills.trim() || null,
+      requiredExperience: editExperience.trim() || null,
+      requiredEducation: editEducation.trim() || null,
+      requiredCertifications: editCertifications.trim() || null,
+    });
+  };
 
   if (mrfQuery.isLoading) {
     return (
@@ -268,17 +334,26 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
               </Button>
             </Link>
             {!readOnly && (
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<Edit className="w-3.5 h-3.5" />}
-                onClick={() => {
-                  setEditStatus(mrf.status);
-                  setEditStatusModalOpen(true);
-                }}
-              >
-                Update status
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Edit className="w-3.5 h-3.5" />}
+                  onClick={handleOpenEditDetails}
+                >
+                  Edit details
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEditStatus(mrf.status);
+                    setEditStatusModalOpen(true);
+                  }}
+                >
+                  Update status
+                </Button>
+              </>
             )}
           </div>
         }
@@ -678,30 +753,93 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             {/* Left column (lg:col-span-2): Order Description & Competencies */}
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-                <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-                  Request details and client criteria
-                </h3>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
+                    Request details and client criteria
+                  </h3>
+                  {!readOnly && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<Edit className="w-3.5 h-3.5" />}
+                      onClick={handleOpenEditDetails}
+                      className="text-teal-700 hover:text-teal-800"
+                    >
+                      Edit details
+                    </Button>
+                  )}
+                </div>
                 <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
                   {mrf.description || "No additional description provided for this order."}
                 </p>
 
-                {mrf.requiredSkills && (
-                  <div className="pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                  <div>
                     <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                  Required skills:
+                      Work site:
                     </span>
-                    <p className="text-xs text-slate-800 font-semibold mt-0.5">{mrf.requiredSkills}</p>
+                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
+                      {mrf.location || "Not specified"}
+                    </p>
                   </div>
-                )}
 
-                {mrf.requiredExperience && (
-                  <div className="pt-2">
+                  <div>
                     <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                  Required experience:
+                      Employment & Arrangement:
                     </span>
-                    <p className="text-xs text-slate-800 font-semibold mt-0.5">{mrf.requiredExperience}</p>
+                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
+                      {mrf.employmentType || "Contractual"} • {mrf.workArrangement || "On-site"}
+                    </p>
                   </div>
-                )}
+
+                  {(mrf.salaryRangeMin != null || mrf.salaryRangeMax != null) && (
+                    <div className="md:col-span-2">
+                      <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
+                        Monthly salary range:
+                      </span>
+                      <p className="text-xs text-slate-800 font-semibold mt-0.5">
+                        {mrf.salaryRangeMin != null ? `PHP ${mrf.salaryRangeMin.toLocaleString()}` : "PHP 0"} –{" "}
+                        {mrf.salaryRangeMax != null ? `PHP ${mrf.salaryRangeMax.toLocaleString()}` : "Open"}
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
+                      Required skills:
+                    </span>
+                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
+                      {mrf.requiredSkills || "None specified"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
+                      Required experience:
+                    </span>
+                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
+                      {mrf.requiredExperience || "No experience required"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
+                      Minimum education:
+                    </span>
+                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
+                      {mrf.requiredEducation || "None required"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
+                      Required certifications & licenses:
+                    </span>
+                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
+                      {mrf.requiredCertifications || "None required"}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -861,6 +999,175 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 Add requirement
               </Button>
             </div>
+          </Dialog>
+
+          {/* Edit Manpower Request Details Modal */}
+          <Dialog
+            open={editDetailsModalOpen}
+            onClose={() => setEditDetailsModalOpen(false)}
+            title="Edit manpower request"
+            description="Update request order specifications, compensation, and qualifications."
+            size="xl"
+            overflowVisible
+          >
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveDetails();
+              }}
+              className="space-y-5"
+            >
+              {/* Section 1: Core Request Details */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-1.5">
+                  Request details
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Request title"
+                    placeholder="e.g. 50x Forklift Operators"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    required
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      label="Positions needed"
+                      type="number"
+                      min={1}
+                      value={editHeadcount}
+                      onChange={(e) => setEditHeadcount(Number(e.target.value))}
+                      required
+                    />
+                    <Select
+                      label="Priority"
+                      value={editPriority}
+                      onChange={(e) => setEditPriority(e.target.value as any)}
+                      options={[
+                        { value: "LOW", label: "Low" },
+                        { value: "NORMAL", label: "Normal" },
+                        { value: "HIGH", label: "High" },
+                        { value: "URGENT", label: "Urgent" },
+                      ]}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Input
+                    label="Work site"
+                    placeholder="e.g. Calamba, Laguna Plant"
+                    value={editLocation}
+                    onChange={(e) => setEditLocation(e.target.value)}
+                  />
+                  <ComboBox
+                    label="Employment Type"
+                    placeholder="Select employment type..."
+                    value={editEmploymentType}
+                    onChange={(val) => setEditEmploymentType(val || "Contractual")}
+                    options={EMPLOYMENT_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
+                    allowCustom
+                  />
+                  <ComboBox
+                    label="Work Arrangement"
+                    placeholder="Select arrangement..."
+                    value={editWorkArrangement}
+                    onChange={(val) => setEditWorkArrangement(val || "On-site")}
+                    options={WORK_ARRANGEMENT_OPTIONS.map((w) => ({ value: w, label: w }))}
+                    allowCustom
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Input
+                    label="Target fill date"
+                    type="date"
+                    value={editTargetFillDate}
+                    onChange={(e) => setEditTargetFillDate(e.target.value)}
+                  />
+                  <Input
+                    label="Minimum monthly salary (PHP)"
+                    type="number"
+                    placeholder="e.g. 18000"
+                    value={editSalaryMin}
+                    onChange={(e) => setEditSalaryMin(e.target.value)}
+                  />
+                  <Input
+                    label="Maximum monthly salary (PHP)"
+                    type="number"
+                    placeholder="e.g. 25000"
+                    value={editSalaryMax}
+                    onChange={(e) => setEditSalaryMax(e.target.value)}
+                  />
+                </div>
+
+                <Textarea
+                  label="Description and notes"
+                  placeholder="Specify shift schedules, client site notes, uniform provisions..."
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              {/* Section 2: Skills & Qualifications */}
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-1.5">
+                  Skills and qualifications
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Required skills"
+                    placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
+                    value={editSkills}
+                    onChange={(e) => setEditSkills(e.target.value)}
+                  />
+                  <ComboBox
+                    label="Required experience"
+                    placeholder="Select or specify required experience..."
+                    value={editExperience}
+                    onChange={(val) => setEditExperience(val || "")}
+                    options={MRF_EXPERIENCE_OPTIONS.map((e) => ({ value: e, label: e }))}
+                    allowCustom
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <ComboBox
+                    label="Minimum education"
+                    placeholder="Select minimum education..."
+                    value={editEducation}
+                    onChange={(val) => setEditEducation(val || "")}
+                    options={MRF_EDUCATION_OPTIONS.map((ed) => ({ value: ed, label: ed }))}
+                  />
+                  <Input
+                    label="Required certifications & licenses"
+                    placeholder="e.g. Professional Driver's License, TESDA NC II, PRC"
+                    value={editCertifications}
+                    onChange={(e) => setEditCertifications(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => setEditDetailsModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  type="submit"
+                  loading={updateMRFMutation.isPending}
+                >
+                  Save changes
+                </Button>
+              </div>
+            </form>
           </Dialog>
 
           {/* Update Status Modal */}

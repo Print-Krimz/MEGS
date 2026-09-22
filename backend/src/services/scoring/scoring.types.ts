@@ -10,6 +10,23 @@ export type ScoringDimension = (typeof SCORING_DIMENSIONS)[number];
 
 export type ScoringWeights = Record<ScoringDimension, number>;
 
+export type DimensionStatus = "EVALUATED" | "NOT_REQUIRED" | "PENDING_ONBOARDING_STAGE";
+
+export type DimensionExplanation = {
+  basis: string;
+  missingMandatory: boolean;
+  dimensionStatus: DimensionStatus;
+  isApplicable: boolean;
+};
+
+export type DimensionResult = {
+  dimension: ScoringDimension;
+  score: number;
+  dimensionStatus: DimensionStatus;
+  isApplicable: boolean;
+  explanation: DimensionExplanation;
+};
+
 export type KnnSettings = {
   defaultK: number;
   maximumK: number;
@@ -49,6 +66,7 @@ export type JobFeatureInput = {
   requiredEducation?: string[];
   requiredCertifications?: string[];
   requiredComplianceDocuments?: string[];
+  applicationStage?: string | null;
 };
 
 export type KnnCandidate = {

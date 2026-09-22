@@ -6,7 +6,12 @@ import { PageHeader } from "../../components/common";
 import { Button, Input, Select, Textarea, ComboBox } from "../../components/ui";
 import { ArrowLeft, Send, Building2 } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
-import { EMPLOYMENT_TYPE_OPTIONS, WORK_ARRANGEMENT_OPTIONS } from "../../lib/hr-constants";
+import {
+  EMPLOYMENT_TYPE_OPTIONS,
+  WORK_ARRANGEMENT_OPTIONS,
+  MRF_EDUCATION_OPTIONS,
+  MRF_EXPERIENCE_OPTIONS,
+} from "../../lib/hr-constants";
 import { TA_COPY } from "../../lib/ta-copy";
 
 export const MRFCreatePage: React.FC = () => {
@@ -20,6 +25,9 @@ export const MRFCreatePage: React.FC = () => {
   const [location, setLocation] = useState("");
   const [targetFillDate, setTargetFillDate] = useState("");
   const [requiredSkills, setRequiredSkills] = useState("");
+  const [requiredExperience, setRequiredExperience] = useState("");
+  const [requiredEducation, setRequiredEducation] = useState("");
+  const [requiredCertifications, setRequiredCertifications] = useState("");
   const [description, setDescription] = useState("");
   const [salaryMin, setSalaryMin] = useState<string>("");
   const [salaryMax, setSalaryMax] = useState<string>("");
@@ -84,6 +92,9 @@ export const MRFCreatePage: React.FC = () => {
       location: location || undefined,
       targetFillDate: targetFillDate ? new Date(targetFillDate).toISOString() : undefined,
       requiredSkills: requiredSkills || undefined,
+      requiredExperience: requiredExperience || undefined,
+      requiredEducation: requiredEducation || undefined,
+      requiredCertifications: requiredCertifications || undefined,
       description: description || undefined,
       salaryRangeMin: salaryMin ? Number(salaryMin) : undefined,
       salaryRangeMax: salaryMax ? Number(salaryMax) : undefined,
@@ -218,7 +229,7 @@ export const MRFCreatePage: React.FC = () => {
         {/* Skills & Compensation */}
         <div className="space-y-4 pt-4 border-t border-slate-100">
           <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-            Skills and monthly salary range
+            Skills and qualifications
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -243,6 +254,31 @@ export const MRFCreatePage: React.FC = () => {
             placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
             value={requiredSkills}
             onChange={(e) => setRequiredSkills(e.target.value)}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <ComboBox
+              label="Required experience"
+              placeholder="Select or specify required experience..."
+              value={requiredExperience}
+              onChange={(val) => setRequiredExperience(val || "")}
+              options={MRF_EXPERIENCE_OPTIONS.map((e) => ({ value: e, label: e }))}
+              allowCustom
+            />
+            <ComboBox
+              label="Minimum education"
+              placeholder="Select minimum education..."
+              value={requiredEducation}
+              onChange={(val) => setRequiredEducation(val || "")}
+              options={MRF_EDUCATION_OPTIONS.map((ed) => ({ value: ed, label: ed }))}
+            />
+          </div>
+
+          <Input
+            label="Required certifications & licenses"
+            placeholder="e.g. Professional Driver's License (Code 2/3), TESDA NC II Automotive Servicing, PRC License"
+            value={requiredCertifications}
+            onChange={(e) => setRequiredCertifications(e.target.value)}
           />
 
           <Textarea
