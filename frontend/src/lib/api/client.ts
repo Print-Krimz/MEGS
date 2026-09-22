@@ -99,7 +99,7 @@ export async function apiRequest<T>(
 
     return json!.data;
   } catch (error) {
-    if (error instanceof ApiError) {
+    if (error instanceof ApiError || error instanceof TypeError) {
       throw error;
     }
     throw new ApiError(500, error instanceof Error ? error.message : "Network error");
@@ -151,7 +151,7 @@ export async function apiRequestBlob(
 
     return await res.blob();
   } catch (error) {
-    if (error instanceof ApiError) {
+    if (error instanceof ApiError || error instanceof TypeError) {
       throw error;
     }
     throw new ApiError(500, error instanceof Error ? error.message : "Network error");

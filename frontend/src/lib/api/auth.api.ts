@@ -20,14 +20,14 @@ export const authApi = {
   login: (data: LoginRequest, turnstileToken?: string) =>
     api.post<LoginResponse>(
       "/api/auth/login",
-      data,
+      turnstileToken ? { ...data, turnstileToken } : data,
       turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : undefined
     ),
 
   register: (data: RegisterRequest, turnstileToken?: string) =>
     api.post<RegisterResponse>(
       "/api/auth/register",
-      data,
+      turnstileToken ? { ...data, turnstileToken } : data,
       turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : undefined
     ),
 
@@ -40,7 +40,7 @@ export const authApi = {
   forgotPassword: (data: ForgotPasswordRequest, turnstileToken?: string) =>
     api.post<{ message: string }>(
       "/api/auth/forgot-password",
-      data,
+      turnstileToken ? { ...data, turnstileToken } : data,
       turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : undefined
     ),
 

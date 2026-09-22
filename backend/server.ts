@@ -16,7 +16,15 @@ app.use(
     origin: true,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "x-turnstile-token",
+      "X-Turnstile-Token",
+      "cf-turnstile-response",
+    ],
   })
 );
 app.use(express.json());
