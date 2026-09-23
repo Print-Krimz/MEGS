@@ -783,16 +783,8 @@ export const JobPostingDetailPage: React.FC = () => {
                         {(() => {
                           const isAlreadyInPipeline = rankedScores.some(
                             (r: any) =>
-                              r.applicantProfileId === c.id ||
-                              r.applicantProfileId === c.applicantProfileId ||
-                              r.candidate?.id === c.id ||
-                              r.candidate?.id === (c as any).userId ||
-                              r.candidate?.applicantProfileId === c.applicantProfileId ||
-                              r.candidate?.applicantProfileId === c.id ||
-                              r.application?.user?.id === (c as any).userId ||
-                              r.application?.user?.id === c.id ||
-                              r.application?.userId === (c as any).userId ||
-                              r.application?.userId === c.id
+                              (Boolean(r.candidate?.id) && Boolean(c.id) && r.candidate?.id === c.id) ||
+                              (Boolean(r.candidate?.email) && Boolean(c.email) && r.candidate?.email?.toLowerCase() === c.email?.toLowerCase())
                           );
 
                           if (isAlreadyInPipeline) {

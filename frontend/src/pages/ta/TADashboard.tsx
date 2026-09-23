@@ -118,7 +118,8 @@ export const TADashboard: React.FC = () => {
         breadcrumbs={[{ label: "Recruitment" }]}
         actions={
           <div className="flex items-center gap-2">
-            <Link to="/ta/talent-pool">
+            {/* Temporarily hidden - legacy talent pool implementation */}
+            {/* <Link to="/ta/talent-pool">
               <Button
                 variant="outline"
                 size="sm"
@@ -126,7 +127,7 @@ export const TADashboard: React.FC = () => {
               >
                 Talent Pool
               </Button>
-            </Link>
+            </Link> */}
             <Link to="/ta/mrfs/create">
               <Button
                 variant="primary"

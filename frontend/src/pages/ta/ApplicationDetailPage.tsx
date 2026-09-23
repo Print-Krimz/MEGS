@@ -26,7 +26,7 @@ import {
   UserCheck,
   Award,
   RefreshCw,
-  Users,
+  // Users,
   Calendar,
   Building2,
   ShieldCheck,
@@ -43,8 +43,8 @@ import {
   XCircle,
   FileCheck,
   FileText,
-  ChevronDown,
-  ChevronUp,
+  // ChevronDown,
+  // ChevronUp,
   Check,
   X,
 } from "lucide-react";
@@ -238,6 +238,8 @@ export const ApplicationDetailPage: React.FC = () => {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Temporarily hidden - legacy talent pool implementation
+  /*
   const [similarTalentOpen, setSimilarTalentOpen] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       return new URLSearchParams(window.location.search).get("tab") === "similar";
@@ -250,6 +252,7 @@ export const ApplicationDetailPage: React.FC = () => {
     queryFn: () => taApi.getSimilarCandidates(applicationId),
     enabled: activeTab === "evaluation" && similarTalentOpen && Boolean(applicationId),
   });
+  */
 
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -1916,7 +1919,8 @@ export const ApplicationDetailPage: React.FC = () => {
                 )}
               </div>
 
-              {/* SECTION D: Similar Talent in Pool (Collapsible Drawer / Section) */}
+              {/* Temporarily hidden - legacy talent pool implementation */}
+              {/*
               <div id="eval-similar-pool" className="pt-6 border-t border-slate-200 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   <div className="space-y-0.5">
@@ -2037,6 +2041,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   </div>
                 )}
               </div>
+              */}
             </div>
           )}
 

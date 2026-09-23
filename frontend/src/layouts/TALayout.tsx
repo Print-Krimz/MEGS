@@ -178,7 +178,8 @@ export const TALayout: React.FC = () => {
     {
       label: "Candidates & clients",
       items: [
-        { to: "/ta/talent-pool", label: TA_COPY.navigation.candidatePool, icon: Users },
+        // Temporarily hidden - legacy talent pool implementation
+        // { to: "/ta/talent-pool", label: TA_COPY.navigation.candidatePool, icon: Users },
         { to: "/ta/interviews", label: TA_COPY.navigation.interviews, icon: Calendar },
         { to: "/ta/clients", label: TA_COPY.navigation.clients, icon: Building2 },
       ],
