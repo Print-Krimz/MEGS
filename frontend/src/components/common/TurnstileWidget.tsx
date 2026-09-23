@@ -337,7 +337,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
                   setStatus("error");
                   const code = typeof err === "string" || typeof err === "number" ? ` (Code: ${err})` : "";
                   setErrorMessage(
-                    `Security verification failed${code}. If using Brave or Edge, please check your Shields or Tracking Prevention settings.`
+                    `Security verification failed${code}. Please check your browser privacy or extension settings and try again.`
                   );
                   onErrorRef.current?.(err);
                 },
@@ -458,9 +458,9 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
             <div className="flex items-start gap-1.5 text-left">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-amber-900 leading-tight">Verification taking longer than usual?</p>
+                <p className="font-semibold text-amber-900 leading-tight">Verification taking longer than expected?</p>
                 <p className="text-[11px] text-amber-700 leading-snug mt-0.5">
-                  If using <strong>Brave</strong> or <strong>Edge</strong>, browser shields or tracking prevention may be blocking verification for localhost.
+                  Browser privacy settings or extensions may be preventing verification.
                 </p>
               </div>
             </div>
