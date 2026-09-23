@@ -44,11 +44,11 @@ export const emailKeyGenerator = (req: Request): string => {
 
 /**
  * Strict authentication limiter (Login, Registration, Token Resets, Setup Account, Change Password).
- * Limits to 10 requests per 15 minutes per IP+Email.
+ * Limits to 5 requests per 15 minutes per IP+Email.
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.DISABLE_RATE_LIMIT === "true",
@@ -58,11 +58,11 @@ export const authLimiter = rateLimit({
 
 /**
  * High-sensitivity limiter for Password Reset requests to prevent SMTP abuse and email flooding.
- * Limits to 3 requests per 60 minutes per Email/IP.
+ * Limits to 2 requests per 60 minutes per Email/IP.
  */
 export const forgotPasswordLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3,
+  max: 2,
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.DISABLE_RATE_LIMIT === "true",

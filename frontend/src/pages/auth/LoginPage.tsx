@@ -230,15 +230,12 @@ export const LoginPage: React.FC = () => {
         {/* Security Verification Section */}
         {import.meta.env.VITE_DISABLE_CAPTCHA !== "true" && (
           <div className="space-y-1.5 text-left pt-1">
-            <div className="flex items-center justify-between">
+            <div>
               <span
                 id="turnstile-label"
                 className="block text-xs font-semibold text-slate-700 select-none"
               >
                 Security Verification <span className="text-rose-500" aria-hidden="true">*</span>
-              </span>
-              <span className="text-[11px] text-[#627D98] select-none font-normal">
-                Cloudflare Turnstile
               </span>
             </div>
 
@@ -246,13 +243,13 @@ export const LoginPage: React.FC = () => {
               role="region"
               aria-labelledby="turnstile-label"
               aria-live="polite"
-              className="w-full max-w-full flex justify-center items-center py-1 min-h-[65px]"
+              className="w-full max-w-full py-1 min-h-[65px]"
             >
               <TurnstileWidget
                 ref={turnstileRef}
                 action="login"
                 theme="light"
-                size="normal"
+                size="flexible"
                 onSuccess={(token) => {
                   turnstileTokenRef.current = token;
                   setTurnstileToken(token);

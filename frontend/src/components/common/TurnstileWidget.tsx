@@ -24,6 +24,7 @@ export interface TurnstileWidgetProps {
 
 declare global {
   interface Window {
+    onloadTurnstileCallback?: () => void;
     turnstile?: {
       render: (
         container: HTMLElement | string,
@@ -32,6 +33,9 @@ declare global {
           action?: string;
           theme?: "light" | "dark" | "auto";
           size?: "normal" | "compact" | "flexible";
+          retry?: "auto" | "never";
+          "retry-interval"?: number;
+          "refresh-expired"?: "auto" | "manual" | "never";
           callback?: (token: string) => void;
           "expired-callback"?: () => void;
           "error-callback"?: (error?: any) => void;
@@ -74,46 +78,41 @@ export function loadTurnstileScript(): Promise<void> {
       return;
     }
 
+    let resolved = false;
+
+    const onReady = () => {
+      if (resolved) return;
+      if (isReady()) {
+        resolved = true;
+        resolve();
+      }
+    };
+
+    // Wire global callback expected by ?onload=onloadTurnstileCallback
+    const prevCallback = window.onloadTurnstileCallback;
+    window.onloadTurnstileCallback = () => {
+      try {
+        prevCallback?.();
+      } catch {
+        // Ignore previous callback error
+      }
+      onReady();
+    };
+
+    // Fast polling fallback in case script was already in DOM or loaded before callback attached
+    const checkInterval = setInterval(() => {
+      if (isReady()) {
+        clearInterval(checkInterval);
+        onReady();
+      }
+    }, 50);
+
     let script = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
     if (!script) {
       script = document.querySelector(
         'script[src*="challenges.cloudflare.com/turnstile"]'
       ) as HTMLScriptElement | null;
     }
-
-    let resolved = false;
-
-    const checkInterval = setInterval(() => {
-      if (isReady()) {
-        clearInterval(checkInterval);
-        resolved = true;
-        resolve();
-      }
-    }, 50);
-
-    const onScriptLoad = () => {
-      if (isReady()) {
-        clearInterval(checkInterval);
-        resolved = true;
-        resolve();
-      } else {
-        let count = 0;
-        const subInterval = setInterval(() => {
-          count++;
-          if (isReady()) {
-            clearInterval(subInterval);
-            clearInterval(checkInterval);
-            resolved = true;
-            resolve();
-          } else if (count > 60) {
-            clearInterval(subInterval);
-            clearInterval(checkInterval);
-            scriptLoadingPromise = null;
-            reject(new Error("Turnstile script loaded but window.turnstile.render is not available."));
-          }
-        }, 50);
-      }
-    };
 
     const onScriptError = () => {
       clearInterval(checkInterval);
@@ -122,29 +121,23 @@ export function loadTurnstileScript(): Promise<void> {
     };
 
     if (script) {
-      if (script.hasAttribute("data-loaded") || (script as any).readyState === "complete") {
-        onScriptLoad();
-      } else {
-        script.addEventListener("load", onScriptLoad, { once: true });
-        script.addEventListener("error", onScriptError, { once: true });
-      }
+      script.addEventListener("error", onScriptError, { once: true });
     } else {
       const newScript = document.createElement("script");
       newScript.id = SCRIPT_ID;
-      newScript.src = SCRIPT_URL;
+      newScript.src = `${SCRIPT_URL}&onload=onloadTurnstileCallback`;
       newScript.async = true;
       newScript.defer = true;
-      newScript.addEventListener("load", onScriptLoad, { once: true });
       newScript.addEventListener("error", onScriptError, { once: true });
       document.head.appendChild(newScript);
     }
 
-    // Fallback timeout after 12 seconds
+    // Safety timeout after 12 seconds
     setTimeout(() => {
-      if (!resolved && !window.turnstile) {
+      if (!resolved && !isReady()) {
         clearInterval(checkInterval);
         scriptLoadingPromise = null;
-        reject(new Error("Turnstile script load timed out."));
+        reject(new Error("Turnstile script load timed out. Please check browser shields or ad-blockers."));
       }
     }, 12000);
   });
@@ -160,7 +153,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
       onError,
       className = "",
       theme = "light",
-      size = "normal",
+      size = "flexible",
       action,
     },
     ref
@@ -168,12 +161,14 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
     const containerRef = useRef<HTMLDivElement>(null);
     const widgetIdRef = useRef<string | null>(null);
     const isMountedRef = useRef(true);
+    const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
     const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
 
     const [status, setStatus] = useState<"loading" | "ready" | "verified" | "expired" | "error">("loading");
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [isStalled, setIsStalled] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
 
     const onSuccessRef = useRef(onSuccess);
@@ -184,6 +179,13 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
 
     const onErrorRef = useRef(onError);
     onErrorRef.current = onError;
+
+    const clearStallTimer = useCallback(() => {
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+    }, []);
 
     // Handle bypass if explicitly disabled
     useEffect(() => {
@@ -197,12 +199,22 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
       if (import.meta.env.DEV) {
         console.debug("[Turnstile] Reset requested.");
       }
+      clearStallTimer();
+      setIsStalled(false);
       setErrorMessage(null);
 
       if (window.turnstile && widgetIdRef.current) {
         try {
           window.turnstile.reset(widgetIdRef.current);
           setStatus("ready");
+
+          // Start watchdog timer after reset
+          stallTimerRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              setIsStalled(true);
+            }
+          }, 8000);
+
           if (import.meta.env.DEV) {
             console.debug("[Turnstile] Widget reset succeeded for ID:", widgetIdRef.current);
           }
@@ -225,7 +237,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
       }
 
       setRetryCount((c) => c + 1);
-    }, []);
+    }, [clearStallTimer]);
 
     useImperativeHandle(ref, () => ({
       reset: handleReset,
@@ -249,6 +261,8 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
       const initializeWidget = async () => {
         setStatus("loading");
         setErrorMessage(null);
+        setIsStalled(false);
+        clearStallTimer();
 
         try {
           if (import.meta.env.DEV) {
@@ -293,6 +307,8 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
                 "refresh-expired": "auto",
                 callback: (token: string) => {
                   if (!isMountedRef.current) return;
+                  clearStallTimer();
+                  setIsStalled(false);
                   if (import.meta.env.DEV) {
                     console.debug("[Turnstile] Challenge completed. Token verified.");
                   }
@@ -302,6 +318,8 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
                 },
                 "expired-callback": () => {
                   if (!isMountedRef.current) return;
+                  clearStallTimer();
+                  setIsStalled(false);
                   if (import.meta.env.DEV) {
                     console.debug("[Turnstile] Token expired.");
                   }
@@ -311,18 +329,22 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
                 },
                 "error-callback": (err: any) => {
                   if (!isMountedRef.current) return;
+                  clearStallTimer();
+                  setIsStalled(false);
                   if (import.meta.env.DEV) {
                     console.warn("[Turnstile] Challenge error callback:", err);
                   }
                   setStatus("error");
                   const code = typeof err === "string" || typeof err === "number" ? ` (Code: ${err})` : "";
                   setErrorMessage(
-                    `Security verification failed${code}. Please retry or check browser shields/extensions.`
+                    `Security verification failed${code}. If using Brave or Edge, please check your Shields or Tracking Prevention settings.`
                   );
                   onErrorRef.current?.(err);
                 },
                 "timeout-callback": () => {
                   if (!isMountedRef.current) return;
+                  clearStallTimer();
+                  setIsStalled(false);
                   if (import.meta.env.DEV) {
                     console.warn("[Turnstile] Challenge timeout callback.");
                   }
@@ -333,6 +355,14 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
               });
 
               widgetIdRef.current = id;
+
+              // Watchdog timer: If widget does not verify within 8 seconds (common in Brave Shields / Edge Tracking Prevention)
+              stallTimerRef.current = setTimeout(() => {
+                if (isMountedRef.current && widgetIdRef.current) {
+                  setIsStalled(true);
+                }
+              }, 8000);
+
               if (import.meta.env.DEV) {
                 console.debug("[Turnstile] Widget successfully mounted with ID:", id);
               }
@@ -347,7 +377,6 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
           };
 
           // Render widget directly once script and window.turnstile.render are available.
-          // Cloudflare Turnstile prohibits turnstile.ready() when api.js has async/defer attributes.
           renderWidget();
         } catch (err: any) {
           if (cancelled || !isMountedRef.current) return;
@@ -367,6 +396,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
       return () => {
         cancelled = true;
         isMountedRef.current = false;
+        clearStallTimer();
         if (widgetIdRef.current && window.turnstile) {
           try {
             if (import.meta.env.DEV) {
@@ -379,7 +409,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
           widgetIdRef.current = null;
         }
       };
-    }, [siteKey, action, theme, size, isCaptchaDisabled, retryCount]);
+    }, [siteKey, action, theme, size, isCaptchaDisabled, retryCount, clearStallTimer]);
 
     if (isCaptchaDisabled) {
       return null;
@@ -397,14 +427,14 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
     }
 
     return (
-      <div className={`w-full max-w-full flex flex-col items-center justify-center min-h-[65px] ${className}`}>
+      <div className={`w-full max-w-full flex flex-col ${size === "flexible" ? "items-stretch" : "items-center justify-center"} min-h-[65px] ${className}`}>
         {/* Reserved space container: containerRef is ALWAYS in normal flow and visible */}
-        <div className="w-full min-h-[65px] flex items-center justify-center relative">
+        <div className={`w-full min-h-[65px] relative ${size === "flexible" ? "block" : "flex items-center justify-center"}`}>
           {/* Lightweight loading placeholder overlay: only visible while waiting for script before widget renders */}
           {status === "loading" && !widgetIdRef.current && (
             <div
               role="status"
-              className="absolute inset-0 max-w-[300px] mx-auto h-[65px] rounded-lg border border-slate-200 bg-slate-50/70 flex items-center justify-center gap-2 text-xs text-slate-500 animate-pulse select-none pointer-events-none z-10"
+              className={`absolute inset-0 ${size === "flexible" ? "w-full" : "max-w-[300px] mx-auto"} h-[65px] rounded-lg border border-slate-200 bg-slate-50/70 flex items-center justify-center gap-2 text-xs text-slate-500 animate-pulse select-none pointer-events-none z-10`}
             >
               <Loader2 className="w-4 h-4 animate-spin text-[#0B315D]" />
               <span>Loading security verification...</span>
@@ -414,13 +444,40 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
           {/* Turnstile explicit mount target - always visible and in normal document flow */}
           <div
             ref={containerRef}
-            className="w-full flex justify-center items-center min-h-[65px]"
+            className={`w-full min-w-[300px] min-h-[65px] ${
+              size === "flexible"
+                ? "w-full block [&_div]:!w-full [&_div]:!max-w-full [&_iframe]:!w-full [&_iframe]:!max-w-full"
+                : "flex justify-center items-center"
+            }`}
           />
         </div>
 
+        {/* Watchdog recovery card: fires if challenge hangs (e.g. Brave Shields farbling or Edge tracking prevention) */}
+        {isStalled && status !== "verified" && !errorMessage && (
+          <div className={`w-full ${size === "flexible" ? "w-full" : "max-w-[360px]"} mt-2 p-2.5 rounded-lg bg-amber-50/90 border border-amber-200 text-xs text-amber-900 flex items-center justify-between gap-2 animate-fade-in shadow-2xs`}>
+            <div className="flex items-start gap-1.5 text-left">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-amber-900 leading-tight">Verification taking longer than usual?</p>
+                <p className="text-[11px] text-amber-700 leading-snug mt-0.5">
+                  If using <strong>Brave</strong> or <strong>Edge</strong>, browser shields or tracking prevention may be blocking verification for localhost.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-800 bg-white border border-amber-300 rounded shadow-xs hover:bg-amber-100 transition-colors focus:outline-hidden focus:ring-2 focus:ring-amber-500 cursor-pointer"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Reload</span>
+            </button>
+          </div>
+        )}
+
         {/* Error notification and retry button */}
         {errorMessage && (
-          <div className="w-full mt-2 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center justify-between gap-2 animate-fade-in">
+          <div className={`w-full ${size === "flexible" ? "w-full" : "max-w-[360px]"} mt-2 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center justify-between gap-2 animate-fade-in shadow-2xs`}>
             <div className="flex items-start gap-1.5 text-left">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <div>
