@@ -56,14 +56,12 @@ export const JobsPage: React.FC = () => {
     queryFn: applicantJobsApi.getSavedJobIds,
   });
 
-  const applicationsQuery = useQuery({
-    queryKey: ["applicant", "my-applications"],
-    queryFn: applicantJobsApi.getMyApplications,
+  const deploymentQuery = useQuery({
+    queryKey: ["applicant", "active-deployment"],
+    queryFn: applicantJobsApi.getActiveDeployment,
   });
 
-  const isDeployed = (applicationsQuery.data || []).some(
-    (app) => app.status === "DEPLOYED" && !app.isArchived
-  );
+  const isDeployed = Boolean(deploymentQuery.data?.isCurrentlyDeployed);
 
   const savedJobIds = new Set(savedJobIdsQuery.data || []);
 
@@ -169,7 +167,7 @@ export const JobsPage: React.FC = () => {
       {isDeployed && (
         <div className="rounded-lg border border-[#BCCCDC] bg-[#F0F4F8] p-4 text-[#102A43] shadow-xs">
           <p className="text-xs text-[#486581]">
-            <strong className="text-[#102A43]">Notice:</strong> You are currently on an active assignment. You can browse and bookmark positions for your records, but applications remain locked until your contract reaches redeployment.
+            <strong className="text-[#102A43]">Notice:</strong> You are currently on an active assignment{deploymentQuery.data?.clientName ? ` with ${deploymentQuery.data.clientName}` : ""}. You can browse and bookmark positions for your records, but applications remain locked until your contract reaches redeployment.
           </p>
         </div>
       )}

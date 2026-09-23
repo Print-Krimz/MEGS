@@ -56,6 +56,7 @@ export const ClientsPage: React.FC = () => {
   const [province, setProvince] = useState("");
   const [city, setCity] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [postalCodeError, setPostalCodeError] = useState<string | null>(null);
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
@@ -84,6 +85,7 @@ export const ClientsPage: React.FC = () => {
       setProvince("");
       setCity("");
       setPostalCode("");
+      setPostalCodeError(null);
       notify.success("Client added", `Client '${newClient?.name || name}' was registered.`);
     },
     onError: (err: any) => {
@@ -397,7 +399,11 @@ export const ClientsPage: React.FC = () => {
       {/* Add Client Modal */}
       <Dialog
         open={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
+        onClose={() => {
+          setCreateModalOpen(false);
+          setPostalCodeError(null);
+          setEmailError(null);
+        }}
         title="Add client"
         description="Register the company and its main contact details."
       >
@@ -407,6 +413,10 @@ export const ClientsPage: React.FC = () => {
             if (!name.trim()) return;
             if (contactEmail.trim() && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(contactEmail.trim())) {
               setEmailError("Official contact email must be a valid @gmail.com address");
+              return;
+            }
+            if (postalCode.trim().length > 0 && postalCode.trim().length !== 4) {
+              setPostalCodeError("Postal code must be exactly 4 digits");
               return;
             }
             const combinedName = [contactFirstName.trim(), contactLastName.trim()].filter(Boolean).join(" ");
@@ -524,7 +534,14 @@ export const ClientsPage: React.FC = () => {
                   label="Postal Code"
                   placeholder="e.g. 4027"
                   value={postalCode}
-                  onChange={(e) => setPostalCode(e.target.value)}
+                  maxLength={4}
+                  inputMode="numeric"
+                  helperText="4-digit PH postal code"
+                  error={postalCodeError || undefined}
+                  onChange={(e) => {
+                    setPostalCode(e.target.value.replace(/\D/g, "").slice(0, 4));
+                    if (postalCodeError) setPostalCodeError(null);
+                  }}
                 />
               </div>
             </div>

@@ -80,7 +80,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
 
   const [editDetailsModalOpen, setEditDetailsModalOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
-  const [editHeadcount, setEditHeadcount] = useState(1);
+  const [editHeadcount, setEditHeadcount] = useState<number | string>(1);
   const [editPriority, setEditPriority] = useState<any>("NORMAL");
   const [editTargetFillDate, setEditTargetFillDate] = useState("");
   const [editLocation, setEditLocation] = useState("");
@@ -93,6 +93,63 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const [editExperience, setEditExperience] = useState("");
   const [editEducation, setEditEducation] = useState("");
   const [editCertifications, setEditCertifications] = useState("");
+
+  const handleEditHeadcountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === "") {
+      setEditHeadcount("");
+      return;
+    }
+    const num = parseInt(val, 10);
+    if (isNaN(num)) return;
+    if (num < 1) {
+      setEditHeadcount(1);
+    } else if (num > 1000) {
+      setEditHeadcount(1000);
+    } else {
+      setEditHeadcount(num);
+    }
+  };
+
+  const handleEditSalaryMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === "") {
+      setEditSalaryMin("");
+      return;
+    }
+    const num = parseFloat(val);
+    if (isNaN(num)) return;
+    if (num < 0) {
+      setEditSalaryMin(0);
+    } else if (num > 1000000) {
+      setEditSalaryMin(1000000);
+    } else {
+      setEditSalaryMin(val);
+    }
+  };
+
+  const handleEditSalaryMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === "") {
+      setEditSalaryMax("");
+      return;
+    }
+    const num = parseFloat(val);
+    if (isNaN(num)) return;
+    if (num < 0) {
+      setEditSalaryMax(0);
+    } else if (num > 1000000) {
+      setEditSalaryMax(1000000);
+    } else {
+      setEditSalaryMax(val);
+    }
+  };
+
+  const isEditSalaryRangeInvalid = Boolean(
+    editSalaryMin !== "" &&
+      editSalaryMax !== "" &&
+      parseFloat(String(editSalaryMin)) > parseFloat(String(editSalaryMax))
+  );
 
   const mrfQuery = useQuery({
     queryKey: [readOnly ? "admin" : "ta", "mrf", mrfId],
@@ -184,9 +241,50 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       notify.error("Validation error", "Request title is required.");
       return;
     }
+
+    const parsedHeadcount = Number(editHeadcount);
+    if (
+      editHeadcount === "" ||
+      isNaN(parsedHeadcount) ||
+      !Number.isInteger(parsedHeadcount) ||
+      parsedHeadcount < 1 ||
+      parsedHeadcount > 1000
+    ) {
+      notify.error("Validation error", "Headcount must be an integer between 1 and 1,000.");
+      return;
+    }
+
+    if (editSalaryMin !== "" && editSalaryMin != null) {
+      const min = parseFloat(String(editSalaryMin));
+      if (isNaN(min) || min < 0 || min > 1000000) {
+        notify.error("Validation error", "Minimum monthly salary must be between 0 and 1,000,000 PHP.");
+        return;
+      }
+    }
+
+    if (editSalaryMax !== "" && editSalaryMax != null) {
+      const max = parseFloat(String(editSalaryMax));
+      if (isNaN(max) || max < 0 || max > 1000000) {
+        notify.error("Validation error", "Maximum monthly salary must be between 0 and 1,000,000 PHP.");
+        return;
+      }
+    }
+
+    if (
+      editSalaryMin !== "" &&
+      editSalaryMin != null &&
+      editSalaryMax !== "" &&
+      editSalaryMax != null
+    ) {
+      if (parseFloat(String(editSalaryMin)) > parseFloat(String(editSalaryMax))) {
+        notify.error("Validation error", "Minimum monthly salary cannot exceed maximum monthly salary.");
+        return;
+      }
+    }
+
     updateMRFMutation.mutate({
       title: editTitle.trim(),
-      headcount: Number(editHeadcount) || 1,
+      headcount: parsedHeadcount,
       priority: editPriority,
       targetFillDate: editTargetFillDate || null,
       location: editLocation.trim() || null,
@@ -1035,8 +1133,9 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                       label="Positions needed"
                       type="number"
                       min={1}
+                      max={1000}
                       value={editHeadcount}
-                      onChange={(e) => setEditHeadcount(Number(e.target.value))}
+                      onChange={handleEditHeadcountChange}
                       required
                     />
                     <Select
@@ -1088,16 +1187,21 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   <Input
                     label="Minimum monthly salary (PHP)"
                     type="number"
+                    min={0}
+                    max={1000000}
                     placeholder="e.g. 18000"
                     value={editSalaryMin}
-                    onChange={(e) => setEditSalaryMin(e.target.value)}
+                    onChange={handleEditSalaryMinChange}
                   />
                   <Input
                     label="Maximum monthly salary (PHP)"
                     type="number"
+                    min={0}
+                    max={1000000}
                     placeholder="e.g. 25000"
                     value={editSalaryMax}
-                    onChange={(e) => setEditSalaryMax(e.target.value)}
+                    onChange={handleEditSalaryMaxChange}
+                    error={isEditSalaryRangeInvalid ? "Maximum salary cannot be less than minimum salary" : undefined}
                   />
                 </div>
 

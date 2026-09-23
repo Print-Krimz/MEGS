@@ -8,6 +8,7 @@ import {
   getMyApplications,
   getMyApplicationDetails,
   uploadComplianceDocumentHandler,
+  getActiveDeployment,
 } from '../../controllers/applicant/application.controller.js';
 import {
   saveJobHandler,
@@ -34,6 +35,7 @@ router.post("/jobs/:id/save", saveJobHandler);
 router.delete("/jobs/:id/save", unsaveJobHandler);
 router.get("/saved-jobs", listSavedJobsHandler);
 router.get("/saved-jobs/ids", getSavedJobIdsHandler);
+router.get("/active-deployment", getActiveDeployment);
 router.get("/invitations", getMyInvitationsHandler);
 router.post("/invitations/:id/respond", respondToInvitationHandler);
 router.get("/my-applications", getMyApplications);

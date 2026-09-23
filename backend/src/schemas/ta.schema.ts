@@ -127,7 +127,19 @@ export const taSchema = {
       street: z.string().optional().nullable(),
       city: z.string().optional().nullable(),
       province: z.string().optional().nullable(),
-      postalCode: z.string().optional().nullable(),
+      postalCode: z
+        .string()
+        .optional()
+        .nullable()
+        .refine(
+          (val) => {
+            if (!val || val.trim() === "") return true;
+            return /^\d{4}$/.test(val.trim());
+          },
+          {
+            message: "Postal code must be exactly 4 digits",
+          }
+        ),
     }),
   }),
   updateClient: z.object({
@@ -169,7 +181,19 @@ export const taSchema = {
       street: z.string().optional().nullable(),
       city: z.string().optional().nullable(),
       province: z.string().optional().nullable(),
-      postalCode: z.string().optional().nullable(),
+      postalCode: z
+        .string()
+        .optional()
+        .nullable()
+        .refine(
+          (val) => {
+            if (!val || val.trim() === "") return true;
+            return /^\d{4}$/.test(val.trim());
+          },
+          {
+            message: "Postal code must be exactly 4 digits",
+          }
+        ),
       isActive: z.boolean().optional(),
     }),
   }),

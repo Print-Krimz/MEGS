@@ -20,7 +20,7 @@ export const MRFCreatePage: React.FC = () => {
 
   const [clientId, setClientId] = useState<number>(0);
   const [title, setTitle] = useState("");
-  const [headcount, setHeadcount] = useState<number>(1);
+  const [headcount, setHeadcount] = useState<number | string>(1);
   const [priority, setPriority] = useState<"LOW" | "NORMAL" | "HIGH" | "URGENT">("NORMAL");
   const [location, setLocation] = useState("");
   const [targetFillDate, setTargetFillDate] = useState("");
@@ -40,6 +40,61 @@ export const MRFCreatePage: React.FC = () => {
   });
 
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  const handleHeadcountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === "") {
+      setHeadcount("");
+      return;
+    }
+    const num = parseInt(val, 10);
+    if (isNaN(num)) return;
+    if (num < 1) {
+      setHeadcount(1);
+    } else if (num > 1000) {
+      setHeadcount(1000);
+    } else {
+      setHeadcount(num);
+    }
+  };
+
+  const handleSalaryMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === "") {
+      setSalaryMin("");
+      return;
+    }
+    const num = parseFloat(val);
+    if (isNaN(num)) return;
+    if (num < 0) {
+      setSalaryMin("0");
+    } else if (num > 1000000) {
+      setSalaryMin("1000000");
+    } else {
+      setSalaryMin(val);
+    }
+  };
+
+  const handleSalaryMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === "") {
+      setSalaryMax("");
+      return;
+    }
+    const num = parseFloat(val);
+    if (isNaN(num)) return;
+    if (num < 0) {
+      setSalaryMax("0");
+    } else if (num > 1000000) {
+      setSalaryMax("1000000");
+    } else {
+      setSalaryMax(val);
+    }
+  };
+
+  const isSalaryRangeInvalid = Boolean(
+    salaryMin && salaryMax && parseFloat(salaryMin) > parseFloat(salaryMax)
+  );
 
   const createMRFMutation = useMutation({
     mutationFn: taApi.createMRF,
@@ -83,11 +138,49 @@ export const MRFCreatePage: React.FC = () => {
       return;
     }
 
+    if (!title.trim()) {
+      setValidationError("Please enter a request title before submitting.");
+      return;
+    }
+
+    const parsedHeadcount = Number(headcount);
+    if (
+      headcount === "" ||
+      isNaN(parsedHeadcount) ||
+      !Number.isInteger(parsedHeadcount) ||
+      parsedHeadcount < 1 ||
+      parsedHeadcount > 1000
+    ) {
+      setValidationError("Headcount must be an integer between 1 and 1,000.");
+      return;
+    }
+
+    if (salaryMin !== "") {
+      const min = parseFloat(salaryMin);
+      if (isNaN(min) || min < 0 || min > 1000000) {
+        setValidationError("Minimum monthly salary must be between 0 and 1,000,000 PHP.");
+        return;
+      }
+    }
+
+    if (salaryMax !== "") {
+      const max = parseFloat(salaryMax);
+      if (isNaN(max) || max < 0 || max > 1000000) {
+        setValidationError("Maximum monthly salary must be between 0 and 1,000,000 PHP.");
+        return;
+      }
+    }
+
+    if (salaryMin && salaryMax && parseFloat(salaryMin) > parseFloat(salaryMax)) {
+      setValidationError("Minimum monthly salary cannot exceed maximum monthly salary.");
+      return;
+    }
+
     setValidationError(null);
     createMRFMutation.mutate({
       clientId,
-      title,
-      headcount,
+      title: title.trim(),
+      headcount: parsedHeadcount,
       priority,
       location: location || undefined,
       targetFillDate: targetFillDate ? new Date(targetFillDate).toISOString() : undefined,
@@ -175,8 +268,9 @@ export const MRFCreatePage: React.FC = () => {
               label="Number of workers needed"
               type="number"
               min={1}
+              max={1000}
               value={headcount}
-              onChange={(e) => setHeadcount(Number(e.target.value))}
+              onChange={handleHeadcountChange}
               required
             />
             <Select
@@ -236,16 +330,21 @@ export const MRFCreatePage: React.FC = () => {
             <Input
               label="Minimum monthly salary (PHP)"
               type="number"
+              min={0}
+              max={1000000}
               placeholder="e.g. 18000"
               value={salaryMin}
-              onChange={(e) => setSalaryMin(e.target.value)}
+              onChange={handleSalaryMinChange}
             />
             <Input
               label="Maximum monthly salary (PHP)"
               type="number"
+              min={0}
+              max={1000000}
               placeholder="e.g. 25000"
               value={salaryMax}
-              onChange={(e) => setSalaryMax(e.target.value)}
+              onChange={handleSalaryMaxChange}
+              error={isSalaryRangeInvalid ? "Maximum salary cannot be less than minimum salary" : undefined}
             />
           </div>
 

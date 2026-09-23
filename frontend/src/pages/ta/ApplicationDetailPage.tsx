@@ -45,6 +45,8 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  Check,
+  X,
 } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import type { TAApplicationSearch } from "../../routes";
@@ -748,6 +750,8 @@ export const ApplicationDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       setDeployModalOpen(false);
+      setDeployContractStart("");
+      setDeployContractEnd("");
       setDeployNotes("");
       const msg = "The employee was assigned to the client site.";
       setFeedback({ type: "success", message: msg });
@@ -1315,6 +1319,9 @@ export const ApplicationDetailPage: React.FC = () => {
                     onClick={() => {
                       setDeployClientId(linkedClientId || latestEndorsement?.clientId || 0);
                       setDeploySite(app.jobPosting?.location || (app.jobPosting?.mrf as any)?.location || (linkedClient as any)?.address || "");
+                      setDeployContractStart("");
+                      setDeployContractEnd("");
+                      setDeployNotes("");
                       setDeployModalOpen(true);
                     }}
                   >
@@ -1823,25 +1830,29 @@ export const ApplicationDetailPage: React.FC = () => {
                       const isNoShow = int.result === "NO_SHOW";
 
                       return (
-                        <div key={int.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div className="space-y-1">
+                        <div key={int.id} className="py-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                          <div className="space-y-1.5 flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-bold font-mono text-slate-900 uppercase">
                                 {int.type.replace(/_/g, " ")}
                               </span>
-                              <span
-                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
-                                  isPassed
-                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                    : isFailed
-                                    ? "bg-rose-50 text-rose-800 border-rose-200"
-                                    : isNoShow
-                                    ? "bg-slate-100 text-slate-800 border-slate-300"
-                                    : "bg-blue-50 text-blue-800 border-blue-200"
-                                }`}
-                              >
-                                {int.result || "SCHEDULED"}
-                              </span>
+                              {isPassed ? (
+                                <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5 font-mono">
+                                  <Check className="w-3 h-3 text-emerald-700" /> PASS
+                                </span>
+                              ) : isFailed ? (
+                                <span className="bg-rose-100 text-rose-900 border border-rose-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5 font-mono">
+                                  <X className="w-3 h-3 text-rose-700" /> NOT PASSED
+                                </span>
+                              ) : isNoShow ? (
+                                <span className="bg-slate-100 text-slate-900 border border-slate-300 font-bold px-2.5 py-1 text-xs rounded-full font-mono">
+                                  NO SHOW
+                                </span>
+                              ) : (
+                                <span className="bg-blue-100 text-blue-900 border border-blue-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5 font-mono">
+                                  <Clock className="w-3 h-3 text-blue-700" /> SCHEDULED
+                                </span>
+                              )}
                             </div>
                             <div className="text-xs text-slate-600 font-mono flex items-center gap-2">
                               <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -1852,10 +1863,20 @@ export const ApplicationDetailPage: React.FC = () => {
                                 Conducted: {formatDateTime(int.conductedAt)}
                               </div>
                             )}
-                            {int.notes && <p className="text-xs text-slate-600 mt-1">Notes: {int.notes}</p>}
+                            {int.notes && (
+                              <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200/90 rounded-md space-y-1">
+                                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                                  <FileText className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Evaluation &amp; Interview Notes</span>
+                                </div>
+                                <p className="text-xs text-slate-900 font-sans font-medium leading-relaxed pl-2.5 border-l-2 border-slate-400">
+                                  {int.notes}
+                                </p>
+                              </div>
+                            )}
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-2 shrink-0 sm:pt-0.5">
                             {isPending && (
                               <Button
                                 variant="outline"
@@ -2535,6 +2556,9 @@ export const ApplicationDetailPage: React.FC = () => {
                         (linkedClient as any)?.address ||
                         ""
                     );
+                    setDeployContractStart("");
+                    setDeployContractEnd("");
+                    setDeployNotes("");
                     setDeployModalOpen(true);
                   }}
                 />
@@ -3243,7 +3267,12 @@ export const ApplicationDetailPage: React.FC = () => {
       {/* Deploy Modal */}
       <Dialog
         open={deployModalOpen}
-        onClose={() => setDeployModalOpen(false)}
+        onClose={() => {
+          setDeployModalOpen(false);
+          setDeployContractStart("");
+          setDeployContractEnd("");
+          setDeployNotes("");
+        }}
         title="Activate site deployment"
         description={`Assign ${candidateName} to the client work site.`}
         overflowVisible
@@ -3309,16 +3338,25 @@ export const ApplicationDetailPage: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Contract start date (optional)"
+              label="Contract start date *"
               type="date"
               value={deployContractStart}
               onChange={(e) => setDeployContractStart(e.target.value)}
+              required
             />
             <Input
-              label="Contract end date (optional)"
+              label="Contract end date *"
               type="date"
               value={deployContractEnd}
               onChange={(e) => setDeployContractEnd(e.target.value)}
+              required
+              error={
+                deployContractStart &&
+                deployContractEnd &&
+                new Date(deployContractStart) > new Date(deployContractEnd)
+                  ? "Contract end date must be on or after start date"
+                  : undefined
+              }
             />
           </div>
 
@@ -3331,18 +3369,41 @@ export const ApplicationDetailPage: React.FC = () => {
           />
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setDeployModalOpen(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDeployModalOpen(false);
+                setDeployContractStart("");
+                setDeployContractEnd("");
+                setDeployNotes("");
+              }}
+            >
               Cancel
             </Button>
             <Button
               variant="primary"
               size="sm"
-              disabled={!(linkedClientId || deployClientId) || deployMutation.isPending}
+              disabled={
+                !(linkedClientId || deployClientId) ||
+                !deployContractStart ||
+                !deployContractEnd ||
+                new Date(deployContractStart) > new Date(deployContractEnd) ||
+                deployMutation.isPending
+              }
               loading={deployMutation.isPending}
               onClick={() => {
                 const targetClientId = linkedClientId || deployClientId;
                 if (!targetClientId) {
                   notify.error("Client required", "Choose a client before activating this deployment.");
+                  return;
+                }
+                if (!deployContractStart || !deployContractEnd) {
+                  notify.error("Contract dates required", "Both contract start date and contract end date are required.");
+                  return;
+                }
+                if (new Date(deployContractStart) > new Date(deployContractEnd)) {
+                  notify.error("Invalid dates", "Contract start date cannot be after contract end date.");
                   return;
                 }
                 deployMutation.mutate({

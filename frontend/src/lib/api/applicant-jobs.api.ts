@@ -60,6 +60,10 @@ export const applicantJobsApi = {
   getMyApplications: () =>
     api.get<ApplicationDetailResponse[]>("/api/applicant-jobs/my-applications"),
 
+  // Get active deployment status for applicant
+  getActiveDeployment: () =>
+    api.get<ActiveDeploymentInfo>("/api/applicant-jobs/active-deployment"),
+
   // Get specific application detail
   getApplicationDetail: (id: number | string) =>
     api.get<ApplicationDetailResponse>(`/api/applicant-jobs/applications/${id}`),

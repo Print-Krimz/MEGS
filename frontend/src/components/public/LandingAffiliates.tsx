@@ -12,13 +12,13 @@ export const LandingAffiliates: React.FC = () => {
           
           {/* PJAR Group Affiliation */}
           <div className="flex items-start sm:items-center gap-4 flex-1">
-            <div className="h-12 px-3.5 rounded-lg bg-slate-900 border border-slate-700/80 flex flex-col items-center justify-center shrink-0 tracking-wider shadow-xs min-w-[6.5rem]">
-              <span className="font-mono text-sm font-black tracking-widest text-slate-100 uppercase">
-                PJAR
-              </span>
-              <span className="text-[8px] font-mono tracking-widest text-blue-400 font-semibold uppercase -mt-0.5">
-                GROUP
-              </span>
+            <div className="bg-white p-2 rounded-lg border border-slate-700 shrink-0 shadow-xs flex items-center justify-center h-12 w-28">
+              <img
+                src="/images/canva-ref/pjar-logo.png"
+                alt="PJAR Group of Companies"
+                className="max-h-8 max-w-full object-contain"
+                loading="lazy"
+              />
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-300">

@@ -16,6 +16,7 @@ import {
   Dialog,
   Select,
   PhoneInput,
+  ComboBox,
 } from "../../components/ui";
 import { SkillsSection } from "../../components/applicant/SkillsSection";
 import { formatDate, extractDocumentId } from "../../lib/utils";
@@ -29,6 +30,7 @@ import {
   filterDuplicateTrainings,
 } from "../../lib/resume-autofill";
 import { normalizeTitleCase, normalizeSentenceCase } from "../../lib/text-case";
+import { PHILIPPINE_REGIONS_AND_PROVINCES, getCitiesForProvince } from "../../lib/geo-data";
 import { ProfileApplications } from "./components/profile/ProfileApplications";
 import { ProfileDisclosure } from "./components/profile/ProfileDisclosure";
 import { ProfileOverview } from "./components/profile/ProfileOverview";
@@ -41,6 +43,76 @@ import {
   Trash2,
   Pencil,
 } from "lucide-react";
+
+const NATIONALITY_OPTIONS = [
+  "Filipino",
+  "American",
+  "Australian",
+  "British",
+  "Canadian",
+  "Chinese",
+  "German",
+  "Indian",
+  "Indonesian",
+  "Japanese",
+  "Korean",
+  "Malaysian",
+  "Singaporean",
+  "Spanish",
+  "Taiwanese",
+  "Vietnamese",
+];
+
+const PREFERRED_WORK_LOCATION_OPTIONS = [
+  "Laguna",
+  "Quezon City",
+  "Makati City",
+  "Taguig City",
+  "Pasig City",
+  "Manila",
+  "Valenzuela City",
+  "Caloocan City",
+  "Mandaluyong City",
+  "Pasay City",
+  "Parañaque City",
+  "Muntinlupa City",
+  "Antipolo City",
+  "Rizal",
+  "Cavite",
+  "Bulacan",
+  "Batangas",
+  "Pampanga",
+  "Remote",
+];
+
+export function formatSSSNumber(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 10);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 9) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}-${digits.slice(2, 9)}-${digits.slice(9, 10)}`;
+}
+
+export function formatPhilHealthNumber(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 12);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 11) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}-${digits.slice(2, 11)}-${digits.slice(11, 12)}`;
+}
+
+export function formatPagIbigNumber(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 12);
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 8) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  return `${digits.slice(0, 4)}-${digits.slice(4, 8)}-${digits.slice(8, 12)}`;
+}
+
+export function formatTINNumber(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 12);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 9)}-${digits.slice(9, 12)}`;
+}
 
 export const ProfilePage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -146,6 +218,12 @@ export const ProfilePage: React.FC = () => {
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
   const [resumeReview, setResumeReview] = useState<ResumeReviewSummary | null>(null);
 
+  const availableCities = React.useMemo(() => {
+    const prov = personalForm.province?.trim() || "Metro Manila (NCR)";
+    const cities = getCitiesForProvince(prov);
+    return cities.length > 0 ? cities : getCitiesForProvince("Metro Manila (NCR)");
+  }, [personalForm.province]);
+
   // Update local form when data arrives
   React.useEffect(() => {
     if (profile) {
@@ -167,10 +245,10 @@ export const ProfilePage: React.FC = () => {
         city: normalizeTitleCase(profile.city || prev.city) || profile.city || prev.city || "",
         preferredWorkLocations: normalizeTitleCase(profile.preferredWorkLocations || prev.preferredWorkLocations) || profile.preferredWorkLocations || prev.preferredWorkLocations || "",
         professionalSummary: normalizeSentenceCase(profile.professionalSummary || prev.professionalSummary) || profile.professionalSummary || prev.professionalSummary || "",
-        sss: profile.sss || prev.sss || "",
-        philhealth: profile.philhealth || prev.philhealth || "",
-        pagibig: profile.pagibig || prev.pagibig || "",
-        tin: profile.tin || prev.tin || "",
+        sss: profile.sss ? formatSSSNumber(profile.sss) : prev.sss || "",
+        philhealth: profile.philhealth ? formatPhilHealthNumber(profile.philhealth) : prev.philhealth || "",
+        pagibig: profile.pagibig ? formatPagIbigNumber(profile.pagibig) : prev.pagibig || "",
+        tin: profile.tin ? formatTINNumber(profile.tin) : prev.tin || "",
         emergencyContactName: profile.emergencyContactName || prev.emergencyContactName || "",
         emergencyContactPhone: profile.emergencyContactPhone || prev.emergencyContactPhone || "",
         emergencyContactRelationship: profile.emergencyContactRelationship || prev.emergencyContactRelationship || "",
@@ -304,10 +382,10 @@ export const ProfilePage: React.FC = () => {
           city: normalizeTitleCase(rawCity) || rawCity,
           preferredWorkLocations: normalizeTitleCase(rawLocations) || rawLocations,
           professionalSummary: normalizeSentenceCase(rawSummary) || rawSummary,
-          sss: p.sss || "",
-          philhealth: p.philhealth || "",
-          pagibig: p.pagibig || "",
-          tin: p.tin || "",
+          sss: p.sss ? formatSSSNumber(p.sss) : "",
+          philhealth: p.philhealth ? formatPhilHealthNumber(p.philhealth) : "",
+          pagibig: p.pagibig ? formatPagIbigNumber(p.pagibig) : "",
+          tin: p.tin ? formatTINNumber(p.tin) : "",
           emergencyContactName: p.emergencyContactName || "",
           emergencyContactPhone: p.emergencyContactPhone || "",
           emergencyContactRelationship: p.emergencyContactRelationship || "",
@@ -522,10 +600,10 @@ export const ProfilePage: React.FC = () => {
         city: profile.city || "",
         preferredWorkLocations: profile.preferredWorkLocations || "",
         professionalSummary: profile.professionalSummary || "",
-        sss: profile.sss || "",
-        philhealth: profile.philhealth || "",
-        pagibig: profile.pagibig || "",
-        tin: profile.tin || "",
+        sss: profile.sss ? formatSSSNumber(profile.sss) : "",
+        philhealth: profile.philhealth ? formatPhilHealthNumber(profile.philhealth) : "",
+        pagibig: profile.pagibig ? formatPagIbigNumber(profile.pagibig) : "",
+        tin: profile.tin ? formatTINNumber(profile.tin) : "",
         emergencyContactName: profile.emergencyContactName || "",
         emergencyContactPhone: profile.emergencyContactPhone || "",
         emergencyContactRelationship: profile.emergencyContactRelationship || "",
@@ -921,15 +999,21 @@ export const ProfilePage: React.FC = () => {
                         { value: "Divorced", label: "Divorced" },
                       ]}
                     />
-                    <Input
+                    <ComboBox
                       label="Nationality"
-                      placeholder="e.g. Filipino"
+                      placeholder="Search nationality or select Filipino..."
+                      allowCustom={true}
+                      options={NATIONALITY_OPTIONS}
                       value={personalForm.nationality}
-                      helperText={autoFilledFields.has("nationality") ? "✓ Extracted from resume" : undefined}
-                      onChange={(e) => {
-                        setPersonalForm((prev) => ({ ...prev, nationality: e.target.value }));
-                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("nationality"); return n; });
+                      onChange={(val) => {
+                        setPersonalForm((prev) => ({ ...prev, nationality: val }));
+                        setAutoFilledFields((prev) => {
+                          const n = new Set(prev);
+                          n.delete("nationality");
+                          return n;
+                        });
                       }}
+                      helperText={autoFilledFields.has("nationality") ? "✓ Extracted from resume" : undefined}
                     />
                     <Input
                       label="Religion"
@@ -947,35 +1031,79 @@ export const ProfilePage: React.FC = () => {
                     <Input
                       label="Height (cm)"
                       type="number"
+                      min={100}
+                      max={250}
+                      step={1}
                       placeholder="e.g. 170"
                       value={personalForm.height}
-                      helperText={autoFilledFields.has("height") ? "✓ Extracted from resume" : undefined}
+                      helperText={
+                        autoFilledFields.has("height")
+                          ? "✓ Extracted from resume"
+                          : undefined
+                      }
                       onChange={(e) => {
-                        setPersonalForm((prev) => ({ ...prev, height: e.target.value }));
-                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("height"); return n; });
+                        const val = e.target.value;
+                        let nextVal = val;
+                        if (val !== "") {
+                          const num = parseFloat(val);
+                          if (isNaN(num) || num < 0) {
+                            nextVal = "";
+                          } else if (num > 250) {
+                            nextVal = "250";
+                          }
+                        }
+                        setPersonalForm((prev) => ({ ...prev, height: nextVal }));
+                        setAutoFilledFields((prev) => {
+                          const n = new Set(prev);
+                          n.delete("height");
+                          return n;
+                        });
                       }}
                     />
                     <Input
                       label="Weight (kg)"
                       type="number"
+                      min={30}
+                      max={300}
+                      step={0.5}
                       placeholder="e.g. 65"
                       value={personalForm.weight}
-                      helperText={autoFilledFields.has("weight") ? "✓ Extracted from resume" : undefined}
+                      helperText={
+                        autoFilledFields.has("weight")
+                          ? "✓ Extracted from resume"
+                          : undefined
+                      }
                       onChange={(e) => {
-                        setPersonalForm((prev) => ({ ...prev, weight: e.target.value }));
-                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("weight"); return n; });
+                        const val = e.target.value;
+                        let nextVal = val;
+                        if (val !== "") {
+                          const num = parseFloat(val);
+                          if (isNaN(num) || num < 0) {
+                            nextVal = "";
+                          } else if (num > 300) {
+                            nextVal = "300";
+                          }
+                        }
+                        setPersonalForm((prev) => ({ ...prev, weight: nextVal }));
+                        setAutoFilledFields((prev) => {
+                          const n = new Set(prev);
+                          n.delete("weight");
+                          return n;
+                        });
                       }}
                     />
-                    <Input
+                    <ComboBox
                       label="Preferred Work Locations"
-                      placeholder="e.g. Makati, Taguig, Ortigas, Remote"
+                      placeholder="e.g. Laguna, Quezon City, Makati City, Remote"
+                      allowCustom={true}
+                      options={PREFERRED_WORK_LOCATION_OPTIONS}
                       value={personalForm.preferredWorkLocations}
-                      onChange={(e) => {
+                      onChange={(val) =>
                         setPersonalForm((prev) => ({
                           ...prev,
-                          preferredWorkLocations: e.target.value,
-                        }));
-                      }}
+                          preferredWorkLocations: val,
+                        }))
+                      }
                     />
                   </div>
                 </div>
@@ -1004,25 +1132,50 @@ export const ProfilePage: React.FC = () => {
                     }}
                   />
                   <div className="grid grid-cols-2 gap-4">
-                    <Input
+                    <ComboBox
                       label="Province / Region"
-                      placeholder="e.g. Rizal, Metro Manila"
+                      placeholder="Select Province / Region..."
+                      options={PHILIPPINE_REGIONS_AND_PROVINCES}
                       value={personalForm.province}
-                      helperText={autoFilledFields.has("province") ? "✓ Extracted from resume" : undefined}
-                      onChange={(e) => {
-                        setPersonalForm((prev) => ({ ...prev, province: e.target.value }));
-                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("province"); return n; });
+                      allowCustom={true}
+                      onChange={(val) => {
+                        setPersonalForm((prev) => ({
+                          ...prev,
+                          province: val,
+                        }));
+                        setAutoFilledFields((prev) => {
+                          const n = new Set(prev);
+                          n.delete("province");
+                          return n;
+                        });
                       }}
+                      helperText={
+                        autoFilledFields.has("province")
+                          ? "✓ Extracted from resume"
+                          : "Select 'Metro Manila (NCR)' or candidate's home province"
+                      }
                     />
-                    <Input
+                    <ComboBox
                       label="City / Municipality"
-                      placeholder="e.g. Antipolo City, Quezon City"
+                      placeholder="Select City / Municipality..."
+                      options={availableCities}
                       value={personalForm.city}
-                      helperText={autoFilledFields.has("city") ? "✓ Extracted from resume" : undefined}
-                      onChange={(e) => {
-                        setPersonalForm((prev) => ({ ...prev, city: e.target.value }));
-                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("city"); return n; });
+                      allowCustom={true}
+                      onChange={(val) => {
+                        setPersonalForm((prev) => ({ ...prev, city: val }));
+                        setAutoFilledFields((prev) => {
+                          const n = new Set(prev);
+                          n.delete("city");
+                          return n;
+                        });
                       }}
+                      helperText={
+                        autoFilledFields.has("city")
+                          ? "✓ Extracted from resume"
+                          : (!personalForm.province || personalForm.province.includes("NCR") || personalForm.province.includes("Manila"))
+                          ? "17 NCR Local Government Units available"
+                          : `Cities in ${personalForm.province}`
+                      }
                     />
                   </div>
                 </div>
@@ -1069,30 +1222,42 @@ export const ProfilePage: React.FC = () => {
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
                     5. Government Identification (Optional)
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Input
                       label="SSS Number"
-                      placeholder="e.g. 00-0000000-0"
+                      placeholder="00-0000000-0"
                       value={personalForm.sss}
-                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, sss: e.target.value }))}
+                      maxLength={12}
+                      inputMode="numeric"
+                      helperText="Format: 00-0000000-0 (10 digits)"
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, sss: formatSSSNumber(e.target.value) }))}
                     />
                     <Input
                       label="PhilHealth Number"
-                      placeholder="e.g. 00-000000000-0"
+                      placeholder="00-000000000-0"
                       value={personalForm.philhealth}
-                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, philhealth: e.target.value }))}
+                      maxLength={14}
+                      inputMode="numeric"
+                      helperText="Format: 00-000000000-0 (12 digits)"
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, philhealth: formatPhilHealthNumber(e.target.value) }))}
                     />
                     <Input
                       label="Pag-IBIG / HDMF Number"
-                      placeholder="e.g. 0000-0000-0000"
+                      placeholder="0000-0000-0000"
                       value={personalForm.pagibig}
-                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, pagibig: e.target.value }))}
+                      maxLength={14}
+                      inputMode="numeric"
+                      helperText="Format: 0000-0000-0000 (12 digits)"
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, pagibig: formatPagIbigNumber(e.target.value) }))}
                     />
                     <Input
                       label="TIN Number"
-                      placeholder="e.g. 000-000-000-000"
+                      placeholder="000-000-000-000"
                       value={personalForm.tin}
-                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, tin: e.target.value }))}
+                      maxLength={15}
+                      inputMode="numeric"
+                      helperText="Format: 000-000-000-000 (9 or 12 digits)"
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, tin: formatTINNumber(e.target.value) }))}
                     />
                   </div>
                 </div>

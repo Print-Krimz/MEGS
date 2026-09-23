@@ -21,11 +21,69 @@ export const listMRFsHandler = async (req: Request, res: Response): Promise<void
   }
 };
 
+export const validateMRFBoundaries = (body: any): string | null => {
+  if (body.headcount !== undefined) {
+    const hc = body.headcount;
+    if (
+      hc === null ||
+      hc === "" ||
+      typeof hc === "boolean" ||
+      typeof hc === "object"
+    ) {
+      return "Headcount must be an integer between 1 and 1,000";
+    }
+    const parsed = Number(hc);
+    if (isNaN(parsed) || !Number.isInteger(parsed) || parsed < 1 || parsed > 1000) {
+      return "Headcount must be an integer between 1 and 1,000";
+    }
+  }
+
+  const hasMin = body.salaryRangeMin !== undefined && body.salaryRangeMin !== null && body.salaryRangeMin !== "";
+  const hasMax = body.salaryRangeMax !== undefined && body.salaryRangeMax !== null && body.salaryRangeMax !== "";
+
+  let minVal: number | undefined;
+  let maxVal: number | undefined;
+
+  if (hasMin) {
+    if (typeof body.salaryRangeMin === "boolean" || typeof body.salaryRangeMin === "object") {
+      return "Minimum monthly salary must be between 0 and 1,000,000 PHP";
+    }
+    minVal = Number(body.salaryRangeMin);
+    if (isNaN(minVal) || minVal < 0 || minVal > 1000000) {
+      return "Minimum monthly salary must be between 0 and 1,000,000 PHP";
+    }
+  }
+
+  if (hasMax) {
+    if (typeof body.salaryRangeMax === "boolean" || typeof body.salaryRangeMax === "object") {
+      return "Maximum monthly salary must be between 0 and 1,000,000 PHP";
+    }
+    maxVal = Number(body.salaryRangeMax);
+    if (isNaN(maxVal) || maxVal < 0 || maxVal > 1000000) {
+      return "Maximum monthly salary must be between 0 and 1,000,000 PHP";
+    }
+  }
+
+  if (hasMin && hasMax && minVal !== undefined && maxVal !== undefined) {
+    if (minVal > maxVal) {
+      return "Minimum monthly salary cannot exceed maximum monthly salary";
+    }
+  }
+
+  return null;
+};
+
 export const createMRFHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const { clientId, title } = req.body;
     if (!clientId || !title) {
       sendError(res, "clientId and title are required", 400);
+      return;
+    }
+
+    const validationError = validateMRFBoundaries(req.body);
+    if (validationError) {
+      sendError(res, validationError, 400);
       return;
     }
 
@@ -57,6 +115,12 @@ export const updateMRFHandler = async (req: Request, res: Response): Promise<voi
     const id = parseInt(req.params.id as string, 10);
     if (isNaN(id)) {
       sendError(res, "Invalid MRF ID", 400);
+      return;
+    }
+
+    const validationError = validateMRFBoundaries(req.body);
+    if (validationError) {
+      sendError(res, validationError, 400);
       return;
     }
 

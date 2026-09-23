@@ -69,13 +69,33 @@ export const LandingFooter: React.FC = () => {
               Founded May 1997. Supplying the nation&apos;s Top 1,000 Corporations with compliant manpower pipelines, on-site supervision, and disciplined workforce solutions.
             </p>
 
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[11px] font-medium rounded">
-                A PJAR Group Company
-              </span>
-              <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[11px] font-medium rounded">
-                PALSCON Accredited
-              </span>
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/5 border border-white/10 rounded">
+                <div className="bg-white px-1.5 py-0.5 rounded shrink-0 flex items-center justify-center h-5">
+                  <img
+                    src="/images/canva-ref/pjar-logo.png"
+                    alt="PJAR Group of Companies"
+                    className="h-3.5 w-auto object-contain"
+                    loading="lazy"
+                  />
+                </div>
+                <span className="text-slate-300 text-[11px] font-medium">
+                  A PJAR Group Company
+                </span>
+              </div>
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/5 border border-white/10 rounded">
+                <div className="bg-white px-1.5 py-0.5 rounded shrink-0 flex items-center justify-center h-5">
+                  <img
+                    src="/images/canva-ref/palscon-logo.png"
+                    alt="PALSCON Accredited"
+                    className="h-3.5 w-auto object-contain"
+                    loading="lazy"
+                  />
+                </div>
+                <span className="text-slate-300 text-[11px] font-medium">
+                  PALSCON Accredited
+                </span>
+              </div>
             </div>
           </div>
 

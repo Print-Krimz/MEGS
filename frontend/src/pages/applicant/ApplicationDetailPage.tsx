@@ -23,6 +23,9 @@ import {
   AlertCircle,
   CheckCircle2,
   Bookmark,
+  Check,
+  X,
+  FileText,
 } from "lucide-react";
 import { ApplicationStatus } from "../../lib/types/enums";
 import { notify } from "../../lib/feedback";
@@ -275,29 +278,55 @@ export const ApplicationDetailPage: React.FC = () => {
               </div>
             ) : (
               <div className="divide-y divide-[#D9E2EC] p-4 space-y-3">
-                {interviews.map((interview) => (
-                  <div key={interview.id} className="pt-2 space-y-1.5 font-mono">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#102A43] uppercase">
-                        {interview.type.replace(/_/g, " ")}
-                      </span>
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 bg-[#F3F0FF] text-[#6D4FD3] border border-[#DDD6FE] uppercase rounded">
-                        {interview.result || "SCHEDULED"}
-                      </span>
-                    </div>
+                {interviews.map((interview) => {
+                  const isPassed = interview.result === "PASS" || interview.result === "PASSED";
+                  const isFailed = interview.result === "FAIL" || interview.result === "FAILED";
+                  const isNoShow = interview.result === "NO_SHOW";
 
-                    <div className="text-[11px] text-[#627D98] flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 text-[#627D98]" />
-                      <span>{formatDateTime(interview.scheduledAt || interview.createdAt)}</span>
-                    </div>
+                  return (
+                    <div key={interview.id} className="pt-2 space-y-1.5 font-mono">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-[#102A43] uppercase">
+                          {interview.type.replace(/_/g, " ")}
+                        </span>
+                        {isPassed ? (
+                          <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
+                            <Check className="w-3 h-3 text-emerald-700" /> PASS
+                          </span>
+                        ) : isFailed ? (
+                          <span className="bg-rose-100 text-rose-900 border border-rose-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
+                            <X className="w-3 h-3 text-rose-700" /> NOT PASSED
+                          </span>
+                        ) : isNoShow ? (
+                          <span className="bg-slate-100 text-slate-900 border border-slate-300 font-bold px-2.5 py-1 text-xs rounded-full">
+                            NO SHOW
+                          </span>
+                        ) : (
+                          <span className="bg-blue-100 text-blue-900 border border-blue-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
+                            <Clock className="w-3 h-3 text-blue-700" /> SCHEDULED
+                          </span>
+                        )}
+                      </div>
 
-                    {interview.notes && (
-                      <p className="text-xs text-[#627D98] font-sans italic mt-1">
-                        Notes: {interview.notes}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                      <div className="text-[11px] text-[#627D98] flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-[#627D98]" />
+                        <span>{formatDateTime(interview.scheduledAt || interview.createdAt)}</span>
+                      </div>
+
+                      {interview.notes && (
+                        <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200/90 rounded-md space-y-1">
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                            <FileText className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Evaluation &amp; Interview Notes</span>
+                          </div>
+                          <p className="text-xs text-slate-900 font-sans font-medium leading-relaxed pl-2.5 border-l-2 border-slate-400">
+                            {interview.notes}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -337,11 +366,6 @@ export const ApplicationDetailPage: React.FC = () => {
                             <span className="text-xs font-bold text-[#102A43] font-mono uppercase">
                               {req.documentLabel}
                             </span>
-                            {req.isRequired && (
-                              <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 bg-[#FFF7ED] text-[#B45309] border border-[#FED7AA] uppercase rounded">
-                                Mandatory
-                              </span>
-                            )}
                           </div>
                           {req.deadline && (
                             <div className="text-[10px] text-[#627D98] font-mono">
@@ -351,19 +375,23 @@ export const ApplicationDetailPage: React.FC = () => {
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
-                          <span
-                            className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 border rounded ${
-                              isApproved
-                                ? "bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]"
-                                : isRejected
-                                ? "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]"
-                                : isSubmitted
-                                ? "bg-[#FFF7ED] text-[#B45309] border-[#FED7AA]"
-                                : "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]"
-                            }`}
-                          >
-                            {req.reviewStatus}
-                          </span>
+                          {isApproved ? (
+                            <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-3 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> Approved
+                            </span>
+                          ) : (
+                            <span
+                              className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 border rounded ${
+                                isRejected
+                                  ? "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]"
+                                  : isSubmitted
+                                  ? "bg-[#FFF7ED] text-[#B45309] border-[#FED7AA]"
+                                  : "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]"
+                              }`}
+                            >
+                              {req.reviewStatus}
+                            </span>
+                          )}
 
                           {req.documentId && (
                             <button
@@ -383,19 +411,21 @@ export const ApplicationDetailPage: React.FC = () => {
                             </button>
                           )}
 
-                          <Button
-                            variant={isRejected ? "primary" : "outline"}
-                            size="sm"
-                            disabled={isApproved || uploadMutation.isPending}
-                            loading={uploadMutation.isPending && activeUploadReqId === req.id}
-                            leftIcon={<Upload className="w-3.5 h-3.5" />}
-                            onClick={() => {
-                              setActiveUploadReqId(req.id);
-                              fileInputRef.current?.click();
-                            }}
-                          >
-                            {isApproved ? "Approved" : req.documentId ? "Replace File" : "Upload File"}
-                          </Button>
+                          {!isApproved && (
+                            <Button
+                              variant={isRejected ? "primary" : "outline"}
+                              size="sm"
+                              disabled={uploadMutation.isPending}
+                              loading={uploadMutation.isPending && activeUploadReqId === req.id}
+                              leftIcon={<Upload className="w-3.5 h-3.5" />}
+                              onClick={() => {
+                                setActiveUploadReqId(req.id);
+                                fileInputRef.current?.click();
+                              }}
+                            >
+                              {req.documentId ? "Replace File" : "Upload File"}
+                            </Button>
+                          )}
                         </div>
                       </div>
 

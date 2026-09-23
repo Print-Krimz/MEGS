@@ -6,7 +6,8 @@ import {
   submitApplicationService,
   fetchMyApplications,
   fetchApplicationDetails,
-  uploadApplicantComplianceDocument
+  uploadApplicantComplianceDocument,
+  getActiveDeploymentStatus,
 } from '../../services/applicant/application.service.js';
 
 // GET /api/applicant-jobs/jobs - Browse active job postings
@@ -107,3 +108,14 @@ export const uploadComplianceDocumentHandler = async (req: Request, res: Respons
     sendError(res, error.message, status);
   }
 };
+
+// GET /api/applicant-jobs/active-deployment - Current candidate's authoritative active deployment status
+export const getActiveDeployment = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const deployment = await getActiveDeploymentStatus(req.user!.id);
+    sendSuccess(res, "Active deployment status retrieved", deployment);
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+

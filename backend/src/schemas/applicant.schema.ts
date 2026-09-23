@@ -1,5 +1,97 @@
 import { z } from "zod";
 
+const heightValidation = z
+  .union([z.number(), z.string()])
+  .optional()
+  .nullable()
+  .refine(
+    (val) => {
+      if (val === null || val === undefined) return true;
+      if (typeof val === "string" && val.trim() === "") return true;
+      const num = typeof val === "number" ? val : Number(val);
+      return !isNaN(num) && num >= 100 && num <= 250;
+    },
+    {
+      message: "Height must be between 100 cm and 250 cm",
+    }
+  );
+
+const weightValidation = z
+  .union([z.number(), z.string()])
+  .optional()
+  .nullable()
+  .refine(
+    (val) => {
+      if (val === null || val === undefined) return true;
+      if (typeof val === "string" && val.trim() === "") return true;
+      const num = typeof val === "number" ? val : Number(val);
+      return !isNaN(num) && num >= 30 && num <= 300;
+    },
+    {
+      message: "Weight must be between 30 kg and 300 kg",
+    }
+  );
+
+const sssValidation = z
+  .string()
+  .optional()
+  .nullable()
+  .refine(
+    (val) => {
+      if (!val || val.trim() === "") return true;
+      const digits = val.replace(/\D/g, "");
+      return digits.length <= 10;
+    },
+    {
+      message: "SSS number must not exceed 10 digits",
+    }
+  );
+
+const philhealthValidation = z
+  .string()
+  .optional()
+  .nullable()
+  .refine(
+    (val) => {
+      if (!val || val.trim() === "") return true;
+      const digits = val.replace(/\D/g, "");
+      return digits.length <= 12;
+    },
+    {
+      message: "PhilHealth number must not exceed 12 digits",
+    }
+  );
+
+const pagibigValidation = z
+  .string()
+  .optional()
+  .nullable()
+  .refine(
+    (val) => {
+      if (!val || val.trim() === "") return true;
+      const digits = val.replace(/\D/g, "");
+      return digits.length <= 12;
+    },
+    {
+      message: "Pag-IBIG number must not exceed 12 digits",
+    }
+  );
+
+const tinValidation = z
+  .string()
+  .optional()
+  .nullable()
+  .refine(
+    (val) => {
+      if (!val || val.trim() === "") return true;
+      const digits = val.replace(/\D/g, "");
+      return digits.length >= 9 && digits.length <= 12;
+    },
+    {
+      message: "TIN must be between 9 and 12 digits",
+    }
+  );
+
 export const applicantSchema = {
   upsertProfile: z.object({
     body: z.object({
@@ -27,15 +119,15 @@ export const applicantSchema = {
       birthPlace: z.string().optional().nullable(),
       nationality: z.string().optional().nullable(),
       civilStatus: z.string().optional().nullable(),
-      height: z.union([z.number(), z.string()]).optional().nullable(),
-      weight: z.union([z.number(), z.string()]).optional().nullable(),
+      height: heightValidation,
+      weight: weightValidation,
       religion: z.string().optional().nullable(),
       address: z.string().optional().nullable(),
       preferredWorkLocations: z.string().optional().nullable(),
-      pagibig: z.string().optional().nullable(),
-      philhealth: z.string().optional().nullable(),
-      sss: z.string().optional().nullable(),
-      tin: z.string().optional().nullable(),
+      pagibig: pagibigValidation,
+      philhealth: philhealthValidation,
+      sss: sssValidation,
+      tin: tinValidation,
       professionalSummary: z.string().optional().nullable(),
       emergencyContactName: z.string().optional().nullable(),
       emergencyContactRelationship: z.string().optional().nullable(),
@@ -146,8 +238,8 @@ export const applicantSchema = {
         nationality: z.string().optional().nullable(),
         civilStatus: z.string().optional().nullable(),
         religion: z.string().optional().nullable(),
-        height: z.union([z.number(), z.string()]).optional().nullable(),
-        weight: z.union([z.number(), z.string()]).optional().nullable(),
+        height: heightValidation,
+        weight: weightValidation,
         address: z.string().optional().nullable(),
         preferredWorkLocations: z.string().optional().nullable(),
         professionalSummary: z.string().optional().nullable(),
