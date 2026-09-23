@@ -137,6 +137,12 @@ export const ForgotPasswordPage: React.FC = () => {
     },
   });
 
+  const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
+  const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
+  const isCaptchaRequired = hasSiteKey && !isCaptchaDisabled && import.meta.env.MODE !== "test";
+  const isEmailFilled = email.trim().length > 0;
+  const isSubmitDisabled = forgotMutation.isPending || !isEmailFilled || (isCaptchaRequired && !turnstileToken);
+
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setServerError(null);
@@ -149,10 +155,7 @@ export const ForgotPasswordPage: React.FC = () => {
 
     setValidationErrors({});
 
-    const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
-    const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
-
-    if (hasSiteKey && !isCaptchaDisabled && !turnstileToken && import.meta.env.MODE !== "test") {
+    if (isCaptchaRequired && !turnstileToken) {
       setServerError("Please complete or retry the security verification before continuing.");
       return;
     }
@@ -486,11 +489,13 @@ export const ForgotPasswordPage: React.FC = () => {
           variant="primary"
           size="md"
           loading={forgotMutation.isPending}
-          disabled={forgotMutation.isPending}
+          disabled={isSubmitDisabled}
           leftIcon={<KeyRound className="w-4 h-4" />}
           className="w-full mt-2"
         >
-          Send Verification Code
+          {isCaptchaRequired && !turnstileToken && isEmailFilled
+            ? "Verifying security..."
+            : "Send Verification Code"}
         </Button>
       </form>
 

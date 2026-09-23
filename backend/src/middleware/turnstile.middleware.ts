@@ -40,7 +40,17 @@ export async function verifyTurnstile(
   }
 
   try {
-    const remoteIp = req.ip || req.socket?.remoteAddress || "";
+    const rawIp = req.ip || req.socket?.remoteAddress || "";
+    const isPrivateOrLoopback =
+      !rawIp ||
+      rawIp === "127.0.0.1" ||
+      rawIp === "::1" ||
+      rawIp.startsWith("::ffff:127.") ||
+      rawIp.startsWith("10.") ||
+      rawIp.startsWith("192.168.") ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(rawIp);
+    const remoteIp = isPrivateOrLoopback ? "" : rawIp;
+
     const formData = new URLSearchParams();
     formData.append("secret", secretKey);
     formData.append("response", token);

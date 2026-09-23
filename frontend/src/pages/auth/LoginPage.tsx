@@ -28,6 +28,7 @@ export const LoginPage: React.FC = () => {
     password: "",
   });
 
+  const [turnstileToken, setTurnstileToken] = useState("");
   const turnstileTokenRef = React.useRef("");
   const turnstileRef = React.useRef<TurnstileWidgetRef>(null);
   const submittingRef = React.useRef(false);
@@ -110,6 +111,7 @@ export const LoginPage: React.FC = () => {
     onError: (err) => {
       turnstileRef.current?.reset();
       turnstileTokenRef.current = "";
+      setTurnstileToken("");
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
       notify.error("Sign In Failed", err);
@@ -118,6 +120,13 @@ export const LoginPage: React.FC = () => {
       submittingRef.current = false;
     },
   });
+
+  const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
+  const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
+  const isCaptchaRequired = hasSiteKey && !isCaptchaDisabled && import.meta.env.MODE !== "test";
+  const isCredentialsFilled = formData.email.trim().length > 0 && formData.password.length > 0;
+  const isSubmitDisabled =
+    loginMutation.isPending || !isCredentialsFilled || (isCaptchaRequired && !turnstileToken);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,11 +148,8 @@ export const LoginPage: React.FC = () => {
 
     setValidationErrors({});
 
-    const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
-    const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
-
-    const token = turnstileTokenRef.current;
-    if (hasSiteKey && !isCaptchaDisabled && !token && import.meta.env.MODE !== "test") {
+    const token = turnstileToken || turnstileTokenRef.current;
+    if (isCaptchaRequired && !token) {
       setServerError("Please complete or retry the security verification before signing in.");
       return;
     }
@@ -240,23 +246,28 @@ export const LoginPage: React.FC = () => {
               role="region"
               aria-labelledby="turnstile-label"
               aria-live="polite"
-              className="w-full max-w-full overflow-hidden flex justify-center items-center py-1 min-h-[65px]"
+              className="w-full max-w-full flex justify-center items-center py-1 min-h-[65px]"
             >
               <TurnstileWidget
                 ref={turnstileRef}
                 action="login"
                 theme="light"
-                size="flexible"
+                size="normal"
                 onSuccess={(token) => {
                   turnstileTokenRef.current = token;
+                  setTurnstileToken(token);
                   setServerError(null);
                 }}
                 onExpire={() => {
                   turnstileTokenRef.current = "";
+                  setTurnstileToken("");
                 }}
                 onError={(error) => {
-                  console.error("[Turnstile error]", error);
+                  if (import.meta.env.DEV) {
+                    console.error("[Turnstile error]", error);
+                  }
                   turnstileTokenRef.current = "";
+                  setTurnstileToken("");
                 }}
               />
             </div>
@@ -268,10 +279,12 @@ export const LoginPage: React.FC = () => {
           variant="primary"
           size="md"
           loading={loginMutation.isPending}
-          disabled={loginMutation.isPending}
+          disabled={isSubmitDisabled}
           className="w-full mt-1"
         >
-          Sign In
+          {isCaptchaRequired && !turnstileToken && isCredentialsFilled
+            ? "Verifying security..."
+            : "Sign In"}
         </Button>
       </form>
 

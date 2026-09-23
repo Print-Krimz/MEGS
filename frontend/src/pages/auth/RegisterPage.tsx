@@ -95,6 +95,16 @@ export const RegisterPage: React.FC = () => {
     },
   });
 
+  const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
+  const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
+  const isCaptchaRequired = hasSiteKey && !isCaptchaDisabled && import.meta.env.MODE !== "test";
+  const isCredentialsFilled =
+    formData.email.trim().length > 0 &&
+    formData.password.length > 0 &&
+    formData.confirmPassword.length > 0;
+  const isSubmitDisabled =
+    registerMutation.isPending || !isCredentialsFilled || (isCaptchaRequired && !turnstileToken);
+
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setServerError(null);
@@ -114,10 +124,7 @@ export const RegisterPage: React.FC = () => {
 
     setValidationErrors({});
 
-    const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
-    const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
-
-    if (hasSiteKey && !isCaptchaDisabled && !turnstileToken && import.meta.env.MODE !== "test") {
+    if (isCaptchaRequired && !turnstileToken) {
       setServerError("Please complete or retry the security verification before creating an account.");
       return;
     }
@@ -424,10 +431,12 @@ export const RegisterPage: React.FC = () => {
           variant="primary"
           size="md"
           loading={registerMutation.isPending}
-          disabled={registerMutation.isPending}
+          disabled={isSubmitDisabled}
           className="w-full mt-2"
         >
-          Create Candidate Account
+          {isCaptchaRequired && !turnstileToken && isCredentialsFilled
+            ? "Verifying security..."
+            : "Create Candidate Account"}
         </Button>
       </form>
 
