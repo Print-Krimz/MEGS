@@ -57,6 +57,14 @@ export async function verifyTurnstile(
       signal: AbortSignal.timeout(10_000),
     });
 
+    if (!cfResponse.ok) {
+      res.status(503).json({
+        success: false,
+        message: "Security verification is temporarily unavailable. Please try again.",
+      });
+      return;
+    }
+
     const outcome = (await cfResponse.json()) as {
       success: boolean;
       "error-codes"?: string[];

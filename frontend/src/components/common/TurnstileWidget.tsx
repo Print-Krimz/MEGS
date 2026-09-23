@@ -46,13 +46,22 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
     }, [isCaptchaDisabled, onSuccess]);
 
     const handleReset = useCallback(() => {
-      setStatus("verifying");
       setErrorMessage(null);
       setIsTimedOut(false);
-      try {
-        turnstileRef.current?.reset();
-      } catch {
-        // Fallback: force full remount if instance reset fails
+      if (window.turnstile && turnstileRef.current) {
+        try {
+          turnstileRef.current.reset();
+          setStatus("verifying");
+          return;
+        } catch {
+          // Recover by remounting only if the existing widget cannot reset.
+        }
+      }
+      setStatus("idle");
+      // The library keeps a module-level loading promise. If api.js failed to load,
+      // its old script element prevents a remount from requesting the script again.
+      if (!window.turnstile) {
+        document.getElementById("cf-turnstile-script")?.remove();
       }
       setReloadKey((k) => k + 1);
     }, []);
@@ -91,7 +100,38 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
 
     return (
       <div className={`w-full max-w-full flex flex-col justify-center items-center py-1 min-h-[65px] ${className}`}>
-        {errorMessage ? (
+        <div className="w-full flex justify-center items-center overflow-hidden">
+          <Turnstile
+            key={reloadKey}
+            ref={turnstileRef}
+            siteKey={siteKey}
+            onWidgetLoad={() => setStatus((current) => current === "success" ? current : "verifying")}
+            onSuccess={(token) => {
+              setStatus("success");
+              setIsTimedOut(false);
+              setErrorMessage(null);
+              onSuccess(token);
+            }}
+            onExpire={() => {
+              setStatus("expired");
+              setErrorMessage("Security verification expired. Please retry.");
+              onExpire?.();
+            }}
+            onError={(err) => {
+              setStatus("error");
+              setErrorMessage("Security verification could not complete. Please retry.");
+              onError?.(err);
+            }}
+            onTimeout={() => {
+              setStatus("error");
+              setErrorMessage("Security verification timed out. Please retry.");
+              onError?.();
+            }}
+            options={{ theme, size, action }}
+          />
+        </div>
+
+        {errorMessage && (
           <div className="w-full p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center justify-between gap-2 animate-fade-in">
             <div className="flex items-start gap-1.5 text-left">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
@@ -109,54 +149,26 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
               <span>Retry</span>
             </button>
           </div>
-        ) : (
-          <>
-            <div className="w-full flex justify-center items-center overflow-hidden">
-              <Turnstile
-                key={reloadKey}
-                ref={turnstileRef}
-                siteKey={siteKey}
-                onSuccess={(token) => {
-                  setStatus("success");
-                  setIsTimedOut(false);
-                  setErrorMessage(null);
-                  onSuccess(token);
-                }}
-                onExpire={() => {
-                  setStatus("expired");
-                  onExpire?.();
-                }}
-                onError={(err) => {
-                  setStatus("error");
-                  const code = typeof err === "string" ? err : (err as Error)?.message || "";
-                  const displayErr = code
-                    ? `Verification failed to load (Cloudflare Code: ${code}). Please verify widget configuration.`
-                    : "Verification failed to load. Please try again.";
-                  setErrorMessage(displayErr);
-                  onError?.(err);
-                }}
-                options={{
-                  theme,
-                  size,
-                  action,
-                }}
-              />
-            </div>
+        )}
 
-            {isTimedOut && status !== "success" && !errorMessage && (
-              <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[11px] text-slate-500 animate-fade-in">
-                <span>Verification taking longer than usual?</span>
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="inline-flex items-center gap-1 font-semibold text-[#0B315D] hover:underline cursor-pointer"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Reload verification</span>
-                </button>
-              </div>
-            )}
-          </>
+        {isTimedOut && status !== "success" && !errorMessage && (
+          <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[11px] text-slate-500 animate-fade-in">
+            <span>Verification is taking longer than usual. Check your connection or browser extensions.</span>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="inline-flex items-center gap-1 font-semibold text-[#0B315D] hover:underline cursor-pointer"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Reload verification</span>
+            </button>
+          </div>
+        )}
+        {!isTimedOut && status === "idle" && !errorMessage && (
+          <span role="status" className="mt-1 text-[11px] text-slate-500">Loading security verification…</span>
+        )}
+        {!isTimedOut && status === "verifying" && !errorMessage && (
+          <span role="status" className="mt-1 text-[11px] text-slate-500">Complete the security verification above.</span>
         )}
       </div>
     );

@@ -21,7 +21,10 @@ export const authApi = {
     api.post<LoginResponse>(
       "/api/auth/login",
       turnstileToken ? { ...data, turnstileToken } : data,
-      turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : undefined
+      {
+        ...(turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : {}),
+        signal: AbortSignal.timeout(25_000),
+      }
     ),
 
   register: (data: RegisterRequest, turnstileToken?: string) =>

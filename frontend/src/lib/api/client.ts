@@ -99,6 +99,9 @@ export async function apiRequest<T>(
 
     return json!.data;
   } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new ApiError(408, "Request timed out. Please check your connection and try again.");
+    }
     if (error instanceof ApiError || error instanceof TypeError) {
       throw error;
     }

@@ -28,9 +28,9 @@ export const LoginPage: React.FC = () => {
     password: "",
   });
 
-  const [turnstileToken, setTurnstileToken] = useState<string>("");
-  const [turnstileError, setTurnstileError] = useState<string | null>(null);
+  const turnstileTokenRef = React.useRef("");
   const turnstileRef = React.useRef<TurnstileWidgetRef>(null);
+  const submittingRef = React.useRef(false);
 
   const [mfaChallenge, setMfaChallenge] = useState<{
     factorId: string;
@@ -109,16 +109,19 @@ export const LoginPage: React.FC = () => {
     },
     onError: (err) => {
       turnstileRef.current?.reset();
-      setTurnstileToken("");
-      setTurnstileError(null);
+      turnstileTokenRef.current = "";
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
       notify.error("Sign In Failed", err);
+    },
+    onSettled: () => {
+      submittingRef.current = false;
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current || loginMutation.isPending) return;
     setServerError(null);
 
     const result = loginSchema.safeParse(formData);
@@ -139,12 +142,14 @@ export const LoginPage: React.FC = () => {
     const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
     const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
 
-    if (hasSiteKey && !isCaptchaDisabled && !turnstileToken && import.meta.env.MODE !== "test") {
+    const token = turnstileTokenRef.current;
+    if (hasSiteKey && !isCaptchaDisabled && !token && import.meta.env.MODE !== "test") {
       setServerError("Please complete or retry the security verification before signing in.");
       return;
     }
 
-    loginMutation.mutate({ data: result.data, turnstileToken });
+    submittingRef.current = true;
+    loginMutation.mutate({ data: result.data, turnstileToken: token });
   };
 
   const handleChange = (field: keyof typeof formData, value: string) => {
@@ -243,31 +248,18 @@ export const LoginPage: React.FC = () => {
                 theme="light"
                 size="flexible"
                 onSuccess={(token) => {
-                  setTurnstileToken(token);
-                  setTurnstileError(null);
+                  turnstileTokenRef.current = token;
                   setServerError(null);
                 }}
                 onExpire={() => {
-                  setTurnstileToken("");
+                  turnstileTokenRef.current = "";
                 }}
                 onError={(error) => {
-                  const code = typeof error === "string" ? error : (error as Error)?.message || "";
                   console.error("[Turnstile error]", error);
-                  setTurnstileToken("");
-                  setTurnstileError(
-                    code
-                      ? `Security verification failed to load (Cloudflare Code: ${code}). Please verify widget configuration.`
-                      : "Security verification failed to load. Please refresh and try again."
-                  );
+                  turnstileTokenRef.current = "";
                 }}
               />
             </div>
-
-            {turnstileError && (
-              <p className="text-xs text-rose-600 font-medium animate-fade-in" role="alert">
-                {turnstileError}
-              </p>
-            )}
           </div>
         )}
 

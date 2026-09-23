@@ -19,6 +19,9 @@ export function formatErrorMessage(error: unknown): string {
 
   // Handle ApiError with specific status codes
   if (error instanceof ApiError) {
+    if (error.status >= 500 && /security verification|security challenge/i.test(error.message)) {
+      return "Security verification is temporarily unavailable. Please try again in a moment.";
+    }
     if (error.status >= 500) {
       return "A server error occurred. Please try again later or contact support if the issue persists.";
     }
