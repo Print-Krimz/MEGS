@@ -74,7 +74,7 @@ cd backend
 npm install
 cp .env.example .env
 ```
-
+Create a supabase account and create your own project
 Configure `backend/.env` with your project credentials:
 ```env
 # Database Configuration (PostgreSQL / Supabase)
