@@ -481,16 +481,18 @@ ${RESUME_EXTRACTION_SCHEMA}
   return mapParsedProfileData(parsed);
 };
 
-// Multimodal PDF parsing fallback directly using Gemini document understanding
+// Multimodal document/image parsing fallback directly using Gemini document understanding
 export const extractResumeProfileDataFromBuffer = async (
-  pdfBuffer: Buffer
+  buffer: Buffer,
+  mimeType: string = "application/pdf"
 ): Promise<ExtractedProfileData> => {
-  if (!pdfBuffer || pdfBuffer.length === 0) {
-    throw new Error("PDF buffer is empty");
+  if (!buffer || buffer.length === 0) {
+    throw new Error("Buffer is empty");
   }
 
+  const resolvedMime = mimeType || "application/pdf";
   const prompt = `
-You are an expert HR data parser. Your task is to extract structured applicant profile details from the attached resume PDF document.
+You are an expert HR data parser. Your task is to extract structured applicant profile details from the attached resume document/image.
 
 Extract the following information accurately. Respond with a JSON object matching this exact structure:
 ${RESUME_EXTRACTION_SCHEMA}
@@ -500,8 +502,8 @@ ${RESUME_EXTRACTION_SCHEMA}
     contents: [
       {
         inlineData: {
-          mimeType: "application/pdf",
-          data: pdfBuffer.toString("base64"),
+          mimeType: resolvedMime,
+          data: buffer.toString("base64"),
         },
       },
       prompt,
@@ -513,6 +515,93 @@ ${RESUME_EXTRACTION_SCHEMA}
 
   const parsed = parseGeminiJsonResponse(response.text || "");
   return mapParsedProfileData(parsed);
+};
+
+// Multimodal vision and document analysis for image, photo, or scanned PDF resumes
+export const analyzeResumeFromBuffer = async (
+  buffer: Buffer,
+  mimeType: string,
+  jobTitle: string,
+  requirements: string
+): Promise<ResumeAnalysisResult> => {
+  if (!buffer || buffer.length === 0) {
+    throw new Error("Resume buffer is empty");
+  }
+
+  const resolvedMime = mimeType || "application/pdf";
+  const prompt = `
+You are an expert HR analyst. Your task is to evaluate how well a candidate's resume matches a specific job opening.
+The candidate resume is provided as an attached document or image (which may be a scanned document, photo of printed/handwritten resume, or PDF). Perform OCR and document understanding as needed.
+
+JOB TITLE: ${jobTitle}
+
+JOB REQUIREMENTS:
+${requirements}
+
+Analyze the resume document against the job requirements and respond with a JSON object matching this exact structure:
+{
+  "score": <integer from 0 to 100 representing overall fit — 100 is a perfect match>,
+  "summary": "<2 to 3 sentence overall assessment of the candidate's fit for this role>",
+  "strengths": ["<strength 1>", "<strength 2>", ...],
+  "gaps": ["<gap 1>", "<gap 2>", ...]
+}
+
+Scoring guide:
+- 80–100: Excellent match, meets nearly all requirements
+- 60–79:  Good match, meets most requirements with minor gaps
+- 40–59:  Partial match, meets some requirements
+- 0–39:   Poor match, significant gaps
+
+Be objective. Base your score only on the resume content vs the stated requirements.
+Respond with valid JSON only. Do not include markdown or any text outside the JSON object.
+`.trim();
+
+  const response = await generateContentWithFallback({
+    contents: [
+      {
+        inlineData: {
+          mimeType: resolvedMime,
+          data: buffer.toString("base64"),
+        },
+      },
+      prompt,
+    ],
+    config: {
+      responseMimeType: "application/json",
+    },
+  });
+
+  let text = response.text;
+  if (!text) {
+    throw new Error("Gemini returned an empty response");
+  }
+
+  text = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "").trim();
+
+  let parsed: ResumeAnalysisResult;
+  try {
+    parsed = JSON.parse(text) as ResumeAnalysisResult;
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) {
+      parsed = JSON.parse(match[0]);
+    } else {
+      throw new Error(`Failed to parse Gemini response as JSON: ${text.substring(0, 200)}`);
+    }
+  }
+
+  if (
+    typeof parsed.score !== "number" ||
+    typeof parsed.summary !== "string" ||
+    !Array.isArray(parsed.strengths) ||
+    !Array.isArray(parsed.gaps)
+  ) {
+    throw new Error("Gemini returned an unexpected response structure");
+  }
+
+  parsed.score = Math.max(0, Math.min(100, parsed.score));
+
+  return parsed;
 };
 
 

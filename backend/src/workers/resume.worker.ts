@@ -1,7 +1,8 @@
 import PQueue from "p-queue";
+import mammoth from "mammoth";
 import prisma from "../utils/prisma.js";
 import supabase from "../utils/supabase.js";
-import { analyzeResume } from "../utils/gemini.js";
+import { analyzeResume, analyzeResumeFromBuffer } from "../utils/gemini.js";
 import { sendNotification, sendRoleNotification } from "../utils/notification.js";
 
 // @ts-ignore
@@ -12,7 +13,13 @@ const pdfParse: (buf: Buffer) => Promise<{ text: string }> =
 // Concurrency 1 prevents rate limit exhaustion against Gemini API
 const queue = new PQueue({ concurrency: 1 });
 
-export const fetchResumeBuffer = async (resumeUrl: string): Promise<Buffer> => {
+export interface ResumeFilePayload {
+  buffer: Buffer;
+  mimeType?: string;
+  originalName?: string;
+}
+
+export const fetchResumePayload = async (resumeUrl: string): Promise<ResumeFilePayload> => {
   if (!resumeUrl || typeof resumeUrl !== "string") {
     throw new Error("Invalid or empty resume URL provided");
   }
@@ -37,7 +44,11 @@ export const fetchResumeBuffer = async (resumeUrl: string): Promise<Buffer> => {
       throw new Error(`Failed to download resume from storage (${doc.storageBucket}/${doc.storagePath}): ${error?.message || "Not found"}`);
     }
     const arrayBuffer = await data.arrayBuffer();
-    return Buffer.from(arrayBuffer);
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      mimeType: doc.mimeType,
+      originalName: doc.originalName || doc.storagePath,
+    };
   }
 
   // Fallback to HTTP fetch (handling relative URLs if any)
@@ -59,7 +70,59 @@ export const fetchResumeBuffer = async (resumeUrl: string): Promise<Buffer> => {
     throw new Error(`HTTP ${response.status} when fetching resume`);
   }
   const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
+  const headerMime = response.headers?.get?.("content-type")?.split(";")[0]?.trim();
+  const filename = parsedUrl.pathname.split("/").pop();
+
+  return {
+    buffer: Buffer.from(arrayBuffer),
+    mimeType: headerMime,
+    originalName: filename,
+  };
+};
+
+export const fetchResumeBuffer = async (resumeUrl: string): Promise<Buffer> => {
+  const payload = await fetchResumePayload(resumeUrl);
+  return payload.buffer;
+};
+
+export const detectDocumentFormat = (
+  mimeType?: string,
+  fileNameOrUrl?: string
+): { isDocx: boolean; isImage: boolean; isPdf: boolean; detectedMime: string } => {
+  const cleanMime = (mimeType || "").trim().toLowerCase();
+  const cleanName = (fileNameOrUrl || "").trim().toLowerCase().split("?")[0];
+  const ext = cleanName.split(".").pop() || "";
+
+  const isDocx =
+    cleanMime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    cleanMime === "application/msword" ||
+    ext === "docx" ||
+    ext === "doc";
+
+  const isImage =
+    cleanMime.startsWith("image/") ||
+    ["jpg", "jpeg", "png", "webp"].includes(ext);
+
+  let detectedMime = "application/pdf";
+  if (isDocx) {
+    detectedMime = cleanMime.includes("word") || cleanMime.includes("msword")
+      ? cleanMime
+      : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  } else if (isImage) {
+    if (cleanMime.startsWith("image/")) {
+      detectedMime = cleanMime;
+    } else if (ext === "png") {
+      detectedMime = "image/png";
+    } else if (ext === "webp") {
+      detectedMime = "image/webp";
+    } else {
+      detectedMime = "image/jpeg";
+    }
+  }
+
+  const isPdf = !isDocx && !isImage;
+
+  return { isDocx, isImage, isPdf, detectedMime };
 };
 
 const notifyNeedsAttention = async (
@@ -129,15 +192,9 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
     return;
   }
 
-  let resumeText = "";
+  let payload: ResumeFilePayload;
   try {
-    const buffer = await fetchResumeBuffer(application.resumeUrl);
-    const parsed = await pdfParse(buffer);
-    resumeText = parsed.text.trim();
-
-    if (!resumeText) {
-      throw new Error("PDF contained no extractable text (may be image-based or empty)");
-    }
+    payload = await fetchResumePayload(application.resumeUrl);
   } catch (err: any) {
     console.error(`[Worker] Failed to read resume for #${applicationId}:`, err.message);
     await prisma.application.update({
@@ -150,6 +207,12 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
     await notifyNeedsAttention(applicationId, jobTitle, postedById);
     return;
   }
+
+  const { buffer } = payload;
+  const { isDocx, isImage, detectedMime } = detectDocumentFormat(
+    payload.mimeType,
+    payload.originalName || application.resumeUrl
+  );
 
   // Synthesize authoritative MRF requirements if linked
   let compositeRequirements = application.jobPosting.requirements;
@@ -167,11 +230,51 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
 
   let analysis;
   try {
-    analysis = await analyzeResume(
-      resumeText,
-      application.jobPosting.title,
-      compositeRequirements
-    );
+    if (isDocx) {
+      const mammothExtractor = (mammoth as any)?.extractRawText || (mammoth as any)?.default?.extractRawText || mammoth.extractRawText;
+      const { value } = await mammothExtractor({ buffer });
+      const resumeText = (value || "").trim();
+      if (!resumeText) {
+        throw new Error("Word document contained no extractable text");
+      }
+      analysis = await analyzeResume(
+        resumeText,
+        application.jobPosting.title,
+        compositeRequirements
+      );
+    } else if (isImage) {
+      analysis = await analyzeResumeFromBuffer(
+        buffer,
+        detectedMime,
+        application.jobPosting.title,
+        compositeRequirements
+      );
+    } else {
+      // PDF or fallback
+      let resumeText = "";
+      try {
+        const parsed = await pdfParse(buffer);
+        resumeText = (parsed?.text || "").trim();
+      } catch (pdfErr: any) {
+        console.warn(`[Worker] pdfParse failed for #${applicationId}, attempting multimodal vision analysis:`, pdfErr.message);
+      }
+
+      if (resumeText && resumeText.length > 50) {
+        analysis = await analyzeResume(
+          resumeText,
+          application.jobPosting.title,
+          compositeRequirements
+        );
+      } else {
+        console.log(`[Worker] PDF contains sparse or no extractable text (${resumeText.length} chars). Falling back to multimodal vision analysis for #${applicationId}`);
+        analysis = await analyzeResumeFromBuffer(
+          buffer,
+          "application/pdf",
+          application.jobPosting.title,
+          compositeRequirements
+        );
+      }
+    }
     console.log(`[Worker] Gemini returned score ${analysis.score} for application #${applicationId}`);
   } catch (err: any) {
     console.error(`[Worker] Gemini analysis failed for #${applicationId}:`, err.message);
@@ -180,7 +283,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
         where: { id: applicationId },
         data: {
           status: "NEEDS_ATTENTION",
-          aiSummary: `Analysis failed: Gemini API error. (${err.message})`,
+          aiSummary: `Analysis failed: Could not process resume. (${err.message})`,
         },
       });
       await notifyNeedsAttention(applicationId, jobTitle, postedById);

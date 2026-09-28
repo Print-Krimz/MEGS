@@ -10,11 +10,18 @@ export const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+    const allowedMimeTypes = [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+    ];
     if (allowedMimeTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only PDF, JPEG, and PNG are allowed.'));
+      cb(new Error('Invalid file type. Only PDF, DOCX, DOC, JPEG, PNG, and WEBP files are allowed.'));
     }
   },
 });
@@ -39,6 +46,7 @@ export const ensureBucketExists = async (bucket: string): Promise<void> => {
             "image/png",
             "image/webp",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword",
           ],
         });
       }
