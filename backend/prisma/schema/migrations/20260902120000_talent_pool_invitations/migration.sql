@@ -1,4 +1,4 @@
-﻿CREATE TYPE "TalentPoolInvitationStatus" AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'CANCELLED', 'EXPIRED');
+CREATE TYPE "TalentPoolInvitationStatus" AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'CANCELLED', 'EXPIRED');
 
 CREATE TABLE "TalentPoolInvitation" (
     "id" SERIAL NOT NULL,

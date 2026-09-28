@@ -16,6 +16,8 @@ model Client {
   province     String?
   postalCode   String?
   isActive     Boolean  @default(true)
+  reviewThresholdDays   Int      @default(5)
+  medicalValidityMonths Int      @default(6)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -44,6 +46,10 @@ model ManpowerRequest {
   employmentType         String?   // FULL_TIME, PART_TIME, CONTRACT, PROJECT_BASED
   workArrangement        String?   // ONSITE, REMOTE, HYBRID
   complianceRequirements String?   // JSON array string of required documents
+  ageMin                 Int?
+  ageMax                 Int?
+  genderPreference       String?  // "ANY", "MALE", "FEMALE"
+  tattooPolicy           String?  // "NONE", "NO_VISIBLE", "ALLOWED"
   status                 String    @default("OPEN") // OPEN, FILLED, CANCELLED
   createdById            String
   createdBy              User      @relation("MRFCreatedBy", fields: [createdById], references: [id])

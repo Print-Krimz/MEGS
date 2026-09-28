@@ -60,6 +60,8 @@ model ApplicantProfile {
   // Soft delete
   isActive Boolean @default(true)
 
+  tattooStatus     String?  // "NONE", "NON_VISIBLE", "VISIBLE"
+  hasNoShowHistory Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

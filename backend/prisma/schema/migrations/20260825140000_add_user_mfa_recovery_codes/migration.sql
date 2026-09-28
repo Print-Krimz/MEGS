@@ -1,4 +1,4 @@
-﻿-- CreateTable
+-- CreateTable
 CREATE TABLE UserMfaRecoveryCode (
     id TEXT NOT NULL,
     userId TEXT NOT NULL,

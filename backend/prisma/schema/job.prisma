@@ -189,6 +189,8 @@ model RecruiterDecision {
   fromStatus    String
   toStatus      String
   reason        String?
+  isReverted    Boolean   @default(false)
+  revertedAt    DateTime?
   createdAt     DateTime    @default(now())
 
   @@index([applicationId, createdAt])
@@ -208,6 +210,7 @@ model ComplianceRequirement {
   deadline      DateTime?
   documentId    Int?
   reviewStatus  String      @default("PENDING") // PENDING, SUBMITTED, APPROVED, REJECTED, EXPIRED
+  toFollowExpectedAt DateTime?
   reviewedById  String?
   reviewedBy    User?       @relation("ComplianceReviewer", fields: [reviewedById], references: [id])
   reviewNotes   String?
