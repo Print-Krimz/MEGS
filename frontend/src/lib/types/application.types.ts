@@ -173,7 +173,14 @@ export interface Application {
     id: string;
     email: string;
     applicantProfile?: ApplicantProfile | null;
+    employee?: {
+      id: number;
+      employeeNumber: string;
+      status: string;
+      deployments?: Deployment[];
+    } | null;
   };
+  isRedeploymentEligible?: boolean;
   jobPosting?: JobPosting;
   interviews?: Interview[];
   clientEndorsements?: ClientEndorsement[];

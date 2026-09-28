@@ -1,6 +1,6 @@
 import prisma from "../../utils/prisma.js";
 import { DeploymentStatus } from "@prisma/client";
-import { isFullyCompliant } from "./ta.compliance.service.js";
+import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
 import { logAudit } from "../../utils/audit.js";
 import { sendNotification } from "../../utils/notification.js";
 import {
@@ -690,5 +690,348 @@ export const updateDeploymentContract = async (
   });
 
   return updated;
+};
+
+export const fastTrackRedeployment = async (
+  applicationId: number,
+  actorId: string,
+  options?: { targetStage?: "FINAL_INTERVIEW" | "COMPLIANCE" }
+) => {
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    include: {
+      user: {
+        include: {
+          employee: {
+            include: {
+              deployments: true,
+            },
+          },
+          applicantProfile: true,
+        },
+      },
+      jobPosting: {
+        include: {
+          mrf: {
+            include: {
+              client: true,
+            },
+          },
+        },
+      },
+      complianceRequirements: true,
+      hiredEmployee: true,
+    },
+  });
+
+  if (!application) {
+    throw new Error("Application not found");
+  }
+
+  if (application.isArchived) {
+    throw new Error("Cannot fast-track an archived application.");
+  }
+  if (application.status === "DEPLOYED") {
+    throw new Error("Candidate is already deployed.");
+  }
+
+  // Check candidate eligibility: verify user has an associated Employee record
+  // with previous deployments, or status AVAILABLE_FOR_REDEPLOYMENT.
+  const employee =
+    application.user?.employee ||
+    (await prisma.employee.findUnique({
+      where: { userId: application.userId },
+      include: { deployments: true },
+    }));
+
+  if (!employee) {
+    throw new Error(
+      "Candidate is not eligible for redeployment fast-track. Prior employment or deployment history is required."
+    );
+  }
+
+  const hasDeployments = employee.deployments && employee.deployments.length > 0;
+  const isAvailableForRedeployment = employee.status === "AVAILABLE_FOR_REDEPLOYMENT";
+
+  if (!hasDeployments && !isAvailableForRedeployment) {
+    throw new Error(
+      "Candidate is not eligible for redeployment fast-track. Prior deployment history or AVAILABLE_FOR_REDEPLOYMENT status is required."
+    );
+  }
+
+  const targetStage =
+    options?.targetStage === "FINAL_INTERVIEW" ? "FINAL_INTERVIEW" : "COMPLIANCE";
+
+  const targetClientId =
+    application.jobPosting?.mrf?.clientId ||
+    application.jobPosting?.mrf?.client?.id ||
+    null;
+
+  // Find prior applications for the same candidate
+  const priorApplications = await prisma.application.findMany({
+    where: {
+      userId: application.userId,
+      id: { not: applicationId },
+    },
+    include: {
+      jobPosting: {
+        include: {
+          mrf: {
+            select: { clientId: true },
+          },
+        },
+      },
+      clientEndorsements: {
+        select: { clientId: true },
+      },
+      deployments: {
+        select: { clientId: true },
+      },
+    },
+  });
+
+  const now = new Date();
+  const twelveMonthsAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+
+  const priorAppClientMap = new Map<number, Set<number>>();
+  for (const priorApp of priorApplications) {
+    const clientIds = new Set<number>();
+    if (priorApp.jobPosting?.mrf?.clientId) {
+      clientIds.add(priorApp.jobPosting.mrf.clientId);
+    }
+    if (priorApp.clientEndorsements) {
+      for (const end of priorApp.clientEndorsements) {
+        if (end.clientId) clientIds.add(end.clientId);
+      }
+    }
+    if (priorApp.deployments) {
+      for (const dep of priorApp.deployments) {
+        if (dep.clientId) clientIds.add(dep.clientId);
+      }
+    }
+    priorAppClientMap.set(priorApp.id, clientIds);
+  }
+
+  const isGeneralClearance = (label: string): boolean => {
+    const norm = label.toLowerCase();
+    return (
+      norm.includes("nbi") ||
+      norm.includes("philhealth") ||
+      norm.includes("sss") ||
+      norm.includes("pag-ibig") ||
+      norm.includes("pagibig") ||
+      norm.includes("tin") ||
+      norm.includes("bir") ||
+      norm.includes("government") ||
+      norm.includes("valid id") ||
+      norm.includes("police")
+    );
+  };
+
+  const priorAppIds = priorApplications.map((a) => a.id);
+  const eligiblePriorRequirements: any[] = [];
+
+  if (priorAppIds.length > 0) {
+    const priorReqs = await prisma.complianceRequirement.findMany({
+      where: {
+        applicationId: { in: priorAppIds },
+        reviewStatus: "APPROVED",
+        documentId: { not: null },
+        reviewedAt: { gte: twelveMonthsAgo },
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: now } },
+        ],
+      },
+      orderBy: { reviewedAt: "desc" },
+    });
+
+    for (const req of priorReqs) {
+      const isGeneral = isGeneralClearance(req.documentLabel);
+      const appClientIds = priorAppClientMap.get(req.applicationId);
+      const isSameClient = Boolean(
+        targetClientId && appClientIds && appClientIds.has(targetClientId)
+      );
+
+      if (isGeneral || isSameClient) {
+        eligiblePriorRequirements.push(req);
+      }
+    }
+  }
+
+  // Deduplicate by normalized documentLabel (keeping most recently reviewed)
+  const uniqueEligibleByLabel = new Map<string, (typeof eligiblePriorRequirements)[0]>();
+  for (const req of eligiblePriorRequirements) {
+    const normLabel = req.documentLabel.trim().toLowerCase();
+    if (!uniqueEligibleByLabel.has(normLabel)) {
+      uniqueEligibleByLabel.set(normLabel, req);
+    }
+  }
+  const distinctEligible = Array.from(uniqueEligibleByLabel.values());
+
+  // Ensure current application has baseline compliance requirements from MRF/template
+  if (application.complianceRequirements.length === 0) {
+    await generateComplianceRequirementsFromMRF(applicationId);
+  }
+
+  const currentRequirements = await prisma.complianceRequirement.findMany({
+    where: { applicationId },
+  });
+
+  const findMatchingRequirement = (
+    currentList: typeof currentRequirements,
+    prevLabel: string
+  ) => {
+    const normPrev = prevLabel.trim().toLowerCase();
+    const exact = currentList.find(
+      (c) => c.documentLabel.trim().toLowerCase() === normPrev
+    );
+    if (exact) return exact;
+
+    const keywords = [
+      { key: "nbi", test: (s: string) => s.includes("nbi") },
+      { key: "philhealth", test: (s: string) => s.includes("philhealth") },
+      { key: "sss", test: (s: string) => s.includes("sss") },
+      { key: "pagibig", test: (s: string) => s.includes("pag-ibig") || s.includes("pagibig") },
+      { key: "medical", test: (s: string) => s.includes("medical") || s.includes("fit to work") },
+      { key: "id", test: (s: string) => s.includes("valid id") || s.includes("government") },
+      { key: "contract", test: (s: string) => s.includes("employment contract") || s.includes("signed contract") },
+      { key: "nda", test: (s: string) => s.includes("nda") || s.includes("security briefing") },
+    ];
+
+    for (const kw of keywords) {
+      if (kw.test(normPrev)) {
+        const match = currentList.find((c) => kw.test(c.documentLabel.toLowerCase()));
+        if (match) return match;
+      }
+    }
+
+    return null;
+  };
+
+  const carriedOver: any[] = [];
+  const updatedRequirementIds = new Set<number>();
+
+  for (const prev of distinctEligible) {
+    const matching = findMatchingRequirement(
+      currentRequirements.filter((c) => !updatedRequirementIds.has(c.id)),
+      prev.documentLabel
+    );
+
+    if (matching) {
+      const updated = await prisma.complianceRequirement.update({
+        where: { id: matching.id },
+        data: {
+          reviewStatus: "APPROVED",
+          documentId: prev.documentId,
+          expiresAt: prev.expiresAt,
+          reviewedById: actorId,
+          reviewedAt: new Date(),
+          reviewNotes: "Carried over from prior approved deployment (Redeployment Fast-Track)",
+        },
+      });
+      updatedRequirementIds.add(matching.id);
+      carriedOver.push(updated);
+    } else {
+      const created = await prisma.complianceRequirement.create({
+        data: {
+          applicationId,
+          documentLabel: prev.documentLabel,
+          isRequired: prev.isRequired,
+          reviewStatus: "APPROVED",
+          documentId: prev.documentId,
+          expiresAt: prev.expiresAt,
+          reviewedById: actorId,
+          reviewedAt: new Date(),
+          reviewNotes: "Carried over from prior approved deployment (Redeployment Fast-Track)",
+        },
+      });
+      carriedOver.push(created);
+    }
+  }
+
+  // If advancing to COMPLIANCE, ensure employee record is linked
+  if (targetStage === "COMPLIANCE") {
+    if (!employee.originatingApplicationId) {
+      await prisma.employee.update({
+        where: { id: employee.id },
+        data: { originatingApplicationId: applicationId },
+      });
+    }
+  }
+
+  // Record EmploymentEvent
+  await prisma.employmentEvent.create({
+    data: {
+      employeeId: employee.id,
+      eventType: "REDEPLOYED",
+      description: `Fast-tracked redeployment for Application #${applicationId} to ${targetStage}`,
+      effectiveDate: new Date(),
+      actorId,
+      metadata: {
+        applicationId,
+        targetStage,
+        carriedOverCount: carriedOver.length,
+      },
+    },
+  });
+
+  // Advance application status to targetStage
+  const updatedApp = await prisma.application.update({
+    where: { id: applicationId },
+    data: {
+      status: targetStage,
+    },
+    include: {
+      jobPosting: {
+        include: {
+          mrf: {
+            include: { client: true },
+          },
+        },
+      },
+      user: {
+        include: {
+          applicantProfile: true,
+          employee: true,
+        },
+      },
+      complianceRequirements: true,
+    },
+  });
+
+  // Record recruiter decision
+  await prisma.recruiterDecision.create({
+    data: {
+      applicationId,
+      actorId,
+      fromStatus: application.status,
+      toStatus: targetStage,
+      reason: `Redeployment fast-track: advanced to ${targetStage} with ${carriedOver.length} carried-over clearance documents.`,
+    },
+  });
+
+  // Log audit trail
+  void logAudit(actorId, "REDEPLOYMENT_FAST_TRACKED", "Application", applicationId, {
+    carriedDocumentsCount: carriedOver.length,
+    targetStage,
+  });
+
+  // Candidate notification
+  if (application.userId) {
+    void sendNotification(
+      application.userId,
+      "Redeployment Fast-Tracked",
+      `Your application for ${application.jobPosting?.title || "the role"} has been fast-tracked to ${targetStage}. ${carriedOver.length} valid clearances have been carried over.`,
+      "SUCCESS",
+      `/app/applications/${applicationId}`
+    );
+  }
+
+  return {
+    success: true,
+    application: updatedApp,
+    carriedOverDocuments: carriedOver,
+  };
 };
 

@@ -385,6 +385,16 @@ export const taApi = {
   createDeployment: (applicationId: number | string, data: DeployCandidateDto) =>
     api.post<Deployment>(`/api/ta/applications/${applicationId}/deploy`, data),
 
+  fastTrackRedeployment: (
+    applicationId: number | string,
+    data?: { targetStage?: "FINAL_INTERVIEW" | "COMPLIANCE" }
+  ) =>
+    api.post<{
+      success: boolean;
+      application: Application;
+      carriedOverDocuments: any[];
+    }>(`/api/ta/applications/${applicationId}/fast-track-redeployment`, data || {}),
+
   updateDeploymentStatus: (id: number | string, data: UpdateDeploymentStatusDto) =>
     api.patch<Deployment>(`/api/ta/deployments/${id}/status`, data),
 

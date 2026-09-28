@@ -220,6 +220,8 @@ export const ApplicationDetailPage: React.FC = () => {
   const [manualRequirementsToggle, setManualRequirementsToggle] = useState<boolean | null>(null);
   const [endorsementsExpanded, setEndorsementsExpanded] = useState(false);
   const [isInterviewHistoryExpanded, setIsInterviewHistoryExpanded] = useState(false);
+  const [fastTrackModalOpen, setFastTrackModalOpen] = useState(false);
+  const [fastTrackTargetStage, setFastTrackTargetStage] = useState<"FINAL_INTERVIEW" | "COMPLIANCE">("COMPLIANCE");
 
   // Queries
   const applicationQuery = useQuery({
@@ -353,6 +355,26 @@ export const ApplicationDetailPage: React.FC = () => {
         message: "Unable to archive this candidate. " + errMsg,
       });
       notify.error("Unable to archive candidate", err);
+    },
+  });
+
+  const fastTrackRedeploymentMutation = useMutation({
+    mutationFn: (data?: { targetStage?: "FINAL_INTERVIEW" | "COMPLIANCE" }) =>
+      taApi.fastTrackRedeployment(applicationId, data),
+    onSuccess: (res) => {
+      setFastTrackModalOpen(false);
+      const carriedCount = res?.carriedOverDocuments?.length ?? 0;
+      const targetLabel = fastTrackTargetStage === "FINAL_INTERVIEW" ? "Final Interview" : "Compliance";
+      notify.success(
+        "Redeployment Fast-Tracked",
+        `Candidate advanced to ${targetLabel} and ${carriedCount} valid clearance document${carriedCount === 1 ? "" : "s"} carried over.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
+    },
+    onError: (err: any) => {
+      notify.error("Fast-Track Failed", formatErrorMessage(err));
     },
   });
 
@@ -969,6 +991,16 @@ export const ApplicationDetailPage: React.FC = () => {
     ] as ApplicationStatus[]
   ).includes(app.status);
 
+  const isCandidateEligibleForRedeployment = Boolean(
+    app.isRedeploymentEligible ||
+    app.user?.employee?.status === "AVAILABLE_FOR_REDEPLOYMENT" ||
+    (app.user?.employee?.deployments && app.user.employee.deployments.length > 0) ||
+    (app.deployments && app.deployments.length > 0)
+  );
+
+  const canFastTrackRedeployment =
+    isPreScreeningOrScreening && isCandidateEligibleForRedeployment && !isTerminal;
+
   const canScheduleInitialInterview =
     isPreScreeningOrScreening && !hasPassedScreening && !pendingScreeningInterview && !isTerminal;
   const canRecordInitialInterview =
@@ -1175,6 +1207,20 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {canFastTrackRedeployment && (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<RefreshCw className="w-3.5 h-3.5 text-teal-600" />}
+                className="border-teal-300 text-teal-700 hover:bg-teal-50"
+                onClick={() => {
+                  setFastTrackTargetStage("COMPLIANCE");
+                  setFastTrackModalOpen(true);
+                }}
+              >
+                Fast-Track Redeployment
+              </Button>
+            )}
             {/* INITIAL_SCREENING Actions */}
             {canScheduleInitialInterview && (
               <Button
@@ -2679,9 +2725,17 @@ export const ApplicationDetailPage: React.FC = () => {
                                   </div>
 
                                   {req.reviewNotes && (
-                                    <p className="text-[11px] text-slate-600 italic mt-0.5">
-                                      Review note: {req.reviewNotes}
-                                    </p>
+                                    <div className="space-y-0.5 mt-0.5">
+                                      <p className="text-[11px] text-slate-600 italic">
+                                        Review note: {req.reviewNotes}
+                                      </p>
+                                      {req.reviewNotes?.includes("Carried over") && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
+                                          <ShieldCheck className="w-3 h-3 text-teal-600" />
+                                          Clearance Carried Over (12-Mo Validity)
+                                        </span>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               </div>
@@ -3754,6 +3808,66 @@ export const ApplicationDetailPage: React.FC = () => {
               }}
             >
               Activate deployment
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Fast-Track Redeployment Modal */}
+      <Dialog
+        open={fastTrackModalOpen}
+        onClose={() => setFastTrackModalOpen(false)}
+        title="Fast-Track Redeployment"
+        description={`Fast-track ${candidateName} directly to late pipeline stage with automated 12-month clearance carryover.`}
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-xs text-teal-900 space-y-1">
+            <p className="font-semibold flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-teal-700" />
+              12-Month Clearance Carryover Policy
+            </p>
+            <p className="text-teal-800">
+              Previously approved government clearances and client-matching documents verified within the last 12 months with valid expiration dates are automatically carried over into this application as Approved.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Advance Directly To
+            </label>
+            <Select
+              value={fastTrackTargetStage}
+              onChange={(e) => setFastTrackTargetStage(e.target.value as "FINAL_INTERVIEW" | "COMPLIANCE")}
+              options={[
+                { value: "COMPLIANCE", label: "Compliance (Recommended — clearance carryover & contract prep)" },
+                { value: "FINAL_INTERVIEW", label: "Final Interview" },
+              ]}
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              {fastTrackTargetStage === "COMPLIANCE"
+                ? "Skips initial screening and client endorsement, moving candidate straight to compliance checklist verification."
+                : "Skips initial screening, advancing candidate to the final interview stage."}
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFastTrackModalOpen(false)}
+              disabled={fastTrackRedeploymentMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${fastTrackRedeploymentMutation.isPending ? "animate-spin" : ""}`} />}
+              className="bg-teal-600 hover:bg-teal-700 text-white"
+              onClick={() => fastTrackRedeploymentMutation.mutate({ targetStage: fastTrackTargetStage })}
+              disabled={fastTrackRedeploymentMutation.isPending}
+            >
+              Confirm Fast-Track
             </Button>
           </div>
         </div>

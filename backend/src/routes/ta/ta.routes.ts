@@ -94,6 +94,7 @@ import {
   getDeploymentDetailsHandler,
   signDeploymentContractHandler,
   updateDeploymentContractHandler,
+  fastTrackRedeploymentHandler,
 } from '../../controllers/ta/ta.deployments.controller.js';
 
 import {
@@ -186,6 +187,7 @@ router.patch("/compliance/:requirementId/deadline", updateRequirementDeadlineHan
 
 // Deployment Lifecycle
 router.post("/applications/:id/deploy", createDeploymentHandler);
+router.post("/applications/:id/fast-track-redeployment", fastTrackRedeploymentHandler);
 router.patch("/deployments/:id/status", updateDeploymentStatusHandler);
 router.post("/deployments/:id/sign-contract", signDeploymentContractHandler);
 router.patch("/deployments/:id/contract", updateDeploymentContractHandler);

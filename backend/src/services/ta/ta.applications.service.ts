@@ -291,6 +291,20 @@ export const getTAApplication = async (id: number) => {
               characterReferences: true,
             },
           },
+          employee: {
+            select: {
+              id: true,
+              employeeNumber: true,
+              status: true,
+              deployments: {
+                select: {
+                  id: true,
+                  status: true,
+                  clientId: true,
+                },
+              },
+            },
+          },
         },
       },
       interviews: {
@@ -395,8 +409,15 @@ export const getTAApplication = async (id: number) => {
     }
   }
 
+  const isRedeploymentEligible = Boolean(
+    application.user?.employee &&
+      (application.user.employee.status === "AVAILABLE_FOR_REDEPLOYMENT" ||
+        (application.user.employee.deployments && application.user.employee.deployments.length > 0))
+  );
+
   return {
     ...application,
+    isRedeploymentEligible,
     resumeUrl: resolvedAppResumeUrl,
     candidateFitScore: candidateScores?.[0] ? candidateScores[0].finalFitScore : null,
     candidateScores,
