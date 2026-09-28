@@ -35,7 +35,9 @@ export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
         <div className="text-right font-mono">
           <div className="text-xs text-slate-500 font-semibold">Overall progress</div>
           <div className="text-sm font-bold text-teal-950 tabular-nums">
-            {stages.length > 0 ? stages[stages.length - 1].overallConversion : 0}%
+            {stages.length > 0
+              ? (stages.find((s) => s.stage === "DEPLOYED")?.overallConversion ?? stages[stages.length - 1].overallConversion)
+              : 0}%
           </div>
         </div>
       </div>
@@ -51,6 +53,8 @@ export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
             const barWidthPercent = Math.max(4, Math.round((st.count / maxCount) * 100));
             const isFirst = idx === 0;
             const isLast = idx === stages.length - 1;
+            const isTalentPool = st.stage === "TALENT_POOL";
+            const isDeployed = st.stage === "DEPLOYED" || (isLast && !isTalentPool);
 
             return (
               <div key={st.stage} className="space-y-1">
@@ -90,6 +94,24 @@ export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
                       <span className="text-slate-500">Overall: </span>
                       <span className="font-bold text-teal-900 tabular-nums">{st.overallConversion}%</span>
                     </div>
+
+                    {/* Dropout & Back-Out Tracking */}
+                    {(st.dropoutCount ?? 0) > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-500">
+                          Dropouts:{" "}
+                          <span className="font-bold text-rose-700 tabular-nums">{st.dropoutCount}</span>
+                        </span>
+                        {st.dropoutRate !== undefined && (
+                          <span className="font-bold text-rose-700 tabular-nums">({st.dropoutRate}%)</span>
+                        )}
+                        {(st.backoutCount ?? 0) > 0 && (
+                          <span className="text-slate-500 text-[10px] tabular-nums">
+                            ({st.backoutCount} backed out)
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -97,7 +119,9 @@ export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
                 <div className="h-6 bg-slate-100 border border-slate-300 relative overflow-hidden flex items-center">
                   <div
                     className={`h-full transition-all duration-300 ${
-                      isLast
+                      isTalentPool
+                        ? "bg-slate-700"
+                        : isDeployed
                         ? "bg-emerald-600"
                         : idx === 0
                         ? "bg-slate-800"
@@ -107,8 +131,10 @@ export const RecruitmentFunnel: React.FC<RecruitmentFunnelProps> = ({
                   />
 
                   <div className="absolute left-2.5 text-[10px] font-mono font-bold text-white drop-shadow-xs flex items-center gap-1">
-                    {isLast && <CheckCircle2 className="w-3 h-3 text-emerald-300" />}
-                    <span>{st.count} candidates</span>
+                    {isDeployed && <CheckCircle2 className="w-3 h-3 text-emerald-300" />}
+                    <span>
+                      {isTalentPool ? `${st.count} pooled talent` : `${st.count} candidates`}
+                    </span>
                   </div>
                 </div>
               </div>

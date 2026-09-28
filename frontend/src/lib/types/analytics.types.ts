@@ -56,6 +56,9 @@ export interface FunnelStage {
   conversionRate: number; // % from previous stage
   dropoffRate: number;    // % lost from previous stage
   overallConversion: number; // % from total initial applications
+  dropoutCount?: number;
+  backoutCount?: number;
+  dropoutRate?: number;
 }
 
 export interface FunnelAnalytics {

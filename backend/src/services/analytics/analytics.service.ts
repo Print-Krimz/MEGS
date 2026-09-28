@@ -62,6 +62,9 @@ export interface FunnelStage {
   conversionRate: number; // % from previous stage
   dropoffRate: number;    // % lost from previous stage
   overallConversion: number; // % from total initial applications
+  dropoutCount?: number;
+  backoutCount?: number;
+  dropoutRate?: number;
 }
 
 export interface FunnelAnalyticsResult {
@@ -499,6 +502,86 @@ export const getAdminOverviewStats = async (filters: AnalyticsFilterDto = {}): P
   };
 };
 
+// Helper to normalize status into canonical funnel stage
+export function normalizeFunnelStage(status?: string | null): string {
+  if (!status) return "APPLICATIONS";
+  const s = status.toUpperCase();
+
+  switch (s) {
+    case "INITIAL_SCREENING":
+      return "INITIAL_SCREENING";
+    case "CLIENT_ENDORSEMENT":
+    case "CLIENT_REVIEW":
+      return "CLIENT_ENDORSEMENT";
+    case "FINAL_INTERVIEW":
+      return "FINAL_INTERVIEW";
+    case "COMPLIANCE":
+    case "HIRED":
+      return "COMPLIANCE";
+    case "CONTRACT_AND_ORIENTATION":
+    case "ONBOARDING":
+      return "CONTRACT_AND_ORIENTATION";
+    case "DEPLOYED":
+    case "DEPLOYMENT":
+    case "SITE_DEPLOYMENT":
+      return "DEPLOYED";
+    case "TALENT_POOL":
+      return "TALENT_POOL";
+    case "SUBMITTED":
+    case "PARSING":
+    case "REVIEW":
+    case "MATCHED":
+    case "NEEDS_ATTENTION":
+    case "APPLICATIONS":
+    default:
+      return "APPLICATIONS";
+  }
+}
+
+// Helper to determine candidate exit stage and backout status
+export function determineExitStage(app: {
+  status: string;
+  isArchived?: boolean;
+  recruiterDecisions?: Array<{ toStatus?: string | null; fromStatus?: string | null; createdAt?: Date | string | null }>;
+}): { isDropout: boolean; isBackout: boolean; exitStageKey?: string } {
+  const currentStatus = (app.status || "").toUpperCase();
+  const decisions = app.recruiterDecisions || [];
+
+  const exitStatuses = ["BACKOUT", "ARCHIVED", "REJECTED", "DECLINED"];
+  const isBackout = currentStatus === "BACKOUT" || decisions.some((d) => d.toStatus?.toUpperCase() === "BACKOUT");
+  const hasExitDecision = decisions.some((d) => d.toStatus && exitStatuses.includes(d.toStatus.toUpperCase()));
+  const isDropout = isBackout || currentStatus === "ARCHIVED" || app.isArchived === true || hasExitDecision;
+
+  if (!isDropout) {
+    return { isDropout: false, isBackout: false };
+  }
+
+  // Find latest exit decision (inspecting chronologically last decision to exit status)
+  const exitDecisions = decisions.filter((d) => d.toStatus && exitStatuses.includes(d.toStatus.toUpperCase()));
+  const latestExitDecision = exitDecisions[exitDecisions.length - 1];
+
+  let rawStage: string | undefined;
+  if (latestExitDecision?.fromStatus && !exitStatuses.includes(latestExitDecision.fromStatus.toUpperCase())) {
+    rawStage = latestExitDecision.fromStatus;
+  } else {
+    // Check previous decisions for the last active stage
+    const activeDecisionStatuses = decisions
+      .flatMap((d) => [d.fromStatus, d.toStatus])
+      .filter((s): s is string => typeof s === "string" && s.length > 0 && !exitStatuses.includes(s.toUpperCase()));
+
+    if (activeDecisionStatuses.length > 0) {
+      rawStage = activeDecisionStatuses[activeDecisionStatuses.length - 1];
+    } else if (!exitStatuses.includes(currentStatus)) {
+      rawStage = currentStatus;
+    } else {
+      rawStage = "APPLICATIONS";
+    }
+  }
+
+  const exitStageKey = normalizeFunnelStage(rawStage);
+  return { isDropout: true, isBackout, exitStageKey };
+}
+
 // ─────────────────────────────────────────────
 // 3. ADMIN RECRUITMENT FUNNEL
 // ─────────────────────────────────────────────
@@ -525,8 +608,13 @@ export const getAdminFunnelAnalytics = async (filters: AnalyticsFilterDto = {}):
     select: {
       id: true,
       status: true,
+      isArchived: true,
       recruiterDecisions: {
-        select: { toStatus: true, fromStatus: true },
+        select: { toStatus: true, fromStatus: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      },
+      talentPoolMembershipsSourced: {
+        select: { id: true },
       },
     },
   });
@@ -541,11 +629,22 @@ export const getAdminFunnelAnalytics = async (filters: AnalyticsFilterDto = {}):
     { key: "COMPLIANCE", label: "201 Compliance" },
     { key: "CONTRACT_AND_ORIENTATION", label: "Contract & Orientation" },
     { key: "DEPLOYED", label: "Site Deployment" },
+    { key: "TALENT_POOL", label: "Talent Pool" },
   ];
 
   // Helper to check if candidate reached or passed a stage
   const reachedStage = (app: (typeof applications)[0], stageKey: string): boolean => {
     if (stageKey === "APPLICATIONS") return true;
+
+    if (stageKey === "TALENT_POOL") {
+      return (
+        app.status === "TALENT_POOL" ||
+        (app.recruiterDecisions || []).some(
+          (d) => d.toStatus === "TALENT_POOL" || d.fromStatus === "TALENT_POOL"
+        ) ||
+        Boolean(app.talentPoolMembershipsSourced && app.talentPoolMembershipsSourced.length > 0)
+      );
+    }
 
     const currentStatus = app.status;
     const historyStatuses = (app.recruiterDecisions || []).flatMap((d) => [d.toStatus, d.fromStatus]).filter(Boolean);
@@ -569,12 +668,44 @@ export const getAdminFunnelAnalytics = async (filters: AnalyticsFilterDto = {}):
     stageCounts[s.key] = applications.filter((app) => reachedStage(app, s.key)).length;
   }
 
+  // Aggregate dropouts and backouts per stage
+  const dropoutsByStage: Record<string, number> = {};
+  const backoutsByStage: Record<string, number> = {};
+  for (const s of stageOrder) {
+    dropoutsByStage[s.key] = 0;
+    backoutsByStage[s.key] = 0;
+  }
+
+  for (const app of applications) {
+    const exitInfo = determineExitStage(app);
+    if (exitInfo.isDropout && exitInfo.exitStageKey) {
+      dropoutsByStage[exitInfo.exitStageKey] = (dropoutsByStage[exitInfo.exitStageKey] || 0) + 1;
+      if (exitInfo.isBackout) {
+        backoutsByStage[exitInfo.exitStageKey] = (backoutsByStage[exitInfo.exitStageKey] || 0) + 1;
+      }
+    }
+  }
+
   const stages: FunnelStage[] = stageOrder.map((s, idx) => {
     const count = stageCounts[s.key];
-    const prevCount = idx === 0 ? count : stageCounts[stageOrder[idx - 1].key];
-    const conversionRate = prevCount > 0 ? Number(((count / prevCount) * 100).toFixed(1)) : 0;
-    const dropoffRate = Number((100 - conversionRate).toFixed(1));
-    const overallConversion = total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0;
+    const dropoutCount = dropoutsByStage[s.key] || 0;
+    const backoutCount = backoutsByStage[s.key] || 0;
+    const dropoutRate = count > 0 ? Number(((dropoutCount / count) * 100).toFixed(1)) : 0;
+
+    let conversionRate: number;
+    let dropoffRate: number;
+    let overallConversion: number;
+
+    if (s.key === "TALENT_POOL") {
+      conversionRate = total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0;
+      dropoffRate = Number((100 - conversionRate).toFixed(1));
+      overallConversion = conversionRate;
+    } else {
+      const prevCount = idx === 0 ? count : stageCounts[stageOrder[idx - 1].key];
+      conversionRate = prevCount > 0 ? Number(((count / prevCount) * 100).toFixed(1)) : 0;
+      dropoffRate = Number((100 - conversionRate).toFixed(1));
+      overallConversion = total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0;
+    }
 
     return {
       stage: s.key,
@@ -583,6 +714,9 @@ export const getAdminFunnelAnalytics = async (filters: AnalyticsFilterDto = {}):
       conversionRate,
       dropoffRate,
       overallConversion,
+      dropoutCount,
+      backoutCount,
+      dropoutRate,
     };
   });
 

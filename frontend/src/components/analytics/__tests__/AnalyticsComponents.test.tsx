@@ -220,6 +220,76 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.getAllByText("10%").length).toBeGreaterThan(0); // Overall yield & stage yield
   });
 
+  it("renders RecruitmentFunnel dropout count, dropout rate, and backout count for stages with exits", () => {
+    const mockFunnel: FunnelAnalytics = {
+      totalApplications: 100,
+      stages: [
+        {
+          stage: "APPLICATIONS",
+          label: "Applications Received",
+          count: 100,
+          conversionRate: 100,
+          dropoffRate: 0,
+          overallConversion: 100,
+          dropoutCount: 5,
+          backoutCount: 0,
+          dropoutRate: 5.0,
+        },
+        {
+          stage: "INITIAL_SCREENING",
+          label: "Initial Screening",
+          count: 60,
+          conversionRate: 60,
+          dropoffRate: 40,
+          overallConversion: 60,
+          dropoutCount: 12,
+          backoutCount: 4,
+          dropoutRate: 20.0,
+        },
+        {
+          stage: "DEPLOYED",
+          label: "Site Deployment",
+          count: 20,
+          conversionRate: 33.3,
+          dropoffRate: 66.7,
+          overallConversion: 20,
+          dropoutCount: 0,
+          backoutCount: 0,
+          dropoutRate: 0,
+        },
+        {
+          stage: "TALENT_POOL",
+          label: "Talent Pool",
+          count: 15,
+          conversionRate: 15.0,
+          dropoffRate: 85.0,
+          overallConversion: 15.0,
+          dropoutCount: 1,
+          backoutCount: 1,
+          dropoutRate: 6.7,
+        },
+      ],
+    };
+
+    render(<RecruitmentFunnel data={mockFunnel} />);
+
+    // Stage labels should be formatted
+    expect(screen.getByText("Submitted")).toBeDefined();
+    expect(screen.getByText("Initial review")).toBeDefined();
+    expect(screen.getByText("Deployed")).toBeDefined();
+    expect(screen.getByText("Talent pool")).toBeDefined();
+
+    // Dropouts indicator should be displayed for stages where dropouts occurred
+    expect(screen.getAllByText(/Dropouts:/i).length).toBe(3);
+    expect(screen.getByText("12")).toBeDefined();
+    expect(screen.getByText("(20%)")).toBeDefined();
+    expect(screen.getByText("(4 backed out)")).toBeDefined();
+    expect(screen.getByText("(1 backed out)")).toBeDefined();
+
+    // Talent Pool bar label clearly conveying pooled talent
+    expect(screen.getByText("15 pooled talent")).toBeDefined();
+  });
+
   it("renders BottlenecksWidget with aging and SLA breach flags", () => {
     const mockBottlenecks: BottleneckItem[] = [
       {
