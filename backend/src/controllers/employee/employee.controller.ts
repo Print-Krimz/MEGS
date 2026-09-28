@@ -10,6 +10,7 @@ import {
   createEmployeeDeployment,
   endEmployeeDeployment,
   getEmployeeEmploymentHistory,
+  updateEmployeeDetails,
 } from "../../services/employee/employee.service.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -220,6 +221,25 @@ export const getEmployeeEmploymentHistoryHandler = async (req: Request, res: Res
     sendSuccess(res, "Employment history retrieved successfully", history);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 500;
+    sendError(res, error.message, statusCode);
+  }
+};
+
+/**
+ * PATCH /api/employees/:id/details - Update employee & candidate profile details
+ */
+export const updateEmployeeDetailsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const employeeId = parseInt(req.params.id as string, 10);
+    if (isNaN(employeeId)) {
+      sendError(res, "Invalid employee ID", 400);
+      return;
+    }
+
+    const result = await updateEmployeeDetails(employeeId, req.body, req.user?.id);
+    sendSuccess(res, "Employee details updated successfully", result);
+  } catch (error: any) {
+    const statusCode = error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, statusCode);
   }
 };

@@ -21,6 +21,14 @@ export const scheduleNewInterview = async (
     throw new Error("type must be INITIAL_SCREENING or FINAL_INTERVIEW");
   }
 
+  const scheduledDate = new Date(scheduledAt);
+  if (isNaN(scheduledDate.getTime())) {
+    throw new Error("Invalid scheduledAt format");
+  }
+  if (scheduledDate.getTime() < Date.now() - 5 * 60 * 1000) {
+    throw new Error("Cannot schedule an interview in the past. Please select a future date and time.");
+  }
+
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
     select: {

@@ -19,6 +19,7 @@ vi.mock("../middleware/auth.middleware.js", () => ({
 }));
 
 import taRoutes from "../routes/ta/ta.routes.js";
+import { scheduleNewInterview } from "../services/ta/ta.interviews.service.js";
 
 const app = express();
 app.use(express.json());
@@ -261,5 +262,64 @@ describe("TA Candidate Profile Verification Endpoint (PATCH /api/ta/candidates/:
 
     expect(response.status).toBe(403);
     expect(response.body.success).toBe(false);
+  });
+
+  it("updates statutory IDs, address, and emergency contact details via PATCH /api/ta/candidates/:id", async () => {
+    currentMockUser = taUser;
+    const response = await request(app)
+      .patch(`/api/ta/candidates/${profileId}`)
+      .send({
+        sss: "04-1234567-8",
+        philhealth: "11-223344556-7",
+        pagibig: "1122-3344-5566",
+        tin: "987-654-321-000",
+        address: "777 Real St, Calamba City, Laguna",
+        emergencyContactName: "Teodora Alonso",
+        emergencyContactPhone: "09170001122",
+        emergencyContactRelationship: "Mother",
+        emergencyContactAddress: "Calamba, Laguna",
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.sss).toBe("04-1234567-8");
+    expect(response.body.data.philhealth).toBe("11-223344556-7");
+    expect(response.body.data.pagibig).toBe("1122-3344-5566");
+    expect(response.body.data.tin).toBe("987-654-321-000");
+    expect(response.body.data.address).toBe("777 Real St, Calamba City, Laguna");
+    expect(response.body.data.emergencyContactName).toBe("Teodora Alonso");
+    expect(response.body.data.emergencyContactPhone).toBe("09170001122");
+    expect(response.body.data.emergencyContactRelationship).toBe("Mother");
+    expect(response.body.data.emergencyContactAddress).toBe("Calamba, Laguna");
+
+    // Verify in database
+    const dbProfile = await prisma.applicantProfile.findUnique({
+      where: { id: profileId },
+    });
+    expect(dbProfile!.sss).toBe("04-1234567-8");
+    expect(dbProfile!.philhealth).toBe("11-223344556-7");
+    expect(dbProfile!.pagibig).toBe("1122-3344-5566");
+    expect(dbProfile!.tin).toBe("987-654-321-000");
+    expect(dbProfile!.address).toBe("777 Real St, Calamba City, Laguna");
+    expect(dbProfile!.emergencyContactName).toBe("Teodora Alonso");
+    expect(dbProfile!.emergencyContactPhone).toBe("09170001122");
+    expect(dbProfile!.emergencyContactRelationship).toBe("Mother");
+    expect(dbProfile!.emergencyContactAddress).toBe("Calamba, Laguna");
+  });
+
+  it("rejects interview scheduling with a past date or invalid date format", async () => {
+    await expect(
+      scheduleNewInterview(1, "INITIAL_SCREENING", "invalid-date-string")
+    ).rejects.toThrow("Invalid scheduledAt format");
+
+    await expect(
+      scheduleNewInterview(1, "INITIAL_SCREENING", "2020-01-01T10:00:00.000Z")
+    ).rejects.toThrow("Cannot schedule an interview in the past. Please select a future date and time.");
+
+    // Date more than 5 minutes ago should be rejected
+    const sixMinutesAgo = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+    await expect(
+      scheduleNewInterview(1, "INITIAL_SCREENING", sixMinutesAgo)
+    ).rejects.toThrow("Cannot schedule an interview in the past. Please select a future date and time.");
   });
 });

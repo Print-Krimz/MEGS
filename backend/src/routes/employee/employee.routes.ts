@@ -11,6 +11,7 @@ import {
   createEmployeeDeploymentHandler,
   endEmployeeDeploymentHandler,
   getEmployeeEmploymentHistoryHandler,
+  updateEmployeeDetailsHandler,
 } from "../../controllers/employee/employee.controller.js";
 
 const router = Router();
@@ -48,6 +49,12 @@ router.patch(
   requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"),
   validate(employeeSchema.updateStatus),
   updateEmployeeStatusHandler
+);
+
+router.patch(
+  "/:id/details",
+  requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"),
+  updateEmployeeDetailsHandler
 );
 
 router.post(

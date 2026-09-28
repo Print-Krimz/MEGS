@@ -1,6 +1,7 @@
 import prisma from "../../utils/prisma.js";
 import { EmploymentStatus, EmploymentEventType, DeploymentStatus } from "@prisma/client";
 import { resolveDocumentSignedUrl } from "../document/document.service.js";
+import { logAudit } from "../../utils/audit.js";
 import {
   calculateMRFFulfillment,
   syncMRFFulfillmentStatus,
@@ -27,6 +28,28 @@ export interface Digital201Aggregate {
   candidate: {
     id: string;
     email: string;
+    firstName: string;
+    middleName: string | null;
+    lastName: string;
+    mobileNumber: string | null;
+    address: string | null;
+    province: string | null;
+    city: string | null;
+    dateOfBirth: Date | null;
+    birthPlace: string | null;
+    nationality: string | null;
+    civilStatus: string | null;
+    gender: string | null;
+    sss: string | null;
+    philhealth: string | null;
+    pagibig: string | null;
+    tin: string | null;
+    photoUrl: string | null;
+    resumeUrl: string | null;
+    emergencyContactName: string | null;
+    emergencyContactPhone: string | null;
+    emergencyContactRelationship: string | null;
+    emergencyContactAddress: string | null;
     profile: any;
     workExperiences: any[];
     educations: any[];
@@ -36,6 +59,7 @@ export interface Digital201Aggregate {
     characterReferences: any[];
     documents: any[];
   };
+  skills: string[];
   originatingApplication: any | null;
   compliance: any[];
   deployments: any[];
@@ -133,6 +157,28 @@ export const getDigital201ByEmployeeId = async (employeeId: number): Promise<Dig
     candidate: {
       id: employee.user.id,
       email: employee.user.email,
+      firstName: profile?.firstName ?? "",
+      middleName: profile?.middleName ?? null,
+      lastName: profile?.lastName ?? "",
+      mobileNumber: profile?.mobileNumber ?? null,
+      address: profile?.address ?? null,
+      province: profile?.province ?? null,
+      city: profile?.city ?? null,
+      dateOfBirth: profile?.dateOfBirth ?? null,
+      birthPlace: profile?.birthPlace ?? null,
+      nationality: profile?.nationality ?? null,
+      civilStatus: profile?.civilStatus ?? null,
+      gender: profile?.gender ?? null,
+      sss: profile?.sss ?? null,
+      philhealth: profile?.philhealth ?? null,
+      pagibig: profile?.pagibig ?? null,
+      tin: profile?.tin ?? null,
+      photoUrl,
+      resumeUrl: profile?.resumeUrl ?? null,
+      emergencyContactName: profile?.emergencyContactName ?? null,
+      emergencyContactPhone: profile?.emergencyContactPhone ?? null,
+      emergencyContactRelationship: profile?.emergencyContactRelationship ?? null,
+      emergencyContactAddress: profile?.emergencyContactAddress ?? null,
       profile: profile
         ? {
             firstName: profile.firstName,
@@ -168,6 +214,7 @@ export const getDigital201ByEmployeeId = async (employeeId: number): Promise<Dig
       characterReferences: profile?.characterReferences ?? [],
       documents: employee.user.storedDocuments ?? [],
     },
+    skills: profile?.skills?.map((s: any) => s.skill?.name || s.name || "").filter(Boolean) ?? [],
     originatingApplication: employee.originatingApplication ?? null,
     compliance: employee.originatingApplication?.complianceRequirements ?? [],
     deployments: employee.deployments ?? [],
@@ -330,6 +377,138 @@ export const getEmployeeById = async (id: number) => {
 
   if (!employee) throw new Error("Employee not found");
   return employee;
+};
+
+/**
+ * Update employee details and candidate profile.
+ */
+export const updateEmployeeDetails = async (
+  employeeId: number,
+  data: any,
+  actorId?: string
+): Promise<Digital201Aggregate> => {
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    include: {
+      user: {
+        include: {
+          applicantProfile: true,
+        },
+      },
+    },
+  });
+
+  if (!employee) {
+    throw new Error("Employee not found");
+  }
+
+  // Update employee-level fields if provided
+  const employeeUpdateData: Record<string, any> = {};
+  if (data.department !== undefined) {
+    employeeUpdateData.department = data.department !== null ? String(data.department).trim() || null : null;
+  }
+  if (data.position !== undefined) {
+    employeeUpdateData.position = data.position !== null ? String(data.position).trim() || null : null;
+  }
+  if (data.notes !== undefined) {
+    employeeUpdateData.notes = data.notes !== null ? String(data.notes).trim() || null : null;
+  }
+
+  if (Object.keys(employeeUpdateData).length > 0) {
+    await prisma.employee.update({
+      where: { id: employeeId },
+      data: employeeUpdateData,
+    });
+  }
+
+  // Update applicant profile fields for employee.userId
+  const profileUpdateData: Record<string, any> = {};
+
+  if (data.firstName !== undefined) {
+    if (typeof data.firstName === "string" && data.firstName.trim()) {
+      profileUpdateData.firstName = data.firstName.trim();
+    }
+  }
+  if (data.lastName !== undefined) {
+    if (typeof data.lastName === "string" && data.lastName.trim()) {
+      profileUpdateData.lastName = data.lastName.trim();
+    }
+  }
+  if (data.middleName !== undefined) {
+    profileUpdateData.middleName = typeof data.middleName === "string" ? data.middleName.trim() || null : null;
+  }
+  if (data.mobileNumber !== undefined) {
+    profileUpdateData.mobileNumber = typeof data.mobileNumber === "string" ? data.mobileNumber.trim() || null : null;
+  }
+  if (data.address !== undefined) {
+    profileUpdateData.address = typeof data.address === "string" ? data.address.trim() || null : null;
+  }
+  if (data.city !== undefined) {
+    profileUpdateData.city = typeof data.city === "string" ? data.city.trim() || null : null;
+  }
+  if (data.province !== undefined) {
+    profileUpdateData.province = typeof data.province === "string" ? data.province.trim() || null : null;
+  }
+  if (data.civilStatus !== undefined) {
+    profileUpdateData.civilStatus = typeof data.civilStatus === "string" ? data.civilStatus.trim() || null : null;
+  }
+  if (data.gender !== undefined) {
+    profileUpdateData.gender = typeof data.gender === "string" ? data.gender.trim() || null : null;
+  }
+  if (data.dateOfBirth !== undefined) {
+    let parsedDate: Date | null = null;
+    if (data.dateOfBirth) {
+      parsedDate = new Date(data.dateOfBirth);
+      if (isNaN(parsedDate.getTime())) {
+        throw new Error("Invalid dateOfBirth format");
+      }
+    }
+    profileUpdateData.dateOfBirth = parsedDate;
+  }
+  if (data.sss !== undefined) {
+    profileUpdateData.sss = typeof data.sss === "string" ? data.sss.trim() || null : null;
+  }
+  if (data.philhealth !== undefined) {
+    profileUpdateData.philhealth = typeof data.philhealth === "string" ? data.philhealth.trim() || null : null;
+  }
+  if (data.pagibig !== undefined) {
+    profileUpdateData.pagibig = typeof data.pagibig === "string" ? data.pagibig.trim() || null : null;
+  }
+  if (data.tin !== undefined) {
+    profileUpdateData.tin = typeof data.tin === "string" ? data.tin.trim() || null : null;
+  }
+  if (data.emergencyContactName !== undefined) {
+    profileUpdateData.emergencyContactName = typeof data.emergencyContactName === "string" ? data.emergencyContactName.trim() || null : null;
+  }
+  if (data.emergencyContactPhone !== undefined) {
+    profileUpdateData.emergencyContactPhone = typeof data.emergencyContactPhone === "string" ? data.emergencyContactPhone.trim() || null : null;
+  }
+  if (data.emergencyContactRelationship !== undefined) {
+    profileUpdateData.emergencyContactRelationship = typeof data.emergencyContactRelationship === "string" ? data.emergencyContactRelationship.trim() || null : null;
+  }
+  if (data.emergencyContactAddress !== undefined) {
+    profileUpdateData.emergencyContactAddress = typeof data.emergencyContactAddress === "string" ? data.emergencyContactAddress.trim() || null : null;
+  }
+
+  if (Object.keys(profileUpdateData).length > 0) {
+    await prisma.applicantProfile.upsert({
+      where: { userId: employee.userId },
+      update: profileUpdateData,
+      create: {
+        userId: employee.userId,
+        firstName: profileUpdateData.firstName || "",
+        lastName: profileUpdateData.lastName || "",
+        ...profileUpdateData,
+      },
+    });
+  }
+
+  await logAudit(actorId || null, "EMPLOYEE_DETAILS_UPDATED", "Employee", employeeId, {
+    employeeFields: Object.keys(employeeUpdateData),
+    profileFields: Object.keys(profileUpdateData),
+  });
+
+  return await getDigital201ByEmployeeId(employeeId);
 };
 
 /**

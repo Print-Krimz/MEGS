@@ -191,6 +191,15 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       city,
       province,
       tattooStatus,
+      sss,
+      philhealth,
+      pagibig,
+      tin,
+      address,
+      emergencyContactName,
+      emergencyContactPhone,
+      emergencyContactRelationship,
+      emergencyContactAddress,
     } = req.body || {};
 
     const updateData: Record<string, any> = {};
@@ -293,6 +302,85 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       if (profile.tattooStatus !== val) {
         changes.tattooStatus = { from: profile.tattooStatus, to: val };
         updateData.tattooStatus = val;
+      }
+    }
+
+    if (sss !== undefined) {
+      const val = typeof sss === "string" ? sss.trim() || null : null;
+      if (profile.sss !== val) {
+        changes.sss = { from: profile.sss, to: val };
+        updateData.sss = val;
+      }
+    }
+
+    if (philhealth !== undefined) {
+      const val = typeof philhealth === "string" ? philhealth.trim() || null : null;
+      if (profile.philhealth !== val) {
+        changes.philhealth = { from: profile.philhealth, to: val };
+        updateData.philhealth = val;
+      }
+    }
+
+    if (pagibig !== undefined) {
+      const val = typeof pagibig === "string" ? pagibig.trim() || null : null;
+      if (profile.pagibig !== val) {
+        changes.pagibig = { from: profile.pagibig, to: val };
+        updateData.pagibig = val;
+      }
+    }
+
+    if (tin !== undefined) {
+      const val = typeof tin === "string" ? tin.trim() || null : null;
+      if (profile.tin !== val) {
+        changes.tin = { from: profile.tin, to: val };
+        updateData.tin = val;
+      }
+    }
+
+    if (address !== undefined) {
+      const val = typeof address === "string" ? address.trim() || null : null;
+      if (profile.address !== val) {
+        changes.address = { from: profile.address, to: val };
+        updateData.address = val;
+      }
+    }
+
+    if (emergencyContactName !== undefined) {
+      const val = typeof emergencyContactName === "string" ? emergencyContactName.trim() || null : null;
+      if (profile.emergencyContactName !== val) {
+        changes.emergencyContactName = { from: profile.emergencyContactName, to: val };
+        updateData.emergencyContactName = val;
+      }
+    }
+
+    if (emergencyContactPhone !== undefined) {
+      const val = typeof emergencyContactPhone === "string" ? emergencyContactPhone.trim() || null : null;
+      if (val) {
+        const digits = val.replace(/\D/g, "");
+        if (digits.length < 7 || digits.length > 12) {
+          sendError(res, "Contact phone must not exceed 11 digits", 400);
+          return;
+        }
+      }
+      if (profile.emergencyContactPhone !== val) {
+        changes.emergencyContactPhone = { from: profile.emergencyContactPhone, to: val };
+        updateData.emergencyContactPhone = val;
+      }
+    }
+
+    if (emergencyContactRelationship !== undefined) {
+      const val = typeof emergencyContactRelationship === "string" ? emergencyContactRelationship.trim() || null : null;
+      if (profile.emergencyContactRelationship !== val) {
+        changes.emergencyContactRelationship = { from: profile.emergencyContactRelationship, to: val };
+        updateData.emergencyContactRelationship = val;
+      }
+    }
+
+    if (emergencyContactAddress !== undefined) {
+      const val = typeof emergencyContactAddress === "string" ? emergencyContactAddress.trim() || null : null;
+      if (profile.emergencyContactAddress !== val) {
+        changes.emergencyContactAddress = { from: profile.emergencyContactAddress, to: val };
+        updateData.emergencyContactAddress = val;
       }
     }
 
