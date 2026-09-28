@@ -18,7 +18,7 @@ declare module "./application.types" {
   }
 }
 
-export type { JobPosting };
+export type { JobPosting, ComplianceRequirement } from "./application.types";
 
 export interface MRFComplianceTemplate {
   id: number;
@@ -149,8 +149,10 @@ export interface AddComplianceRequirementDto {
 }
 
 export interface ReviewComplianceDto {
-  reviewStatus: "APPROVED" | "REJECTED" | "PENDING";
+  reviewStatus: "APPROVED" | "REJECTED" | "PENDING" | "EXPIRED" | "TO_FOLLOW";
   reviewNotes?: string;
+  expiresAt?: string | null;
+  toFollowExpectedAt?: string | null;
 }
 
 export interface DeployCandidateDto {

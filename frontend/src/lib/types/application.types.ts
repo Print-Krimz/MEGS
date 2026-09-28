@@ -81,7 +81,8 @@ export interface ComplianceRequirement {
   isRequired: boolean;
   deadline?: string | null;
   documentId?: number | null;
-  reviewStatus: "PENDING" | "SUBMITTED" | "APPROVED" | "REJECTED";
+  reviewStatus: "PENDING" | "SUBMITTED" | "APPROVED" | "REJECTED" | "EXPIRED" | "TO_FOLLOW";
+  toFollowExpectedAt?: string | null;
   reviewedById?: string | null;
   reviewNotes?: string | null;
   reviewedAt?: string | null;

@@ -119,15 +119,17 @@ export const submitDocumentForRequirement = async (
 export const reviewComplianceRequirement = async (
   requirementId: number,
   reviewedById: string,
-  reviewStatus: "APPROVED" | "REJECTED" | "PENDING" | "EXPIRED",
+  reviewStatus: "PENDING" | "SUBMITTED" | "APPROVED" | "REJECTED" | "EXPIRED" | "TO_FOLLOW",
   reviewNotes?: string,
-  expiresAt?: string | Date
+  expiresAt?: string | Date | null,
+  toFollowExpectedAt?: string | Date | null
 ) => {
   const requirement = await prisma.complianceRequirement.findUnique({
     where: { id: requirementId },
     include: {
       application: {
         select: {
+          id: true,
           userId: true,
           user: {
             select: {
@@ -140,22 +142,63 @@ export const reviewComplianceRequirement = async (
               },
             },
           },
-          jobPosting: { select: { postedById: true, title: true } },
+          jobPosting: {
+            select: {
+              postedById: true,
+              title: true,
+              mrf: {
+                select: {
+                  clientId: true,
+                  client: {
+                    select: {
+                      id: true,
+                      medicalValidityMonths: true,
+                      reviewThresholdDays: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     },
   });
   if (!requirement) throw new Error("Compliance requirement not found");
 
+  let calculatedExpiresAt: Date | null | undefined =
+    expiresAt !== undefined ? (expiresAt ? new Date(expiresAt) : null) : undefined;
+
+  const isMedicalDoc = Boolean(
+    requirement.documentLabel &&
+      /medical|fit\s+to\s+work|health/i.test(requirement.documentLabel)
+  );
+
+  if (reviewStatus === "APPROVED" && !expiresAt && isMedicalDoc) {
+    const validityMonths =
+      requirement.application?.jobPosting?.mrf?.client?.medicalValidityMonths ?? 6;
+    const exp = new Date();
+    exp.setMonth(exp.getMonth() + validityMonths);
+    calculatedExpiresAt = exp;
+  }
+
+  const updateData: any = {
+    reviewStatus,
+    reviewedById,
+    reviewNotes: reviewNotes || null,
+    reviewedAt: new Date(),
+    ...(calculatedExpiresAt !== undefined ? { expiresAt: calculatedExpiresAt } : {}),
+  };
+
+  if (reviewStatus === "TO_FOLLOW") {
+    updateData.toFollowExpectedAt = toFollowExpectedAt ? new Date(toFollowExpectedAt) : null;
+  } else if (toFollowExpectedAt !== undefined) {
+    updateData.toFollowExpectedAt = toFollowExpectedAt ? new Date(toFollowExpectedAt) : null;
+  }
+
   const updated = await prisma.complianceRequirement.update({
     where: { id: requirementId },
-    data: {
-      reviewStatus,
-      reviewedById,
-      reviewNotes: reviewNotes || null,
-      reviewedAt: new Date(),
-      ...(expiresAt !== undefined ? { expiresAt: expiresAt ? new Date(expiresAt) : null } : {}),
-    },
+    data: updateData,
   });
 
   void logAudit(reviewedById, "COMPLIANCE_REQUIREMENT_REVIEWED", "Application", requirement.applicationId, {
@@ -163,6 +206,8 @@ export const reviewComplianceRequirement = async (
     documentLabel: requirement.documentLabel,
     reviewStatus,
     reviewNotes,
+    toFollowExpectedAt: updateData.toFollowExpectedAt,
+    expiresAt: updateData.expiresAt,
   });
 
   const candProfile = requirement.application?.user?.applicantProfile;
@@ -172,11 +217,22 @@ export const reviewComplianceRequirement = async (
   const jobTitle = requirement.application?.jobPosting?.title || "Requisition";
 
   const isApproved = reviewStatus === "APPROVED";
-  const notifTitle = isApproved ? "Compliance Document Approved" : "Compliance Document Rejected";
+  const isToFollow = reviewStatus === "TO_FOLLOW";
+  const notifTitle = isApproved
+    ? "Compliance Document Approved"
+    : isToFollow
+    ? "Compliance Document Marked To Follow"
+    : "Compliance Document Rejected";
   const notifMsg = isApproved
     ? `Your document '${requirement.documentLabel}' for "${jobTitle}" has been verified and approved.`
+    : isToFollow
+    ? `Your document '${requirement.documentLabel}' for "${jobTitle}" has been marked to follow${
+        updateData.toFollowExpectedAt
+          ? ` with target completion date ${new Date(updateData.toFollowExpectedAt).toLocaleDateString()}`
+          : ""
+      }.`
     : `Your document '${requirement.documentLabel}' for "${jobTitle}" was rejected: ${reviewNotes || "Please review requirements and re-upload."}`;
-  const notifType = isApproved ? "SUCCESS" : "WARNING";
+  const notifType = isApproved ? "SUCCESS" : isToFollow ? "INFO" : "WARNING";
 
   if (requirement.application?.userId) {
     void sendNotification(
@@ -187,7 +243,7 @@ export const reviewComplianceRequirement = async (
       `/app/applications/${requirement.applicationId}`,
       {
         sendEmail: true,
-        ctaText: isApproved ? "View Application" : "Upload Document",
+        ctaText: isApproved || isToFollow ? "View Application" : "Upload Document",
       }
     );
   }
@@ -196,22 +252,22 @@ export const reviewComplianceRequirement = async (
   if (jobOwnerId && jobOwnerId !== reviewedById) {
     void sendNotification(
       jobOwnerId,
-      `Compliance Document ${isApproved ? "Approved" : "Rejected"}`,
-      `Document '${requirement.documentLabel}' for ${candidateName} on "${jobTitle}" was ${reviewStatus.toLowerCase()} by reviewer.`,
+      `Compliance Document ${isApproved ? "Approved" : isToFollow ? "To Follow" : "Rejected"}`,
+      `Document '${requirement.documentLabel}' for ${candidateName} on "${jobTitle}" was marked as ${reviewStatus.toLowerCase()} by reviewer.`,
       notifType,
       `/ta/applications/${requirement.applicationId}`
     );
   }
 
-  // If approved, check if all mandatory requirements are satisfied
-  if (isApproved) {
+  // If approved or TO_FOLLOW, check if all mandatory requirements are satisfied
+  if (isApproved || isToFollow) {
     const compliant = await isFullyCompliant(requirement.applicationId);
     if (compliant) {
       if (requirement.application?.userId) {
         void sendNotification(
           requirement.application.userId,
           "Pre-Employment Requirements Complete",
-          "All mandatory compliance documents approved. Ready for contract signing.",
+          "All mandatory compliance documents approved or scheduled to follow. Ready for contract signing.",
           "SUCCESS",
           `/app/applications/${requirement.applicationId}`,
           {
@@ -225,7 +281,7 @@ export const reviewComplianceRequirement = async (
         void sendNotification(
           jobOwnerId,
           "Candidate Compliance Complete",
-          `${candidateName} on "${jobTitle}" has completed all mandatory compliance documents and is ready for contract signing.`,
+          `${candidateName} on "${jobTitle}" has completed or scheduled all mandatory compliance documents and is ready for contract signing.`,
           "SUCCESS",
           `/ta/applications/${requirement.applicationId}`
         );
@@ -248,9 +304,14 @@ export const isFullyCompliant = async (applicationId: number): Promise<boolean> 
 
   const now = new Date();
   return requiredList.every((req) => {
-    if (req.reviewStatus !== "APPROVED") return false;
-    if (req.expiresAt && req.expiresAt <= now) return false;
-    return true;
+    if (req.reviewStatus === "APPROVED") {
+      return !req.expiresAt || req.expiresAt > now;
+    }
+    if (req.reviewStatus === "TO_FOLLOW") {
+      // Per resolved client decision: deployment permitted while tracking pending requirement
+      return true;
+    }
+    return false;
   });
 };
 
@@ -258,9 +319,12 @@ export const isFullyCompliant = async (applicationId: number): Promise<boolean> 
  * Automatically generates compliance checklist requirements from MRF/Client templates
  * when a candidate transitions to COMPLIANCE or HIRED.
  */
-export const calculateDefaultComplianceDeadline = (mrfTargetDate?: Date | null): Date => {
+export const calculateDefaultComplianceDeadline = (
+  mrfTargetDate?: Date | null,
+  reviewThresholdDays: number = 5
+): Date => {
   const now = new Date();
-  const defaultSla = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+  const defaultSla = new Date(now.getTime() + reviewThresholdDays * 24 * 60 * 60 * 1000);
 
   if (mrfTargetDate) {
     const target = new Date(mrfTargetDate);
@@ -409,7 +473,8 @@ export const generateComplianceRequirementsFromMRF = async (applicationId: numbe
     }
   }
 
-  const defaultDeadline = calculateDefaultComplianceDeadline(app.jobPosting.mrf?.targetFillDate);
+  const thresholdDays = app.jobPosting.mrf?.client?.reviewThresholdDays ?? 5;
+  const defaultDeadline = calculateDefaultComplianceDeadline(app.jobPosting.mrf?.targetFillDate, thresholdDays);
 
   const created = [];
   for (const item of templatesToApply) {

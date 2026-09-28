@@ -1,3 +1,13 @@
+export interface ClientComplianceTemplate {
+  id: number;
+  mrfId?: number | null;
+  clientId?: number | null;
+  documentLabel: string;
+  isRequired: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Client {
   id: number;
   name: string;
@@ -12,6 +22,9 @@ export interface Client {
   province?: string | null;
   postalCode?: string | null;
   isActive: boolean;
+  reviewThresholdDays?: number;
+  medicalValidityMonths?: number;
+  complianceTemplates?: ClientComplianceTemplate[];
   createdAt: string;
   updatedAt: string;
   _count?: {
@@ -32,6 +45,8 @@ export interface CreateClientDto {
   city?: string;
   province?: string;
   postalCode?: string;
+  reviewThresholdDays?: number;
+  medicalValidityMonths?: number;
 }
 
 export interface UpdateClientDto extends Partial<CreateClientDto> {

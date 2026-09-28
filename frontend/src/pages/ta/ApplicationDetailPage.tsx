@@ -22,7 +22,7 @@ import {
   InterviewType,
 } from "../../lib/types/enums";
 import type { Interview } from "../../lib/types/application.types";
-import type { UpdateCandidateProfileDto } from "../../lib/types/ta.types";
+import type { UpdateCandidateProfileDto, ReviewComplianceDto } from "../../lib/types/ta.types";
 import {
   UserCheck,
   Award,
@@ -169,7 +169,8 @@ export const ApplicationDetailPage: React.FC = () => {
   const [editDeadlineDate, setEditDeadlineDate] = useState("");
 
   const [reviewReqId, setReviewReqId] = useState<number | null>(null);
-  const [reviewReqStatus, setReviewReqStatus] = useState<"APPROVED" | "REJECTED">("APPROVED");
+  const [reviewReqStatus, setReviewReqStatus] = useState<"APPROVED" | "REJECTED" | "TO_FOLLOW">("APPROVED");
+  const [toFollowDate, setToFollowDate] = useState("");
   const [reviewReqNotes, setReviewReqNotes] = useState("");
 
   const [previewDocState, setPreviewDocState] = useState<{
@@ -684,12 +685,13 @@ export const ApplicationDetailPage: React.FC = () => {
   });
 
   const reviewComplianceMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { reviewStatus: "APPROVED" | "REJECTED"; reviewNotes?: string } }) =>
+    mutationFn: ({ id, data }: { id: number; data: ReviewComplianceDto }) =>
       taApi.reviewComplianceRequirement(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       setReviewReqId(null);
       setReviewReqNotes("");
+      setToFollowDate("");
       const msg = "The requirement review was saved.";
       setFeedback({ type: "success", message: msg });
       notify.success("Review saved", msg);
@@ -946,7 +948,7 @@ export const ApplicationDetailPage: React.FC = () => {
   );
 
   const hasUnapprovedMandatoryCompliance = (app.complianceRequirements || []).some(
-    (c) => c.isRequired && c.reviewStatus !== "APPROVED"
+    (c) => c.isRequired && c.reviewStatus !== "APPROVED" && c.reviewStatus !== "TO_FOLLOW"
   );
 
   const isTerminal =
@@ -1006,10 +1008,11 @@ export const ApplicationDetailPage: React.FC = () => {
 
   const totalCompReqs = app.complianceRequirements?.length || 0;
   const approvedCompReqs = (app.complianceRequirements || []).filter((r) => r.reviewStatus === "APPROVED").length;
+  const toFollowCompReqs = (app.complianceRequirements || []).filter((r) => r.reviewStatus === "TO_FOLLOW").length;
   const submittedCompReqs = (app.complianceRequirements || []).filter((r) => r.reviewStatus === "SUBMITTED").length;
-  const missingCompReqs = (app.complianceRequirements || []).filter((r) => !r.documentId && r.reviewStatus !== "APPROVED").length;
+  const missingCompReqs = (app.complianceRequirements || []).filter((r) => !r.documentId && r.reviewStatus !== "APPROVED" && r.reviewStatus !== "TO_FOLLOW").length;
 
-  const isAllClearancesApproved = totalCompReqs > 0 && approvedCompReqs === totalCompReqs;
+  const isAllClearancesApproved = totalCompReqs > 0 && (approvedCompReqs + toFollowCompReqs) === totalCompReqs;
   const requirementsListExpanded = manualRequirementsToggle !== null ? manualRequirementsToggle : !isAllClearancesApproved;
   const setRequirementsListExpanded = (val: boolean | ((prev: boolean) => boolean)) => {
     if (typeof val === "function") setManualRequirementsToggle(val(requirementsListExpanded));
@@ -2553,6 +2556,7 @@ export const ApplicationDetailPage: React.FC = () => {
                         <span className="text-slate-400">•</span>
                         <span className="text-slate-600">
                           {submittedCompReqs} awaiting review · {missingCompReqs} missing
+                          {toFollowCompReqs > 0 && ` · ${toFollowCompReqs} to follow`}
                         </span>
                       </div>
                       {hasUnapprovedMandatoryCompliance ? (
@@ -2563,6 +2567,10 @@ export const ApplicationDetailPage: React.FC = () => {
                         <span className="text-[11px] font-semibold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                           ✓ All clearances verified · Ready for contract
                         </span>
+                      ) : totalCompReqs > 0 && (approvedCompReqs + toFollowCompReqs) === totalCompReqs ? (
+                        <span className="text-[11px] font-semibold text-teal-900 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                          ✓ Clearances verified / To-Follow · Eligible for deployment
+                        </span>
                       ) : null}
                     </div>
 
@@ -2571,19 +2579,20 @@ export const ApplicationDetailPage: React.FC = () => {
                         {app.complianceRequirements.map((req) => {
                           const isApproved = req.reviewStatus === "APPROVED";
                           const isRejected = req.reviewStatus === "REJECTED";
-                          const isUnderReview = !isApproved && !isRejected && Boolean(req.documentId || req.reviewStatus === "SUBMITTED");
+                          const isToFollow = req.reviewStatus === "TO_FOLLOW";
+                          const isUnderReview = !isApproved && !isRejected && !isToFollow && Boolean(req.documentId || req.reviewStatus === "SUBMITTED");
 
                           const now = new Date();
                           const deadlineDate = req.deadline ? new Date(req.deadline) : null;
-                          const isOverdue = deadlineDate && deadlineDate < now && !isApproved;
+                          const isOverdue = deadlineDate && deadlineDate < now && !isApproved && !isToFollow;
                           const diffDays = deadlineDate ? Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
-                          const isDueSoon = diffDays !== null && diffDays >= 0 && diffDays <= 3 && !isApproved;
+                          const isDueSoon = diffDays !== null && diffDays >= 0 && diffDays <= 3 && !isApproved && !isToFollow;
 
                           return (
                             <div
                               key={req.id}
                               className={`p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
-                                isApproved ? "bg-white" : isDueSoon || isOverdue ? "bg-amber-50/20" : "bg-white"
+                                isApproved ? "bg-white" : isToFollow ? "bg-amber-50/10" : isDueSoon || isOverdue ? "bg-amber-50/20" : "bg-white"
                               }`}
                             >
                               {/* Left: Icon + Title + Secondary Metadata */}
@@ -2591,6 +2600,8 @@ export const ApplicationDetailPage: React.FC = () => {
                                 <div className="shrink-0 mt-0.5">
                                   {isApproved ? (
                                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                  ) : isToFollow ? (
+                                    <Clock className="w-4 h-4 text-amber-600" />
                                   ) : isRejected ? (
                                     <XCircle className="w-4 h-4 text-rose-600" />
                                   ) : isUnderReview ? (
@@ -2611,6 +2622,12 @@ export const ApplicationDetailPage: React.FC = () => {
                                   </div>
 
                                   <div className="flex items-center flex-wrap gap-2 text-[11px] font-mono">
+                                    {isToFollow && req.toFollowExpectedAt && (
+                                      <span className="text-amber-800 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                        Target: {formatDate(req.toFollowExpectedAt)}
+                                      </span>
+                                    )}
+
                                     {deadlineDate ? (
                                       <>
                                         <span className="text-slate-600">
@@ -2671,27 +2688,33 @@ export const ApplicationDetailPage: React.FC = () => {
 
                               {/* Right: Exactly ONE status badge, then action buttons */}
                               <div className="flex items-center gap-2.5 self-end sm:self-center shrink-0">
-                                <span
-                                  className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md uppercase tracking-wide border ${
-                                    isApproved
-                                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                {isToFollow ? (
+                                  <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                    To Follow
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md uppercase tracking-wide border ${
+                                      isApproved
+                                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                        : isRejected
+                                        ? "bg-rose-50 text-rose-800 border-rose-200"
+                                        : isUnderReview
+                                        ? "bg-blue-50 text-blue-800 border-blue-200"
+                                        : "bg-slate-100 text-slate-600 border-slate-200"
+                                    }`}
+                                  >
+                                    {isApproved
+                                      ? "APPROVED"
                                       : isRejected
-                                      ? "bg-rose-50 text-rose-800 border-rose-200"
+                                      ? "REJECTED"
                                       : isUnderReview
-                                      ? "bg-blue-50 text-blue-800 border-blue-200"
-                                      : "bg-slate-100 text-slate-600 border-slate-200"
-                                  }`}
-                                >
-                                  {isApproved
-                                    ? "APPROVED"
-                                    : isRejected
-                                    ? "REJECTED"
-                                    : isUnderReview
-                                    ? "UNDER REVIEW"
-                                    : req.isRequired
-                                    ? "NOT SUBMITTED"
-                                    : "OPTIONAL"}
-                                </span>
+                                      ? "UNDER REVIEW"
+                                      : req.isRequired
+                                      ? "NOT SUBMITTED"
+                                      : "OPTIONAL"}
+                                  </span>
+                                )}
 
                                 {req.documentId ? (
                                   <>
@@ -2710,6 +2733,18 @@ export const ApplicationDetailPage: React.FC = () => {
                                       }}
                                     >
                                       View
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setReviewReqId(req.id);
+                                        setReviewReqStatus(req.reviewStatus === "TO_FOLLOW" ? "TO_FOLLOW" : req.reviewStatus === "REJECTED" ? "REJECTED" : "APPROVED");
+                                        setReviewReqNotes(req.reviewNotes || "");
+                                        setToFollowDate(req.toFollowExpectedAt ? new Date(req.toFollowExpectedAt).toISOString().split('T')[0] : "");
+                                      }}
+                                    >
+                                      Review
                                     </Button>
                                     {!isApproved && (
                                       <Button
@@ -2739,6 +2774,7 @@ export const ApplicationDetailPage: React.FC = () => {
                                           setReviewReqId(req.id);
                                           setReviewReqStatus("REJECTED");
                                           setReviewReqNotes(req.reviewNotes || "");
+                                          setToFollowDate(req.toFollowExpectedAt ? new Date(req.toFollowExpectedAt).toISOString().split('T')[0] : "");
                                         }}
                                       >
                                         Reject
@@ -2751,8 +2787,9 @@ export const ApplicationDetailPage: React.FC = () => {
                                     size="sm"
                                     onClick={() => {
                                       setReviewReqId(req.id);
-                                      setReviewReqStatus(req.reviewStatus === "REJECTED" ? "REJECTED" : "APPROVED");
+                                      setReviewReqStatus(req.reviewStatus === "TO_FOLLOW" ? "TO_FOLLOW" : req.reviewStatus === "REJECTED" ? "REJECTED" : "APPROVED");
                                       setReviewReqNotes(req.reviewNotes || "");
+                                      setToFollowDate(req.toFollowExpectedAt ? new Date(req.toFollowExpectedAt).toISOString().split('T')[0] : "");
                                     }}
                                   >
                                     Review
@@ -3421,7 +3458,10 @@ export const ApplicationDetailPage: React.FC = () => {
       {/* Review Compliance Modal */}
       <Dialog
         open={Boolean(reviewReqId)}
-        onClose={() => setReviewReqId(null)}
+        onClose={() => {
+          setReviewReqId(null);
+          setToFollowDate("");
+        }}
         title="Review requirement"
         description="Check the candidate’s document and record your decision."
       >
@@ -3432,7 +3472,15 @@ export const ApplicationDetailPage: React.FC = () => {
               <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
                 <div className="font-bold text-slate-900 flex items-center justify-between">
                   <span>Requirement: {selectedReq?.documentLabel}</span>
-                  <span className="text-xs text-slate-600">{selectedReq?.reviewStatus === "APPROVED" ? "Approved" : selectedReq?.reviewStatus === "SUBMITTED" ? "Waiting for review" : "Waiting for candidate"}</span>
+                  <span className="text-xs text-slate-600">
+                    {selectedReq?.reviewStatus === "APPROVED"
+                      ? "Approved"
+                      : selectedReq?.reviewStatus === "TO_FOLLOW"
+                      ? "To Follow"
+                      : selectedReq?.reviewStatus === "SUBMITTED"
+                      ? "Waiting for review"
+                      : "Waiting for candidate"}
+                  </span>
                 </div>
                 {selectedReq?.documentId ? (
                   <div className="pt-1">
@@ -3470,21 +3518,40 @@ export const ApplicationDetailPage: React.FC = () => {
             options={[
               { value: "APPROVED", label: "Approve — document is valid" },
               { value: "REJECTED", label: "Reject — document needs correction" },
+              { value: "TO_FOLLOW", label: "To Follow (Post-deployment tracking)" },
             ]}
           />
+
+          {reviewReqStatus === "TO_FOLLOW" && (
+            <Input
+              type="date"
+              label="Target completion date"
+              value={toFollowDate}
+              onChange={(e) => setToFollowDate(e.target.value)}
+              helperText="Target date for candidate to submit this requirement post-deployment"
+            />
+          )}
+
           <Textarea
             label="Notes for the candidate"
-            placeholder="Explain what was verified or what needs to be corrected..."
+            placeholder="Explain what was verified, pending, or what needs to be corrected..."
             value={reviewReqNotes}
             onChange={(e) => setReviewReqNotes(e.target.value)}
             rows={2}
           />
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setReviewReqId(null)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setReviewReqId(null);
+                setToFollowDate("");
+              }}
+            >
               Cancel
             </Button>
             <Button
-              variant={reviewReqStatus === "APPROVED" ? "primary" : "danger"}
+              variant={reviewReqStatus === "APPROVED" || reviewReqStatus === "TO_FOLLOW" ? "primary" : "danger"}
               size="sm"
               loading={reviewComplianceMutation.isPending}
               onClick={() => {
@@ -3494,6 +3561,7 @@ export const ApplicationDetailPage: React.FC = () => {
                     data: {
                       reviewStatus: reviewReqStatus,
                       reviewNotes: reviewReqNotes || undefined,
+                      toFollowExpectedAt: reviewReqStatus === "TO_FOLLOW" && toFollowDate ? toFollowDate : undefined,
                     },
                   });
                 }

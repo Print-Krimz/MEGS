@@ -27,6 +27,8 @@ export const createClient = async (data: {
   city?: string;
   province?: string;
   postalCode?: string;
+  reviewThresholdDays?: number;
+  medicalValidityMonths?: number;
 }) => {
   // Construct composite address if individual fields are provided and composite is not
   let compositeAddress = data.address;
@@ -49,6 +51,8 @@ export const createClient = async (data: {
       city: data.city,
       province: data.province,
       postalCode: data.postalCode,
+      ...(data.reviewThresholdDays !== undefined ? { reviewThresholdDays: Number(data.reviewThresholdDays) } : {}),
+      ...(data.medicalValidityMonths !== undefined ? { medicalValidityMonths: Number(data.medicalValidityMonths) } : {}),
     },
   });
 };
@@ -57,6 +61,7 @@ export const getClientDetails = async (id: number) => {
   const client = await prisma.client.findUnique({
     where: { id },
     include: {
+      complianceTemplates: true,
       manpowerRequests: {
         include: {
           _count: { select: { jobPostings: true, deployments: true } },
@@ -101,6 +106,8 @@ export const updateClient = async (
     province?: string;
     postalCode?: string;
     isActive?: boolean;
+    reviewThresholdDays?: number;
+    medicalValidityMonths?: number;
   }
 ) => {
   let compositeAddress = data.address;
@@ -110,11 +117,15 @@ export const updateClient = async (
       .join(", ");
   }
 
+  const { reviewThresholdDays, medicalValidityMonths, ...rest } = data;
+
   return await prisma.client.update({
     where: { id },
     data: {
-      ...data,
+      ...rest,
       ...(compositeAddress !== undefined ? { address: compositeAddress } : {}),
+      ...(reviewThresholdDays !== undefined ? { reviewThresholdDays: Number(reviewThresholdDays) } : {}),
+      ...(medicalValidityMonths !== undefined ? { medicalValidityMonths: Number(medicalValidityMonths) } : {}),
     },
   });
 };

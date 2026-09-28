@@ -60,10 +60,11 @@ export const submitDocumentHandler = async (req: Request, res: Response): Promis
 export const reviewRequirementHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const requirementId = parseInt(req.params.requirementId as string, 10);
-    const { reviewStatus, reviewNotes } = req.body;
+    const { reviewStatus, reviewNotes, expiresAt, toFollowExpectedAt } = req.body;
 
-    if (isNaN(requirementId) || !["APPROVED", "REJECTED", "PENDING"].includes(reviewStatus)) {
-      sendError(res, "Valid reviewStatus (APPROVED, REJECTED, PENDING) is required", 400);
+    const allowedStatuses = ["APPROVED", "REJECTED", "PENDING", "EXPIRED", "TO_FOLLOW", "SUBMITTED"];
+    if (isNaN(requirementId) || !allowedStatuses.includes(reviewStatus)) {
+      sendError(res, `Valid reviewStatus (${allowedStatuses.join(", ")}) is required`, 400);
       return;
     }
 
@@ -71,7 +72,9 @@ export const reviewRequirementHandler = async (req: Request, res: Response): Pro
       requirementId,
       req.user!.id,
       reviewStatus,
-      reviewNotes
+      reviewNotes,
+      expiresAt,
+      toFollowExpectedAt
     );
     sendSuccess(res, "Compliance review updated", updated);
   } catch (error: any) {

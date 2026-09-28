@@ -140,6 +140,8 @@ export const taSchema = {
             message: "Postal code must be exactly 4 digits",
           }
         ),
+      reviewThresholdDays: z.coerce.number().int().min(1).max(30).optional(),
+      medicalValidityMonths: z.coerce.number().int().min(1).max(36).optional(),
     }),
   }),
   updateClient: z.object({
@@ -195,6 +197,8 @@ export const taSchema = {
           }
         ),
       isActive: z.boolean().optional(),
+      reviewThresholdDays: z.coerce.number().int().min(1).max(30).optional(),
+      medicalValidityMonths: z.coerce.number().int().min(1).max(36).optional(),
     }),
   }),
 };
