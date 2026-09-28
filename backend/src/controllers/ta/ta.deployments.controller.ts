@@ -51,7 +51,7 @@ export const createDeploymentHandler = async (req: Request, res: Response): Prom
       mrfId: mrfId ? parseInt(mrfId, 10) : undefined,
       site,
       contractStart,
-      contractEnd,
+      contractEnd: contractEnd || undefined,
       notes,
     });
 
