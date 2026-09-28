@@ -4,7 +4,12 @@ import { logAudit } from '../../utils/audit.js';
 import { sendNotification, sendRoleNotification } from '../../utils/notification.js';
 import { enqueueResumeAnalysis } from '../../workers/resume.worker.js';
 import { revalidateApplication } from "../scoring/scoring-configuration.service.js";
-import { ensureApplicantProfile, updateProfileResumeService } from './applicant.service.js';
+import {
+  ensureApplicantProfile,
+  updateProfileResumeService,
+  processResumeExtractionService,
+  applyExtractedProfileService,
+} from './applicant.service.js';
 
 export const fetchOpenJobs = async (filters?: { search?: string; location?: string }) => {
   const where: any = { status: "OPEN" };
@@ -199,6 +204,55 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
       await updateProfileResumeService(userId, resolvedResumeUrl);
     } catch (err: any) {
       throw new Error(`File upload failed: ${err.message}`);
+    }
+
+    try {
+      const { extractedData } = await processResumeExtractionService(
+        file.buffer,
+        file.mimetype,
+        file.originalname
+      );
+
+      if (extractedData) {
+        await applyExtractedProfileService(userId, {
+          personalDetails: {
+            firstName: extractedData.firstName,
+            middleName: extractedData.middleName,
+            lastName: extractedData.lastName,
+            mobileNumber: extractedData.mobileNumber,
+            gender: extractedData.gender,
+            province: extractedData.province,
+            city: extractedData.city,
+            dateOfBirth: extractedData.dateOfBirth,
+            birthPlace: extractedData.birthPlace,
+            nationality: extractedData.nationality,
+            civilStatus: extractedData.civilStatus,
+            religion: extractedData.religion,
+            height: extractedData.height,
+            weight: extractedData.weight,
+            address: extractedData.address,
+            preferredWorkLocations: extractedData.preferredWorkLocations,
+            professionalSummary: extractedData.professionalSummary,
+          },
+          workExperiences: extractedData.workExperiences?.map((we) => ({
+            company: we.company,
+            roleTitle: we.roleTitle,
+            location: we.location,
+            startDate: we.startDate || new Date().toISOString().split("T")[0],
+            endDate: we.endDate,
+            isCurrent: we.isCurrent,
+            summary: we.summary,
+          })),
+          educations: extractedData.educations,
+          skills: extractedData.skills,
+          trainings: extractedData.trainings,
+          characterReferences: extractedData.characterReferences,
+          overwriteExistingPersonal: false,
+          replaceStructuredFields: false,
+        });
+      }
+    } catch (extractErr: any) {
+      console.warn("[Application Submission] Profile extraction/auto-fill non-blocking failure:", extractErr.message);
     }
   } else {
     const profile = await ensureApplicantProfile(userId);

@@ -24,12 +24,40 @@ import {
   CheckCircle2,
   AlertCircle,
   FileText,
+  FileImage,
   Briefcase,
   Bookmark,
   Banknote,
   Building2,
 } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
+
+const ALLOWED_RESUME_EXTENSIONS = ["pdf", "docx", "doc", "png", "jpg", "jpeg", "webp"];
+const ALLOWED_RESUME_MIME_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+];
+const RESUME_ACCEPT_STRING =
+  ".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,image/png,image/jpeg,image/webp";
+
+function formatResumeFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getResumeFileIcon(fileName: string) {
+  const ext = fileName.split(".").pop()?.toLowerCase() || "";
+  if (["png", "jpg", "jpeg", "webp"].includes(ext)) {
+    return <FileImage className="w-5 h-5 text-[#0B315D]" />;
+  }
+  return <FileText className="w-5 h-5 text-[#0B315D]" />;
+}
 
 export const JobDetailPage: React.FC = () => {
   const navigate = useNavigate();
@@ -38,6 +66,7 @@ export const JobDetailPage: React.FC = () => {
 
   const [applyModalOpen, setApplyModalOpen] = useState(false);
   const [customResume, setCustomResume] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
   const jobQuery = useQuery({
@@ -106,6 +135,27 @@ export const JobDetailPage: React.FC = () => {
       }
     },
   });
+
+  const handleFileSelected = (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      notify.error("File Too Large", "Maximum resume upload size is 5 MB. Please select a smaller file.");
+      return;
+    }
+
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    const isExtensionAllowed = ALLOWED_RESUME_EXTENSIONS.includes(ext);
+    const isMimeAllowed = !file.type || ALLOWED_RESUME_MIME_TYPES.includes(file.type.toLowerCase());
+
+    if (!isExtensionAllowed || !isMimeAllowed) {
+      notify.error(
+        "Unsupported file type",
+        "Please upload a PDF, Word document (.docx), or image (.png, .jpg, .jpeg, .webp)."
+      );
+      return;
+    }
+
+    setCustomResume(file);
+  };
 
   const handleApply = (e: React.FormEvent) => {
     e.preventDefault();
@@ -369,6 +419,8 @@ export const JobDetailPage: React.FC = () => {
         open={applyModalOpen}
         onClose={() => {
           setApplyModalOpen(false);
+          setCustomResume(null);
+          setIsDragging(false);
           setSubmissionSuccess(false);
         }}
         title={`Apply for ${job.title}`}
@@ -392,6 +444,8 @@ export const JobDetailPage: React.FC = () => {
                 className="flex-1"
                 onClick={() => {
                   setApplyModalOpen(false);
+                  setCustomResume(null);
+                  setIsDragging(false);
                   setSubmissionSuccess(false);
                 }}
               >
@@ -420,35 +474,116 @@ export const JobDetailPage: React.FC = () => {
               <label className="block text-xs font-semibold text-[#102A43]">
                 Custom Resume for this Role (Optional)
               </label>
-              <div className="flex items-center gap-3">
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        if (file.size > 5 * 1024 * 1024) {
-                          notify.error("File Too Large", "Maximum PDF upload size is 5 MB. Please select a smaller file.");
-                          return;
-                        }
-                        setCustomResume(file);
-                      }
-                    }}
-                  />
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#D9E2EC] bg-white hover:bg-[#F7F9FC] text-xs font-semibold text-[#102A43] shadow-xs">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>{customResume ? "Replace PDF" : "Attach Tailored Resume (PDF up to 5 MB)"}</span>
-                  </span>
+
+              <input
+                id="custom-resume-input"
+                data-testid="resume-upload-input"
+                type="file"
+                accept={RESUME_ACCEPT_STRING}
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleFileSelected(file);
+                  }
+                  e.target.value = "";
+                }}
+              />
+
+              {!customResume ? (
+                <label
+                  htmlFor="custom-resume-input"
+                  data-testid="resume-dropzone"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      document.getElementById("custom-resume-input")?.click();
+                    }
+                  }}
+                  className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors block focus:outline-hidden focus:ring-2 focus:ring-[#0B315D] ${
+                    isDragging
+                      ? "border-[#0B315D] bg-[#EAF0F7]/50"
+                      : "border-[#D9E2EC] bg-[#F7F9FC] hover:bg-[#F0F4F8]"
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleFileSelected(file);
+                  }}
+                >
+                  <div className="flex flex-col items-center justify-center gap-1.5 pointer-events-none">
+                    <div className="w-8 h-8 rounded-full bg-white border border-[#D9E2EC] flex items-center justify-center text-[#0B315D] shadow-xs">
+                      <Upload className="w-4 h-4" />
+                    </div>
+                    <div className="text-xs font-semibold text-[#102A43]">
+                      Drag &amp; drop your resume here, or <span className="text-[#0B315D] underline">browse</span>
+                    </div>
+                    <p className="text-[11px] text-[#627D98]">
+                      Supports PDF, Word (.docx), or Images (.png, .jpg, .webp) up to 5 MB
+                    </p>
+                  </div>
                 </label>
-                {customResume && (
-                  <span className="text-xs font-mono text-[#0B315D] font-medium flex items-center gap-1 truncate max-w-[200px]">
-                    <FileText className="w-3.5 h-3.5 shrink-0" />
-                    {customResume.name}
-                  </span>
-                )}
-              </div>
+              ) : (
+                <div
+                  data-testid="selected-resume-card"
+                  className="border border-[#D9E2EC] bg-white rounded-lg p-3 flex items-center justify-between gap-3 shadow-xs"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleFileSelected(file);
+                  }}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded bg-[#EAF0F7] flex items-center justify-center shrink-0">
+                      {getResumeFileIcon(customResume.name)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-[#102A43] truncate">
+                        {customResume.name}
+                      </p>
+                      <p className="text-[11px] text-[#627D98]">
+                        {formatResumeFileSize(customResume.size)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <label
+                      htmlFor="custom-resume-input"
+                      className="cursor-pointer text-xs font-semibold text-[#0B315D] hover:underline px-2 py-1 rounded hover:bg-[#F0F4F8] transition-colors"
+                    >
+                      Change
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setCustomResume(null)}
+                      className="text-xs font-semibold text-[#DC2626] hover:underline px-2 py-1 rounded hover:bg-[#FEF2F2] transition-colors cursor-pointer"
+                      aria-label="Remove resume"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <p className="text-[11px] text-[#627D98]">
                 If omitted, your active profile resume on file will be used.
               </p>
@@ -467,7 +602,11 @@ export const JobDetailPage: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setApplyModalOpen(false)}
+                onClick={() => {
+                  setApplyModalOpen(false);
+                  setCustomResume(null);
+                  setIsDragging(false);
+                }}
               >
                 Cancel
               </Button>

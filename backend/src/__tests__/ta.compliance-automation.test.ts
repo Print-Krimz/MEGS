@@ -328,4 +328,25 @@ describe("TA 201 Compliance Automation & Duplicate Prevention", () => {
     expect(approvedOverride.expiresAt).toBeDefined();
     expect(new Date(approvedOverride.expiresAt!).getDate()).toBe(explicitDate.getDate());
   }, 25000);
+
+  it("12. Deletion: allows deleting a compliance requirement if it is not needed", async () => {
+    const { deleteComplianceRequirement } = await import("../services/ta/ta.compliance.service.js");
+
+    const reqToDelete = await createComplianceRequirement(
+      testApp.id,
+      "Optional Extra Certificate To Delete",
+      false,
+      undefined,
+      undefined,
+      testTA.id
+    );
+
+    const deleted = await deleteComplianceRequirement(reqToDelete.id, testTA.id);
+    expect(deleted.success).toBe(true);
+
+    const found = await prisma.complianceRequirement.findUnique({
+      where: { id: reqToDelete.id },
+    });
+    expect(found).toBeNull();
+  });
 });

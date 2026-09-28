@@ -32,6 +32,7 @@ import {
   Calendar,
   Building2,
   ShieldCheck,
+  Trash2,
   History,
   Truck,
   ArrowLeft,
@@ -167,6 +168,7 @@ export const ApplicationDetailPage: React.FC = () => {
 
   const [editDeadlineModalOpen, setEditDeadlineModalOpen] = useState(false);
   const [editDeadlineReqId, setEditDeadlineReqId] = useState<number | null>(null);
+  const [deleteReqTarget, setDeleteReqTarget] = useState<{ id: number; label: string } | null>(null);
   const [editDeadlineDate, setEditDeadlineDate] = useState("");
 
   const [reviewReqId, setReviewReqId] = useState<number | null>(null);
@@ -723,6 +725,22 @@ export const ApplicationDetailPage: React.FC = () => {
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Unable to save the requirement review. Please try again." });
       notify.error("Unable to save review", err);
+    },
+  });
+
+  const deleteRequirementMutation = useMutation({
+    mutationFn: (requirementId: number) => taApi.deleteComplianceRequirement(requirementId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+      setDeleteReqTarget(null);
+      const msg = "Compliance requirement deleted successfully.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Requirement removed", msg);
+    },
+    onError: (err: any) => {
+      const msg = formatErrorMessage(err) || "Unable to delete requirement. Please try again.";
+      setFeedback({ type: "error", message: msg });
+      notify.error("Unable to delete requirement", err);
     },
   });
 
@@ -2558,10 +2576,9 @@ export const ApplicationDetailPage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-teal-600" />
                       <h3 className="text-sm font-bold text-slate-900">Pre-employment requirements</h3>
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
-                        Required documents
+                      <span className="text-xs text-slate-500 font-medium">
+                        (Required documents)
                       </span>
                     </div>
                     <p className="text-xs text-slate-500">
@@ -2872,6 +2889,15 @@ export const ApplicationDetailPage: React.FC = () => {
                                     Review
                                   </Button>
                                 )}
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteReqTarget({ id: req.id, label: req.documentLabel })}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                                  title={`Delete ${req.documentLabel}`}
+                                  aria-label={`Delete ${req.documentLabel}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             </div>
                           );
@@ -3695,16 +3721,15 @@ export const ApplicationDetailPage: React.FC = () => {
       >
         <div className="space-y-4">
           {linkedClientId ? (
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
-              <span className="text-slate-500 font-mono text-[10px] uppercase block">
-                Client (linked automatically):
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-xs space-y-1">
+              <span className="text-slate-500 text-xs block">
+                Client (linked automatically)
               </span>
-              <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                <Building2 className="w-4 h-4 text-teal-600" />
-                <span>{linkedClientName || `Client #${linkedClientId}`}</span>
+              <div className="font-semibold text-slate-900 text-sm">
+                {linkedClientName || `Client #${linkedClientId}`}
               </div>
               {app.jobPosting?.title && (
-                <div className="text-[11px] text-slate-500 font-mono">
+                <div className="text-xs text-slate-500">
                   Position: {app.jobPosting.title}
                   {app.jobPosting?.mrf?.title ? ` • Request: ${app.jobPosting.mrf.title}` : ""}
                 </div>
@@ -3752,24 +3777,25 @@ export const ApplicationDetailPage: React.FC = () => {
             required
           />
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 items-start">
             <Input
-              label="Contract start date *"
+              label="Contract start date"
               type="date"
               value={deployContractStart}
               onChange={(e) => setDeployContractStart(e.target.value)}
               required
             />
             <Input
-              label="Contract end date (optional for rolling contracts)"
+              label="Contract end date"
               type="date"
               value={deployContractEnd}
               onChange={(e) => setDeployContractEnd(e.target.value)}
+              helperText="Optional for rolling contracts"
               error={
                 deployContractStart &&
                 deployContractEnd &&
                 new Date(deployContractStart) > new Date(deployContractEnd)
-                  ? "Contract end date must be on or after start date"
+                  ? "Must be on or after start date"
                   : undefined
               }
             />
@@ -3895,6 +3921,23 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
         </div>
       </Dialog>
+
+      {/* Delete Compliance Requirement Confirmation */}
+      <ConfirmDialog
+        open={Boolean(deleteReqTarget)}
+        onClose={() => setDeleteReqTarget(null)}
+        onConfirm={() => {
+          if (deleteReqTarget) {
+            deleteRequirementMutation.mutate(deleteReqTarget.id);
+          }
+        }}
+        title="Delete Compliance Requirement?"
+        description={`Are you sure you want to remove '${deleteReqTarget?.label}' from this candidate's compliance checklist?`}
+        confirmLabel="Delete requirement"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleteRequirementMutation.isPending}
+      />
 
       {/* Skip Client Endorsement & Advance to Final Interview Confirmation */}
       <ConfirmDialog

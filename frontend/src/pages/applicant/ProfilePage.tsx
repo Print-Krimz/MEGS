@@ -773,8 +773,25 @@ export const ProfilePage: React.FC = () => {
       return;
     }
     const ext = file.name.split(".").pop()?.toLowerCase();
-    if ((file.type && file.type !== "application/pdf") || ext !== "pdf") {
-      setFeedback({ type: "error", message: "Invalid file format. Only PDF files up to 5 MB are accepted." });
+    const allowedExtensions = ["pdf", "docx", "doc", "png", "jpg", "jpeg", "webp"];
+    const allowedMimeTypes = [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/msword",
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/webp",
+    ];
+
+    const isAllowedExt = ext ? allowedExtensions.includes(ext) : false;
+    const isAllowedMime = !file.type || allowedMimeTypes.includes(file.type);
+
+    if (!isAllowedExt || !isAllowedMime) {
+      setFeedback({
+        type: "error",
+        message: "Invalid file format. Please upload a PDF, Word document (.docx), or image (.png, .jpg, .jpeg, .webp) up to 5 MB.",
+      });
       return;
     }
     const formData = new FormData();

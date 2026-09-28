@@ -39,81 +39,127 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
   onNavigate,
   onJumpToSection,
   skills,
-}) => (
-  <div className="space-y-5">
-    <h2 className="sr-only">Overview</h2>
-    <section className="flex flex-col gap-5 border-b border-[#D9E2EC] pb-5 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex min-w-0 items-center gap-4">
-        {profile?.photoUrl && !imgError ? (
-          <img src={profile.photoUrl} alt="Candidate identity" className="h-20 w-20 shrink-0 rounded border border-[#D9E2EC] object-cover" onError={onImageError} />
-        ) : (
-          <div aria-hidden="true" className="flex h-20 w-20 shrink-0 items-center justify-center rounded bg-[#EAF0F7] text-xl font-semibold text-[#0B315D] ring-1 ring-inset ring-[#0B315D]/20">
-            {candidateInitials}
+}) => {
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!resumeUploadPending) {
+      e.dataTransfer.dropEffect = "copy";
+      if (!isDragging) {
+        setIsDragging(true);
+      }
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) {
+      return;
+    }
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (resumeUploadPending) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      onResumeFile(file);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <h2 className="sr-only">Overview</h2>
+      <section className="flex flex-col gap-5 border-b border-[#D9E2EC] pb-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          {profile?.photoUrl && !imgError ? (
+            <img src={profile.photoUrl} alt="Candidate identity" className="h-20 w-20 shrink-0 rounded border border-[#D9E2EC] object-cover" onError={onImageError} />
+          ) : (
+            <div aria-hidden="true" className="flex h-20 w-20 shrink-0 items-center justify-center rounded bg-[#EAF0F7] text-xl font-semibold text-[#0B315D] ring-1 ring-inset ring-[#0B315D]/20">
+              {candidateInitials}
+            </div>
+          )}
+          <div className="min-w-0">
+            <h2 className="truncate text-xl font-semibold text-[#102A43]">
+              {[profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ") || "Your candidate profile"}
+            </h2>
+            <p className="mt-1 text-sm text-[#627D98]">{user?.email || "Applicant account"}</p>
+            <p className="mt-1 text-sm text-[#627D98]">{profile?.mobileNumber || "Add a contact number"}{profile?.city ? ` · ${profile.city}` : ""}</p>
           </div>
-        )}
-        <div className="min-w-0">
-          <h2 className="truncate text-xl font-semibold text-[#102A43]">
-            {[profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ") || "Your candidate profile"}
-          </h2>
-          <p className="mt-1 text-sm text-[#627D98]">{user?.email || "Applicant account"}</p>
-          <p className="mt-1 text-sm text-[#627D98]">{profile?.mobileNumber || "Add a contact number"}{profile?.city ? ` · ${profile.city}` : ""}</p>
         </div>
-      </div>
-      <div className="flex shrink-0 flex-wrap gap-2">
-        <div className="w-full text-right text-xs text-[#627D98] sm:w-auto sm:text-left">
-          <span className="block font-semibold text-[#102A43]">Candidate photo</span>
-          <span>PNG or JPG up to 5 MB</span>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <div className="w-full text-right text-xs text-[#627D98] sm:w-auto sm:text-left">
+            <span className="block font-semibold text-[#102A43]">Candidate photo</span>
+            <span>PNG or JPG up to 5 MB</span>
+          </div>
+          <label className="inline-flex min-h-9 cursor-pointer items-center rounded-md border border-[#D9E2EC] bg-white px-3 text-xs sm:text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] transition-colors focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2">
+            <input
+              data-testid="photo-upload-input"
+              type="file"
+              accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+              className="sr-only"
+              disabled={photoUploadPending}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) onPhotoFile(file);
+                event.target.value = "";
+              }}
+            />
+            {photoUploadPending ? "Uploading photo…" : "Change photo"}
+          </label>
         </div>
-        <label className="inline-flex min-h-9 cursor-pointer items-center rounded-md border border-[#D9E2EC] bg-white px-3 text-xs sm:text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] transition-colors focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2">
-          <input
-            data-testid="photo-upload-input"
-            type="file"
-            accept=".png,.jpg,.jpeg,image/png,image/jpeg"
-            className="sr-only"
-            disabled={photoUploadPending}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) onPhotoFile(file);
-              event.target.value = "";
-            }}
-          />
-          {photoUploadPending ? "Uploading photo…" : "Change photo"}
-        </label>
-      </div>
-    </section>
+      </section>
 
-    <ProfileHealthMeter profile={profile} onJumpToTab={onJumpToSection} />
+      <ProfileHealthMeter profile={profile} onJumpToTab={onJumpToSection} />
 
-    <section id="overview-resume-panel" tabIndex={-1} className="border border-[#D9E2EC] border-l-4 border-l-[#0B315D] bg-[#EAF0F7]/60 rounded-lg p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]" aria-labelledby="overview-resume-heading">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#0B315D]">Resume to profile</p>
-          <h2 id="overview-resume-heading" className="mt-1 text-base font-semibold text-[#102A43]">Save time on profile setup</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#102A43]">Upload one PDF and MEGS fills supported contact details, experience, education, and skills for you. Review and correct anything before you continue.</p>
+      <section
+        id="overview-resume-panel"
+        tabIndex={-1}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`border border-l-4 border-l-[#0B315D] rounded-lg p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] transition-colors ${
+          isDragging
+            ? "border-[#0B315D] bg-[#D8E6F5] ring-2 ring-[#0B315D]/30"
+            : "border-[#D9E2EC] bg-[#EAF0F7]/60"
+        }`}
+        aria-labelledby="overview-resume-heading"
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#0B315D]">Resume to profile</p>
+            <h2 id="overview-resume-heading" className="mt-1 text-base font-semibold text-[#102A43]">Save time on profile setup</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#102A43]">Upload your resume (PDF, Word document, or image) and MEGS fills supported contact details, experience, education, and skills for you. Review and correct anything before you continue.</p>
+          </div>
+          {profile?.resumeUrl && <Button type="button" variant="outline" size="sm" onClick={onViewPdf}>View PDF</Button>}
         </div>
-        {profile?.resumeUrl && <Button type="button" variant="outline" size="sm" onClick={onViewPdf}>View PDF</Button>}
-      </div>
-      <div className="mt-4 flex flex-col gap-3 border-t border-[#D9E2EC] pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 text-sm text-[#102A43]">
-          <p className="font-semibold">{profile?.resumeUrl ? "Resume on file" : "No resume uploaded yet"}</p>
-          <p className="mt-1 text-xs text-[#627D98]">PDF only, up to 5 MB. Existing profile details stay unchanged when MEGS fills empty fields.</p>
+        <div className="mt-4 flex flex-col gap-3 border-t border-[#D9E2EC] pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 text-sm text-[#102A43]">
+            <p className="font-semibold">{profile?.resumeUrl ? "Resume on file" : "No resume uploaded yet"}</p>
+            <p className="mt-1 text-xs text-[#627D98]">PDF, DOCX, or Image (PNG, JPG, WEBP) up to 5 MB. Existing profile details stay unchanged when MEGS fills empty fields.</p>
+          </div>
+          <label className="inline-flex min-h-9 shrink-0 cursor-pointer items-center justify-center rounded-md bg-[#0B315D] px-4 text-xs sm:text-sm font-medium text-white hover:bg-[#082747] focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2 transition-colors">
+            <input
+              data-testid="resume-autofill-upload-input"
+              type="file"
+              accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,image/png,image/jpeg,image/webp"
+              className="sr-only"
+              disabled={resumeUploadPending}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) onResumeFile(file);
+                event.target.value = "";
+              }}
+            />
+            {resumeUploadPending ? "Reading your resume…" : profile?.resumeUrl ? "Replace resume" : "Upload resume"}
+          </label>
         </div>
-        <label className="inline-flex min-h-9 shrink-0 cursor-pointer items-center justify-center rounded-md bg-[#0B315D] px-4 text-xs sm:text-sm font-medium text-white hover:bg-[#082747] focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2 transition-colors">
-          <input
-            data-testid="resume-autofill-upload-input"
-            type="file"
-            accept=".pdf,application/pdf"
-            className="sr-only"
-            disabled={resumeUploadPending}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) onResumeFile(file);
-              event.target.value = "";
-            }}
-          />
-          {resumeUploadPending ? "Reading your resume…" : profile?.resumeUrl ? "Replace resume" : "Upload resume"}
-        </label>
-      </div>
       {resumeReview && (() => {
         const total =
           resumeReview.personalFields.length +
@@ -219,4 +265,5 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
       </dl>
     </section>
   </div>
-);
+  );
+};

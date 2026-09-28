@@ -33,18 +33,13 @@ export const InlineResumeViewer: React.FC<InlineResumeViewerProps> = ({
     <div className="border border-slate-300 bg-white rounded-lg shadow-xs flex flex-col overflow-hidden">
       {/* Viewer Header */}
       <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="p-1.5 bg-teal-50 border border-teal-200 rounded text-teal-800 shrink-0">
-            <FileText className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-slate-900 truncate">
-              Resume
-            </h3>
-            <p className="text-xs text-slate-500 truncate">
-              {candidateName} • Candidate document
-            </p>
-          </div>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-slate-900 truncate">
+            Resume
+          </h3>
+          <p className="text-xs text-slate-500 truncate">
+            {candidateName} • Candidate document
+          </p>
         </div>
 
         {/* Right Header Actions */}

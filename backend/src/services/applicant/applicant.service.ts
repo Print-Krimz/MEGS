@@ -6,12 +6,16 @@ import { resolveDocumentSignedUrl } from "../document/document.service.js";
 import pdfParseModule from "pdf-parse/lib/pdf-parse.js";
 const pdfParse: (buf: Buffer) => Promise<{ text: string }> =
   typeof pdfParseModule === "function" ? pdfParseModule : ((pdfParseModule as any)?.default ?? pdfParseModule);
+import mammoth from "mammoth";
+import { detectDocumentFormat } from "../../workers/resume.worker.js";
 import {
   extractResumeProfileData,
   extractResumeProfileDataFromBuffer,
   type ExtractedProfileData,
 } from "../../utils/gemini.js";
 import { normalizeTitleCase, normalizeSentenceCase } from "../../utils/text-case.js";
+
+export type { ExtractedProfileData };
 
 const queueProfileRevalidation = (profileId: number) => {
   try {
@@ -418,34 +422,86 @@ export const updateProfileResumeService = async (userId: string, resumeUrl: stri
   return updated;
 };
 
-// Extracts candidate profile information from a resume PDF buffer
+// Extracts candidate profile information from a resume buffer across multiple formats (.pdf, .docx, images)
 export const processResumeExtractionService = async (
-  buffer: Buffer
+  buffer: Buffer,
+  mimeType?: string,
+  originalName?: string
 ): Promise<{ extractedData: ExtractedProfileData | null; extractionStatus: "SUCCESS" | "UNAVAILABLE" }> => {
-  let text = "";
   try {
-    const parsed = await pdfParse(buffer);
-    text = parsed?.text ? parsed.text.trim() : "";
-  } catch (pdfErr: any) {
-    console.warn("[Resume Parser] pdfParse failed, will attempt multimodal extraction:", pdfErr.message);
-  }
+    const { isDocx, isImage, detectedMime } = detectDocumentFormat(mimeType, originalName);
 
-  // If text was successfully extracted and has substantive content, use text-based extraction
-  if (text && text.length >= 30) {
-    try {
-      const extracted = await extractResumeProfileData(text);
-      return { extractedData: extracted, extractionStatus: "SUCCESS" };
-    } catch (textExtErr: any) {
-      console.warn("[Resume Parser] Text-based extraction failed, attempting multimodal extraction:", textExtErr.message);
+    if (isDocx) {
+      let docxText = "";
+      try {
+        const mammothExtractor =
+          (mammoth as any)?.extractRawText ||
+          (mammoth as any)?.default?.extractRawText ||
+          mammoth.extractRawText;
+        const result = await mammothExtractor({ buffer });
+        docxText = result?.value ? result.value.trim() : "";
+      } catch (docxErr: any) {
+        console.warn("[Resume Parser] mammoth docx extraction failed, attempting buffer fallback:", docxErr.message);
+      }
+
+      if (docxText && docxText.length >= 30) {
+        try {
+          const extracted = await extractResumeProfileData(docxText);
+          return { extractedData: extracted, extractionStatus: "SUCCESS" };
+        } catch (textExtErr: any) {
+          console.warn("[Resume Parser] Text-based extraction from docx failed, attempting buffer fallback:", textExtErr.message);
+        }
+      }
+
+      // Fallback: Multimodal extraction directly from buffer with detected MIME
+      try {
+        const extracted = await extractResumeProfileDataFromBuffer(buffer, detectedMime);
+        return { extractedData: extracted, extractionStatus: "SUCCESS" };
+      } catch (bufExtErr: any) {
+        console.warn("[Resume Parser] Multimodal DOCX extraction unavailable:", bufExtErr.message);
+        return { extractedData: null, extractionStatus: "UNAVAILABLE" };
+      }
     }
-  }
 
-  // Fallback: Multimodal extraction directly from the PDF buffer via Gemini inlineData
-  try {
-    const extracted = await extractResumeProfileDataFromBuffer(buffer);
-    return { extractedData: extracted, extractionStatus: "SUCCESS" };
-  } catch (bufExtErr: any) {
-    console.warn("[Resume Parser] Multimodal PDF extraction unavailable:", bufExtErr.message);
+    if (isImage) {
+      try {
+        const extracted = await extractResumeProfileDataFromBuffer(buffer, detectedMime);
+        return { extractedData: extracted, extractionStatus: "SUCCESS" };
+      } catch (imgExtErr: any) {
+        console.warn("[Resume Parser] Multimodal image extraction unavailable:", imgExtErr.message);
+        return { extractedData: null, extractionStatus: "UNAVAILABLE" };
+      }
+    }
+
+    // Default / PDF fallback flow
+    let text = "";
+    try {
+      const parsed = await pdfParse(buffer);
+      text = parsed?.text ? parsed.text.trim() : "";
+    } catch (pdfErr: any) {
+      console.warn("[Resume Parser] pdfParse failed, will attempt multimodal extraction:", pdfErr.message);
+    }
+
+    // If text was successfully extracted and has substantive content, use text-based extraction
+    if (text && text.length >= 30) {
+      try {
+        const extracted = await extractResumeProfileData(text);
+        return { extractedData: extracted, extractionStatus: "SUCCESS" };
+      } catch (textExtErr: any) {
+        console.warn("[Resume Parser] Text-based extraction failed, attempting multimodal extraction:", textExtErr.message);
+      }
+    }
+
+    // Fallback: Multimodal extraction directly from the PDF buffer via Gemini inlineData
+    try {
+      const extracted = await extractResumeProfileDataFromBuffer(buffer, "application/pdf");
+      return { extractedData: extracted, extractionStatus: "SUCCESS" };
+    } catch (bufExtErr: any) {
+      console.warn("[Resume Parser] Multimodal PDF extraction unavailable:", bufExtErr.message);
+      return { extractedData: null, extractionStatus: "UNAVAILABLE" };
+    }
+  } catch (err: any) {
+    console.warn("[Resume Parser] Unexpected error during resume extraction:", err.message);
     return { extractedData: null, extractionStatus: "UNAVAILABLE" };
   }
 };

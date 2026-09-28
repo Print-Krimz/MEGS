@@ -21,9 +21,6 @@ import {
   Edit,
   Plus,
   MapPin,
-  ShieldCheck,
-  Clock,
-  FileCheck,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
 import { TA_COPY, formatPriority, formatTaStatus } from "../../lib/ta-copy";
@@ -206,64 +203,47 @@ export const ClientDetailPage: React.FC = () => {
         )}
       </div>
 
-      {/* Compliance & SLA Configuration Card */}
+      {/* Compliance & SLA Settings Card */}
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-teal-600" />
-            <h3 className="text-xs font-mono font-bold uppercase text-slate-700">
-              Compliance & SLA Configuration
-            </h3>
-          </div>
+          <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
+            Compliance & SLA settings
+          </h3>
           <button
             type="button"
             onClick={() => setEditModalOpen(true)}
-            className="text-xs text-teal-600 hover:text-teal-800 font-medium inline-flex items-center gap-1 cursor-pointer"
+            className="text-xs text-teal-700 hover:text-teal-900 font-medium cursor-pointer"
           >
-            <Edit className="w-3 h-3" />
-            Configure settings
+            Edit settings
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
-            <div className="flex items-center gap-1.5 text-slate-600 font-mono">
-              <Clock className="w-3.5 h-3.5 text-slate-400" />
-              <span>Review SLA Threshold</span>
-            </div>
-            <div className="text-xl font-bold text-slate-900 font-mono">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <div>
+            <span className="text-slate-500 block">Review SLA threshold</span>
+            <span className="font-semibold text-slate-900">
               {client.reviewThresholdDays ?? 5} days
-            </div>
-            <p className="text-[11px] text-slate-500">
-              Default turnaround timeline for reviewing pre-employment compliance submissions.
-            </p>
+            </span>
           </div>
-
-          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
-            <div className="flex items-center gap-1.5 text-slate-600 font-mono">
-              <FileCheck className="w-3.5 h-3.5 text-teal-600" />
-              <span>Medical Exam Validity</span>
-            </div>
-            <div className="text-xl font-bold text-slate-900 font-mono">
+          <div>
+            <span className="text-slate-500 block">Medical exam validity</span>
+            <span className="font-semibold text-slate-900">
               {client.medicalValidityMonths ?? 6} months
-            </div>
-            <p className="text-[11px] text-slate-500">
-              Validity duration auto-applied to approved medical and fit-to-work certifications.
-            </p>
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-500 block">Pre-employment template</span>
+            <span className="text-slate-900 font-medium">
+              {client.complianceTemplates && client.complianceTemplates.length > 0
+                ? `${client.complianceTemplates.length} custom requirement${client.complianceTemplates.length === 1 ? "" : "s"}`
+                : "Default 201 checklist"}
+            </span>
           </div>
         </div>
 
-        {/* Pre-Employment Checklist Templates */}
-        <div className="pt-2 border-t border-slate-100 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-slate-700">Pre-employment checklist templates</span>
-            <span className="text-[11px] text-slate-500 font-mono">
-              {client.complianceTemplates && client.complianceTemplates.length > 0
-                ? `${client.complianceTemplates.length} custom requirement${client.complianceTemplates.length === 1 ? "" : "s"}`
-                : "Default 201 templates"}
-            </span>
-          </div>
-          {client.complianceTemplates && client.complianceTemplates.length > 0 ? (
+        {client.complianceTemplates && client.complianceTemplates.length > 0 ? (
+          <div className="pt-2 border-t border-slate-100 space-y-2 text-xs">
+            <span className="text-slate-500 block">Checklist requirements</span>
             <div className="flex flex-wrap gap-1.5">
               {client.complianceTemplates.map((t: any) => (
                 <span
@@ -283,33 +263,15 @@ export const ClientDetailPage: React.FC = () => {
                 </span>
               ))}
             </div>
-          ) : (
-            <div className="p-3 bg-slate-50/50 rounded-lg border border-dashed border-slate-200 text-xs text-slate-600 space-y-1.5">
-              <p className="text-[11px] text-slate-500">
-                New candidate applications under this client automatically inherit the standard pre-employment checklist:
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  "Government Issued ID",
-                  "NBI Clearance",
-                  "Fit to Work Medical Exam",
-                  "SSS Document",
-                  "PhilHealth Member Data Record",
-                  "Pag-IBIG Member ID",
-                  "Signed Employment Contract",
-                  "Client NDA & Security Briefing",
-                ].map((item) => (
-                  <span
-                    key={item}
-                    className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-white text-slate-700 border border-slate-200"
-                  >
-                    ✓ {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="pt-2 border-t border-slate-100 text-xs">
+            <span className="text-slate-500 block mb-1">Standard 201 requirements</span>
+            <p className="text-slate-700 leading-relaxed">
+              Government Issued ID, NBI Clearance, Fit to Work Medical Exam, SSS Document, PhilHealth Member Data Record, Pag-IBIG Member ID, Signed Employment Contract, Client NDA & Security Briefing
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Grid: Active MRFs & Deployments */}

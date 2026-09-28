@@ -95,6 +95,33 @@ export const listComplianceRequirements = async (applicationId: number) => {
   return reqs;
 };
 
+
+export const deleteComplianceRequirement = async (
+  requirementId: number,
+  actorId?: string
+) => {
+  const requirement = await prisma.complianceRequirement.findUnique({
+    where: { id: requirementId },
+    include: { application: true },
+  });
+  if (!requirement) {
+    throw new Error("Compliance requirement not found");
+  }
+
+  await prisma.complianceRequirement.delete({
+    where: { id: requirementId },
+  });
+
+  if (requirement.applicationId) {
+    void logAudit(actorId || requirement.application?.userId, "COMPLIANCE_REQUIREMENT_DELETED", "Application", requirement.applicationId, {
+      requirementId,
+      documentLabel: requirement.documentLabel,
+    });
+  }
+
+  return { id: requirementId, success: true };
+};
+
 export const submitDocumentForRequirement = async (
   requirementId: number,
   documentId: number,

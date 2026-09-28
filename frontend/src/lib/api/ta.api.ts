@@ -379,6 +379,9 @@ export const taApi = {
   updateComplianceRequirementDeadline: (requirementId: number | string, deadline: string | null) =>
     api.patch<ComplianceRequirement>(`/api/ta/compliance/${requirementId}/deadline`, { deadline }),
 
+  deleteComplianceRequirement: (requirementId: number | string) =>
+    api.delete<{ id: number; success: boolean }>(`/api/ta/compliance/${requirementId}`),
+
   // -------------------------------------------------------------
   // 9. Deployment Lifecycle
   // -------------------------------------------------------------

@@ -85,6 +85,7 @@ import {
   submitDocumentHandler,
   reviewRequirementHandler,
   updateRequirementDeadlineHandler,
+  deleteRequirementHandler,
 } from '../../controllers/ta/ta.compliance.controller.js';
 
 import {
@@ -184,6 +185,7 @@ router.get("/applications/:id/compliance", listRequirementsHandler);
 router.post("/compliance/:requirementId/submit", submitDocumentHandler);
 router.patch("/compliance/:requirementId/review", reviewRequirementHandler);
 router.patch("/compliance/:requirementId/deadline", updateRequirementDeadlineHandler);
+router.delete("/compliance/:requirementId", deleteRequirementHandler);
 
 // Deployment Lifecycle
 router.post("/applications/:id/deploy", createDeploymentHandler);

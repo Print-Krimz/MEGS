@@ -181,7 +181,7 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
 
     const resumeUrl = await uploadFileToSupabase("applicant-assets", req.user!.id, file);
     await updateProfileResumeService(req.user!.id, resumeUrl);
-    const { extractedData, extractionStatus } = await processResumeExtractionService(file.buffer);
+    const { extractedData, extractionStatus } = await processResumeExtractionService(file.buffer, file.mimetype, file.originalname);
 
     let finalProfile: any = null;
     let changeSummary: any = null;
