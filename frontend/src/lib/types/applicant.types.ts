@@ -104,6 +104,8 @@ export interface ApplicantProfile {
   emergencyContactPhone?: string | null;
   emergencyContactAddress?: string | null;
   additionalNotes?: string | null;
+  tattooStatus?: "NONE" | "NON_VISIBLE" | "VISIBLE" | string | null;
+  hasNoShowHistory?: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

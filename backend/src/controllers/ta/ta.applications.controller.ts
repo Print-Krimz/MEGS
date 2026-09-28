@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { sendSuccess, sendError } from '../../utils/response.js';
+import prisma from '../../utils/prisma.js';
+import { logAudit } from '../../utils/audit.js';
 import {
   listTAApplications,
   getTAApplication,
@@ -149,3 +151,164 @@ export const completeOrientationHandler = async (req: Request, res: Response): P
     sendError(res, error.message, statusCode);
   }
 };
+
+// PATCH /api/ta/candidates/:id - Verify and update candidate profile
+export const updateCandidateProfileHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    if (!idParam) {
+      sendError(res, "Candidate ID is required", 400);
+      return;
+    }
+
+    const numId = parseInt(idParam, 10);
+    let profile = null;
+
+    if (!isNaN(numId)) {
+      profile = await prisma.applicantProfile.findUnique({
+        where: { id: numId },
+      });
+    }
+
+    if (!profile) {
+      profile = await prisma.applicantProfile.findFirst({
+        where: { userId: idParam },
+      });
+    }
+
+    if (!profile) {
+      sendError(res, "Applicant profile not found", 404);
+      return;
+    }
+
+    const {
+      firstName,
+      lastName,
+      middleName,
+      mobileNumber,
+      dateOfBirth,
+      gender,
+      city,
+      province,
+      tattooStatus,
+    } = req.body || {};
+
+    const updateData: Record<string, any> = {};
+    const changes: Record<string, { from: any; to: any }> = {};
+
+    if (firstName !== undefined) {
+      if (typeof firstName !== "string" || firstName.trim() === "") {
+        sendError(res, "First name cannot be empty", 400);
+        return;
+      }
+      const trimmed = firstName.trim();
+      if (profile.firstName !== trimmed) {
+        changes.firstName = { from: profile.firstName, to: trimmed };
+        updateData.firstName = trimmed;
+      }
+    }
+
+    if (lastName !== undefined) {
+      if (typeof lastName !== "string" || lastName.trim() === "") {
+        sendError(res, "Last name cannot be empty", 400);
+        return;
+      }
+      const trimmed = lastName.trim();
+      if (profile.lastName !== trimmed) {
+        changes.lastName = { from: profile.lastName, to: trimmed };
+        updateData.lastName = trimmed;
+      }
+    }
+
+    if (middleName !== undefined) {
+      const val = typeof middleName === "string" ? middleName.trim() || null : null;
+      if (profile.middleName !== val) {
+        changes.middleName = { from: profile.middleName, to: val };
+        updateData.middleName = val;
+      }
+    }
+
+    if (mobileNumber !== undefined) {
+      const val = typeof mobileNumber === "string" ? mobileNumber.trim() || null : null;
+      if (val) {
+        const digits = val.replace(/\D/g, "");
+        if (digits.length < 7 || digits.length > 12) {
+          sendError(res, "Contact phone must not exceed 11 digits", 400);
+          return;
+        }
+      }
+      if (profile.mobileNumber !== val) {
+        changes.mobileNumber = { from: profile.mobileNumber, to: val };
+        updateData.mobileNumber = val;
+      }
+    }
+
+    if (dateOfBirth !== undefined) {
+      let parsedDate: Date | null = null;
+      if (dateOfBirth) {
+        parsedDate = new Date(dateOfBirth);
+        if (isNaN(parsedDate.getTime())) {
+          sendError(res, "Invalid dateOfBirth format", 400);
+          return;
+        }
+      }
+      const currentIso = profile.dateOfBirth?.toISOString();
+      const nextIso = parsedDate?.toISOString();
+      if (currentIso !== nextIso) {
+        changes.dateOfBirth = { from: profile.dateOfBirth, to: parsedDate };
+        updateData.dateOfBirth = parsedDate;
+      }
+    }
+
+    if (gender !== undefined) {
+      const val = typeof gender === "string" ? gender.trim() || null : null;
+      if (profile.gender !== val) {
+        changes.gender = { from: profile.gender, to: val };
+        updateData.gender = val;
+      }
+    }
+
+    if (city !== undefined) {
+      const val = typeof city === "string" ? city.trim() || null : null;
+      if (profile.city !== val) {
+        changes.city = { from: profile.city, to: val };
+        updateData.city = val;
+      }
+    }
+
+    if (province !== undefined) {
+      const val = typeof province === "string" ? province.trim() || null : null;
+      if (profile.province !== val) {
+        changes.province = { from: profile.province, to: val };
+        updateData.province = val;
+      }
+    }
+
+    if (tattooStatus !== undefined) {
+      const val = typeof tattooStatus === "string" ? tattooStatus.trim().toUpperCase() || null : null;
+      if (val !== null && !["NONE", "NON_VISIBLE", "VISIBLE"].includes(val)) {
+        sendError(res, "Tattoo status must be NONE, NON_VISIBLE, VISIBLE, or null", 400);
+        return;
+      }
+      if (profile.tattooStatus !== val) {
+        changes.tattooStatus = { from: profile.tattooStatus, to: val };
+        updateData.tattooStatus = val;
+      }
+    }
+
+    const updatedProfile = await prisma.applicantProfile.update({
+      where: { id: profile.id },
+      data: updateData,
+    });
+
+    const actorId = req.user?.id || "system";
+    await logAudit(actorId, "TA_CANDIDATE_PROFILE_VERIFIED", "ApplicantProfile", profile.id, {
+      changes,
+    });
+
+    sendSuccess(res, "Candidate profile verified and updated successfully", updatedProfile);
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+

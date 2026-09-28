@@ -21,6 +21,7 @@ import {
   getRecruiterDecisionsHandler,
   signContractHandler,
   completeOrientationHandler,
+  updateCandidateProfileHandler,
 } from '../../controllers/ta/ta.applications.controller.js';
 
 import { analyzeApplication } from '../../controllers/ta/ta.ai.controller.js';
@@ -140,6 +141,7 @@ router.post("/jobs/:jobId/rank-candidates", rankCandidates);
 router.get("/jobs/:jobId/ranked-candidates", getRankedCandidates);
 router.get("/jobs/:jobId/talent-pool", getTalentPool);
 router.get("/candidates/:candidateId/similar", getSimilarCandidates);
+router.patch("/candidates/:id", updateCandidateProfileHandler);
 router.post("/talent-pool/search", searchTalentPool);
 router.post("/talent-pool/members", addCandidateToPool);
 router.post("/talent-pool/contacts", recordContact);

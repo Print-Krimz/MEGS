@@ -14,7 +14,7 @@ import {
 } from "../../components/common";
 import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
 import { InlineResumeViewer } from "../../components/ta/InlineResumeViewer";
-import { Button, Dialog, Input, Select, Textarea, ComboBox } from "../../components/ui";
+import { Button, Dialog, Input, Select, Textarea, ComboBox, PhoneInput } from "../../components/ui";
 import { formatDate, formatDateTime, getApplicationStatusMeta, extractDocumentId } from "../../lib/utils";
 import { COMPLIANCE_201_PRESETS } from "../../lib/hr-constants";
 import {
@@ -22,6 +22,7 @@ import {
   InterviewType,
 } from "../../lib/types/enums";
 import type { Interview } from "../../lib/types/application.types";
+import type { UpdateCandidateProfileDto } from "../../lib/types/ta.types";
 import {
   UserCheck,
   Award,
@@ -788,6 +789,35 @@ export const ApplicationDetailPage: React.FC = () => {
     };
   }, [appData?.aiSummary]);
 
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    firstName: "",
+    lastName: "",
+    middleName: "",
+    mobileNumber: "",
+    dateOfBirth: "",
+    gender: "",
+    city: "",
+    province: "",
+    tattooStatus: "NONE",
+  });
+
+  const updateCandidateMutation = useMutation({
+    mutationFn: (data: UpdateCandidateProfileDto) => {
+      const profileId = applicationQuery.data?.user?.applicantProfile?.id;
+      if (!profileId) throw new Error("No applicant profile to update");
+      return taApi.updateCandidateProfile(profileId, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+      notify.success("Profile Verified", "Candidate details updated successfully.");
+      setIsEditingProfile(false);
+    },
+    onError: (err: any) => {
+      notify.error("Update Failed", err);
+    },
+  });
+
   if (applicationQuery.isLoading) {
     return (
       <div className="space-y-6">
@@ -812,6 +842,62 @@ export const ApplicationDetailPage: React.FC = () => {
     ? `${profile.firstName} ${profile.lastName}`
     : app.user?.email || "Candidate";
   const candidateInitials = [profile?.firstName?.[0], profile?.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "ID";
+
+  const startEditingProfile = () => {
+    if (!profile) return;
+    setProfileForm({
+      firstName: profile.firstName || "",
+      lastName: profile.lastName || "",
+      middleName: profile.middleName || "",
+      mobileNumber: profile.mobileNumber || "",
+      dateOfBirth: profile.dateOfBirth ? String(profile.dateOfBirth).split("T")[0] : "",
+      gender: profile.gender
+        ? (profile.gender.toUpperCase() === "MALE" ? "Male" : profile.gender.toUpperCase() === "FEMALE" ? "Female" : profile.gender)
+        : "",
+      city: profile.city || "",
+      province: profile.province || "",
+      tattooStatus: profile.tattooStatus || "NONE",
+    });
+    if (!isResumeOpen) {
+      toggleResume(true);
+    }
+    setIsEditingProfile(true);
+  };
+
+  const handleSaveCandidateProfile = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!profileForm.firstName.trim()) {
+      notify.error("Validation Error", "First name is required.");
+      return;
+    }
+    if (!profileForm.lastName.trim()) {
+      notify.error("Validation Error", "Last name is required.");
+      return;
+    }
+
+    let cleanedPhone = profileForm.mobileNumber.trim();
+    if (cleanedPhone) {
+      const digits = cleanedPhone.replace(/\D/g, "");
+      if (digits.startsWith("09") && digits.length === 11) {
+        cleanedPhone = digits;
+      } else if (digits.startsWith("9") && digits.length === 10) {
+        cleanedPhone = "0" + digits;
+      }
+    }
+
+    updateCandidateMutation.mutate({
+      firstName: profileForm.firstName.trim(),
+      lastName: profileForm.lastName.trim(),
+      middleName: profileForm.middleName.trim() || null,
+      mobileNumber: cleanedPhone || null,
+      dateOfBirth: profileForm.dateOfBirth || null,
+      gender: profileForm.gender || null,
+      city: profileForm.city.trim() || null,
+      province: profileForm.province.trim() || null,
+      tattooStatus: (profileForm.tattooStatus as "NONE" | "NON_VISIBLE" | "VISIBLE") || null,
+    });
+  };
+
   const scores = app.candidateScores?.[0];
   const scoreExplanation = (() => {
     if (!scores?.explanation) return null;
@@ -1403,68 +1489,248 @@ export const ApplicationDetailPage: React.FC = () => {
                     <div className={isResumeOpen ? "space-y-6" : "grid grid-cols-1 md:grid-cols-2 gap-6 items-start"}>
                       {/* Left Sub-Group in Collapsed, or First Group in Split */}
                       <div className="space-y-6">
-                        {/* 1. Personal and contact details */}
-                        <div className="space-y-3">
-                          <div className="border-b border-slate-200 pb-2">
-                            <h4 className="text-sm font-semibold text-slate-800">
-                              Personal and contact details
-                            </h4>
-                          </div>
-
-                          <div className="flex items-start gap-4 pt-1">
-                            {/* 2x2 Photo Avatar Preview */}
-                            <div className="shrink-0">
-                              {profile?.photoUrl && !photoImgError ? (
-                                <img
-                                  src={profile.photoUrl}
-                                  alt="Profile"
-                                  className="w-16 h-16 rounded-md object-cover border border-slate-300 shadow-xs cursor-pointer hover:opacity-90 transition-opacity"
-                                  onError={() => setPhotoImgError(true)}
-                                  onClick={() => {
-                                    const docId = extractDocumentId(profile.photoUrl);
-                                    setPreviewDocState({
-                                      open: true,
-                                      documentId: docId,
-                                      fileUrl: profile.photoUrl,
-                                      title: "Identification Photo",
-                                    });
-                                  }}
-                                  title="Click to view full photo"
-                                />
-                              ) : (
-                                <div
-                                  aria-hidden="true"
-                                  className="flex h-16 w-16 items-center justify-center rounded-md bg-teal-50 text-base font-semibold text-teal-800 ring-1 ring-inset ring-teal-200"
-                                >
-                                  {candidateInitials}
-                                </div>
+                        {/* 1. Personal and contact details / Side-by-Side Verification */}
+                        <div className="space-y-3 p-3.5 rounded-lg border border-slate-200 bg-white shadow-xs">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-semibold text-slate-800">
+                                Personal & contact details
+                              </h4>
+                              {isEditingProfile && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                                  Verifying against resume
+                                </span>
                               )}
                             </div>
+                            {!isEditingProfile ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                type="button"
+                                leftIcon={<ShieldCheck className="w-3.5 h-3.5 text-teal-700" />}
+                                onClick={startEditingProfile}
+                                aria-label="Verify Profile Details"
+                                title="Verify candidate profile side-by-side with resume"
+                              >
+                                Verify Details
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                type="button"
+                                onClick={() => setIsEditingProfile(false)}
+                                className="text-slate-500 hover:text-slate-700 text-xs"
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
 
-                            {/* Demographics details */}
-                            <div className="space-y-1.5 text-xs flex-1 min-w-0">
-                              <div className="grid grid-cols-3">
-                                <span className="text-slate-600 font-mono font-medium">Full Name:</span>
-                                <span className="col-span-2 font-semibold text-slate-950 truncate">{candidateName}</span>
+                          {!isEditingProfile ? (
+                            <div className="flex items-start gap-4 pt-1">
+                              {/* 2x2 Photo Avatar Preview */}
+                              <div className="shrink-0">
+                                {profile?.photoUrl && !photoImgError ? (
+                                  <img
+                                    src={profile.photoUrl}
+                                    alt="Profile"
+                                    className="w-16 h-16 rounded-md object-cover border border-slate-300 shadow-xs cursor-pointer hover:opacity-90 transition-opacity"
+                                    onError={() => setPhotoImgError(true)}
+                                    onClick={() => {
+                                      const docId = extractDocumentId(profile.photoUrl);
+                                      setPreviewDocState({
+                                        open: true,
+                                        documentId: docId,
+                                        fileUrl: profile.photoUrl,
+                                        title: "Identification Photo",
+                                      });
+                                    }}
+                                    title="Click to view full photo"
+                                  />
+                                ) : (
+                                  <div
+                                    aria-hidden="true"
+                                    className="flex h-16 w-16 items-center justify-center rounded-md bg-teal-50 text-base font-semibold text-teal-800 ring-1 ring-inset ring-teal-200"
+                                  >
+                                    {candidateInitials}
+                                  </div>
+                                )}
                               </div>
-                              <div className="grid grid-cols-3">
-                                <span className="text-slate-600 font-mono font-medium">Contact Phone:</span>
-                                <span className="col-span-2 text-slate-800 font-mono">{profile?.mobileNumber || "N/A"}</span>
-                              </div>
-                              <div className="grid grid-cols-3">
-                                <span className="text-slate-600 font-mono font-medium">Current Address:</span>
-                                <span className="col-span-2 text-slate-800">{profile?.address || "N/A"}</span>
-                              </div>
-                              <div className="grid grid-cols-3">
-                                <span className="text-slate-600 font-mono font-medium">Region:</span>
-                                <span className="col-span-2 text-slate-800">{profile?.city ? `${profile.city}, ${profile.province}` : "Philippines"}</span>
-                              </div>
-                              <div className="grid grid-cols-3">
-                                <span className="text-slate-600 font-mono font-medium">Date of Birth:</span>
-                                <span className="col-span-2 text-slate-800 font-mono">{profile?.dateOfBirth ? formatDate(profile.dateOfBirth) : "N/A"}</span>
+
+                              {/* Demographics details */}
+                              <div className="space-y-1.5 text-xs flex-1 min-w-0">
+                                <div className="grid grid-cols-3">
+                                  <span className="text-slate-600 font-mono font-medium">Full Name:</span>
+                                  <span className="col-span-2 font-semibold text-slate-950 truncate">{candidateName}</span>
+                                </div>
+                                <div className="grid grid-cols-3">
+                                  <span className="text-slate-600 font-mono font-medium">Contact Phone:</span>
+                                  <span className="col-span-2 text-slate-800 font-mono">{profile?.mobileNumber || "N/A"}</span>
+                                </div>
+                                <div className="grid grid-cols-3">
+                                  <span className="text-slate-600 font-mono font-medium">Date of Birth:</span>
+                                  <span className="col-span-2 text-slate-800 font-mono">{profile?.dateOfBirth ? formatDate(profile.dateOfBirth) : "N/A"}</span>
+                                </div>
+                                <div className="grid grid-cols-3">
+                                  <span className="text-slate-600 font-mono font-medium">Gender:</span>
+                                  <span className="col-span-2 text-slate-800">{profile?.gender || "Unspecified"}</span>
+                                </div>
+                                <div className="grid grid-cols-3">
+                                  <span className="text-slate-600 font-mono font-medium">Region / City:</span>
+                                  <span className="col-span-2 text-slate-800">{profile?.city ? `${profile.city}, ${profile.province || ""}` : (profile?.province || "Philippines")}</span>
+                                </div>
+                                <div className="grid grid-cols-3">
+                                  <span className="text-slate-600 font-mono font-medium">Current Address:</span>
+                                  <span className="col-span-2 text-slate-800 truncate">{profile?.address || "N/A"}</span>
+                                </div>
+                                <div className="grid grid-cols-3 items-center">
+                                  <span className="text-slate-600 font-mono font-medium">Tattoo Status:</span>
+                                  <span className="col-span-2 text-slate-800">
+                                    {profile?.tattooStatus === "NONE" ? (
+                                      <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
+                                        <Check className="w-3 h-3 text-emerald-600" /> None / No tattoos
+                                      </span>
+                                    ) : profile?.tattooStatus === "NON_VISIBLE" ? (
+                                      <span className="inline-flex items-center gap-1 text-slate-700 font-medium">
+                                        Non-visible / Covered
+                                      </span>
+                                    ) : profile?.tattooStatus === "VISIBLE" ? (
+                                      <span className="inline-flex items-center gap-1 text-amber-700 font-medium">
+                                        Visible tattoos
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400 italic">Unspecified</span>
+                                    )}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
+                          ) : (
+                            /* Side-by-side interactive verification form */
+                            <form onSubmit={handleSaveCandidateProfile} className="space-y-3 pt-2">
+                              <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+                                <div className="shrink-0">
+                                  {profile?.photoUrl && !photoImgError ? (
+                                    <img
+                                      src={profile.photoUrl}
+                                      alt="Profile"
+                                      className="w-12 h-12 rounded-md object-cover border border-slate-300 shadow-xs"
+                                      onError={() => setPhotoImgError(true)}
+                                    />
+                                  ) : (
+                                    <div className="flex h-12 w-12 items-center justify-center rounded-md bg-teal-50 text-xs font-semibold text-teal-800 ring-1 ring-inset ring-teal-200">
+                                      {candidateInitials}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                  <p className="font-semibold text-slate-700">Side-by-Side Field Verification</p>
+                                  <p className="text-[11px] text-slate-400">Review against the resume document and update profile fields.</p>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                  label="First Name"
+                                  required
+                                  value={profileForm.firstName}
+                                  onChange={(e) => setProfileForm((f) => ({ ...f, firstName: e.target.value }))}
+                                  placeholder="First name"
+                                />
+                                <Input
+                                  label="Last Name"
+                                  required
+                                  value={profileForm.lastName}
+                                  onChange={(e) => setProfileForm((f) => ({ ...f, lastName: e.target.value }))}
+                                  placeholder="Last name"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                  label="Middle Name"
+                                  value={profileForm.middleName}
+                                  onChange={(e) => setProfileForm((f) => ({ ...f, middleName: e.target.value }))}
+                                  placeholder="Middle name (optional)"
+                                />
+                                <PhoneInput
+                                  label="Contact Phone"
+                                  value={profileForm.mobileNumber}
+                                  onChange={(val) => setProfileForm((f) => ({ ...f, mobileNumber: val }))}
+                                  placeholder="0917 123 4567"
+                                  helperText="Format: 09XX-XXX-XXXX"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                  label="Date of Birth"
+                                  type="date"
+                                  value={profileForm.dateOfBirth}
+                                  onChange={(e) => setProfileForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
+                                />
+                                <Select
+                                  label="Gender"
+                                  value={profileForm.gender}
+                                  onChange={(e) => setProfileForm((f) => ({ ...f, gender: e.target.value }))}
+                                >
+                                  <option value="">Any / Unspecified</option>
+                                  <option value="Male">Male</option>
+                                  <option value="Female">Female</option>
+                                </Select>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                  label="City"
+                                  value={profileForm.city}
+                                  onChange={(e) => setProfileForm((f) => ({ ...f, city: e.target.value }))}
+                                  placeholder="e.g. Makati City"
+                                />
+                                <Input
+                                  label="Province"
+                                  value={profileForm.province}
+                                  onChange={(e) => setProfileForm((f) => ({ ...f, province: e.target.value }))}
+                                  placeholder="e.g. Metro Manila"
+                                />
+                              </div>
+
+                              <div>
+                                <Select
+                                  label="Tattoo Status"
+                                  value={profileForm.tattooStatus}
+                                  onChange={(e) => setProfileForm((f) => ({ ...f, tattooStatus: e.target.value }))}
+                                  helperText="Confirm tattoo policy compliance with client MRF specifications."
+                                >
+                                  <option value="NONE">None / No tattoos</option>
+                                  <option value="NON_VISIBLE">Non-visible / Covered</option>
+                                  <option value="VISIBLE">Visible tattoos</option>
+                                </Select>
+                              </div>
+
+                              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  type="button"
+                                  disabled={updateCandidateMutation.isPending}
+                                  onClick={() => setIsEditingProfile(false)}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  type="submit"
+                                  loading={updateCandidateMutation.isPending}
+                                  leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                                >
+                                  Verify & Save Changes
+                                </Button>
+                              </div>
+                            </form>
+                          )}
                         </div>
 
                         {/* 2. Job opening and suitability */}

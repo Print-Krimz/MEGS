@@ -33,7 +33,9 @@ import type {
   DeploymentAnalytics,
   ComplianceAnalytics,
   InterviewSLASummary,
+  UpdateCandidateProfileDto,
 } from "../types/ta.types";
+import type { ApplicantProfile } from "../types/applicant.types";
 import type { Client, CreateClientDto, UpdateClientDto } from "../types/client.types";
 import type { Deployment } from "../types/employee.types";
 import type { ApplicationStatus } from "../types/enums";
@@ -125,6 +127,9 @@ export const taApi = {
     id: number | string,
     data: { orientationDate?: string; orientationNotes?: string }
   ) => api.post<Application>(`/api/ta/applications/${id}/orientation/complete`, data),
+
+  updateCandidateProfile: (id: number | string, data: UpdateCandidateProfileDto) =>
+    api.patch<ApplicantProfile>(`/api/ta/candidates/${id}`, data),
 
   // -------------------------------------------------------------
   // 2. AI Scoring & Assessment

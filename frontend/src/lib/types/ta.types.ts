@@ -271,6 +271,18 @@ export interface BatchSendTalentPoolInvitationsDto {
   expiresInDays?: number;
 }
 
+export interface UpdateCandidateProfileDto {
+  firstName?: string;
+  lastName?: string;
+  middleName?: string | null;
+  mobileNumber?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  city?: string | null;
+  province?: string | null;
+  tattooStatus?: "NONE" | "NON_VISIBLE" | "VISIBLE" | string | null;
+}
+
 export interface HireCandidateDto {
   employeeNumber?: string;
   department?: string;
