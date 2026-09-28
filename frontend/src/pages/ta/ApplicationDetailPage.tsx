@@ -1272,18 +1272,46 @@ export const ApplicationDetailPage: React.FC = () => {
               </>
             )}
             {canAdvanceToClientEndorsement && (
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<Building2 className="w-3.5 h-3.5" />}
-                onClick={() => {
-                  setEndorseOutcome("PENDING");
-                  setEndorseNotes("");
-                  setEndorseModalOpen(true);
-                }}
-              >
-                Send to client
-              </Button>
+              <>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Building2 className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    setEndorseOutcome("PENDING");
+                    setEndorseNotes("");
+                    setEndorseModalOpen(true);
+                  }}
+                >
+                  Send to client
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Calendar className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    setInterviewType(InterviewType.FINAL_INTERVIEW);
+                    setInterviewDate("");
+                    setInterviewNotes("");
+                    setInterviewModalOpen(true);
+                  }}
+                >
+                  Schedule final interview
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={updateStatusMutation.isPending}
+                  onClick={() => {
+                    updateStatusMutation.mutate({
+                      status: ApplicationStatus.FINAL_INTERVIEW,
+                      reason: "Advanced directly to Final Interview (skipping client endorsement review).",
+                    });
+                  }}
+                >
+                  Skip to final interview
+                </Button>
+              </>
             )}
 
             {/* STAGE 2: CLIENT_ENDORSEMENT Stage Actions */}
@@ -1556,7 +1584,6 @@ export const ApplicationDetailPage: React.FC = () => {
                                 variant="outline"
                                 size="sm"
                                 type="button"
-                                leftIcon={<ShieldCheck className="w-3.5 h-3.5 text-teal-700" />}
                                 onClick={startEditingProfile}
                                 aria-label="Verify Profile Details"
                                 title="Verify candidate profile side-by-side with resume"
@@ -2124,13 +2151,13 @@ export const ApplicationDetailPage: React.FC = () => {
                       size="sm"
                       leftIcon={<Plus className="w-3.5 h-3.5 text-teal-600" />}
                       onClick={() => {
-                        setInterviewType(InterviewType.INITIAL_SCREENING);
+                        setInterviewType(hasPassedScreening ? InterviewType.FINAL_INTERVIEW : InterviewType.INITIAL_SCREENING);
                         setInterviewDate("");
                         setInterviewNotes("");
                         setInterviewModalOpen(true);
                       }}
                     >
-                      Schedule Interview
+                      {hasPassedScreening ? "Schedule Final Interview" : "Schedule Interview"}
                     </Button>
                   </div>
                 </div>
