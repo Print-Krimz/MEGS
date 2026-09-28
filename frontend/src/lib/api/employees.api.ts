@@ -5,6 +5,7 @@ import type {
   Deployment,
   EmploymentEvent,
   EmployeeListQuery,
+  UpdateEmployeeDetailsDto,
 } from "../types/employee.types";
 import type { EmploymentStatus } from "../types/enums";
 
@@ -47,4 +48,9 @@ export const employeesApi = {
     deploymentId: number | string,
     data: { endDate?: string; reason: string; notes?: string }
   ) => api.post<Deployment>(`/api/employees/deployments/${deploymentId}/end`, data),
+
+  updateEmployeeDetails: (
+    id: number | string,
+    data: UpdateEmployeeDetailsDto
+  ) => api.patch<Digital201Aggregate>(`/api/employees/${id}/details`, data),
 };

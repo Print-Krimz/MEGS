@@ -283,6 +283,15 @@ export interface UpdateCandidateProfileDto {
   city?: string | null;
   province?: string | null;
   tattooStatus?: "NONE" | "NON_VISIBLE" | "VISIBLE" | string | null;
+  sss?: string | null;
+  philhealth?: string | null;
+  pagibig?: string | null;
+  tin?: string | null;
+  address?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  emergencyContactRelationship?: string | null;
+  emergencyContactAddress?: string | null;
 }
 
 export interface HireCandidateDto {

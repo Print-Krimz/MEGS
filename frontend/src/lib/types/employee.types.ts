@@ -96,9 +96,37 @@ export interface Employee {
   employmentEvents?: EmploymentEvent[];
 }
 
+export interface UpdateEmployeeDetailsDto {
+  firstName?: string;
+  middleName?: string | null;
+  lastName?: string;
+  mobileNumber?: string | null;
+  address?: string | null;
+  city?: string | null;
+  province?: string | null;
+  dateOfBirth?: string | null;
+  civilStatus?: string | null;
+  gender?: string | null;
+  sss?: string | null;
+  philhealth?: string | null;
+  pagibig?: string | null;
+  tin?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  emergencyContactRelationship?: string | null;
+  emergencyContactAddress?: string | null;
+  position?: string | null;
+  department?: string | null;
+  notes?: string | null;
+}
+
 export interface Digital201Aggregate {
   employee: Employee;
-  candidate: ApplicantProfile;
+  candidate: ApplicantProfile & {
+    id?: string;
+    email?: string;
+    profile?: ApplicantProfile;
+  };
   workExperiences: unknown[];
   educations: unknown[];
   skills: string[];
