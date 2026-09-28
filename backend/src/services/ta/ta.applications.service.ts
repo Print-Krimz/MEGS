@@ -15,7 +15,7 @@ export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   NEEDS_ATTENTION:           ["PARSING", "REVIEW", "MATCHED", "INITIAL_SCREENING", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
   MATCHED:                   ["INITIAL_SCREENING", "REVIEW", "TALENT_POOL", "ARCHIVED"],
   TALENT_POOL:               ["ARCHIVED"],
-  INITIAL_SCREENING:         ["CLIENT_ENDORSEMENT", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
+  INITIAL_SCREENING:         ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
   CLIENT_ENDORSEMENT:        ["FINAL_INTERVIEW", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
   FINAL_INTERVIEW:           ["COMPLIANCE", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
   COMPLIANCE:                ["CONTRACT_AND_ORIENTATION", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
@@ -460,15 +460,30 @@ export const updateTAApplicationStatus = async (
   }
 
   // Pre-transition rule: CLIENT_ENDORSEMENT -> FINAL_INTERVIEW requires APPROVED client endorsement
+  // Or direct progression: INITIAL_SCREENING -> FINAL_INTERVIEW requires passed INITIAL_SCREENING interview
   if (status === "FINAL_INTERVIEW") {
-    const endorsement = await prisma.clientEndorsement.findFirst({
-      where: {
-        applicationId: id,
-        outcome: { in: ["APPROVED", "ENDORSED"] },
-      },
-    });
-    if (!endorsement) {
-      throw new Error("Cannot move to FINAL_INTERVIEW. Client endorsement approval (outcome: APPROVED) is required.");
+    if (currentStatus === "CLIENT_ENDORSEMENT") {
+      const endorsement = await prisma.clientEndorsement.findFirst({
+        where: {
+          applicationId: id,
+          outcome: { in: ["APPROVED", "ENDORSED"] },
+        },
+      });
+      if (!endorsement) {
+        throw new Error("Cannot move to FINAL_INTERVIEW. Client endorsement approval (outcome: APPROVED) is required.");
+      }
+    } else if (currentStatus === "INITIAL_SCREENING") {
+      const screening = await prisma.interview.findFirst({
+        where: {
+          applicationId: id,
+          type: "INITIAL_SCREENING",
+          result: { in: ["PASS", "PASSED"] },
+          isActive: true,
+        },
+      });
+      if (!screening) {
+        throw new Error("Cannot move to FINAL_INTERVIEW. A passed INITIAL_SCREENING interview is required.");
+      }
     }
   }
 

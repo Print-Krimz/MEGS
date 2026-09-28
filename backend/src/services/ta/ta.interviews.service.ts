@@ -56,7 +56,7 @@ export const scheduleNewInterview = async (
       );
     }
   } else if (type === "FINAL_INTERVIEW") {
-    // FINAL_INTERVIEW requires that the candidate passed Initial Screening and has an approved client endorsement
+    // FINAL_INTERVIEW requires that the candidate passed Initial Screening
     const screening = await prisma.interview.findFirst({
       where: {
         applicationId,
@@ -69,22 +69,22 @@ export const scheduleNewInterview = async (
       throw new Error("Cannot schedule FINAL_INTERVIEW. Candidate must first complete and pass INITIAL_SCREENING.");
     }
 
-    const endorsement = await prisma.clientEndorsement.findFirst({
+    const declinedEndorsement = await prisma.clientEndorsement.findFirst({
       where: {
         applicationId,
-        outcome: { notIn: ["DECLINED", "REJECTED"] },
+        outcome: { in: ["DECLINED", "REJECTED"] },
       },
     });
-    if (!endorsement) {
-      throw new Error("Cannot schedule FINAL_INTERVIEW. Client endorsement dispatch is required.");
+    if (declinedEndorsement) {
+      throw new Error("Cannot schedule FINAL_INTERVIEW. Client endorsement was declined.");
     }
 
-    const finalStages = ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW"];
+    const finalStages = ["INITIAL_SCREENING", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW"];
     if (!finalStages.includes(application.status)) {
       throw new Error(`Cannot schedule FINAL_INTERVIEW for application currently in ${application.status} stage.`);
     }
 
-    // Advance application status to FINAL_INTERVIEW if in CLIENT_ENDORSEMENT
+    // Advance application status to FINAL_INTERVIEW if not already in FINAL_INTERVIEW
     if (application.status !== "FINAL_INTERVIEW") {
       const { updateTAApplicationStatus } = await import("./ta.applications.service.js");
       await updateTAApplicationStatus(
