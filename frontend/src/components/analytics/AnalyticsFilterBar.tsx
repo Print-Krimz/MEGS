@@ -45,7 +45,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
 
   const handleClearAll = () => {
     const cleared: AnalyticsFilterState = {
-      range: "30d",
+      range: "7d",
       startDate: undefined,
       endDate: undefined,
       clientId: undefined,
@@ -63,7 +63,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
   const handleRemoveFilter = (key: keyof AnalyticsFilterState) => {
     const updated: AnalyticsFilterState = {
       ...filters,
-      [key]: key === "range" ? "30d" : undefined,
+      [key]: key === "range" ? "7d" : undefined,
     };
     if (key === "range") {
       updated.startDate = undefined;
@@ -79,10 +79,10 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
     return JSON.stringify(draftFilters) !== JSON.stringify(filters);
   }, [draftFilters, filters]);
 
-  // Check if any filter is active (differs from default clean 30d state)
+  // Check if any filter is active (differs from default clean 7d state)
   const hasActiveFilters = useMemo(() => {
     return (
-      filters.range !== "30d" ||
+      filters.range !== "7d" ||
       filters.clientId !== undefined ||
       filters.mrfId !== undefined ||
       filters.jobPostingId !== undefined ||
@@ -148,9 +148,9 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
   const activeChips = useMemo(() => {
     const chips: { key: keyof AnalyticsFilterState; label: string; value: string }[] = [];
 
-    if (filters.range && filters.range !== "30d") {
+    if (filters.range && filters.range !== "7d") {
       const rangeLabels: Record<string, string> = {
-        "7d": "Last 7 Days",
+        "30d": "Last 30 Days",
         "90d": "Last 90 Days",
         custom: filters.startDate && filters.endDate ? `${filters.startDate} to ${filters.endDate}` : "Custom Range",
       };

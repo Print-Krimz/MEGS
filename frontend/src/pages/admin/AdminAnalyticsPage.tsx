@@ -27,7 +27,7 @@ import {
 
 export const AdminAnalyticsPage: React.FC = () => {
   const [filters, setFilters] = useState<AnalyticsFilterState>({
-    range: "30d",
+    range: "7d",
   });
   const [exportFormat, setExportFormat] = useState<"pdf" | "xlsx">("pdf");
   const [downloadingReport, setDownloadingReport] = useState<string | null>(null);

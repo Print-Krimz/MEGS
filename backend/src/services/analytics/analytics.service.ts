@@ -130,8 +130,8 @@ export interface AnalyticsFilterOptionsResult {
 // ─────────────────────────────────────────────
 // DATE RANGE RESOLVER
 // ─────────────────────────────────────────────
-function parseDateRange(filters: AnalyticsFilterDto): { start: Date; end: Date; days: number; dateKeys: string[] } {
-  const range = filters.range || "30d";
+export function parseDateRange(filters: AnalyticsFilterDto): { start: Date; end: Date; days: number; dateKeys: string[] } {
+  const range = filters.range || "7d";
   const now = new Date();
 
   let start: Date;
@@ -142,15 +142,15 @@ function parseDateRange(filters: AnalyticsFilterDto): { start: Date; end: Date; 
     start.setHours(0, 0, 0, 0);
     end = new Date(filters.endDate);
     end.setHours(23, 59, 59, 999);
-  } else if (range === "7d") {
-    start = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+  } else if (range === "30d") {
+    start = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
     start.setHours(0, 0, 0, 0);
   } else if (range === "90d") {
     start = new Date(now.getTime() - 89 * 24 * 60 * 60 * 1000);
     start.setHours(0, 0, 0, 0);
   } else {
-    // Default 30d
-    start = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+    // Default 7d
+    start = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
     start.setHours(0, 0, 0, 0);
   }
 
@@ -184,7 +184,7 @@ export const getRecruitmentActivityTrend = async (
 
   const shouldScopeToUser = filters.mineOnly !== undefined
     ? filters.mineOnly && userScope?.role === "TALENT_ACQUISITION"
-    : userScope?.role === "TALENT_ACQUISITION";
+    : userScope?.role === "TALENT_ACQUISITION" && !filters.recruiterId;
 
   // Build reusable jobPosting filter clause
   const jobClause: any = {};

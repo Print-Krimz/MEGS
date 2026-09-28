@@ -29,7 +29,7 @@ import { TA_COPY } from "../../lib/ta-copy";
 
 export const AnalyticsPage: React.FC = () => {
   const [filters, setFilters] = useState<AnalyticsFilterState>({
-    range: "30d",
+    range: "7d",
   });
   const [exportFormat, setExportFormat] = useState<"pdf" | "xlsx">("pdf");
   const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
@@ -144,13 +144,13 @@ export const AnalyticsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Relational Filter Ribbon (No Recruiter selector for TA, only MRF, Job, Stage, Dates, Mine Only) */}
+      {/* Relational Filter Ribbon */}
       <AnalyticsFilterBar
         filters={filters}
         onChange={setFilters}
         options={options}
         showClientFilter={false}
-        showRecruiterFilter={false}
+        showRecruiterFilter={true}
         showMineOnlyFilter={true}
       />
 
