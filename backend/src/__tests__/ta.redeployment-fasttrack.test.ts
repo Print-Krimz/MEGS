@@ -468,4 +468,16 @@ describe("TA Redeployment Fast-Track & 12-Month Clearance Carryover", () => {
     expect(mockRes.statusCode).toBe(400);
     expect(mockRes.body.success).toBe(false);
   });
+
+  it("6. Rejects fast-track if application is currently in late or terminal stage (e.g. COMPLIANCE, DEPLOYED)", async () => {
+    // pastAppA is in DEPLOYED stage
+    await expect(
+      fastTrackRedeployment(pastAppA.id, testTA.id)
+    ).rejects.toThrow(/Cannot fast-track application currently in DEPLOYED stage/i);
+
+    // newAppA is in COMPLIANCE stage from test 3
+    await expect(
+      fastTrackRedeployment(newAppA.id, testTA.id)
+    ).rejects.toThrow(/Cannot fast-track application currently in COMPLIANCE stage/i);
+  });
 });
