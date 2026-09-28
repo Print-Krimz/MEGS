@@ -40,6 +40,43 @@ import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 
 type MRFDetailTab = "deployments" | "jobs" | "specifications";
 
+const formatAgeRange = (min?: number | null, max?: number | null): string => {
+  if (min != null && max != null) {
+    return `${min} - ${max} years old`;
+  }
+  if (min != null) {
+    return `At least ${min} years old`;
+  }
+  if (max != null) {
+    return `Up to ${max} years old`;
+  }
+  return "No age limit specified";
+};
+
+const formatGenderPreference = (preference?: string | null): string => {
+  switch (preference) {
+    case "MALE":
+      return "Male preferred";
+    case "FEMALE":
+      return "Female preferred";
+    case "ANY":
+    default:
+      return "Any";
+  }
+};
+
+const formatTattooPolicy = (policy?: string | null): string => {
+  switch (policy) {
+    case "NO_VISIBLE":
+      return "No visible tattoos";
+    case "NONE":
+      return "No tattoos permitted";
+    case "ALLOWED":
+    default:
+      return "Allowed";
+  }
+};
+
 export interface MRFDetailPageProps {
   readOnly?: boolean;
   baseBackPath?: string;
@@ -88,6 +125,10 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const [editWorkArrangement, setEditWorkArrangement] = useState("On-site");
   const [editSalaryMin, setEditSalaryMin] = useState<number | string>("");
   const [editSalaryMax, setEditSalaryMax] = useState<number | string>("");
+  const [editAgeMin, setEditAgeMin] = useState<number | string>("");
+  const [editAgeMax, setEditAgeMax] = useState<number | string>("");
+  const [editGenderPreference, setEditGenderPreference] = useState<string>("ANY");
+  const [editTattooPolicy, setEditTattooPolicy] = useState<string>("ALLOWED");
   const [editDescription, setEditDescription] = useState("");
   const [editSkills, setEditSkills] = useState("");
   const [editExperience, setEditExperience] = useState("");
@@ -149,6 +190,34 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     editSalaryMin !== "" &&
       editSalaryMax !== "" &&
       parseFloat(String(editSalaryMin)) > parseFloat(String(editSalaryMax))
+  );
+
+  const handleEditAgeMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === "") {
+      setEditAgeMin("");
+      return;
+    }
+    const num = parseInt(val, 10);
+    if (isNaN(num)) return;
+    setEditAgeMin(val);
+  };
+
+  const handleEditAgeMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === "") {
+      setEditAgeMax("");
+      return;
+    }
+    const num = parseInt(val, 10);
+    if (isNaN(num)) return;
+    setEditAgeMax(val);
+  };
+
+  const isEditAgeRangeInvalid = Boolean(
+    editAgeMin !== "" &&
+      editAgeMax !== "" &&
+      parseInt(String(editAgeMin), 10) > parseInt(String(editAgeMax), 10)
   );
 
   const mrfQuery = useQuery({
@@ -228,6 +297,10 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     setEditWorkArrangement(m.workArrangement || "On-site");
     setEditSalaryMin(m.salaryRangeMin != null ? m.salaryRangeMin : "");
     setEditSalaryMax(m.salaryRangeMax != null ? m.salaryRangeMax : "");
+    setEditAgeMin(m.ageMin != null ? m.ageMin : "");
+    setEditAgeMax(m.ageMax != null ? m.ageMax : "");
+    setEditGenderPreference(m.genderPreference || "ANY");
+    setEditTattooPolicy(m.tattooPolicy || "ALLOWED");
     setEditDescription(m.description || "");
     setEditSkills(m.requiredSkills || "");
     setEditExperience(m.requiredExperience || "");
@@ -282,6 +355,34 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       }
     }
 
+    if (editAgeMin !== "" && editAgeMin != null) {
+      const min = parseInt(String(editAgeMin), 10);
+      if (isNaN(min) || min < 18 || min > 65) {
+        notify.error("Validation error", "Minimum age must be an integer between 18 and 65.");
+        return;
+      }
+    }
+
+    if (editAgeMax !== "" && editAgeMax != null) {
+      const max = parseInt(String(editAgeMax), 10);
+      if (isNaN(max) || max < 18 || max > 65) {
+        notify.error("Validation error", "Maximum age must be an integer between 18 and 65.");
+        return;
+      }
+    }
+
+    if (
+      editAgeMin !== "" &&
+      editAgeMin != null &&
+      editAgeMax !== "" &&
+      editAgeMax != null
+    ) {
+      if (parseInt(String(editAgeMin), 10) > parseInt(String(editAgeMax), 10)) {
+        notify.error("Validation error", "Minimum age cannot exceed maximum age.");
+        return;
+      }
+    }
+
     updateMRFMutation.mutate({
       title: editTitle.trim(),
       headcount: parsedHeadcount,
@@ -290,8 +391,12 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       location: editLocation.trim() || null,
       employmentType: editEmploymentType || null,
       workArrangement: editWorkArrangement || null,
-      salaryRangeMin: editSalaryMin !== "" ? Number(editSalaryMin) : null,
-      salaryRangeMax: editSalaryMax !== "" ? Number(editSalaryMax) : null,
+      salaryRangeMin: editSalaryMin !== "" && editSalaryMin != null ? Number(editSalaryMin) : null,
+      salaryRangeMax: editSalaryMax !== "" && editSalaryMax != null ? Number(editSalaryMax) : null,
+      ageMin: editAgeMin !== "" && editAgeMin != null ? Number(editAgeMin) : null,
+      ageMax: editAgeMax !== "" && editAgeMax != null ? Number(editAgeMax) : null,
+      genderPreference: editGenderPreference || "ANY",
+      tattooPolicy: editTattooPolicy || "ALLOWED",
       description: editDescription.trim() || null,
       requiredSkills: editSkills.trim() || null,
       requiredExperience: editExperience.trim() || null,
@@ -904,6 +1009,33 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
 
                   <div>
                     <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
+                      Age limits:
+                    </span>
+                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
+                      {formatAgeRange(mrf.ageMin, mrf.ageMax)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
+                      Gender preference:
+                    </span>
+                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
+                      {formatGenderPreference(mrf.genderPreference)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
+                      Tattoo visibility policy:
+                    </span>
+                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
+                      {formatTattooPolicy(mrf.tattooPolicy)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
                       Required skills:
                     </span>
                     <p className="text-xs text-slate-800 font-semibold mt-0.5">
@@ -1249,6 +1381,59 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     placeholder="e.g. Professional Driver's License, TESDA NC II, PRC"
                     value={editCertifications}
                     onChange={(e) => setEditCertifications(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Section 3: Demographic & Physical Qualifications */}
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-1.5">
+                  Demographic & physical qualifications
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    label="Minimum age"
+                    type="number"
+                    min={18}
+                    max={65}
+                    placeholder="e.g. 21"
+                    value={editAgeMin}
+                    onChange={handleEditAgeMinChange}
+                    helperText="Must be between 18 and 65"
+                  />
+                  <Input
+                    label="Maximum age"
+                    type="number"
+                    min={18}
+                    max={65}
+                    placeholder="e.g. 45"
+                    value={editAgeMax}
+                    onChange={handleEditAgeMaxChange}
+                    error={isEditAgeRangeInvalid ? "Maximum age cannot be less than minimum age" : undefined}
+                    helperText="Must be between 18 and 65"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Select
+                    label="Gender preference"
+                    value={editGenderPreference}
+                    onChange={(e) => setEditGenderPreference(e.target.value)}
+                    options={[
+                      { value: "ANY", label: "Any / No preference" },
+                      { value: "MALE", label: "Male preferred" },
+                      { value: "FEMALE", label: "Female preferred" },
+                    ]}
+                  />
+                  <Select
+                    label="Tattoo visibility policy"
+                    value={editTattooPolicy}
+                    onChange={(e) => setEditTattooPolicy(e.target.value)}
+                    options={[
+                      { value: "ALLOWED", label: "No restrictions / Allowed" },
+                      { value: "NO_VISIBLE", label: "No visible tattoos" },
+                      { value: "NONE", label: "No tattoos permitted" },
+                    ]}
                   />
                 </div>
               </div>

@@ -33,6 +33,10 @@ export const MRFCreatePage: React.FC = () => {
   const [salaryMax, setSalaryMax] = useState<string>("");
   const [employmentType, setEmploymentType] = useState("Contractual");
   const [workArrangement, setWorkArrangement] = useState("On-site");
+  const [ageMin, setAgeMin] = useState<string>("");
+  const [ageMax, setAgeMax] = useState<string>("");
+  const [genderPreference, setGenderPreference] = useState<string>("ANY");
+  const [tattooPolicy, setTattooPolicy] = useState<string>("ALLOWED");
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
@@ -92,8 +96,34 @@ export const MRFCreatePage: React.FC = () => {
     }
   };
 
+  const handleAgeMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === "") {
+      setAgeMin("");
+      return;
+    }
+    const num = parseInt(val, 10);
+    if (isNaN(num)) return;
+    setAgeMin(val);
+  };
+
+  const handleAgeMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === "") {
+      setAgeMax("");
+      return;
+    }
+    const num = parseInt(val, 10);
+    if (isNaN(num)) return;
+    setAgeMax(val);
+  };
+
   const isSalaryRangeInvalid = Boolean(
     salaryMin && salaryMax && parseFloat(salaryMin) > parseFloat(salaryMax)
+  );
+
+  const isAgeRangeInvalid = Boolean(
+    ageMin && ageMax && parseInt(ageMin, 10) > parseInt(ageMax, 10)
   );
 
   const createMRFMutation = useMutation({
@@ -176,6 +206,27 @@ export const MRFCreatePage: React.FC = () => {
       return;
     }
 
+    if (ageMin !== "") {
+      const min = parseInt(ageMin, 10);
+      if (isNaN(min) || min < 18 || min > 65) {
+        setValidationError("Minimum age must be an integer between 18 and 65.");
+        return;
+      }
+    }
+
+    if (ageMax !== "") {
+      const max = parseInt(ageMax, 10);
+      if (isNaN(max) || max < 18 || max > 65) {
+        setValidationError("Maximum age must be an integer between 18 and 65.");
+        return;
+      }
+    }
+
+    if (ageMin && ageMax && parseInt(ageMin, 10) > parseInt(ageMax, 10)) {
+      setValidationError("Minimum age cannot exceed maximum age.");
+      return;
+    }
+
     setValidationError(null);
     createMRFMutation.mutate({
       clientId,
@@ -193,6 +244,10 @@ export const MRFCreatePage: React.FC = () => {
       salaryRangeMax: salaryMax ? Number(salaryMax) : undefined,
       employmentType,
       workArrangement,
+      ageMin: ageMin ? parseInt(ageMin, 10) : null,
+      ageMax: ageMax ? parseInt(ageMax, 10) : null,
+      genderPreference: genderPreference || "ANY",
+      tattooPolicy: tattooPolicy || "ALLOWED",
     });
   };
 
@@ -387,6 +442,60 @@ export const MRFCreatePage: React.FC = () => {
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
           />
+        </div>
+
+        {/* Demographic & Physical Qualifications */}
+        <div className="space-y-4 pt-4 border-t border-slate-100">
+          <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
+            Demographic & physical qualifications
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Minimum age"
+              type="number"
+              min={18}
+              max={65}
+              placeholder="e.g. 21"
+              value={ageMin}
+              onChange={handleAgeMinChange}
+              helperText="Must be between 18 and 65"
+            />
+            <Input
+              label="Maximum age"
+              type="number"
+              min={18}
+              max={65}
+              placeholder="e.g. 45"
+              value={ageMax}
+              onChange={handleAgeMaxChange}
+              error={isAgeRangeInvalid ? "Maximum age cannot be less than minimum age" : undefined}
+              helperText="Must be between 18 and 65"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
+              label="Gender preference"
+              value={genderPreference}
+              onChange={(e) => setGenderPreference(e.target.value)}
+              options={[
+                { value: "ANY", label: "Any / No preference" },
+                { value: "MALE", label: "Male preferred" },
+                { value: "FEMALE", label: "Female preferred" },
+              ]}
+            />
+            <Select
+              label="Tattoo visibility policy"
+              value={tattooPolicy}
+              onChange={(e) => setTattooPolicy(e.target.value)}
+              options={[
+                { value: "ALLOWED", label: "No restrictions / Allowed" },
+                { value: "NO_VISIBLE", label: "No visible tattoos" },
+                { value: "NONE", label: "No tattoos permitted" },
+              ]}
+            />
+          </div>
         </div>
 
         <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4 border-t border-slate-100">

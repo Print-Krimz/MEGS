@@ -48,6 +48,10 @@ export interface ManpowerRequest {
   employmentType?: string | null;
   workArrangement?: string | null;
   complianceRequirements?: string | null;
+  ageMin?: number | null;
+  ageMax?: number | null;
+  genderPreference?: string | null;
+  tattooPolicy?: string | null;
   status: "OPEN" | "IN_PROGRESS" | "FILLED" | "CANCELLED" | "ON_HOLD";
   createdById: string;
   createdAt: string;
@@ -88,9 +92,17 @@ export interface CreateMRFDto {
   employmentType?: string;
   workArrangement?: string;
   complianceRequirements?: string;
+  ageMin?: number | null;
+  ageMax?: number | null;
+  genderPreference?: string | null;
+  tattooPolicy?: string | null;
 }
 
 export interface UpdateMRFDto extends Partial<CreateMRFDto> {
+  ageMin?: number | null;
+  ageMax?: number | null;
+  genderPreference?: string | null;
+  tattooPolicy?: string | null;
   status?: "OPEN" | "IN_PROGRESS" | "FILLED" | "CANCELLED" | "ON_HOLD";
 }
 

@@ -70,6 +70,38 @@ export const validateMRFBoundaries = (body: any): string | null => {
     }
   }
 
+  const hasAgeMin = body.ageMin !== undefined && body.ageMin !== null && body.ageMin !== "";
+  const hasAgeMax = body.ageMax !== undefined && body.ageMax !== null && body.ageMax !== "";
+
+  let ageMinVal: number | undefined;
+  let ageMaxVal: number | undefined;
+
+  if (hasAgeMin) {
+    if (typeof body.ageMin === "boolean" || typeof body.ageMin === "object") {
+      return "Minimum age must be an integer between 18 and 65";
+    }
+    ageMinVal = Number(body.ageMin);
+    if (isNaN(ageMinVal) || !Number.isInteger(ageMinVal) || ageMinVal < 18 || ageMinVal > 65) {
+      return "Minimum age must be an integer between 18 and 65";
+    }
+  }
+
+  if (hasAgeMax) {
+    if (typeof body.ageMax === "boolean" || typeof body.ageMax === "object") {
+      return "Maximum age must be an integer between 18 and 65";
+    }
+    ageMaxVal = Number(body.ageMax);
+    if (isNaN(ageMaxVal) || !Number.isInteger(ageMaxVal) || ageMaxVal < 18 || ageMaxVal > 65) {
+      return "Maximum age must be an integer between 18 and 65";
+    }
+  }
+
+  if (hasAgeMin && hasAgeMax && ageMinVal !== undefined && ageMaxVal !== undefined) {
+    if (ageMinVal > ageMaxVal) {
+      return "Minimum age cannot exceed maximum age";
+    }
+  }
+
   return null;
 };
 

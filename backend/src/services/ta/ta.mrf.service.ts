@@ -326,6 +326,10 @@ export const createMRF = async (
     employmentType?: string;
     workArrangement?: string;
     complianceRequirements?: string;
+    ageMin?: number | null;
+    ageMax?: number | null;
+    genderPreference?: string | null;
+    tattooPolicy?: string | null;
   }
 ) => {
   const client = await prisma.client.findUnique({ where: { id: data.clientId } });
@@ -350,6 +354,10 @@ export const createMRF = async (
       employmentType: data.employmentType,
       workArrangement: data.workArrangement,
       complianceRequirements: data.complianceRequirements,
+      ageMin: (data.ageMin as any) === "" || data.ageMin === null || data.ageMin === undefined ? null : Number(data.ageMin),
+      ageMax: (data.ageMax as any) === "" || data.ageMax === null || data.ageMax === undefined ? null : Number(data.ageMax),
+      genderPreference: (data.genderPreference as any) === "" || data.genderPreference === null ? null : data.genderPreference,
+      tattooPolicy: (data.tattooPolicy as any) === "" || data.tattooPolicy === null ? null : data.tattooPolicy,
     },
     include: {
       client: { select: { id: true, name: true } },
@@ -464,6 +472,10 @@ export const updateMRF = async (
     employmentType?: string;
     workArrangement?: string;
     complianceRequirements?: string;
+    ageMin?: number | null;
+    ageMax?: number | null;
+    genderPreference?: string | null;
+    tattooPolicy?: string | null;
     status?: string;
   },
   actorId?: string
@@ -479,6 +491,18 @@ export const updateMRF = async (
   }
   if (data.salaryRangeMax !== undefined) {
     updateData.salaryRangeMax = (data.salaryRangeMax as any) === "" || data.salaryRangeMax === null ? null : Number(data.salaryRangeMax);
+  }
+  if (data.ageMin !== undefined) {
+    updateData.ageMin = (data.ageMin as any) === "" || data.ageMin === null ? null : Number(data.ageMin);
+  }
+  if (data.ageMax !== undefined) {
+    updateData.ageMax = (data.ageMax as any) === "" || data.ageMax === null ? null : Number(data.ageMax);
+  }
+  if (data.genderPreference !== undefined) {
+    updateData.genderPreference = (data.genderPreference as any) === "" || data.genderPreference === null ? null : data.genderPreference;
+  }
+  if (data.tattooPolicy !== undefined) {
+    updateData.tattooPolicy = (data.tattooPolicy as any) === "" || data.tattooPolicy === null ? null : data.tattooPolicy;
   }
   if (data.headcount !== undefined) {
     updateData.headcount = Number(data.headcount);
