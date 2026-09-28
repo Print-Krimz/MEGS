@@ -913,10 +913,10 @@ export const getTAOverviewStats = async (
 // ─────────────────────────────────────────────
 export const getTAPendingActions = async (
   taUserId: string,
-  filters: AnalyticsFilterDto = {}
+  filters: AnalyticsFilterDto = {},
+  now: Date = new Date()
 ): Promise<TAPendingActionItem[]> => {
   const actions: TAPendingActionItem[] = [];
-  const now = new Date();
 
   const jobScope: any = {};
   if (filters.mineOnly) {
@@ -967,16 +967,19 @@ export const getTAPendingActions = async (
             ...(filters.mineOnly
               ? {
                   OR: [
-                    { endorsedById: taUserId },
-                    { application: hasJobScope ? { jobPosting: jobScope } : {} },
+                    { endorsedById: taUserId, application: { isArchived: false } },
+                    { application: { isArchived: false, ...(hasJobScope ? { jobPosting: jobScope } : {}) } },
                   ],
                 }
-              : hasJobScope
-              ? { application: { jobPosting: jobScope } }
-              : {}),
+              : {
+                  application: {
+                    isArchived: false,
+                    ...(hasJobScope ? { jobPosting: jobScope } : {}),
+                  },
+                }),
           },
           include: {
-            client: { select: { name: true } },
+            client: { select: { name: true, reviewThresholdDays: true } },
             application: {
               include: {
                 jobPosting: { select: { title: true } },
@@ -1035,17 +1038,26 @@ export const getTAPendingActions = async (
     for (const endo of pendingEndorsements) {
       const profile = endo.application?.user?.applicantProfile;
       const name = profile ? `${profile.firstName} ${profile.lastName}`.trim() : endo.application?.user?.email || "Candidate";
-      const ageDays = Math.max(0, Math.round((now.getTime() - endo.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
+      const rawThreshold = endo.client?.reviewThresholdDays;
+      const threshold = typeof rawThreshold === "number" && rawThreshold > 0 ? rawThreshold : 5;
+      const ageDays = Math.max(0, Math.floor((now.getTime() - endo.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
+      const isBreached = ageDays >= threshold;
+      const clientName = endo.client?.name || "Client";
+      const deadline = new Date(endo.createdAt.getTime() + threshold * 86400000).toISOString();
+
       actions.push({
         id: `endorsement-${endo.id}`,
         type: "CLIENT_ENDORSEMENT",
-        title: `Awaiting Client Decision (${endo.client?.name || "Client"})`,
+        title: isBreached
+          ? `Client Review Overdue (${ageDays}d / ${threshold}d SLA): ${clientName}`
+          : `Awaiting Client Decision (${clientName})`,
         candidateName: name,
         candidateEmail: endo.application?.user?.email,
         jobTitle: endo.application?.jobPosting?.title || "Requisition",
         applicationId: endo.application?.id || 0,
-        urgency: ageDays > 3 ? "HIGH" : "NORMAL",
+        urgency: isBreached ? "HIGH" : "NORMAL",
         agingDays: ageDays,
+        deadline,
         targetUrl: `/ta/applications/${endo.application?.id}`,
         createdAt: endo.createdAt.toISOString(),
       });
