@@ -3350,11 +3350,10 @@ export const ApplicationDetailPage: React.FC = () => {
               required
             />
             <Input
-              label="Contract end date *"
+              label="Contract end date (optional for rolling contracts)"
               type="date"
               value={deployContractEnd}
               onChange={(e) => setDeployContractEnd(e.target.value)}
-              required
               error={
                 deployContractStart &&
                 deployContractEnd &&
@@ -3392,8 +3391,8 @@ export const ApplicationDetailPage: React.FC = () => {
               disabled={
                 !(linkedClientId || deployClientId) ||
                 !deployContractStart ||
-                !deployContractEnd ||
-                new Date(deployContractStart) > new Date(deployContractEnd) ||
+                (deployContractEnd &&
+                  new Date(deployContractStart) > new Date(deployContractEnd)) ||
                 deployMutation.isPending
               }
               loading={deployMutation.isPending}
@@ -3403,11 +3402,11 @@ export const ApplicationDetailPage: React.FC = () => {
                   notify.error("Client required", "Choose a client before activating this deployment.");
                   return;
                 }
-                if (!deployContractStart || !deployContractEnd) {
-                  notify.error("Contract dates required", "Both contract start date and contract end date are required.");
+                if (!deployContractStart) {
+                  notify.error("Contract start required", "Contract start date is required.");
                   return;
                 }
-                if (new Date(deployContractStart) > new Date(deployContractEnd)) {
+                if (deployContractEnd && new Date(deployContractStart) > new Date(deployContractEnd)) {
                   notify.error("Invalid dates", "Contract start date cannot be after contract end date.");
                   return;
                 }

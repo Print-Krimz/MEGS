@@ -19,22 +19,28 @@ export const createDeploymentHandler = async (req: Request, res: Response): Prom
       return;
     }
 
-    if (!contractStart || !contractEnd) {
-      sendError(res, "Contract start date and contract end date are required", 400);
+    if (!contractStart) {
+      sendError(res, "Contract start date is required", 400);
       return;
     }
 
     const startDate = new Date(contractStart);
-    const endDate = new Date(contractEnd);
-
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      sendError(res, "Contract start date and contract end date must be valid dates", 400);
+    if (isNaN(startDate.getTime())) {
+      sendError(res, "Contract start date must be a valid date", 400);
       return;
     }
 
-    if (startDate > endDate) {
-      sendError(res, "Contract start date cannot be after contract end date", 400);
-      return;
+    let endDate: Date | undefined;
+    if (contractEnd) {
+      endDate = new Date(contractEnd);
+      if (isNaN(endDate.getTime())) {
+        sendError(res, "Contract end date must be a valid date", 400);
+        return;
+      }
+      if (startDate > endDate) {
+        sendError(res, "Contract start date cannot be after contract end date", 400);
+        return;
+      }
     }
 
     const parsedClientId = clientId ? parseInt(clientId, 10) : undefined;
