@@ -18,3 +18,7 @@ ALTER TABLE "ComplianceRequirement" ADD COLUMN IF NOT EXISTS "toFollowExpectedAt
 -- AlterTable
 ALTER TABLE "RecruiterDecision" ADD COLUMN IF NOT EXISTS "isReverted" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "RecruiterDecision" ADD COLUMN IF NOT EXISTS "revertedAt" TIMESTAMP(3);
+
+-- AlterEnum
+ALTER TYPE "TalentPoolStatus" ADD VALUE IF NOT EXISTS 'ARCHIVED';
+

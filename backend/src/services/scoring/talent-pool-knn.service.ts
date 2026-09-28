@@ -131,7 +131,7 @@ const resolveKnnOptions = (
   }
   return {
     k,
-    minimumSimilarity: configuration.knnSettings.minimumSimilarity,
+    minimumSimilarity: requested.minimumSimilarity ?? configuration.knnSettings.minimumSimilarity,
   };
 };
 
@@ -215,6 +215,7 @@ export const discoverTalentPoolForJob = async (jobPostingId: number, requested: 
         AND tpm."status" = 'ACTIVE'
         AND tpm."availability" != 'UNAVAILABLE'
         AND ap."isActive" = true
+        AND ap."hasNoShowHistory" = false
         AND u."isActive" = true
         AND NOT EXISTS (
           SELECT 1 FROM "Application" app_hired
@@ -245,6 +246,7 @@ export const discoverTalentPoolForJob = async (jobPostingId: number, requested: 
         availability: { not: "UNAVAILABLE" },
         applicantProfile: {
           isActive: true,
+          hasNoShowHistory: false,
           user: {
             isActive: true,
             applications: {
@@ -358,6 +360,7 @@ export const findSimilarCandidates = async (sourceApplicationOrProfileId: number
         AND tpm."status" = 'ACTIVE'
         AND tpm."availability" != 'UNAVAILABLE'
         AND ap."isActive" = true
+        AND ap."hasNoShowHistory" = false
         AND u."isActive" = true
         AND NOT EXISTS (
           SELECT 1 FROM "Application" app_hired
@@ -382,6 +385,7 @@ export const findSimilarCandidates = async (sourceApplicationOrProfileId: number
         availability: { not: "UNAVAILABLE" },
         applicantProfile: {
           isActive: true,
+          hasNoShowHistory: false,
         },
       },
       take: knn.k,
@@ -440,6 +444,7 @@ export const searchTalentPoolByText = async (text: string, requested: TalentPool
         AND tpm."status" = 'ACTIVE'
         AND tpm."availability" != 'UNAVAILABLE'
         AND ap."isActive" = true
+        AND ap."hasNoShowHistory" = false
         AND u."isActive" = true
         AND NOT EXISTS (
           SELECT 1 FROM "Application" app_hired
@@ -463,6 +468,7 @@ export const searchTalentPoolByText = async (text: string, requested: TalentPool
         availability: { not: "UNAVAILABLE" },
         applicantProfile: {
           isActive: true,
+          hasNoShowHistory: false,
         },
       },
       take: knn.k,
@@ -512,6 +518,9 @@ export const addToTalentPool = async (input: {
   });
   if (!profile) {
     throw new InvalidKnnRequestError("Candidate profile not found");
+  }
+  if (profile.hasNoShowHistory) {
+    throw new InvalidKnnRequestError("Candidate has a recorded interview NO_SHOW history and cannot be added to the talent pool.");
   }
 
   const membership = await prisma.talentPoolMembership.upsert({
@@ -628,8 +637,8 @@ export const considerTalentPoolCandidateForJob = async (input: {
   }
 
   // 3. Verify valid profile state
-  if (!profile.isActive || !profile.user.isActive) {
-    throw new InvalidKnnRequestError("Candidate does not meet eligibility requirements.");
+  if (!profile.isActive || !profile.user.isActive || profile.hasNoShowHistory) {
+    throw new InvalidKnnRequestError("Candidate does not meet eligibility requirements due to inactive status or interview NO_SHOW history.");
   }
 
   // 4. Verify candidate is not currently hired or deployed

@@ -6,6 +6,7 @@ import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.
 import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
 import { logAudit } from '../../utils/audit.js';
 import { resolveDocumentSignedUrl } from '../document/document.service.js';
+import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
 
 // Authoritative State Machine governing valid applicant pipeline stage transitions
 export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
@@ -614,31 +615,38 @@ export const updateTAApplicationStatus = async (
   }
 
   // Post-transition hook: Sync Talent Pool Membership
-  if (status === "TALENT_POOL") {
+  if (
+    status === "TALENT_POOL" ||
+    (status === "ARCHIVED" && ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW"].includes(currentStatus))
+  ) {
     const appWithProfile = await prisma.application.findUnique({
       where: { id },
-      include: { user: { select: { applicantProfile: { select: { id: true } } } } },
+      include: { user: { select: { applicantProfile: { select: { id: true, hasNoShowHistory: true } } } } },
     });
     if (appWithProfile?.user?.applicantProfile) {
       const applicantProfileId = appWithProfile.user.applicantProfile.id;
-      await prisma.talentPoolMembership.upsert({
-        where: { applicantProfileId },
-        create: {
-          applicantProfileId,
-          sourceApplicationId: id,
-          status: "ACTIVE",
-          availability: "AVAILABLE",
-          addedById: resolvedActorId,
-          notes: reason || null,
-        },
-        update: {
-          sourceApplicationId: id,
-          status: "ACTIVE",
-          availability: "AVAILABLE",
-          addedById: resolvedActorId,
-          notes: reason || null,
-        },
-      });
+      if (!appWithProfile.user.applicantProfile.hasNoShowHistory) {
+        const poolNotes = reason || (status === "ARCHIVED" ? "Auto-retained in talent pool following rejection after client review" : null);
+        await prisma.talentPoolMembership.upsert({
+          where: { applicantProfileId },
+          create: {
+            applicantProfileId,
+            sourceApplicationId: id,
+            status: "ACTIVE",
+            availability: "AVAILABLE",
+            addedById: resolvedActorId,
+            notes: poolNotes,
+          },
+          update: {
+            sourceApplicationId: id,
+            status: "ACTIVE",
+            availability: "AVAILABLE",
+            addedById: resolvedActorId,
+            notes: poolNotes,
+          },
+        });
+        await rebuildCandidateFeatureProfile(applicantProfileId).catch(() => {});
+      }
     }
   } else if (status === "COMPLIANCE" || status === "CONTRACT_AND_ORIENTATION" || status === "DEPLOYED") {
     const appWithProfile = await prisma.application.findUnique({

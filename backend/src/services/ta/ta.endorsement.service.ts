@@ -1,6 +1,7 @@
 import prisma from "../../utils/prisma.js";
 import { sendNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
+import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
 
 export const recordClientEndorsement = async (
   applicationId: number,
@@ -130,6 +131,33 @@ export const recordClientEndorsement = async (
     outcome,
     notes,
   });
+
+  // Auto-retain candidate in Talent Pool following client rejection
+  if ((outcome as string) === "DECLINED" || (outcome as string) === "REJECTED") {
+    const profile = await prisma.applicantProfile.findUnique({
+      where: { userId: application.userId },
+      select: { id: true, hasNoShowHistory: true },
+    });
+    if (profile && !profile.hasNoShowHistory) {
+      await prisma.talentPoolMembership.upsert({
+        where: { applicantProfileId: profile.id },
+        create: {
+          applicantProfileId: profile.id,
+          sourceApplicationId: applicationId,
+          status: "ACTIVE",
+          availability: "AVAILABLE",
+          addedById: endorsedById || application.userId,
+          notes: notes || `Auto-retained in talent pool following client rejection (${client.name || "Client"})`,
+        },
+        update: {
+          status: "ACTIVE",
+          availability: "AVAILABLE",
+          notes: notes || `Auto-retained in talent pool following client rejection (${client.name || "Client"})`,
+        },
+      });
+      await rebuildCandidateFeatureProfile(profile.id).catch(() => {});
+    }
+  }
 
   return endorsement;
 };
@@ -287,6 +315,33 @@ export const updateClientEndorsement = async (
           notes || `Client acceptance recorded as ${outcome} - advancing to Final Interview`
         );
       }
+    }
+  }
+
+  // Auto-retain candidate in Talent Pool following client rejection
+  if ((outcome as string) === "DECLINED" || (outcome as string) === "REJECTED") {
+    const profile = await prisma.applicantProfile.findUnique({
+      where: { userId: application.userId },
+      select: { id: true, hasNoShowHistory: true },
+    });
+    if (profile && !profile.hasNoShowHistory) {
+      await prisma.talentPoolMembership.upsert({
+        where: { applicantProfileId: profile.id },
+        create: {
+          applicantProfileId: profile.id,
+          sourceApplicationId: applicationId,
+          status: "ACTIVE",
+          availability: "AVAILABLE",
+          addedById: actorId || application.userId,
+          notes: notes || `Auto-retained in talent pool following client rejection (${existing.client?.name || "Client"})`,
+        },
+        update: {
+          status: "ACTIVE",
+          availability: "AVAILABLE",
+          notes: notes || `Auto-retained in talent pool following client rejection (${existing.client?.name || "Client"})`,
+        },
+      });
+      await rebuildCandidateFeatureProfile(profile.id).catch(() => {});
     }
   }
 

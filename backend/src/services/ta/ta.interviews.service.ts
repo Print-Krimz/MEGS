@@ -262,6 +262,35 @@ export const recordDirectInterviewResult = async (
 
   let applicationUpdateMessage = "";
   if (result === "NO_SHOW") {
+    if (application.userId) {
+      const profile = await prisma.applicantProfile.findUnique({
+        where: { userId: application.userId },
+        select: { id: true },
+      });
+      if (profile) {
+        await prisma.applicantProfile.update({
+          where: { id: profile.id },
+          data: { hasNoShowHistory: true },
+        });
+        await prisma.talentPoolMembership.upsert({
+          where: { applicantProfileId: profile.id },
+          create: {
+            applicantProfileId: profile.id,
+            sourceApplicationId: applicationId,
+            status: "ARCHIVED",
+            availability: "UNAVAILABLE",
+            addedById: actorId || application.userId,
+            notes: "Applicant marked as NO_SHOW on interview",
+          },
+          update: {
+            status: "ARCHIVED",
+            availability: "UNAVAILABLE",
+            notes: "Applicant marked as NO_SHOW on interview",
+          },
+        });
+      }
+    }
+
     const { archiveTAApplication } = await import("./ta.applications.service.js");
     try {
       await archiveTAApplication(applicationId, actorId, "Interview NO_SHOW auto-archive");
@@ -374,6 +403,35 @@ export const updateInterviewResult = async (
 
   let applicationUpdateMessage = "";
   if (result === "NO_SHOW") {
+    if (interview.application?.userId) {
+      const profile = await prisma.applicantProfile.findUnique({
+        where: { userId: interview.application.userId },
+        select: { id: true },
+      });
+      if (profile) {
+        await prisma.applicantProfile.update({
+          where: { id: profile.id },
+          data: { hasNoShowHistory: true },
+        });
+        await prisma.talentPoolMembership.upsert({
+          where: { applicantProfileId: profile.id },
+          create: {
+            applicantProfileId: profile.id,
+            sourceApplicationId: applicationId,
+            status: "ARCHIVED",
+            availability: "UNAVAILABLE",
+            addedById: actorId || interview.application.userId,
+            notes: "Applicant marked as NO_SHOW on interview",
+          },
+          update: {
+            status: "ARCHIVED",
+            availability: "UNAVAILABLE",
+            notes: "Applicant marked as NO_SHOW on interview",
+          },
+        });
+      }
+    }
+
     const { archiveTAApplication } = await import("./ta.applications.service.js");
     try {
       await archiveTAApplication(applicationId, actorId, "Interview NO_SHOW auto-archive");
