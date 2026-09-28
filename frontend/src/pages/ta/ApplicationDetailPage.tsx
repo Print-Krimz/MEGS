@@ -11,6 +11,7 @@ import {
   ErrorState,
   DocumentPreviewModal,
   Tabs,
+  ConfirmDialog,
 } from "../../components/common";
 import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
 import { InlineResumeViewer } from "../../components/ta/InlineResumeViewer";
@@ -222,6 +223,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const [isInterviewHistoryExpanded, setIsInterviewHistoryExpanded] = useState(false);
   const [fastTrackModalOpen, setFastTrackModalOpen] = useState(false);
   const [fastTrackTargetStage, setFastTrackTargetStage] = useState<"FINAL_INTERVIEW" | "COMPLIANCE">("COMPLIANCE");
+  const [skipToFinalInterviewConfirmOpen, setSkipToFinalInterviewConfirmOpen] = useState(false);
 
   // Queries
   const applicationQuery = useQuery({
@@ -1301,13 +1303,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 <Button
                   variant="secondary"
                   size="sm"
-                  loading={updateStatusMutation.isPending}
-                  onClick={() => {
-                    updateStatusMutation.mutate({
-                      status: ApplicationStatus.FINAL_INTERVIEW,
-                      reason: "Advanced directly to Final Interview (skipping client endorsement review).",
-                    });
-                  }}
+                  onClick={() => setSkipToFinalInterviewConfirmOpen(true)}
                 >
                   Skip to final interview
                 </Button>
@@ -3899,6 +3895,29 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
         </div>
       </Dialog>
+
+      {/* Skip Client Endorsement & Advance to Final Interview Confirmation */}
+      <ConfirmDialog
+        open={skipToFinalInterviewConfirmOpen}
+        onClose={() => setSkipToFinalInterviewConfirmOpen(false)}
+        onConfirm={() => {
+          updateStatusMutation.mutate(
+            {
+              status: ApplicationStatus.FINAL_INTERVIEW,
+              reason: "Advanced directly to Final Interview (skipping client endorsement review).",
+            },
+            {
+              onSettled: () => setSkipToFinalInterviewConfirmOpen(false),
+            }
+          );
+        }}
+        title="Advance to Final Interview?"
+        description={`Are you sure you want to advance ${candidateName} directly to Final Interview? This skips the client review step.`}
+        confirmLabel="Advance to Final Interview"
+        cancelLabel="Cancel"
+        variant="primary"
+        loading={updateStatusMutation.isPending}
+      />
 
       {/* Reject Candidate Modal */}
       <Dialog
