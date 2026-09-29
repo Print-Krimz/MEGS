@@ -9,6 +9,7 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
+  DocumentPreviewModal,
 } from "../../components/common";
 import { Button, Dialog, Select, Textarea } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
@@ -19,8 +20,13 @@ import {
   ArrowUp,
   ArrowUpDown,
   ExternalLink,
+  Eye,
+  FileText,
+  Loader2,
+  Maximize2,
   ShieldCheck,
 } from "lucide-react";
+import { documentsApi } from "../../lib/api/documents.api";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 
@@ -46,6 +52,122 @@ const getComplianceCounts = (app: Application): ComplianceCounts => {
   return { submittedCount, pendingCount, approvedCount, toFollowCount, totalCount };
 };
 
+const RequirementDocumentPreview: React.FC<{
+  documentId: number;
+  documentLabel: string;
+  onExpand: () => void;
+}> = ({ documentId, documentLabel, onExpand }) => {
+  const { data: preview, isLoading, isError } = useQuery({
+    queryKey: ["document-preview", documentId],
+    queryFn: () => documentsApi.getPreview(documentId),
+    staleTime: 1000 * 60 * 4,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-6 bg-slate-50 rounded-lg border border-slate-200 min-h-[140px]">
+        <div className="flex items-center gap-2 text-xs text-slate-500 font-sans">
+          <Loader2 className="w-4 h-4 animate-spin text-teal-700" />
+          <span>Loading document preview...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !preview) {
+    return (
+      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
+        <div className="flex items-center gap-2 text-slate-600 truncate min-w-0">
+          <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+          <span className="truncate">{documentLabel}</span>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onExpand}
+          leftIcon={<Maximize2 className="w-3.5 h-3.5" />}
+        >
+          Expand
+        </Button>
+      </div>
+    );
+  }
+
+  const resolvedUrl = preview.url;
+  const isImage =
+    preview.mimeType?.startsWith("image/") ||
+    (resolvedUrl
+      ? /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(resolvedUrl) ||
+        (!resolvedUrl.toLowerCase().includes(".pdf") && resolvedUrl.startsWith("http"))
+      : false);
+
+  if (isImage && resolvedUrl) {
+    return (
+      <div className="space-y-1.5">
+        <div className="relative group rounded-lg border border-slate-200 overflow-hidden bg-slate-900/5 flex items-center justify-center p-2 min-h-[140px] max-h-48">
+          <img
+            src={resolvedUrl}
+            alt={preview.originalName || documentLabel}
+            className="max-h-44 w-auto object-contain rounded"
+          />
+          <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={onExpand}
+              leftIcon={<Maximize2 className="w-3.5 h-3.5" />}
+            >
+              Expand preview
+            </Button>
+          </div>
+        </div>
+        <div className="flex items-center justify-between px-1 text-[11px] text-slate-500 font-sans">
+          <span className="truncate max-w-[220px]" title={preview.originalName}>
+            {preview.originalName}
+          </span>
+          <button
+            type="button"
+            onClick={onExpand}
+            className="inline-flex items-center gap-1 text-teal-700 hover:text-teal-900 font-semibold cursor-pointer shrink-0"
+          >
+            <Maximize2 className="w-3 h-3" />
+            <span>Expand</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="p-2 bg-white rounded border border-slate-200 text-teal-700 shrink-0">
+          <FileText className="w-4 h-4" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-900 truncate" title={preview.originalName || documentLabel}>
+            {preview.originalName || documentLabel}
+          </p>
+          <p className="text-[11px] text-slate-500 font-mono">
+            {preview.mimeType} • {(preview.sizeBytes / 1024).toFixed(1)} KB
+          </p>
+        </div>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onExpand}
+        leftIcon={<Eye className="w-3.5 h-3.5" />}
+      >
+        Preview document
+      </Button>
+    </div>
+  );
+};
+
 export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
   const queryClient = useQueryClient();
 
@@ -64,6 +186,11 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   const [selectedReqId, setSelectedReqId] = useState<number | null>(null);
   const [reviewStatus, setReviewStatus] = useState<"APPROVED" | "REJECTED">("APPROVED");
   const [reviewNotes, setReviewNotes] = useState("");
+  const [previewDocState, setPreviewDocState] = useState<{
+    open: boolean;
+    documentId?: number | null;
+    title?: string;
+  }>({ open: false });
 
   const complianceAnalyticsQuery = useQuery({
     queryKey: ["ta", "analytics", "compliance"],
@@ -808,6 +935,26 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                   Reviewing: <span className="font-bold text-teal-900">{selectedReq.documentLabel}</span>
                 </div>
 
+                {selectedReq.documentId ? (
+                  <RequirementDocumentPreview
+                    documentId={selectedReq.documentId}
+                    documentLabel={selectedReq.documentLabel}
+                    onExpand={() =>
+                      setPreviewDocState({
+                        open: true,
+                        documentId: selectedReq.documentId,
+                        title: selectedReq.documentLabel,
+                      })
+                    }
+                  />
+                ) : (
+                  <div className="p-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/50 text-center">
+                    <p className="text-xs text-slate-500">
+                      No document uploaded yet by applicant
+                    </p>
+                  </div>
+                )}
+
                 <Select
                   label="Review decision"
                   value={reviewStatus}
@@ -864,6 +1011,19 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           </div>
         </Dialog>
       )}
+
+      {/* Document Full Preview Modal */}
+      <DocumentPreviewModal
+        open={previewDocState.open}
+        onClose={() => setPreviewDocState({ open: false })}
+        documentId={previewDocState.documentId}
+        title={previewDocState.title || "Document Preview"}
+        applicantName={
+          quickReviewCandidate?.user?.applicantProfile
+            ? `${quickReviewCandidate.user.applicantProfile.firstName} ${quickReviewCandidate.user.applicantProfile.lastName}`
+            : quickReviewCandidate?.user?.email
+        }
+      />
     </div>
   );
 };
