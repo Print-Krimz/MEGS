@@ -24,7 +24,7 @@ import {
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 
-type StatusFilter = "ALL" | "WAITING_CANDIDATE" | "WAITING_REVIEW" | "APPROVED";
+type StatusFilter = "ALL" | "WAITING_CANDIDATE" | "WAITING_REVIEW" | "APPROVED" | "TO_FOLLOW";
 type SortField = "candidate" | "submitted";
 type SortDirection = "asc" | "desc";
 
@@ -32,6 +32,7 @@ interface ComplianceCounts {
   submittedCount: number;
   pendingCount: number;
   approvedCount: number;
+  toFollowCount: number;
   totalCount: number;
 }
 
@@ -40,8 +41,9 @@ const getComplianceCounts = (app: Application): ComplianceCounts => {
   const submittedCount = reqs.filter((r) => r.reviewStatus === "SUBMITTED").length;
   const pendingCount = reqs.filter((r) => r.reviewStatus === "PENDING").length;
   const approvedCount = reqs.filter((r) => r.reviewStatus === "APPROVED").length;
+  const toFollowCount = reqs.filter((r) => r.reviewStatus === "TO_FOLLOW").length;
   const totalCount = reqs.length;
-  return { submittedCount, pendingCount, approvedCount, totalCount };
+  return { submittedCount, pendingCount, approvedCount, toFollowCount, totalCount };
 };
 
 export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
@@ -98,7 +100,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
 
   const filteredApps = useMemo(() => {
     return complianceApps.filter((app) => {
-      const { submittedCount, pendingCount, approvedCount, totalCount } = getComplianceCounts(app);
+      const { submittedCount, pendingCount, approvedCount, toFollowCount, totalCount } = getComplianceCounts(app);
 
       let matchesStatus = true;
       if (statusFilter === "WAITING_REVIEW") {
@@ -106,7 +108,9 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
       } else if (statusFilter === "WAITING_CANDIDATE") {
         matchesStatus = pendingCount > 0;
       } else if (statusFilter === "APPROVED") {
-        matchesStatus = totalCount > 0 && approvedCount === totalCount;
+        matchesStatus = totalCount > 0 && approvedCount + toFollowCount === totalCount;
+      } else if (statusFilter === "TO_FOLLOW") {
+        matchesStatus = toFollowCount > 0;
       }
 
       const q = search.trim().toLowerCase();
@@ -256,6 +260,11 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           title: "Approved candidates",
           description: "Candidates ready for deployment",
         };
+      case "TO_FOLLOW":
+        return {
+          title: "Requirements to follow up",
+          description: "Candidates with documents pending follow-up",
+        };
       default:
         return {
           title: "Pre-employment compliance queue",
@@ -292,7 +301,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   };
 
   const renderComplianceProgressBadge = (app: Application) => {
-    const { submittedCount, pendingCount, approvedCount, totalCount } = getComplianceCounts(app);
+    const { submittedCount, pendingCount, approvedCount, toFollowCount, totalCount } = getComplianceCounts(app);
 
     if (submittedCount > 0) {
       return (
@@ -304,14 +313,21 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     if (pendingCount > 0) {
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-          {pendingCount} pending submission
+          {pendingCount} pending submission{toFollowCount > 0 ? ` · ${toFollowCount} to follow` : ""}
         </span>
       );
     }
-    if (totalCount > 0 && approvedCount === totalCount) {
+    if (totalCount > 0 && approvedCount + toFollowCount === totalCount) {
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-          All {approvedCount} approved
+          {toFollowCount > 0 ? `Ready · ${toFollowCount} to follow` : `All ${approvedCount} approved`}
+        </span>
+      );
+    }
+    if (toFollowCount > 0) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+          {toFollowCount} to follow
         </span>
       );
     }
@@ -340,6 +356,12 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
         return (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
             Submitted
+          </span>
+        );
+      case "TO_FOLLOW":
+        return (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+            To follow
           </span>
         );
       case "PENDING":
@@ -546,6 +568,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
               { value: "WAITING_REVIEW", label: "Waiting for review" },
               { value: "WAITING_CANDIDATE", label: "Waiting for candidate" },
               { value: "APPROVED", label: "Approved" },
+              { value: "TO_FOLLOW", label: "To follow up" },
             ],
           },
         ]}
