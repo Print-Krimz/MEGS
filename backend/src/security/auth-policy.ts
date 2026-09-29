@@ -18,3 +18,7 @@ export const isStaffMfaExceptionRoute = (
 
 export const isActiveAccount = (isActive: boolean, accountStatus: string): boolean =>
   isActive && accountStatus === "ACTIVE";
+
+export const isMfaEnforced = (): boolean =>
+  process.env.NODE_ENV === "production" || process.env.DISABLE_MFA !== "true";
+

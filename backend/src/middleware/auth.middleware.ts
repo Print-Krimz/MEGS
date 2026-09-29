@@ -4,6 +4,7 @@ import { sendError } from "../utils/response.js";
 import { verifyAccessToken } from "../security/auth-token.js";
 import {
   isActiveAccount,
+  isMfaEnforced,
   isPasswordChangeAllowedRoute,
   isStaffMfaExceptionRoute,
   STAFF_ROLES,
@@ -63,6 +64,7 @@ export const authenticateJWT = async (
   };
 
   if (
+    isMfaEnforced() &&
     STAFF_ROLES.has(dbUser.role) &&
     verifiedToken.aal !== "aal2" &&
     !isStaffMfaExceptionRoute(req)

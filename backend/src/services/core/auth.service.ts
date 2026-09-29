@@ -20,9 +20,10 @@ import {
 } from './mfa.service.js';
 import { maskEmail } from '../../utils/mask.js';
 import { ensureApplicantProfile } from '../applicant/applicant.service.js';
+import { isMfaEnforced } from '../../security/auth-policy.js';
 
 const isOtpTestBypassEnabled = (): boolean =>
-  process.env.NODE_ENV === "test" && process.env.DISABLE_OTP === "true";
+  process.env.NODE_ENV !== "production" && process.env.DISABLE_OTP === "true";
 
 export const registerUser = async (email: string, password: string) => {
   if (password.length < 8) {
@@ -167,7 +168,7 @@ export const verifyOtp = async (
 
   const isDevMasterOtp =
     (isOtpTestBypassEnabled() || (process.env.NODE_ENV === "development" && !process.env.VITEST)) &&
-    cleanOtp === "000000";
+    (cleanOtp === "000000" || process.env.DISABLE_OTP === "true");
 
   const isMatch = isDevMasterOtp || verifyOtpHash(cleanOtp, activeOtp.otpHash);
   if (!isMatch) {
@@ -376,7 +377,7 @@ export const loginUser = async (email: string, password: string, ip?: string) =>
   }
 
   // Staff MFA Enforcement (ADMINISTRATOR and TALENT_ACQUISITION)
-  if (dbUser.role === "ADMINISTRATOR" || dbUser.role === "TALENT_ACQUISITION") {
+  if (isMfaEnforced() && (dbUser.role === "ADMINISTRATOR" || dbUser.role === "TALENT_ACQUISITION")) {
     const { isEnrolled, verifiedFactor } = await getUserMfaFactors(data.session.access_token);
 
     if (!isEnrolled || !verifiedFactor) {
