@@ -184,7 +184,8 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   // Quick review modal state
   const [quickReviewCandidate, setQuickReviewCandidate] = useState<Application | null>(null);
   const [selectedReqId, setSelectedReqId] = useState<number | null>(null);
-  const [reviewStatus, setReviewStatus] = useState<"APPROVED" | "REJECTED">("APPROVED");
+  const [reviewStatus, setReviewStatus] = useState<"APPROVED" | "REJECTED" | "TO_FOLLOW">("APPROVED");
+  const [toFollowExpectedAt, setToFollowExpectedAt] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
   const [previewDocState, setPreviewDocState] = useState<{
     open: boolean;
@@ -323,7 +324,18 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
       reqs.find((r) => r.reviewStatus === "PENDING") ||
       reqs[0];
     setSelectedReqId(defaultReq ? defaultReq.id : null);
-    setReviewStatus(defaultReq?.reviewStatus === "REJECTED" ? "REJECTED" : "APPROVED");
+    setReviewStatus(
+      defaultReq?.reviewStatus === "TO_FOLLOW"
+        ? "TO_FOLLOW"
+        : defaultReq?.reviewStatus === "REJECTED"
+        ? "REJECTED"
+        : "APPROVED"
+    );
+    setToFollowExpectedAt(
+      defaultReq?.toFollowExpectedAt
+        ? new Date(defaultReq.toFollowExpectedAt).toISOString().split("T")[0]
+        : ""
+    );
     setReviewNotes(defaultReq?.reviewNotes || "");
   };
 
@@ -333,7 +345,11 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
       data,
     }: {
       id: number;
-      data: { reviewStatus: "APPROVED" | "REJECTED"; reviewNotes?: string };
+      data: {
+        reviewStatus: "APPROVED" | "REJECTED" | "TO_FOLLOW";
+        reviewNotes?: string;
+        toFollowExpectedAt?: string | null;
+      };
     }) => taApi.reviewComplianceRequirement(id, data),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta"] });
@@ -350,6 +366,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                   ...r,
                   reviewStatus: vars.data.reviewStatus,
                   reviewNotes: vars.data.reviewNotes ?? null,
+                  toFollowExpectedAt: vars.data.toFollowExpectedAt ?? null,
                   reviewedAt: new Date().toISOString(),
                 }
               : r
@@ -360,6 +377,8 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
       const msg =
         vars.data.reviewStatus === "APPROVED"
           ? "The requirement was approved."
+          : vars.data.reviewStatus === "TO_FOLLOW"
+          ? "The requirement was tagged to follow up."
           : "The requirement was rejected and needs correction.";
       setFeedback({ type: "success", message: msg });
       notify.success("Review saved", msg);
@@ -902,7 +921,18 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                         type="button"
                         onClick={() => {
                           setSelectedReqId(req.id);
-                          setReviewStatus(req.reviewStatus === "REJECTED" ? "REJECTED" : "APPROVED");
+                          setReviewStatus(
+                            req.reviewStatus === "TO_FOLLOW"
+                              ? "TO_FOLLOW"
+                              : req.reviewStatus === "REJECTED"
+                              ? "REJECTED"
+                              : "APPROVED"
+                          );
+                          setToFollowExpectedAt(
+                            req.toFollowExpectedAt
+                              ? new Date(req.toFollowExpectedAt).toISOString().split("T")[0]
+                              : ""
+                          );
                           setReviewNotes(req.reviewNotes || "");
                         }}
                         className={`w-full p-2.5 text-left flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer ${
@@ -958,12 +988,32 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                 <Select
                   label="Review decision"
                   value={reviewStatus}
-                  onChange={(e) => setReviewStatus(e.target.value as "APPROVED" | "REJECTED")}
+                  onChange={(e) =>
+                    setReviewStatus(e.target.value as "APPROVED" | "REJECTED" | "TO_FOLLOW")
+                  }
                   options={[
                     { value: "APPROVED", label: "Approve — document is valid" },
+                    { value: "TO_FOLLOW", label: "To follow up — allow deployment, follow up later" },
                     { value: "REJECTED", label: "Reject — document needs correction" },
                   ]}
                 />
+
+                {reviewStatus === "TO_FOLLOW" && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                      Target completion date (optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={toFollowExpectedAt}
+                      onChange={(e) => setToFollowExpectedAt(e.target.value)}
+                      className="w-full text-xs rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Candidate can be deployed now; this document will be tracked until submitted.
+                    </p>
+                  </div>
+                )}
 
                 <Textarea
                   label="Review notes (optional)"
@@ -982,7 +1032,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                     Cancel
                   </Button>
                   <Button
-                    variant={reviewStatus === "APPROVED" ? "primary" : "danger"}
+                    variant={reviewStatus === "REJECTED" ? "danger" : "primary"}
                     size="sm"
                     loading={reviewComplianceMutation.isPending}
                     onClick={() => {
@@ -992,6 +1042,10 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                           data: {
                             reviewStatus,
                             reviewNotes: reviewNotes.trim() || undefined,
+                            toFollowExpectedAt:
+                              reviewStatus === "TO_FOLLOW" && toFollowExpectedAt
+                                ? toFollowExpectedAt
+                                : undefined,
                           },
                         });
                       }
