@@ -15,7 +15,13 @@ import {
 } from "../../components/common";
 import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
 import { InlineResumeViewer } from "../../components/ta/InlineResumeViewer";
-import { Button, Dialog, Input, Select, Textarea, ComboBox, PhoneInput } from "../../components/ui";
+import { Button, Dialog, Input, Select, Textarea, ComboBox, PhoneInput, DateTimePicker } from "../../components/ui";
+import {
+  formatSSSNumber,
+  formatPhilHealthNumber,
+  formatPagIbigNumber,
+  formatTINNumber,
+} from "../applicant/ProfilePage";
 import { formatDate, formatDateTime, getApplicationStatusMeta, extractDocumentId } from "../../lib/utils";
 import { COMPLIANCE_201_PRESETS } from "../../lib/hr-constants";
 import {
@@ -208,6 +214,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const [deployClientId, setDeployClientId] = useState<number>(0);
   const [deploySite, setDeploySite] = useState("");
   const [deployContractStart, setDeployContractStart] = useState("");
+  const deployStartDate = deployContractStart;
   const [deployContractEnd, setDeployContractEnd] = useState("");
   const [deployNotes, setDeployNotes] = useState("");
 
@@ -841,9 +848,16 @@ export const ApplicationDetailPage: React.FC = () => {
     mobileNumber: "",
     dateOfBirth: "",
     gender: "",
+    address: "",
     city: "",
     province: "",
     tattooStatus: "NONE",
+    sss: "",
+    philhealth: "",
+    pagibig: "",
+    tin: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
   });
 
   const updateCandidateMutation = useMutation({
@@ -898,9 +912,16 @@ export const ApplicationDetailPage: React.FC = () => {
       gender: profile.gender
         ? (profile.gender.toUpperCase() === "MALE" ? "Male" : profile.gender.toUpperCase() === "FEMALE" ? "Female" : profile.gender)
         : "",
+      address: profile.address || "",
       city: profile.city || "",
       province: profile.province || "",
       tattooStatus: profile.tattooStatus || "NONE",
+      sss: profile.sss ? formatSSSNumber(profile.sss) : "",
+      philhealth: profile.philhealth ? formatPhilHealthNumber(profile.philhealth) : "",
+      pagibig: profile.pagibig ? formatPagIbigNumber(profile.pagibig) : "",
+      tin: profile.tin ? formatTINNumber(profile.tin) : "",
+      emergencyContactName: profile.emergencyContactName || "",
+      emergencyContactPhone: profile.emergencyContactPhone || "",
     });
     if (!isResumeOpen) {
       toggleResume(true);
@@ -929,6 +950,16 @@ export const ApplicationDetailPage: React.FC = () => {
       }
     }
 
+    let cleanedEmergencyPhone = profileForm.emergencyContactPhone.trim();
+    if (cleanedEmergencyPhone) {
+      const digits = cleanedEmergencyPhone.replace(/\D/g, "");
+      if (digits.startsWith("09") && digits.length === 11) {
+        cleanedEmergencyPhone = digits;
+      } else if (digits.startsWith("9") && digits.length === 10) {
+        cleanedEmergencyPhone = "0" + digits;
+      }
+    }
+
     updateCandidateMutation.mutate({
       firstName: profileForm.firstName.trim(),
       lastName: profileForm.lastName.trim(),
@@ -936,9 +967,16 @@ export const ApplicationDetailPage: React.FC = () => {
       mobileNumber: cleanedPhone || null,
       dateOfBirth: profileForm.dateOfBirth || null,
       gender: profileForm.gender || null,
+      address: profileForm.address.trim() || null,
       city: profileForm.city.trim() || null,
       province: profileForm.province.trim() || null,
       tattooStatus: (profileForm.tattooStatus as "NONE" | "NON_VISIBLE" | "VISIBLE") || null,
+      sss: profileForm.sss.trim() || null,
+      philhealth: profileForm.philhealth.trim() || null,
+      pagibig: profileForm.pagibig.trim() || null,
+      tin: profileForm.tin.trim() || null,
+      emergencyContactName: profileForm.emergencyContactName.trim() || null,
+      emergencyContactPhone: cleanedEmergencyPhone || null,
     });
   };
 
@@ -1672,7 +1710,50 @@ export const ApplicationDetailPage: React.FC = () => {
                                 </div>
                                 <div className="grid grid-cols-3">
                                   <span className="text-slate-600 font-mono font-medium">Current Address:</span>
-                                  <span className="col-span-2 text-slate-800 truncate">{profile?.address || "N/A"}</span>
+                                  <span className="col-span-2 text-slate-800 truncate" title={[profile?.address, profile?.city, profile?.province].filter(Boolean).join(", ") || undefined}>
+                                    {[profile?.address, profile?.city, profile?.province].filter(Boolean).join(", ") || "Not provided"}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-3">
+                                  <span className="text-slate-600 font-mono font-medium">SSS Number:</span>
+                                  <span className="col-span-2 text-slate-800 font-mono">
+                                    {profile?.sss ? formatSSSNumber(profile.sss) : "Not provided"}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-3">
+                                  <span className="text-slate-600 font-mono font-medium">PhilHealth PIN:</span>
+                                  <span className="col-span-2 text-slate-800 font-mono">
+                                    {profile?.philhealth ? formatPhilHealthNumber(profile.philhealth) : "Not provided"}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-3">
+                                  <span className="text-slate-600 font-mono font-medium">Pag-IBIG MID:</span>
+                                  <span className="col-span-2 text-slate-800 font-mono">
+                                    {profile?.pagibig ? formatPagIbigNumber(profile.pagibig) : "Not provided"}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-3">
+                                  <span className="text-slate-600 font-mono font-medium">TIN Number:</span>
+                                  <span className="col-span-2 text-slate-800 font-mono">
+                                    {profile?.tin ? formatTINNumber(profile.tin) : "Not provided"}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-3">
+                                  <span className="text-slate-600 font-mono font-medium">Emergency Contact:</span>
+                                  <span className="col-span-2 text-slate-800">
+                                    {profile?.emergencyContactName || profile?.emergencyContactPhone ? (
+                                      <span>
+                                        {profile.emergencyContactName || "Contact"}
+                                        {profile.emergencyContactPhone && (
+                                          <span className="text-slate-500 font-mono text-[11px] ml-1.5">
+                                            ({profile.emergencyContactPhone})
+                                          </span>
+                                        )}
+                                      </span>
+                                    ) : (
+                                      "Not provided"
+                                    )}
+                                  </span>
                                 </div>
                                 <div className="grid grid-cols-3 items-center">
                                   <span className="text-slate-600 font-mono font-medium">Tattoo Status:</span>
@@ -1771,6 +1852,15 @@ export const ApplicationDetailPage: React.FC = () => {
                                 </Select>
                               </div>
 
+                              <div>
+                                <Input
+                                  label="Address"
+                                  value={profileForm.address}
+                                  onChange={(e) => setProfileForm((f) => ({ ...f, address: e.target.value }))}
+                                  placeholder="House/Unit, Street, Barangay"
+                                />
+                              </div>
+
                               <div className="grid grid-cols-2 gap-2">
                                 <Input
                                   label="City"
@@ -1797,6 +1887,57 @@ export const ApplicationDetailPage: React.FC = () => {
                                   <option value="NON_VISIBLE">Non-visible / Covered</option>
                                   <option value="VISIBLE">Visible tattoos</option>
                                 </Select>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100">
+                                <p className="text-xs font-semibold text-slate-700 mb-2">Statutory Identifiers</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    label="SSS Number"
+                                    value={profileForm.sss}
+                                    onChange={(e) => setProfileForm((f) => ({ ...f, sss: formatSSSNumber(e.target.value) }))}
+                                    placeholder="00-0000000-0"
+                                  />
+                                  <Input
+                                    label="PhilHealth PIN"
+                                    value={profileForm.philhealth}
+                                    onChange={(e) => setProfileForm((f) => ({ ...f, philhealth: formatPhilHealthNumber(e.target.value) }))}
+                                    placeholder="00-000000000-0"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                  <Input
+                                    label="Pag-IBIG MID"
+                                    value={profileForm.pagibig}
+                                    onChange={(e) => setProfileForm((f) => ({ ...f, pagibig: formatPagIbigNumber(e.target.value) }))}
+                                    placeholder="0000-0000-0000"
+                                  />
+                                  <Input
+                                    label="TIN Number"
+                                    value={profileForm.tin}
+                                    onChange={(e) => setProfileForm((f) => ({ ...f, tin: formatTINNumber(e.target.value) }))}
+                                    placeholder="000-000-000-000"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100">
+                                <p className="text-xs font-semibold text-slate-700 mb-2">Emergency Contact</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    label="Emergency Contact Name"
+                                    value={profileForm.emergencyContactName}
+                                    onChange={(e) => setProfileForm((f) => ({ ...f, emergencyContactName: e.target.value }))}
+                                    placeholder="Full name"
+                                  />
+                                  <PhoneInput
+                                    label="Emergency Contact Phone"
+                                    value={profileForm.emergencyContactPhone}
+                                    onChange={(val) => setProfileForm((f) => ({ ...f, emergencyContactPhone: val }))}
+                                    placeholder="0917 123 4567"
+                                    helperText="Format: 09XX-XXX-XXXX"
+                                  />
+                                </div>
                               </div>
 
                               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
@@ -3148,12 +3289,13 @@ export const ApplicationDetailPage: React.FC = () => {
               The 7-day interview deadline starts when this is scheduled.
             </p>
           </div>
-          <Input
+          <DateTimePicker
             label="Date and time"
-            type="datetime-local"
             value={interviewDate}
-            onChange={(e) => setInterviewDate(e.target.value)}
+            onChange={(val) => setInterviewDate(val)}
+            minDate={new Date()}
             required
+            helperText="Select an interview date and time during business hours (past dates are disabled)."
           />
           <Textarea
             label="Meeting details (optional)"
@@ -3169,15 +3311,20 @@ export const ApplicationDetailPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              disabled={!interviewDate}
+              disabled={!interviewDate || new Date(interviewDate).getTime() < Date.now()}
               loading={scheduleInterviewMutation.isPending}
-              onClick={() =>
+              onClick={() => {
+                const dateObj = new Date(interviewDate);
+                if (isNaN(dateObj.getTime()) || dateObj.getTime() < Date.now()) {
+                  notify.error("Invalid Date", "Please select a valid future date and time for the interview.");
+                  return;
+                }
                 scheduleInterviewMutation.mutate({
                   type: interviewType,
                   scheduledAt: new Date(interviewDate).toISOString(),
                   notes: interviewNotes || undefined,
-                })
-              }
+                });
+              }}
             >
               {(interviewType === InterviewType.INITIAL_SCREENING ? pendingScreeningInterview : pendingFinalInterview)
                 ? "Save new time"
@@ -3436,6 +3583,7 @@ export const ApplicationDetailPage: React.FC = () => {
             type="date"
             value={complianceDeadline}
             onChange={(e) => setComplianceDeadline(e.target.value)}
+            min={new Date().toISOString().slice(0, 10)}
           />
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
@@ -3499,6 +3647,7 @@ export const ApplicationDetailPage: React.FC = () => {
             type="date"
             value={editDeadlineDate}
             onChange={(e) => setEditDeadlineDate(e.target.value)}
+            min={new Date().toISOString().slice(0, 10)}
             required
           />
 
@@ -3783,6 +3932,7 @@ export const ApplicationDetailPage: React.FC = () => {
               type="date"
               value={deployContractStart}
               onChange={(e) => setDeployContractStart(e.target.value)}
+              min={new Date().toISOString().slice(0, 10)}
               required
             />
             <Input
@@ -3790,6 +3940,7 @@ export const ApplicationDetailPage: React.FC = () => {
               type="date"
               value={deployContractEnd}
               onChange={(e) => setDeployContractEnd(e.target.value)}
+              min={deployStartDate || new Date().toISOString().slice(0, 10)}
               helperText="Optional for rolling contracts"
               error={
                 deployContractStart &&
