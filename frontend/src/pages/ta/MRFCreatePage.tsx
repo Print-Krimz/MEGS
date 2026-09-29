@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import { PageHeader } from "../../components/common";
 import { Button, Input, Select, Textarea, ComboBox } from "../../components/ui";
-import { ArrowLeft, Send, Building2 } from "lucide-react";
+import { ArrowLeft, Send, Building2, Sparkles, Copy } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import {
   EMPLOYMENT_TYPE_OPTIONS,
@@ -13,6 +13,9 @@ import {
   MRF_EXPERIENCE_OPTIONS,
 } from "../../lib/hr-constants";
 import { TA_COPY } from "../../lib/ta-copy";
+import { MRF_ROLE_PRESETS, getMRFPresetById } from "../../lib/mrf-presets";
+import { CloneMRFModal } from "../../components/ta/CloneMRFModal";
+import type { ManpowerRequest } from "../../lib/types/ta.types";
 
 export const MRFCreatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -37,6 +40,8 @@ export const MRFCreatePage: React.FC = () => {
   const [ageMax, setAgeMax] = useState<string>("");
   const [genderPreference, setGenderPreference] = useState<string>("ANY");
   const [tattooPolicy, setTattooPolicy] = useState<string>("ALLOWED");
+  const [cloneModalOpen, setCloneModalOpen] = useState(false);
+  const [selectedPresetId, setSelectedPresetId] = useState("");
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
@@ -159,6 +164,65 @@ export const MRFCreatePage: React.FC = () => {
         }
       }
     }
+  };
+
+  const handleApplyPreset = (presetId: string) => {
+    setSelectedPresetId(presetId);
+    if (!presetId) return;
+
+    const preset = getMRFPresetById(presetId);
+    if (!preset) return;
+
+    setTitle(preset.title);
+    setRequiredSkills(preset.requiredSkills);
+    setRequiredExperience(preset.requiredExperience);
+    setRequiredEducation(preset.requiredEducation);
+    setRequiredCertifications(preset.requiredCertifications);
+    setDescription(preset.description);
+    setSalaryMin(String(preset.salaryMin));
+    setSalaryMax(String(preset.salaryMax));
+    setEmploymentType(preset.employmentType);
+    setWorkArrangement(preset.workArrangement);
+
+    notify.success("Template Applied", `Loaded "${preset.label}" specifications.`);
+  };
+
+  const handleApplyClonedMRF = (mrf: ManpowerRequest, preserveClient: boolean) => {
+    setTitle(mrf.title || "");
+    setHeadcount(mrf.headcount || 1);
+    if (mrf.priority) {
+      setPriority(mrf.priority);
+    }
+    setRequiredSkills(mrf.requiredSkills || "");
+    setRequiredExperience(mrf.requiredExperience || "");
+    setRequiredEducation(mrf.requiredEducation || "");
+    setRequiredCertifications(mrf.requiredCertifications || "");
+    setDescription(mrf.description || "");
+    setSalaryMin(mrf.salaryRangeMin != null ? String(mrf.salaryRangeMin) : "");
+    setSalaryMax(mrf.salaryRangeMax != null ? String(mrf.salaryRangeMax) : "");
+    setEmploymentType(mrf.employmentType || "Contractual");
+    setWorkArrangement(mrf.workArrangement || "On-site");
+    setAgeMin(mrf.ageMin != null ? String(mrf.ageMin) : "");
+    setAgeMax(mrf.ageMax != null ? String(mrf.ageMax) : "");
+    setGenderPreference(mrf.genderPreference || "ANY");
+    setTattooPolicy(mrf.tattooPolicy || "ALLOWED");
+
+    if (!preserveClient) {
+      if (mrf.clientId) {
+        setClientId(mrf.clientId);
+      }
+      if (mrf.location) {
+        setLocation(mrf.location);
+      }
+    } else {
+      if (!location && mrf.location) {
+        setLocation(mrf.location);
+      }
+    }
+
+    setSelectedPresetId("");
+    setCloneModalOpen(false);
+    notify.success("MRF Cloned", `Populated specifications from MRF #${mrf.id} (${mrf.title}).`);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -297,6 +361,52 @@ export const MRFCreatePage: React.FC = () => {
           <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
             Request details
           </h3>
+
+          {/* Quick Fill Accelerators Banner */}
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 sm:p-4 mb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">
+                    Quick Fill Accelerators
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Pre-fill specifications from industry templates or past requisitions
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Copy className="w-3.5 h-3.5" />}
+                  onClick={() => setCloneModalOpen(true)}
+                  className="bg-white hover:bg-slate-50 shrink-0"
+                >
+                  Clone from Past MRF
+                </Button>
+
+                <div className="w-full sm:w-60">
+                  <Select
+                    value={selectedPresetId}
+                    onChange={(e) => handleApplyPreset(e.target.value)}
+                    options={[
+                      { value: "", label: "Apply Role Template..." },
+                      ...MRF_ROLE_PRESETS.map((p) => ({
+                        value: p.id,
+                        label: p.label,
+                      })),
+                    ]}
+                    aria-label="Apply Role Template"
+                    className="bg-white text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ComboBox
@@ -516,6 +626,14 @@ export const MRFCreatePage: React.FC = () => {
           </Button>
         </div>
       </form>
+
+      <CloneMRFModal
+        open={cloneModalOpen}
+        onClose={() => setCloneModalOpen(false)}
+        onSelectMRF={handleApplyClonedMRF}
+        currentClientId={clientId || undefined}
+        currentClientName={clients.find((c) => c.id === clientId)?.name}
+      />
     </div>
   );
 };
