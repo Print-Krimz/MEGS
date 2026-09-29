@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { employeesApi } from "../../lib/api/employees.api";
+import type { UpdateEmployeeDetailsDto } from "../../lib/types/employee.types";
 import {
   PageHeader,
   StatusBadge,
@@ -9,8 +10,15 @@ import {
   ErrorState,
   Tabs,
 } from "../../components/common";
-import { Button, Dialog, Select, Textarea } from "../../components/ui";
+import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
+import { notify } from "../../lib/feedback";
+import {
+  formatSSSNumber,
+  formatPhilHealthNumber,
+  formatPagIbigNumber,
+  formatTINNumber,
+} from "../applicant/ProfilePage";
 import { EmploymentStatus } from "../../lib/types/enums";
 import {
   User,
@@ -20,6 +28,7 @@ import {
   GraduationCap,
   ArrowLeft,
   Edit,
+  Pencil,
 } from "lucide-react";
 import { TA_COPY } from "../../lib/ta-copy";
 
@@ -65,6 +74,27 @@ export const EmployeeDetailPage: React.FC = () => {
   const [newStatus, setNewStatus] = useState<EmploymentStatus>(EmploymentStatus.ACTIVE);
   const [statusReason, setStatusReason] = useState("");
 
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    firstName: "",
+    middleName: "",
+    lastName: "",
+    mobileNumber: "",
+    address: "",
+    city: "",
+    province: "",
+    sss: "",
+    philhealth: "",
+    pagibig: "",
+    tin: "",
+    emergencyContactName: "",
+    emergencyContactRelationship: "",
+    emergencyContactPhone: "",
+    emergencyContactAddress: "",
+    position: "",
+    department: "",
+  });
+
   const digital201Query = useQuery({
     queryKey: ["ta", "employee", employeeId, "201"],
     queryFn: () => employeesApi.getDigital201(employeeId),
@@ -77,6 +107,24 @@ export const EmployeeDetailPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "employee", employeeId] });
       setStatusModalOpen(false);
+      notify.success("Employment status updated", "The employee status has been updated.");
+    },
+    onError: (err: any) => {
+      notify.error("Status update failed", err?.message || "Unable to update status.");
+    },
+  });
+
+  const updateDetailsMutation = useMutation({
+    mutationFn: (form: UpdateEmployeeDetailsDto) =>
+      employeesApi.updateEmployeeDetails(employeeId, form),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "employee", employeeId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "employees"] });
+      setEditModalOpen(false);
+      notify.success("Employee updated", "Employee details were saved successfully.");
+    },
+    onError: (err: any) => {
+      notify.error("Update failed", err?.message || "Unable to update employee details.");
     },
   });
 
@@ -100,11 +148,75 @@ export const EmployeeDetailPage: React.FC = () => {
 
   const data = digital201Query.data;
   const emp = data.employee;
-  const cand = data.candidate || ({} as any);
+  const cand = (data.candidate?.profile
+    ? { ...data.candidate.profile, ...data.candidate }
+    : (data.candidate || {})) as any;
   const empName = `${cand.firstName || ""} ${cand.lastName || ""}`.trim() || emp.employeeNumber;
   const deployments = data.deployments || [];
   const events = data.employmentHistory || [];
   const compliance = data.compliance || [];
+  const skillsList: string[] =
+    Array.isArray(data.skills) && data.skills.length > 0
+      ? data.skills
+      : Array.isArray(cand.skills)
+      ? cand.skills
+          .map((s: any) => (typeof s === "string" ? s : s.skill?.name || s.name || ""))
+          .filter(Boolean)
+      : [];
+  const fullAddress = [cand.address, cand.city, cand.province].filter(Boolean).join(", ") || "N/A";
+  const emergencyContactInfo = cand.emergencyContactName
+    ? `${cand.emergencyContactName}${cand.emergencyContactRelationship ? ` (${cand.emergencyContactRelationship})` : ""}${cand.emergencyContactPhone ? ` • ${cand.emergencyContactPhone}` : ""}`
+    : "N/A";
+
+  const handleOpenEditModal = () => {
+    setEditForm({
+      firstName: cand.firstName || "",
+      middleName: cand.middleName || "",
+      lastName: cand.lastName || "",
+      mobileNumber: cand.mobileNumber || "",
+      address: cand.address || "",
+      city: cand.city || "",
+      province: cand.province || "",
+      sss: cand.sss ? formatSSSNumber(cand.sss) : "",
+      philhealth: cand.philhealth ? formatPhilHealthNumber(cand.philhealth) : "",
+      pagibig: cand.pagibig ? formatPagIbigNumber(cand.pagibig) : "",
+      tin: cand.tin ? formatTINNumber(cand.tin) : "",
+      emergencyContactName: cand.emergencyContactName || "",
+      emergencyContactRelationship: cand.emergencyContactRelationship || "",
+      emergencyContactPhone: cand.emergencyContactPhone || "",
+      emergencyContactAddress: cand.emergencyContactAddress || "",
+      position: emp.position || "",
+      department: emp.department || "",
+    });
+    setEditModalOpen(true);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editForm.firstName.trim() || !editForm.lastName.trim()) {
+      notify.error("Validation error", "First name and last name are required.");
+      return;
+    }
+    updateDetailsMutation.mutate({
+      firstName: editForm.firstName.trim(),
+      middleName: editForm.middleName.trim() || null,
+      lastName: editForm.lastName.trim(),
+      mobileNumber: editForm.mobileNumber.trim() || null,
+      address: editForm.address.trim() || null,
+      city: editForm.city.trim() || null,
+      province: editForm.province.trim() || null,
+      sss: editForm.sss.trim() || null,
+      philhealth: editForm.philhealth.trim() || null,
+      pagibig: editForm.pagibig.trim() || null,
+      tin: editForm.tin.trim() || null,
+      emergencyContactName: editForm.emergencyContactName.trim() || null,
+      emergencyContactRelationship: editForm.emergencyContactRelationship.trim() || null,
+      emergencyContactPhone: editForm.emergencyContactPhone.trim() || null,
+      emergencyContactAddress: editForm.emergencyContactAddress.trim() || null,
+      position: editForm.position.trim() || null,
+      department: editForm.department.trim() || null,
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -123,6 +235,14 @@ export const EmployeeDetailPage: React.FC = () => {
                 Back to employee records
               </Button>
             </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Pencil className="w-3.5 h-3.5" />}
+              onClick={handleOpenEditModal}
+            >
+              Edit employee details
+            </Button>
             <Button
               variant="primary"
               size="sm"
@@ -182,7 +302,7 @@ export const EmployeeDetailPage: React.FC = () => {
               Government IDs and personal details
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-xs">
               <div className="space-y-2">
                 <span className="text-slate-500 block">SSS number</span>
                 <span className="font-bold font-mono text-slate-900">{cand.sss || "Pending Submission"}</span>
@@ -195,22 +315,38 @@ export const EmployeeDetailPage: React.FC = () => {
                 <span className="text-slate-500 block">Pag-IBIG MID</span>
                 <span className="font-bold font-mono text-slate-900">{cand.pagibig || "Pending Submission"}</span>
               </div>
+              <div className="space-y-2">
+                <span className="text-slate-500 block">TIN</span>
+                <span className="font-bold font-mono text-slate-900">{cand.tin || "Pending Submission"}</span>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs pt-4 border-t border-slate-100">
-              <div className="space-y-2">
-                <span className="font-mono text-slate-400 block uppercase text-[10px]">Residential Address</span>
-                <span className="text-slate-800">{cand.address || "N/A"}</span>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-xs pt-4 border-t border-slate-100">
               <div className="space-y-2">
                 <span className="font-mono text-slate-400 block uppercase text-[10px]">Contact Mobile</span>
                 <span className="font-mono text-slate-800">{cand.mobileNumber || "N/A"}</span>
               </div>
               <div className="space-y-2">
-                <span className="font-mono text-slate-400 block uppercase text-[10px]">Emergency Contact</span>
+                <span className="font-mono text-slate-400 block uppercase text-[10px]">Email</span>
+                <span className="text-slate-800 font-mono">{cand.email || emp.user?.email || "N/A"}</span>
+              </div>
+              <div className="space-y-2">
+                <span className="font-mono text-slate-400 block uppercase text-[10px]">Residential Address</span>
+                <span className="text-slate-800">{fullAddress}</span>
+              </div>
+              <div className="space-y-2">
+                <span className="font-mono text-slate-400 block uppercase text-[10px]">Date of Birth & Gender</span>
                 <span className="text-slate-800">
-                  {cand.emergencyContactName ? `${cand.emergencyContactName} (${cand.emergencyContactPhone || ""})` : "N/A"}
+                  {`${cand.dateOfBirth ? formatDate(cand.dateOfBirth) : "N/A"}${cand.gender ? ` • ${cand.gender}` : ""}`}
                 </span>
+              </div>
+              <div className="space-y-2">
+                <span className="font-mono text-slate-400 block uppercase text-[10px]">Civil Status</span>
+                <span className="text-slate-800">{cand.civilStatus || "Unspecified"}</span>
+              </div>
+              <div className="space-y-2">
+                <span className="font-mono text-slate-400 block uppercase text-[10px]">Emergency Contact</span>
+                <span className="text-slate-800">{emergencyContactInfo}</span>
               </div>
             </div>
           </div>
@@ -246,7 +382,7 @@ export const EmployeeDetailPage: React.FC = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
-              Client site deployments ({deployments.length})
+                Client site deployments ({deployments.length})
               </h3>
               <Link to="/ta/workforce" search={{ tab: "deployments" }}>
                 <span className="text-xs text-teal-700 hover:text-teal-900 font-semibold">
@@ -270,7 +406,7 @@ export const EmployeeDetailPage: React.FC = () => {
                       <StatusBadge status={dep.status} type="deployment" />
                       <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(dep.id) }}>
                         <Button variant="outline" size="sm">
-                        View deployment
+                          View deployment
                         </Button>
                       </Link>
                     </div>
@@ -313,8 +449,8 @@ export const EmployeeDetailPage: React.FC = () => {
             <div className="space-y-2">
               <span className="text-sm font-medium text-slate-600">Skills on record</span>
               <div className="flex flex-wrap gap-1.5">
-                {data.skills && data.skills.length > 0 ? (
-                  data.skills.map((s, idx) => (
+                {skillsList.length > 0 ? (
+                  skillsList.map((s, idx) => (
                     <span key={idx} className="px-2.5 py-1 rounded bg-slate-100 text-slate-800 text-[11px] font-semibold">
                       {s}
                     </span>
@@ -376,6 +512,195 @@ export const EmployeeDetailPage: React.FC = () => {
             </Button>
           </div>
         </div>
+      </Dialog>
+
+      {/* Edit Employee Details Modal */}
+      <Dialog
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title="Edit employee details"
+        description={`Update legal name, contact, statutory IDs, and job details for ${empName}`}
+        size="xl"
+      >
+        <form onSubmit={handleSaveEdit} className="space-y-6">
+          {/* Section 1: Legal Name */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5">
+              Legal Name
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Input
+                label="First Name"
+                required
+                value={editForm.firstName}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, firstName: e.target.value }))}
+                placeholder="First name"
+              />
+              <Input
+                label="Middle Name"
+                value={editForm.middleName}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, middleName: e.target.value }))}
+                placeholder="Middle name (optional)"
+              />
+              <Input
+                label="Last Name"
+                required
+                value={editForm.lastName}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, lastName: e.target.value }))}
+                placeholder="Last name"
+              />
+            </div>
+          </div>
+
+          {/* Section 2: Contact & Location */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5">
+              Contact & Location
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Input
+                label="Contact Mobile"
+                value={editForm.mobileNumber}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, mobileNumber: e.target.value }))}
+                placeholder="0917-000-0000"
+              />
+              <Input
+                label="City"
+                value={editForm.city}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, city: e.target.value }))}
+                placeholder="City"
+              />
+              <Input
+                label="Province"
+                value={editForm.province}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, province: e.target.value }))}
+                placeholder="Province"
+              />
+            </div>
+            <div>
+              <Input
+                label="Residential Address"
+                value={editForm.address}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, address: e.target.value }))}
+                placeholder="Street address, building, or barangay"
+              />
+            </div>
+          </div>
+
+          {/* Section 3: Statutory Identification */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5">
+              Statutory Identification
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <Input
+                label="SSS Number"
+                value={editForm.sss}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, sss: formatSSSNumber(e.target.value) }))}
+                placeholder="00-0000000-0"
+                helperText="10 digits (00-0000000-0)"
+              />
+              <Input
+                label="PhilHealth PIN"
+                value={editForm.philhealth}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, philhealth: formatPhilHealthNumber(e.target.value) }))}
+                placeholder="00-000000000-0"
+                helperText="12 digits (00-000000000-0)"
+              />
+              <Input
+                label="Pag-IBIG MID"
+                value={editForm.pagibig}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, pagibig: formatPagIbigNumber(e.target.value) }))}
+                placeholder="0000-0000-0000"
+                helperText="12 digits (0000-0000-0000)"
+              />
+              <Input
+                label="TIN Number"
+                value={editForm.tin}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, tin: formatTINNumber(e.target.value) }))}
+                placeholder="000-000-000-000"
+                helperText="9-12 digits (000-000-000-000)"
+              />
+            </div>
+          </div>
+
+          {/* Section 4: Emergency Contact */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5">
+              Emergency Contact
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Input
+                label="Contact Name"
+                value={editForm.emergencyContactName}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, emergencyContactName: e.target.value }))}
+                placeholder="Full name"
+              />
+              <Input
+                label="Relationship"
+                value={editForm.emergencyContactRelationship}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, emergencyContactRelationship: e.target.value }))}
+                placeholder="Relationship (e.g. Spouse)"
+              />
+              <Input
+                label="Contact Phone"
+                value={editForm.emergencyContactPhone}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, emergencyContactPhone: e.target.value }))}
+                placeholder="Phone / Mobile"
+              />
+            </div>
+            <div>
+              <Input
+                label="Emergency Contact Address"
+                value={editForm.emergencyContactAddress}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, emergencyContactAddress: e.target.value }))}
+                placeholder="Address (optional)"
+              />
+            </div>
+          </div>
+
+          {/* Section 5: Job Assignment */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5">
+              Job Assignment
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                label="Position"
+                value={editForm.position}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, position: e.target.value }))}
+                placeholder="Job title / position"
+              />
+              <Input
+                label="Department"
+                value={editForm.department}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, department: e.target.value }))}
+                placeholder="Department"
+              />
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setEditModalOpen(false)}
+              disabled={updateDetailsMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              loading={updateDetailsMutation.isPending}
+            >
+              Save changes
+            </Button>
+          </div>
+        </form>
       </Dialog>
     </div>
   );
