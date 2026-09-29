@@ -39,26 +39,36 @@ async function ensureBuckets() {
 async function main() {
   console.log("🌱 Starting authoritative database bootstrap seed (zero mock data)...");
 
-  const adminEmail = process.env.ADMIN_EMAIL || "admin@megs-recruitment.com";
-  const adminPassword = process.env.ADMIN_PASSWORD || "AdminPassword123!";
-  const adminName = process.env.ADMIN_NAME || "System Administrator";
+  const requireSeedValue = (name: string): string => {
+    const value = process.env[name]?.trim();
+    if (!value) throw new Error(`${name} is required; seed credentials have no defaults`);
+    return value;
+  };
 
-  const taEmail = process.env.TA_EMAIL || "ta@megs-recruitment.com";
-  const taPassword = process.env.TA_PASSWORD || "TAPassword123!";
+  const adminEmail = requireSeedValue("ADMIN_EMAIL");
+  const adminPassword = requireSeedValue("ADMIN_PASSWORD");
+  const adminName = process.env.ADMIN_NAME || "System Administrator";
+  const args = process.argv.slice(2);
+  const adminOnly = args.includes("--admin-only") || process.env.SEED_ADMIN_ONLY === "true";
+
+  const taEmail = adminOnly ? "" : requireSeedValue("TA_EMAIL");
+  const taPassword = adminOnly ? "" : requireSeedValue("TA_PASSWORD");
   const taName = process.env.TA_NAME || "Talent Acquisition";
+
+  if (adminPassword.length < 12) throw new Error("ADMIN_PASSWORD must be at least 12 characters");
+  if (!adminOnly && taPassword.length < 12) {
+    throw new Error("TA_PASSWORD must be at least 12 characters");
+  }
 
   const { data: listData } = await supabase.auth.admin.listUsers();
 
   // 1. Seed/Sync Administrator
   let adminAuthId: string;
+  let adminWasCreated = false;
   const existingAdmin = listData?.users.find((u) => u.email?.toLowerCase() === adminEmail.toLowerCase());
   if (existingAdmin) {
     adminAuthId = existingAdmin.id;
-    await supabase.auth.admin.updateUserById(adminAuthId, {
-      password: adminPassword,
-      email_confirm: true,
-      user_metadata: { role: "ADMINISTRATOR", name: adminName },
-    });
+    console.log(`ℹ️ Existing Administrator password and account state preserved: ${adminEmail}`);
   } else {
     const { data: createData, error } = await supabase.auth.admin.createUser({
       email: adminEmail,
@@ -68,6 +78,7 @@ async function main() {
     });
     if (error || !createData.user) throw new Error(`Failed to create admin: ${error?.message}`);
     adminAuthId = createData.user.id;
+    adminWasCreated = true;
   }
 
   await prisma.user.upsert({
@@ -75,9 +86,6 @@ async function main() {
     update: {
       email: adminEmail,
       role: "ADMINISTRATOR",
-      isActive: true,
-      accountStatus: "ACTIVE",
-      mustChangePassword: false,
     },
     create: {
       id: adminAuthId,
@@ -85,13 +93,10 @@ async function main() {
       role: "ADMINISTRATOR",
       isActive: true,
       accountStatus: "ACTIVE",
-      mustChangePassword: false,
+      mustChangePassword: true,
     },
   });
-  console.log(`✅ Bootstrapped Administrator account: ${adminEmail}`);
-
-  const args = process.argv.slice(2);
-  const adminOnly = args.includes("--admin-only") || process.env.SEED_ADMIN_ONLY === "true";
+  console.log(`✅ ${adminWasCreated ? "Bootstrapped" : "Synchronized"} Administrator account: ${adminEmail}`);
 
   if (adminOnly) {
     console.log("⚡ Admin-only mode enabled: skipping TA account and auxiliary seed.");
@@ -101,14 +106,11 @@ async function main() {
 
   // 2. Seed/Sync Talent Acquisition
   let taAuthId: string;
+  let taWasCreated = false;
   const existingTa = listData?.users.find((u) => u.email?.toLowerCase() === taEmail.toLowerCase());
   if (existingTa) {
     taAuthId = existingTa.id;
-    await supabase.auth.admin.updateUserById(taAuthId, {
-      password: taPassword,
-      email_confirm: true,
-      user_metadata: { role: "TALENT_ACQUISITION", name: taName },
-    });
+    console.log(`ℹ️ Existing Talent Acquisition password and account state preserved: ${taEmail}`);
   } else {
     const { data: createData, error } = await supabase.auth.admin.createUser({
       email: taEmail,
@@ -118,6 +120,7 @@ async function main() {
     });
     if (error || !createData.user) throw new Error(`Failed to create TA: ${error?.message}`);
     taAuthId = createData.user.id;
+    taWasCreated = true;
   }
 
   await prisma.user.upsert({
@@ -125,9 +128,6 @@ async function main() {
     update: {
       email: taEmail,
       role: "TALENT_ACQUISITION",
-      isActive: true,
-      accountStatus: "ACTIVE",
-      mustChangePassword: false,
     },
     create: {
       id: taAuthId,
@@ -135,10 +135,10 @@ async function main() {
       role: "TALENT_ACQUISITION",
       isActive: true,
       accountStatus: "ACTIVE",
-      mustChangePassword: false,
+      mustChangePassword: true,
     },
   });
-  console.log(`✅ Bootstrapped Talent Acquisition account: ${taEmail}`);
+  console.log(`✅ ${taWasCreated ? "Bootstrapped" : "Synchronized"} Talent Acquisition account: ${taEmail}`);
 
   // 3. Ensure Active Candidate Scoring Configuration (v1)
   const existingConfig = await prisma.candidateScoringConfiguration.findFirst({

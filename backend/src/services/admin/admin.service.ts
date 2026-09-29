@@ -116,7 +116,6 @@ export const inviteTA = async (
   return {
     message: "Talent Acquisition invitation sent successfully",
     user: dbUser,
-    ...(process.env.NODE_ENV !== "production" ? { debugSetupLink: setupLink } : {}),
   };
 };
 
@@ -192,7 +191,6 @@ export const resendTAInvitation = async (adminId: string, targetUserId: string) 
   return {
     message: "Invitation resent successfully",
     user: updatedUser,
-    ...(process.env.NODE_ENV !== "production" ? { debugSetupLink: setupLink } : {}),
   };
 };
 

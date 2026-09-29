@@ -7,6 +7,7 @@ import {
   verifyMfaEnrollment as verifyMfaEnrollmentService,
   verifyMfaLogin as verifyMfaLoginService,
   verifyRecoveryCode as verifyRecoveryCodeService,
+  resetMfaAfterRecovery,
   getUserMfaFactors,
   resetUserMfa as resetUserMfaService,
 } from '../../services/core/mfa.service.js';
@@ -139,6 +140,7 @@ export const verifyMfaRecoveryHandler = async (req: Request, res: Response): Pro
 
     const userId = userData.user.id;
     const recoveryResult = await verifyRecoveryCodeService(userId, recoveryCode);
+    await resetMfaAfterRecovery(userId);
 
     const dbUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -152,7 +154,8 @@ export const verifyMfaRecoveryHandler = async (req: Request, res: Response): Pro
     });
 
     sendSuccess(res, 'Recovery code verified successfully', {
-      access_token: token,
+      mfaSetupRequired: true,
+      tempToken: token,
       remainingRecoveryCodes: recoveryResult.remainingCodes,
       user: dbUser,
     });

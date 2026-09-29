@@ -1,13 +1,19 @@
 import crypto from "crypto";
 
-const OTP_SECRET = process.env.OTP_SECRET || "megs-otp-signing-salt-2026";
+const getOtpSecret = (): string => {
+  const secret = process.env.OTP_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error("OTP_SECRET must be configured with at least 32 characters");
+  }
+  return secret;
+};
 
 export const generateNumericOtp = (): string => {
   return crypto.randomInt(100000, 1000000).toString();
 };
 
 export const hashOtp = (otp: string): string => {
-  return crypto.createHmac("sha256", OTP_SECRET).update(otp.trim()).digest("hex");
+  return crypto.createHmac("sha256", getOtpSecret()).update(otp.trim()).digest("hex");
 };
 
 export const verifyOtpHash = (plainOtp: string, hashedOtp: string): boolean => {

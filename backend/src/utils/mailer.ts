@@ -13,6 +13,12 @@ export const getFromAddress = (): string => {
 
 export const fromAddress = getFromAddress();
 
+export const redactAuthenticationSecrets = (value: string): string =>
+  value
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]+/gi, "$1[REDACTED]")
+    .replace(/([?&](?:token|access_token|refresh_token|code|otp)=)[^&#\s]+/gi, "$1[REDACTED]")
+    .replace(/\b\d{6}\b/g, "******");
+
 export const isMockTransporterOrNodemailer = (transporter?: any): boolean => {
   const nm: any = nodemailer;
   const ct = nm?.createTransport || nm?.default?.createTransport;
@@ -89,12 +95,16 @@ export const sendMail = async (
   const isMocked = isMockTransporterOrNodemailer(transporter);
 
   if (!transporter || (isTest && !isLiveTest && !isMocked)) {
-    const sanitizedText = text.replace(/\b\d{6}\b/g, "******");
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Email delivery is unavailable because SMTP is not configured");
+    }
+
+    const sanitizedText = redactAuthenticationSecrets(text);
     const reason = !transporter
       ? "SMTP / Gmail credentials not configured or live SMTP disabled in test."
       : "SMTP / Gmail live connection skipped in test mode.";
     console.log(`\n📧 [DEV EMAIL LOG] ${reason}`);
-    console.log(`   To: ${to}`);
+    console.log(`   To: ${to.replace(/(^.).*(@.*$)/, "$1***$2")}`);
     console.log(`   From: ${from}`);
     console.log(`   Subject: ${subject}`);
     console.log(`   Body: ${sanitizedText}\n`);
@@ -112,7 +122,7 @@ export const sendMail = async (
 
     return { success: true, messageId: info.messageId };
   } catch (error: any) {
-    console.error("[Mailer] Email delivery error:", error?.message || error);
+    console.error("[Mailer] Email delivery error:", redactAuthenticationSecrets(String(error?.message || error)));
     throw error;
   }
 };

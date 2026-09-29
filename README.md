@@ -88,6 +88,11 @@ PORT=3000
 SUPABASE_URL="https://[YOUR_PROJECT_REF].supabase.co"
 SUPABASE_PUBLISHABLE_KEY="your-supabase-publishable-key"
 SUPABASE_SECRET_KEY="your-supabase-service-role-secret-key"
+SUPABASE_JWT_ALGORITHMS="HS256,RS256,ES256"
+SUPABASE_JWT_AUDIENCE="authenticated"
+OTP_SECRET="replace-with-a-random-otp-hmac-secret"
+BACKUP_ENCRYPTION_SECRET="replace-with-a-random-backup-encryption-secret"
+BACKUP_ENCRYPTION_KEY_ID="v1"
 
 # Google Gemini AI API Key & Model
 GEMINI_API_KEY="your-google-gemini-api-key"
@@ -124,7 +129,7 @@ MEGS uses **Nodemailer** with Gmail SMTP for transactional notifications, includ
 6. Copy this passcode into `GMAIL_APP_PASSWORD` in `backend/.env` (spaces are automatically stripped by the server).
 7. Set `GMAIL_USER` and `EMAIL_FROM` with your full Gmail address.
 
-> 💡 **Development Fallback:** If `GMAIL_USER` and `GMAIL_APP_PASSWORD` are not configured, the backend automatically falls back to a development console logger (`[DEV EMAIL LOG]`), printing all outbound emails and links directly to the terminal without failing.
+> **Development fallback:** Outside production, missing SMTP credentials use a redacted console preview. Production email delivery fails clearly when SMTP is not configured; tokens and OTP values are never written to this preview.
 
 ---
 
@@ -143,17 +148,17 @@ npm run seed
 
 ---
 
-## 🔐 Default Seeded Accounts & Roles
+## 🔐 Seeded Accounts & Roles
 
-Admin and Talent Acquisition (TA) roles do not allow public self-registration. They are provisioned automatically via `npm run seed` or `npm run seed:accounts`:
+Admin and Talent Acquisition (TA) roles do not allow public self-registration. `npm run seed` requires explicit `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `TA_EMAIL`, and `TA_PASSWORD` values. `npm run seed:admin` requires the two administrator values. The seed does not change passwords or activation state for existing accounts, and newly created staff must change their bootstrap password.
 
-| Role | Default Email | Default Password | Access / Capabilities |
-| :--- | :--- | :--- | :--- |
-| **System Administrator** | `admin@megs-recruitment.com` | `AdminPassword123!` | System configuration, user management, audit logs, AI scoring tuning, revalidation queue |
-| **Talent Acquisition (TA)** | `ta@megs-recruitment.com` | `TAPassword123!` | Job postings, MRF management, candidate screening, endorsements, compliance, deployments, talent pool |
-| **Applicant** | *Self-registered* | *User-defined* | Job application, document upload, status tracking, candidate profile management |
+| Role | Provisioning | Access / Capabilities |
+| :--- | :--- | :--- |
+| **System Administrator** | Explicit seed credentials | System configuration, user management, audit logs, AI scoring tuning, revalidation queue |
+| **Talent Acquisition (TA)** | Explicit seed credentials | Job postings, MRF management, candidate screening, endorsements, compliance, deployments, talent pool |
+| **Applicant** | Self-registered | Job application, document upload, status tracking, candidate profile management |
 
-*(Note: Custom credentials can be set via `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `TA_EMAIL`, and `TA_PASSWORD` in `backend/.env`)*
+For existing unversioned backups, set `BACKUP_ENCRYPTION_LEGACY_SECRETS` temporarily to the exact former encryption secret before restore. New backups include `BACKUP_ENCRYPTION_KEY_ID`; older versioned keys can be supplied through `BACKUP_ENCRYPTION_LEGACY_KEYS`. Never commit these values.
 
 ---
 
