@@ -10,7 +10,7 @@ node_modules/
 __tests__/
 *.test.ts
 *.spec.ts
-!tests/security/*.test.ts
+tests/
 
 # Prisma generated client
 # (it gets regenerated via `npx prisma generate`)

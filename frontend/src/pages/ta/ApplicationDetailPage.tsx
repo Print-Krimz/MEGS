@@ -1344,19 +1344,6 @@ export const ApplicationDetailPage: React.FC = () => {
                   Send to client
                 </Button>
                 <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<Calendar className="w-3.5 h-3.5" />}
-                  onClick={() => {
-                    setInterviewType(InterviewType.FINAL_INTERVIEW);
-                    setInterviewDate("");
-                    setInterviewNotes("");
-                    setInterviewModalOpen(true);
-                  }}
-                >
-                  Schedule final interview
-                </Button>
-                <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => setSkipToFinalInterviewConfirmOpen(true)}
@@ -1432,7 +1419,7 @@ export const ApplicationDetailPage: React.FC = () => {
                     setInterviewModalOpen(true);
                   }}
                 >
-                  Schedule client interview
+                  Schedule final interview
                 </Button>
                 <Button
                   variant="outline"
@@ -2306,13 +2293,13 @@ export const ApplicationDetailPage: React.FC = () => {
                       size="sm"
                       leftIcon={<Plus className="w-3.5 h-3.5 text-teal-600" />}
                       onClick={() => {
-                        setInterviewType(hasPassedScreening ? InterviewType.FINAL_INTERVIEW : InterviewType.INITIAL_SCREENING);
+                        setInterviewType(isFinalInterviewStage ? InterviewType.FINAL_INTERVIEW : InterviewType.INITIAL_SCREENING);
                         setInterviewDate("");
                         setInterviewNotes("");
                         setInterviewModalOpen(true);
                       }}
                     >
-                      {hasPassedScreening ? "Schedule Final Interview" : "Schedule Interview"}
+                      {isFinalInterviewStage ? "Schedule Final Interview" : "Schedule Interview"}
                     </Button>
                   </div>
                 </div>
