@@ -50,6 +50,66 @@ MEGS/
 
 ---
 
+## 🔐 Development Security Hardening
+
+> **Review status:** These changes are on the `security/surgical-auth-hardening` development branch and Draft Pull Request #2. They have not been merged into `main` or deployed to production.
+
+This branch addresses five confirmed authentication and secret-handling vulnerabilities while preserving legitimate applicant, staff, onboarding, recovery, and notification behavior.
+
+### 1. Strict JWT Verification
+
+**Problem:** The previous custom token verification did not consistently prove every token was authentic and issued for this application. Incomplete signature, algorithm, issuer, audience, or time validation could allow forged or incorrectly configured tokens to reach protected endpoints.
+
+**Fix:** Authentication now uses the provider-supported verification flow and explicitly validates the signature, permitted algorithm, issuer, audience, expiration, applicable time claims, subject, and authentication assurance level. The existing database identity lookup and active-account validation still run after the token is verified.
+
+**Result:** Unsigned, tampered, expired, wrong-issuer, wrong-audience, and unsupported-algorithm tokens are rejected. Valid provider tokens continue through the normal login and account checks.
+
+### 2. Backend Staff MFA Enforcement
+
+**Problem:** Administrator and TA authorization could depend too heavily on frontend behavior. A staff session without cryptographically verified AAL2 could attempt to call protected backend operations directly.
+
+**Fix:** The backend now requires a verified AAL2 session for ordinary administrator and TA operations. Only the exact authenticated routes needed for MFA enrollment, challenge, recovery, and logout bypass that requirement, and those routes cannot grant normal staff access.
+
+**Result:** Staff cannot enter protected operations until MFA is verified. Applicants keep their intended access, and staff can still complete MFA setup or account recovery.
+
+### 3. Consistent Account-State and Password-Change Enforcement
+
+**Problem:** Disabled-account and forced-password-change restrictions were applied inconsistently. URL substring exceptions could also match unintended route variations.
+
+**Fix:** Shared authorization policy now applies account-state and password-change rules in one place. Exceptions use explicit route and HTTP method combinations for onboarding, verification, password change, recovery, and logout.
+
+**Result:** Restricted accounts cannot use ordinary application operations or bypass controls with modified URLs. Legitimate onboarding, recovery, password-change, and logout flows remain available.
+
+### 4. Safe Secrets, Backup Encryption, and Staff Seeding
+
+**Problem:** Production secret fallbacks and default seed credentials could create predictable secrets or silently reset existing staff passwords. Backup encryption also lacked an explicit key-version strategy for future key changes.
+
+**Fix:** Production now requires explicit OTP, encryption, and staff seed credentials. Seeds no longer silently overwrite existing staff passwords or clear required-password-change state. New backup data records a key version, while the existing encryption format remains recoverable through an explicitly configured legacy key.
+
+**Result:** Production cannot quietly start with insecure fallback secrets, seed runs cannot unexpectedly take over staff accounts, and existing backups remain recoverable during a controlled key transition. This branch does not run seeds, rotate keys, re-encrypt stored backups, or add a database migration.
+
+### 5. Authentication-Token Leakage Prevention
+
+**Problem:** Invitation, recovery, and OTP values could be written to logs. Missing production email configuration could report success without delivering mail, and query-string JWT authentication could expose reusable credentials through URLs and infrastructure logs.
+
+**Fix:** Authentication values are redacted from mail and application logs. Production email fails clearly when SMTP is not configured. Debug invitation links and general query-string JWT authentication were removed, and notification authentication uses the compatible authenticated client flow with token-expiration handling.
+
+**Result:** Usable authentication tokens no longer appear in normal logs or URLs, mail delivery failures are visible, and authenticated notifications continue without query-string credentials.
+
+### Verification Results
+
+- **34 security regression and compatibility tests passed across 7 test files.**
+- Coverage includes forged and malformed JWTs, staff MFA, applicant access, account states, forced password changes, route-bypass attempts, login compatibility, recovery, mail redaction, OTP handling, and backup-key compatibility.
+- Frontend lint completed successfully with existing warnings.
+- Full backend TypeScript validation is currently blocked by the repository's pre-existing stale Prisma client.
+- The frontend production build is currently blocked by the repository's pre-existing missing `leaflet` dependency.
+
+### Required Before Deployment
+
+Configure the documented JWT issuer and audience settings, OTP secret, versioned backup encryption key, and production SMTP settings. If legacy encrypted backups exist, retain the explicit legacy recovery key until an approved migration is completed.
+
+---
+
 ## 📋 Prerequisites
 
 - **Node.js**: `v20.x` or higher
