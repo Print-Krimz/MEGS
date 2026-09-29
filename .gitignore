@@ -53,6 +53,11 @@ test-results/
 playwright-report/
 blob-report/
 coverage/
+
+# Focused security regression tests are reviewable source artifacts.
+!backend/tests/
+!backend/tests/security/
+!backend/tests/security/*.test.ts
 playwright/.cache/
 
 # 6. Audit Suites, Dev Scripts & Screenshots

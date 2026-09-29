@@ -307,6 +307,10 @@ export const LoginPage: React.FC = () => {
           email={mfaChallenge.email}
           onSuccess={(data) => {
             setMfaChallenge(null);
+            if (data.mfaSetupRequired && data.tempToken) {
+              setMfaSetup({ tempToken: data.tempToken, email: mfaChallenge.email });
+              return;
+            }
             handleFinalSuccess(data);
           }}
         />

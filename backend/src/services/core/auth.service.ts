@@ -5,6 +5,7 @@ import {
   sendMail,
   sendRegistrationOtpEmail,
   sendPasswordResetOtpEmail,
+  redactAuthenticationSecrets,
 } from '../../utils/mailer.js';
 import {
   generateNumericOtp,
@@ -19,6 +20,9 @@ import {
 } from './mfa.service.js';
 import { maskEmail } from '../../utils/mask.js';
 import { ensureApplicantProfile } from '../applicant/applicant.service.js';
+
+const isOtpTestBypassEnabled = (): boolean =>
+  process.env.NODE_ENV === "test" && process.env.DISABLE_OTP === "true";
 
 export const registerUser = async (email: string, password: string) => {
   if (password.length < 8) {
@@ -89,8 +93,8 @@ export const registerUser = async (email: string, password: string) => {
     },
   });
 
-  if (process.env.DISABLE_OTP === "true" || process.env.NODE_ENV === "development") {
-    console.log(`🔑 [DEV OTP] REGISTRATION code for ${emailLower}: ${plainOtp} (or use master code: 000000)`);
+  if (isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+    console.log(`🔑 [DEV OTP] REGISTRATION code generated for ${maskEmail(emailLower)}.`);
   }
 
   await sendRegistrationOtpEmail(emailLower, plainOtp);
@@ -162,7 +166,7 @@ export const verifyOtp = async (
   });
 
   const isDevMasterOtp =
-    (process.env.DISABLE_OTP === "true" || (process.env.NODE_ENV === "development" && !process.env.VITEST)) &&
+    (isOtpTestBypassEnabled() || (process.env.NODE_ENV === "development" && !process.env.VITEST)) &&
     cleanOtp === "000000";
 
   const isMatch = isDevMasterOtp || verifyOtpHash(cleanOtp, activeOtp.otpHash);
@@ -295,8 +299,8 @@ export const resendOtp = async (
     },
   });
 
-  if (process.env.DISABLE_OTP === "true" || process.env.NODE_ENV === "development") {
-    console.log(`🔑 [DEV OTP] RESEND (${purpose}) code for ${emailLower}: ${plainOtp} (or use master code: 000000)`);
+  if (isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+    console.log(`🔑 [DEV OTP] RESEND (${purpose}) code generated for ${maskEmail(emailLower)}.`);
   }
 
   if (purpose === "REGISTRATION") {
@@ -372,8 +376,7 @@ export const loginUser = async (email: string, password: string, ip?: string) =>
   }
 
   // Staff MFA Enforcement (ADMINISTRATOR and TALENT_ACQUISITION)
-  const isMfaDisabled = process.env.DISABLE_MFA === "true";
-  if (!isMfaDisabled && (dbUser.role === "ADMINISTRATOR" || dbUser.role === "TALENT_ACQUISITION")) {
+  if (dbUser.role === "ADMINISTRATOR" || dbUser.role === "TALENT_ACQUISITION") {
     const { isEnrolled, verifiedFactor } = await getUserMfaFactors(data.session.access_token);
 
     if (!isEnrolled || !verifiedFactor) {
@@ -503,15 +506,18 @@ export const requestPasswordReset = async (email: string) => {
       },
     });
 
-    if (process.env.DISABLE_OTP === "true" || process.env.NODE_ENV === "development") {
-      console.log(`🔑 [DEV OTP] PASSWORD_RESET code for ${emailLower}: ${plainOtp} (or use master code: 000000)`);
+    if (isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+      console.log(`🔑 [DEV OTP] PASSWORD_RESET code generated for ${maskEmail(emailLower)}.`);
     }
 
     try {
       await sendPasswordResetOtpEmail(emailLower, plainOtp);
       logAudit(dbUser.id, "PASSWORD_RESET_REQUESTED", "User", dbUser.id, { email: emailLower });
     } catch (mailError) {
-      console.error("[Auth] Failed to send password reset OTP email:", mailError);
+      console.error(
+        "[Auth] Failed to send password reset OTP email:",
+        redactAuthenticationSecrets(String(mailError?.message || mailError))
+      );
       throw new Error("Failed to deliver the verification email. Please try again later.");
     }
 

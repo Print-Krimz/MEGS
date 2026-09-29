@@ -4,6 +4,10 @@ import { Readable } from "stream";
 import prisma from "../../utils/prisma.js";
 import supabase from "../../utils/supabase.js";
 import { logAudit } from "../../utils/audit.js";
+import {
+  decryptBackupPayload,
+  encryptBackupPayload,
+} from "../../security/backup-crypto.js";
 
 const BACKUP_BUCKET = "system-backups";
 const verifiedBuckets = new Set<string>();
@@ -25,14 +29,6 @@ export const ensureBackupBucketExists = async (): Promise<void> => {
   } catch (err: any) {
     console.warn(`[Storage] Auto-bucket provisioning warning for '${BACKUP_BUCKET}':`, err?.message);
   }
-};
-
-const getEncryptionKey = (): Buffer => {
-  const secret =
-    process.env.BACKUP_ENCRYPTION_SECRET ||
-    process.env.JWT_SECRET ||
-    "megs-production-encrypted-backup-master-key-2026";
-  return crypto.createHash("sha256").update(secret).digest();
 };
 
 const sanitizeBackupName = (rawName: string): string => {
@@ -206,14 +202,7 @@ export const triggerDatabaseBackupRoutine = async (
     });
 
     // Step 4: AES-256-GCM Encryption
-    const key = getEncryptionKey();
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-    const encrypted = Buffer.concat([cipher.update(compressedBuffer), cipher.final()]);
-    const authTag = cipher.getAuthTag();
-
-    // Final file content: [IV (12B)] + [AuthTag (16B)] + [Encrypted Payload]
-    const finalEncryptedFileBuffer = Buffer.concat([iv, authTag, encrypted]);
+    const finalEncryptedFileBuffer = encryptBackupPayload(compressedBuffer);
 
     // Step 5: Calculate SHA-256 Checksum
     const checksumSha256 = crypto
@@ -489,25 +478,14 @@ export const restoreDatabaseBackupFromBuffer = async (
 ): Promise<RestoreResult> => {
   const startTime = Date.now();
 
-  if (!buffer || buffer.length < 28) {
+  if (!buffer || buffer.length < 29) {
     throw new Error("Invalid backup file: file is empty, corrupted, or too small.");
   }
 
-  // 1. Extract IV (12 bytes), AuthTag (16 bytes), and Encrypted Payload
-  const iv = buffer.subarray(0, 12);
-  const authTag = buffer.subarray(12, 28);
-  const encryptedPayload = buffer.subarray(28);
-
-  const key = getEncryptionKey();
   let decompressed: Buffer;
 
   try {
-    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
-    decipher.setAuthTag(authTag);
-    const decrypted = Buffer.concat([
-      decipher.update(encryptedPayload),
-      decipher.final(),
-    ]);
+    const decrypted = decryptBackupPayload(buffer);
     decompressed = zlib.gunzipSync(decrypted);
   } catch (err: any) {
     throw new Error("Failed to decrypt or decompress backup. Invalid key, corrupted file, or tampered data.");

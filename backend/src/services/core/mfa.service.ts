@@ -242,14 +242,18 @@ export const verifyRecoveryCode = async (userId: string, plainRecoveryCode: stri
     throw new Error("Invalid or already used recovery code");
   }
 
-  // Mark code as used
-  await prisma.userMfaRecoveryCode.update({
-    where: { id: matchedCode.id },
+  // Claim the code atomically so concurrent requests cannot reuse it.
+  const consumed = await prisma.userMfaRecoveryCode.updateMany({
+    where: { id: matchedCode.id, isUsed: false },
     data: {
       isUsed: true,
       usedAt: new Date(),
     },
   });
+
+  if (consumed.count !== 1) {
+    throw new Error("Invalid or already used recovery code");
+  }
 
   const remainingCodes = await prisma.userMfaRecoveryCode.count({
     where: {
@@ -264,6 +268,22 @@ export const verifyRecoveryCode = async (userId: string, plainRecoveryCode: stri
     valid: true,
     remainingCodes,
   };
+};
+
+export const resetMfaAfterRecovery = async (userId: string): Promise<void> => {
+  const { data: factorsData, error } = await supabase.auth.admin.mfa.listFactors({ userId });
+  if (error) throw new Error("Unable to reset multi-factor authentication");
+
+  for (const factor of factorsData?.factors || []) {
+    const { error: deleteError } = await supabase.auth.admin.mfa.deleteFactor({
+      id: factor.id,
+      userId,
+    });
+    if (deleteError) throw new Error("Unable to reset multi-factor authentication");
+  }
+
+  await prisma.userMfaRecoveryCode.deleteMany({ where: { userId } });
+  logAudit(userId, "MFA_RECOVERY_REENROLLMENT_REQUIRED", "User", userId, {});
 };
 
 export const resetUserMfa = async (targetUserId: string, adminId: string) => {

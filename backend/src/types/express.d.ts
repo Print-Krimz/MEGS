@@ -11,6 +11,7 @@ declare global {
         role: string;
         mustChangePassword?: boolean;
         accountStatus?: string;
+        aal?: "aal1" | "aal2";
       };
     }
   }
