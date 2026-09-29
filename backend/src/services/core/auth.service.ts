@@ -513,7 +513,7 @@ export const requestPasswordReset = async (email: string) => {
     try {
       await sendPasswordResetOtpEmail(emailLower, plainOtp);
       logAudit(dbUser.id, "PASSWORD_RESET_REQUESTED", "User", dbUser.id, { email: emailLower });
-    } catch (mailError) {
+    } catch (mailError: any) {
       console.error(
         "[Auth] Failed to send password reset OTP email:",
         redactAuthenticationSecrets(String(mailError?.message || mailError))
