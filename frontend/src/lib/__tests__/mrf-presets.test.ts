@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { MRF_ROLE_PRESETS, getMRFPresetById, MRFRolePreset } from "../mrf-presets";
+import {
+  MRF_ROLE_PRESETS,
+  getMRFPresetById,
+  MRFRolePreset,
+  parseSkillsArray,
+  formatSkillsList,
+} from "../mrf-presets";
 
 describe("MRF Standard Role Presets (mrf-presets)", () => {
   const EXPECTED_PRESET_IDS = [
@@ -64,6 +70,42 @@ describe("MRF Standard Role Presets (mrf-presets)", () => {
       expect(getMRFPresetById("non-existent-id")).toBeUndefined();
       expect(getMRFPresetById("")).toBeUndefined();
       expect(getMRFPresetById("unknown-role")).toBeUndefined();
+    });
+  });
+
+  describe("parseSkillsArray & formatSkillsList", () => {
+    it("parses stringified JSON array into clean skills array and formatted string", () => {
+      const rawJson = '["Machinery Operation","Preventive Maintenance","Mechanical Troubleshooting"]';
+      const array = parseSkillsArray(rawJson);
+      expect(array).toEqual([
+        "Machinery Operation",
+        "Preventive Maintenance",
+        "Mechanical Troubleshooting",
+      ]);
+      expect(formatSkillsList(rawJson)).toBe(
+        "Machinery Operation, Preventive Maintenance, Mechanical Troubleshooting"
+      );
+    });
+
+    it("handles plain comma-separated strings without modification", () => {
+      const plain = "Forklift Operation, 5S Methodology, Safety Compliance";
+      expect(parseSkillsArray(plain)).toEqual([
+        "Forklift Operation",
+        "5S Methodology",
+        "Safety Compliance",
+      ]);
+      expect(formatSkillsList(plain)).toBe(
+        "Forklift Operation, 5S Methodology, Safety Compliance"
+      );
+    });
+
+    it("handles null, undefined, and empty inputs gracefully", () => {
+      expect(parseSkillsArray(null)).toEqual([]);
+      expect(parseSkillsArray(undefined)).toEqual([]);
+      expect(parseSkillsArray("")).toEqual([]);
+      expect(formatSkillsList(null)).toBe("");
+      expect(formatSkillsList(undefined)).toBe("");
+      expect(formatSkillsList("")).toBe("");
     });
   });
 });

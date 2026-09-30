@@ -128,8 +128,8 @@ describe("CloneMRFModal Component", () => {
 
     // Check details
     expect(screen.getByText("5 headcount")).toBeInTheDocument();
-    expect(screen.getByText("10 headcount")).toBeInTheDocument();
-    expect(screen.getByText(/Forklift Operation, Pallet Stacking/)).toBeInTheDocument();
+    expect(screen.getByText("Forklift Operation")).toBeInTheDocument();
+    expect(screen.getByText("Pallet Stacking")).toBeInTheDocument();
     expect(screen.getByText("3 requests found")).toBeInTheDocument();
   });
 

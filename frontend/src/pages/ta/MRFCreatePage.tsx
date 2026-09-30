@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import { PageHeader } from "../../components/common";
 import { Button, Input, Select, Textarea, ComboBox } from "../../components/ui";
-import { ArrowLeft, Send, Building2, Sparkles, Copy } from "lucide-react";
+import { ArrowLeft, Send, Building2, Copy } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import {
   EMPLOYMENT_TYPE_OPTIONS,
@@ -13,7 +13,12 @@ import {
   MRF_EXPERIENCE_OPTIONS,
 } from "../../lib/hr-constants";
 import { TA_COPY } from "../../lib/ta-copy";
-import { MRF_ROLE_PRESETS, getMRFPresetById } from "../../lib/mrf-presets";
+import {
+  MRF_ROLE_PRESETS,
+  getMRFPresetById,
+  parseSkillsArray,
+  formatSkillsList,
+} from "../../lib/mrf-presets";
 import { CloneMRFModal } from "../../components/ta/CloneMRFModal";
 import type { ManpowerRequest } from "../../lib/types/ta.types";
 
@@ -174,10 +179,10 @@ export const MRFCreatePage: React.FC = () => {
     if (!preset) return;
 
     setTitle(preset.title);
-    setRequiredSkills(preset.requiredSkills);
+    setRequiredSkills(formatSkillsList(preset.requiredSkills));
     setRequiredExperience(preset.requiredExperience);
     setRequiredEducation(preset.requiredEducation);
-    setRequiredCertifications(preset.requiredCertifications);
+    setRequiredCertifications(formatSkillsList(preset.requiredCertifications));
     setDescription(preset.description);
     setSalaryMin(String(preset.salaryMin));
     setSalaryMax(String(preset.salaryMax));
@@ -193,10 +198,12 @@ export const MRFCreatePage: React.FC = () => {
     if (mrf.priority) {
       setPriority(mrf.priority);
     }
-    setRequiredSkills(mrf.requiredSkills || "");
+    setRequiredSkills(formatSkillsList(mrf.requiredSkills));
     setRequiredExperience(mrf.requiredExperience || "");
     setRequiredEducation(mrf.requiredEducation || "");
-    setRequiredCertifications(mrf.requiredCertifications || "");
+    setRequiredCertifications(
+      mrf.requiredCertifications ? formatSkillsList(mrf.requiredCertifications) : ""
+    );
     setDescription(mrf.description || "");
     setSalaryMin(mrf.salaryRangeMin != null ? String(mrf.salaryRangeMin) : "");
     setSalaryMax(mrf.salaryRangeMax != null ? String(mrf.salaryRangeMax) : "");
@@ -223,6 +230,16 @@ export const MRFCreatePage: React.FC = () => {
     setSelectedPresetId("");
     setCloneModalOpen(false);
     notify.success("MRF Cloned", `Populated specifications from MRF #${mrf.id} (${mrf.title}).`);
+  };
+
+  const activeSkillsList = useMemo(
+    () => parseSkillsArray(requiredSkills),
+    [requiredSkills]
+  );
+
+  const handleRemoveSkill = (skillToRemove: string) => {
+    const updated = activeSkillsList.filter((s) => s.toLowerCase() !== skillToRemove.toLowerCase());
+    setRequiredSkills(updated.join(", "));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -358,52 +375,37 @@ export const MRFCreatePage: React.FC = () => {
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-6">
         {/* Core Order Information */}
         <div className="space-y-4">
-          <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-            Request details
-          </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-2">
+            <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
+              Request details
+            </h3>
 
-          {/* Quick Fill Accelerators Banner */}
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 sm:p-4 mb-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
-                <div>
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">
-                    Quick Fill Accelerators
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    Pre-fill specifications from industry templates or past requisitions
-                  </p>
-                </div>
-              </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                leftIcon={<Copy className="w-3.5 h-3.5" />}
+                onClick={() => setCloneModalOpen(true)}
+                className="bg-white hover:bg-slate-50 shrink-0"
+              >
+                Clone from Past MRF
+              </Button>
 
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<Copy className="w-3.5 h-3.5" />}
-                  onClick={() => setCloneModalOpen(true)}
-                  className="bg-white hover:bg-slate-50 shrink-0"
-                >
-                  Clone from Past MRF
-                </Button>
-
-                <div className="w-full sm:w-60">
-                  <Select
-                    value={selectedPresetId}
-                    onChange={(e) => handleApplyPreset(e.target.value)}
-                    options={[
-                      { value: "", label: "Apply Role Template..." },
-                      ...MRF_ROLE_PRESETS.map((p) => ({
-                        value: p.id,
-                        label: p.label,
-                      })),
-                    ]}
-                    aria-label="Apply Role Template"
-                    className="bg-white text-xs"
-                  />
-                </div>
+              <div className="w-full sm:w-56">
+                <Select
+                  value={selectedPresetId}
+                  onChange={(e) => handleApplyPreset(e.target.value)}
+                  options={[
+                    { value: "", label: "Apply Role Template..." },
+                    ...MRF_ROLE_PRESETS.map((p) => ({
+                      value: p.id,
+                      label: p.label,
+                    })),
+                  ]}
+                  aria-label="Apply Role Template"
+                  className="bg-white text-xs h-9"
+                />
               </div>
             </div>
           </div>
@@ -513,12 +515,37 @@ export const MRFCreatePage: React.FC = () => {
             />
           </div>
 
-          <Input
-            label="Required skills"
-            placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
-            value={requiredSkills}
-            onChange={(e) => setRequiredSkills(e.target.value)}
-          />
+          <div className="space-y-1.5">
+            <Input
+              label="Required skills"
+              placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
+              value={requiredSkills}
+              onChange={(e) => setRequiredSkills(e.target.value)}
+            />
+            {activeSkillsList.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[11px] font-mono text-slate-500">
+                  Skills ({activeSkillsList.length}):
+                </span>
+                {activeSkillsList.map((skill, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-xs text-slate-700"
+                  >
+                    <span>{skill}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSkill(skill)}
+                      className="text-slate-400 hover:text-rose-600 focus:outline-none cursor-pointer text-xs leading-none"
+                      aria-label={`Remove skill ${skill}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <ComboBox
@@ -535,6 +562,7 @@ export const MRFCreatePage: React.FC = () => {
               value={requiredEducation}
               onChange={(val) => setRequiredEducation(val || "")}
               options={MRF_EDUCATION_OPTIONS.map((ed) => ({ value: ed, label: ed }))}
+              allowCustom
             />
           </div>
 

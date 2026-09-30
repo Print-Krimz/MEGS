@@ -133,6 +133,39 @@ const mockPastMRFs: ManpowerRequest[] = [
       updatedAt: "2026-01-01T00:00:00.000Z",
     },
   },
+  {
+    id: 99,
+    clientId: 101,
+    title: "Machine Operator",
+    headcount: 10,
+    location: "1 Inaman, Pasay, Metro Manila (NCR), 1114",
+    priority: "NORMAL",
+    status: "OPEN",
+    requiredSkills:
+      '["Machinery Operation","Preventive Maintenance","Mechanical Troubleshooting","Tool Calibration","Occupational Health & Safety (OHS)"]',
+    requiredExperience: "1 year of relevant experience",
+    requiredEducation: "Vocational / Technical Course (TESDA)",
+    requiredCertifications: "TESDA NC II Mechanical",
+    description: "Operate and calibrate industrial packaging and forming machinery.",
+    salaryRangeMin: 17500,
+    salaryRangeMax: 23000,
+    employmentType: "Full-Time",
+    workArrangement: "On-site",
+    ageMin: 21,
+    ageMax: 45,
+    genderPreference: "ANY",
+    tattooPolicy: "ALLOWED",
+    createdAt: "2026-03-25T08:00:00.000Z",
+    updatedAt: "2026-03-25T08:00:00.000Z",
+    createdById: "user-1",
+    client: {
+      id: 101,
+      name: "Apex Logistics Corp",
+      status: "ACTIVE",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+  },
 ];
 
 describe("MRFCreatePage Accelerators & Form Workflow", () => {
@@ -164,17 +197,14 @@ describe("MRFCreatePage Accelerators & Form Workflow", () => {
     );
   }
 
-  it("Test 1: Renders Quick Fill Accelerators banner containing the 'Clone from Past MRF' button and 'Apply Role Template...' select dropdown", async () => {
+  it("Test 1: Renders clean accelerator controls in the Request details section containing the 'Clone from Past MRF' button and 'Apply Role Template...' select dropdown", async () => {
     renderPage();
 
     // Verify main page header
     expect(screen.getByRole("heading", { level: 1, name: /Create manpower request/i })).toBeInTheDocument();
 
-    // Verify Quick Fill Accelerators banner container and copy
-    expect(screen.getByText("Quick Fill Accelerators")).toBeInTheDocument();
-    expect(
-      screen.getByText("Pre-fill specifications from industry templates or past requisitions")
-    ).toBeInTheDocument();
+    // Verify Request details section header
+    expect(screen.getByRole("heading", { level: 3, name: "Request details" })).toBeInTheDocument();
 
     // Verify Clone from Past MRF button
     const cloneButton = screen.getByRole("button", { name: /Clone from Past MRF/i });
@@ -407,5 +437,41 @@ describe("MRFCreatePage Accelerators & Form Workflow", () => {
         params: { mrfId: "999" },
       });
     });
+  });
+
+  it("Test 6: Clones MRF with stringified JSON skills array, normalizes it to clean comma-separated text, and supports interactive tag removal", async () => {
+    renderPage();
+
+    const cloneButton = screen.getByRole("button", { name: /Clone from Past MRF/i });
+    fireEvent.click(cloneButton);
+
+    const mrfCard99 = await screen.findByTestId("mrf-card-99");
+    const cloneCardButton = within(mrfCard99).getByRole("button", { name: /Clone Specification/i });
+    fireEvent.click(cloneCardButton);
+
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Clone Past Manpower Request" })).not.toBeInTheDocument();
+    });
+
+    // Check that Required skills input contains clean comma-separated text without JSON brackets or quotes
+    const skillsInput = screen.getByLabelText(/Required skills/i);
+    expect(skillsInput).toHaveValue(
+      "Machinery Operation, Preventive Maintenance, Mechanical Troubleshooting, Tool Calibration, Occupational Health & Safety (OHS)"
+    );
+
+    // Verify interactive badge tags are displayed below the input
+    expect(screen.getByText("Skills (5):")).toBeInTheDocument();
+    expect(screen.getByText("Machinery Operation")).toBeInTheDocument();
+    expect(screen.getByText("Tool Calibration")).toBeInTheDocument();
+
+    // Click remove button on "Tool Calibration"
+    const removeToolCalibBtn = screen.getByRole("button", { name: "Remove skill Tool Calibration" });
+    fireEvent.click(removeToolCalibBtn);
+
+    // Verify "Tool Calibration" was removed from input
+    expect(skillsInput).toHaveValue(
+      "Machinery Operation, Preventive Maintenance, Mechanical Troubleshooting, Occupational Health & Safety (OHS)"
+    );
+    expect(screen.getByText("Skills (4):")).toBeInTheDocument();
   });
 });

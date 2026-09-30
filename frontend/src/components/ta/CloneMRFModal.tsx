@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Dialog, Button, Input } from "../ui";
+import { Dialog, Button, Input, Badge } from "../ui";
 import { LoadingState, EmptyState, StatusBadge } from "../common";
 import { formatDate } from "../../lib/utils";
 import {
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { taApi } from "../../lib/api/ta.api";
 import type { ManpowerRequest } from "../../lib/types/ta.types";
+import { parseSkillsArray, formatSkillsList } from "../../lib/mrf-presets";
 
 export interface CloneMRFModalProps {
   open: boolean;
@@ -71,7 +72,14 @@ export const CloneMRFModal: React.FC<CloneMRFModalProps> = ({
   }, [mrfList, search]);
 
   const handleSelect = (mrf: ManpowerRequest) => {
-    onSelectMRF(mrf, preserveClient);
+    const sanitizedMRF: ManpowerRequest = {
+      ...mrf,
+      requiredSkills: formatSkillsList(mrf.requiredSkills),
+      requiredCertifications: mrf.requiredCertifications
+        ? formatSkillsList(mrf.requiredCertifications)
+        : mrf.requiredCertifications,
+    };
+    onSelectMRF(sanitizedMRF, preserveClient);
   };
 
   return (
@@ -200,12 +208,27 @@ export const CloneMRFModal: React.FC<CloneMRFModalProps> = ({
                 </div>
 
                 {/* Skills Preview */}
-                {mrf.requiredSkills?.trim() ? (
-                  <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200/60 rounded px-2.5 py-1.5">
-                    <span className="font-semibold text-slate-700">Skills: </span>
-                    <span className="line-clamp-2">{mrf.requiredSkills}</span>
-                  </div>
-                ) : null}
+                {(() => {
+                  const skillTags = parseSkillsArray(mrf.requiredSkills);
+                  if (skillTags.length === 0) return null;
+                  return (
+                    <div className="text-xs space-y-1 bg-slate-50 border border-slate-200/60 rounded px-2.5 py-2">
+                      <span className="font-semibold text-slate-700 block">Required Skills:</span>
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                        {skillTags.slice(0, 6).map((skill, idx) => (
+                          <Badge key={idx} variant="neutral" size="sm">
+                            {skill}
+                          </Badge>
+                        ))}
+                        {skillTags.length > 6 && (
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            +{skillTags.length - 6} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Action Footer: Employment Type & Clone Button */}
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
