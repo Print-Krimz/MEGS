@@ -9,7 +9,7 @@
 import { defineConfig } from "prisma/config";
 
 // Load .env variables before Prisma reads them
-import "dotenv/config";
+import "./src/utils/env.js";
 
 export default defineConfig({
   // Point to the folder where our split schema files are located

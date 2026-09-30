@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../src/utils/env.js";
 import prisma from "../src/utils/prisma.js";
 import supabase from "../src/utils/supabase.js";
 import { DEFAULT_WEIGHTS, DEFAULT_KNN_SETTINGS } from "../src/services/scoring/scoring-configuration.service.js";

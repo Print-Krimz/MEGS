@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import "dotenv/config";
+import "./env.js";
 
 if (!process.env.SUPABASE_URL) throw new Error("Missing SUPABASE_URL in .env");
 if (!process.env.SUPABASE_SECRET_KEY) throw new Error("Missing SUPABASE_SECRET_KEY in .env");

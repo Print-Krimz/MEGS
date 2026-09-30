@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import "./env.js";
 
 const getOtpSecret = (): string => {
   const secret = process.env.OTP_SECRET;
