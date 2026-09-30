@@ -22,3 +22,24 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables — NEVER commit
+.env
+.env.*
+!.env.example
+
+# Tests & specs
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+e2e/
+test-results/
+playwright-report/
+coverage/
+setup.ts
+setupTests.ts
+vitest.config.ts
+playwright.config.ts
+

@@ -65,13 +65,13 @@ screenshots/
 audit_screenshots/
 audit_scripts/
 audit_test_files/
+audit_output/
 backend/scripts/
 backend/src/scripts/
 backend/src/automation/
 src/pages/dev/
 frontend/src/pages/dev/
 scratch/
-*.audit.*
 
 # 7. Internal AI Agents, Superpowers & Sprint Documentation
 .agents/
