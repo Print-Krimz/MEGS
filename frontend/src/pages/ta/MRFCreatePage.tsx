@@ -14,8 +14,8 @@ import {
 } from "../../lib/hr-constants";
 import { TA_COPY } from "../../lib/ta-copy";
 import {
-  MRF_ROLE_PRESETS,
   getMRFPresetById,
+  getPresetsByIndustry,
   parseSkillsArray,
   formatSkillsList,
 } from "../../lib/mrf-presets";
@@ -47,6 +47,7 @@ export const MRFCreatePage: React.FC = () => {
   const [tattooPolicy, setTattooPolicy] = useState<string>("ALLOWED");
   const [cloneModalOpen, setCloneModalOpen] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState("");
+  const presetsByIndustry = useMemo(() => getPresetsByIndustry(), []);
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
@@ -392,21 +393,25 @@ export const MRFCreatePage: React.FC = () => {
                 Clone from Past MRF
               </Button>
 
-              <div className="w-full sm:w-56">
-                <Select
-                  value={selectedPresetId}
-                  onChange={(e) => handleApplyPreset(e.target.value)}
-                  options={[
-                    { value: "", label: "Apply Role Template..." },
-                    ...MRF_ROLE_PRESETS.map((p) => ({
-                      value: p.id,
-                      label: p.label,
-                    })),
-                  ]}
-                  aria-label="Apply Role Template"
-                  className="bg-white text-xs h-9"
-                />
-              </div>
+              <select
+                aria-label="Apply Role Template"
+                value={selectedPresetId}
+                onChange={(e) => handleApplyPreset(e.target.value)}
+                className="h-8 px-2.5 bg-white border border-slate-300 rounded text-xs font-sans text-slate-700 hover:border-slate-400 focus:outline-hidden focus:ring-2 focus:ring-slate-900 cursor-pointer"
+              >
+                <option value="">Apply Role Template...</option>
+                {Object.entries(presetsByIndustry).map(([industry, presets]) => (
+                  presets.length > 0 && (
+                    <optgroup key={industry} label={industry}>
+                      {presets.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )
+                ))}
+              </select>
             </div>
           </div>
 

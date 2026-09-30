@@ -197,7 +197,7 @@ describe("MRFCreatePage Accelerators & Form Workflow", () => {
     );
   }
 
-  it("Test 1: Renders clean accelerator controls in the Request details section containing the 'Clone from Past MRF' button and 'Apply Role Template...' select dropdown", async () => {
+  it("Test 1: Renders clean accelerator controls in the Request details section containing the 'Clone from Past MRF' button and 'Apply Role Template...' select dropdown grouped by partner industry", async () => {
     renderPage();
 
     // Verify main page header
@@ -211,14 +211,29 @@ describe("MRFCreatePage Accelerators & Form Workflow", () => {
     expect(cloneButton).toBeInTheDocument();
 
     // Verify role template select dropdown with default placeholder and catalog items
-    const templateSelect = screen.getByLabelText("Apply Role Template");
+    const templateSelect = screen.getByRole("combobox", { name: /apply role template/i });
     expect(templateSelect).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Apply Role Template..." })).toBeInTheDocument();
 
+    // Verify <optgroup> elements for Partner Industries
+    const optgroups = templateSelect.querySelectorAll("optgroup");
+    const optgroupLabels = Array.from(optgroups).map((og) => og.getAttribute("label"));
+    expect(optgroupLabels).toEqual([
+      "Retail, Sales and Distribution",
+      "Hotel and Restaurant",
+      "Logistics",
+      "Warehousing",
+      "Manufacturing",
+      "Gaming and Casino",
+      "Corporate & Administration",
+    ]);
+
     // Spot-check standard role presets in dropdown
     expect(screen.getByRole("option", { name: "Forklift Operator" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Warehouse Associate" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Production Line Assembler" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Warehouse Crew" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Production Worker / Assembler" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Welder (SMAW / GMAW)" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Sales Promo / Merchandiser" })).toBeInTheDocument();
   });
 
   it("Test 2: Selecting 'Forklift Operator' from the role template dropdown immediately populates Title, Skills, Experience, Education, Certifications, and Job Description", async () => {
@@ -474,4 +489,52 @@ describe("MRFCreatePage Accelerators & Form Workflow", () => {
     );
     expect(screen.getByText("Skills (4):")).toBeInTheDocument();
   });
+
+  it("Test 7: Selecting a newly added industry role preset (e.g. 'welder' from Manufacturing) populates specifications, certifications, and displays removable skill badges", async () => {
+    renderPage();
+
+    const templateSelect = screen.getByRole("combobox", { name: /apply role template/i });
+    const welderPreset = getMRFPresetById("welder")!;
+    expect(welderPreset).toBeDefined();
+
+    // Select Welder template
+    fireEvent.change(templateSelect, { target: { value: "welder" } });
+
+    // Assert inputs are populated with preset specifications
+    expect(screen.getByLabelText(/Request title/i)).toHaveValue(welderPreset.title);
+    expect(screen.getByLabelText(/Required skills/i)).toHaveValue(welderPreset.requiredSkills);
+    expect(screen.getByLabelText(/Required experience/i)).toHaveValue(welderPreset.requiredExperience);
+    expect(screen.getByLabelText(/Minimum education/i)).toHaveValue(welderPreset.requiredEducation);
+    expect(screen.getByLabelText(/Required certifications & licenses/i)).toHaveValue(welderPreset.requiredCertifications);
+    expect(screen.getByLabelText(/Notes for this client/i)).toHaveValue(welderPreset.description);
+    expect(screen.getByLabelText(/Minimum monthly salary/i)).toHaveValue(welderPreset.salaryMin);
+    expect(screen.getByLabelText(/Maximum monthly salary/i)).toHaveValue(welderPreset.salaryMax);
+    expect(screen.getByLabelText(/Employment Type/i)).toHaveValue(welderPreset.employmentType);
+    expect(screen.getByLabelText(/Work Arrangement/i)).toHaveValue(welderPreset.workArrangement);
+
+    // Verify feedback notification
+    expect(notify.success).toHaveBeenCalledWith(
+      "Template Applied",
+      expect.stringContaining(welderPreset.label)
+    );
+
+    // Assert interactive skill tag badges below the input
+    expect(screen.getByText("Skills (6):")).toBeInTheDocument();
+    expect(screen.getByText("Shielded Metal Arc Welding (SMAW)")).toBeInTheDocument();
+    expect(screen.getByText("Gas Metal Arc Welding (GMAW / MIG)")).toBeInTheDocument();
+    expect(screen.getByText("Hot Work Safety Standards")).toBeInTheDocument();
+
+    // Verify individual remove button works
+    const removeBadgeBtn = screen.getByRole("button", {
+      name: "Remove skill Hot Work Safety Standards",
+    });
+    fireEvent.click(removeBadgeBtn);
+
+    expect(screen.getByText("Skills (5):")).toBeInTheDocument();
+    expect(screen.queryByText("Hot Work Safety Standards")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Required skills/i)).toHaveValue(
+      "Shielded Metal Arc Welding (SMAW), Gas Metal Arc Welding (GMAW / MIG), Blueprint & Weld Symbol Interpretation, Metal Joint Preparation, Weld Inspection & Grinding"
+    );
+  });
 });
+
