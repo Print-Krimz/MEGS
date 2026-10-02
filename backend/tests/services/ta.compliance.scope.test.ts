@@ -27,6 +27,35 @@ describe("getScopedComplianceApplications", () => {
           isArchived: false,
           status: { in: ["COMPLIANCE", "CONTRACT_AND_ORIENTATION"] },
         }),
+        include: expect.objectContaining({
+          user: expect.objectContaining({
+            select: expect.objectContaining({
+              applicantProfile: {
+                select: { firstName: true, lastName: true, middleName: true, mobileNumber: true },
+              },
+            }),
+          }),
+          jobPosting: expect.objectContaining({
+            select: expect.objectContaining({
+              mrf: {
+                select: {
+                  id: true,
+                  title: true,
+                  client: { select: { id: true, name: true } },
+                },
+              },
+            }),
+          }),
+          deployments: expect.objectContaining({
+            where: { status: "ACTIVE" },
+            take: 1,
+            orderBy: { contractStart: "desc" },
+          }),
+          complianceRequirements: {
+            orderBy: { createdAt: "asc" },
+          },
+        }),
+        orderBy: { updatedAt: "desc" },
       })
     );
     expect(result).toHaveLength(1);

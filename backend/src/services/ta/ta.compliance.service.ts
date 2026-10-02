@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
 import { logAudit } from "../../utils/audit.js";
 import { sendNotification } from "../../utils/notification.js";
@@ -551,7 +552,7 @@ export const generateComplianceRequirementsFromMRF = async (applicationId: numbe
 export type ComplianceScope = "PRE_DEPLOYMENT" | "POST_DEPLOYMENT" | "ALL";
 
 export const getScopedComplianceApplications = async (scope: ComplianceScope = "ALL") => {
-  const whereClause: any = {
+  const whereClause: Prisma.ApplicationWhereInput = {
     isArchived: false,
   };
 
@@ -566,7 +567,7 @@ export const getScopedComplianceApplications = async (scope: ComplianceScope = "
     };
   }
 
-  return await (prisma.application.findMany as any)({
+  return await prisma.application.findMany({
     where: whereClause,
     include: {
       user: {
@@ -574,7 +575,7 @@ export const getScopedComplianceApplications = async (scope: ComplianceScope = "
           id: true,
           email: true,
           applicantProfile: {
-            select: { firstName: true, lastName: true, middleName: true, phone: true },
+            select: { firstName: true, lastName: true, middleName: true, mobileNumber: true },
           },
           employee: {
             select: { id: true, employeeNumber: true, status: true },
@@ -588,16 +589,16 @@ export const getScopedComplianceApplications = async (scope: ComplianceScope = "
           mrf: {
             select: {
               id: true,
-              mrfNumber: true,
+              title: true,
               client: { select: { id: true, name: true } },
             },
           },
         },
       },
       deployments: {
-        where: { isActive: true },
+        where: { status: "ACTIVE" },
         take: 1,
-        orderBy: { startDate: "desc" },
+        orderBy: { contractStart: "desc" },
       },
       complianceRequirements: {
         orderBy: { createdAt: "asc" },
