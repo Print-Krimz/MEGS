@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
+import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { adminApi } from "../../lib/api/admin.api";
 import {
   PageHeader,
@@ -16,6 +17,7 @@ import { formatDate } from "../../lib/utils";
 import { formatAdminPipelineStage } from "../../lib/admin-copy";
 import {
   COMPLIANCE_201_PRESETS,
+  REQUIREMENT_GROUPS,
   MRF_EDUCATION_OPTIONS,
   MRF_EXPERIENCE_OPTIONS,
   EMPLOYMENT_TYPE_OPTIONS,
@@ -109,7 +111,8 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const [selectedJobId, setSelectedJobId] = useState<number>(0);
 
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
-  const [templateLabel, setTemplateLabel] = useState("");
+  const [selectedReqs, setSelectedReqs] = useState<string[]>([]);
+  const [customReqText, setCustomReqText] = useState("");
   const [deleteTemplateTarget, setDeleteTemplateTarget] = useState<{ id: number; label: string } | null>(null);
 
   const [editStatusModalOpen, setEditStatusModalOpen] = useState(false);
@@ -136,54 +139,17 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const [editCertifications, setEditCertifications] = useState("");
 
   const handleEditHeadcountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    if (val === "") {
-      setEditHeadcount("");
-      return;
-    }
-    const num = parseInt(val, 10);
-    if (isNaN(num)) return;
-    if (num < 1) {
-      setEditHeadcount(1);
-    } else if (num > 1000) {
-      setEditHeadcount(1000);
-    } else {
-      setEditHeadcount(num);
-    }
+    setEditHeadcount(e.target.value);
   };
 
   const handleEditSalaryMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    if (val === "") {
-      setEditSalaryMin("");
-      return;
-    }
-    const num = parseFloat(val);
-    if (isNaN(num)) return;
-    if (num < 0) {
-      setEditSalaryMin(0);
-    } else if (num > 1000000) {
-      setEditSalaryMin(1000000);
-    } else {
-      setEditSalaryMin(val);
-    }
+    setEditSalaryMin(val);
   };
 
   const handleEditSalaryMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    if (val === "") {
-      setEditSalaryMax("");
-      return;
-    }
-    const num = parseFloat(val);
-    if (isNaN(num)) return;
-    if (num < 0) {
-      setEditSalaryMax(0);
-    } else if (num > 1000000) {
-      setEditSalaryMax(1000000);
-    } else {
-      setEditSalaryMax(val);
-    }
+    setEditSalaryMax(val);
   };
 
   const isEditSalaryRangeInvalid = Boolean(
@@ -246,17 +212,22 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     },
   });
 
-  const addTemplateMutation = useMutation({
-    mutationFn: (data: { documentLabel: string; isRequired?: boolean }) =>
-      taApi.addMRFComplianceTemplate(mrfId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ta", "mrf", mrfId] });
+  const addTemplatesBulkMutation = useMutation({
+    mutationFn: (data: { documentLabels: string[]; isRequired?: boolean }) =>
+      taApi.addMRFComplianceTemplatesBulk(mrfId, data),
+    onSuccess: (res: any, variables: any) => {
+      queryClient.invalidateQueries({ queryKey: [readOnly ? "admin" : "ta", "mrf", mrfId] });
       setTemplateModalOpen(false);
-      setTemplateLabel("");
-      notify.success("Requirement added", "The document requirement was added to this request.");
+      setSelectedReqs([]);
+      setCustomReqText("");
+      const count = res?.count ?? res?.data?.count ?? variables.documentLabels.length;
+      notify.success(
+        "Requirements added",
+        `${count} document requirement${count === 1 ? "" : "s"} added to this request.`
+      );
     },
     onError: (err: any) => {
-      notify.error("Unable to add requirement", err);
+      notify.error("Unable to add requirements", err);
     },
   });
 
@@ -291,7 +262,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     setEditTitle(m.title || "");
     setEditHeadcount(m.headcount || 1);
     setEditPriority(m.priority || "NORMAL");
-    setEditTargetFillDate(m.targetFillDate ? new Date(m.targetFillDate).toISOString().split("T")[0] : "");
+    setEditTargetFillDate(toManilaDateInput(m.targetFillDate));
     setEditLocation(m.location || "");
     setEditEmploymentType(m.employmentType || "Contractual");
     setEditWorkArrangement(m.workArrangement || "On-site");
@@ -317,7 +288,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
 
     const parsedHeadcount = Number(editHeadcount);
     if (
-      editHeadcount === "" ||
+      editHeadcount === "" || !/^\d+$/.test(String(editHeadcount)) ||
       isNaN(parsedHeadcount) ||
       !Number.isInteger(parsedHeadcount) ||
       parsedHeadcount < 1 ||
@@ -328,16 +299,16 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     }
 
     if (editSalaryMin !== "" && editSalaryMin != null) {
-      const min = parseFloat(String(editSalaryMin));
-      if (isNaN(min) || min < 0 || min > 1000000) {
+      const min = String(editSalaryMin);
+      if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(min) || Number(min) > 1000000) {
         notify.error("Validation error", "Minimum monthly salary must be between 0 and 1,000,000 PHP.");
         return;
       }
     }
 
     if (editSalaryMax !== "" && editSalaryMax != null) {
-      const max = parseFloat(String(editSalaryMax));
-      if (isNaN(max) || max < 0 || max > 1000000) {
+      const max = String(editSalaryMax);
+      if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(max) || Number(max) > 1000000) {
         notify.error("Validation error", "Maximum monthly salary must be between 0 and 1,000,000 PHP.");
         return;
       }
@@ -356,16 +327,16 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     }
 
     if (editAgeMin !== "" && editAgeMin != null) {
-      const min = parseInt(String(editAgeMin), 10);
-      if (isNaN(min) || min < 18 || min > 65) {
+      const min = String(editAgeMin);
+      if (!/^\d+$/.test(min) || Number(min) < 18 || Number(min) > 65) {
         notify.error("Validation error", "Minimum age must be an integer between 18 and 65.");
         return;
       }
     }
 
     if (editAgeMax !== "" && editAgeMax != null) {
-      const max = parseInt(String(editAgeMax), 10);
-      if (isNaN(max) || max < 18 || max > 65) {
+      const max = String(editAgeMax);
+      if (!/^\d+$/.test(max) || Number(max) < 18 || Number(max) > 65) {
         notify.error("Validation error", "Maximum age must be an integer between 18 and 65.");
         return;
       }
@@ -490,6 +461,37 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const remainingCount =
     mrf.fulfillment?.remainingCount ?? Math.max(0, mrf.headcount - deployedCount);
   const isFulfilled = mrf.status === "FILLED" || Boolean(mrf.fulfillment?.isFulfilled);
+
+  const isAlreadyAdded = (label: string) =>
+    templates.some(
+      (t: any) => (t.documentLabel || "").trim().toLowerCase() === label.trim().toLowerCase()
+    );
+
+  const handleAddCustomReq = () => {
+    const trimmed = customReqText.trim();
+    if (!trimmed) return;
+    if (isAlreadyAdded(trimmed)) {
+      notify.error("Already added", "This requirement is already assigned to this request.");
+      return;
+    }
+    if (selectedReqs.some((req) => req.trim().toLowerCase() === trimmed.toLowerCase())) {
+      notify.error("Already selected", "This requirement is already in your selection.");
+      return;
+    }
+    const presetMatch = COMPLIANCE_201_PRESETS.find(
+      (p) => p.label.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    setSelectedReqs((prev) => [...prev, presetMatch ? presetMatch.label : trimmed]);
+    setCustomReqText("");
+  };
+
+  const handleRemoveSelectedReq = (label: string) => {
+    setSelectedReqs((prev) => prev.filter((r) => r !== label));
+  };
+
+  const customSelectedReqs = selectedReqs.filter(
+    (req) => !COMPLIANCE_201_PRESETS.some((p) => p.label.toLowerCase() === req.toLowerCase())
+  );
 
   // Filter deployments by personnel search query
   const filteredDeployments = deployments.filter((d: any) => {
@@ -1098,7 +1100,11 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setTemplateModalOpen(true)}
+                      onClick={() => {
+                        setSelectedReqs([]);
+                        setCustomReqText("");
+                        setTemplateModalOpen(true);
+                      }}
                       className="text-teal-700"
                     >
                       + Add
@@ -1188,46 +1194,216 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           {/* Add Compliance Template Modal */}
           <Dialog
             open={templateModalOpen}
-            onClose={() => setTemplateModalOpen(false)}
-            title="Add requirement"
-            description="Specify a document candidates must submit for this request."
-            overflowVisible
-            bodyClassName="min-h-[290px] flex flex-col justify-between"
+            onClose={() => {
+              setTemplateModalOpen(false);
+              setSelectedReqs([]);
+              setCustomReqText("");
+            }}
+            title="Add requirements"
+            description="Select documents candidates must submit for this request."
+            className="max-w-2xl"
+            size="lg"
           >
-            <div className="space-y-4">
-              <ComboBox
-                label="Requirement name"
-                placeholder="Search statutory clearance or type custom..."
-                value={templateLabel}
-                onChange={(val) => setTemplateLabel(val || "")}
-                options={COMPLIANCE_201_PRESETS.map((p) => ({
-                  value: p.label,
-                  label: p.label,
-                  subtitle: p.description,
-                  badge: p.category,
-                }))}
-                allowCustom
-                required
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 mt-auto">
-              <Button variant="outline" size="sm" onClick={() => setTemplateModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={!templateLabel.trim()}
-                loading={addTemplateMutation.isPending}
-                onClick={() =>
-                  addTemplateMutation.mutate({
-                    documentLabel: templateLabel,
-                    isRequired: true,
-                  })
-                }
-              >
-                Add requirement
-              </Button>
+            <div className="flex flex-col gap-4">
+              <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-5 text-sm">
+                {REQUIREMENT_GROUPS.map((group) => {
+                  const selectableItems = group.items.filter((item) => !isAlreadyAdded(item.label));
+                  const isAllGroupSelected =
+                    selectableItems.length > 0 &&
+                    selectableItems.every((item) => selectedReqs.includes(item.label));
+
+                  const toggleGroupSelect = () => {
+                    if (isAllGroupSelected) {
+                      const groupLabels = new Set(selectableItems.map((i) => i.label));
+                      setSelectedReqs((prev) => prev.filter((label) => !groupLabels.has(label)));
+                    } else {
+                      const toAdd = selectableItems
+                        .map((i) => i.label)
+                        .filter((label) => !selectedReqs.includes(label));
+                      setSelectedReqs((prev) => [...prev, ...toAdd]);
+                    }
+                  };
+
+                  return (
+                    <div key={group.id} className="space-y-2.5">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                          {group.title} ({group.items.length})
+                        </span>
+                        {selectableItems.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={toggleGroupSelect}
+                            className="text-xs font-medium text-teal-700 hover:text-teal-900 transition-colors focus:outline-none focus-visible:underline"
+                          >
+                            {isAllGroupSelected ? "Deselect all" : "Select all"}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400">All added</span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2">
+                        {group.items.map((item) => {
+                          const alreadyAdded = isAlreadyAdded(item.label);
+                          const isSelected = selectedReqs.includes(item.label);
+
+                          return (
+                            <label
+                              key={item.label}
+                              className={`flex items-start gap-3 p-2.5 rounded-lg border transition-colors ${
+                                alreadyAdded
+                                  ? "bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed"
+                                  : isSelected
+                                  ? "bg-teal-50/50 border-teal-300 cursor-pointer"
+                                  : "bg-white border-slate-200 hover:bg-slate-50 cursor-pointer"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={alreadyAdded || isSelected}
+                                disabled={alreadyAdded}
+                                onChange={(e) => {
+                                  if (alreadyAdded) return;
+                                  if (e.target.checked) {
+                                    setSelectedReqs((prev) => [...prev, item.label]);
+                                  } else {
+                                    setSelectedReqs((prev) => prev.filter((l) => l !== item.label));
+                                  }
+                                }}
+                                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-2 focus:ring-teal-700 focus:ring-offset-1 shrink-0 disabled:opacity-50"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-medium text-slate-900 leading-tight">
+                                    {item.label}
+                                  </span>
+                                  {alreadyAdded && (
+                                    <span className="text-xs text-slate-500 font-normal">
+                                      (Already added)
+                                    </span>
+                                  )}
+                                </div>
+                                {item.description && (
+                                  <p className="text-xs text-slate-500 leading-normal mt-0.5">
+                                    {item.description}
+                                  </p>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Custom Requirement Entry */}
+                <div className="pt-3 border-t border-slate-200 space-y-3">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      Custom requirement
+                    </span>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Specify any role-specific certificate or document not listed above.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <Input
+                        type="text"
+                        placeholder="Type custom requirement (e.g., Food Handler's Health Certificate)"
+                        value={customReqText}
+                        onChange={(e) => setCustomReqText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddCustomReq();
+                          }
+                        }}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      onClick={handleAddCustomReq}
+                      disabled={!customReqText.trim()}
+                      className="shrink-0"
+                    >
+                      + Add
+                    </Button>
+                  </div>
+
+                  {customSelectedReqs.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-medium text-slate-700">Custom added:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {customSelectedReqs.map((label) => (
+                          <span
+                            key={label}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 border border-slate-300 text-slate-800"
+                          >
+                            <span>{label}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSelectedReq(label)}
+                              className="text-slate-500 hover:text-slate-900 focus:outline-none"
+                              aria-label={`Remove ${label}`}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Dialog Footer */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-200 mt-auto">
+                <div className="text-xs text-slate-500">
+                  {selectedReqs.length > 0 ? (
+                    <span>
+                      {selectedReqs.length} requirement{selectedReqs.length === 1 ? "" : "s"} selected
+                    </span>
+                  ) : (
+                    <span>No requirements selected</span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setTemplateModalOpen(false);
+                      setSelectedReqs([]);
+                      setCustomReqText("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={selectedReqs.length === 0 || addTemplatesBulkMutation.isPending}
+                    loading={addTemplatesBulkMutation.isPending}
+                    onClick={() =>
+                      addTemplatesBulkMutation.mutate({
+                        documentLabels: selectedReqs,
+                        isRequired: true,
+                      })
+                    }
+                  >
+                    {selectedReqs.length === 0
+                      ? "Add requirements"
+                      : selectedReqs.length === 1
+                      ? "Add 1 requirement"
+                      : `Add ${selectedReqs.length} requirements`}
+                  </Button>
+                </div>
+              </div>
             </div>
           </Dialog>
 
@@ -1313,6 +1489,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   <Input
                     label="Target fill date"
                     type="date"
+                    min={editTargetFillDate && editTargetFillDate < getManilaToday() ? editTargetFillDate : getManilaToday()}
                     value={editTargetFillDate}
                     onChange={(e) => setEditTargetFillDate(e.target.value)}
                   />
@@ -1321,6 +1498,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     type="number"
                     min={0}
                     max={1000000}
+                      step="0.01"
                     placeholder="e.g. 18000"
                     value={editSalaryMin}
                     onChange={handleEditSalaryMinChange}
@@ -1330,6 +1508,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     type="number"
                     min={0}
                     max={1000000}
+                      step="0.01"
                     placeholder="e.g. 25000"
                     value={editSalaryMax}
                     onChange={handleEditSalaryMaxChange}
@@ -1343,6 +1522,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={3}
+                  maxLength={10000}
                 />
               </div>
 
