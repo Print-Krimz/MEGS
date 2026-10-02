@@ -7,6 +7,8 @@ import {
   reviewComplianceRequirement,
   updateComplianceRequirementDeadline,
   deleteComplianceRequirement,
+  getScopedComplianceApplications,
+  ComplianceScope,
 } from "../../services/ta/ta.compliance.service.js";
 
 export const createRequirementHandler = async (req: Request, res: Response): Promise<void> => {
@@ -117,5 +119,15 @@ export const deleteRequirementHandler = async (req: Request, res: Response): Pro
     sendSuccess(res, "Compliance requirement deleted", result);
   } catch (error: any) {
     sendError(res, error.message, 400);
+  }
+};
+
+export const getScopedApplicationsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const scope = (req.query.scope as ComplianceScope) || "ALL";
+    const applications = await getScopedComplianceApplications(scope);
+    sendSuccess(res, "Compliance queue retrieved", applications);
+  } catch (error: any) {
+    sendError(res, error.message || "Failed to fetch compliance applications", 500);
   }
 };

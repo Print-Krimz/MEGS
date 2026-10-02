@@ -90,6 +90,7 @@ import {
   reviewRequirementHandler,
   updateRequirementDeadlineHandler,
   deleteRequirementHandler,
+  getScopedApplicationsHandler,
 } from '../../controllers/ta/ta.compliance.controller.js';
 
 import {
@@ -186,6 +187,7 @@ router.post("/applications/:id/interviews/record", validate(taSchema.recordInter
 router.patch("/applications/:id/interviews/:interviewId/status", validate(taSchema.updateInterviewStatus), updateInterviewStatus);
 
 // Compliance Checklist
+router.get("/compliance/queue", validate(taSchema.complianceQueueQuery), getScopedApplicationsHandler);
 router.post("/applications/:id/compliance", validate(taSchema.createComplianceRequirement), createRequirementHandler);
 router.get("/applications/:id/compliance", validate(taSchema.idParams), listRequirementsHandler);
 router.post("/compliance/:requirementId/submit", validate(taSchema.submitComplianceDocument), submitDocumentHandler);

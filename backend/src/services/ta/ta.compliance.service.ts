@@ -548,3 +548,61 @@ export const generateComplianceRequirementsFromMRF = async (applicationId: numbe
   return created;
 };
 
+export type ComplianceScope = "PRE_DEPLOYMENT" | "POST_DEPLOYMENT" | "ALL";
+
+export const getScopedComplianceApplications = async (scope: ComplianceScope = "ALL") => {
+  const whereClause: any = {
+    isArchived: false,
+  };
+
+  if (scope === "PRE_DEPLOYMENT") {
+    whereClause.status = { in: ["COMPLIANCE", "CONTRACT_AND_ORIENTATION"] };
+  } else if (scope === "POST_DEPLOYMENT") {
+    whereClause.status = "DEPLOYED";
+    whereClause.complianceRequirements = {
+      some: {
+        reviewStatus: { in: ["TO_FOLLOW", "PENDING", "SUBMITTED", "REJECTED"] },
+      },
+    };
+  }
+
+  return await (prisma.application.findMany as any)({
+    where: whereClause,
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          applicantProfile: {
+            select: { firstName: true, lastName: true, middleName: true, phone: true },
+          },
+          employee: {
+            select: { id: true, employeeNumber: true, status: true },
+          },
+        },
+      },
+      jobPosting: {
+        select: {
+          id: true,
+          title: true,
+          mrf: {
+            select: {
+              id: true,
+              mrfNumber: true,
+              client: { select: { id: true, name: true } },
+            },
+          },
+        },
+      },
+      deployments: {
+        where: { isActive: true },
+        take: 1,
+        orderBy: { startDate: "desc" },
+      },
+      complianceRequirements: {
+        orderBy: { createdAt: "asc" },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+};

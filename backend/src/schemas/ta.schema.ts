@@ -225,6 +225,11 @@ export const taSchema = {
   deleteComplianceRequirement: z.object({
     params: z.object({ requirementId: boundedIdText }),
   }),
+  complianceQueueQuery: z.object({
+    query: z.object({
+      scope: z.enum(["PRE_DEPLOYMENT", "POST_DEPLOYMENT", "ALL"]).optional(),
+    }).strict(),
+  }),
   createDeployment: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({
