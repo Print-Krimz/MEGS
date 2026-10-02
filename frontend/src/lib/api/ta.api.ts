@@ -371,6 +371,9 @@ export const taApi = {
   // -------------------------------------------------------------
   // 8. 201 Compliance Tracking
   // -------------------------------------------------------------
+  getComplianceQueue: (scope: "PRE_DEPLOYMENT" | "POST_DEPLOYMENT" | "ALL" = "ALL") =>
+    api.get<Application[]>(`/api/ta/compliance/queue?scope=${scope}`),
+
   createComplianceRequirement: (
     applicationId: number | string,
     data: AddComplianceRequirementDto

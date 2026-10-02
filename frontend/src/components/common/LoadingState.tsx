@@ -82,9 +82,13 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
 
   // Default: Table skeleton
   return (
-    <div className={cn("w-full bg-white border border-slate-300 overflow-hidden my-3 animate-pulse", className)}>
-      <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-300 flex justify-between">
-        <div className="h-3.5 bg-slate-300 w-1/4" />
+    <div className={cn("w-full bg-white border border-slate-300 overflow-hidden my-3 animate-pulse", className)} role="status" aria-live="polite">
+      <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-300 flex justify-between items-center">
+        {message ? (
+          <span className="text-xs text-slate-500 font-sans">{message}</span>
+        ) : (
+          <div className="h-3.5 bg-slate-300 w-1/4" />
+        )}
         <div className="h-3.5 bg-slate-300 w-1/6" />
       </div>
       <div className="divide-y divide-slate-200">

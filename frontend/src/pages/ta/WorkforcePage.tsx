@@ -3,11 +3,19 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { DeploymentsPage } from "./DeploymentsPage";
 import { EmployeesPage } from "./EmployeesPage";
 import { CompliancePage } from "./CompliancePage";
-import { Send, IdCard, FileCheck2 } from "lucide-react";
+import { PostDeploymentCompliancePage } from "./PostDeploymentCompliancePage";
+import { Send, IdCard, FileCheck2, FileClock } from "lucide-react";
 import { PageHeader, Tabs } from "../../components/common";
 import { TA_COPY } from "../../lib/ta-copy";
 
-export type WorkforceTab = "deployments" | "employees" | "clearances";
+export type WorkforceTab = "deployments" | "employees" | "clearances" | "post_deployment";
+
+const VALID_TABS: readonly WorkforceTab[] = [
+  "deployments",
+  "employees",
+  "clearances",
+  "post_deployment",
+];
 
 export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initialTab }) => {
   const search = useSearch({ strict: false }) as { tab?: WorkforceTab };
@@ -15,7 +23,7 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
 
   const resolvedInitial: WorkforceTab =
     initialTab ||
-    (search.tab === "employees" || search.tab === "clearances" || search.tab === "deployments"
+    (search.tab && VALID_TABS.includes(search.tab)
       ? search.tab
       : "deployments");
 
@@ -24,7 +32,7 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
   React.useEffect(() => {
     if (initialTab) {
       setCurrentTab(initialTab);
-    } else if (search.tab && ["deployments", "employees", "clearances"].includes(search.tab)) {
+    } else if (search.tab && VALID_TABS.includes(search.tab)) {
       setCurrentTab(search.tab);
     }
   }, [initialTab, search.tab]);
@@ -62,7 +70,8 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
         items={[
           { id: "deployments", label: "Deployments", icon: Send, panelId: "workforce-deployments" },
           { id: "employees", label: "Employee Records (201)", icon: IdCard, panelId: "workforce-employees" },
-          { id: "clearances", label: "Pre-employment Requirements", icon: FileCheck2, panelId: "workforce-clearances" },
+          { id: "clearances", label: "Pre-employment Queue", icon: FileCheck2, panelId: "workforce-clearances" },
+          { id: "post_deployment", label: "Post-Deployment Follow-ups", icon: FileClock, panelId: "workforce-post-deployment" },
         ]}
       />
 
@@ -71,6 +80,7 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
         {activeTab === "deployments" && <DeploymentsPage hideHeader />}
         {activeTab === "employees" && <EmployeesPage hideHeader />}
         {activeTab === "clearances" && <CompliancePage hideHeader />}
+        {activeTab === "post_deployment" && <PostDeploymentCompliancePage hideHeader />}
       </div>
     </div>
   );
