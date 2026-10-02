@@ -6,6 +6,7 @@ import {
   getMRFDetails,
   updateMRF,
   linkJobToMRF,
+  addMRFComplianceTemplatesBulk,
 } from "../../services/ta/ta.mrf.service.js";
 
 export const listMRFsHandler = async (req: Request, res: Response): Promise<void> => {
@@ -198,6 +199,22 @@ export const addMRFComplianceTemplateHandler = async (req: Request, res: Respons
     const { addMRFComplianceTemplate } = await import("../../services/ta/ta.mrf.service.js");
     const template = await addMRFComplianceTemplate(mrfId, documentLabel, isRequired);
     sendSuccess(res, "Compliance template added to MRF", template, 201);
+  } catch (error: any) {
+    sendError(res, error.message, 400);
+  }
+};
+
+export const addMRFComplianceTemplatesBulkHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const mrfId = parseInt(req.params.id as string, 10);
+    if (isNaN(mrfId)) {
+      sendError(res, "Invalid MRF ID", 400);
+      return;
+    }
+
+    const { documentLabels, isRequired } = req.body;
+    const result = await addMRFComplianceTemplatesBulk(mrfId, documentLabels, isRequired ?? true);
+    sendSuccess(res, "Compliance templates added to MRF", result, 201);
   } catch (error: any) {
     sendError(res, error.message, 400);
   }

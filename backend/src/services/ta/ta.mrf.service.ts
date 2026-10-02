@@ -1,6 +1,7 @@
 import prisma from "../../utils/prisma.js";
 import { logAudit } from "../../utils/audit.js";
 import { sendRoleNotification, sendNotification } from "../../utils/notification.js";
+import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 
 export interface MRFFulfillmentStats {
   mrfId: number;
@@ -332,6 +333,12 @@ export const createMRF = async (
     tattooPolicy?: string | null;
   }
 ) => {
+  if (data.targetFillDate) {
+    const target = String(data.targetFillDate).slice(0, 10);
+    if (!isValidDateOnly(target) || target < manilaDateString()) {
+      throw new Error("Target fill date must be today or a future date.");
+    }
+  }
   const client = await prisma.client.findUnique({ where: { id: data.clientId } });
   if (!client) throw new Error("Client not found");
 
@@ -343,7 +350,7 @@ export const createMRF = async (
       description: data.description,
       headcount: data.headcount ?? 1,
       location: data.location,
-      targetFillDate: data.targetFillDate ? new Date(data.targetFillDate) : null,
+      targetFillDate: data.targetFillDate ? parseManilaDateOnly(String(data.targetFillDate).slice(0, 10)) : null,
       priority: data.priority ?? "NORMAL",
       requiredSkills: data.requiredSkills,
       requiredExperience: data.requiredExperience,
@@ -480,9 +487,21 @@ export const updateMRF = async (
   },
   actorId?: string
 ) => {
+  const currentMrf = await prisma.manpowerRequest.findUnique({
+    where: { id },
+    select: { targetFillDate: true },
+  });
+  if (!currentMrf) throw new Error("Manpower Request not found");
+  if (data.targetFillDate) {
+    const target = String(data.targetFillDate).slice(0, 10);
+    const previousTarget = currentMrf.targetFillDate ? toManilaDateOnly(currentMrf.targetFillDate) : undefined;
+    if (!isValidDateOnly(target) || (target < manilaDateString() && target !== previousTarget)) {
+      throw new Error("Target fill date must be today or a future date.");
+    }
+  }
   const updateData: any = { ...data };
   if (data.targetFillDate) {
-    updateData.targetFillDate = new Date(data.targetFillDate);
+    updateData.targetFillDate = parseManilaDateOnly(String(data.targetFillDate).slice(0, 10));
   } else if ((data.targetFillDate as any) === "" || data.targetFillDate === null) {
     updateData.targetFillDate = null;
   }
@@ -542,6 +561,51 @@ export const addMRFComplianceTemplate = async (
       isRequired,
     },
   });
+};
+
+export const addMRFComplianceTemplatesBulk = async (
+  mrfId: number,
+  documentLabels: string[],
+  isRequired: boolean = true
+) => {
+  const mrf = await prisma.manpowerRequest.findUnique({ where: { id: mrfId } });
+  if (!mrf) throw new Error("Manpower Request not found");
+
+  const existingTemplates = await (prisma as any).mRFComplianceTemplate.findMany({
+    where: { mrfId },
+  });
+
+  const existingLower = new Set(
+    existingTemplates.map((t: any) => (t.documentLabel || "").trim().toLowerCase())
+  );
+
+  const seenInInput = new Set<string>();
+  const uniqueLabels: string[] = [];
+
+  for (const rawLabel of documentLabels) {
+    const trimmed = (rawLabel || "").trim();
+    if (!trimmed) continue;
+    const lower = trimmed.toLowerCase();
+    if (!existingLower.has(lower) && !seenInInput.has(lower)) {
+      seenInInput.add(lower);
+      uniqueLabels.push(trimmed);
+    }
+  }
+
+  if (uniqueLabels.length > 0) {
+    await (prisma as any).mRFComplianceTemplate.createMany({
+      data: uniqueLabels.map((label) => ({
+        mrfId,
+        documentLabel: label,
+        isRequired,
+      })),
+    });
+  }
+
+  return {
+    count: uniqueLabels.length,
+    added: uniqueLabels,
+  };
 };
 
 export const listMRFComplianceTemplates = async (mrfId: number) => {
