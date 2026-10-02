@@ -523,7 +523,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                   const clientName =
                     app.jobPosting?.mrf?.client?.name ||
                     app.deployments?.[0]?.client?.name ||
-                    "—";
+                    "N/A";
                   const deployment = app.deployments?.[0];
                   const daysOnSite = calculateDaysOnSite(deployment?.contractStart);
                   const followUpReqs = (app.complianceRequirements || []).filter(
@@ -559,7 +559,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                         <div className="text-slate-500 text-[11px]">
                           {daysOnSite !== null
                             ? `${daysOnSite} ${daysOnSite === 1 ? "day" : "days"} on site`
-                            : "—"}
+                            : "-"}
                         </div>
                       </td>
 
@@ -758,22 +758,24 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                   ]}
                 />
 
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Target completion date
-                  </label>
-                  <input
-                    type="date"
-                    value={toFollowExpectedAt}
-                    onChange={(e) => setToFollowExpectedAt(e.target.value)}
-                    min={getManilaToday()}
-                    max="2100-12-31"
-                    className="w-full text-xs rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700"
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Keep this date updated until the worker submits final files.
-                  </p>
-                </div>
+                {reviewStatus === "TO_FOLLOW" && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                      Target completion date
+                    </label>
+                    <input
+                      type="date"
+                      value={toFollowExpectedAt}
+                      onChange={(e) => setToFollowExpectedAt(e.target.value)}
+                      min={getManilaToday()}
+                      max="2100-12-31"
+                      className="w-full text-xs rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Keep this date updated until the worker submits final files.
+                    </p>
+                  </div>
+                )}
 
                 <Textarea
                   label="Review notes (optional)"
@@ -802,7 +804,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                           data: {
                             reviewStatus,
                             reviewNotes: reviewNotes.trim() || undefined,
-                            toFollowExpectedAt: toFollowExpectedAt || undefined,
+                            toFollowExpectedAt: toFollowExpectedAt ? toFollowExpectedAt : null,
                           },
                         });
                       }

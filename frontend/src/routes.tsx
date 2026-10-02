@@ -414,7 +414,7 @@ export const taClientDetailRoute = createRoute({
 });
 
 export interface WorkforceSearch {
-  tab?: "deployments" | "employees" | "clearances";
+  tab?: "deployments" | "employees" | "clearances" | "post_deployment";
 }
 
 export const taComplianceRoute = createRoute({
@@ -461,7 +461,7 @@ export const taWorkforceRoute = createRoute({
   path: "/ta/workforce",
   validateSearch: (search: Record<string, unknown>): WorkforceSearch => {
     const tab = search.tab;
-    if (tab === "employees" || tab === "clearances" || tab === "deployments") {
+    if (tab === "employees" || tab === "clearances" || tab === "deployments" || tab === "post_deployment") {
       return { tab };
     }
     return { tab: "deployments" };

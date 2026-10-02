@@ -437,4 +437,56 @@ describe("PostDeploymentCompliancePage Component", () => {
       );
     });
   });
+
+  it("only displays target date field when reviewStatus is TO_FOLLOW and sends null when cleared", async () => {
+    vi.mocked(taApi.getComplianceQueue).mockResolvedValue(mockActiveWorkers);
+    vi.mocked(taApi.reviewComplianceRequirement).mockResolvedValue({
+      id: 801,
+      applicationId: 501,
+      documentLabel: "Fit to Work Medical Exam",
+      isRequired: true,
+      reviewStatus: "TO_FOLLOW",
+      toFollowExpectedAt: null,
+      createdAt: "2026-08-10T00:00:00Z",
+      updatedAt: "2026-10-02T00:00:00Z",
+    });
+
+    renderComponent();
+
+    const juanElements = await screen.findAllByText("Juan Dela Cruz");
+    expect(juanElements.length).toBeGreaterThanOrEqual(1);
+
+    const quickReviewButtons = screen.getAllByRole("button", { name: "Quick review" });
+    fireEvent.click(quickReviewButtons[0]);
+
+    // Initial status for 801 is TO_FOLLOW, target date input should be visible
+    expect(screen.getByText("Target completion date")).toBeDefined();
+
+    // Change to APPROVED, target date input should be hidden
+    const decisionSelect = screen.getByRole("combobox", { name: /Review decision/i });
+    fireEvent.change(decisionSelect, { target: { value: "APPROVED" } });
+    expect(screen.queryByText("Target completion date")).toBeNull();
+
+    // Switch back to TO_FOLLOW and clear the date
+    fireEvent.change(decisionSelect, { target: { value: "TO_FOLLOW" } });
+    expect(screen.getByText("Target completion date")).toBeDefined();
+
+    const dateInputs = document.querySelectorAll('input[type="date"]');
+    expect(dateInputs.length).toBeGreaterThan(0);
+    fireEvent.change(dateInputs[0], { target: { value: "" } });
+
+    // Click Save review
+    const saveButton = screen.getByRole("button", { name: "Save review" });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(taApi.reviewComplianceRequirement).toHaveBeenCalledWith(
+        801,
+        expect.objectContaining({
+          reviewStatus: "TO_FOLLOW",
+          toFollowExpectedAt: null,
+        })
+      );
+    });
+  });
 });
