@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { sendSuccess, sendError } from '../../utils/response.js';
 import prisma from '../../utils/prisma.js';
 import { logAudit } from '../../utils/audit.js';
+import { validateStructuredAddress } from '../../utils/address-validation.js';
+import { isValidDateOnly, manilaDateString } from '../../schemas/field-limits.js';
 import {
   listTAApplications,
   getTAApplication,
@@ -190,6 +192,8 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       gender,
       city,
       province,
+      barangay,
+      postalCode,
       tattooStatus,
       sss,
       philhealth,
@@ -201,6 +205,14 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       emergencyContactRelationship,
       emergencyContactAddress,
     } = req.body || {};
+
+    validateStructuredAddress({
+      province: province !== undefined ? province : profile.province,
+      city: city !== undefined ? city : profile.city,
+      barangay: barangay !== undefined ? barangay : profile.barangay,
+      postalCode: postalCode !== undefined ? postalCode : profile.postalCode,
+      address: address !== undefined ? address : profile.address,
+    }, profile);
 
     const updateData: Record<string, any> = {};
     const changes: Record<string, { from: any; to: any }> = {};
@@ -254,6 +266,12 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
 
     if (dateOfBirth !== undefined) {
       let parsedDate: Date | null = null;
+      const nextDob = typeof dateOfBirth === "string" ? dateOfBirth.slice(0, 10) : "";
+      const previousDob = profile.dateOfBirth?.toISOString().slice(0, 10);
+      if (dateOfBirth && nextDob !== previousDob && (!isValidDateOnly(nextDob) || nextDob >= manilaDateString())) {
+        sendError(res, "Date of birth must be a valid date before today", 400);
+        return;
+      }
       if (dateOfBirth) {
         parsedDate = new Date(dateOfBirth);
         if (isNaN(parsedDate.getTime())) {
@@ -342,6 +360,22 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       if (profile.address !== val) {
         changes.address = { from: profile.address, to: val };
         updateData.address = val;
+      }
+    }
+
+    if (barangay !== undefined) {
+      const val = typeof barangay === "string" ? barangay.trim() || null : null;
+      if (profile.barangay !== val) {
+        changes.barangay = { from: profile.barangay, to: val };
+        updateData.barangay = val;
+      }
+    }
+
+    if (postalCode !== undefined) {
+      const val = typeof postalCode === "string" ? postalCode.trim() || null : null;
+      if (profile.postalCode !== val) {
+        changes.postalCode = { from: profile.postalCode, to: val };
+        updateData.postalCode = val;
       }
     }
 

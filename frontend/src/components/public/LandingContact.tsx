@@ -262,6 +262,7 @@ export const LandingContact: React.FC = () => {
                     <input
                       id="field-companyName"
                       type="text"
+                      maxLength={200}
                       placeholder="e.g. Sterling Logistics Inc."
                       value={formData.companyName}
                       onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
@@ -289,6 +290,7 @@ export const LandingContact: React.FC = () => {
                     <input
                       id="field-contactPerson"
                       type="text"
+                      maxLength={200}
                       placeholder="e.g. Maria Santos (HR Director)"
                       value={formData.contactPerson}
                       onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
@@ -318,6 +320,7 @@ export const LandingContact: React.FC = () => {
                     <input
                       id="field-email"
                       type="email"
+                      maxLength={254}
                       placeholder="e.g. msantos@company.ph"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -345,6 +348,7 @@ export const LandingContact: React.FC = () => {
                     <input
                       id="field-phone"
                       type="tel"
+                      maxLength={64}
                       placeholder="e.g. 0917 123 4567"
                       value={formData.phone}
                       onChange={(e) => {
@@ -436,6 +440,7 @@ export const LandingContact: React.FC = () => {
                   <textarea
                     id="field-notes"
                     rows={3}
+                    maxLength={1000}
                     placeholder="Describe specific qualifications, shifts, or facility details..."
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}

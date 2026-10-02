@@ -7,6 +7,7 @@ import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.co
 import { logAudit } from '../../utils/audit.js';
 import { resolveDocumentSignedUrl } from '../document/document.service.js';
 import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
+import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 
 // Authoritative State Machine governing valid applicant pipeline stage transitions
 export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
@@ -193,6 +194,30 @@ export const listTAApplications = async (
     }),
   ]);
 
+  for (const app of applications) {
+    if (app.status === "COMPLIANCE" && (!app.complianceRequirements || app.complianceRequirements.length === 0)) {
+      try {
+        const generated = await generateComplianceRequirementsFromMRF(app.id);
+        if (generated?.length) {
+          app.complianceRequirements = generated.map((g: any) => ({
+            id: g.id,
+            documentLabel: g.documentLabel,
+            reviewStatus: g.reviewStatus,
+            isRequired: g.isRequired,
+            updatedAt: g.updatedAt,
+            deadline: g.deadline,
+            documentId: g.documentId,
+            toFollowExpectedAt: g.toFollowExpectedAt,
+            reviewNotes: g.reviewNotes,
+            expiresAt: g.expiresAt,
+          })) as any;
+        }
+      } catch {
+        // Safe fallback
+      }
+    }
+  }
+
   const formatted = applications
     .map((application) => {
       const activeScore = configuration
@@ -344,6 +369,17 @@ export const getTAApplication = async (id: number) => {
   });
 
   if (!application) throw new Error("Application not found");
+
+  if (application.status === "COMPLIANCE" && (!application.complianceRequirements || application.complianceRequirements.length === 0)) {
+    try {
+      const generated = await generateComplianceRequirementsFromMRF(application.id);
+      if (generated?.length) {
+        application.complianceRequirements = generated as any;
+      }
+    } catch {
+      // Safe fallback
+    }
+  }
 
   // Compute fallback 7-day SLA deadline in-memory for any legacy requirements lacking one
   if (application.complianceRequirements?.length) {
@@ -912,13 +948,20 @@ export const completeApplicationOrientation = async (
   });
   if (!application) throw new Error("Application not found");
 
+  const orientationDate = data.orientationDate
+    ? toManilaDateOnly(data.orientationDate)
+    : undefined;
+  if (orientationDate && (!isValidDateOnly(orientationDate) || orientationDate > manilaDateString())) {
+    throw new Error("Completed orientation date must be today or an earlier date.");
+  }
+
   const now = new Date();
   const updated = await prisma.application.update({
     where: { id: applicationId },
     data: {
       orientationCompleted: true,
       orientationCompletedAt: now,
-      orientationDate: data.orientationDate ? new Date(data.orientationDate) : now,
+      orientationDate: orientationDate ? parseManilaDateOnly(orientationDate) : now,
       orientationNotes: data.orientationNotes || null,
     },
   });

@@ -474,8 +474,12 @@ export const taApi = {
   getDeploymentAnalytics: () =>
     api.get<DeploymentAnalytics>("/api/ta/analytics/deployments"),
 
-  getComplianceOverview: () =>
-    api.get<ComplianceAnalytics>("/api/ta/analytics/compliance"),
+  getComplianceOverview: (params?: { stage?: string }) =>
+    api.get<ComplianceAnalytics>(
+      params?.stage
+        ? `/api/ta/analytics/compliance?stage=${encodeURIComponent(params.stage)}`
+        : "/api/ta/analytics/compliance"
+    ),
 
   exportPipelineReport: (format: "pdf" | "xlsx" = "pdf", filters?: Partial<AnalyticsFilterState>) => {
     const qs = buildTAAnalyticsQueryString(filters);

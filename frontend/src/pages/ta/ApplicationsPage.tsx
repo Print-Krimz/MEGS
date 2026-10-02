@@ -215,7 +215,7 @@ export const ApplicationsPage: React.FC = () => {
   const availableClients = React.useMemo(() => {
     const seen = new Set<number>();
     if (mineOnly) {
-      const list: Array<{ id: number; name: string; industry?: string | null; address?: string | null }> = [];
+      const list: Array<{ id: number; name: string; industry?: string | null; address?: string | null; barangay?: string | null; city?: string | null; province?: string | null; postalCode?: string | null }> = [];
       jobs.forEach((j: any) => {
         const client = j.mrf?.client;
         if (client && !seen.has(client.id)) {
@@ -346,7 +346,7 @@ export const ApplicationsPage: React.FC = () => {
             options: availableClients.map((c) => ({
               value: String(c.id),
               label: c.name,
-              subtitle: `${c.industry || "General"} • ${c.address || "Philippines"}`,
+              subtitle: `${c.industry || "General"} • ${[c.address, c.barangay, c.city, c.province, c.postalCode].filter(Boolean).join(", ") || "Philippines"}`,
             })),
           },
           {

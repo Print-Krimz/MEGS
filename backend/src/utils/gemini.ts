@@ -188,6 +188,8 @@ export interface ExtractedProfileData {
   address?: string;
   city?: string;
   province?: string;
+  barangay?: string;
+  postalCode?: string;
   preferredWorkLocations?: string;
   professionalSummary?: string;
   skills?: string[];

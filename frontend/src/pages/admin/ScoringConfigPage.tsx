@@ -108,6 +108,10 @@ export const ScoringConfigPage: React.FC = () => {
   const totalWeight =
     skillsWeight + experienceWeight + locationWeight + complianceWeight + educationWeight;
   const isWeightValid = totalWeight === 100;
+  const isKnnValid = Number.isInteger(defaultK) && Number.isInteger(maximumK) &&
+    defaultK >= 1 && defaultK <= 100 && maximumK >= 1 && maximumK <= 100 && defaultK <= maximumK &&
+    Number.isFinite(minSimilarity) && minSimilarity >= 0 && minSimilarity <= 1 &&
+    Number(minSimilarity.toFixed(4)) === minSimilarity;
   const configuredWeights = (config?.weights as Record<string, number>) || {};
   const hasUnsavedChanges = Boolean(
     config && (
@@ -143,11 +147,15 @@ export const ScoringConfigPage: React.FC = () => {
       });
       return;
     }
-    if (matchThreshold < 0 || matchThreshold > 100) {
+    if (!Number.isInteger(matchThreshold) || !Number.isFinite(matchThreshold) || matchThreshold < 0 || matchThreshold > 100) {
       setFeedback({
         type: "error",
         message: "The recommended match score must be a whole number from 0 to 100.",
       });
+      return;
+    }
+    if (!isKnnValid) {
+      setFeedback({ type: "error", message: "KNN settings require whole numbers from 1 to 100, default K no greater than maximum K, and similarity from 0 to 1 with up to four decimals." });
       return;
     }
     if (!config) return;
@@ -449,14 +457,16 @@ export const ScoringConfigPage: React.FC = () => {
                    Score for automatic recommendation
                 </span>
                 <div className="flex items-center gap-2">
-                  <input
+                  <Input
                     type="number"
                     min={0}
                     max={100}
+                    step={1}
                     value={matchThreshold}
-                    onChange={(e) => setMatchThreshold(Math.min(100, Math.max(0, Number(e.target.value))))}
-                     aria-label="Recommended match score"
-                     className="w-16 px-2 py-1 text-sm border border-slate-300 focus:outline-none focus:border-teal-700 text-right"
+                    required
+                    onChange={(e) => { if (e.target.value !== "") setMatchThreshold(Number(e.target.value)); }}
+                    aria-label="Recommended match score"
+                    className="w-16 px-2 py-1 text-right"
                   />
                   <span className="font-mono text-slate-500">/ 100</span>
                 </div>
@@ -511,25 +521,31 @@ export const ScoringConfigPage: React.FC = () => {
                   type="number"
                   min={1}
                   max={50}
+                  step={1}
                   value={defaultK}
-                  onChange={(e) => setDefaultK(Number(e.target.value))}
+                  required
+                  onChange={(e) => { if (e.target.value !== "") setDefaultK(Number(e.target.value)); }}
                 />
                 <Input
                    label="Maximum results"
                   type="number"
                   min={10}
                   max={100}
+                  step={1}
                   value={maximumK}
-                  onChange={(e) => setMaximumK(Number(e.target.value))}
+                  error={defaultK > maximumK ? "Maximum results must be at least the default count." : undefined}
+                  required
+                  onChange={(e) => { if (e.target.value !== "") setMaximumK(Number(e.target.value)); }}
                 />
                 <Input
                    label="Lowest accepted similarity (0–1)"
                   type="number"
-                  step="0.05"
+                  step="0.0001"
                   min={0}
                   max={1}
                   value={minSimilarity}
-                  onChange={(e) => setMinSimilarity(Number(e.target.value))}
+                  required
+                  onChange={(e) => { if (e.target.value !== "") setMinSimilarity(Number(e.target.value)); }}
                 />
               </div>
             </details>

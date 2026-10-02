@@ -2,7 +2,9 @@ import React, { useId } from "react";
 import { Phone, AlertCircle } from "lucide-react";
 import { cn } from "../../lib/utils";
 import {
+  formatPhilippineMobileDisplay,
   formatPhilippinePhoneDisplay,
+  validatePhilippineMobile,
   validatePhilippinePhone,
 } from "../../lib/phone-utils";
 
@@ -17,6 +19,7 @@ export interface PhoneInputProps {
   disabled?: boolean;
   className?: string;
   id?: string;
+  mobileOnly?: boolean;
 }
 
 export const PhoneInput: React.FC<PhoneInputProps> = ({
@@ -30,6 +33,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
   disabled,
   className,
   id: customId,
+  mobileOnly = false,
 }) => {
   const generatedId = useId();
   const inputId = customId || generatedId;
@@ -37,12 +41,15 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
   const helperId = `${inputId}-helper`;
 
   // Real-time analysis
-  const validation = React.useMemo(() => validatePhilippinePhone(value), [value]);
+  const validation = React.useMemo(
+    () => mobileOnly ? validatePhilippineMobile(value) : validatePhilippinePhone(value),
+    [mobileOnly, value]
+  );
   const activeError = customError || (value && !validation.isValid ? validation.message : undefined);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    const formatted = formatPhilippinePhoneDisplay(raw);
+    const formatted = mobileOnly ? formatPhilippineMobileDisplay(raw) : formatPhilippinePhoneDisplay(raw);
     onChange(formatted);
   };
 
@@ -66,7 +73,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
           placeholder={placeholder}
           value={value}
           onChange={handleInputChange}
-          maxLength={13}
+          maxLength={64}
           aria-invalid={Boolean(activeError)}
           aria-describedby={activeError ? errorId : helperText ? helperId : undefined}
           className={cn(

@@ -1,4 +1,6 @@
 import prisma from "../../utils/prisma.js";
+import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
+import { validateStructuredAddress } from "../../utils/address-validation.js";
 import { EmploymentStatus, EmploymentEventType, DeploymentStatus } from "@prisma/client";
 import { resolveDocumentSignedUrl } from "../document/document.service.js";
 import { logAudit } from "../../utils/audit.js";
@@ -402,6 +404,24 @@ export const updateEmployeeDetails = async (
     throw new Error("Employee not found");
   }
 
+  const currentProfile = employee.user.applicantProfile;
+  if (currentProfile) {
+    validateStructuredAddress({
+      province: data.province !== undefined ? data.province : currentProfile.province,
+      city: data.city !== undefined ? data.city : currentProfile.city,
+      barangay: data.barangay !== undefined ? data.barangay : currentProfile.barangay,
+      postalCode: data.postalCode !== undefined ? data.postalCode : currentProfile.postalCode,
+      address: data.address !== undefined ? data.address : currentProfile.address,
+    }, currentProfile);
+    if (data.dateOfBirth) {
+      const nextDob = String(data.dateOfBirth).slice(0, 10);
+      const previousDob = currentProfile.dateOfBirth?.toISOString().slice(0, 10);
+      if (nextDob !== previousDob && (!isValidDateOnly(nextDob) || nextDob >= manilaDateString())) {
+        throw new Error("Date of birth must be a valid date before today.");
+      }
+    }
+  }
+
   // Update employee-level fields if provided
   const employeeUpdateData: Record<string, any> = {};
   if (data.department !== undefined) {
@@ -448,6 +468,12 @@ export const updateEmployeeDetails = async (
   }
   if (data.province !== undefined) {
     profileUpdateData.province = typeof data.province === "string" ? data.province.trim() || null : null;
+  }
+  if (data.barangay !== undefined) {
+    profileUpdateData.barangay = typeof data.barangay === "string" ? data.barangay.trim() || null : null;
+  }
+  if (data.postalCode !== undefined) {
+    profileUpdateData.postalCode = typeof data.postalCode === "string" ? data.postalCode.trim() || null : null;
   }
   if (data.civilStatus !== undefined) {
     profileUpdateData.civilStatus = typeof data.civilStatus === "string" ? data.civilStatus.trim() || null : null;
@@ -571,6 +597,16 @@ export const createEmployeeDeployment = async (
     allowOverheadcount?: boolean;
   }
 ) => {
+  const startDay = data.contractStart ? toManilaDateOnly(data.contractStart) : undefined;
+  const endDay = data.contractEnd ? toManilaDateOnly(data.contractEnd) : undefined;
+  if (startDay && (!isValidDateOnly(startDay) || startDay < manilaDateString())) {
+    throw new Error("A new contract start date must be today or later.");
+  }
+  if (endDay && (!startDay || endDay < startDay)) {
+    throw new Error("Contract end date must be on or after contract start.");
+  }
+  const parsedStart = startDay ? parseManilaDateOnly(startDay) : null;
+  const parsedEnd = endDay ? parseManilaDateOnly(endDay) : null;
   const employee = await prisma.employee.findUnique({
     where: { id: data.employeeId },
   });
@@ -618,8 +654,8 @@ export const createEmployeeDeployment = async (
         mrfId: data.mrfId || null,
         createdById,
         site: data.site || null,
-        contractStart: data.contractStart ? new Date(data.contractStart) : null,
-        contractEnd: data.contractEnd ? new Date(data.contractEnd) : null,
+        contractStart: parsedStart,
+        contractEnd: parsedEnd,
         notes: data.notes || null,
         status: "READY_FOR_DEPLOYMENT",
       },
@@ -656,7 +692,7 @@ export const createEmployeeDeployment = async (
         employeeId: data.employeeId,
         eventType: "DEPLOYED",
         description: `Deployed to ${client.name}${data.site ? ` at ${data.site}` : ""}`,
-        effectiveDate: data.contractStart ? new Date(data.contractStart) : new Date(),
+        effectiveDate: parsedStart ?? new Date(),
         actorId: createdById,
         metadata: {
           deploymentId: deployment.id,

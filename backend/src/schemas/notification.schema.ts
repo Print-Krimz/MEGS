@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { FIELD_LIMITS, finiteNumber } from "./field-limits.js";
 
 export const notificationSchema = {
   listNotifications: z.object({
     query: z.object({
-      limit: z.coerce.number().min(1).max(100).optional(),
-      cursor: z.coerce.number().optional(),
-      page: z.coerce.number().optional(),
+      limit: finiteNumber({ min: 1, max: FIELD_LIMITS.pageSize, integer: true }).optional(),
+      cursor: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional(),
+      page: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional(),
       isRead: z
         .preprocess((val) => {
           if (val === "true" || val === true) return true;
@@ -17,7 +18,7 @@ export const notificationSchema = {
   }),
   markAsRead: z.object({
     params: z.object({
-      id: z.coerce.number(),
+      id: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }),
     }),
   }),
 };

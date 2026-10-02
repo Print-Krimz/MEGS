@@ -1,4 +1,5 @@
 import prisma from "../../utils/prisma.js";
+import { validateStructuredAddress } from "../../utils/address-validation.js";
 
 export const listClients = async (isActive?: boolean) => {
   return await prisma.client.findMany({
@@ -24,16 +25,18 @@ export const createClient = async (data: {
   contactPhone?: string;
   address?: string;
   street?: string;
+  barangay?: string;
   city?: string;
   province?: string;
   postalCode?: string;
   reviewThresholdDays?: number;
   medicalValidityMonths?: number;
 }) => {
+  validateStructuredAddress(data);
   // Construct composite address if individual fields are provided and composite is not
-  let compositeAddress = data.address;
-  if (!compositeAddress && (data.street || data.city || data.province || data.postalCode)) {
-    compositeAddress = [data.street, data.city, data.province, data.postalCode]
+  let compositeAddress: string | null | undefined = data.address;
+  if (!compositeAddress && (data.street || data.barangay || data.city || data.province || data.postalCode)) {
+    compositeAddress = [data.street, data.barangay, data.city, data.province, data.postalCode]
       .filter(Boolean)
       .join(", ");
   }
@@ -48,6 +51,7 @@ export const createClient = async (data: {
       contactPhone: data.contactPhone,
       address: compositeAddress,
       street: data.street,
+      barangay: data.barangay,
       city: data.city,
       province: data.province,
       postalCode: data.postalCode,
@@ -102,6 +106,7 @@ export const updateClient = async (
     contactPhone?: string;
     address?: string;
     street?: string;
+    barangay?: string;
     city?: string;
     province?: string;
     postalCode?: string;
@@ -110,11 +115,23 @@ export const updateClient = async (
     medicalValidityMonths?: number;
   }
 ) => {
-  let compositeAddress = data.address;
-  if (!compositeAddress && (data.street || data.city || data.province || data.postalCode)) {
-    compositeAddress = [data.street, data.city, data.province, data.postalCode]
-      .filter(Boolean)
-      .join(", ");
+  const current = await prisma.client.findUnique({ where: { id } });
+  if (!current) throw new Error("Client not found");
+  validateStructuredAddress(data, current);
+
+  const structuredAddressKeys = ["street", "barangay", "city", "province", "postalCode"] as const;
+  const structuredAddressChanged = structuredAddressKeys.some((key) =>
+    Object.prototype.hasOwnProperty.call(data, key) && (data[key] ?? null) !== (current[key] ?? null)
+  );
+  let compositeAddress: string | null | undefined = data.address;
+  if (compositeAddress === undefined && structuredAddressChanged) {
+    compositeAddress = [
+      data.street ?? current.street,
+      data.barangay ?? current.barangay,
+      data.city ?? current.city,
+      data.province ?? current.province,
+      data.postalCode ?? current.postalCode,
+    ].filter(Boolean).join(", ") || null;
   }
 
   const { reviewThresholdDays, medicalValidityMonths, ...rest } = data;

@@ -1,6 +1,7 @@
 import prisma from '../../utils/prisma.js';
 import { sendNotification } from '../../utils/notification.js';
 import { logAudit } from '../../utils/audit.js';
+import { isFutureDateTime } from "../../schemas/field-limits.js";
 
 export const fetchInterviews = async (applicationId: number) => {
   return await prisma.interview.findMany({
@@ -25,7 +26,10 @@ export const scheduleNewInterview = async (
   if (isNaN(scheduledDate.getTime())) {
     throw new Error("Invalid scheduledAt format");
   }
-  if (scheduledDate.getTime() < Date.now() - 5 * 60 * 1000) {
+  if (scheduledDate.getUTCFullYear() < 1900 || scheduledDate.getUTCFullYear() > 2100) {
+    throw new Error("Interview dates must be within 1900 through 2100.");
+  }
+  if (!isFutureDateTime(scheduledAt)) {
     throw new Error("Cannot schedule an interview in the past. Please select a future date and time.");
   }
 
@@ -252,6 +256,9 @@ export const recordDirectInterviewResult = async (
 
   // Otherwise create a new interview record directly
   const conductedDate = conductedAt ? new Date(conductedAt) : new Date();
+  if (!Number.isFinite(conductedDate.getTime()) || conductedDate.getTime() > Date.now()) {
+    throw new Error("Recorded interview time cannot be in the future.");
+  }
   const deadline = new Date(conductedDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const newInterview = await prisma.interview.create({
@@ -398,6 +405,13 @@ export const updateInterviewResult = async (
   });
 
   if (!interview) throw new Error("Interview not found");
+
+  if (conductedAt) {
+    const conductedDate = new Date(conductedAt);
+    if (!Number.isFinite(conductedDate.getTime()) || conductedDate.getTime() > Date.now()) {
+      throw new Error("Recorded interview time cannot be in the future.");
+    }
+  }
 
   const updatedInterview = await prisma.interview.update({
     where: { id: interviewId },

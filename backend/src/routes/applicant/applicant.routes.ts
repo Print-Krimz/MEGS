@@ -25,23 +25,23 @@ router.post("/profile", validate(applicantSchema.upsertProfile), upsertProfile);
 router.post("/profile/apply-extracted", validate(applicantSchema.applyExtractedProfile), applyExtractedProfile);
 
 router.post("/profile/work-experience", validate(applicantSchema.addWorkExperience), addWorkExperience);
-router.delete("/profile/work-experience/:id", deleteWorkExperience);
+router.delete("/profile/work-experience/:id", validate(applicantSchema.idParams), deleteWorkExperience);
 
 router.post("/profile/education", validate(applicantSchema.addEducation), addEducation);
-router.delete("/profile/education/:id", deleteEducation);
+router.delete("/profile/education/:id", validate(applicantSchema.idParams), deleteEducation);
 
 router.post("/profile/skills", validate(applicantSchema.updateSkills), updateSkills);
 
 router.post("/profile/trainings", validate(applicantSchema.addTraining), addTraining);
-router.delete("/profile/trainings/:id", deleteTraining);
+router.delete("/profile/trainings/:id", validate(applicantSchema.idParams), deleteTraining);
 
 router.post("/profile/references", validate(applicantSchema.addReference), addReference);
-router.delete("/profile/references/:id", deleteReference);
+router.delete("/profile/references/:id", validate(applicantSchema.idParams), deleteReference);
 
 router.post("/profile/assets", upload.single("file"), validate(applicantSchema.addAsset), addAsset);
-router.delete("/profile/assets/:id", deleteAsset);
-router.post("/profile/photo", upload.single("file"), uploadPhoto);
-router.post("/profile/resume", upload.single("file"), uploadResume);
+router.delete("/profile/assets/:id", validate(applicantSchema.idParams), deleteAsset);
+router.post("/profile/photo", upload.single("file"), validate(applicantSchema.emptyUploadBody), uploadPhoto);
+router.post("/profile/resume", upload.single("file"), validate(applicantSchema.emptyUploadBody), uploadResume);
 
 export default router;
 

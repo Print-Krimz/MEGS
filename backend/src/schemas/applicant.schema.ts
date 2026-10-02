@@ -1,7 +1,17 @@
 import { z } from "zod";
+import { boundedIdText, boundedText, dateOnly, FIELD_LIMITS, formattedMobile, formattedPhone, isValidDateOnly, manilaDateString } from "./field-limits.js";
+
+const nonFutureDate = dateOnly.refine((value) => value <= manilaDateString(), "Date cannot be in the future");
+const pastDate = dateOnly.refine((value) => value < manilaDateString(), "Date must be earlier than today");
+const dateRange = (value: { startDate?: string | null; endDate?: string | null }, ctx: z.RefinementCtx) => {
+  if (value.startDate && value.endDate && value.endDate < value.startDate) {
+    ctx.addIssue({ code: "custom", path: ["endDate"], message: "End date must be on or after start date" });
+  }
+};
+const phoneValidation = formattedPhone;
 
 const heightValidation = z
-  .union([z.number(), z.string()])
+  .union([z.number().finite(), z.string().max(6)])
   .optional()
   .nullable()
   .refine(
@@ -9,7 +19,7 @@ const heightValidation = z
       if (val === null || val === undefined) return true;
       if (typeof val === "string" && val.trim() === "") return true;
       const num = typeof val === "number" ? val : Number(val);
-      return !isNaN(num) && num >= 100 && num <= 250;
+      return Number.isFinite(num) && num >= 100 && num <= 250 && /^\d+(?:\.\d{1})?$/.test(String(val));
     },
     {
       message: "Height must be between 100 cm and 250 cm",
@@ -17,7 +27,7 @@ const heightValidation = z
   );
 
 const weightValidation = z
-  .union([z.number(), z.string()])
+  .union([z.number().finite(), z.string().max(6)])
   .optional()
   .nullable()
   .refine(
@@ -25,7 +35,7 @@ const weightValidation = z
       if (val === null || val === undefined) return true;
       if (typeof val === "string" && val.trim() === "") return true;
       const num = typeof val === "number" ? val : Number(val);
-      return !isNaN(num) && num >= 30 && num <= 300;
+      return Number.isFinite(num) && num >= 30 && num <= 300 && /^\d+(?:\.\d{1})?$/.test(String(val));
     },
     {
       message: "Weight must be between 30 kg and 300 kg",
@@ -40,7 +50,7 @@ const sssValidation = z
     (val) => {
       if (!val || val.trim() === "") return true;
       const digits = val.replace(/\D/g, "");
-      return digits.length <= 10;
+      return /^[\d -]+$/.test(val) && digits.length > 0 && digits.length <= 10;
     },
     {
       message: "SSS number must not exceed 10 digits",
@@ -55,7 +65,7 @@ const philhealthValidation = z
     (val) => {
       if (!val || val.trim() === "") return true;
       const digits = val.replace(/\D/g, "");
-      return digits.length <= 12;
+      return /^[\d -]+$/.test(val) && digits.length > 0 && digits.length <= 12;
     },
     {
       message: "PhilHealth number must not exceed 12 digits",
@@ -70,7 +80,7 @@ const pagibigValidation = z
     (val) => {
       if (!val || val.trim() === "") return true;
       const digits = val.replace(/\D/g, "");
-      return digits.length <= 12;
+      return /^[\d -]+$/.test(val) && digits.length > 0 && digits.length <= 12;
     },
     {
       message: "Pag-IBIG number must not exceed 12 digits",
@@ -84,8 +94,7 @@ const tinValidation = z
   .refine(
     (val) => {
       if (!val || val.trim() === "") return true;
-      const digits = val.replace(/\D/g, "");
-      return digits.length >= 9 && digits.length <= 12;
+      return /^[\d -]+$/.test(val) && val.replace(/\D/g, "").length >= 9 && val.replace(/\D/g, "").length <= 12;
     },
     {
       message: "TIN must be between 9 and 12 digits",
@@ -93,199 +102,166 @@ const tinValidation = z
   );
 
 export const applicantSchema = {
+  idParams: z.object({ params: z.object({ id: boundedIdText }).strict() }),
+  emptyUploadBody: z.object({ body: z.object({}).strict().optional() }),
   upsertProfile: z.object({
     body: z.object({
-      firstName: z.string().min(1, "First name is required").optional(),
-      middleName: z.string().optional().nullable(),
-      lastName: z.string().min(1, "Last name is required").optional(),
-      mobileNumber: z
-        .string()
-        .optional()
-        .nullable()
-        .refine(
-          (val) => {
-            if (!val || val.trim() === "") return true;
-            const digits = val.replace(/\D/g, "");
-            return digits.length >= 7 && digits.length <= 12;
-          },
-          {
-            message: "Mobile number must not exceed 11 digits",
-          }
-        ),
-      gender: z.string().optional().nullable(),
-      province: z.string().optional().nullable(),
-      city: z.string().optional().nullable(),
-      dateOfBirth: z.string().optional().nullable(),
-      birthPlace: z.string().optional().nullable(),
-      nationality: z.string().optional().nullable(),
-      civilStatus: z.string().optional().nullable(),
+      firstName: z.string().trim().min(1, "First name is required").max(FIELD_LIMITS.name).optional(),
+      middleName: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      lastName: z.string().trim().min(1, "Last name is required").max(FIELD_LIMITS.name).optional(),
+      mobileNumber: formattedMobile,
+      gender: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+      province: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      city: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      barangay: boundedText(FIELD_LIMITS.barangay).optional().nullable(),
+      postalCode: z.union([z.string().regex(/^\d{4}$/, "Postal code must be exactly 4 digits"), z.literal("")]).optional().nullable(),
+      dateOfBirth: z.union([pastDate, z.literal("")]).optional().nullable(),
+      birthPlace: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+      nationality: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      civilStatus: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
       height: heightValidation,
       weight: weightValidation,
-      religion: z.string().optional().nullable(),
-      address: z.string().optional().nullable(),
-      preferredWorkLocations: z.string().optional().nullable(),
+      religion: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+      address: boundedText(FIELD_LIMITS.address).optional().nullable(),
+      preferredWorkLocations: boundedText(FIELD_LIMITS.notes).optional().nullable(),
       pagibig: pagibigValidation,
       philhealth: philhealthValidation,
       sss: sssValidation,
       tin: tinValidation,
-      professionalSummary: z.string().optional().nullable(),
-      emergencyContactName: z.string().optional().nullable(),
-      emergencyContactRelationship: z.string().optional().nullable(),
-      emergencyContactPhone: z
-        .string()
-        .optional()
-        .nullable()
-        .refine(
-          (val) => {
-            if (!val || val.trim() === "") return true;
-            const digits = val.replace(/\D/g, "");
-            return digits.length >= 7 && digits.length <= 12;
-          },
-          {
-            message: "Emergency contact phone must not exceed 11 digits",
-          }
-        ),
-      emergencyContactAddress: z.string().optional().nullable(),
-      additionalNotes: z.string().optional().nullable(),
+      emergencyContactName: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      emergencyContactRelationship: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      emergencyContactPhone: phoneValidation,
+      emergencyContactAddress: boundedText(FIELD_LIMITS.address).optional().nullable(),
+      professionalSummary: boundedText(FIELD_LIMITS.summary).optional().nullable(),
+      additionalNotes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
     }),
   }),
   addWorkExperience: z.object({
     body: z.object({
-      company: z.string().min(1, "Company is required"),
-      title: z.string().min(1, "Title is required"),
-      startDate: z.string().min(1, "Start date is required"), // Can be refined to .date()
-      endDate: z.string().optional().nullable(),
-      description: z.string().optional(),
+      company: z.string().trim().min(1, "Company is required").max(FIELD_LIMITS.shortText),
+      title: z.string().trim().min(1, "Title is required").max(FIELD_LIMITS.shortText),
+      location: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+      startDate: nonFutureDate,
+      endDate: nonFutureDate.optional().nullable(),
+      isCurrent: z.boolean().optional(),
+      description: boundedText(FIELD_LIMITS.notes).optional().nullable(),
+    }).superRefine((value, ctx) => {
+      dateRange(value, ctx);
+      if (value.isCurrent && value.endDate) {
+        ctx.addIssue({ code: "custom", path: ["endDate"], message: "Current work must not have an end date" });
+      }
     }),
   }),
   addEducation: z.object({
     body: z.object({
-      school: z.string().min(1, "School is required").or(z.string()), // sometimes mapped from institution
-      institution: z.string().optional(),
-      degree: z.string().min(1, "Degree is required"),
-      field: z.string().min(1, "Field of study is required"),
-      startDate: z.string().min(1, "Start date is required"),
-      endDate: z.string().optional().nullable(),
-    }),
+      school: z.string().trim().min(1, "School is required").max(FIELD_LIMITS.shortText),
+      institution: boundedText(FIELD_LIMITS.shortText).optional(),
+      degree: z.string().trim().min(1, "Degree is required").max(FIELD_LIMITS.shortText),
+      field: z.string().trim().min(1, "Field of study is required").max(FIELD_LIMITS.shortText),
+      startDate: nonFutureDate,
+      endDate: dateOnly.optional().nullable(),
+      notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
+    }).superRefine(dateRange),
   }),
   updateSkills: z.object({
     body: z.object({
-      skills: z.array(z.string(), { message: "Skills array is required" }),
+      skills: z.array(z.string().trim().min(1).max(FIELD_LIMITS.label), { message: "Skills array is required" }).max(FIELD_LIMITS.skills)
+        .refine((skills) => new Set(skills.map((skill) => skill.toLowerCase())).size === skills.length, "Skills must not contain duplicates"),
     }),
   }),
   addTraining: z.object({
     body: z.object({
-      title: z.string().min(1, "Title is required"),
-      provider: z.string().min(1, "Provider is required"),
-      completionDate: z.string().optional().nullable(),
-      certificateNo: z.string().optional(),
-      notes: z.string().optional(),
+      title: z.string().trim().min(1, "Title is required").max(FIELD_LIMITS.shortText),
+      provider: z.string().trim().min(1, "Provider is required").max(FIELD_LIMITS.shortText),
+      completionDate: nonFutureDate.optional().nullable(),
+      certificateNo: boundedText(FIELD_LIMITS.label).optional().nullable(),
+      notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
     }),
   }),
   addReference: z.object({
     body: z.object({
-      name: z.string().min(1, "Name is required"),
-      relationship: z.string().min(1, "Relationship is required"),
-      phone: z
-        .string()
-        .optional()
-        .nullable()
-        .refine(
-          (val) => {
-            if (!val || val.trim() === "") return true;
-            const digits = val.replace(/\D/g, "");
-            return digits.length >= 7 && digits.length <= 12;
-          },
-          {
-            message: "Contact phone must not exceed 11 digits",
-          }
-        ),
-      email: z.string().email("Invalid email format").optional().or(z.literal("")),
-      notes: z.string().optional(),
+      name: z.string().trim().min(1, "Name is required").max(FIELD_LIMITS.name),
+      relationship: z.string().trim().min(1, "Relationship is required").max(FIELD_LIMITS.name),
+      phone: phoneValidation,
+      email: z.string().email("Invalid email format").max(FIELD_LIMITS.email).optional().or(z.literal("")),
+      notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
     }),
   }),
   addAsset: z.object({
     body: z.object({
-      label: z.string().min(1, "Label is required"),
-      notes: z.string().optional(),
+      label: z.string().trim().min(1, "Label is required").max(FIELD_LIMITS.label),
+      notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
     }),
   }),
   applyExtractedProfile: z.object({
     body: z.object({
       personalDetails: z.object({
-        firstName: z.string().optional(),
-        middleName: z.string().optional().nullable(),
-        lastName: z.string().optional(),
-        mobileNumber: z
-          .string()
-          .optional()
-          .nullable()
-          .refine(
-            (val) => {
-              if (!val || val.trim() === "") return true;
-              const digits = val.replace(/\D/g, "");
-              return digits.length >= 7 && digits.length <= 12;
-            },
-            {
-              message: "Mobile number must not exceed 11 digits",
-            }
-          ),
-        gender: z.string().optional().nullable(),
-        province: z.string().optional().nullable(),
-        city: z.string().optional().nullable(),
-        dateOfBirth: z.string().optional().nullable(),
-        birthPlace: z.string().optional().nullable(),
-        nationality: z.string().optional().nullable(),
-        civilStatus: z.string().optional().nullable(),
-        religion: z.string().optional().nullable(),
+        firstName: boundedText(FIELD_LIMITS.name).optional().nullable(),
+        middleName: boundedText(FIELD_LIMITS.name).optional().nullable(),
+        lastName: boundedText(FIELD_LIMITS.name).optional().nullable(),
+        mobileNumber: formattedMobile,
+        gender: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+        province: boundedText(FIELD_LIMITS.name).optional().nullable(),
+        city: boundedText(FIELD_LIMITS.name).optional().nullable(),
+        dateOfBirth: z.union([pastDate, z.literal("")]).optional().nullable(),
+        birthPlace: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+        nationality: boundedText(FIELD_LIMITS.name).optional().nullable(),
+        civilStatus: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+        barangay: boundedText(FIELD_LIMITS.barangay).optional().nullable(),
+        postalCode: z.string().regex(/^\d{4}$/).optional().nullable(),
         height: heightValidation,
         weight: weightValidation,
-        address: z.string().optional().nullable(),
-        preferredWorkLocations: z.string().optional().nullable(),
-        professionalSummary: z.string().optional().nullable(),
+        address: boundedText(FIELD_LIMITS.address).optional().nullable(),
+        preferredWorkLocations: boundedText(FIELD_LIMITS.notes).optional().nullable(),
+        professionalSummary: boundedText(FIELD_LIMITS.summary).optional().nullable(),
       }).optional(),
       overwriteExistingPersonal: z.boolean().optional(),
       workExperiences: z.array(
         z.object({
-          company: z.string().min(1),
-          roleTitle: z.string().min(1),
-          location: z.string().optional().nullable(),
-          startDate: z.string(),
-          endDate: z.string().optional().nullable(),
+          company: z.string().trim().min(1).max(FIELD_LIMITS.shortText),
+          roleTitle: z.string().trim().min(1).max(FIELD_LIMITS.shortText),
+          location: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+          startDate: nonFutureDate,
+          endDate: nonFutureDate.optional().nullable(),
           isCurrent: z.boolean().optional(),
-          summary: z.string().optional().nullable(),
+          summary: boundedText(FIELD_LIMITS.notes).optional().nullable(),
+        }).superRefine((value, ctx) => {
+          dateRange(value, ctx);
+          if (value.isCurrent && value.endDate) {
+            ctx.addIssue({ code: "custom", path: ["endDate"], message: "Current work must not have an end date" });
+          }
         })
-      ).optional(),
+      ).max(FIELD_LIMITS.records).optional(),
       educations: z.array(
         z.object({
-          school: z.string().min(1),
-          degree: z.string().optional().nullable(),
-          fieldOfStudy: z.string().optional().nullable(),
-          startDate: z.string().optional().nullable(),
-          endDate: z.string().optional().nullable(),
-          notes: z.string().optional().nullable(),
-        })
-      ).optional(),
-      skills: z.array(z.string()).optional(),
+          school: z.string().trim().min(1).max(FIELD_LIMITS.shortText),
+          degree: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+          fieldOfStudy: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+          startDate: nonFutureDate.optional().nullable(),
+          endDate: dateOnly.optional().nullable(),
+          notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
+        }).superRefine(dateRange)
+      ).max(FIELD_LIMITS.records).optional(),
+      skills: z.array(z.string().trim().min(1).max(FIELD_LIMITS.label)).max(FIELD_LIMITS.skills).optional(),
       trainings: z.array(
         z.object({
-          title: z.string().min(1),
-          provider: z.string().optional().nullable(),
-          completionDate: z.string().optional().nullable(),
-          certificateNo: z.string().optional().nullable(),
-          notes: z.string().optional().nullable(),
+          title: z.string().trim().min(1).max(FIELD_LIMITS.shortText),
+          provider: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+          completionDate: nonFutureDate.optional().nullable(),
+          certificateNo: boundedText(FIELD_LIMITS.label).optional().nullable(),
+          notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
         })
-      ).optional(),
+      ).max(FIELD_LIMITS.records).optional(),
       characterReferences: z.array(
         z.object({
-          name: z.string().min(1),
-          relationship: z.string().optional().nullable(),
-          company: z.string().optional().nullable(),
-          phone: z.string().optional().nullable(),
-          email: z.string().optional().nullable(),
-          notes: z.string().optional().nullable(),
+          name: z.string().trim().min(1).max(FIELD_LIMITS.name),
+          relationship: boundedText(FIELD_LIMITS.name).optional().nullable(),
+          company: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+          phone: phoneValidation,
+          email: z.string().email().max(FIELD_LIMITS.email).optional().nullable(),
+          notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
         })
-      ).optional(),
+      ).max(FIELD_LIMITS.records).optional(),
     }),
   }),
 };

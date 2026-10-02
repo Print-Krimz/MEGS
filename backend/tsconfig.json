@@ -6,6 +6,7 @@
     // NodeNext = modern Node.js module system (ESM-aware)
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "resolveJsonModule": true,
 
     // Where compiled .js files go (for production builds)
     "outDir": "./dist",

@@ -39,9 +39,9 @@ router.get(
 );
 
 // Individual employee routes with internal ownership & role authorization
-router.get("/:id", getEmployeeHandler);
-router.get("/:id/digital-201", getDigital201Handler);
-router.get("/:id/employment-history", getEmployeeEmploymentHistoryHandler);
+router.get("/:id", validate(employeeSchema.idParams), getEmployeeHandler);
+router.get("/:id/digital-201", validate(employeeSchema.idParams), getDigital201Handler);
+router.get("/:id/employment-history", validate(employeeSchema.idParams), getEmployeeEmploymentHistoryHandler);
 
 // Admin / TA Mutations
 router.patch(
@@ -54,6 +54,7 @@ router.patch(
 router.patch(
   "/:id/details",
   requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"),
+  validate(employeeSchema.updateDetails),
   updateEmployeeDetailsHandler
 );
 

@@ -12,10 +12,11 @@ import {
   DocumentPreviewModal,
   Tabs,
   ConfirmDialog,
+  PhilippineAddressFields,
 } from "../../components/common";
 import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
 import { InlineResumeViewer } from "../../components/ta/InlineResumeViewer";
-import { Button, Dialog, Input, Select, Textarea, ComboBox, PhoneInput, DateTimePicker } from "../../components/ui";
+import { Button, Dialog, Input, Select, Textarea, ComboBox, PhoneInput, DateTimePicker, dateTimeLocalToManilaIso, manilaIsoToDateTimeLocal } from "../../components/ui";
 import {
   formatSSSNumber,
   formatPhilHealthNumber,
@@ -60,6 +61,7 @@ import {
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import type { TAApplicationSearch } from "../../routes";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
+import { addManilaCalendarDays, getManilaToday } from "../../lib/field-limits";
 
 type TabKey = "evaluation" | "compliance" | "history";
 
@@ -851,6 +853,8 @@ export const ApplicationDetailPage: React.FC = () => {
     address: "",
     city: "",
     province: "",
+    barangay: "",
+    postalCode: "",
     tattooStatus: "NONE",
     sss: "",
     philhealth: "",
@@ -915,6 +919,8 @@ export const ApplicationDetailPage: React.FC = () => {
       address: profile.address || "",
       city: profile.city || "",
       province: profile.province || "",
+      barangay: profile.barangay || "",
+      postalCode: profile.postalCode || "",
       tattooStatus: profile.tattooStatus || "NONE",
       sss: profile.sss ? formatSSSNumber(profile.sss) : "",
       philhealth: profile.philhealth ? formatPhilHealthNumber(profile.philhealth) : "",
@@ -937,6 +943,16 @@ export const ApplicationDetailPage: React.FC = () => {
     }
     if (!profileForm.lastName.trim()) {
       notify.error("Validation Error", "Last name is required.");
+      return;
+    }
+    const addressChanged = ["address", "city", "province", "barangay", "postalCode"].some((field) => {
+      const key = field as keyof typeof profileForm;
+      const original = profile?.[key as keyof typeof profile];
+      return String(profileForm[key] || "").trim() !== String(original || "").trim();
+    });
+    const hasAddress = [profileForm.address, profileForm.city, profileForm.province, profileForm.barangay, profileForm.postalCode].some((value) => value.trim());
+    if (addressChanged && hasAddress && (!profileForm.city.trim() || !profileForm.province.trim() || !profileForm.barangay.trim() || !profileForm.postalCode.trim())) {
+      notify.error("Address is incomplete", "Enter the province, city, barangay, and postal code.");
       return;
     }
 
@@ -970,6 +986,8 @@ export const ApplicationDetailPage: React.FC = () => {
       address: profileForm.address.trim() || null,
       city: profileForm.city.trim() || null,
       province: profileForm.province.trim() || null,
+      barangay: profileForm.barangay.trim() || null,
+      postalCode: profileForm.postalCode.trim() || null,
       tattooStatus: (profileForm.tattooStatus as "NONE" | "NON_VISIBLE" | "VISIBLE") || null,
       sss: profileForm.sss.trim() || null,
       philhealth: profileForm.philhealth.trim() || null,
@@ -1317,9 +1335,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   onClick={() => {
                     setInterviewType(InterviewType.INITIAL_SCREENING);
                     setInterviewDate(
-                      pendingScreeningInterview?.scheduledAt
-                        ? new Date(pendingScreeningInterview.scheduledAt).toISOString().slice(0, 16)
-                        : ""
+                      manilaIsoToDateTimeLocal(pendingScreeningInterview?.scheduledAt)
                     );
                     setInterviewNotes(pendingScreeningInterview?.notes || "");
                     setInterviewModalOpen(true);
@@ -1458,9 +1474,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   onClick={() => {
                     setInterviewType(InterviewType.FINAL_INTERVIEW);
                     setInterviewDate(
-                      pendingFinalInterview?.scheduledAt
-                        ? new Date(pendingFinalInterview.scheduledAt).toISOString().slice(0, 16)
-                        : ""
+                      manilaIsoToDateTimeLocal(pendingFinalInterview?.scheduledAt)
                     );
                     setInterviewNotes(pendingFinalInterview?.notes || "");
                     setInterviewModalOpen(true);
@@ -1697,8 +1711,8 @@ export const ApplicationDetailPage: React.FC = () => {
                                 </div>
                                 <div className="grid grid-cols-3">
                                   <span className="text-slate-600 font-mono font-medium">Current Address:</span>
-                                  <span className="col-span-2 text-slate-800 truncate" title={[profile?.address, profile?.city, profile?.province].filter(Boolean).join(", ") || undefined}>
-                                    {[profile?.address, profile?.city, profile?.province].filter(Boolean).join(", ") || "Not provided"}
+                  <span className="col-span-2 text-slate-800 truncate" title={[profile?.address, profile?.barangay, profile?.city, profile?.province, profile?.postalCode].filter(Boolean).join(", ") || undefined}>
+                                    {[profile?.address, profile?.barangay, profile?.city, profile?.province, profile?.postalCode].filter(Boolean).join(", ") || "Not provided"}
                                   </span>
                                 </div>
                                 <div className="grid grid-cols-3">
@@ -1791,6 +1805,7 @@ export const ApplicationDetailPage: React.FC = () => {
                               <div className="grid grid-cols-2 gap-2">
                                 <Input
                                   label="First Name"
+                                  maxLength={100}
                                   required
                                   value={profileForm.firstName}
                                   onChange={(e) => setProfileForm((f) => ({ ...f, firstName: e.target.value }))}
@@ -1798,6 +1813,7 @@ export const ApplicationDetailPage: React.FC = () => {
                                 />
                                 <Input
                                   label="Last Name"
+                                  maxLength={100}
                                   required
                                   value={profileForm.lastName}
                                   onChange={(e) => setProfileForm((f) => ({ ...f, lastName: e.target.value }))}
@@ -1808,6 +1824,7 @@ export const ApplicationDetailPage: React.FC = () => {
                               <div className="grid grid-cols-2 gap-2">
                                 <Input
                                   label="Middle Name"
+                                  maxLength={100}
                                   value={profileForm.middleName}
                                   onChange={(e) => setProfileForm((f) => ({ ...f, middleName: e.target.value }))}
                                   placeholder="Middle name (optional)"
@@ -1815,6 +1832,7 @@ export const ApplicationDetailPage: React.FC = () => {
                                 <PhoneInput
                                   label="Contact Phone"
                                   value={profileForm.mobileNumber}
+                                  mobileOnly
                                   onChange={(val) => setProfileForm((f) => ({ ...f, mobileNumber: val }))}
                                   placeholder="0917 123 4567"
                                   helperText="Format: 09XX-XXX-XXXX"
@@ -1826,6 +1844,8 @@ export const ApplicationDetailPage: React.FC = () => {
                                   label="Date of Birth"
                                   type="date"
                                   value={profileForm.dateOfBirth}
+                                  min={profileForm.dateOfBirth && profileForm.dateOfBirth < "1900-01-01" ? profileForm.dateOfBirth : "1900-01-01"}
+                                  max={profileForm.dateOfBirth && profileForm.dateOfBirth > getManilaToday() ? profileForm.dateOfBirth : getManilaToday()}
                                   onChange={(e) => setProfileForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
                                 />
                                 <Select
@@ -1842,26 +1862,20 @@ export const ApplicationDetailPage: React.FC = () => {
                               <div>
                                 <Input
                                   label="Address"
+                                  maxLength={500}
                                   value={profileForm.address}
                                   onChange={(e) => setProfileForm((f) => ({ ...f, address: e.target.value }))}
                                   placeholder="House/Unit, Street, Barangay"
                                 />
                               </div>
 
-                              <div className="grid grid-cols-2 gap-2">
-                                <Input
-                                  label="City"
-                                  value={profileForm.city}
-                                  onChange={(e) => setProfileForm((f) => ({ ...f, city: e.target.value }))}
-                                  placeholder="e.g. Makati City"
-                                />
-                                <Input
-                                  label="Province"
-                                  value={profileForm.province}
-                                  onChange={(e) => setProfileForm((f) => ({ ...f, province: e.target.value }))}
-                                  placeholder="e.g. Metro Manila"
-                                />
-                              </div>
+                              <PhilippineAddressFields
+                                province={profileForm.province}
+                                city={profileForm.city}
+                                barangay={profileForm.barangay}
+                                postalCode={profileForm.postalCode}
+                                onChange={(patch) => setProfileForm((previous) => ({ ...previous, ...patch }))}
+                              />
 
                               <div>
                                 <Select
@@ -2729,7 +2743,7 @@ export const ApplicationDetailPage: React.FC = () => {
                       leftIcon={<Plus className="w-3.5 h-3.5" />}
                       onClick={() => {
                         setComplianceDocLabel("");
-                        setComplianceDeadline(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+                        setComplianceDeadline(addManilaCalendarDays(getManilaToday(), 7));
                         setComplianceModalOpen(true);
                       }}
                     >
@@ -3298,17 +3312,17 @@ export const ApplicationDetailPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              disabled={!interviewDate || new Date(interviewDate).getTime() < Date.now()}
+                  disabled={!interviewDate || !dateTimeLocalToManilaIso(interviewDate) || Date.parse(dateTimeLocalToManilaIso(interviewDate)) <= Date.now()}
               loading={scheduleInterviewMutation.isPending}
               onClick={() => {
-                const dateObj = new Date(interviewDate);
-                if (isNaN(dateObj.getTime()) || dateObj.getTime() < Date.now()) {
+                const scheduledAt = dateTimeLocalToManilaIso(interviewDate);
+                if (!scheduledAt || Date.parse(scheduledAt) <= Date.now()) {
                   notify.error("Invalid Date", "Please select a valid future date and time for the interview.");
                   return;
                 }
                 scheduleInterviewMutation.mutate({
                   type: interviewType,
-                  scheduledAt: new Date(interviewDate).toISOString(),
+                  scheduledAt,
                   notes: interviewNotes || undefined,
                 });
               }}
@@ -3570,7 +3584,7 @@ export const ApplicationDetailPage: React.FC = () => {
             type="date"
             value={complianceDeadline}
             onChange={(e) => setComplianceDeadline(e.target.value)}
-            min={new Date().toISOString().slice(0, 10)}
+            min={getManilaToday()}
           />
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
@@ -3592,7 +3606,7 @@ export const ApplicationDetailPage: React.FC = () => {
               onClick={() =>
                 addComplianceMutation.mutate({
                   documentLabel: complianceDocLabel.trim(),
-                  deadline: complianceDeadline ? new Date(complianceDeadline).toISOString() : undefined,
+                  deadline: complianceDeadline || undefined,
                   isRequired: true,
                 })
               }
@@ -3634,7 +3648,7 @@ export const ApplicationDetailPage: React.FC = () => {
             type="date"
             value={editDeadlineDate}
             onChange={(e) => setEditDeadlineDate(e.target.value)}
-            min={new Date().toISOString().slice(0, 10)}
+            min={editDeadlineDate && editDeadlineDate < getManilaToday() ? editDeadlineDate : getManilaToday()}
             required
           />
 
@@ -3683,7 +3697,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 if (editDeadlineReqId) {
                   updateDeadlineMutation.mutate({
                     id: editDeadlineReqId,
-                    deadline: editDeadlineDate ? new Date(editDeadlineDate).toISOString() : null,
+                    deadline: editDeadlineDate || null,
                   });
                 }
               }}
@@ -3767,6 +3781,8 @@ export const ApplicationDetailPage: React.FC = () => {
               label="Target completion date"
               value={toFollowDate}
               onChange={(e) => setToFollowDate(e.target.value)}
+              min={getManilaToday()}
+              max="2100-12-31"
               helperText="Target date for candidate to submit this requirement post-deployment"
             />
           )}
@@ -3919,7 +3935,7 @@ export const ApplicationDetailPage: React.FC = () => {
               type="date"
               value={deployContractStart}
               onChange={(e) => setDeployContractStart(e.target.value)}
-              min={new Date().toISOString().slice(0, 10)}
+              min={getManilaToday()}
               required
             />
             <Input
@@ -3927,7 +3943,7 @@ export const ApplicationDetailPage: React.FC = () => {
               type="date"
               value={deployContractEnd}
               onChange={(e) => setDeployContractEnd(e.target.value)}
-              min={deployStartDate || new Date().toISOString().slice(0, 10)}
+              min={deployStartDate || getManilaToday()}
               helperText="Optional for rolling contracts"
               error={
                 deployContractStart &&
@@ -3988,8 +4004,8 @@ export const ApplicationDetailPage: React.FC = () => {
                 deployMutation.mutate({
                   clientId: targetClientId,
                   site: deploySite || undefined,
-                  contractStart: deployContractStart ? new Date(deployContractStart).toISOString() : undefined,
-                  contractEnd: deployContractEnd ? new Date(deployContractEnd).toISOString() : undefined,
+                  contractStart: deployContractStart || undefined,
+                  contractEnd: deployContractEnd || undefined,
                   notes: deployNotes || undefined,
                 });
               }}
@@ -4224,6 +4240,7 @@ export const ApplicationDetailPage: React.FC = () => {
             type="date"
             value={orientationDate}
             onChange={(e) => setOrientationDate(e.target.value)}
+            max={getManilaToday()}
             required
           />
           <Textarea
@@ -4243,7 +4260,7 @@ export const ApplicationDetailPage: React.FC = () => {
               loading={completeOrientationMutation.isPending}
               onClick={() =>
                 completeOrientationMutation.mutate({
-                  orientationDate: orientationDate ? new Date(orientationDate).toISOString() : undefined,
+                  orientationDate: orientationDate || undefined,
                   orientationNotes: orientationNotes.trim() || undefined,
                 })
               }

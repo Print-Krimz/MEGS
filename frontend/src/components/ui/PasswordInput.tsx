@@ -75,6 +75,7 @@ export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputPro
             ref={ref}
             id={inputId}
             type={showPassword ? "text" : "password"}
+            maxLength={props.maxLength ?? 4096}
             disabled={disabled}
             value={value}
             defaultValue={defaultValue}

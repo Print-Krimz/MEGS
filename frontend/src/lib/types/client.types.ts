@@ -18,6 +18,7 @@ export interface Client {
   contactPhone?: string | null;
   address?: string | null;
   street?: string | null;
+  barangay?: string | null;
   city?: string | null;
   province?: string | null;
   postalCode?: string | null;
@@ -42,6 +43,7 @@ export interface CreateClientDto {
   contactPhone?: string;
   address?: string;
   street?: string;
+  barangay?: string;
   city?: string;
   province?: string;
   postalCode?: string;

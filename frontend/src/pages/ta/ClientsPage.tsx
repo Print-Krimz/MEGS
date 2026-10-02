@@ -14,10 +14,7 @@ import {
 import { Button, Dialog, Input, PhoneInput } from "../../components/ui";
 import { ComboBox } from "../../components/ui/ComboBox";
 import { formatDate } from "../../lib/utils";
-import {
-  PHILIPPINE_REGIONS_AND_PROVINCES,
-  getCitiesForProvince,
-} from "../../lib/geo-data";
+import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
 import { PHILIPPINE_INDUSTRY_SECTORS } from "../../lib/industry-data";
 import {
   Building2,
@@ -55,8 +52,8 @@ export const ClientsPage: React.FC = () => {
   const [street, setStreet] = useState("");
   const [province, setProvince] = useState("");
   const [city, setCity] = useState("");
+  const [barangay, setBarangay] = useState("");
   const [postalCode, setPostalCode] = useState("");
-  const [postalCodeError, setPostalCodeError] = useState<string | null>(null);
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
@@ -84,8 +81,8 @@ export const ClientsPage: React.FC = () => {
       setStreet("");
       setProvince("");
       setCity("");
+      setBarangay("");
       setPostalCode("");
-      setPostalCodeError(null);
       notify.success("Client added", `Client '${newClient?.name || name}' was registered.`);
     },
     onError: (err: any) => {
@@ -330,12 +327,12 @@ export const ClientsPage: React.FC = () => {
                         <span>{c.contactPhone}</span>
                       </div>
                     )}
-                    {(c.street || c.city || c.province || c.address) && (
+                    {(c.street || c.barangay || c.city || c.province || c.postalCode || c.address) && (
                       <div className="flex items-start gap-1.5 text-slate-600">
                         <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                         <span className="line-clamp-2">
                           {c.street || c.city || c.province
-                            ? [c.street, c.city, c.province, c.postalCode].filter(Boolean).join(", ")
+                            ? [c.street, c.barangay, c.city, c.province, c.postalCode].filter(Boolean).join(", ")
                             : c.address}
                         </span>
                       </div>
@@ -401,7 +398,6 @@ export const ClientsPage: React.FC = () => {
         open={createModalOpen}
         onClose={() => {
           setCreateModalOpen(false);
-          setPostalCodeError(null);
           setEmailError(null);
         }}
         title="Add client"
@@ -415,8 +411,9 @@ export const ClientsPage: React.FC = () => {
               setEmailError("Official contact email must be a valid @gmail.com address");
               return;
             }
-            if (postalCode.trim().length > 0 && postalCode.trim().length !== 4) {
-              setPostalCodeError("Postal code must be exactly 4 digits");
+            const hasAddress = [street, province, city, barangay, postalCode].some((value) => value.trim());
+            if (hasAddress && (!province.trim() || !city.trim() || !barangay.trim() || !postalCode.trim())) {
+              notify.error("Address is incomplete", "Enter the province, city, barangay, and postal code.");
               return;
             }
             const combinedName = [contactFirstName.trim(), contactLastName.trim()].filter(Boolean).join(" ");
@@ -428,6 +425,7 @@ export const ClientsPage: React.FC = () => {
               contactEmail: contactEmail.trim() || undefined,
               contactPhone: contactPhone.trim() || undefined,
               street: street.trim() || undefined,
+              barangay: barangay.trim() || undefined,
               province: province.trim() || undefined,
               city: city.trim() || undefined,
               postalCode: postalCode.trim() || undefined,
@@ -463,12 +461,14 @@ export const ClientsPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Contact first name"
+              maxLength={100}
               placeholder="e.g. Roberto"
               value={contactFirstName}
               onChange={(e) => setContactFirstName(e.target.value)}
             />
             <Input
               label="Contact last name"
+              maxLength={100}
               placeholder="e.g. Tan"
               value={contactLastName}
               onChange={(e) => setContactLastName(e.target.value)}
@@ -499,52 +499,24 @@ export const ClientsPage: React.FC = () => {
             <div className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
               Facility address
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <ComboBox
-                label="Province or region"
-                placeholder="Select or enter province..."
-                value={province}
-                onChange={(val) => {
-                  setProvince(val);
-                  setCity("");
-                }}
-                options={PHILIPPINE_REGIONS_AND_PROVINCES.map((p) => ({ value: p, label: p }))}
-                allowCustom
-              />
-              <ComboBox
-                label="City or municipality"
-                placeholder={province ? "Select city..." : "Select province first"}
-                value={city}
-                onChange={setCity}
-                options={getCitiesForProvince(province).map((c) => ({ value: c, label: c }))}
-                allowCustom
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2">
-                <Input
-                  label="Street or building address"
-                  placeholder="e.g. Bldg 4, Light Industry & Science Park II"
-                  value={street}
-                  onChange={(e) => setStreet(e.target.value)}
-                />
-              </div>
-              <div>
-                <Input
-                  label="Postal Code"
-                  placeholder="e.g. 4027"
-                  value={postalCode}
-                  maxLength={4}
-                  inputMode="numeric"
-                  helperText="4-digit PH postal code"
-                  error={postalCodeError || undefined}
-                  onChange={(e) => {
-                    setPostalCode(e.target.value.replace(/\D/g, "").slice(0, 4));
-                    if (postalCodeError) setPostalCodeError(null);
-                  }}
-                />
-              </div>
-            </div>
+            <Input
+              label="Street or building address"
+              placeholder="e.g. Bldg 4, Light Industry & Science Park II"
+              value={street}
+              onChange={(e) => setStreet(e.target.value)}
+            />
+            <PhilippineAddressFields
+              province={province}
+              city={city}
+              barangay={barangay}
+              postalCode={postalCode}
+              onChange={(patch) => {
+                if (patch.province !== undefined) setProvince(patch.province);
+                if (patch.city !== undefined) setCity(patch.city);
+                if (patch.barangay !== undefined) setBarangay(patch.barangay);
+                if (patch.postalCode !== undefined) setPostalCode(patch.postalCode);
+              }}
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">

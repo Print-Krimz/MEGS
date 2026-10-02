@@ -10,8 +10,9 @@ import {
   ErrorState,
   Tabs,
 } from "../../components/common";
-import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
+import { Button, Dialog, Input, PhoneInput, Select, Textarea } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
+import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
 import { notify } from "../../lib/feedback";
 import {
   formatSSSNumber,
@@ -83,6 +84,8 @@ export const EmployeeDetailPage: React.FC = () => {
     address: "",
     city: "",
     province: "",
+    barangay: "",
+    postalCode: "",
     sss: "",
     philhealth: "",
     pagibig: "",
@@ -163,7 +166,7 @@ export const EmployeeDetailPage: React.FC = () => {
           .map((s: any) => (typeof s === "string" ? s : s.skill?.name || s.name || ""))
           .filter(Boolean)
       : [];
-  const fullAddress = [cand.address, cand.city, cand.province].filter(Boolean).join(", ") || "N/A";
+  const fullAddress = [cand.address, cand.barangay, cand.city, cand.province, cand.postalCode].filter(Boolean).join(", ") || "N/A";
   const emergencyContactInfo = cand.emergencyContactName
     ? `${cand.emergencyContactName}${cand.emergencyContactRelationship ? ` (${cand.emergencyContactRelationship})` : ""}${cand.emergencyContactPhone ? ` • ${cand.emergencyContactPhone}` : ""}`
     : "N/A";
@@ -177,6 +180,8 @@ export const EmployeeDetailPage: React.FC = () => {
       address: cand.address || "",
       city: cand.city || "",
       province: cand.province || "",
+      barangay: cand.barangay || "",
+      postalCode: cand.postalCode || "",
       sss: cand.sss ? formatSSSNumber(cand.sss) : "",
       philhealth: cand.philhealth ? formatPhilHealthNumber(cand.philhealth) : "",
       pagibig: cand.pagibig ? formatPagIbigNumber(cand.pagibig) : "",
@@ -205,6 +210,8 @@ export const EmployeeDetailPage: React.FC = () => {
       address: editForm.address.trim() || null,
       city: editForm.city.trim() || null,
       province: editForm.province.trim() || null,
+      barangay: editForm.barangay.trim() || null,
+      postalCode: editForm.postalCode.trim() || null,
       sss: editForm.sss.trim() || null,
       philhealth: editForm.philhealth.trim() || null,
       pagibig: editForm.pagibig.trim() || null,
@@ -558,33 +565,30 @@ export const EmployeeDetailPage: React.FC = () => {
               Contact & Location
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Input
+              <PhoneInput
                 label="Contact Mobile"
                 value={editForm.mobileNumber}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, mobileNumber: e.target.value }))}
+                mobileOnly
+                onChange={(value) => setEditForm((prev) => ({ ...prev, mobileNumber: value }))}
                 placeholder="0917-000-0000"
-              />
-              <Input
-                label="City"
-                value={editForm.city}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, city: e.target.value }))}
-                placeholder="City"
-              />
-              <Input
-                label="Province"
-                value={editForm.province}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, province: e.target.value }))}
-                placeholder="Province"
               />
             </div>
             <div>
               <Input
                 label="Residential Address"
+                maxLength={500}
                 value={editForm.address}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, address: e.target.value }))}
                 placeholder="Street address, building, or barangay"
               />
             </div>
+            <PhilippineAddressFields
+              province={editForm.province}
+              city={editForm.city}
+              barangay={editForm.barangay}
+              postalCode={editForm.postalCode}
+              onChange={(patch) => setEditForm((previous) => ({ ...previous, ...patch }))}
+            />
           </div>
 
           {/* Section 3: Statutory Identification */}

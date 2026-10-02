@@ -1,83 +1,88 @@
 import { z } from "zod";
+import { FIELD_LIMITS } from "./field-limits.js";
+
+const email = z.string().email("Invalid email format").max(FIELD_LIMITS.email);
+const password = (message: string) => z.string().min(8, message).max(FIELD_LIMITS.password);
+const token = z.string().min(1).max(FIELD_LIMITS.authToken);
 
 export const authSchema = {
   register: z.object({
     body: z.object({
-      email: z.string().email("Invalid email format"),
-      password: z.string().min(8, "Password must be at least 8 characters long"),
+      email,
+      password: password("Password must be at least 8 characters long"),
     }),
   }),
   login: z.object({
     body: z.object({
-      email: z.string().email("Invalid email format"),
-      password: z.string().min(1, "Password is required"),
+      email,
+      password: z.string().min(1, "Password is required").max(FIELD_LIMITS.password),
     }),
   }),
   forgotPassword: z.object({
     body: z.object({
-      email: z.string().email("Invalid email format"),
+      email,
     }),
   }),
   resetPassword: z.object({
     body: z.object({
-      token: z.string().min(1, "Reset token is required"),
-      password: z.string().min(8, "Password must be at least 8 characters long"),
+      token,
+      password: password("Password must be at least 8 characters long"),
     }),
   }),
   changePassword: z.object({
     body: z.object({
-      currentPassword: z.string().min(1, "Current password is required"),
-      newPassword: z.string().min(8, "New password must be at least 8 characters long"),
+      currentPassword: z.string().min(1, "Current password is required").max(FIELD_LIMITS.password),
+      newPassword: password("New password must be at least 8 characters long"),
     }),
   }),
   setupAccount: z.object({
     body: z.object({
-      token: z.string().min(1, "Setup token is required"),
-      password: z.string().min(8, "Password must be at least 8 characters long"),
+      token,
+      password: password("Password must be at least 8 characters long"),
     }),
   }),
   getInvitationDetails: z.object({
     query: z.object({
-      token: z.string().min(1, "Invitation token is required"),
+      token,
     }),
   }),
   verifyOtp: z.object({
     body: z.object({
-      email: z.string().email("Invalid email format"),
+      email,
       otp: z.string().regex(/^\d{6}$/, "Verification code must be exactly 6 numeric digits"),
       purpose: z.enum(["REGISTRATION", "PASSWORD_RESET"]),
     }),
   }),
   resendOtp: z.object({
     body: z.object({
-      email: z.string().email("Invalid email format"),
+      email,
       purpose: z.enum(["REGISTRATION", "PASSWORD_RESET"]),
     }),
   }),
   enrollMfa: z.object({
     body: z.object({
-      token: z.string().optional(),
+      token: token.optional(),
     }),
   }),
   verifyMfaEnrollment: z.object({
     body: z.object({
-      token: z.string().min(1, "Authentication token is required"),
-      factorId: z.string().min(1, "Factor ID is required"),
+      token,
+      factorId: z.string().min(1, "Factor ID is required").max(FIELD_LIMITS.shortText),
       code: z.string().regex(/^\d{6}$/, "MFA code must be exactly 6 digits"),
     }),
   }),
   verifyMfaLogin: z.object({
     body: z.object({
-      token: z.string().min(1, "Authentication token is required"),
-      factorId: z.string().min(1, "Factor ID is required"),
-      challengeId: z.string().min(1, "Challenge ID is required"),
+      token,
+      factorId: z.string().min(1, "Factor ID is required").max(FIELD_LIMITS.shortText),
+      challengeId: z.string().min(1, "Challenge ID is required").max(FIELD_LIMITS.shortText),
       code: z.string().regex(/^\d{6}$/, "MFA code must be exactly 6 digits"),
     }),
   }),
   verifyMfaRecovery: z.object({
     body: z.object({
-      token: z.string().min(1, "Authentication token is required"),
-      recoveryCode: z.string().min(8, "Recovery code is required"),
+      token,
+      recoveryCode: z.string().min(8, "Recovery code is required").max(FIELD_LIMITS.shortText),
     }),
   }),
 };

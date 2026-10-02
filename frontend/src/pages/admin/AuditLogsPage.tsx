@@ -429,6 +429,8 @@ export const AuditLogsPage: React.FC = () => {
             <div className="flex items-center gap-1.5 ml-2">
               <input
                 type="date"
+                min="1900-01-01"
+                max={endDate || "2100-12-31"}
                 value={startDate}
                 onChange={(e) => {
                   setStartDate(e.target.value);
@@ -440,6 +442,8 @@ export const AuditLogsPage: React.FC = () => {
               <span className="text-slate-400 text-xs">to</span>
               <input
                 type="date"
+                min={startDate || "1900-01-01"}
+                max="2100-12-31"
                 value={endDate}
                 onChange={(e) => {
                   setEndDate(e.target.value);

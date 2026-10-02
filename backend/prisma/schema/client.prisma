@@ -12,6 +12,7 @@ model Client {
   contactPhone String?
   address      String?
   street       String?
+  barangay     String?
   city         String?
   province     String?
   postalCode   String?

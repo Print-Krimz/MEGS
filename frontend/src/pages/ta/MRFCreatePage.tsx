@@ -13,6 +13,7 @@ import {
   MRF_EXPERIENCE_OPTIONS,
 } from "../../lib/hr-constants";
 import { TA_COPY } from "../../lib/ta-copy";
+import { getManilaToday } from "../../lib/field-limits";
 import {
   getMRFPresetById,
   getPresetsByIndustry,
@@ -58,53 +59,17 @@ export const MRFCreatePage: React.FC = () => {
 
   const handleHeadcountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    if (val === "") {
-      setHeadcount("");
-      return;
-    }
-    const num = parseInt(val, 10);
-    if (isNaN(num)) return;
-    if (num < 1) {
-      setHeadcount(1);
-    } else if (num > 1000) {
-      setHeadcount(1000);
-    } else {
-      setHeadcount(num);
-    }
+    setHeadcount(val);
   };
 
   const handleSalaryMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    if (val === "") {
-      setSalaryMin("");
-      return;
-    }
-    const num = parseFloat(val);
-    if (isNaN(num)) return;
-    if (num < 0) {
-      setSalaryMin("0");
-    } else if (num > 1000000) {
-      setSalaryMin("1000000");
-    } else {
-      setSalaryMin(val);
-    }
+    setSalaryMin(val);
   };
 
   const handleSalaryMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    if (val === "") {
-      setSalaryMax("");
-      return;
-    }
-    const num = parseFloat(val);
-    if (isNaN(num)) return;
-    if (num < 0) {
-      setSalaryMax("0");
-    } else if (num > 1000000) {
-      setSalaryMax("1000000");
-    } else {
-      setSalaryMax(val);
-    }
+    setSalaryMax(val);
   };
 
   const handleAgeMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,7 +127,7 @@ export const MRFCreatePage: React.FC = () => {
     if (numericId) {
       const chosenClient = clients.find((c) => c.id === numericId);
       if (chosenClient) {
-        const fullAddr = [chosenClient.street, chosenClient.city, chosenClient.province, chosenClient.postalCode]
+        const fullAddr = [chosenClient.street, chosenClient.barangay, chosenClient.city, chosenClient.province, chosenClient.postalCode]
           .filter(Boolean)
           .join(", ") || chosenClient.address;
         if (fullAddr && (!location || location === "Philippines")) {
@@ -316,7 +281,7 @@ export const MRFCreatePage: React.FC = () => {
       headcount: parsedHeadcount,
       priority,
       location: location || undefined,
-      targetFillDate: targetFillDate ? new Date(targetFillDate).toISOString() : undefined,
+      targetFillDate: targetFillDate || undefined,
       requiredSkills: requiredSkills || undefined,
       requiredExperience: requiredExperience || undefined,
       requiredEducation: requiredEducation || undefined,
@@ -459,6 +424,7 @@ export const MRFCreatePage: React.FC = () => {
             <Input
               label="Target fill date"
               type="date"
+              min={getManilaToday()}
               value={targetFillDate}
               onChange={(e) => setTargetFillDate(e.target.value)}
             />
@@ -504,6 +470,7 @@ export const MRFCreatePage: React.FC = () => {
               type="number"
               min={0}
               max={1000000}
+              step="0.01"
               placeholder="e.g. 18000"
               value={salaryMin}
               onChange={handleSalaryMinChange}
@@ -513,6 +480,7 @@ export const MRFCreatePage: React.FC = () => {
               type="number"
               min={0}
               max={1000000}
+              step="0.01"
               placeholder="e.g. 25000"
               value={salaryMax}
               onChange={handleSalaryMaxChange}
@@ -584,6 +552,7 @@ export const MRFCreatePage: React.FC = () => {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
+            maxLength={10000}
           />
         </div>
 

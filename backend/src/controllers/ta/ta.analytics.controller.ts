@@ -144,9 +144,10 @@ export const getDeploymentStatsHandler = async (req: Request, res: Response): Pr
   }
 };
 
-export const getComplianceOverviewHandler = async (_req: Request, res: Response): Promise<void> => {
+export const getComplianceOverviewHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    const stats = await getComplianceOverview();
+    const stage = req.query.stage as string | undefined;
+    const stats = await getComplianceOverview(stage ? [stage] : undefined);
     sendSuccess(res, "Compliance overview retrieved", stats);
   } catch (error: any) {
     sendError(res, error.message, 500);

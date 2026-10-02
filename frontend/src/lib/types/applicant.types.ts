@@ -81,6 +81,8 @@ export interface ApplicantProfile {
   gender?: string | null;
   province?: string | null;
   city?: string | null;
+  barangay?: string | null;
+  postalCode?: string | null;
   dateOfBirth?: string | null;
   birthPlace?: string | null;
   nationality?: string | null;
@@ -125,6 +127,8 @@ export interface UpsertProfileDto {
   gender?: string;
   province?: string;
   city?: string;
+  barangay?: string;
+  postalCode?: string;
   dateOfBirth?: string;
   birthPlace?: string;
   nationality?: string;
@@ -238,6 +242,8 @@ export interface ExtractedProfileData {
   address?: string;
   city?: string;
   province?: string;
+  barangay?: string;
+  postalCode?: string;
   preferredWorkLocations?: string;
   professionalSummary?: string;
   skills?: string[];
@@ -285,6 +291,8 @@ export interface ApplyExtractedProfileDto {
     gender?: string;
     province?: string;
     city?: string;
+  barangay?: string;
+  postalCode?: string;
     dateOfBirth?: string;
     birthPlace?: string;
     nationality?: string;

@@ -1,4 +1,5 @@
 import prisma from "../../utils/prisma.js";
+import { isValidDateOnly, manilaDateString, parseManilaDateOnly } from "../../schemas/field-limits.js";
 import { ApplicationStatus } from "@prisma/client";
 
 export interface AnalyticsFilterDto {
@@ -135,45 +136,35 @@ export interface AnalyticsFilterOptionsResult {
 // ─────────────────────────────────────────────
 export function parseDateRange(filters: AnalyticsFilterDto): { start: Date; end: Date; days: number; dateKeys: string[] } {
   const range = filters.range || "7d";
-  const now = new Date();
+  const today = manilaDateString();
+  const addDays = (day: string, delta: number) => {
+    const [year, month, date] = day.split("-").map(Number);
+    const result = new Date(Date.UTC(year, month - 1, date + delta));
+    return `${result.getUTCFullYear()}-${String(result.getUTCMonth() + 1).padStart(2, "0")}-${String(result.getUTCDate()).padStart(2, "0")}`;
+  };
 
-  let start: Date;
-  let end: Date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
-  if (range === "custom" && filters.startDate && filters.endDate) {
-    start = new Date(filters.startDate);
-    start.setHours(0, 0, 0, 0);
-    end = new Date(filters.endDate);
-    end.setHours(23, 59, 59, 999);
-  } else if (range === "30d") {
-    start = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
-    start.setHours(0, 0, 0, 0);
-  } else if (range === "90d") {
-    start = new Date(now.getTime() - 89 * 24 * 60 * 60 * 1000);
-    start.setHours(0, 0, 0, 0);
+  let startDay: string;
+  let endDay: string;
+  if (range === "custom") {
+    if (!filters.startDate || !filters.endDate || !isValidDateOnly(filters.startDate) || !isValidDateOnly(filters.endDate) || filters.startDate > filters.endDate) {
+      throw new Error("Custom date range must contain valid dates with start on or before end.");
+    }
+    startDay = filters.startDate;
+    endDay = filters.endDate;
   } else {
-    // Default 7d
-    start = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
-    start.setHours(0, 0, 0, 0);
+    const days = range === "30d" ? 30 : range === "90d" ? 90 : 7;
+    startDay = addDays(today, -(days - 1));
+    endDay = today;
   }
 
-  if (start > end) {
-    const temp = start;
-    start = end;
-    end = temp;
-  }
-
+  const start = parseManilaDateOnly(startDay);
+  const end = new Date(parseManilaDateOnly(endDay).getTime() + 86_400_000 - 1);
   const dateKeys: string[] = [];
-  const curr = new Date(start);
-  while (curr <= end) {
-    dateKeys.push(curr.toISOString().split("T")[0]);
-    curr.setDate(curr.getDate() + 1);
-  }
-
-  const diffMs = end.getTime() - start.getTime();
-  const days = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)));
-
-  return { start, end, days, dateKeys };
+  const [startYear, startMonth, startDate] = startDay.split("-").map(Number);
+  const [endYear, endMonth, endDate] = endDay.split("-").map(Number);
+  const totalDays = Math.floor((Date.UTC(endYear, endMonth - 1, endDate) - Date.UTC(startYear, startMonth - 1, startDate)) / 86_400_000) + 1;
+  for (let offset = 0; offset < totalDays; offset++) dateKeys.push(addDays(startDay, offset));
+  return { start, end, days: totalDays, dateKeys };
 }
 
 // ─────────────────────────────────────────────
@@ -1365,13 +1356,24 @@ export const getDeploymentStats = async (clientId?: number) => {
   };
 };
 
-export const getComplianceOverview = async () => {
+export const getComplianceOverview = async (scopeStatuses?: string[]) => {
+  const allowedStatuses = scopeStatuses && scopeStatuses.length > 0
+    ? scopeStatuses
+    : ["COMPLIANCE", "CONTRACT_AND_ORIENTATION"];
+
+  const where = {
+    application: {
+      status: { in: allowedStatuses as any },
+    },
+  };
+
   const counts = await prisma.complianceRequirement.groupBy({
     by: ["reviewStatus"],
+    where,
     _count: { _all: true },
   });
 
-  const total = await prisma.complianceRequirement.count();
+  const total = await prisma.complianceRequirement.count({ where });
 
   const statusBreakdown: Record<string, number> = {};
   for (const c of counts) {

@@ -1,5 +1,6 @@
-import React, { useId } from "react";
+import React, { useEffect, useId, useState } from "react";
 import { cn } from "../../lib/utils";
+import { FIELD_LIMITS, getTextareaTextLimit } from "../../lib/field-limits";
 
 export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
@@ -16,6 +17,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       error,
       id,
       rows = 3,
+      maxLength,
       disabled,
       required,
       ...props
@@ -26,6 +28,12 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     const textareaId = id || generatedId;
     const errorId = `${textareaId}-error`;
     const helperId = `${textareaId}-helper`;
+    const effectiveMaxLength = maxLength ?? getTextareaTextLimit(label, FIELD_LIMITS.notes);
+    const initialLength = typeof props.value === "string" ? props.value.length : typeof props.defaultValue === "string" ? props.defaultValue.length : 0;
+    const [draftLength, setDraftLength] = useState(initialLength);
+    useEffect(() => {
+      if (typeof props.value === "string") setDraftLength(props.value.length);
+    }, [props.value]);
 
     return (
       <div className="w-full space-y-1.5 text-left">
@@ -40,6 +48,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           id={textareaId}
           rows={rows}
+          maxLength={effectiveMaxLength}
           disabled={disabled}
           required={required}
           aria-invalid={Boolean(error)}
@@ -55,7 +64,17 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             className
           )}
           {...props}
+          onChange={(event) => {
+            setDraftLength(event.target.value.length);
+            props.onChange?.(event);
+          }}
         />
+
+        {effectiveMaxLength > FIELD_LIMITS.notes && (
+          <p className="text-[11px] text-slate-500 text-right" aria-label={`${draftLength} of ${effectiveMaxLength} characters used`}>
+            {draftLength.toLocaleString()} / {effectiveMaxLength.toLocaleString()}
+          </p>
+        )}
 
         {error && (
           <p id={errorId} className="text-xs text-rose-600 font-medium">

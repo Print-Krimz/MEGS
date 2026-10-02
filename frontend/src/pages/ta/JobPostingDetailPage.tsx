@@ -916,6 +916,7 @@ export const JobPostingDetailPage: React.FC = () => {
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 rows={4}
+                maxLength={10000}
                 required
               />
               <Textarea
@@ -923,6 +924,7 @@ export const JobPostingDetailPage: React.FC = () => {
                 value={editRequirements}
                 onChange={(e) => setEditRequirements(e.target.value)}
                 rows={4}
+                maxLength={10000}
                 required
               />
 

@@ -33,6 +33,7 @@ export function formatDate(dateString?: string | null): string {
       month: "short",
       day: "numeric",
       year: "numeric",
+      timeZone: "Asia/Manila",
     }).format(d);
   } catch {
     return dateString;
@@ -53,6 +54,7 @@ export function formatDateTime(dateString?: string | null): string {
       year: "numeric",
       hour: "numeric",
       minute: "2-digit",
+      timeZone: "Asia/Manila",
     }).format(d);
   } catch {
     return dateString;

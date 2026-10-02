@@ -14,6 +14,8 @@ import {
   type ExtractedProfileData,
 } from "../../utils/gemini.js";
 import { normalizeTitleCase, normalizeSentenceCase } from "../../utils/text-case.js";
+import { validateStructuredAddress } from "../../utils/address-validation.js";
+import { isValidDateOnly, manilaDateString } from "../../schemas/field-limits.js";
 
 export type { ExtractedProfileData };
 
@@ -120,6 +122,8 @@ export const upsertApplicantProfile = async (userId: string, data: any) => {
   if (data.gender !== undefined) updateData.gender = sanitizeString(data.gender);
   if (data.province !== undefined) updateData.province = sanitizeString(data.province);
   if (data.city !== undefined) updateData.city = sanitizeString(data.city);
+  if (data.barangay !== undefined) updateData.barangay = sanitizeString(data.barangay);
+  if (data.postalCode !== undefined) updateData.postalCode = sanitizeString(data.postalCode);
   if (data.dateOfBirth !== undefined) updateData.dateOfBirth = sanitizeDate(data.dateOfBirth);
   if (data.birthPlace !== undefined) updateData.birthPlace = sanitizeString(data.birthPlace);
   if (data.nationality !== undefined) updateData.nationality = sanitizeString(data.nationality);
@@ -141,6 +145,21 @@ export const upsertApplicantProfile = async (userId: string, data: any) => {
   if (data.additionalNotes !== undefined) updateData.additionalNotes = sanitizeString(data.additionalNotes);
 
   const existing = await prisma.applicantProfile.findUnique({ where: { userId } });
+  if (data.dateOfBirth) {
+    const nextDob = String(data.dateOfBirth).slice(0, 10);
+    const existingDob = existing?.dateOfBirth?.toISOString().slice(0, 10);
+    if (nextDob !== existingDob && (!isValidDateOnly(nextDob) || nextDob >= manilaDateString())) {
+      throw new Error("Date of birth must be a valid date before today.");
+    }
+  }
+  const addressFields = {
+    province: updateData.province !== undefined ? updateData.province : existing?.province,
+    city: updateData.city !== undefined ? updateData.city : existing?.city,
+    barangay: updateData.barangay !== undefined ? updateData.barangay : existing?.barangay,
+    postalCode: updateData.postalCode !== undefined ? updateData.postalCode : existing?.postalCode,
+    address: updateData.address !== undefined ? updateData.address : existing?.address,
+  };
+  validateStructuredAddress(addressFields, existing ?? undefined);
 
   let profile;
   if (existing) {
@@ -159,6 +178,8 @@ export const upsertApplicantProfile = async (userId: string, data: any) => {
         gender: updateData.gender ?? null,
         province: updateData.province ?? null,
         city: updateData.city ?? null,
+        barangay: updateData.barangay ?? null,
+        postalCode: updateData.postalCode ?? null,
         dateOfBirth: updateData.dateOfBirth ?? null,
         birthPlace: updateData.birthPlace ?? null,
         nationality: updateData.nationality ?? null,
@@ -515,6 +536,8 @@ export interface ApplyExtractedProfileDto {
     gender?: string;
     province?: string;
     city?: string;
+      barangay?: string;
+      postalCode?: string;
     dateOfBirth?: string;
     birthPlace?: string;
     nationality?: string;
@@ -705,6 +728,8 @@ export const applyExtractedProfileService = async (
       "gender",
       "province",
       "city",
+      "barangay",
+      "postalCode",
       "birthPlace",
       "nationality",
       "civilStatus",
@@ -714,7 +739,17 @@ export const applyExtractedProfileService = async (
       "professionalSummary",
     ];
 
-    for (const field of fieldsToProcess) {
+    // A parsed resume can provide an address line without reliable structured locality fields.
+    // Preserve that data until the applicant provides a complete, validated structured address.
+    const hasConfirmedStructuredAddress = Boolean(
+      (profile.barangay?.trim() || personal.barangay?.trim()) &&
+      (profile.postalCode?.trim() || personal.postalCode?.trim())
+    );
+    const fieldsEligibleForAddress = fieldsToProcess.filter((field) =>
+      hasConfirmedStructuredAddress || !["province", "city", "address", "barangay", "postalCode"].includes(field)
+    );
+
+    for (const field of fieldsEligibleForAddress) {
       let incomingVal = sanitizeString(personal[field]);
       if (incomingVal !== undefined && incomingVal !== null) {
         if (field === "professionalSummary") {
@@ -791,6 +826,13 @@ export const applyExtractedProfileService = async (
       changeSummary.personalFieldsAdded + changeSummary.personalFieldsUpdated;
 
     if (Object.keys(updateData).length > 0) {
+      validateStructuredAddress({
+        province: updateData.province !== undefined ? updateData.province : profile.province,
+        city: updateData.city !== undefined ? updateData.city : profile.city,
+        barangay: updateData.barangay !== undefined ? updateData.barangay : profile.barangay,
+        postalCode: updateData.postalCode !== undefined ? updateData.postalCode : profile.postalCode,
+        address: updateData.address !== undefined ? updateData.address : profile.address,
+      }, profile);
       await prisma.applicantProfile.update({
         where: { id: profile.id },
         data: updateData,

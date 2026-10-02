@@ -210,6 +210,8 @@ export interface TalentPoolCandidate {
   lastName: string;
   city?: string | null;
   province?: string | null;
+  barangay?: string | null;
+  postalCode?: string | null;
   currentRole?: string | null;
   skills: string[];
   availability: CandidateAvailability;
@@ -282,6 +284,8 @@ export interface UpdateCandidateProfileDto {
   gender?: string | null;
   city?: string | null;
   province?: string | null;
+  barangay?: string | null;
+  postalCode?: string | null;
   tattooStatus?: "NONE" | "NON_VISIBLE" | "VISIBLE" | string | null;
   sss?: string | null;
   philhealth?: string | null;

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { sendSuccess, sendError } from "../../utils/response.js";
+import { isValidDateOnly, manilaDateString, toManilaDateOnly } from "../../schemas/field-limits.js";
 import {
   createDeployment,
   updateDeploymentStatus,
@@ -25,20 +26,35 @@ export const createDeploymentHandler = async (req: Request, res: Response): Prom
       return;
     }
 
-    const startDate = new Date(contractStart);
-    if (isNaN(startDate.getTime())) {
+    let startDay: string;
+    try {
+      startDay = toManilaDateOnly(contractStart);
+    } catch {
       sendError(res, "Contract start date must be a valid date", 400);
       return;
     }
+    if (!isValidDateOnly(startDay)) {
+      sendError(res, "Contract start date must be a valid date from 1900 through 2100", 400);
+      return;
+    }
+    if (startDay < manilaDateString()) {
+      sendError(res, "A new contract start date must be today or later", 400);
+      return;
+    }
 
-    let endDate: Date | undefined;
+    let endDay: string | undefined;
     if (contractEnd) {
-      endDate = new Date(contractEnd);
-      if (isNaN(endDate.getTime())) {
+      try {
+        endDay = toManilaDateOnly(contractEnd);
+      } catch {
         sendError(res, "Contract end date must be a valid date", 400);
         return;
       }
-      if (startDate > endDate) {
+      if (!isValidDateOnly(endDay)) {
+        sendError(res, "Contract end date must be a valid date from 1900 through 2100", 400);
+        return;
+      }
+      if (startDay > endDay) {
         sendError(res, "Contract start date cannot be after contract end date", 400);
         return;
       }

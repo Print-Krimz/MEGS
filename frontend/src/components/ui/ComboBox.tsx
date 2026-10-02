@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useId } from "react";
 import { ChevronDown, Check, X, Search } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { FIELD_LIMITS, getInputTextLimit } from "../../lib/field-limits";
 
 export interface ComboBoxOption {
   value: string;
@@ -22,6 +23,7 @@ export interface ComboBoxProps {
   disabled?: boolean;
   clearable?: boolean;
   allowCustom?: boolean;
+  maxLength?: number;
   emptyText?: string;
   className?: string;
   id?: string;
@@ -41,6 +43,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
   disabled,
   clearable = true,
   allowCustom = false,
+  maxLength,
   emptyText = "No matching options found",
   className,
   id: customId,
@@ -300,6 +303,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
           required={required}
           placeholder={placeholder}
           value={searchQuery}
+          maxLength={maxLength ?? getInputTextLimit(label, "text", FIELD_LIMITS.shortText)}
           onChange={handleInputChange}
           onFocus={handleInputFocus}
           onClick={handleInputClick}

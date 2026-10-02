@@ -17,6 +17,8 @@ model ApplicantProfile {
   gender       String?
   province     String?
   city         String?
+  barangay     String?
+  postalCode   String?
   dateOfBirth  DateTime?
   birthPlace   String?
   nationality  String?

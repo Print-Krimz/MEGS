@@ -3,6 +3,7 @@ import supabase from '../../utils/supabase.js';
 import { logAudit } from '../../utils/audit.js';
 import { sendMail, sendTAInvitationEmail } from '../../utils/mailer.js';
 import { generateSecureToken, hashToken } from '../../utils/otp.js';
+import { parseManilaDateOnly } from "../../schemas/field-limits.js";
 import crypto from "crypto";
 
 export const inviteTA = async (
@@ -331,18 +332,15 @@ export const fetchAuditLogs = async (filters: {
   if (startDate || endDate) {
     where.createdAt = {};
     if (startDate) {
-      const parsedStart = new Date(startDate);
+      const parsedStart = parseManilaDateOnly(startDate);
       if (!isNaN(parsedStart.getTime())) {
         where.createdAt.gte = parsedStart;
       }
     }
     if (endDate) {
-      const parsedEnd = new Date(endDate);
+      const parsedEnd = parseManilaDateOnly(endDate);
       if (!isNaN(parsedEnd.getTime())) {
-        // If date without time (e.g. YYYY-MM-DD), set to end of day
-        if (endDate.length <= 10) {
-          parsedEnd.setHours(23, 59, 59, 999);
-        }
+        parsedEnd.setTime(parsedEnd.getTime() + 86_400_000 - 1);
         where.createdAt.lte = parsedEnd;
       }
     }

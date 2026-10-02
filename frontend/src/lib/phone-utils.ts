@@ -9,13 +9,20 @@
 export function sanitizePhilippinePhone(raw: string): string {
   if (!raw) return "";
 
+  // Preserve invalid or multi-number pastes so validation can reject them instead of
+  // silently truncating a second number to the first 11 digits.
+  if (!/^\+?[0-9\s().-]*$/.test(raw) || (raw.match(/\+/g)?.length ?? 0) > 1) return raw;
+
   // Strip non-digit characters
   let digits = raw.replace(/\D/g, "");
 
   // If user pasted/typed with country code (63), strip the 63 prefix to get local national number
   if (digits.startsWith("63") && digits.length > 10) {
     digits = digits.slice(2);
+    if (!digits.startsWith("0") && !digits.startsWith("9")) digits = `0${digits}`;
   }
+
+  if (digits.length > 11) return raw;
 
   // Strictly limit to 11 digits max (or 10 digits if starting with 9 after +63)
   if (digits.startsWith("0")) {
@@ -36,6 +43,13 @@ export function sanitizePhilippinePhone(raw: string): string {
 export function formatPhilippinePhoneDisplay(raw: string): string {
   const digits = sanitizePhilippinePhone(raw);
   if (!digits) return "";
+
+  if (/^\+?[0-9\s().-]*$/.test(raw) && (raw.match(/\+/g)?.length ?? 0) <= 1 && digits === raw) {
+    const digitCount = raw.replace(/\D/g, "").length;
+    if (digitCount > 11) return raw;
+  } else if (digits === raw) {
+    return raw;
+  }
 
   if (digits.startsWith("09")) {
     // Format: 09XX XXX XXXX (max 11 digits)
@@ -62,6 +76,17 @@ export function formatPhilippinePhoneDisplay(raw: string): string {
   return `${digits.slice(0, 4)} ${digits.slice(4, 8)} ${digits.slice(8, 11)}`;
 }
 
+/** Formats an accepted mobile value in local 09xxxxxxxxx form. */
+export function formatPhilippineMobileDisplay(raw: string): string {
+  const sanitized = sanitizePhilippinePhone(raw);
+  if (sanitized === raw && raw && !/^\+?[0-9\s().-]*$/.test(raw)) return raw;
+  let digits = sanitized.replace(/\D/g, "");
+  if (digits.startsWith("63") && digits.length === 12) digits = digits.slice(2);
+  if (/^9\d{9}$/.test(digits)) digits = `0${digits}`;
+  if (digits.length > 11) return raw;
+  return formatPhilippinePhoneDisplay(digits);
+}
+
 export interface PhoneValidationResult {
   isValid: boolean;
   message?: string;
@@ -83,15 +108,38 @@ export function validatePhilippinePhone(val: string): PhoneValidationResult {
     };
   }
 
+  if (!/^\+?[0-9\s().-]+$/.test(val) || (val.match(/\+/g)?.length ?? 0) > 1) {
+    return {
+      isValid: false,
+      isComplete: false,
+      message: "Enter one Philippine phone number using digits and standard separators",
+      digitCount: val.replace(/\D/g, "").length,
+      expectedCount: 11,
+    };
+  }
+
   const digits = val.replace(/\D/g, "");
+  let localDigits = digits;
+  if (localDigits.startsWith("63")) {
+    if (localDigits.length < 9 || localDigits.length > 12) {
+      return {
+        isValid: false,
+        isComplete: false,
+        message: "Enter one Philippine phone number with 7 to 11 local digits",
+        digitCount: localDigits.length,
+        expectedCount: 11,
+      };
+    }
+    localDigits = `0${localDigits.slice(2)}`;
+  }
 
   // Local mobile starting with 09 (exactly 11 digits)
-  if (digits.startsWith("09")) {
-    if (digits.length === 11) {
+  if (localDigits.startsWith("09")) {
+    if (localDigits.length === 11) {
       return {
         isValid: true,
         isComplete: true,
-        digitCount: 11,
+        digitCount: localDigits.length,
         expectedCount: 11,
       };
     }
@@ -99,19 +147,19 @@ export function validatePhilippinePhone(val: string): PhoneValidationResult {
     return {
       isValid: false,
       isComplete: false,
-      message: `Incomplete mobile number (${digits.length}/11 digits entered)`,
-      digitCount: digits.length,
+        message: `Incomplete mobile number (${localDigits.length}/11 digits entered)`,
+        digitCount: localDigits.length,
       expectedCount: 11,
     };
   }
 
   // 10-digit starting with 9 (when combined with +63 country badge)
-  if (digits.startsWith("9")) {
-    if (digits.length === 10) {
+  if (localDigits.startsWith("9")) {
+    if (localDigits.length === 10) {
       return {
         isValid: true,
         isComplete: true,
-        digitCount: 10,
+        digitCount: localDigits.length,
         expectedCount: 10,
       };
     }
@@ -119,19 +167,19 @@ export function validatePhilippinePhone(val: string): PhoneValidationResult {
     return {
       isValid: false,
       isComplete: false,
-      message: `Incomplete number (${digits.length}/10 digits entered)`,
-      digitCount: digits.length,
+        message: `Incomplete number (${localDigits.length}/10 digits entered)`,
+        digitCount: localDigits.length,
       expectedCount: 10,
     };
   }
 
   // Other Philippine numbers (7 to 11 digits max)
-  if (digits.length >= 7 && digits.length <= 11) {
+  if (localDigits.length >= 7 && localDigits.length <= 11) {
     return {
       isValid: true,
       isComplete: true,
-      digitCount: digits.length,
-      expectedCount: digits.length,
+      digitCount: localDigits.length,
+      expectedCount: localDigits.length,
     };
   }
 
@@ -139,7 +187,33 @@ export function validatePhilippinePhone(val: string): PhoneValidationResult {
     isValid: false,
     isComplete: false,
     message: "Must be a valid phone number with up to 11 digits",
-    digitCount: digits.length,
+    digitCount: localDigits.length,
+    expectedCount: 11,
+  };
+}
+
+const normalizePhilippineMobile = (raw: string): string | null => {
+  if (!/^\+?[0-9\s().-]+$/.test(raw) || (raw.match(/\+/g)?.length ?? 0) > 1) return null;
+  let digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("63")) {
+    if (digits.length !== 12) return null;
+    digits = digits.slice(2);
+  }
+  if (/^9\d{9}$/.test(digits)) digits = `0${digits}`;
+  return /^09\d{9}$/.test(digits) ? digits : null;
+};
+
+export function validatePhilippineMobile(val: string): PhoneValidationResult {
+  if (!val || !val.trim()) {
+    return { isValid: true, isComplete: false, digitCount: 0, expectedCount: 11 };
+  }
+  const normalized = normalizePhilippineMobile(val);
+  if (normalized) return { isValid: true, isComplete: true, digitCount: 11, expectedCount: 11 };
+  return {
+    isValid: false,
+    isComplete: false,
+    message: `Enter one Philippine mobile number with 11 local digits beginning with 09 (${val.replace(/\D/g, "").length}/11 digits)`,
+    digitCount: val.replace(/\D/g, "").length,
     expectedCount: 11,
   };
 }

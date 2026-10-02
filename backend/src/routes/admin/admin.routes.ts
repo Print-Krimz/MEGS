@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
-import { validate } from '../../middleware/validate.middleware.js';
+import { validate, validateDateRangeQuery } from '../../middleware/validate.middleware.js';
 import { adminSchema } from '../../schemas/admin.schema.js';
+import { analyticsSchema } from '../../schemas/analytics.schema.js';
+import { taSchema } from '../../schemas/ta.schema.js';
 
 import {
   listUsers,
@@ -55,15 +57,16 @@ const router = Router();
 // Enforce authentication and ADMINISTRATOR role
 router.use(authenticateJWT);
 router.use(requireRole("ADMINISTRATOR"));
+router.use(validateDateRangeQuery);
 
 // User & Role Management
-router.get("/users", listUsers);
+router.get("/users", validate(adminSchema.listUsers), listUsers);
 router.post("/invite-ta", validate(adminSchema.inviteTA), inviteTAHandler);
-router.post("/users/:id/resend-invite", resendTAInvitationHandler);
-router.post("/users/:id/cancel-invite", cancelTAInvitationHandler);
+router.post("/users/:id/resend-invite", validate(adminSchema.userParams), resendTAInvitationHandler);
+router.post("/users/:id/cancel-invite", validate(adminSchema.userParams), cancelTAInvitationHandler);
 router.patch("/users/:id/role", validate(adminSchema.updateUserRole), updateUserRole);
 router.patch("/users/:id/status", validate(adminSchema.updateUserStatus), updateUserStatus);
-router.post("/users/:id/reset-mfa", resetUserMfaHandler);
+router.post("/users/:id/reset-mfa", validate(adminSchema.userParams), resetUserMfaHandler);
 
 // Dynamic Scoring Config
 router.get("/candidate-scoring/configuration", getConfiguration);
@@ -74,8 +77,8 @@ router.get("/candidate-scoring/configuration/history", getConfigurationHistory);
 router.get("/candidate-scoring/quality-metrics", getQualityMetrics);
 
 // Security Audit Trail & Reporting
-router.get("/audit-logs", listAuditLogs);
-router.get("/audit-logs/export", exportAuditReportHandler);
+router.get("/audit-logs", validate(adminSchema.auditLogs), listAuditLogs);
+router.get("/audit-logs/export", validate(adminSchema.auditExport), exportAuditReportHandler);
 
 import multer from "multer";
 
@@ -85,29 +88,29 @@ const backupUpload = multer({
 });
 
 // Database Maintenance & Encrypted Backups / Restores
-router.get("/maintenance/backups", listBackupsHandler);
-router.post("/maintenance/backup", triggerBackupHandler);
-router.patch("/maintenance/backups/:id/rename", renameBackupHandler);
-router.get("/maintenance/backups/:id/download", downloadBackupHandler);
-router.post("/maintenance/backups/:id/restore", restoreDatabaseBackupHandler);
-router.post("/maintenance/backups/restore-upload", backupUpload.single("file"), restoreUploadedBackupHandler);
+router.get("/maintenance/backups", validate(adminSchema.backupList), listBackupsHandler);
+router.post("/maintenance/backup", validate(adminSchema.triggerBackup), triggerBackupHandler);
+router.patch("/maintenance/backups/:id/rename", validate(adminSchema.renameBackup), renameBackupHandler);
+router.get("/maintenance/backups/:id/download", validate(adminSchema.backupIdParams), downloadBackupHandler);
+router.post("/maintenance/backups/:id/restore", validate(adminSchema.backupIdParams), restoreDatabaseBackupHandler);
+router.post("/maintenance/backups/restore-upload", backupUpload.single("file"), validate(adminSchema.restoreUploadedBackup), restoreUploadedBackupHandler);
 
 // Recruitment Analytics
-router.get("/analytics/dashboard", getAdminDashboardSummaryHandler);
-router.get("/analytics/overview", getAdminOverviewHandler);
-router.get("/analytics/activity", getAdminActivityTrendHandler);
-router.get("/analytics/funnel", getAdminFunnelHandler);
-router.get("/analytics/bottlenecks", getAdminBottlenecksHandler);
-router.get("/analytics/jobs", getAdminJobDemandsHandler);
-router.get("/analytics/filters", getAdminFilterOptionsHandler);
+router.get("/analytics/dashboard", validate(analyticsSchema.filters), getAdminDashboardSummaryHandler);
+router.get("/analytics/overview", validate(analyticsSchema.filters), getAdminOverviewHandler);
+router.get("/analytics/activity", validate(analyticsSchema.filters), getAdminActivityTrendHandler);
+router.get("/analytics/funnel", validate(analyticsSchema.filters), getAdminFunnelHandler);
+router.get("/analytics/bottlenecks", validate(analyticsSchema.filters), getAdminBottlenecksHandler);
+router.get("/analytics/jobs", validate(analyticsSchema.filters), getAdminJobDemandsHandler);
+router.get("/analytics/filters", validate(analyticsSchema.filters), getAdminFilterOptionsHandler);
 
 // Manpower Requests Oversight (Read-Only)
-router.get("/mrfs", listMRFsHandler);
-router.get("/mrfs/:id", getMRFDetailsHandler);
+router.get("/mrfs", validate(taSchema.listMRFs), listMRFsHandler);
+router.get("/mrfs/:id", validate(adminSchema.mrfIdParams), getMRFDetailsHandler);
 
 // Analytics Reports Export
-router.get("/reports/pipeline", exportAdminPipelineReportHandler);
-router.get("/reports/deployments", exportAdminDeploymentReportHandler);
+router.get("/reports/pipeline", validate(analyticsSchema.report), exportAdminPipelineReportHandler);
+router.get("/reports/deployments", validate(analyticsSchema.report), exportAdminDeploymentReportHandler);
 
 export default router;
 

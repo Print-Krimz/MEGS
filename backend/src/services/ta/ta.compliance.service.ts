@@ -1,6 +1,9 @@
 import prisma from "../../utils/prisma.js";
 import { logAudit } from "../../utils/audit.js";
 import { sendNotification } from "../../utils/notification.js";
+import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
+
+const parseInputCalendarDate = (value: string | Date): Date => parseManilaDateOnly(toManilaDateOnly(value));
 
 export const createComplianceRequirement = async (
   applicationId: number,
@@ -35,9 +38,15 @@ export const createComplianceRequirement = async (
     throw new Error(`A compliance requirement for '${trimmedLabel}' already exists for this application.`);
   }
 
-  const resolvedDeadline = deadline
-    ? new Date(deadline)
+  const deadlineDay = deadline ? toManilaDateOnly(deadline) : undefined;
+  if (deadlineDay && (!isValidDateOnly(deadlineDay) || deadlineDay < manilaDateString())) {
+    throw new Error("Requirement deadline must be today or a future date.");
+  }
+  const resolvedDeadline = deadlineDay
+    ? parseManilaDateOnly(deadlineDay)
     : calculateDefaultComplianceDeadline();
+
+  const resolvedExpiry = expiresAt ? parseInputCalendarDate(expiresAt) : null;
 
   const req = await prisma.complianceRequirement.create({
     data: {
@@ -45,7 +54,7 @@ export const createComplianceRequirement = async (
       documentLabel: trimmedLabel,
       isRequired,
       deadline: resolvedDeadline,
-      expiresAt: expiresAt ? new Date(expiresAt) : null,
+      expiresAt: resolvedExpiry,
       reviewStatus: "PENDING",
     },
   });
@@ -193,8 +202,14 @@ export const reviewComplianceRequirement = async (
   });
   if (!requirement) throw new Error("Compliance requirement not found");
 
+  const followDay = toFollowExpectedAt ? toManilaDateOnly(toFollowExpectedAt) : undefined;
+  const previousFollowDay = requirement.toFollowExpectedAt ? toManilaDateOnly(requirement.toFollowExpectedAt) : undefined;
+  if (reviewStatus === "TO_FOLLOW" && followDay && followDay < manilaDateString() && followDay !== previousFollowDay) {
+    throw new Error("Follow-up target date must be today or a future date.");
+  }
+
   let calculatedExpiresAt: Date | null | undefined =
-    expiresAt !== undefined ? (expiresAt ? new Date(expiresAt) : null) : undefined;
+    expiresAt !== undefined ? (expiresAt ? parseInputCalendarDate(expiresAt) : null) : undefined;
 
   const isMedicalDoc = Boolean(
     requirement.documentLabel &&
@@ -218,9 +233,9 @@ export const reviewComplianceRequirement = async (
   };
 
   if (reviewStatus === "TO_FOLLOW") {
-    updateData.toFollowExpectedAt = toFollowExpectedAt ? new Date(toFollowExpectedAt) : null;
+    updateData.toFollowExpectedAt = followDay ? parseManilaDateOnly(followDay) : null;
   } else if (toFollowExpectedAt !== undefined) {
-    updateData.toFollowExpectedAt = toFollowExpectedAt ? new Date(toFollowExpectedAt) : null;
+    updateData.toFollowExpectedAt = followDay ? parseManilaDateOnly(followDay) : null;
   }
 
   const updated = await prisma.complianceRequirement.update({
@@ -325,8 +340,8 @@ export const isFullyCompliant = async (applicationId: number): Promise<boolean> 
   });
 
   if (requiredList.length === 0) {
-    // If no requirements defined yet, check postHireDocuments or default to compliant
-    return true;
+    // If no compliance requirements exist yet, the candidate is not compliant
+    return false;
   }
 
   const now = new Date();
@@ -377,10 +392,13 @@ export const updateComplianceRequirementDeadline = async (
   });
   if (!existing) throw new Error("Compliance requirement not found");
 
-  const parsedDeadline = deadline ? new Date(deadline) : null;
-  if (deadline && isNaN(parsedDeadline!.getTime())) {
-    throw new Error("Invalid deadline date format");
+  const deadlineDay = deadline ? toManilaDateOnly(deadline) : null;
+  const existingDay = existing.deadline ? toManilaDateOnly(existing.deadline) : null;
+  if (deadlineDay && (!isValidDateOnly(deadlineDay) ||
+      (deadlineDay < manilaDateString() && deadlineDay !== existingDay))) {
+    throw new Error("Requirement deadline must be today or a future date.");
   }
+  const parsedDeadline = deadlineDay ? parseManilaDateOnly(deadlineDay) : null;
 
   const updated = await prisma.complianceRequirement.update({
     where: { id: requirementId },

@@ -293,6 +293,8 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
             <label htmlFor="analytics-start-date" className="text-slate-600 font-semibold">From</label>
             <input
               type="date"
+              min="1900-01-01"
+              max={draftFilters.endDate || "2100-12-31"}
                id="analytics-start-date"
                value={draftFilters.startDate || ""}
               onChange={(e) =>
@@ -306,6 +308,8 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
             <label htmlFor="analytics-end-date" className="text-slate-600 font-semibold">To</label>
             <input
               type="date"
+              min={draftFilters.startDate || "1900-01-01"}
+              max="2100-12-31"
                id="analytics-end-date"
                value={draftFilters.endDate || ""}
               onChange={(e) =>

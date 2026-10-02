@@ -104,6 +104,8 @@ export interface UpdateEmployeeDetailsDto {
   address?: string | null;
   city?: string | null;
   province?: string | null;
+  barangay?: string | null;
+  postalCode?: string | null;
   dateOfBirth?: string | null;
   civilStatus?: string | null;
   gender?: string | null;

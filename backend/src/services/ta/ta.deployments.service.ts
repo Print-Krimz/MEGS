@@ -3,6 +3,7 @@ import { DeploymentStatus } from "@prisma/client";
 import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
 import { logAudit } from "../../utils/audit.js";
 import { sendNotification } from "../../utils/notification.js";
+import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 import {
   calculateMRFFulfillment,
   syncMRFFulfillmentStatus,
@@ -30,6 +31,17 @@ export const createDeployment = async (
     allowOverheadcount?: boolean;
   }
 ) => {
+  const startDay = data.contractStart ? toManilaDateOnly(data.contractStart) : undefined;
+  const endDay = data.contractEnd ? toManilaDateOnly(data.contractEnd) : undefined;
+  if (startDay && (!isValidDateOnly(startDay) || startDay < manilaDateString())) {
+    throw new Error("A new contract start date must be today or later.");
+  }
+  if (endDay && (!startDay || endDay < startDay)) {
+    throw new Error("Contract end date must be on or after contract start.");
+  }
+  const parsedContractStart = startDay ? parseManilaDateOnly(startDay) : null;
+  const parsedContractEnd = endDay ? parseManilaDateOnly(endDay) : null;
+
   let empId = data.employeeId;
   let application: any = null;
 
@@ -153,13 +165,11 @@ export const createDeployment = async (
     application?.jobPosting?.location ||
     null;
 
-  const startDate = data.contractStart ? new Date(data.contractStart) : null;
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
+  const startDate = parsedContractStart;
 
   const initialStatus: DeploymentStatus =
     (data as any).status ||
-    (startDate && startDate <= todayEnd ? "ACTIVE" : "READY_FOR_DEPLOYMENT");
+    (startDay && startDay <= manilaDateString() ? "ACTIVE" : "READY_FOR_DEPLOYMENT");
 
   const deployment = await prisma.deployment.create({
     data: {
@@ -169,8 +179,8 @@ export const createDeployment = async (
       mrfId: resolvedMrfId,
       createdById,
       site: resolvedSite,
-      contractStart: data.contractStart ? new Date(data.contractStart) : null,
-      contractEnd: data.contractEnd ? new Date(data.contractEnd) : null,
+      contractStart: parsedContractStart,
+      contractEnd: parsedContractEnd,
       notes: data.notes || null,
       status: initialStatus,
     },

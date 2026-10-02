@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useId, useMemo } from "react";
 import { Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight, X, Check } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { isValidDateOnly } from "../../lib/field-limits";
 
 export interface DateTimePickerProps {
   value: string; // ISO string or YYYY-MM-DDTHH:mm
@@ -11,6 +12,7 @@ export interface DateTimePickerProps {
   required?: boolean;
   disabled?: boolean;
   minDate?: Date; // defaults to new Date()
+  maxDate?: Date;
   className?: string;
   placeholder?: string;
   id?: string;
@@ -32,12 +34,38 @@ const DAYS_OF_WEEK = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
 /**
  * Safely parse ISO string or YYYY-MM-DDTHH:mm format into local Date
  */
+function toManilaWallDate(instant: Date): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  }).formatToParts(instant);
+  const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value ?? 0);
+  return new Date(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"), part("second"));
+}
+
+function manilaWallDateToEpoch(value: Date): number {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return Date.parse(`${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}+08:00`);
+}
+
+export function dateTimeLocalToManilaIso(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) || !isValidDateOnly(value.slice(0, 10))) return "";
+  return new Date(`${value}:00+08:00`).toISOString();
+}
+
+export function manilaIsoToDateTimeLocal(value?: string | null): string {
+  if (!value) return "";
+  const instant = new Date(value);
+  return Number.isFinite(instant.getTime()) ? formatToValueString(toManilaWallDate(instant)) : "";
+}
+
 function parseDateTimeValue(val?: string | null): Date | null {
   if (!val || typeof val !== "string") return null;
   const trimmed = val.trim();
   if (!trimmed) return null;
 
-  // Handle YYYY-MM-DDTHH:mm(:ss) without timezone
+  // Treat calendar values without an offset as Manila wall time, independent of browser timezone.
   const localMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
   if (localMatch) {
     const year = parseInt(localMatch[1], 10);
@@ -46,13 +74,14 @@ function parseDateTimeValue(val?: string | null): Date | null {
     const hours = parseInt(localMatch[4], 10);
     const minutes = parseInt(localMatch[5], 10);
     const seconds = localMatch[6] ? parseInt(localMatch[6], 10) : 0;
+    if (!isValidDateOnly(`${localMatch[1]}-${localMatch[2]}-${localMatch[3]}`) || hours > 23 || minutes > 59 || seconds > 59) return null;
     const parsed = new Date(year, month, day, hours, minutes, seconds);
     return isNaN(parsed.getTime()) ? null : parsed;
   }
 
   // Fallback for standard ISO strings with timezone offsets / Z
   const parsed = new Date(trimmed);
-  return isNaN(parsed.getTime()) ? null : parsed;
+  return isNaN(parsed.getTime()) ? null : toManilaWallDate(parsed);
 }
 
 /**
@@ -120,7 +149,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   error,
   required,
   disabled,
-  minDate = new Date(),
+  minDate,
+  maxDate = new Date("2100-12-31T23:59:59.999+08:00"),
   className,
   placeholder = "Select date and time...",
   id: customId,
@@ -135,13 +165,32 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const [isOpen, setIsOpen] = useState(false);
+  const [clockNow, setClockNow] = useState(() => new Date());
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const refreshClock = () => setClockNow(new Date());
+    refreshClock();
+    const interval = window.setInterval(refreshClock, 1_000);
+    return () => window.clearInterval(interval);
+  }, [isOpen]);
 
   // Normalize minDate start of day for strict past date disabling
-  const now = useMemo(() => new Date(), [isOpen]);
-  const effectiveMinDate = minDate || now;
+  const now = useMemo(() => toManilaWallDate(clockNow), [clockNow]);
+  const effectiveMinDate = useMemo(() => {
+    const requestedMin = minDate ? toManilaWallDate(minDate) : now;
+    return requestedMin.getTime() < now.getTime() ? now : requestedMin;
+  }, [minDate, now]);
   const minDateMidnight = useMemo(
     () => new Date(effectiveMinDate.getFullYear(), effectiveMinDate.getMonth(), effectiveMinDate.getDate(), 0, 0, 0, 0),
     [effectiveMinDate]
+  );
+  const maxDateEnd = useMemo(
+    () => {
+      const wallDate = toManilaWallDate(maxDate);
+      return new Date(wallDate.getFullYear(), wallDate.getMonth(), wallDate.getDate(), 23, 59, 59, 999);
+    },
+    [maxDate]
   );
 
   // Current selected parsed date
@@ -235,7 +284,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(viewYear, viewMonth, day, 0, 0, 0, 0);
-      const isDisabled = date.getTime() < minDateMidnight.getTime();
+      const isDisabled = date.getTime() < minDateMidnight.getTime() || date.getTime() > maxDateEnd.getTime();
       const isToday = isSameDay(date, now);
       const isSelected = parsedValue ? isSameDay(date, parsedValue) : false;
 
@@ -252,7 +301,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       firstDayIndex,
       days,
     };
-  }, [viewYear, viewMonth, minDateMidnight, now, parsedValue]);
+  }, [viewYear, viewMonth, minDateMidnight, maxDateEnd, now, parsedValue]);
 
   // Helper to apply or update date while preserving or defaulting time
   const handleSelectDate = (date: Date) => {
@@ -267,10 +316,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
     const candidate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes, 0, 0);
 
     // If the candidate selected time is in the past for today, pick the next available future business slot
-    if (candidate.getTime() <= now.getTime()) {
+    if (manilaWallDateToEpoch(candidate) <= Date.now()) {
       const nextSlot = BUSINESS_SLOTS.find((s) => {
         const slotTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), s.hour, s.minute, 0, 0);
-        return slotTime.getTime() > now.getTime();
+        return manilaWallDateToEpoch(slotTime) > Date.now();
       });
 
       if (nextSlot) {
@@ -300,25 +349,25 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       {
         label: "Today",
         date: today,
-        disabled: today.getTime() < minDateMidnight.getTime(),
+        disabled: today.getTime() < minDateMidnight.getTime() || today.getTime() > maxDateEnd.getTime(),
       },
       {
         label: "Tomorrow",
         date: tomorrow,
-        disabled: tomorrow.getTime() < minDateMidnight.getTime(),
+        disabled: tomorrow.getTime() < minDateMidnight.getTime() || tomorrow.getTime() > maxDateEnd.getTime(),
       },
       {
         label: "In 2 Days",
         date: inTwoDays,
-        disabled: inTwoDays.getTime() < minDateMidnight.getTime(),
+        disabled: inTwoDays.getTime() < minDateMidnight.getTime() || inTwoDays.getTime() > maxDateEnd.getTime(),
       },
       {
         label: "Next Monday",
         date: nextMonday,
-        disabled: nextMonday.getTime() < minDateMidnight.getTime(),
+        disabled: nextMonday.getTime() < minDateMidnight.getTime() || nextMonday.getTime() > maxDateEnd.getTime(),
       },
     ];
-  }, [now, minDateMidnight]);
+  }, [now, minDateMidnight, maxDateEnd]);
 
   const handleShortcutClick = (date: Date) => {
     setViewYear(date.getFullYear());
@@ -330,6 +379,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   const handleSelectTimeSlot = (hour: number, minute: number) => {
     const base = parsedValue || (calendarDays.days.find((d) => !d.isDisabled)?.date ?? new Date());
     const updated = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hour, minute, 0, 0);
+    if (manilaWallDateToEpoch(updated) <= Date.now()) return;
     onChange(formatToValueString(updated));
   };
 
@@ -374,8 +424,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   // Check if current selection is invalid (in the past)
   const isCurrentSelectionInPast = useMemo(() => {
     if (!parsedValue) return false;
-    return parsedValue.getTime() < effectiveMinDate.getTime();
-  }, [parsedValue, effectiveMinDate]);
+    return manilaWallDateToEpoch(parsedValue) <= Date.now() || parsedValue.getTime() < minDateMidnight.getTime() || parsedValue.getTime() > maxDateEnd.getTime();
+  }, [parsedValue, minDateMidnight, maxDateEnd]);
 
   // Confirmation banner copy
   const confirmationText = useMemo(() => {
@@ -604,7 +654,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                       0,
                       0
                     );
-                    const isSlotInPast = slotDateTime.getTime() <= now.getTime();
+                    const isSlotInPast = manilaWallDateToEpoch(slotDateTime) <= Date.now();
 
                     return (
                       <button

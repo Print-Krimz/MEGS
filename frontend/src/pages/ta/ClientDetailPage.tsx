@@ -11,10 +11,7 @@ import {
 import { Button, Dialog, Input, PhoneInput, Select } from "../../components/ui";
 import { ComboBox } from "../../components/ui/ComboBox";
 import { formatDate } from "../../lib/utils";
-import {
-  PHILIPPINE_REGIONS_AND_PROVINCES,
-  getCitiesForProvince,
-} from "../../lib/geo-data";
+import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
 import { PHILIPPINE_INDUSTRY_SECTORS } from "../../lib/industry-data";
 import {
   ArrowLeft,
@@ -41,9 +38,9 @@ export const ClientDetailPage: React.FC = () => {
   const [editStreet, setEditStreet] = useState("");
   const [editProvince, setEditProvince] = useState("");
   const [editCity, setEditCity] = useState("");
+  const [editBarangay, setEditBarangay] = useState("");
   const [editPostalCode, setEditPostalCode] = useState("");
-  const [editPostalCodeError, setEditPostalCodeError] = useState<string | null>(null);
-  const [editReviewThresholdDays, setEditReviewThresholdDays] = useState(5);
+  const [editReviewThresholdDays, setEditReviewThresholdDays] = useState("5");
   const [editMedicalValidityMonths, setEditMedicalValidityMonths] = useState(6);
 
   const clientQuery = useQuery({
@@ -100,9 +97,9 @@ export const ClientDetailPage: React.FC = () => {
       setEditStreet(client.street || "");
       setEditProvince(client.province || "");
       setEditCity(client.city || "");
+      setEditBarangay(client.barangay || "");
       setEditPostalCode(client.postalCode || "");
-      setEditPostalCodeError(null);
-      setEditReviewThresholdDays(client.reviewThresholdDays ?? 5);
+      setEditReviewThresholdDays(String(client.reviewThresholdDays ?? 5));
       setEditMedicalValidityMonths(client.medicalValidityMonths ?? 6);
     }
   }, [client]);
@@ -188,14 +185,14 @@ export const ClientDetailPage: React.FC = () => {
             </span>
           </div>
         </div>
-        {(client.street || client.city || client.province || client.address) && (
+        {(client.street || client.barangay || client.city || client.province || client.address) && (
           <div className="pt-2 border-t border-slate-100 flex items-start gap-2 text-xs text-slate-700">
             <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
             <div>
               <span className="text-slate-500 block">Facility address</span>
               <span>
-                {client.street || client.city || client.province
-                  ? [client.street, client.city, client.province, client.postalCode].filter(Boolean).join(", ")
+                {client.street || client.barangay || client.city || client.province
+                  ? [client.street, client.barangay, client.city, client.province, client.postalCode].filter(Boolean).join(", ")
                   : client.address}
               </span>
             </div>
@@ -363,7 +360,6 @@ export const ClientDetailPage: React.FC = () => {
         open={editModalOpen}
         onClose={() => {
           setEditModalOpen(false);
-          setEditPostalCodeError(null);
           setEditEmailError(null);
         }}
         title="Edit client"
@@ -377,8 +373,14 @@ export const ClientDetailPage: React.FC = () => {
               setEditEmailError("Official contact email must be a valid @gmail.com address");
               return;
             }
-            if (editPostalCode.trim().length > 0 && editPostalCode.trim().length !== 4) {
-              setEditPostalCodeError("Postal code must be exactly 4 digits");
+            const hasAddress = [editStreet, editProvince, editCity, editBarangay, editPostalCode].some((value) => value.trim());
+            if (hasAddress && (!editProvince.trim() || !editCity.trim() || !editBarangay.trim() || !editPostalCode.trim())) {
+              notify.error("Address is incomplete", "Enter the province, city, barangay, and postal code.");
+              return;
+            }
+            const reviewThreshold = Number(editReviewThresholdDays);
+            if (!Number.isInteger(reviewThreshold) || reviewThreshold < 1 || reviewThreshold > 30) {
+              notify.error("Invalid review threshold", "Enter an integer between 1 and 30 days.");
               return;
             }
             const combinedName = [editContactFirstName.trim(), editContactLastName.trim()].filter(Boolean).join(" ");
@@ -390,10 +392,11 @@ export const ClientDetailPage: React.FC = () => {
               contactEmail: editContactEmail.trim() || undefined,
               contactPhone: editContactPhone.trim() || undefined,
               street: editStreet.trim() || undefined,
+              barangay: editBarangay.trim() || undefined,
               province: editProvince.trim() || undefined,
               city: editCity.trim() || undefined,
               postalCode: editPostalCode.trim() || undefined,
-              reviewThresholdDays: Number(editReviewThresholdDays) || 5,
+              reviewThresholdDays: reviewThreshold,
               medicalValidityMonths: Number(editMedicalValidityMonths) || 6,
             });
           }}
@@ -424,12 +427,14 @@ export const ClientDetailPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Contact first name"
+              maxLength={100}
               placeholder="e.g. Roberto"
               value={editContactFirstName}
               onChange={(e) => setEditContactFirstName(e.target.value)}
             />
             <Input
               label="Contact last name"
+              maxLength={100}
               placeholder="e.g. Tan"
               value={editContactLastName}
               onChange={(e) => setEditContactLastName(e.target.value)}
@@ -459,52 +464,24 @@ export const ClientDetailPage: React.FC = () => {
             <div className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
               Facility address
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <ComboBox
-                label="Province or region"
-                placeholder="Select or enter province..."
-                value={editProvince}
-                onChange={(val) => {
-                  setEditProvince(val);
-                  setEditCity("");
-                }}
-                options={PHILIPPINE_REGIONS_AND_PROVINCES.map((p) => ({ value: p, label: p }))}
-                allowCustom
-              />
-              <ComboBox
-                label="City or municipality"
-                placeholder={editProvince ? "Select city..." : "Select province first"}
-                value={editCity}
-                onChange={setEditCity}
-                options={getCitiesForProvince(editProvince).map((c) => ({ value: c, label: c }))}
-                allowCustom
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2">
-                <Input
-                  label="Street or building address"
-                  placeholder="e.g. Bldg 4, Light Industry Park"
-                  value={editStreet}
-                  onChange={(e) => setEditStreet(e.target.value)}
-                />
-              </div>
-              <div>
-                <Input
-                  label="Postal Code"
-                  placeholder="e.g. 4027"
-                  value={editPostalCode}
-                  maxLength={4}
-                  inputMode="numeric"
-                  helperText="4-digit PH postal code"
-                  error={editPostalCodeError || undefined}
-                  onChange={(e) => {
-                    setEditPostalCode(e.target.value.replace(/\D/g, "").slice(0, 4));
-                    if (editPostalCodeError) setEditPostalCodeError(null);
-                  }}
-                />
-              </div>
-            </div>
+            <Input
+              label="Street or building address"
+              placeholder="e.g. Bldg 4, Light Industry Park"
+              value={editStreet}
+              onChange={(e) => setEditStreet(e.target.value)}
+            />
+            <PhilippineAddressFields
+              province={editProvince}
+              city={editCity}
+              barangay={editBarangay}
+              postalCode={editPostalCode}
+              onChange={(patch) => {
+                if (patch.province !== undefined) setEditProvince(patch.province);
+                if (patch.city !== undefined) setEditCity(patch.city);
+                if (patch.barangay !== undefined) setEditBarangay(patch.barangay);
+                if (patch.postalCode !== undefined) setEditPostalCode(patch.postalCode);
+              }}
+            />
           </div>
 
           <div className="pt-2 border-t border-slate-100 space-y-3">
@@ -518,7 +495,7 @@ export const ClientDetailPage: React.FC = () => {
                 min={1}
                 max={30}
                 value={editReviewThresholdDays}
-                onChange={(e) => setEditReviewThresholdDays(Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 1)))}
+                onChange={(e) => setEditReviewThresholdDays(e.target.value)}
                 helperText="Turnaround SLA (1 - 30 days, default: 5)"
                 required
               />

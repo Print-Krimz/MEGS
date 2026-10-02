@@ -29,6 +29,7 @@ import {
 import { documentsApi } from "../../lib/api/documents.api";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
+import { getManilaToday } from "../../lib/field-limits";
 
 type StatusFilter = "ALL" | "WAITING_CANDIDATE" | "WAITING_REVIEW" | "APPROVED" | "TO_FOLLOW";
 type SortField = "candidate" | "submitted";
@@ -194,13 +195,13 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   }>({ open: false });
 
   const complianceAnalyticsQuery = useQuery({
-    queryKey: ["ta", "analytics", "compliance"],
-    queryFn: taApi.getComplianceOverview,
+    queryKey: ["ta", "analytics", "compliance", "COMPLIANCE"],
+    queryFn: () => taApi.getComplianceOverview({ stage: "COMPLIANCE" }),
   });
 
   const applicationsQuery = useQuery({
     queryKey: ["ta", "applications", "compliance-queue"],
-    queryFn: () => taApi.listApplications({ limit: 100 }),
+    queryFn: () => taApi.listApplications({ status: ApplicationStatus.COMPLIANCE, limit: 100 }),
   });
 
   const rawApps = Array.isArray(applicationsQuery.data)
@@ -210,6 +211,44 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   const complianceApps = useMemo(() => {
     return rawApps.filter((a) => a.status === ApplicationStatus.COMPLIANCE);
   }, [rawApps]);
+
+  const candidateMetrics = useMemo(() => {
+    let waitingReview = 0;
+    let waitingCandidate = 0;
+    let fullyApproved = 0;
+    let toFollow = 0;
+
+    let pendingDocs = 0;
+    let submittedDocs = 0;
+    let approvedDocs = 0;
+    let toFollowDocs = 0;
+
+    for (const app of complianceApps) {
+      const { submittedCount, pendingCount, approvedCount, toFollowCount, totalCount } = getComplianceCounts(app);
+      if (submittedCount > 0) waitingReview++;
+      if (pendingCount > 0) waitingCandidate++;
+      if (totalCount > 0 && approvedCount + toFollowCount === totalCount) fullyApproved++;
+      if (toFollowCount > 0) toFollow++;
+
+      pendingDocs += pendingCount;
+      submittedDocs += submittedCount;
+      approvedDocs += approvedCount;
+      toFollowDocs += toFollowCount;
+    }
+
+    return {
+      totalCandidates: complianceApps.length,
+      waitingReview,
+      waitingCandidate,
+      fullyApproved,
+      toFollow,
+      totalDocs: pendingDocs + submittedDocs + approvedDocs + toFollowDocs,
+      pendingDocs,
+      submittedDocs,
+      approvedDocs,
+      toFollowDocs,
+    };
+  }, [complianceApps]);
 
   const jobTitleOptions = useMemo(() => {
     const titles = Array.from(
@@ -393,28 +432,28 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     switch (statusFilter) {
       case "WAITING_REVIEW":
         return {
-          title: "Requirements waiting for review",
-          description: "Candidates with documents that need checking",
+          title: "Ready for review",
+          description: `Showing ${candidateMetrics.waitingReview} candidate(s) with documents needing verification`,
         };
       case "WAITING_CANDIDATE":
         return {
-          title: "Waiting for candidate submission",
-          description: "Candidates with pending requirements",
+          title: "Awaiting candidate submission",
+          description: `Showing ${candidateMetrics.waitingCandidate} candidate(s) (${candidateMetrics.pendingDocs} pending documents)`,
         };
       case "APPROVED":
         return {
           title: "Approved candidates",
-          description: "Candidates ready for deployment",
+          description: `Showing ${candidateMetrics.fullyApproved} candidate(s) ready for deployment`,
         };
       case "TO_FOLLOW":
         return {
           title: "Requirements to follow up",
-          description: "Candidates with documents pending follow-up",
+          description: `Showing ${candidateMetrics.toFollow} candidate(s) with documents pending follow-up`,
         };
       default:
         return {
           title: "Pre-employment compliance queue",
-          description: "Active candidates in pre-employment verification",
+          description: `Showing ${sortedApps.length} active candidate(s) in pre-employment verification`,
         };
     }
   };
@@ -541,13 +580,6 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     );
   }
 
-  const overview = complianceAnalyticsQuery.data;
-  const breakdown = overview?.statusBreakdown || {};
-  const total = overview?.totalRequirements || 0;
-  const pending = breakdown["PENDING"] || 0;
-  const submitted = breakdown["SUBMITTED"] || 0;
-  const approved = breakdown["APPROVED"] || 0;
-
   const selectedReq = quickReviewCandidate?.complianceRequirements?.find(
     (r) => r.id === selectedReqId
   );
@@ -605,13 +637,13 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           }`}
         >
           <div className="text-xs font-semibold text-slate-600">
-            Requirements tracked
+            Candidates in compliance
           </div>
           <div className="text-2xl font-bold font-mono text-slate-900 mt-1 tabular-nums">
-            {total}
+            {candidateMetrics.totalCandidates}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1 font-mono">
-            Across active candidates
+          <div className="text-[11px] text-slate-500 mt-1 font-mono">
+            {candidateMetrics.totalDocs} requirements tracked
           </div>
         </button>
 
@@ -629,13 +661,13 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           }`}
         >
           <div className="text-xs font-semibold text-amber-800">
-            Waiting for candidate
+            Awaiting submission
           </div>
           <div className="text-2xl font-bold font-mono text-amber-900 mt-1 tabular-nums">
-            {pending}
+            {candidateMetrics.waitingCandidate}
           </div>
           <div className="text-[11px] text-amber-700 mt-1 font-mono">
-            Candidate still needs to submit
+            {candidateMetrics.pendingDocs} pending documents
           </div>
         </button>
 
@@ -653,13 +685,13 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           }`}
         >
           <div className="text-xs font-semibold text-blue-800">
-            Waiting for review
+            Ready for review
           </div>
           <div className="text-2xl font-bold font-mono text-blue-900 mt-1 tabular-nums">
-            {submitted}
+            {candidateMetrics.waitingReview}
           </div>
           <div className="text-[11px] text-blue-700 mt-1 font-mono">
-            TA review needed
+            {candidateMetrics.submittedDocs} documents to verify
           </div>
         </button>
 
@@ -677,13 +709,13 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           }`}
         >
           <div className="text-xs font-semibold text-emerald-800">
-            Approved
+            Cleared candidates
           </div>
           <div className="text-2xl font-bold font-mono text-emerald-900 mt-1 tabular-nums">
-            {approved}
+            {candidateMetrics.fullyApproved}
           </div>
           <div className="text-[11px] text-emerald-700 mt-1 font-mono">
-            Ready for deployment
+            Ready for contract & orientation
           </div>
         </button>
       </div>
@@ -1007,6 +1039,8 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                       type="date"
                       value={toFollowExpectedAt}
                       onChange={(e) => setToFollowExpectedAt(e.target.value)}
+                      min={getManilaToday()}
+                      max="2100-12-31"
                       className="w-full text-xs rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700"
                     />
                     <p className="text-[11px] text-slate-500 mt-1">
