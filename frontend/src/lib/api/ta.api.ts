@@ -311,6 +311,15 @@ export const taApi = {
     data: { documentLabel: string; isRequired?: boolean }
   ) => api.post<MRFComplianceTemplate>(`/api/ta/mrfs/${mrfId}/compliance-templates`, data),
 
+  addMRFComplianceTemplatesBulk: (
+    mrfId: number | string,
+    data: { documentLabels: string[]; isRequired?: boolean }
+  ) =>
+    api.post<{ count: number; added: string[] }>(
+      `/api/ta/mrfs/${mrfId}/compliance-templates/bulk`,
+      data
+    ),
+
   listMRFComplianceTemplates: (mrfId: number | string) =>
     api.get<MRFComplianceTemplate[]>(`/api/ta/mrfs/${mrfId}/compliance-templates`),
 

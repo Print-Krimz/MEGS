@@ -103,6 +103,34 @@ export const COMPLIANCE_201_PRESETS: CompliancePreset[] = [
   },
 ];
 
+export interface RequirementCategoryGroup {
+  id: string;
+  title: string;
+  items: CompliancePreset[];
+}
+
+export const REQUIREMENT_GROUPS: RequirementCategoryGroup[] = [
+  {
+    id: "government",
+    title: "Government Documents",
+    items: COMPLIANCE_201_PRESETS.filter(
+      (p) => p.category === "STATUTORY" || p.category === "LEGAL"
+    ),
+  },
+  {
+    id: "medical",
+    title: "Medical Clearances",
+    items: COMPLIANCE_201_PRESETS.filter((p) => p.category === "MEDICAL"),
+  },
+  {
+    id: "credentials",
+    title: "Education & Credentials",
+    items: COMPLIANCE_201_PRESETS.filter(
+      (p) => p.category === "ACADEMIC" || p.category === "EMPLOYMENT"
+    ),
+  },
+];
+
 export const EMPLOYMENT_TYPE_OPTIONS = [
   "Full-Time",
   "Contractual",
