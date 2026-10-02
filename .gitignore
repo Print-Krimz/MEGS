@@ -80,6 +80,12 @@ scratch/
 agent/
 AGENTS.md
 docs/
+!docs/
+docs/*
+!docs/security-review/
+docs/security-review/*
+!docs/security-review/security-findings-inventory.md
+!docs/security-review/security-remaining-findings.md
 DATABASE_SCHEMA_EXPORTER.html
 database_diagrams.html
 

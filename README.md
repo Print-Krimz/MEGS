@@ -2,6 +2,8 @@
 
 An intelligent, full-stack Recruitment Management, Applicant Tracking, and Talent Acquisition platform built with the PERN stack (PostgreSQL / Supabase, Express 5, React 19, Node.js), Prisma 7.8, Google Gemini AI, Nodemailer Gmail SMTP, and pgvector semantic talent pooling.
 
+> **Security review for maintainer evaluation:** [Remaining issues, ordered by priority](docs/security-review/security-remaining-findings.md) and [complete findings inventory](docs/security-review/security-findings-inventory.md). This documentation proposes future work; it does not implement the remaining fixes.
+
 ---
 
 ## 🏛 System Architecture
