@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   PostDeploymentCompliancePage,
@@ -63,6 +63,10 @@ vi.mock("../../../lib/api/documents.api", () => ({
     }),
   },
 }));
+
+const upcomingTarget = new Date();
+upcomingTarget.setDate(upcomingTarget.getDate() + 3);
+const upcomingTargetStr = upcomingTarget.toISOString().split("T")[0];
 
 describe("PostDeploymentCompliancePage Helpers", () => {
   it("calculates days on site cleanly", () => {
@@ -277,6 +281,141 @@ describe("PostDeploymentCompliancePage Component", () => {
         },
       ],
     },
+    {
+      id: 503,
+      userId: "u-503",
+      jobPostingId: 15,
+      status: ApplicationStatus.DEPLOYED,
+      isArchived: false,
+      createdAt: "2026-08-15T08:00:00Z",
+      updatedAt: "2026-09-22T08:00:00Z",
+      user: {
+        id: "u-503",
+        email: "pedro.penduko@megs.ph",
+        applicantProfile: {
+          id: 3,
+          userId: "u-503",
+          firstName: "Pedro",
+          lastName: "Penduko",
+          mobileNumber: "+639170001122",
+        } as any,
+        employee: {
+          id: 12,
+          employeeNumber: "EMP-2026-0150",
+          status: "ACTIVE",
+        },
+      },
+      jobPosting: {
+        id: 15,
+        title: "CNC Machinist",
+        postedById: "ta-1",
+        description: "Precision tooling",
+        requirements: "Certification",
+        status: "ACTIVE" as any,
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        mrf: {
+          id: 5,
+          title: "Tooling Expansion",
+          clientId: 42,
+          client: {
+            id: 42,
+            name: "Beta Engineering",
+          },
+        },
+      },
+      deployments: [
+        {
+          id: 79,
+          employeeId: 12,
+          clientId: 42,
+          status: DeploymentStatus.ACTIVE,
+          contractStart: "2026-09-22",
+          createdById: "ta-admin",
+          createdAt: "2026-09-22T00:00:00Z",
+          updatedAt: "2026-09-22T00:00:00Z",
+        },
+      ],
+      complianceRequirements: [
+        {
+          id: 803,
+          applicationId: 503,
+          documentLabel: "Drug Test Result",
+          isRequired: true,
+          reviewStatus: "SUBMITTED",
+          createdAt: "2026-08-15T00:00:00Z",
+          updatedAt: "2026-09-22T00:00:00Z",
+        },
+      ],
+    },
+    {
+      id: 504,
+      userId: "u-504",
+      jobPostingId: 16,
+      status: ApplicationStatus.DEPLOYED,
+      isArchived: false,
+      createdAt: "2026-08-18T08:00:00Z",
+      updatedAt: "2026-09-25T08:00:00Z",
+      user: {
+        id: "u-504",
+        email: "ana.dalisay@megs.ph",
+        applicantProfile: {
+          id: 4,
+          userId: "u-504",
+          firstName: "Ana",
+          lastName: "Dalisay",
+          mobileNumber: "+639175556677",
+        } as any,
+        employee: {
+          id: 13,
+          employeeNumber: "EMP-2026-0200",
+          status: "ACTIVE",
+        },
+      },
+      jobPosting: {
+        id: 16,
+        title: "Logistics Coordinator",
+        postedById: "ta-1",
+        description: "Inventory dispatch",
+        requirements: "Logistics background",
+        status: "ACTIVE" as any,
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        mrf: {
+          id: 6,
+          title: "Supply Chain",
+          clientId: 43,
+          client: {
+            id: 43,
+            name: "Gamma Freight",
+          },
+        },
+      },
+      deployments: [
+        {
+          id: 80,
+          employeeId: 13,
+          clientId: 43,
+          status: DeploymentStatus.ACTIVE,
+          contractStart: "2026-09-25",
+          createdById: "ta-admin",
+          createdAt: "2026-09-25T00:00:00Z",
+          updatedAt: "2026-09-25T00:00:00Z",
+        },
+      ],
+      complianceRequirements: [
+        {
+          id: 804,
+          applicationId: 504,
+          documentLabel: "SSS Static Verification",
+          isRequired: true,
+          reviewStatus: "TO_FOLLOW",
+          toFollowExpectedAt: upcomingTargetStr,
+          createdAt: "2026-08-18T00:00:00Z",
+          updatedAt: "2026-09-25T00:00:00Z",
+        },
+      ],
+    },
   ];
 
   beforeEach(() => {
@@ -488,5 +627,79 @@ describe("PostDeploymentCompliancePage Component", () => {
         })
       );
     });
+  });
+
+  it("renders 4 anti-slop metric cards with accurate counts and inner table header banner", async () => {
+    vi.mocked(taApi.getComplianceQueue).mockResolvedValue(mockActiveWorkers);
+    renderComponent();
+
+    // 1. Metric Cards
+    const workersCard = await screen.findByRole("button", { name: /WORKERS WITH FOLLOW-UPS/i });
+    const readyCard = screen.getByRole("button", { name: /READY FOR REVIEW/i });
+    const cutoffCard = screen.getByRole("button", { name: /DUE THIS CUT-OFF/i });
+    const overdueCard = screen.getByRole("button", { name: /OVERDUE COMPLIANCE/i });
+
+    expect(workersCard.getAttribute("aria-pressed")).toBe("true");
+    expect(readyCard.getAttribute("aria-pressed")).toBe("false");
+    expect(cutoffCard.getAttribute("aria-pressed")).toBe("false");
+    expect(overdueCard.getAttribute("aria-pressed")).toBe("false");
+
+    // Card counts and labels
+    expect(within(workersCard).getByText("4")).toBeDefined();
+    expect(within(workersCard).getByText("4 requirements tracked")).toBeDefined();
+
+    expect(within(readyCard).getByText("1")).toBeDefined();
+    expect(within(readyCard).getByText("1 documents to verify")).toBeDefined();
+
+    expect(within(cutoffCard).getByText("1")).toBeDefined();
+    expect(within(cutoffCard).getByText("Within 7-day grace window")).toBeDefined();
+
+    expect(within(overdueCard).getByText("1")).toBeDefined();
+    expect(within(overdueCard).getByText("Exceeded target date")).toBeDefined();
+
+    // 2. Table Header Banner
+    expect(screen.getByText("POST-DEPLOYMENT FOLLOW-UP QUEUE")).toBeDefined();
+    expect(screen.getByText("Showing 4 active workers with pending requirements")).toBeDefined();
+    expect(screen.getByText("4 workers tracked")).toBeDefined();
+  });
+
+  it("supports clicking KPI cards to filter the queue table and resetting filters", async () => {
+    vi.mocked(taApi.getComplianceQueue).mockResolvedValue(mockActiveWorkers);
+    renderComponent();
+
+    const workersCard = await screen.findByRole("button", { name: /WORKERS WITH FOLLOW-UPS/i });
+    const readyCard = screen.getByRole("button", { name: /READY FOR REVIEW/i });
+    const cutoffCard = screen.getByRole("button", { name: /DUE THIS CUT-OFF/i });
+    const overdueCard = screen.getByRole("button", { name: /OVERDUE COMPLIANCE/i });
+
+    // Click "READY FOR REVIEW" card
+    fireEvent.click(readyCard);
+    expect(readyCard.getAttribute("aria-pressed")).toBe("true");
+    expect(workersCard.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByText("Showing 1 active worker with pending requirements")).toBeDefined();
+    expect(screen.getAllByText("Pedro Penduko").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Juan Dela Cruz")).toBeNull();
+    expect(screen.queryByText("Maria Santos")).toBeNull();
+
+    // Reset filter via banner action
+    const resetFilterBtn = screen.getByRole("button", { name: "Reset filter" });
+    fireEvent.click(resetFilterBtn);
+    expect(workersCard.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("Showing 4 active workers with pending requirements")).toBeDefined();
+    expect(screen.getAllByText("Juan Dela Cruz").length).toBeGreaterThanOrEqual(1);
+
+    // Click "DUE THIS CUT-OFF" card
+    fireEvent.click(cutoffCard);
+    expect(cutoffCard.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("Showing 1 active worker with pending requirements")).toBeDefined();
+    expect(screen.getAllByText("Ana Dalisay").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Juan Dela Cruz")).toBeNull();
+
+    // Click "OVERDUE COMPLIANCE" card
+    fireEvent.click(overdueCard);
+    expect(overdueCard.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("Showing 1 active worker with pending requirements")).toBeDefined();
+    expect(screen.getAllByText("Juan Dela Cruz").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Ana Dalisay")).toBeNull();
   });
 });

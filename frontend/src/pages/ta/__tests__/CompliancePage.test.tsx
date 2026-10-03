@@ -420,4 +420,31 @@ describe("CompliancePage", () => {
     expect(link).toBeDefined();
     expect(link.getAttribute("href")).toBe("/ta/applications/101");
   });
+
+  it("harmonizes 4 Pre-employment KPI cards using unified anti-slop surface styling", async () => {
+    renderComponent();
+    await screen.findByText("Pre-employment compliance queue");
+
+    const trackedCard = screen.getByRole("button", { name: /Candidates in compliance/i });
+    const waitingCandidateCard = screen.getByRole("button", { name: /Awaiting submission/i });
+    const waitingReviewCard = screen.getByRole("button", { name: /Ready for review/i });
+    const approvedCard = screen.getByRole("button", { name: /Cleared candidates/i });
+
+    // Active card uses dark neutral border and ring
+    expect(trackedCard.className).toContain("border-slate-800");
+    expect(trackedCard.className).toContain("ring-slate-800/20");
+
+    // Inactive cards use neutral border-slate-200/90 and bg-white without rainbow borders
+    expect(waitingCandidateCard.className).toContain("border-slate-200/90");
+    expect(waitingCandidateCard.className).not.toContain("border-amber-200");
+    expect(waitingCandidateCard.className).not.toContain("bg-amber-50/20");
+
+    expect(waitingReviewCard.className).toContain("border-slate-200/90");
+    expect(waitingReviewCard.className).not.toContain("border-blue-200");
+    expect(waitingReviewCard.className).not.toContain("bg-blue-50/20");
+
+    expect(approvedCard.className).toContain("border-slate-200/90");
+    expect(approvedCard.className).not.toContain("border-emerald-200");
+    expect(approvedCard.className).not.toContain("bg-emerald-50/20");
+  });
 });

@@ -151,13 +151,15 @@ export interface PostDeploymentCompliancePageProps {
   hideHeader?: boolean;
 }
 
+export type UrgencyFilter = "ALL" | "READY_FOR_REVIEW" | "UPCOMING" | "OVERDUE" | "HEALTHY";
+
 export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePageProps> = ({
   hideHeader = false,
 }) => {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
-  const [urgencyFilter, setUrgencyFilter] = useState<string>("ALL");
+  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>("ALL");
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -182,6 +184,51 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
     queryKey: ["ta-compliance-queue", "POST_DEPLOYMENT"],
     queryFn: () => taApi.getComplianceQueue("POST_DEPLOYMENT"),
   });
+
+  const metrics = useMemo(() => {
+    let totalFollowUpDocs = 0;
+    let readyForReviewCount = 0;
+    let readyForReviewDocs = 0;
+    let dueThisCutoffCount = 0;
+    let overdueCount = 0;
+
+    for (const app of applications) {
+      const reqs = app.complianceRequirements || [];
+      const pendingReqs = reqs.filter((r) => r.reviewStatus !== "APPROVED");
+      totalFollowUpDocs += pendingReqs.length;
+
+      const submittedReqs = reqs.filter((r) => r.reviewStatus === "SUBMITTED");
+      if (submittedReqs.length > 0) {
+        readyForReviewCount += 1;
+      }
+      readyForReviewDocs += submittedReqs.length;
+
+      const hasUpcoming = pendingReqs.some((r) => {
+        const urgency = calculateUrgencyStatus(r.toFollowExpectedAt);
+        return urgency.category === "UPCOMING";
+      });
+      if (hasUpcoming) {
+        dueThisCutoffCount += 1;
+      }
+
+      const hasOverdue = pendingReqs.some((r) => {
+        const urgency = calculateUrgencyStatus(r.toFollowExpectedAt);
+        return urgency.category === "OVERDUE";
+      });
+      if (hasOverdue) {
+        overdueCount += 1;
+      }
+    }
+
+    return {
+      totalWorkersWithFollowUps: applications.length,
+      totalFollowUpDocs,
+      readyForReviewCount,
+      readyForReviewDocs,
+      dueThisCutoffCount,
+      overdueCount,
+    };
+  }, [applications]);
 
   const reviewMutation = useMutation({
     mutationFn: ({
@@ -257,10 +304,22 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
       const urgencyCategory = getWorkerUrgencyCategory(app);
 
       let matchesUrgency = true;
-      if (urgencyFilter === "OVERDUE") {
-        matchesUrgency = urgencyCategory === "OVERDUE";
+      if (urgencyFilter === "READY_FOR_REVIEW") {
+        matchesUrgency = (app.complianceRequirements || []).some(
+          (r) => r.reviewStatus === "SUBMITTED"
+        );
+      } else if (urgencyFilter === "OVERDUE") {
+        matchesUrgency = (app.complianceRequirements || []).some(
+          (r) =>
+            r.reviewStatus !== "APPROVED" &&
+            calculateUrgencyStatus(r.toFollowExpectedAt).category === "OVERDUE"
+        );
       } else if (urgencyFilter === "UPCOMING") {
-        matchesUrgency = urgencyCategory === "UPCOMING";
+        matchesUrgency = (app.complianceRequirements || []).some(
+          (r) =>
+            r.reviewStatus !== "APPROVED" &&
+            calculateUrgencyStatus(r.toFollowExpectedAt).category === "UPCOMING"
+        );
       } else if (urgencyFilter === "HEALTHY") {
         matchesUrgency = urgencyCategory === "HEALTHY";
       }
@@ -301,7 +360,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
 
   const handleFilterChange = (key: string, val: string) => {
     if (key === "urgency") {
-      setUrgencyFilter(val || "ALL");
+      setUrgencyFilter((val as UrgencyFilter) || "ALL");
       setPage(1);
     }
   };
@@ -311,6 +370,8 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
     setUrgencyFilter("ALL");
     setPage(1);
   };
+
+  const isFilterActive = search.trim().length > 0 || urgencyFilter !== "ALL";
 
   if (isLoading) {
     return <LoadingState message="Loading post-deployment follow-up records..." />;
@@ -356,6 +417,105 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
         />
       )}
 
+      {/* 4 Anti-slop Metric Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <button
+          type="button"
+          aria-pressed={urgencyFilter === "ALL"}
+          onClick={() => {
+            setUrgencyFilter("ALL");
+            setPage(1);
+          }}
+          className={`text-left rounded-lg border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${
+            urgencyFilter === "ALL"
+              ? "border-slate-900 ring-2 ring-slate-900/20 bg-slate-50/60"
+              : "border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/40"
+          }`}
+        >
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            WORKERS WITH FOLLOW-UPS
+          </div>
+          <div className="text-2xl font-bold font-mono tabular-nums mt-1 text-slate-900">
+            {metrics.totalWorkersWithFollowUps}
+          </div>
+          <div className="text-[11px] text-slate-500 font-mono mt-1">
+            {metrics.totalFollowUpDocs} requirements tracked
+          </div>
+        </button>
+
+        <button
+          type="button"
+          aria-pressed={urgencyFilter === "READY_FOR_REVIEW"}
+          onClick={() => {
+            setUrgencyFilter("READY_FOR_REVIEW");
+            setPage(1);
+          }}
+          className={`text-left rounded-lg border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${
+            urgencyFilter === "READY_FOR_REVIEW"
+              ? "border-slate-900 ring-2 ring-slate-900/20 bg-slate-50/60"
+              : "border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/40"
+          }`}
+        >
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            READY FOR REVIEW
+          </div>
+          <div className="text-2xl font-bold font-mono tabular-nums mt-1 text-blue-700">
+            {metrics.readyForReviewCount}
+          </div>
+          <div className="text-[11px] text-slate-500 font-mono mt-1">
+            {metrics.readyForReviewDocs} documents to verify
+          </div>
+        </button>
+
+        <button
+          type="button"
+          aria-pressed={urgencyFilter === "UPCOMING"}
+          onClick={() => {
+            setUrgencyFilter("UPCOMING");
+            setPage(1);
+          }}
+          className={`text-left rounded-lg border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${
+            urgencyFilter === "UPCOMING"
+              ? "border-slate-900 ring-2 ring-slate-900/20 bg-slate-50/60"
+              : "border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/40"
+          }`}
+        >
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            DUE THIS CUT-OFF
+          </div>
+          <div className="text-2xl font-bold font-mono tabular-nums mt-1 text-amber-800">
+            {metrics.dueThisCutoffCount}
+          </div>
+          <div className="text-[11px] text-slate-500 font-mono mt-1">
+            Within 7-day grace window
+          </div>
+        </button>
+
+        <button
+          type="button"
+          aria-pressed={urgencyFilter === "OVERDUE"}
+          onClick={() => {
+            setUrgencyFilter("OVERDUE");
+            setPage(1);
+          }}
+          className={`text-left rounded-lg border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${
+            urgencyFilter === "OVERDUE"
+              ? "border-slate-900 ring-2 ring-slate-900/20 bg-slate-50/60"
+              : "border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/40"
+          }`}
+        >
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            OVERDUE COMPLIANCE
+          </div>
+          <div className="text-2xl font-bold font-mono tabular-nums mt-1 text-rose-700">
+            {metrics.overdueCount}
+          </div>
+          <div className="text-[11px] text-slate-500 font-mono mt-1">
+            Exceeded target date
+          </div>
+        </button>
+      </div>
+
       {/* Filters */}
       <SearchFilters
         searchPlaceholder="Search by candidate name, job title, or client..."
@@ -370,6 +530,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
             label: "Urgency",
             options: [
               { value: "ALL", label: "All urgency levels" },
+              { value: "READY_FOR_REVIEW", label: "Ready for review" },
               { value: "OVERDUE", label: "Overdue" },
               { value: "UPCOMING", label: "Upcoming (within 7 days)" },
               { value: "HEALTHY", label: "Healthy (> 7 days)" },
@@ -390,7 +551,27 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
           }
         />
       ) : (
-        <div className="bg-white border border-slate-300">
+        <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
+          {/* Inner Table Header Banner */}
+          <div className="p-3.5 border-b border-[#D9E2EC] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F7F9FC]">
+            <div>
+              <h3 className="text-sm font-semibold text-[#102A43] uppercase font-mono">
+                POST-DEPLOYMENT FOLLOW-UP QUEUE
+              </h3>
+              <p className="text-xs text-slate-500 font-sans mt-0.5">
+                Showing {filteredApplications.length} active worker{filteredApplications.length === 1 ? "" : "s"} with pending requirements
+              </p>
+            </div>
+            {isFilterActive ? (
+              <Button variant="outline" size="sm" onClick={handleReset}>
+                Reset filter
+              </Button>
+            ) : (
+              <span className="text-xs font-mono text-slate-500">
+                {applications.length} worker{applications.length === 1 ? "" : "s"} tracked
+              </span>
+            )}
+          </div>
           {/* Mobile Card List View */}
           <div className="md:hidden divide-y divide-slate-200">
             {paginatedApplications.map((app) => {

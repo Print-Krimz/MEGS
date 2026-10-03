@@ -633,7 +633,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
             statusFilter === "ALL"
               ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
-              : "border-slate-200 hover:border-slate-300 bg-white"
+              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
           }`}
         >
           <div className="text-xs font-semibold text-slate-600">
@@ -654,10 +654,10 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
             setStatusFilter("WAITING_CANDIDATE");
             setQueuePage(1);
           }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
             statusFilter === "WAITING_CANDIDATE"
-              ? "border-amber-600 ring-2 ring-amber-600/20 bg-amber-50/50"
-              : "border-amber-200 hover:border-amber-300 bg-amber-50/20"
+              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
+              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
           }`}
         >
           <div className="text-xs font-semibold text-amber-800">
@@ -678,10 +678,10 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
             setStatusFilter("WAITING_REVIEW");
             setQueuePage(1);
           }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
             statusFilter === "WAITING_REVIEW"
-              ? "border-blue-600 ring-2 ring-blue-600/20 bg-blue-50/50"
-              : "border-blue-200 hover:border-blue-300 bg-blue-50/20"
+              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
+              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
           }`}
         >
           <div className="text-xs font-semibold text-blue-800">
@@ -702,10 +702,10 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
             setStatusFilter("APPROVED");
             setQueuePage(1);
           }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
             statusFilter === "APPROVED"
-              ? "border-emerald-600 ring-2 ring-emerald-600/20 bg-emerald-50/50"
-              : "border-emerald-200 hover:border-emerald-300 bg-emerald-50/20"
+              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
+              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
           }`}
         >
           <div className="text-xs font-semibold text-emerald-800">
