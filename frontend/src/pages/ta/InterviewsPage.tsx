@@ -277,6 +277,7 @@ export const InterviewsPage: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <button
           type="button"
+          aria-pressed={statusFilter === "ALL"}
           onClick={() => {
             setStatusFilter("ALL");
             setPage(1);
@@ -284,10 +285,10 @@ export const InterviewsPage: React.FC = () => {
           className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
             statusFilter === "ALL"
               ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
-              : "border-slate-200 hover:border-slate-300 bg-white"
+              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
           }`}
         >
-          <div className="text-[11px] font-mono font-bold text-slate-500 uppercase">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
             Scheduled interviews
           </div>
           <div className="text-2xl font-bold font-mono text-slate-900 mt-1 tabular-nums">
@@ -301,17 +302,18 @@ export const InterviewsPage: React.FC = () => {
 
         <button
           type="button"
+          aria-pressed={statusFilter === "BREACHED"}
           onClick={() => {
             setStatusFilter("BREACHED");
             setPage(1);
           }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 ${
+          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
             statusFilter === "BREACHED"
-              ? "border-rose-600 ring-2 ring-rose-600/20 bg-rose-50/50"
-              : "border-rose-200 hover:border-rose-300 bg-rose-50/20"
+              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
+              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
           }`}
         >
-          <div className="text-[11px] font-mono font-bold text-rose-700 uppercase">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
             Overdue interviews
           </div>
           <div className="text-2xl font-bold font-mono text-rose-700 mt-1 tabular-nums">
@@ -325,20 +327,21 @@ export const InterviewsPage: React.FC = () => {
 
         <button
           type="button"
+          aria-pressed={statusFilter === "WARNING"}
           onClick={() => {
             setStatusFilter("WARNING");
             setPage(1);
           }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
             statusFilter === "WARNING"
-              ? "border-amber-600 ring-2 ring-amber-600/20 bg-amber-50/50"
-              : "border-amber-200 hover:border-amber-300 bg-amber-50/20"
+              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
+              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
           }`}
         >
-          <div className="text-[11px] font-mono font-bold text-amber-800 uppercase">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
             Due within 48 hours
           </div>
-          <div className="text-2xl font-bold font-mono text-amber-900 mt-1 tabular-nums">
+          <div className="text-2xl font-bold font-mono text-amber-800 mt-1 tabular-nums">
             {summary.warning}
           </div>
           <div className="text-[11px] text-amber-700 mt-1 flex items-center gap-1 font-mono">
@@ -349,20 +352,21 @@ export const InterviewsPage: React.FC = () => {
 
         <button
           type="button"
+          aria-pressed={statusFilter === "HEALTHY"}
           onClick={() => {
             setStatusFilter("HEALTHY");
             setPage(1);
           }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
             statusFilter === "HEALTHY"
-              ? "border-emerald-600 ring-2 ring-emerald-600/20 bg-emerald-50/50"
-              : "border-slate-200 hover:border-slate-300 bg-white"
+              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
+              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
           }`}
         >
-          <div className="text-[11px] font-mono font-bold text-emerald-700 uppercase">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
             On track
           </div>
-          <div className="text-2xl font-bold font-mono text-emerald-900 mt-1 tabular-nums">
+          <div className="text-2xl font-bold font-mono text-emerald-800 mt-1 tabular-nums">
             {summary.healthy}
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-mono">
@@ -404,11 +408,11 @@ export const InterviewsPage: React.FC = () => {
       />
 
       {/* SLA Details Queue Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="bg-white rounded-lg border border-[#D9E2EC] shadow-xs overflow-hidden">
+        <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
           <div className="space-y-0.5">
-            <h3 className="text-sm font-bold text-slate-900">{headerContent.title}</h3>
-            <p className="text-xs text-slate-500">{headerContent.description}</p>
+            <h3 className="text-sm font-semibold text-[#102A43] uppercase">{headerContent.title}</h3>
+            <p className="text-xs text-[#627D98] mt-0.5 font-mono">{headerContent.description}</p>
           </div>
         </div>
 
