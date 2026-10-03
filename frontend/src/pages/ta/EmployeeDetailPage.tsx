@@ -12,6 +12,7 @@ import {
 } from "../../components/common";
 import { Button, Dialog, Input, PhoneInput, Select, Textarea } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
+import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
 import { notify } from "../../lib/feedback";
 import {
@@ -19,7 +20,16 @@ import {
   formatPhilHealthNumber,
   formatPagIbigNumber,
   formatTINNumber,
-} from "../applicant/ProfilePage";
+  validateSSSNumber,
+  validatePhilHealthNumber,
+  validatePagIbigNumber,
+  validateTINNumber,
+  validatePhilippineContactPhone,
+  validateEmergencyPhone,
+  validatePersonName,
+  validateStandardText,
+  validateAddressText,
+} from "../../lib/statutory-validation";
 import { EmploymentStatus } from "../../lib/types/enums";
 import {
   User,
@@ -39,6 +49,21 @@ type TabKey =
   | "deployments"
   | "compliance"
   | "qualifications";
+function isDateBeforeToday(dateValue: string | Date | null | undefined): boolean {
+  if (!dateValue) return false;
+  const todayStr = getManilaToday();
+  const dateStr = toManilaDateInput(typeof dateValue === "string" ? dateValue : dateValue.toISOString());
+  if (dateStr) {
+    return dateStr < todayStr;
+  }
+  const d = new Date(dateValue);
+  if (isNaN(d.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(d);
+  target.setHours(0, 0, 0, 0);
+  return target.getTime() < today.getTime();
+}
 
 export const EmployeeDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -76,6 +101,7 @@ export const EmployeeDetailPage: React.FC = () => {
   const [statusReason, setStatusReason] = useState("");
 
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
   const [editForm, setEditForm] = useState({
     firstName: "",
     middleName: "",
@@ -100,7 +126,7 @@ export const EmployeeDetailPage: React.FC = () => {
 
   const digital201Query = useQuery({
     queryKey: ["ta", "employee", employeeId, "201"],
-    queryFn: () => employeesApi.getDigital201(employeeId),
+    queryFn: () => (employeesApi.getEmployeeDetails ? employeesApi.getEmployeeDetails(employeeId) : employeesApi.getDigital201(employeeId)),
     enabled: Boolean(employeeId),
   });
 
@@ -158,6 +184,8 @@ export const EmployeeDetailPage: React.FC = () => {
   const deployments = data.deployments || [];
   const events = data.employmentHistory || [];
   const compliance = data.compliance || [];
+  const verifiedItems = compliance.filter((r: any) => r.reviewStatus === "APPROVED");
+  const followUpItems = compliance.filter((r: any) => r.reviewStatus !== "APPROVED");
   const skillsList: string[] =
     Array.isArray(data.skills) && data.skills.length > 0
       ? data.skills
@@ -172,6 +200,7 @@ export const EmployeeDetailPage: React.FC = () => {
     : "N/A";
 
   const handleOpenEditModal = () => {
+    setEditFormErrors({});
     setEditForm({
       firstName: cand.firstName || "",
       middleName: cand.middleName || "",
@@ -198,10 +227,83 @@ export const EmployeeDetailPage: React.FC = () => {
 
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editForm.firstName.trim() || !editForm.lastName.trim()) {
-      notify.error("Validation error", "First name and last name are required.");
+    const errors: Record<string, string> = {};
+
+    const firstErr = validatePersonName(editForm.firstName, "First Name", { required: true });
+    if (firstErr) errors.firstName = firstErr;
+
+    if (editForm.middleName.trim()) {
+      const midErr = validatePersonName(editForm.middleName, "Middle Name");
+      if (midErr) errors.middleName = midErr;
+    }
+
+    const lastErr = validatePersonName(editForm.lastName, "Last Name", { required: true });
+    if (lastErr) errors.lastName = lastErr;
+
+    if (editForm.address.trim()) {
+      const addrErr = validateAddressText(editForm.address, "Residential Address");
+      if (addrErr) errors.address = addrErr;
+    }
+
+    if (editForm.emergencyContactName.trim()) {
+      const emergNameErr = validatePersonName(editForm.emergencyContactName, "Emergency Contact Name");
+      if (emergNameErr) errors.emergencyContactName = emergNameErr;
+    }
+
+    if (editForm.emergencyContactRelationship.trim()) {
+      const emergRelErr = validateStandardText(editForm.emergencyContactRelationship, "Emergency Contact Relationship");
+      if (emergRelErr) errors.emergencyContactRelationship = emergRelErr;
+    }
+
+    if (editForm.position.trim()) {
+      const posErr = validateStandardText(editForm.position, "Position");
+      if (posErr) errors.position = posErr;
+    }
+
+    if (editForm.department.trim()) {
+      const deptErr = validateStandardText(editForm.department, "Department");
+      if (deptErr) errors.department = deptErr;
+    }
+
+    if (editForm.mobileNumber.trim()) {
+      const phoneErr = validatePhilippineContactPhone(editForm.mobileNumber);
+      if (phoneErr) errors.mobileNumber = phoneErr;
+    }
+
+    if (editForm.sss.trim()) {
+      const sssErr = validateSSSNumber(editForm.sss);
+      if (sssErr) errors.sss = sssErr;
+    }
+
+    if (editForm.philhealth.trim()) {
+      const phErr = validatePhilHealthNumber(editForm.philhealth);
+      if (phErr) errors.philhealth = phErr;
+    }
+
+    if (editForm.pagibig.trim()) {
+      const pagibigErr = validatePagIbigNumber(editForm.pagibig);
+      if (pagibigErr) errors.pagibig = pagibigErr;
+    }
+
+    if (editForm.tin.trim()) {
+      const tinErr = validateTINNumber(editForm.tin);
+      if (tinErr) errors.tin = tinErr;
+    }
+
+    if (editForm.emergencyContactPhone.trim()) {
+      const emergPhoneErr = validateEmergencyPhone(editForm.emergencyContactPhone);
+      if (emergPhoneErr) errors.emergencyContactPhone = emergPhoneErr;
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setEditFormErrors(errors);
+      const firstError = Object.values(errors)[0];
+      notify.error("Validation error", firstError || "Please correct the highlighted fields before saving.");
       return;
     }
+
+    setEditFormErrors({});
+
     updateDetailsMutation.mutate({
       firstName: editForm.firstName.trim(),
       middleName: editForm.middleName.trim() || null,
@@ -293,7 +395,7 @@ export const EmployeeDetailPage: React.FC = () => {
             { id: "identity", label: "Identity and IDs", icon: User, panelId: "employee-identity" },
             { id: "history", label: `History (${events.length})`, icon: History, panelId: "employee-history" },
             { id: "deployments", label: `Deployments (${deployments.length})`, icon: Truck, panelId: "employee-deployments" },
-            { id: "compliance", label: `Requirements (${compliance.length})`, icon: ShieldCheck, panelId: "employee-compliance" },
+            { id: "compliance", label: `Clearance Vault (${compliance.length})`, icon: ShieldCheck, panelId: "employee-compliance" },
             { id: "qualifications", label: "Qualifications", icon: GraduationCap, panelId: "employee-qualifications" },
           ]}
           className="border-b-0"
@@ -426,22 +528,76 @@ export const EmployeeDetailPage: React.FC = () => {
 
         {/* TAB 4: CLEARANCE VAULT */}
         {activeTab === "compliance" && (
-          <div className="space-y-4">
-            <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-              Pre-employment requirements
-            </h3>
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
+                201 Clearance Vault
+              </h3>
+              <span className="px-2 py-0.5 rounded text-xs font-mono bg-slate-100 text-slate-700 border border-slate-200">
+                {verifiedItems.length} of {compliance.length} verified
+              </span>
+            </div>
+
             {compliance.length === 0 ? (
               <p className="text-xs text-slate-400 py-4">No compliance documents attached.</p>
             ) : (
-              <div className="divide-y divide-slate-100">
-                {compliance.map((req: any) => (
-                  <div key={req.id} className="py-3 flex items-center justify-between gap-4 text-xs">
-                    <div>
-                      <div className="font-bold text-slate-900">{req.documentLabel}</div>
+              <div className="space-y-6">
+                {followUpItems.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-mono font-bold uppercase text-slate-500">
+                      Pending follow-up items
+                    </h4>
+                    <div className="divide-y divide-slate-100">
+                      {followUpItems.map((req: any) => {
+                        const targetDate = req.toFollowExpectedAt || req.deadline;
+                        const overdue = isDateBeforeToday(targetDate);
+                        return (
+                          <div key={req.id} className="py-3 flex items-center justify-between gap-4 text-xs">
+                            <div className="space-y-0.5">
+                              <div className="font-bold text-slate-900">{req.documentLabel}</div>
+                              {targetDate && (
+                                <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono">
+                                  <span>Target date: {formatDate(targetDate)}</span>
+                                  {overdue && (
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                                      Overdue
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <StatusBadge status={req.reviewStatus} type="raw" size="sm" />
+                          </div>
+                        );
+                      })}
                     </div>
-                    <StatusBadge status={req.reviewStatus} type="raw" size="sm" />
                   </div>
-                ))}
+                )}
+
+                <div className="space-y-3">
+                  <h4 className="text-xs font-mono font-bold uppercase text-slate-500">
+                    Verified 201 documents
+                  </h4>
+                  {verifiedItems.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-3">No verified documents on record yet.</p>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {verifiedItems.map((req: any) => (
+                        <div key={req.id} className="py-3 flex items-center justify-between gap-4 text-xs">
+                          <div className="space-y-0.5">
+                            <div className="font-bold text-slate-900">{req.documentLabel}</div>
+                            {req.expiresAt && (
+                              <div className="text-[11px] text-slate-500 font-mono">
+                                Expires: {formatDate(req.expiresAt)}
+                              </div>
+                            )}
+                          </div>
+                          <StatusBadge status={req.reviewStatus} type="raw" size="sm" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -538,22 +694,36 @@ export const EmployeeDetailPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Input
                 label="First Name"
+                nameInput
                 required
+                maxLength={100}
                 value={editForm.firstName}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, firstName: e.target.value }))}
+                error={editFormErrors.firstName}
+                onChange={(e) => {
+                  setEditForm((prev) => ({ ...prev, firstName: e.target.value }));
+                  if (editFormErrors.firstName) setEditFormErrors((err) => ({ ...err, firstName: "" }));
+                }}
                 placeholder="First name"
               />
               <Input
                 label="Middle Name"
+                nameInput
+                maxLength={100}
                 value={editForm.middleName}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, middleName: e.target.value }))}
                 placeholder="Middle name (optional)"
               />
               <Input
                 label="Last Name"
+                nameInput
                 required
+                maxLength={100}
                 value={editForm.lastName}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, lastName: e.target.value }))}
+                error={editFormErrors.lastName}
+                onChange={(e) => {
+                  setEditForm((prev) => ({ ...prev, lastName: e.target.value }));
+                  if (editFormErrors.lastName) setEditFormErrors((err) => ({ ...err, lastName: "" }));
+                }}
                 placeholder="Last name"
               />
             </div>
@@ -569,8 +739,13 @@ export const EmployeeDetailPage: React.FC = () => {
                 label="Contact Mobile"
                 value={editForm.mobileNumber}
                 mobileOnly
-                onChange={(value) => setEditForm((prev) => ({ ...prev, mobileNumber: value }))}
-                placeholder="0917-000-0000"
+                error={editFormErrors.mobileNumber}
+                onChange={(value) => {
+                  setEditForm((prev) => ({ ...prev, mobileNumber: value }));
+                  if (editFormErrors.mobileNumber) setEditFormErrors((err) => ({ ...err, mobileNumber: "" }));
+                }}
+                placeholder="0917-123-4567"
+                helperText="e.g. 0917-123-4567"
               />
             </div>
             <div>
@@ -600,30 +775,58 @@ export const EmployeeDetailPage: React.FC = () => {
               <Input
                 label="SSS Number"
                 value={editForm.sss}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, sss: formatSSSNumber(e.target.value) }))}
-                placeholder="00-0000000-0"
-                helperText="10 digits (00-0000000-0)"
+                maxLength={12}
+                inputMode="numeric"
+                error={editFormErrors.sss}
+                onChange={(e) => {
+                  const val = formatSSSNumber(e.target.value);
+                  setEditForm((prev) => ({ ...prev, sss: val }));
+                  if (editFormErrors.sss) setEditFormErrors((err) => ({ ...err, sss: "" }));
+                }}
+                placeholder="01-2345678-9"
+                helperText="e.g. 01-2345678-9 (10 digits)"
               />
               <Input
                 label="PhilHealth PIN"
                 value={editForm.philhealth}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, philhealth: formatPhilHealthNumber(e.target.value) }))}
-                placeholder="00-000000000-0"
-                helperText="12 digits (00-000000000-0)"
+                maxLength={14}
+                inputMode="numeric"
+                error={editFormErrors.philhealth}
+                onChange={(e) => {
+                  const val = formatPhilHealthNumber(e.target.value);
+                  setEditForm((prev) => ({ ...prev, philhealth: val }));
+                  if (editFormErrors.philhealth) setEditFormErrors((err) => ({ ...err, philhealth: "" }));
+                }}
+                placeholder="01-234567890-1"
+                helperText="e.g. 01-234567890-1 (12 digits)"
               />
               <Input
                 label="Pag-IBIG MID"
                 value={editForm.pagibig}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, pagibig: formatPagIbigNumber(e.target.value) }))}
-                placeholder="0000-0000-0000"
-                helperText="12 digits (0000-0000-0000)"
+                maxLength={14}
+                inputMode="numeric"
+                error={editFormErrors.pagibig}
+                onChange={(e) => {
+                  const val = formatPagIbigNumber(e.target.value);
+                  setEditForm((prev) => ({ ...prev, pagibig: val }));
+                  if (editFormErrors.pagibig) setEditFormErrors((err) => ({ ...err, pagibig: "" }));
+                }}
+                placeholder="1234-5678-9012"
+                helperText="e.g. 1234-5678-9012 (12 digits)"
               />
               <Input
                 label="TIN Number"
                 value={editForm.tin}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, tin: formatTINNumber(e.target.value) }))}
-                placeholder="000-000-000-000"
-                helperText="9-12 digits (000-000-000-000)"
+                maxLength={15}
+                inputMode="numeric"
+                error={editFormErrors.tin}
+                onChange={(e) => {
+                  const val = formatTINNumber(e.target.value);
+                  setEditForm((prev) => ({ ...prev, tin: val }));
+                  if (editFormErrors.tin) setEditFormErrors((err) => ({ ...err, tin: "" }));
+                }}
+                placeholder="123-456-789-000"
+                helperText="e.g. 123-456-789-000 (9 or 12 digits)"
               />
             </div>
           </div>
@@ -636,6 +839,7 @@ export const EmployeeDetailPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Input
                 label="Contact Name"
+                nameInput
                 value={editForm.emergencyContactName}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, emergencyContactName: e.target.value }))}
                 placeholder="Full name"
@@ -646,11 +850,17 @@ export const EmployeeDetailPage: React.FC = () => {
                 onChange={(e) => setEditForm((prev) => ({ ...prev, emergencyContactRelationship: e.target.value }))}
                 placeholder="Relationship (e.g. Spouse)"
               />
-              <Input
+              <PhoneInput
                 label="Contact Phone"
                 value={editForm.emergencyContactPhone}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, emergencyContactPhone: e.target.value }))}
-                placeholder="Phone / Mobile"
+                mobileOnly
+                error={editFormErrors.emergencyContactPhone}
+                onChange={(val) => {
+                  setEditForm((prev) => ({ ...prev, emergencyContactPhone: val }));
+                  if (editFormErrors.emergencyContactPhone) setEditFormErrors((err) => ({ ...err, emergencyContactPhone: "" }));
+                }}
+                placeholder="0917-123-4567"
+                helperText="e.g. 0917-123-4567"
               />
             </div>
             <div>
