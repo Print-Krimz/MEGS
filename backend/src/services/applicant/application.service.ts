@@ -262,7 +262,7 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     resolvedResumeUrl = profile.resumeUrl;
   }
 
-  const application = await prisma.application.create({
+  let application = await prisma.application.create({
     data: {
       userId,
       jobPostingId: jobId,
@@ -271,7 +271,14 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     },
   });
 
-  enqueueResumeAnalysis(application.id);
+  try { enqueueResumeAnalysis(application.id); }
+  catch {
+    // Submission is already saved. Preserve it for staff review rather than
+    // falsely reporting failure and encouraging a duplicate application.
+    application = await prisma.application.update({ where: { id: application.id }, data: {
+      status: "NEEDS_ATTENTION", aiSummary: "Automatic analysis is busy. The saved application requires manual review or a later staff retry.",
+    } });
+  }
   void revalidateApplication(application.id, jobId).catch((error) => console.error("[Scoring] failed to queue application revalidation", error));
 
   logAudit(userId, "APPLICATION_SUBMITTED", "Application", application.id, {

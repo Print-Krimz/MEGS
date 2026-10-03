@@ -1,0 +1,42 @@
+name: Security regression checks
+on:
+  pull_request:
+  push:
+    branches: [megs-security-surgical-auth-hardening]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      DIRECT_URL: postgresql://synthetic:synthetic@127.0.0.1:1/synthetic
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Backend dependencies
+        run: npm ci --ignore-scripts
+        working-directory: backend
+      - name: Generate local client, security tests, and backend build
+        run: |
+          npx prisma generate
+          npm test
+          npx tsc --noEmit
+          npx tsc
+          node tests/security/compiled-parser-compatibility.cjs
+        working-directory: backend
+      - name: Frontend dependencies
+        run: npm ci --ignore-scripts
+        working-directory: frontend
+      - name: Frontend security tests, lint, and build
+        run: |
+          npm test
+          npm run lint
+          NODE_ENV=production npm run build
+        working-directory: frontend

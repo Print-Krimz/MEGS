@@ -13,6 +13,8 @@ let isEnvLoaded = false;
 export const loadEnv = (): void => {
   if (isEnvLoaded) return;
   isEnvLoaded = true;
+  // Automated tests supply synthetic configuration; never load local live credentials.
+  if (process.env.NODE_ENV === "test") return;
 
   const currentDir = typeof __dirname !== "undefined" ? __dirname : process.cwd();
   const backendDir = path.resolve(currentDir, "../..");

@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { redactSensitiveText } from "../security/errors.js";
 
 export const getFromAddress = (): string => {
   if (process.env.EMAIL_FROM) {
@@ -14,7 +15,7 @@ export const getFromAddress = (): string => {
 export const fromAddress = getFromAddress();
 
 export const redactAuthenticationSecrets = (value: string): string =>
-  value
+  redactSensitiveText(value)
     .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]+/gi, "$1[REDACTED]")
     .replace(/([?&](?:token|access_token|refresh_token|code|otp)=)[^&#\s]+/gi, "$1[REDACTED]")
     .replace(/\b\d{6}\b/g, "******");
@@ -105,8 +106,8 @@ export const sendMail = async (
       : "SMTP / Gmail live connection skipped in test mode.";
     console.log(`\n📧 [DEV EMAIL LOG] ${reason}`);
     console.log(`   To: ${to.replace(/(^.).*(@.*$)/, "$1***$2")}`);
-    console.log(`   From: ${from}`);
-    console.log(`   Subject: ${subject}`);
+    console.log(`   From: ${redactSensitiveText(from)}`);
+    console.log(`   Subject: ${redactSensitiveText(subject)}`);
     console.log(`   Body: ${sanitizedText}\n`);
     return { success: true, messageId: "dev-mock-id" };
   }
@@ -123,7 +124,7 @@ export const sendMail = async (
     return { success: true, messageId: info.messageId };
   } catch (error: any) {
     console.error("[Mailer] Email delivery error:", redactAuthenticationSecrets(String(error?.message || error)));
-    throw error;
+    throw new Error("Email delivery is temporarily unavailable. Please try again later.");
   }
 };
 

@@ -3,6 +3,7 @@ import { sendNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
 import { calculateAndPersistCandidateScore } from "../scoring/candidate-scoring.service.js";
 import { InvalidKnnRequestError } from "../scoring/talent-pool-knn.service.js";
+import { publicErrorMessage } from "../../security/errors.js";
 
 export interface SendInvitationInput {
   applicantProfileId: number;
@@ -175,7 +176,7 @@ export const batchSendTalentPoolJobInvitations = async (input: BatchSendInvitati
       });
       results.push({ applicantProfileId, success: true, invitationId: inv.id });
     } catch (err: any) {
-      results.push({ applicantProfileId, success: false, error: err.message });
+      results.push({ applicantProfileId, success: false, error: publicErrorMessage(err.message, 400) });
     }
   }
 

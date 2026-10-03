@@ -86,6 +86,17 @@ docs/*
 docs/security-review/*
 !docs/security-review/security-findings-inventory.md
 !docs/security-review/security-remaining-findings.md
+!docs/security-review/security-fixes-completed.md
+
+# Keep reviewed security regressions in Git and CI.
+!backend/tests/
+backend/tests/*
+!backend/tests/security/
+!backend/tests/security/**
+!frontend/tests/
+frontend/tests/*
+!frontend/tests/security/
+!frontend/tests/security/**
 DATABASE_SCHEMA_EXPORTER.html
 database_diagrams.html
 

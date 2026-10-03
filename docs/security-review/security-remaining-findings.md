@@ -1,5 +1,7 @@
 # MEGS remaining security findings and proposed fixes
 
+> **Implementation update, 4 October 2026:** The creator approved this review. Local patches and verification now live on `megs-security-surgical-auth-hardening`. Read [the compiled earlier and current fixes, results and rollout prerequisites](security-fixes-completed.md). The evidence and proposed changes below remain the **historical 3 October review snapshot**, not a claim about the patched source or deployed configuration.
+
 **Review only - no security implementation authorized in this phase.** Date: 3 October 2026 (Asia/Singapore). Source baseline: `1897420`. Review branch: `security/remaining-findings-review`, created from the updated `origin/main` in the existing `MEGS-security-surgical-auth-hardening` worktree. See [the full inventory](security-findings-inventory.md) for the original F01-F12 mapping and completed work.
 
 ## What this report means

@@ -5,7 +5,6 @@ import {
   sendMail,
   sendRegistrationOtpEmail,
   sendPasswordResetOtpEmail,
-  redactAuthenticationSecrets,
 } from '../../utils/mailer.js';
 import {
   generateNumericOtp,
@@ -20,10 +19,12 @@ import {
 } from './mfa.service.js';
 import { maskEmail } from '../../utils/mask.js';
 import { ensureApplicantProfile } from '../applicant/applicant.service.js';
-import { isMfaEnforced } from '../../security/auth-policy.js';
+import { isActiveAccount, isMfaEnforced } from '../../security/auth-policy.js';
+import { isLocalBypassEnabled } from '../../security/runtime-config.js';
+import { safeLogError } from '../../security/errors.js';
 
 const isOtpTestBypassEnabled = (): boolean =>
-  process.env.NODE_ENV !== "production" && process.env.DISABLE_OTP === "true";
+  isLocalBypassEnabled("DISABLE_OTP");
 
 export const registerUser = async (email: string, password: string) => {
   if (password.length < 8) {
@@ -45,7 +46,7 @@ export const registerUser = async (email: string, password: string) => {
       password,
     });
     if (updateError) {
-      throw new Error(updateError.message || "Failed to update registration");
+      throw new Error("Failed to update registration. Please try again later.");
     }
     dbUserId = existingUser.id;
   } else {
@@ -57,7 +58,7 @@ export const registerUser = async (email: string, password: string) => {
     });
 
     if (authError || !authData.user) {
-      throw new Error(authError?.message ?? "Failed to create account");
+      throw new Error("Failed to create account. Please try again later.");
     }
 
     const dbUser = await prisma.user.create({
@@ -160,19 +161,26 @@ export const verifyOtp = async (
     throw new Error("Maximum verification attempts exceeded. Please request a new code.");
   }
 
-  // Increment attempts counter
-  const updatedOtp = await prisma.authOtp.update({
-    where: { id: activeOtp.id },
+  // Reserve an attempt atomically; simultaneous requests cannot exceed the budget.
+  const attempt = await prisma.authOtp.updateMany({
+    where: {
+      id: activeOtp.id,
+      isUsed: false,
+      expiresAt: { gt: new Date() },
+      attempts: { lt: activeOtp.maxAttempts },
+    },
     data: { attempts: { increment: 1 } },
   });
+  if (attempt.count !== 1) {
+    throw new Error("Invalid or expired verification code. Please request a new one.");
+  }
 
-  const isDevMasterOtp =
-    (isOtpTestBypassEnabled() || (process.env.NODE_ENV === "development" && !process.env.VITEST)) &&
-    (cleanOtp === "000000" || process.env.DISABLE_OTP === "true");
+  const isDevMasterOtp = isOtpTestBypassEnabled();
 
   const isMatch = isDevMasterOtp || verifyOtpHash(cleanOtp, activeOtp.otpHash);
   if (!isMatch) {
-    const remaining = activeOtp.maxAttempts - updatedOtp.attempts;
+    const updatedOtp = await prisma.authOtp.findUnique({ where: { id: activeOtp.id } });
+    const remaining = Math.max(0, activeOtp.maxAttempts - (updatedOtp?.attempts ?? activeOtp.maxAttempts));
     if (remaining <= 0) {
       await prisma.authOtp.update({
         where: { id: activeOtp.id },
@@ -183,22 +191,28 @@ export const verifyOtp = async (
     throw new Error(`Invalid verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`);
   }
 
-  // Mark OTP as used (one-time use)
-  await prisma.authOtp.update({
-    where: { id: activeOtp.id },
+  const dbUser = await prisma.user.findUnique({ where: { email: emailLower } });
+  if (!dbUser || !dbUser.isActive ||
+      (purpose === "REGISTRATION" ? dbUser.accountStatus !== "PENDING_VERIFICATION" :
+        !isActiveAccount(dbUser.isActive, dbUser.accountStatus))) {
+    throw new Error("User account is invalid or deactivated.");
+  }
+
+  // Claim before activating an account or issuing a password reset session.
+  const consumed = await prisma.authOtp.updateMany({
+    where: { id: activeOtp.id, isUsed: false, expiresAt: { gt: new Date() } },
     data: { isUsed: true },
   });
+  if (consumed.count !== 1) {
+    throw new Error("Invalid or expired verification code. Please request a new one.");
+  }
 
   if (purpose === "REGISTRATION") {
-    const dbUser = await prisma.user.findUnique({ where: { email: emailLower } });
-    if (!dbUser) {
-      throw new Error("User account not found");
-    }
-
-    await prisma.user.update({
-      where: { id: dbUser.id },
+    const activated = await prisma.user.updateMany({
+      where: { id: dbUser.id, isActive: true, accountStatus: "PENDING_VERIFICATION" },
       data: { accountStatus: "ACTIVE" },
     });
+    if (activated.count !== 1) throw new Error("User account is invalid or deactivated.");
 
     logAudit(dbUser.id, "USER_VERIFIED", "User", dbUser.id, { email: emailLower });
 
@@ -208,11 +222,6 @@ export const verifyOtp = async (
   }
 
   // Purpose: PASSWORD_RESET
-  const dbUser = await prisma.user.findUnique({ where: { email: emailLower } });
-  if (!dbUser || !dbUser.isActive || dbUser.accountStatus === "DEACTIVATED") {
-    throw new Error("User account is invalid or deactivated.");
-  }
-
   // Invalidate any previous unused reset sessions for this user
   await prisma.passwordResetSession.updateMany({
     where: { userId: dbUser.id, isUsed: false },
@@ -272,7 +281,7 @@ export const resendOtp = async (
   } else {
     // Password reset anti-enumeration check
     const dbUser = await prisma.user.findUnique({ where: { email: emailLower } });
-    if (!dbUser || !dbUser.isActive || dbUser.accountStatus === "DEACTIVATED") {
+    if (!dbUser || !isActiveAccount(dbUser.isActive, dbUser.accountStatus)) {
       return {
         message: "If an account exists for this email, a new verification code has been sent.",
       };
@@ -322,7 +331,7 @@ export const loginUser = async (email: string, password: string, ip?: string) =>
   if (error || !data.session || !data.user) {
     logAudit(null, "FAILED_LOGIN_ATTEMPT", "User", null, {
       attemptedEmail: emailLower,
-      reason: error?.message || "Invalid email or password",
+      reason: "Invalid email or password",
       ip,
     });
     throw new Error("Invalid email or password");
@@ -468,7 +477,7 @@ export const requestPasswordReset = async (email: string) => {
 
   try {
     const dbUser = await prisma.user.findUnique({ where: { email: emailLower } });
-    if (!dbUser || !dbUser.isActive || dbUser.accountStatus === "DEACTIVATED") {
+    if (!dbUser || !isActiveAccount(dbUser.isActive, dbUser.accountStatus)) {
       return GENERIC_RESPONSE;
     }
 
@@ -515,19 +524,18 @@ export const requestPasswordReset = async (email: string) => {
       await sendPasswordResetOtpEmail(emailLower, plainOtp);
       logAudit(dbUser.id, "PASSWORD_RESET_REQUESTED", "User", dbUser.id, { email: emailLower });
     } catch (mailError: any) {
-      console.error(
-        "[Auth] Failed to send password reset OTP email:",
-        redactAuthenticationSecrets(String(mailError?.message || mailError))
-      );
+      safeLogError("Auth password reset email", mailError);
       throw new Error("Failed to deliver the verification email. Please try again later.");
     }
 
     return GENERIC_RESPONSE;
   } catch (err: any) {
-    if (err.message.includes("Please wait") || err.message.includes("Failed to deliver")) {
+    if (typeof err?.message === "string" &&
+        (/^Please wait \d+ seconds before requesting another code\.$/.test(err.message) ||
+          err.message === "Failed to deliver the verification email. Please try again later.")) {
       throw err;
     }
-    console.error("[Auth] Error in requestPasswordReset:", err);
+    safeLogError("Auth password reset request", err);
     return GENERIC_RESPONSE;
   }
 };
@@ -546,39 +554,39 @@ export const resetUserPassword = async (token: string, newPassword: string) => {
     },
   });
 
-  if (!session || new Date(session.expiresAt).getTime() < Date.now()) {
-    if (session) {
-      await prisma.passwordResetSession.update({
-        where: { id: session.id },
-        data: { isUsed: true },
-      });
-    }
+  if (!session || new Date(session.expiresAt).getTime() <= Date.now()) {
     throw new Error("Invalid or expired password reset session");
   }
 
   const userId = session.userId;
+  const dbUser = await prisma.user.findUnique({ where: { id: userId } });
+  if (!dbUser || !isActiveAccount(dbUser.isActive, dbUser.accountStatus)) {
+    throw new Error("User account is invalid or deactivated.");
+  }
 
+  const consumed = await prisma.passwordResetSession.updateMany({
+    where: { id: session.id, tokenHash, isUsed: false, expiresAt: { gt: new Date() } },
+    data: { isUsed: true },
+  });
+  if (consumed.count !== 1) throw new Error("Invalid or expired password reset session");
+
+  // Never reopen this session: a failed response can still mean the provider changed
+  // the password. Recovery after a provider/local failure requires a new OTP/session.
   const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
     password: newPassword,
   });
 
   if (updateError) {
-    throw new Error(updateError.message || "Failed to update password");
+    throw new Error("Failed to update password. Please request a new reset code.");
   }
 
-  await prisma.user.update({
-    where: { id: userId },
+  const updated = await prisma.user.updateMany({
+    where: { id: userId, isActive: true, accountStatus: "ACTIVE" },
     data: {
       mustChangePassword: false,
-      accountStatus: "ACTIVE",
     },
   });
-
-  // Mark reset session as used (single use)
-  await prisma.passwordResetSession.update({
-    where: { id: session.id },
-    data: { isUsed: true },
-  });
+  if (updated.count !== 1) throw new Error("User account is invalid or deactivated.");
 
   logAudit(userId, "PASSWORD_RESET_COMPLETED", "User", userId, {});
 
@@ -614,7 +622,7 @@ export const changeUserPassword = async (
   });
 
   if (updateError) {
-    throw new Error(updateError.message || "Failed to update password");
+    throw new Error("Failed to update password. Please try again later.");
   }
 
   await prisma.user.update({
@@ -665,7 +673,7 @@ export const getInvitationDetails = async (rawToken: string) => {
     throw new Error("This invitation has expired. Please ask your administrator to resend an invitation.");
   }
 
-  if (invitation.user.accountStatus !== "PENDING" && invitation.user.accountStatus !== "INVITED") {
+  if (!invitation.user.isActive || (invitation.user.accountStatus !== "PENDING" && invitation.user.accountStatus !== "INVITED")) {
     throw new Error("This account has already completed setup or is not in a pending invitation state.");
   }
 
@@ -721,9 +729,21 @@ export const setupAccount = async (token: string, newPassword: string) => {
 
   const dbUser = invitation.user;
 
-  if (dbUser.accountStatus !== "PENDING" && dbUser.accountStatus !== "INVITED") {
+  if (!dbUser.isActive || (dbUser.accountStatus !== "PENDING" && dbUser.accountStatus !== "INVITED")) {
     throw new Error("Account has already been activated or is not in a pending invitation status");
   }
+
+  const consumed = await prisma.userInvitation.updateMany({
+    where: {
+      id: invitation.id,
+      tokenHash,
+      isUsed: false,
+      expiresAt: { gt: new Date() },
+      user: { isActive: true, accountStatus: { in: ["PENDING", "INVITED"] } },
+    },
+    data: { isUsed: true, usedAt: new Date() },
+  });
+  if (consumed.count !== 1) throw new Error("Invalid or expired setup token");
 
   const { error: updateError } = await supabase.auth.admin.updateUserById(dbUser.id, {
     password: newPassword,
@@ -731,24 +751,20 @@ export const setupAccount = async (token: string, newPassword: string) => {
   });
 
   if (updateError) {
-    throw new Error(updateError.message || "Failed to set password");
+    throw new Error("Failed to set password. Please ask your administrator for a new invitation.");
   }
 
   const updatedUser = await prisma.$transaction(async (tx) => {
-    await tx.userInvitation.update({
-      where: { id: invitation.id },
-      data: {
-        isUsed: true,
-        usedAt: new Date(),
-      },
-    });
-
-    return await tx.user.update({
-      where: { id: dbUser.id },
+    const activated = await tx.user.updateMany({
+      where: { id: dbUser.id, isActive: true, accountStatus: { in: ["PENDING", "INVITED"] } },
       data: {
         accountStatus: "ACTIVE",
         mustChangePassword: false,
       },
+    });
+    if (activated.count !== 1) throw new Error("User account is invalid or deactivated.");
+    return await tx.user.findUniqueOrThrow({
+      where: { id: dbUser.id },
       select: {
         id: true,
         email: true,

@@ -13,7 +13,8 @@ export const analyzeApplication = async (req: Request, res: Response): Promise<v
     const result = await queueApplicationAnalysis(id);
     sendSuccess(res, "Resume analysis queued. Results will be available shortly.", result);
   } catch (error: any) {
-    const statusCode = error.message.includes("not found") ? 404 : 400;
+    const statusCode = error.status === 429 ? 429 : error.message.includes("not found") ? 404 : 400;
+    if (statusCode === 429) res.setHeader("Retry-After", "5");
     sendError(res, error.message, statusCode);
   }
 };

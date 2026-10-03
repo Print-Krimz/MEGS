@@ -42,4 +42,8 @@ setup.ts
 setupTests.ts
 vitest.config.ts
 playwright.config.ts
+!tests/
+tests/*
+!tests/security/
+!tests/security/**
 

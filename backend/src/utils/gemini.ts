@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { AI_DATA_INSTRUCTION, aiData, parseAiJson, parseResumeAnalysis } from "../security/ai-output.js";
 
 let aiInstance: GoogleGenAI | null = null;
 
@@ -35,32 +36,29 @@ export const generateContentWithFallback = async (
 ): Promise<any> => {
   const ai = getGeminiClient();
   const candidateModels = getCandidateModels();
-  let lastError: any = null;
 
   for (const model of candidateModels) {
+    const signal = AbortSignal.timeout(timeoutMs);
     try {
-      const generatePromise = ai.models.generateContent({
+      const response = await ai.models.generateContent({
         model,
         contents: params.contents,
-        config: params.config,
+        config: {
+          ...params.config,
+          systemInstruction: AI_DATA_INSTRUCTION,
+          abortSignal: signal,
+          maxOutputTokens: 8192,
+        },
       });
-
-      const timeoutPromise = new Promise((_, reject) => {
-        const timer = setTimeout(() => {
-          reject(new Error(`Model ${model} request timed out after ${timeoutMs}ms`));
-        }, timeoutMs);
-        if (typeof timer.unref === "function") timer.unref();
-      });
-
-      const response = (await Promise.race([generatePromise, timeoutPromise])) as any;
       return response;
     } catch (err: any) {
-      console.warn(`[Gemini] Model ${model} failed (${err.message}). Trying next fallback model...`);
-      lastError = err;
+      console.warn("[Gemini] Request failed; trying the next configured model.");
+      // A timeout may still incur provider cost; avoid submitting duplicate work.
+      if (signal.aborted || err?.name === "TimeoutError" || err?.name === "AbortError") throw new Error("AI processing timed out");
     }
   }
 
-  throw lastError || new Error("All Gemini candidate models failed");
+  throw new Error("AI processing is temporarily unavailable");
 };
 
 export interface ResumeAnalysisResult {
@@ -79,13 +77,13 @@ export const analyzeResume = async (
   const prompt = `
 You are an expert HR analyst. Your task is to evaluate how well a candidate's resume matches a specific job opening.
 
-JOB TITLE: ${jobTitle}
+JOB TITLE: ${aiData(jobTitle, 1000)}
 
 JOB REQUIREMENTS:
-${requirements}
+${aiData(requirements, 32_000)}
 
 CANDIDATE RESUME:
-${resumeText}
+${aiData(resumeText)}
 
 Analyze the resume against the job requirements and respond with a JSON object matching this exact structure:
 {
@@ -111,28 +109,7 @@ Respond with valid JSON only. Do not include markdown or any text outside the JS
       responseMimeType: "application/json",
     },
   });
-  let text = response.text;
-  if (!text) {
-    throw new Error("Gemini returned an empty response");
-  }
-
-  // Strip markdown formatting if returned by model
-  text = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "").trim();
-
-  const parsed = JSON.parse(text) as ResumeAnalysisResult;
-
-  if (
-    typeof parsed.score !== "number" ||
-    typeof parsed.summary !== "string" ||
-    !Array.isArray(parsed.strengths) ||
-    !Array.isArray(parsed.gaps)
-  ) {
-    throw new Error("Gemini returned an unexpected response structure");
-  }
-
-  parsed.score = Math.max(0, Math.min(100, parsed.score));
-
-  return parsed;
+  return parseResumeAnalysis(response.text || "");
 };
 
 export interface ExtractedProfileEducation {
@@ -282,26 +259,13 @@ STRICT EXTRACTION RULES:
 7. Respond with valid JSON only. Do not include markdown fences or any text outside the JSON object.
 `.trim();
 
-export const parseGeminiJsonResponse = (text: string): any => {
-  if (!text || !text.trim()) {
-    throw new Error("Gemini returned an empty response");
-  }
-  const stripped = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "").trim();
-  try {
-    return JSON.parse(stripped);
-  } catch {
-    const match = stripped.match(/\{[\s\S]*\}/);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
-    throw new Error(`Failed to parse Gemini response as JSON: ${text.substring(0, 200)}`);
-  }
-};
+export const parseGeminiJsonResponse = (text: string): any => parseAiJson(text);
 
 export const mapParsedProfileData = (parsed: any): ExtractedProfileData => {
   const cleanString = (val: any): string | undefined => {
     if (val === undefined || val === null) return undefined;
-    const str = String(val).trim();
+    if (typeof val !== "string") return undefined;
+    const str = val.trim();
     if (!str || str.toLowerCase() === "null" || str.toLowerCase() === "n/a" || str.toLowerCase() === "undefined") {
       return undefined;
     }
@@ -320,7 +284,7 @@ export const mapParsedProfileData = (parsed: any): ExtractedProfileData => {
 
   const cleanNumber = (val: any): number | undefined => {
     if (val === undefined || val === null) return undefined;
-    if (typeof val === "number" && !isNaN(val)) return val > 0 ? val : undefined;
+    if (typeof val === "number" && Number.isFinite(val)) return val > 0 ? val : undefined;
     if (typeof val === "string") {
       const match = val.match(/[\d.]+/);
       if (match) {
@@ -381,7 +345,7 @@ export const mapParsedProfileData = (parsed: any): ExtractedProfileData => {
     preferredWorkLocations: cleanTitleString(parsed.preferredWorkLocations || parsed.preferred_work_locations || parsed.workLocations),
     professionalSummary: cleanSentenceString(parsed.professionalSummary || parsed.professional_summary || parsed.summary || parsed.objective),
     skills: Array.isArray(parsed.skills)
-      ? parsed.skills.map((s: any) => normalizeSkill(s)).filter(Boolean)
+      ? parsed.skills.filter((s: unknown) => typeof s === "string").map((s: string) => normalizeSkill(s)).filter(Boolean)
       : [],
     educations: Array.isArray(parsed.educations)
       ? parsed.educations
@@ -408,7 +372,7 @@ export const mapParsedProfileData = (parsed: any): ExtractedProfileData => {
             const rawRole = String(exp.roleTitle || exp.title || exp.jobTitle).trim();
             const rawEnd = cleanString(exp.endDate || exp.end_date);
             const isEndPresent = rawEnd ? /^(present|current|now|ongoing)$/i.test(rawEnd) : false;
-            const isCurrent = Boolean(exp.isCurrent || exp.is_current || isEndPresent);
+            const isCurrent = exp.isCurrent === true || exp.is_current === true || isEndPresent;
             return {
               company: normalizeTitleCase(rawCompany) || rawCompany,
               roleTitle: normalizeTitleCase(rawRole) || rawRole,
@@ -464,7 +428,7 @@ export const extractResumeProfileData = async (
 You are an expert HR data parser. Your task is to extract structured applicant profile details from the provided resume text.
 
 CANDIDATE RESUME:
-${resumeText}
+${aiData(resumeText)}
 
 Extract the following information accurately. Respond with a JSON object matching this exact structure:
 ${RESUME_EXTRACTION_SCHEMA}
@@ -486,7 +450,7 @@ export const extractResumeProfileDataFromBuffer = async (
   buffer: Buffer,
   mimeType: string = "application/pdf"
 ): Promise<ExtractedProfileData> => {
-  if (!buffer || buffer.length === 0) {
+  if (!buffer || buffer.length === 0 || buffer.length > 5 * 1024 * 1024) {
     throw new Error("Buffer is empty");
   }
 
@@ -524,7 +488,7 @@ export const analyzeResumeFromBuffer = async (
   jobTitle: string,
   requirements: string
 ): Promise<ResumeAnalysisResult> => {
-  if (!buffer || buffer.length === 0) {
+  if (!buffer || buffer.length === 0 || buffer.length > 5 * 1024 * 1024) {
     throw new Error("Resume buffer is empty");
   }
 
@@ -533,10 +497,10 @@ export const analyzeResumeFromBuffer = async (
 You are an expert HR analyst. Your task is to evaluate how well a candidate's resume matches a specific job opening.
 The candidate resume is provided as an attached document or image (which may be a scanned document, photo of printed/handwritten resume, or PDF). Perform OCR and document understanding as needed.
 
-JOB TITLE: ${jobTitle}
+JOB TITLE: ${aiData(jobTitle, 1000)}
 
 JOB REQUIREMENTS:
-${requirements}
+${aiData(requirements, 32_000)}
 
 Analyze the resume document against the job requirements and respond with a JSON object matching this exact structure:
 {
@@ -571,37 +535,7 @@ Respond with valid JSON only. Do not include markdown or any text outside the JS
     },
   });
 
-  let text = response.text;
-  if (!text) {
-    throw new Error("Gemini returned an empty response");
-  }
-
-  text = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "").trim();
-
-  let parsed: ResumeAnalysisResult;
-  try {
-    parsed = JSON.parse(text) as ResumeAnalysisResult;
-  } catch {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (match) {
-      parsed = JSON.parse(match[0]);
-    } else {
-      throw new Error(`Failed to parse Gemini response as JSON: ${text.substring(0, 200)}`);
-    }
-  }
-
-  if (
-    typeof parsed.score !== "number" ||
-    typeof parsed.summary !== "string" ||
-    !Array.isArray(parsed.strengths) ||
-    !Array.isArray(parsed.gaps)
-  ) {
-    throw new Error("Gemini returned an unexpected response structure");
-  }
-
-  parsed.score = Math.max(0, Math.min(100, parsed.score));
-
-  return parsed;
+  return parseResumeAnalysis(response.text || "");
 };
 
 

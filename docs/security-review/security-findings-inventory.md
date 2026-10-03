@@ -1,5 +1,7 @@
 # MEGS security findings inventory
 
+> **4 October 2026 implementation update:** [Completed source changes, actual verification and open deployment/policy items](security-fixes-completed.md) supersede the review statuses below. This inventory retains the earlier baseline evidence and original finding mapping.
+
 Review date: **3 October 2026 (Asia/Singapore)**. Review baseline: local `main` and fetched `origin/main` at `1897420`. Original review baseline: `dfbfcd6`. Previous security branch: `security/surgical-auth-hardening` at `cf802e5`.
 
 ## Scope and count

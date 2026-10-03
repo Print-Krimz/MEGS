@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import { sendSuccess, sendError } from '../../utils/response.js';
 import { notificationEmitter } from '../../utils/notification.js';
+import prisma from '../../utils/prisma.js';
+import { isSessionRevoked } from '../../security/session-revocation.js';
+import { isActiveAccount, isMfaEnforced, STAFF_ROLES } from '../../security/auth-policy.js';
 import {
   getNotificationsService,
   getUnreadCountService,
@@ -11,6 +14,12 @@ import {
 // GET /api/notifications/stream - Real-time SSE channel for incoming user notifications
 export const streamNotifications = (req: Request, res: Response): void => {
   const userId = req.user!.id;
+  const expiresAt = (req.user?.tokenExpiresAt || 0) * 1000;
+  const token = req.headers.authorization?.match(/^Bearer\s+([^\s]+)$/i)?.[1] || "";
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    sendError(res, "Invalid or expired token", 401);
+    return;
+  }
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -22,21 +31,52 @@ export const streamNotifications = (req: Request, res: Response): void => {
   res.write("data: {\"type\": \"CONNECTED\"}\n\n");
 
   const eventName = `notification:${userId}`;
-  const listener = (notification: any) => {
-    res.write(`data: ${JSON.stringify(notification)}\n\n`);
+  const logoutEvent = `session:closed:${userId}`;
+  let closed = false;
+  let pendingCheck: Promise<boolean> | undefined;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(keepAlive);
+    clearTimeout(expiryTimer);
+    notificationEmitter.removeListener(eventName, listener);
+    notificationEmitter.removeListener(logoutEvent, close);
+    if (!res.writableEnded) res.end();
+  };
+  const checkAccount = (): Promise<boolean> => {
+    if (closed || Date.now() >= expiresAt) { close(); return Promise.resolve(false); }
+    if (!pendingCheck) {
+      pendingCheck = isSessionRevoked(token).then((revoked) => {
+        if (revoked) { close(); return null; }
+        return prisma.user.findUnique({ where: { id: userId }, select: {
+        role: true, isActive: true, accountStatus: true, mustChangePassword: true,
+        } });
+      }).then((account) => {
+        const allowed = !!account && isActiveAccount(account.isActive, account.accountStatus) &&
+          !account.mustChangePassword && account.role === req.user!.role &&
+          (!isMfaEnforced() || !STAFF_ROLES.has(account.role) || req.user!.aal === "aal2");
+        if (!allowed) close();
+        return allowed && !closed && Date.now() < expiresAt;
+      }).catch(() => { close(); return false; }).finally(() => { pendingCheck = undefined; });
+    }
+    return pendingCheck;
+  };
+  const listener = async (notification: unknown) => {
+    if (await checkAccount()) res.write(`data: ${JSON.stringify(notification)}\n\n`);
   };
 
   notificationEmitter.on(eventName, listener);
+  notificationEmitter.on(logoutEvent, close);
 
   // 30s heartbeat to prevent proxy timeout
-  const keepAlive = setInterval(() => {
-    res.write(": keep-alive\n\n");
+  const keepAlive = setInterval(async () => {
+    if (await checkAccount()) res.write(": keep-alive\n\n");
   }, 30000);
+  // The expiry comes from verified claims; never decode an unverified token here.
+  const expiryTimer = setTimeout(close, Math.min(expiresAt - Date.now(), 2_147_483_647));
 
-  req.on("close", () => {
-    clearInterval(keepAlive);
-    notificationEmitter.removeListener(eventName, listener);
-  });
+  res.on("close", close);
+  res.on("error", close);
 };
 
 // GET /api/notifications - Paginated notification history

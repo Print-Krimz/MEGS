@@ -235,7 +235,8 @@ export const listTAApplications = async (
             };
           }
         } catch {
-          // fallback to stored photoUrl
+          return { ...application, user: { ...application.user,
+            applicantProfile: application.user.applicantProfile ? { ...application.user.applicantProfile, photoUrl: null } : null } };
         }
       }
       return application;
@@ -381,7 +382,7 @@ export const getTAApplication = async (id: number) => {
       );
       if (resolved) photoUrl = resolved;
     } catch {
-      // fallback to stored photoUrl
+      photoUrl = null;
     }
   }
 
@@ -395,7 +396,7 @@ export const getTAApplication = async (id: number) => {
       );
       if (resolved) resolvedAppResumeUrl = resolved;
     } catch {
-      // fallback to stored resumeUrl
+      resolvedAppResumeUrl = null;
     }
   }
 
@@ -409,7 +410,7 @@ export const getTAApplication = async (id: number) => {
       );
       if (resolved) resolvedProfileResumeUrl = resolved;
     } catch {
-      // fallback to stored profile resumeUrl
+      resolvedProfileResumeUrl = null;
     }
   }
 

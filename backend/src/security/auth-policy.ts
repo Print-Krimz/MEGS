@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { isLocalBypassEnabled } from "./runtime-config.js";
 
 export const STAFF_ROLES = new Set(["ADMINISTRATOR", "TALENT_ACQUISITION"]);
 
@@ -20,5 +21,5 @@ export const isActiveAccount = (isActive: boolean, accountStatus: string): boole
   isActive && accountStatus === "ACTIVE";
 
 export const isMfaEnforced = (): boolean =>
-  process.env.NODE_ENV === "production" || process.env.DISABLE_MFA !== "true";
+  !isLocalBypassEnabled("DISABLE_MFA");
 
