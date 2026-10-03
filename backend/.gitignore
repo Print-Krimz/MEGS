@@ -11,6 +11,10 @@ __tests__/
 *.test.ts
 *.spec.ts
 tests/
+!tests/
+tests/*
+!tests/security/
+!tests/security/**
 
 # Prisma generated client
 # (it gets regenerated via `npx prisma generate`)

@@ -1,5 +1,5 @@
 import prisma from '../../utils/prisma.js';
-import { enqueueResumeAnalysis, getQueueStatus } from '../../workers/resume.worker.js';
+import { enqueueResumeAnalysis, getQueueStatus, ensureResumeQueueCapacity } from '../../workers/resume.worker.js';
 
 // Transitions eligible application to PARSING and queues background analysis
 export const queueApplicationAnalysis = async (applicationId: number) => {
@@ -19,6 +19,7 @@ export const queueApplicationAnalysis = async (applicationId: number) => {
   if (!application.resumeUrl) throw new Error("This application has no resume attached");
   if (application.status === "BACKOUT") throw new Error("Cannot analyze an application that has backed out");
 
+  ensureResumeQueueCapacity(applicationId);
   // Only transition to PARSING if the application is in an initial un-reviewed status
   const transitionToParsingStatuses = ["SUBMITTED", "NEEDS_ATTENTION", "MATCHED"];
   if (transitionToParsingStatuses.includes(application.status)) {
@@ -26,7 +27,15 @@ export const queueApplicationAnalysis = async (applicationId: number) => {
     await updateTAApplicationStatus(applicationId, "PARSING", undefined, "Queued for AI resume parsing");
   }
 
-  enqueueResumeAnalysis(applicationId);
+  try { enqueueResumeAnalysis(applicationId); }
+  catch (error) {
+    // Capacity can change during the awaited status transition. A rejected job
+    // must not leave a record claiming to be parsing.
+    if (transitionToParsingStatuses.includes(application.status)) {
+      await prisma.application.updateMany({ where: { id: applicationId, status: "PARSING" }, data: { status: application.status } });
+    }
+    throw error;
+  }
 
   // Trigger candidate scoring revalidation in background
   if (application.jobPostingId) {

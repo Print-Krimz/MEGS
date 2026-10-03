@@ -75,7 +75,7 @@ export const exportAuditReportHandler = async (req: Request, res: Response): Pro
     );
     res.send(pdfBuffer);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || "Failed to export audit report" });
+    sendError(res, "Failed to export audit report", 500);
   }
 };
 

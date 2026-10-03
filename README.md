@@ -2,6 +2,26 @@
 
 An intelligent, full-stack Recruitment Management, Applicant Tracking, and Talent Acquisition platform built with the PERN stack (PostgreSQL / Supabase, Express 5, React 19, Node.js), Prisma 7.8, Google Gemini AI, Nodemailer Gmail SMTP, and pgvector semantic talent pooling.
 
+> **Security patches for maintainer evaluation:** [Earlier five fixes plus the new patches, explanations, results and rollout requirements](docs/security-review/security-fixes-completed.md). Implementation branch: `megs-security-surgical-auth-hardening`. The [remaining-findings report](docs/security-review/security-remaining-findings.md) and [inventory](docs/security-review/security-findings-inventory.md) preserve the earlier review evidence. These local changes do not update deployed services.
+
+### Additional patches, 4 October 2026
+
+| Problem | Solution and result |
+| --- | --- |
+| Reset/setup codes could be used twice at the same time | Atomically claim each code before changing credentials; only one request proceeds. Restricted accounts cannot use recovery to become active. |
+| Backup keys depended on unrelated credentials | Require dedicated keys and retain explicit historical keys, including several old values under the same key ID. Synthetic recovery tests cover old and versioned backups. |
+| Production switches, origins and proxy assumptions weakened protection | Reject production bypasses, allow exact frontend/CAPTCHA sites and actions, and require an explicit verified proxy policy. |
+| Expensive requests and uploaded files lacked complete bounds | Add shared user/IP/global budgets, bounded queue admission, file-content checks, isolated parser deadlines, archive limits and one maintenance operation at a time. |
+| Legacy resume downloads could reach unrestricted destinations | Allow approved HTTPS hosts only; pin checked public IPs, reject redirects and enforce size/time limits. |
+| Document signing and detailed errors needed consistent boundaries | Enforce owner/staff permissions across resolver paths, refuse public buckets and hide raw provider errors while preserving validation feedback. |
+| AI answers lacked strict validation | Treat resume text as untrusted data and validate bounded outputs. Automatic categorization stays enabled as requested; manipulation and data-governance risks remain documented. |
+| Notifications could outlive permission or reuse old credentials | Close at verified expiry, check shared logout revocation/account state, and reconnect with current credentials using finite retries. |
+| Security tests were missing from the published source | Restore and extend tracked regressions, add provider-free CI, and test actual compiled PDF/DOCX/DOC parsers. |
+
+**Before rollout:** configure dedicated/legacy keys, shared Redis, exact origins/CAPTCHA hosts and the actual proxy policy. The compiled report lists open cloud/policy checks and remaining dependency advisories; this is not a claim that every security risk is eliminated.
+
+**Current verification:** 186 backend tests and 11 frontend tests passed. Both type checks and builds passed. Compiled PDF/DOCX/DOC parser checks passed offline. Frontend lint passed with 17 existing warnings; GitHub CI and live deployment checks remain pending.
+
 ---
 
 ## 🏛 System Architecture
@@ -96,13 +116,12 @@ This branch addresses five confirmed authentication and secret-handling vulnerab
 
 **Result:** Usable authentication tokens no longer appear in normal logs or URLs, mail delivery failures are visible, and authenticated notifications continue without query-string credentials.
 
-### Verification Results
+### Earlier Verification Results (original five patches)
 
 - **34 security regression and compatibility tests passed across 7 test files.**
 - Coverage includes forged and malformed JWTs, staff MFA, applicant access, account states, forced password changes, route-bypass attempts, login compatibility, recovery, mail redaction, OTP handling, and backup-key compatibility.
 - Frontend lint completed successfully with existing warnings.
-- Full backend TypeScript validation is currently blocked by the repository's pre-existing stale Prisma client.
-- The frontend production build is currently blocked by the repository's pre-existing missing `leaflet` dependency.
+- That earlier check was blocked by a stale generated Prisma client and a missing local Leaflet installation. Those local dependency problems have now been repaired; see the compiled report for current verification.
 
 ### Required Before Deployment
 

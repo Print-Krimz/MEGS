@@ -68,7 +68,7 @@ export const downloadBackupHandler = async (req: Request, res: Response): Promis
 
     stream.pipe(res);
   } catch (err: any) {
-    res.status(404).json({ error: err.message || "Backup snapshot not found" });
+    sendError(res, "Backup snapshot not found", 404);
   }
 };
 

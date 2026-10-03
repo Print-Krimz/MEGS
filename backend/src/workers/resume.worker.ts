@@ -1,14 +1,14 @@
 import PQueue from "p-queue";
-import mammoth from "mammoth";
 import prisma from "../utils/prisma.js";
 import supabase from "../utils/supabase.js";
 import { analyzeResume, analyzeResumeFromBuffer } from "../utils/gemini.js";
 import { sendNotification, sendRoleNotification } from "../utils/notification.js";
 
-// @ts-ignore
-import pdfParseModule from "pdf-parse/lib/pdf-parse.js";
-const pdfParse: (buf: Buffer) => Promise<{ text: string }> =
-  typeof pdfParseModule === "function" ? pdfParseModule : ((pdfParseModule as any)?.default ?? pdfParseModule);
+import { validateDocumentBytes, MAX_DOCUMENT_BYTES } from "../security/file-validation.js";
+import { extractDocumentText } from "../security/document-parser.js";
+import { downloadLegacyResume } from "../security/legacy-resume-download.js";
+import { ensureBucketExists } from "../middleware/upload.middleware.js";
+import { safeLogError } from "../security/errors.js";
 
 // Concurrency 1 prevents rate limit exhaustion against Gemini API
 const queue = new PQueue({ concurrency: 1 });
@@ -19,7 +19,7 @@ export interface ResumeFilePayload {
   originalName?: string;
 }
 
-export const fetchResumePayload = async (resumeUrl: string): Promise<ResumeFilePayload> => {
+export const fetchResumePayload = async (resumeUrl: string, ownerId?: string): Promise<ResumeFilePayload> => {
   if (!resumeUrl || typeof resumeUrl !== "string") {
     throw new Error("Invalid or empty resume URL provided");
   }
@@ -27,22 +27,25 @@ export const fetchResumePayload = async (resumeUrl: string): Promise<ResumeFileP
   const cleanUrl = resumeUrl.trim();
 
   // Check if URL is an internal StoredDocument reference (e.g. /api/documents/3/download or /api/documents/3)
-  const match = cleanUrl.match(/\/api\/documents\/(\d+)(?:\/download)?/);
+  const match = cleanUrl.match(/^\/api\/documents\/(\d+)(?:\/download)?$/);
   if (match) {
     const documentId = parseInt(match[1], 10);
     const doc = await prisma.storedDocument.findUnique({
       where: { id: documentId },
     });
-    if (!doc) {
+    if (!doc || !ownerId || doc.ownerId !== ownerId) {
       throw new Error(`Stored document #${documentId} referenced in application resumeUrl was not found in the database.`);
     }
 
+    if (doc.sizeBytes > MAX_DOCUMENT_BYTES) throw new Error("Resume exceeds supported size limits");
+    await ensureBucketExists(doc.storageBucket);
     const { data, error } = await supabase.storage
       .from(doc.storageBucket)
       .download(doc.storagePath);
     if (error || !data) {
-      throw new Error(`Failed to download resume from storage (${doc.storageBucket}/${doc.storagePath}): ${error?.message || "Not found"}`);
+      throw new Error("Unable to download stored resume");
     }
+    if (data.size > MAX_DOCUMENT_BYTES) throw new Error("Resume exceeds supported size limits");
     const arrayBuffer = await data.arrayBuffer();
     return {
       buffer: Buffer.from(arrayBuffer),
@@ -51,37 +54,11 @@ export const fetchResumePayload = async (resumeUrl: string): Promise<ResumeFileP
     };
   }
 
-  // Fallback to HTTP fetch (handling relative URLs if any)
-  let fetchUrl = cleanUrl;
-  if (fetchUrl.startsWith("/")) {
-    const port = process.env.PORT || 3000;
-    fetchUrl = `http://localhost:${port}${fetchUrl}`;
-  }
-
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(fetchUrl);
-  } catch (err: any) {
-    throw new Error(`Invalid resume URL format: ${fetchUrl}`);
-  }
-
-  const response = await fetch(parsedUrl.toString());
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} when fetching resume`);
-  }
-  const arrayBuffer = await response.arrayBuffer();
-  const headerMime = response.headers?.get?.("content-type")?.split(";")[0]?.trim();
-  const filename = parsedUrl.pathname.split("/").pop();
-
-  return {
-    buffer: Buffer.from(arrayBuffer),
-    mimeType: headerMime,
-    originalName: filename,
-  };
+  return downloadLegacyResume(cleanUrl);
 };
 
-export const fetchResumeBuffer = async (resumeUrl: string): Promise<Buffer> => {
-  const payload = await fetchResumePayload(resumeUrl);
+export const fetchResumeBuffer = async (resumeUrl: string, ownerId?: string): Promise<Buffer> => {
+  const payload = await fetchResumePayload(resumeUrl, ownerId);
   return payload.buffer;
 };
 
@@ -92,16 +69,16 @@ export const detectDocumentFormat = (
   const cleanMime = (mimeType || "").trim().toLowerCase();
   const cleanName = (fileNameOrUrl || "").trim().toLowerCase().split("?")[0];
   const ext = cleanName.split(".").pop() || "";
+  const recognizedMime = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword", "image/jpeg", "image/png", "image/webp"].includes(cleanMime);
 
   const isDocx =
     cleanMime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     cleanMime === "application/msword" ||
-    ext === "docx" ||
-    ext === "doc";
+    !recognizedMime && (ext === "docx" || ext === "doc");
 
   const isImage =
     cleanMime.startsWith("image/") ||
-    ["jpg", "jpeg", "png", "webp"].includes(ext);
+    !recognizedMime && ["jpg", "jpeg", "png", "webp"].includes(ext);
 
   let detectedMime = "application/pdf";
   if (isDocx) {
@@ -149,6 +126,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
     where: { id: applicationId },
     select: {
       id: true,
+      userId: true,
       status: true,
       resumeUrl: true,
       jobPosting: {
@@ -194,13 +172,18 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
 
   let payload: ResumeFilePayload;
   try {
-    payload = await fetchResumePayload(application.resumeUrl);
+    payload = await fetchResumePayload(application.resumeUrl, application.userId);
+    const declaredMime = payload.mimeType?.split(";")[0]?.trim().toLowerCase();
+    // Historic storage commonly used generic binary metadata. Actual bytes
+    // remain authoritative; a specific but contradictory type still fails.
+    const validated = validateDocumentBytes(payload.buffer, declaredMime === "application/octet-stream" ? undefined : declaredMime);
+    payload.mimeType = validated.mimeType;
   } catch (err: any) {
-    console.error(`[Worker] Failed to read resume for #${applicationId}:`, err.message);
+    const reference = safeLogError(`Worker: read resume for application #${applicationId}`, err);
     await prisma.application.update({
       where: { id: applicationId },
       data: {
-        aiSummary: `Analysis failed: Could not read the resume file. (${err.message})`,
+        aiSummary: `Analysis failed: Could not read the resume file. Manual review required. Reference: ${reference}`,
         status: "NEEDS_ATTENTION",
       },
     });
@@ -231,9 +214,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
   let analysis;
   try {
     if (isDocx) {
-      const mammothExtractor = (mammoth as any)?.extractRawText || (mammoth as any)?.default?.extractRawText || mammoth.extractRawText;
-      const { value } = await mammothExtractor({ buffer });
-      const resumeText = (value || "").trim();
+      const resumeText = await extractDocumentText(buffer, detectedMime);
       if (!resumeText) {
         throw new Error("Word document contained no extractable text");
       }
@@ -253,10 +234,9 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
       // PDF or fallback
       let resumeText = "";
       try {
-        const parsed = await pdfParse(buffer);
-        resumeText = (parsed?.text || "").trim();
+        resumeText = await extractDocumentText(buffer, "application/pdf");
       } catch (pdfErr: any) {
-        console.warn(`[Worker] pdfParse failed for #${applicationId}, attempting multimodal vision analysis:`, pdfErr.message);
+        console.warn(`[Worker] PDF text extraction unavailable for #${applicationId}; attempting bounded multimodal analysis.`);
       }
 
       if (resumeText && resumeText.length > 50) {
@@ -277,13 +257,13 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
     }
     console.log(`[Worker] Gemini returned score ${analysis.score} for application #${applicationId}`);
   } catch (err: any) {
-    console.error(`[Worker] Gemini analysis failed for #${applicationId}:`, err.message);
+    const reference = safeLogError(`Worker: analyze application #${applicationId}`, err);
     try {
       await prisma.application.update({
         where: { id: applicationId },
         data: {
           status: "NEEDS_ATTENTION",
-          aiSummary: `Analysis failed: Could not process resume. (${err.message})`,
+          aiSummary: `Analysis failed: Could not process resume. Manual review required. Reference: ${reference}`,
         },
       });
       await notifyNeedsAttention(applicationId, jobTitle, postedById);
@@ -322,18 +302,29 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
   }
 };
 
+const admittedApplications = new Set<number>();
+export const ensureResumeQueueCapacity = (applicationId?: number): void => {
+  if (applicationId && admittedApplications.has(applicationId)) return;
+  if (queue.size + queue.pending >= 100) {
+    const error = new Error("Resume analysis queue is busy. Please retry later.");
+    Object.assign(error, { status: 429 });
+    throw error;
+  }
+};
 export const enqueueResumeAnalysis = (applicationId: number): void => {
-  queue.add(async () => {
-    try {
-      await processResumeJob(applicationId);
-    } catch (err: any) {
-      console.error(`[Worker] Unhandled error for application #${applicationId}:`, err.message);
-    }
+  if (admittedApplications.has(applicationId)) return;
+  ensureResumeQueueCapacity(applicationId);
+  admittedApplications.add(applicationId);
+  void queue.add(async () => {
+    try { await processResumeJob(applicationId); }
+    catch { console.error(`[Worker] Resume job failed for application #${applicationId}`); }
+    finally { admittedApplications.delete(applicationId); }
+  }).catch(() => {
+    admittedApplications.delete(applicationId);
+    console.error(`[Worker] Resume queue failed for application #${applicationId}`);
   });
 
-  console.log(
-    `[Worker] Application #${applicationId} queued for analysis. Queue size: ${queue.size + 1}`
-  );
+  console.log(`[Worker] Application #${applicationId} queued for analysis. Queue size: ${queue.size + queue.pending}`);
 };
 
 export const getQueueStatus = () => ({

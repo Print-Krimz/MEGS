@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { aiLimiters } from '../../middleware/rate-limiter.middleware.js';
 import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
 import { upload } from '../../middleware/upload.middleware.js';
 import { validate } from '../../middleware/validate.middleware.js';
@@ -41,7 +42,7 @@ router.delete("/profile/references/:id", deleteReference);
 router.post("/profile/assets", upload.single("file"), validate(applicantSchema.addAsset), addAsset);
 router.delete("/profile/assets/:id", deleteAsset);
 router.post("/profile/photo", upload.single("file"), uploadPhoto);
-router.post("/profile/resume", upload.single("file"), uploadResume);
+router.post("/profile/resume", ...aiLimiters, upload.single("file"), uploadResume);
 
 export default router;
 

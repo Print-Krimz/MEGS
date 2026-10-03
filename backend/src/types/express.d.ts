@@ -12,6 +12,7 @@ declare global {
         mustChangePassword?: boolean;
         accountStatus?: string;
         aal?: "aal1" | "aal2";
+        tokenExpiresAt?: number;
       };
     }
   }

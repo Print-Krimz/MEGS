@@ -2,13 +2,15 @@ import multer from "multer";
 import supabase from "../utils/supabase.js";
 import { v4 as uuidv4 } from "uuid";
 import prisma from "../utils/prisma.js";
+import type { RequestHandler } from "express";
+import { validateDocumentBytes } from "../security/file-validation.js";
 
 // In-memory storage allows direct buffer streaming to Supabase Storage. Max 5MB.
 const storage = multer.memoryStorage();
 
-export const upload = multer({
+const documentUpload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 20, fieldSize: 64 * 1024, parts: 21 },
   fileFilter: (req, file, cb) => {
     const allowedMimeTypes = [
       'application/pdf',
@@ -21,10 +23,41 @@ export const upload = multer({
     if (allowedMimeTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only PDF, DOCX, DOC, JPEG, PNG, and WEBP files are allowed.'));
+      cb(Object.assign(new Error('Invalid file type. Only PDF, DOCX, DOC, JPEG, PNG, and WEBP files are allowed.'), { status: 400 }));
     }
   },
 });
+
+let bufferedUploads = 0;
+export const acquireUploadSlot: RequestHandler = (_req, res, next) => {
+  if (bufferedUploads >= 4) {
+    res.setHeader("Retry-After", "5");
+    res.status(429).json({ success: false, message: "Uploads are busy. Please retry shortly." });
+    return;
+  }
+  bufferedUploads++;
+  let released = false;
+  const release = () => { if (!released) { released = true; bufferedUploads--; } };
+  res.once("finish", release);
+  res.once("close", release);
+  next();
+};
+
+// Existing routes all use single(). Validate the completed buffer before any
+// controller/storage side effect, and reserve memory before multer buffers it.
+export const upload = {
+  single(field: string): RequestHandler {
+    const parse = documentUpload.single(field);
+    return (req, res, next) => acquireUploadSlot(req, res, () => {
+      parse(req, res, (error) => {
+        if (error) { res.status(400).json({ success: false, message: "Upload failed. Check the document type, size and number of files." }); return; }
+        try { if (req.file) validateDocumentBytes(req.file.buffer, req.file.mimetype); }
+        catch { res.status(400).json({ success: false, message: "File contents do not match a supported document type or size." }); return; }
+        next();
+      });
+    });
+  },
+};
 
 // Uploads buffer to Supabase bucket and registers a StoredDocument metadata record.
 // Returns internal download proxy route rather than exposing direct bucket URL.
@@ -32,12 +65,12 @@ const verifiedBuckets = new Set<string>();
 
 export const ensureBucketExists = async (bucket: string): Promise<void> => {
   if (verifiedBuckets.has(bucket)) return;
-  try {
     const { data: buckets, error: listErr } = await supabase.storage.listBuckets();
-    if (!listErr) {
-      const exists = (buckets || []).some((b) => (b.id || b.name) === bucket);
-      if (!exists) {
-        await supabase.storage.createBucket(bucket, {
+    if (listErr) throw new Error("Unable to verify private document storage");
+      const existing = (buckets || []).find((b) => (b.id || b.name) === bucket);
+      if (existing?.public) throw new Error("Document storage bucket must be private");
+      if (!existing) {
+        const { error: createError } = await supabase.storage.createBucket(bucket, {
           public: false,
           fileSizeLimit: 10 * 1024 * 1024,
           allowedMimeTypes: [
@@ -49,12 +82,9 @@ export const ensureBucketExists = async (bucket: string): Promise<void> => {
             "application/msword",
           ],
         });
+        if (createError) throw new Error("Unable to create private document storage");
       }
       verifiedBuckets.add(bucket);
-    }
-  } catch (err) {
-    console.warn(`[Storage] Auto-bucket provisioning warning for '${bucket}':`, err);
-  }
 };
 
 export const uploadFileToSupabase = async (
@@ -62,9 +92,10 @@ export const uploadFileToSupabase = async (
   folder: string,
   file: Express.Multer.File
 ): Promise<string> => {
+  const validated = validateDocumentBytes(file.buffer, file.mimetype);
   await ensureBucketExists(bucket);
 
-  const extension = file.originalname.split(".").pop();
+  const extension = validated.extension;
   const filename = `${folder}/${uuidv4()}.${extension}`;
 
   let { data, error } = await supabase.storage

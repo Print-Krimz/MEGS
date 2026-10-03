@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { fetchEventSource } from "@microsoft/fetch-event-source";
+import { connectNotificationStream } from "../lib/notification-stream";
 import { notificationApi } from "../lib/api/notification.api";
 import { resolveApiBase } from "../lib/api/client";
 import { resolveNotificationLink } from "../lib/utils";
@@ -52,19 +52,25 @@ export function useRealtimeNotifications() {
   useEffect(() => {
     if (!isAuthenticated || !user) return;
 
-    const token = localStorage.getItem("access_token");
-    if (!token) return;
-
-    const controller = new AbortController();
     const API_BASE = resolveApiBase(import.meta.env.VITE_API_URL);
 
-    fetchEventSource(`${API_BASE}/api/notifications/stream`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
+    return connectNotificationStream({
+      url: `${API_BASE}/api/notifications/stream`,
+      getToken: () => localStorage.getItem("access_token"),
+      subscribeSession(restart) {
+        // AuthProvider reloads the identity for cross-tab replacements; its user
+        // update recreates this effect. Immediately stop a removed session here.
+        const onStorage = (event: StorageEvent) => {
+          if ((!event.key || event.key === "access_token") && !event.newValue) restart();
+        };
+        window.addEventListener("storage", onStorage);
+        window.addEventListener("auth-token-changed", restart);
+        return () => {
+          window.removeEventListener("storage", onStorage);
+          window.removeEventListener("auth-token-changed", restart);
+        };
       },
-      signal: controller.signal,
-      onmessage(event) {
+      onMessage(event) {
         try {
           const data = JSON.parse(event.data);
           if (data.type === "CONNECTED" || !data.id) return;
@@ -99,17 +105,7 @@ export function useRealtimeNotifications() {
           // Ignore parse errors (e.g. heartbeat)
         }
       },
-      onerror(err) {
-        // SSE disconnected, fallback to polling
-        console.warn("SSE stream disconnected, polling fallback active.", err);
-      },
-    }).catch(() => {
-      // Abort or network stream termination handled gracefully
     });
-
-    return () => {
-      controller.abort();
-    };
   }, [isAuthenticated, user, queryClient]);
 
   const dismissToast = (id: number) => {

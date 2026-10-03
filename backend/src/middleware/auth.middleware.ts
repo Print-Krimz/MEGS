@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import prisma from "../utils/prisma.js";
 import { sendError } from "../utils/response.js";
 import { verifyAccessToken } from "../security/auth-token.js";
+import { isSessionRevoked } from "../security/session-revocation.js";
 import {
   isActiveAccount,
   isMfaEnforced,
@@ -29,6 +30,15 @@ export const authenticateJWT = async (
     verifiedToken = await verifyAccessToken(token);
   } catch {
     sendError(res, "Invalid or expired token", 401);
+    return;
+  }
+  try {
+    if (await isSessionRevoked(token)) {
+      sendError(res, "Invalid or expired token", 401);
+      return;
+    }
+  } catch {
+    sendError(res, "Session verification is temporarily unavailable", 503);
     return;
   }
 
@@ -61,6 +71,7 @@ export const authenticateJWT = async (
     mustChangePassword: dbUser.mustChangePassword,
     accountStatus: dbUser.accountStatus,
     aal: verifiedToken.aal,
+    tokenExpiresAt: verifiedToken.exp,
   };
 
   if (

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { aiLimiters, reportLimiters, analyticsLimiters } from '../../middleware/rate-limiter.middleware.js';
 import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
 import { upload } from '../../middleware/upload.middleware.js';
 import { validate } from '../../middleware/validate.middleware.js';
@@ -117,6 +118,9 @@ const router = Router();
 
 router.use(authenticateJWT);
 router.use(requireRole("TALENT_ACQUISITION"));
+router.use("/analytics", ...analyticsLimiters);
+router.use("/reports", ...reportLimiters);
+router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates", "/applications/:id/analyze"], ...aiLimiters);
 
 // Client & MRF Management
 router.get("/clients", listClientsHandler);

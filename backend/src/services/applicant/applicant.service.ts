@@ -2,11 +2,8 @@ import prisma from '../../utils/prisma.js';
 import { revalidateApplicantProfile } from "../scoring/scoring-configuration.service.js";
 import { normalizeComplianceDocumentType } from "../scoring/scoring.dimensions.js";
 import { resolveDocumentSignedUrl } from "../document/document.service.js";
-// @ts-ignore
-import pdfParseModule from "pdf-parse/lib/pdf-parse.js";
-const pdfParse: (buf: Buffer) => Promise<{ text: string }> =
-  typeof pdfParseModule === "function" ? pdfParseModule : ((pdfParseModule as any)?.default ?? pdfParseModule);
-import mammoth from "mammoth";
+import { extractDocumentText } from "../../security/document-parser.js";
+import { validateDocumentBytes } from "../../security/file-validation.js";
 import { detectDocumentFormat } from "../../workers/resume.worker.js";
 import {
   extractResumeProfileData,
@@ -85,7 +82,7 @@ export const getApplicantProfile = async (userId: string, requesterRole: string 
       const resolved = await resolveDocumentSignedUrl(profile.photoUrl, userId, requesterRole);
       if (resolved) photoUrl = resolved;
     } catch {
-      // fallback to stored photoUrl
+      photoUrl = null;
     }
   }
 
@@ -95,7 +92,7 @@ export const getApplicantProfile = async (userId: string, requesterRole: string 
       const resolved = await resolveDocumentSignedUrl(profile.resumeUrl, userId, requesterRole);
       if (resolved) resumeUrl = resolved;
     } catch {
-      // fallback to stored resumeUrl
+      resumeUrl = null;
     }
   }
 
@@ -357,12 +354,12 @@ export const updateProfilePhotoService = async (userId: string, photoUrl: string
   });
   queueProfileRevalidation(updated.id);
 
-  let resolvedPhotoUrl = photoUrl;
+  let resolvedPhotoUrl: string | null = photoUrl;
   try {
     const resolved = await resolveDocumentSignedUrl(photoUrl, userId, "APPLICANT");
     if (resolved) resolvedPhotoUrl = resolved;
   } catch {
-    // fallback
+    resolvedPhotoUrl = null;
   }
 
   return {
@@ -429,19 +426,15 @@ export const processResumeExtractionService = async (
   originalName?: string
 ): Promise<{ extractedData: ExtractedProfileData | null; extractionStatus: "SUCCESS" | "UNAVAILABLE" }> => {
   try {
-    const { isDocx, isImage, detectedMime } = detectDocumentFormat(mimeType, originalName);
+    const validated = validateDocumentBytes(buffer, mimeType);
+    const { isDocx, isImage, detectedMime } = detectDocumentFormat(validated.mimeType, originalName);
 
     if (isDocx) {
       let docxText = "";
       try {
-        const mammothExtractor =
-          (mammoth as any)?.extractRawText ||
-          (mammoth as any)?.default?.extractRawText ||
-          mammoth.extractRawText;
-        const result = await mammothExtractor({ buffer });
-        docxText = result?.value ? result.value.trim() : "";
+        docxText = await extractDocumentText(buffer, detectedMime);
       } catch (docxErr: any) {
-        console.warn("[Resume Parser] mammoth docx extraction failed, attempting buffer fallback:", docxErr.message);
+        console.warn("[Resume Parser] mammoth docx extraction failed, attempting buffer fallback:");
       }
 
       if (docxText && docxText.length >= 30) {
@@ -449,7 +442,7 @@ export const processResumeExtractionService = async (
           const extracted = await extractResumeProfileData(docxText);
           return { extractedData: extracted, extractionStatus: "SUCCESS" };
         } catch (textExtErr: any) {
-          console.warn("[Resume Parser] Text-based extraction from docx failed, attempting buffer fallback:", textExtErr.message);
+          console.warn("[Resume Parser] Text-based extraction from docx failed, attempting buffer fallback:");
         }
       }
 
@@ -458,7 +451,7 @@ export const processResumeExtractionService = async (
         const extracted = await extractResumeProfileDataFromBuffer(buffer, detectedMime);
         return { extractedData: extracted, extractionStatus: "SUCCESS" };
       } catch (bufExtErr: any) {
-        console.warn("[Resume Parser] Multimodal DOCX extraction unavailable:", bufExtErr.message);
+        console.warn("[Resume Parser] Multimodal DOCX extraction unavailable:");
         return { extractedData: null, extractionStatus: "UNAVAILABLE" };
       }
     }
@@ -468,7 +461,7 @@ export const processResumeExtractionService = async (
         const extracted = await extractResumeProfileDataFromBuffer(buffer, detectedMime);
         return { extractedData: extracted, extractionStatus: "SUCCESS" };
       } catch (imgExtErr: any) {
-        console.warn("[Resume Parser] Multimodal image extraction unavailable:", imgExtErr.message);
+        console.warn("[Resume Parser] Multimodal image extraction unavailable:");
         return { extractedData: null, extractionStatus: "UNAVAILABLE" };
       }
     }
@@ -476,10 +469,9 @@ export const processResumeExtractionService = async (
     // Default / PDF fallback flow
     let text = "";
     try {
-      const parsed = await pdfParse(buffer);
-      text = parsed?.text ? parsed.text.trim() : "";
+      text = await extractDocumentText(buffer, "application/pdf");
     } catch (pdfErr: any) {
-      console.warn("[Resume Parser] pdfParse failed, will attempt multimodal extraction:", pdfErr.message);
+      console.warn("[Resume Parser] pdfParse failed, will attempt multimodal extraction:");
     }
 
     // If text was successfully extracted and has substantive content, use text-based extraction
@@ -488,7 +480,7 @@ export const processResumeExtractionService = async (
         const extracted = await extractResumeProfileData(text);
         return { extractedData: extracted, extractionStatus: "SUCCESS" };
       } catch (textExtErr: any) {
-        console.warn("[Resume Parser] Text-based extraction failed, attempting multimodal extraction:", textExtErr.message);
+        console.warn("[Resume Parser] Text-based extraction failed, attempting multimodal extraction:");
       }
     }
 
@@ -497,11 +489,11 @@ export const processResumeExtractionService = async (
       const extracted = await extractResumeProfileDataFromBuffer(buffer, "application/pdf");
       return { extractedData: extracted, extractionStatus: "SUCCESS" };
     } catch (bufExtErr: any) {
-      console.warn("[Resume Parser] Multimodal PDF extraction unavailable:", bufExtErr.message);
+      console.warn("[Resume Parser] Multimodal PDF extraction unavailable:");
       return { extractedData: null, extractionStatus: "UNAVAILABLE" };
     }
   } catch (err: any) {
-    console.warn("[Resume Parser] Unexpected error during resume extraction:", err.message);
+    console.warn("[Resume Parser] Unexpected error during resume extraction:");
     return { extractedData: null, extractionStatus: "UNAVAILABLE" };
   }
 };

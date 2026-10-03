@@ -4,6 +4,7 @@ export interface VerifiedAccessToken {
   sub: string;
   email?: string;
   aal: "aal1" | "aal2";
+  exp: number;
 }
 
 interface ClaimsResult {
@@ -80,14 +81,14 @@ export const validateVerifiedClaims = (
   if (!hasExpectedAudience(claims.aud)) {
     throw new Error("Access token has an invalid audience");
   }
-  if (typeof claims.exp !== "number" || claims.exp <= nowSeconds - CLOCK_SKEW_SECONDS) {
+  if (typeof claims.exp !== "number" || !Number.isFinite(claims.exp) || claims.exp <= nowSeconds - CLOCK_SKEW_SECONDS) {
     throw new Error("Access token is expired or missing an expiry");
   }
-  if (typeof claims.iat !== "number" || claims.iat > nowSeconds + CLOCK_SKEW_SECONDS) {
+  if (typeof claims.iat !== "number" || !Number.isFinite(claims.iat) || claims.iat > nowSeconds + CLOCK_SKEW_SECONDS) {
     throw new Error("Access token has an invalid issued-at time");
   }
   if (claims.nbf !== undefined) {
-    if (typeof claims.nbf !== "number" || claims.nbf > nowSeconds + CLOCK_SKEW_SECONDS) {
+    if (typeof claims.nbf !== "number" || !Number.isFinite(claims.nbf) || claims.nbf > nowSeconds + CLOCK_SKEW_SECONDS) {
       throw new Error("Access token has an invalid not-before time");
     }
   }
@@ -99,6 +100,7 @@ export const validateVerifiedClaims = (
     sub: claims.sub,
     email: typeof claims.email === "string" ? claims.email : undefined,
     aal: claims.aal,
+    exp: claims.exp,
   };
 };
 
