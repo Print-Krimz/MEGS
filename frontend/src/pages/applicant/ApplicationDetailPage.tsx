@@ -127,6 +127,9 @@ export const ApplicationDetailPage: React.FC = () => {
   const job = application.jobPosting;
   const interviews = application.interviews || [];
   const compliance = application.complianceRequirements || [];
+  const isDeployed = application.status === ApplicationStatus.DEPLOYED;
+  const pendingFollowUps = compliance.filter((c) => c.reviewStatus !== "APPROVED");
+  const approvedClearances = compliance.filter((c) => c.reviewStatus === "APPROVED");
 
   return (
     <div className="space-y-6">
@@ -240,18 +243,37 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
         )}
 
-        {application.status === ApplicationStatus.DEPLOYED && (
-          <div className="p-4 bg-[#ECFDF5] border-l-4 border-[#047857] border border-[#A7F3D0] rounded-lg space-y-1">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-[#047857] shrink-0" />
-              <h4 className="text-sm font-semibold text-[#047857]">
-                Deployed to work site
-              </h4>
+        {isDeployed && (
+          pendingFollowUps.length > 0 ? (
+            <div className="p-4 bg-[#FFFBEB] border-l-4 border-[#D97706] border border-[#FDE68A] rounded-lg space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-[#D97706] shrink-0" />
+                  <h4 className="text-sm font-semibold text-[#92400E]">
+                    Deployed to work site - Follow-up requirements pending
+                  </h4>
+                </div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] self-start sm:self-auto font-mono">
+                  {pendingFollowUps.length} requirement(s) pending follow-up
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-[#78350F] leading-relaxed">
+                You are actively deployed. Upload your remaining requirements once available.
+              </p>
             </div>
-            <p className="text-xs sm:text-sm text-[#102A43] leading-relaxed">
-              You are actively deployed. Your employment record and site placement are active.
-            </p>
-          </div>
+          ) : (
+            <div className="p-4 bg-[#ECFDF5] border-l-4 border-[#047857] border border-[#A7F3D0] rounded-lg space-y-1">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-[#047857] shrink-0" />
+                <h4 className="text-sm font-semibold text-[#047857]">
+                  Deployed to work site - 100% Compliant
+                </h4>
+              </div>
+              <p className="text-xs sm:text-sm text-[#102A43] leading-relaxed">
+                All pre-employment and post-deployment requirements are verified. Your 201 file is complete.
+              </p>
+            </div>
+          )
         )}
 
         {/* Pipeline Stepper */}
@@ -332,127 +354,314 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
 
           {/* Compliance Requirements Checklist */}
-          <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
-            <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
-              <div className="flex items-center gap-2">
-                <FileCheck2 className="w-4 h-4 text-[#0B315D]" />
-                <h3 className="text-sm font-semibold text-[#102A43]">
-                  Requirements
-                </h3>
-              </div>
-              <span className="text-xs font-mono text-[#627D98]">
-                {compliance.filter((c) => c.reviewStatus === "APPROVED").length} / {compliance.length} Approved
-              </span>
-            </div>
+          {isDeployed ? (
+            <div className="space-y-6">
+              {compliance.length === 0 && (
+                <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
+                  <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
+                    <div className="flex items-center gap-2">
+                      <FileCheck2 className="w-4 h-4 text-[#0B315D]" />
+                      <h3 className="text-sm font-semibold text-[#102A43]">
+                        Requirements
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="p-6 text-center text-xs font-mono text-[#627D98]">
+                    No active document requirements are assigned yet.
+                  </div>
+                </div>
+              )}
 
-            {compliance.length === 0 ? (
-              <div className="p-6 text-center text-xs font-mono text-[#627D98]">
-                {(application.status === ApplicationStatus.CONTRACT_AND_ORIENTATION || application.status === ApplicationStatus.ONBOARDING)
-                  ? "No additional requirements are pending. Contract and orientation are the next steps."
-                  : "No active document requirements are assigned yet. We’ll show them here when they are ready."}
-              </div>
-            ) : (
-              <div className="divide-y divide-[#D9E2EC]">
-                {compliance.map((req) => {
-                  const isApproved = req.reviewStatus === "APPROVED";
-                  const isRejected = req.reviewStatus === "REJECTED";
-                  const isSubmitted = req.reviewStatus === "SUBMITTED";
+              {/* Requirements to follow up (Action needed) */}
+              {pendingFollowUps.length > 0 && (
+                <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
+                  <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#FFFBEB]">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-[#D97706]" />
+                      <h3 className="text-sm font-semibold text-[#92400E]">
+                        Requirements to follow up (Action needed)
+                      </h3>
+                    </div>
+                    <span className="text-xs font-mono font-medium text-[#B45309]">
+                      {pendingFollowUps.length} pending
+                    </span>
+                  </div>
 
-                  return (
-                    <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-[#102A43] font-mono uppercase">
-                              {req.documentLabel}
-                            </span>
+                  <div className="divide-y divide-[#D9E2EC]">
+                    {pendingFollowUps.map((req) => {
+                      const isRejected = req.reviewStatus === "REJECTED";
+                      const isSubmitted = req.reviewStatus === "SUBMITTED";
+                      const isToFollow = req.reviewStatus === "TO_FOLLOW";
+                      const targetDate = req.toFollowExpectedAt || req.deadline;
+
+                      return (
+                        <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-[#102A43] font-mono uppercase">
+                                  {req.documentLabel}
+                                </span>
+                              </div>
+                              {targetDate && (
+                                <div className="text-[10px] text-[#627D98] font-mono">
+                                  Target date: {formatDate(targetDate)}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span
+                                className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 border rounded ${
+                                  isRejected
+                                    ? "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]"
+                                    : isSubmitted
+                                    ? "bg-[#FFF7ED] text-[#B45309] border-[#FED7AA]"
+                                    : isToFollow
+                                    ? "bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]"
+                                    : "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]"
+                                }`}
+                              >
+                                {req.reviewStatus}
+                              </span>
+
+                              {req.documentId && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPreviewDocState({
+                                      open: true,
+                                      documentId: req.documentId,
+                                      title: req.documentLabel,
+                                      requirementStatus: req.reviewStatus,
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 text-[11px] font-mono text-[#0B315D] hover:underline ml-1 cursor-pointer"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  View
+                                </button>
+                              )}
+
+                              <Button
+                                variant={isRejected ? "primary" : "outline"}
+                                size="sm"
+                                disabled={uploadMutation.isPending}
+                                loading={uploadMutation.isPending && activeUploadReqId === req.id}
+                                leftIcon={<Upload className="w-3.5 h-3.5" />}
+                                onClick={() => {
+                                  setActiveUploadReqId(req.id);
+                                  fileInputRef.current?.click();
+                                }}
+                              >
+                                {req.documentId ? "Replace File" : "Upload File"}
+                              </Button>
+                            </div>
                           </div>
-                          {req.deadline && (
-                            <div className="text-[10px] text-[#627D98] font-mono">
-                              Deadline: {formatDate(req.deadline)}
+
+                          {isRejected && req.reviewNotes && (
+                            <div className="p-2.5 bg-[#FEF2F2] border border-[#FECACA] rounded text-xs text-[#DC2626] space-y-0.5">
+                              <div className="flex items-center gap-1.5 font-bold font-mono text-[11px]">
+                                <AlertCircle className="w-3.5 h-3.5 text-[#DC2626]" />
+                                Document Rejected by Recruiter
+                              </div>
+                              <p className="text-[#DC2626] pl-5 text-[11px]">
+                                {req.reviewNotes}
+                              </p>
                             </div>
                           )}
                         </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          {isApproved ? (
+              {/* Verified 201 clearances */}
+              {approvedClearances.length > 0 && (
+                <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
+                  <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-[#047857]" />
+                      <h3 className="text-sm font-semibold text-[#102A43]">
+                        Verified 201 clearances
+                      </h3>
+                    </div>
+                    <span className="text-xs font-mono font-medium text-[#047857]">
+                      {approvedClearances.length} verified
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-[#D9E2EC]">
+                    {approvedClearances.map((req) => (
+                      <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-[#102A43] font-mono uppercase">
+                                {req.documentLabel}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
                             <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-3 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> Approved
                             </span>
-                          ) : (
-                            <span
-                              className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 border rounded ${
-                                isRejected
-                                  ? "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]"
-                                  : isSubmitted
-                                  ? "bg-[#FFF7ED] text-[#B45309] border-[#FED7AA]"
-                                  : "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]"
-                              }`}
-                            >
-                              {req.reviewStatus}
-                            </span>
-                          )}
 
-                          {req.documentId && (
                             <button
                               type="button"
-                              onClick={() =>
-                                setPreviewDocState({
-                                  open: true,
-                                  documentId: req.documentId,
-                                  title: req.documentLabel,
-                                  requirementStatus: req.reviewStatus,
-                                })
-                              }
-                              className="inline-flex items-center gap-1 text-[11px] font-mono text-[#0B315D] hover:underline ml-1 cursor-pointer"
+                              disabled={!req.documentId}
+                              onClick={() => {
+                                if (req.documentId) {
+                                  setPreviewDocState({
+                                    open: true,
+                                    documentId: req.documentId,
+                                    title: req.documentLabel,
+                                    requirementStatus: req.reviewStatus,
+                                  });
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 text-[11px] font-mono text-[#0B315D] hover:underline ml-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <ExternalLink className="w-3 h-3" />
                               View
                             </button>
-                          )}
-
-                          {!isApproved && (
-                            <Button
-                              variant={isRejected ? "primary" : "outline"}
-                              size="sm"
-                              disabled={uploadMutation.isPending}
-                              loading={uploadMutation.isPending && activeUploadReqId === req.id}
-                              leftIcon={<Upload className="w-3.5 h-3.5" />}
-                              onClick={() => {
-                                setActiveUploadReqId(req.id);
-                                fileInputRef.current?.click();
-                              }}
-                            >
-                              {req.documentId ? "Replace File" : "Upload File"}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Rejection / Review Feedback */}
-                      {isRejected && (
-                        <div className="p-2.5 bg-[#FEF2F2] border border-[#FECACA] rounded text-xs text-[#DC2626] space-y-0.5">
-                          <div className="flex items-center gap-1.5 font-bold font-mono text-[11px]">
-                            <AlertCircle className="w-3.5 h-3.5 text-[#DC2626]" />
-                            Document Rejected by Recruiter
                           </div>
-                          <p className="text-[#DC2626] pl-5 text-[11px]">
-                            {req.reviewNotes || "Please review document requirements and re-upload a clear and valid copy."}
-                          </p>
                         </div>
-                      )}
 
-                      {isApproved && (
                         <div className="flex items-center gap-1 text-[10px] text-[#047857] font-mono">
                           <CheckCircle2 className="w-3 h-3" /> Verified by recruitment team
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
+              <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
+                <div className="flex items-center gap-2">
+                  <FileCheck2 className="w-4 h-4 text-[#0B315D]" />
+                  <h3 className="text-sm font-semibold text-[#102A43]">
+                    Requirements
+                  </h3>
+                </div>
+                <span className="text-xs font-mono text-[#627D98]">
+                  {compliance.filter((c) => c.reviewStatus === "APPROVED").length} / {compliance.length} Approved
+                </span>
               </div>
-            )}
-          </div>
+
+              {compliance.length === 0 ? (
+                <div className="p-6 text-center text-xs font-mono text-[#627D98]">
+                  {(application.status === ApplicationStatus.CONTRACT_AND_ORIENTATION || application.status === ApplicationStatus.ONBOARDING)
+                    ? "No additional requirements are pending. Contract and orientation are the next steps."
+                    : "No active document requirements are assigned yet. We’ll show them here when they are ready."}
+                </div>
+              ) : (
+                <div className="divide-y divide-[#D9E2EC]">
+                  {compliance.map((req) => {
+                    const isApproved = req.reviewStatus === "APPROVED";
+                    const isRejected = req.reviewStatus === "REJECTED";
+                    const isSubmitted = req.reviewStatus === "SUBMITTED";
+
+                    return (
+                      <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-[#102A43] font-mono uppercase">
+                                {req.documentLabel}
+                              </span>
+                            </div>
+                            {req.deadline && (
+                              <div className="text-[10px] text-[#627D98] font-mono">
+                                Deadline: {formatDate(req.deadline)}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isApproved ? (
+                              <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-3 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> Approved
+                              </span>
+                            ) : (
+                              <span
+                                className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 border rounded ${
+                                  isRejected
+                                    ? "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]"
+                                    : isSubmitted
+                                    ? "bg-[#FFF7ED] text-[#B45309] border-[#FED7AA]"
+                                    : "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]"
+                                }`}
+                              >
+                                {req.reviewStatus}
+                              </span>
+                            )}
+
+                            {req.documentId && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPreviewDocState({
+                                    open: true,
+                                    documentId: req.documentId,
+                                    title: req.documentLabel,
+                                    requirementStatus: req.reviewStatus,
+                                  })
+                                }
+                                className="inline-flex items-center gap-1 text-[11px] font-mono text-[#0B315D] hover:underline ml-1 cursor-pointer"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                View
+                              </button>
+                            )}
+
+                            {!isApproved && (
+                              <Button
+                                variant={isRejected ? "primary" : "outline"}
+                                size="sm"
+                                disabled={uploadMutation.isPending}
+                                loading={uploadMutation.isPending && activeUploadReqId === req.id}
+                                leftIcon={<Upload className="w-3.5 h-3.5" />}
+                                onClick={() => {
+                                  setActiveUploadReqId(req.id);
+                                  fileInputRef.current?.click();
+                                }}
+                              >
+                                {req.documentId ? "Replace File" : "Upload File"}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Rejection / Review Feedback */}
+                        {isRejected && (
+                          <div className="p-2.5 bg-[#FEF2F2] border border-[#FECACA] rounded text-xs text-[#DC2626] space-y-0.5">
+                            <div className="flex items-center gap-1.5 font-bold font-mono text-[11px]">
+                              <AlertCircle className="w-3.5 h-3.5 text-[#DC2626]" />
+                              Document Rejected by Recruiter
+                            </div>
+                            <p className="text-[#DC2626] pl-5 text-[11px]">
+                              {req.reviewNotes || "Please review document requirements and re-upload a clear and valid copy."}
+                            </p>
+                          </div>
+                        )}
+
+                        {isApproved && (
+                          <div className="flex items-center gap-1 text-[10px] text-[#047857] font-mono">
+                            <CheckCircle2 className="w-3 h-3" /> Verified by recruitment team
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right Column: Requisition Information */}
