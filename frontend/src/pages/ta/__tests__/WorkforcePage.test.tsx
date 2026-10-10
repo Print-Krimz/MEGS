@@ -53,6 +53,14 @@ vi.mock("../PostDeploymentCompliancePage", () => ({
   ),
 }));
 
+vi.mock("../RedeploymentQueuePage", () => ({
+  RedeploymentQueuePage: () => (
+    <div data-testid="redeployment-view">
+      <span>Redeployment View Content</span>
+    </div>
+  ),
+}));
+
 describe("WorkforcePage", () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -70,18 +78,26 @@ describe("WorkforcePage", () => {
     );
   };
 
-  it("renders the consolidated page header and 4 sub-navigation tabs", () => {
+  const waitForActiveView = (testId: string) => screen.findByTestId(testId);
+
+  it("renders the consolidated page header and 5 sub-navigation tabs", async () => {
     renderComponent();
+    await waitForActiveView("deployments-view");
 
     expect(screen.getByRole("heading", { name: "Workforce" })).toBeDefined();
+    expect(screen.getAllByRole("tab")).toHaveLength(5);
     expect(screen.getByRole("tab", { name: /Deployments/i })).toBeDefined();
     expect(screen.getByRole("tab", { name: /Employee Records \(201\)/i })).toBeDefined();
     expect(screen.getByRole("tab", { name: /Pre-employment Queue/i })).toBeDefined();
     expect(screen.getByRole("tab", { name: /Post-Deployment Follow-ups/i })).toBeDefined();
+    expect(screen.getByRole("tab", { name: /Redeployment/i })).toBeDefined();
+    expect(screen.queryByRole("tab", { name: /Document Alerts/i })).toBeNull();
+    expect(screen.queryByText(/Document Alerts/i)).toBeNull();
   });
 
-  it("defaults to Site Deployments view and hides duplicate child header", () => {
+  it("defaults to Site Deployments view and hides duplicate child header", async () => {
     renderComponent();
+    await waitForActiveView("deployments-view");
 
     expect(screen.getByTestId("deployments-view")).toBeDefined();
     expect(screen.getByText("Deployments View Content")).toBeDefined();
@@ -89,35 +105,42 @@ describe("WorkforcePage", () => {
     expect(screen.queryByTestId("employees-view")).toBeNull();
     expect(screen.queryByTestId("compliance-view")).toBeNull();
     expect(screen.queryByTestId("post-deployment-view")).toBeNull();
+    expect(screen.queryByTestId("redeployment-view")).toBeNull();
   });
 
-  it("switches to Employee Records when clicked", () => {
+  it("switches to Employee Records when clicked", async () => {
     renderComponent();
+    await waitForActiveView("deployments-view");
 
     const employeesTab = screen.getByRole("tab", { name: /Employee Records \(201\)/i });
     fireEvent.click(employeesTab);
+    await waitForActiveView("employees-view");
 
     expect(screen.getByTestId("employees-view")).toBeDefined();
     expect(screen.getByText("Employees 201 View Content")).toBeDefined();
     expect(screen.queryByTestId("deployments-view")).toBeNull();
   });
 
-  it("switches to Pre-employment Queue when clicked", () => {
+  it("switches to Pre-employment Queue when clicked", async () => {
     renderComponent();
+    await waitForActiveView("deployments-view");
 
     const clearancesTab = screen.getByRole("tab", { name: /Pre-employment Queue/i });
     fireEvent.click(clearancesTab);
+    await waitForActiveView("compliance-view");
 
     expect(screen.getByTestId("compliance-view")).toBeDefined();
     expect(screen.getByText("Compliance Clearances View Content")).toBeDefined();
     expect(screen.queryByTestId("deployments-view")).toBeNull();
   });
 
-  it("switches to Post-Deployment Follow-ups when clicked", () => {
+  it("switches to Post-Deployment Follow-ups when clicked", async () => {
     renderComponent();
+    await waitForActiveView("deployments-view");
 
     const postDeploymentTab = screen.getByRole("tab", { name: /Post-Deployment Follow-ups/i });
     fireEvent.click(postDeploymentTab);
+    await waitForActiveView("post-deployment-view");
 
     expect(screen.getByTestId("post-deployment-view")).toBeDefined();
     expect(screen.getByText("Post-Deployment Follow-ups View Content")).toBeDefined();
@@ -125,8 +148,22 @@ describe("WorkforcePage", () => {
     expect(screen.queryByTestId("deployments-view")).toBeNull();
   });
 
-  it("respects initialTab prop if provided", () => {
+  it("switches to Redeployment when clicked", async () => {
+    renderComponent();
+    await waitForActiveView("deployments-view");
+
+    const redeploymentTab = screen.getByRole("tab", { name: /Redeployment/i });
+    fireEvent.click(redeploymentTab);
+    await waitForActiveView("redeployment-view");
+
+    expect(screen.getByTestId("redeployment-view")).toBeDefined();
+    expect(screen.getByText("Redeployment View Content")).toBeDefined();
+    expect(screen.queryByTestId("deployments-view")).toBeNull();
+  });
+
+  it("respects initialTab prop if provided", async () => {
     renderComponent("post_deployment");
+    await waitForActiveView("post-deployment-view");
 
     expect(screen.getByTestId("post-deployment-view")).toBeDefined();
     expect(screen.queryByTestId("deployments-view")).toBeNull();

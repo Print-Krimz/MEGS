@@ -1,20 +1,31 @@
 import React from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { DeploymentsPage } from "./DeploymentsPage";
-import { EmployeesPage } from "./EmployeesPage";
-import { CompliancePage } from "./CompliancePage";
-import { PostDeploymentCompliancePage } from "./PostDeploymentCompliancePage";
 import { Send, IdCard, FileCheck2, FileClock } from "lucide-react";
 import { PageHeader, Tabs } from "../../components/common";
 import { TA_COPY } from "../../lib/ta-copy";
 
-export type WorkforceTab = "deployments" | "employees" | "clearances" | "post_deployment";
+const DeploymentsPage = React.lazy(() =>
+  import("./DeploymentsPage").then(({ DeploymentsPage }) => ({ default: DeploymentsPage })),
+);
+const EmployeesPage = React.lazy(() =>
+  import("./EmployeesPage").then(({ EmployeesPage }) => ({ default: EmployeesPage })),
+);
+const CompliancePage = React.lazy(() =>
+  import("./CompliancePage").then(({ CompliancePage }) => ({ default: CompliancePage })),
+);
+const PostDeploymentCompliancePage = React.lazy(() =>
+  import("./PostDeploymentCompliancePage").then(({ PostDeploymentCompliancePage }) => ({ default: PostDeploymentCompliancePage })),
+);
+const RedeploymentQueuePage = React.lazy(() => import("./RedeploymentQueuePage").then(({ RedeploymentQueuePage }) => ({ default: RedeploymentQueuePage })));
+
+export type WorkforceTab = "deployments" | "employees" | "clearances" | "post_deployment" | "redeployment";
 
 const VALID_TABS: readonly WorkforceTab[] = [
   "deployments",
   "employees",
   "clearances",
   "post_deployment",
+  "redeployment",
 ];
 
 export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initialTab }) => {
@@ -50,6 +61,11 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
   };
 
   const activeTab = currentTab;
+  const tabFallback = (
+    <div className="flex min-h-32 items-center justify-center text-sm text-slate-600" role="status" aria-live="polite">
+      Loading workforce view…
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -72,15 +88,17 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
           { id: "employees", label: "Employee Records (201)", icon: IdCard, panelId: "workforce-employees" },
           { id: "clearances", label: "Pre-employment Queue", icon: FileCheck2, panelId: "workforce-clearances" },
           { id: "post_deployment", label: "Post-Deployment Follow-ups", icon: FileClock, panelId: "workforce-post-deployment" },
+          { id: "redeployment", label: "Redeployment", icon: Send, panelId: "workforce-redeployment" },
         ]}
       />
 
       {/* Active Tab View */}
       <div id={`workforce-${activeTab}`} role="tabpanel" aria-label={`${activeTab} view`} tabIndex={0}>
-        {activeTab === "deployments" && <DeploymentsPage hideHeader />}
-        {activeTab === "employees" && <EmployeesPage hideHeader />}
-        {activeTab === "clearances" && <CompliancePage hideHeader />}
-        {activeTab === "post_deployment" && <PostDeploymentCompliancePage hideHeader />}
+        {activeTab === "deployments" && <React.Suspense fallback={tabFallback}><DeploymentsPage hideHeader /></React.Suspense>}
+        {activeTab === "employees" && <React.Suspense fallback={tabFallback}><EmployeesPage hideHeader /></React.Suspense>}
+        {activeTab === "clearances" && <React.Suspense fallback={tabFallback}><CompliancePage hideHeader /></React.Suspense>}
+        {activeTab === "post_deployment" && <React.Suspense fallback={tabFallback}><PostDeploymentCompliancePage hideHeader /></React.Suspense>}
+        {activeTab === "redeployment" && <React.Suspense fallback={tabFallback}><RedeploymentQueuePage /></React.Suspense>}
       </div>
     </div>
   );

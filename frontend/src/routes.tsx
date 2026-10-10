@@ -1,75 +1,77 @@
-import React from "react";
 import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   Outlet,
   redirect,
 } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import type { AuthContextType } from "./context/AuthContext";
 import { ApplicationStatus, PIPELINE_FILTER_STAGES, Role } from "./lib/types/enums";
-import { AuthLayout } from "./layouts/AuthLayout";
-import { ApplicantLayout } from "./layouts/ApplicantLayout";
-import { TALayout } from "./layouts/TALayout";
-import { AdminLayout } from "./layouts/AdminLayout";
-import { NotFoundPage } from "./pages/common/NotFoundPage";
-import { ForbiddenPage } from "./pages/common/ForbiddenPage";
-import { ChangePasswordPage } from "./pages/common/ChangePasswordPage";
-import { LoginPage } from "./pages/auth/LoginPage";
-import { RegisterPage } from "./pages/auth/RegisterPage";
-import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
-import { ResetPasswordPage } from "./pages/auth/ResetPasswordPage";
-import { SetupAccountPage } from "./pages/auth/SetupAccountPage";
+import { LandingPage } from "./pages/public/LandingPage";
 
-// Applicant Pages
-import { ApplicantDashboard } from "./pages/applicant/ApplicantDashboard";
-import { ProfilePage } from "./pages/applicant/ProfilePage";
-import { JobsPage } from "./pages/applicant/JobsPage";
-import { JobDetailPage } from "./pages/applicant/JobDetailPage";
-import { MyApplicationsPage } from "./pages/applicant/MyApplicationsPage";
-import { ApplicationDetailPage as ApplicantApplicationDetailPage } from "./pages/applicant/ApplicationDetailPage";
-import { NotificationsPage } from "./pages/applicant/NotificationsPage";
-
-// Talent Acquisition (TA) Pages are loaded on demand so the login and first
-// dashboard paint do not pay for every detail workflow up front.
-const withRouteSuspense = (Page: React.ComponentType<any>) => (props: any) => (
-  <React.Suspense
-    fallback={
-      <div className="flex min-h-32 items-center justify-center text-sm text-slate-600" role="status">
-        Loading workspace…
-      </div>
-    }
-  >
-    <Page {...props} />
-  </React.Suspense>
+// TanStack preloads every matched route component after synchronous guards run.
+// Its native lazy components therefore load layouts and leaf pages in parallel.
+const RoutePending = () => (
+  <div className="flex min-h-32 items-center justify-center text-sm text-slate-600" role="status" aria-live="polite">
+    Loading workspace…
+  </div>
 );
 
-const TADashboard = withRouteSuspense(React.lazy(() => import("./pages/ta/TADashboard").then((module) => ({ default: module.TADashboard }))));
-const TAApplicationsPage = withRouteSuspense(React.lazy(() => import("./pages/ta/ApplicationsPage").then((module) => ({ default: module.ApplicationsPage }))));
-const TAApplicationDetailPage = withRouteSuspense(React.lazy(() => import("./pages/ta/ApplicationDetailPage").then((module) => ({ default: module.ApplicationDetailPage }))));
-const JobPostingsPage = withRouteSuspense(React.lazy(() => import("./pages/ta/JobPostingsPage").then((module) => ({ default: module.JobPostingsPage }))));
-const JobPostingDetailPage = withRouteSuspense(React.lazy(() => import("./pages/ta/JobPostingDetailPage").then((module) => ({ default: module.JobPostingDetailPage }))));
-const MRFListPage = withRouteSuspense(React.lazy(() => import("./pages/ta/MRFListPage").then((module) => ({ default: module.MRFListPage }))));
-const MRFCreatePage = withRouteSuspense(React.lazy(() => import("./pages/ta/MRFCreatePage").then((module) => ({ default: module.MRFCreatePage }))));
-const MRFDetailPage = withRouteSuspense(React.lazy(() => import("./pages/ta/MRFDetailPage").then((module) => ({ default: module.MRFDetailPage }))));
-const TalentPoolPage = withRouteSuspense(React.lazy(() => import("./pages/ta/TalentPoolPage").then((module) => ({ default: module.TalentPoolPage }))));
-const InterviewsPage = withRouteSuspense(React.lazy(() => import("./pages/ta/InterviewsPage").then((module) => ({ default: module.InterviewsPage }))));
-const ClientsPage = withRouteSuspense(React.lazy(() => import("./pages/ta/ClientsPage").then((module) => ({ default: module.ClientsPage }))));
-const ClientDetailPage = withRouteSuspense(React.lazy(() => import("./pages/ta/ClientDetailPage").then((module) => ({ default: module.ClientDetailPage }))));
-const DeploymentDetailPage = withRouteSuspense(React.lazy(() => import("./pages/ta/DeploymentDetailPage").then((module) => ({ default: module.DeploymentDetailPage }))));
-const EmployeeDetailPage = withRouteSuspense(React.lazy(() => import("./pages/ta/EmployeeDetailPage").then((module) => ({ default: module.EmployeeDetailPage }))));
-const WorkforcePage = withRouteSuspense(React.lazy(() => import("./pages/ta/WorkforcePage").then((module) => ({ default: module.WorkforcePage }))));
-const AnalyticsPage = withRouteSuspense(React.lazy(() => import("./pages/ta/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage }))));
+const AuthLayout = lazyRouteComponent(() => import("./layouts/AuthLayout"), "AuthLayout");
+const ApplicantLayout = lazyRouteComponent(() => import("./layouts/ApplicantLayout"), "ApplicantLayout");
+const TALayout = lazyRouteComponent(() => import("./layouts/TALayout"), "TALayout");
+const AdminLayout = lazyRouteComponent(() => import("./layouts/AdminLayout"), "AdminLayout");
 
-// Admin Pages
-import { AdminDashboard } from "./pages/admin/AdminDashboard";
-import { AdminAnalyticsPage } from "./pages/admin/AdminAnalyticsPage";
-import { UsersPage } from "./pages/admin/UsersPage";
-import { ScoringConfigPage } from "./pages/admin/ScoringConfigPage";
-import { ScoringQualityPage } from "./pages/admin/ScoringQualityPage";
-import { DatabaseMaintenancePage } from "./pages/admin/DatabaseMaintenancePage";
-import { AuditLogsPage } from "./pages/admin/AuditLogsPage";
+const NotFoundPage = lazyRouteComponent(() => import("./pages/common/NotFoundPage"), "NotFoundPage");
+const ForbiddenPage = lazyRouteComponent(() => import("./pages/common/ForbiddenPage"), "ForbiddenPage");
+const ChangePasswordPage = lazyRouteComponent(() => import("./pages/common/ChangePasswordPage"), "ChangePasswordPage");
+
+const LoginPage = lazyRouteComponent(() => import("./pages/auth/LoginPage"), "LoginPage");
+const RegisterPage = lazyRouteComponent(() => import("./pages/auth/RegisterPage"), "RegisterPage");
+const ForgotPasswordPage = lazyRouteComponent(() => import("./pages/auth/ForgotPasswordPage"), "ForgotPasswordPage");
+const ResetPasswordPage = lazyRouteComponent(() => import("./pages/auth/ResetPasswordPage"), "ResetPasswordPage");
+const SetupAccountPage = lazyRouteComponent(() => import("./pages/auth/SetupAccountPage"), "SetupAccountPage");
+
+const ApplicantDashboard = lazyRouteComponent(() => import("./pages/applicant/ApplicantDashboard"), "ApplicantDashboard");
+const ProfilePage = lazyRouteComponent(() => import("./pages/applicant/ProfilePage"), "ProfilePage");
+const JobsPage = lazyRouteComponent(() => import("./pages/applicant/JobsPage"), "JobsPage");
+const JobDetailPage = lazyRouteComponent(() => import("./pages/applicant/JobDetailPage"), "JobDetailPage");
+const MyApplicationsPage = lazyRouteComponent(() => import("./pages/applicant/MyApplicationsPage"), "MyApplicationsPage");
+const MyDocumentsPage = lazyRouteComponent(() => import("./pages/applicant/MyDocumentsPage"), "MyDocumentsPage");
+const ApplicantApplicationDetailPage = lazyRouteComponent(() => import("./pages/applicant/ApplicationDetailPage"), "ApplicationDetailPage");
+const NotificationsPage = lazyRouteComponent(() => import("./pages/applicant/NotificationsPage"), "NotificationsPage");
+
+const AdminDashboard = lazyRouteComponent(() => import("./pages/admin/AdminDashboard"), "AdminDashboard");
+const AdminAnalyticsPage = lazyRouteComponent(() => import("./pages/admin/AdminAnalyticsPage"), "AdminAnalyticsPage");
+const UsersPage = lazyRouteComponent(() => import("./pages/admin/UsersPage"), "UsersPage");
+const ScoringConfigPage = lazyRouteComponent(() => import("./pages/admin/ScoringConfigPage"), "ScoringConfigPage");
+const ScoringQualityPage = lazyRouteComponent(() => import("./pages/admin/ScoringQualityPage"), "ScoringQualityPage");
+const DatabaseMaintenancePage = lazyRouteComponent(() => import("./pages/admin/DatabaseMaintenancePage"), "DatabaseMaintenancePage");
+const AuditLogsPage = lazyRouteComponent(() => import("./pages/admin/AuditLogsPage"), "AuditLogsPage");
+
+const TADashboard = lazyRouteComponent(() => import("./pages/ta/TADashboard"), "TADashboard");
+const TAApplicationsPage = lazyRouteComponent(() => import("./pages/ta/ApplicationsPage"), "ApplicationsPage");
+const TAApplicationDetailPage = lazyRouteComponent(() => import("./pages/ta/ApplicationDetailPage"), "ApplicationDetailPage");
+const JobPostingsPage = lazyRouteComponent(() => import("./pages/ta/JobPostingsPage"), "JobPostingsPage");
+const JobPostingDetailPage = lazyRouteComponent(() => import("./pages/ta/JobPostingDetailPage"), "JobPostingDetailPage");
+const MRFListPage = lazyRouteComponent(() => import("./pages/ta/MRFListPage"), "MRFListPage");
+const MRFCreatePage = lazyRouteComponent(() => import("./pages/ta/MRFCreatePage"), "MRFCreatePage");
+const MRFDetailPage = lazyRouteComponent(() => import("./pages/ta/MRFDetailPage"), "MRFDetailPage");
+const AdminMrfDetailPage = lazyRouteComponent(
+  () => import("./pages/ta/MRFDetailPage").then(({ MRFDetailPage }) => ({
+    default: (props: any) => <MRFDetailPage {...props} readOnly baseBackPath="/admin/notifications" />,
+  })),
+);
+const TalentPoolPage = lazyRouteComponent(() => import("./pages/ta/TalentPoolPage"), "TalentPoolPage");
+const InterviewsPage = lazyRouteComponent(() => import("./pages/ta/InterviewsPage"), "InterviewsPage");
+const ClientsPage = lazyRouteComponent(() => import("./pages/ta/ClientsPage"), "ClientsPage");
+const ClientDetailPage = lazyRouteComponent(() => import("./pages/ta/ClientDetailPage"), "ClientDetailPage");
+const DeploymentDetailPage = lazyRouteComponent(() => import("./pages/ta/DeploymentDetailPage"), "DeploymentDetailPage");
+const EmployeeDetailPage = lazyRouteComponent(() => import("./pages/ta/EmployeeDetailPage"), "EmployeeDetailPage");
+const WorkforcePage = lazyRouteComponent(() => import("./pages/ta/WorkforcePage"), "WorkforcePage");
+const AnalyticsPage = lazyRouteComponent(() => import("./pages/ta/AnalyticsPage"), "AnalyticsPage");
 
 export interface RouterContext {
   auth: AuthContextType;
@@ -83,8 +85,6 @@ export const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: () => <Outlet />,
   notFoundComponent: NotFoundPage,
 });
-
-import { LandingPage } from "./pages/public/LandingPage";
 
 // -------------------------------------------------------------
 // 2. Public Root Route ('/') - Corporate Landing Page
@@ -257,6 +257,8 @@ export const applicantProfileRoute = createRoute({
   component: ProfilePage,
 });
 
+export const applicantDocumentsRoute = createRoute({ getParentRoute: () => applicantLayoutRoute, path: "/app/documents", component: MyDocumentsPage });
+
 export const applicantNotificationsRoute = createRoute({
   getParentRoute: () => applicantLayoutRoute,
   path: "/app/notifications",
@@ -414,7 +416,7 @@ export const taClientDetailRoute = createRoute({
 });
 
 export interface WorkforceSearch {
-  tab?: "deployments" | "employees" | "clearances" | "post_deployment";
+  tab?: "deployments" | "employees" | "clearances" | "post_deployment" | "redeployment";
 }
 
 export const taComplianceRoute = createRoute({
@@ -461,7 +463,7 @@ export const taWorkforceRoute = createRoute({
   path: "/ta/workforce",
   validateSearch: (search: Record<string, unknown>): WorkforceSearch => {
     const tab = search.tab;
-    if (tab === "employees" || tab === "clearances" || tab === "deployments" || tab === "post_deployment") {
+    if (tab === "employees" || tab === "clearances" || tab === "deployments" || tab === "post_deployment" || tab === "redeployment") {
       return { tab };
     }
     return { tab: "deployments" };
@@ -555,7 +557,7 @@ export const adminNotificationsRoute = createRoute({
 export const adminMrfDetailRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/admin/mrfs/$mrfId",
-  component: () => <MRFDetailPage readOnly baseBackPath="/admin/notifications" />,
+  component: AdminMrfDetailPage,
 });
 
 // -------------------------------------------------------------
@@ -580,6 +582,7 @@ const routeTree = rootRoute.addChildren([
     applicantApplicationDetailRoute,
     applicantProfileRoute,
     applicantNotificationsRoute,
+    applicantDocumentsRoute,
     applicantInvitationsRoute,
   ]),
   taLayoutRoute.addChildren([
@@ -623,6 +626,7 @@ export const router = createRouter({
     auth: undefined!,
     queryClient: undefined!,
   },
+  defaultPendingComponent: RoutePending,
   defaultPreload: "intent",
 });
 
