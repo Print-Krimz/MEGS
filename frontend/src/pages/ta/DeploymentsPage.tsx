@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
@@ -10,8 +10,9 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
+  ActionMenu,
 } from "../../components/common";
-import { Button, Dialog, Select, Textarea } from "../../components/ui";
+import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
 import { formatDate, getDeploymentStatusMeta } from "../../lib/utils";
 import { DeploymentStatus, ALLOWED_DEPLOYMENT_TRANSITIONS } from "../../lib/types/enums";
 import {
@@ -19,17 +20,29 @@ import {
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
+import { employeesApi } from "../../lib/api/employees.api";
+import { getManilaToday } from "../../lib/field-limits";
 
 export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+  const [attentionFilter, setAttentionFilter] = useState<"ALL" | "STARTS_DUE" | "REVIEWS_DUE">("ALL");
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
   const [statusModalDeployment, setStatusModalDeployment] = useState<{ id: number; currentStatus: DeploymentStatus } | null>(null);
   const [newStatus, setNewStatus] = useState<DeploymentStatus>(DeploymentStatus.ACTIVE);
   const [statusNotes, setStatusNotes] = useState("");
+  const [actualStart, setActualStart] = useState(getManilaToday());
+  const [endModalDeployment, setEndModalDeployment] = useState<{ id: number; employeeName: string } | null>(null);
+  const [actualEnd, setActualEnd] = useState(getManilaToday());
+  const [endReason, setEndReason] = useState("");
+  const [endDisposition, setEndDisposition] = useState<"AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED">("NOT_CONFIRMED");
+  const [reviewModalDeployment, setReviewModalDeployment] = useState<{ id: number; employeeName: string } | null>(null);
+  const [nextReviewAt, setNextReviewAt] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
 
   const deploymentsQuery = useQuery({
     queryKey: ["ta", "deployments", filterValues],
@@ -46,10 +59,11 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status, notes }: { id: number; status: DeploymentStatus; notes?: string }) =>
-      taApi.updateDeploymentStatus(id, { status, notes }),
+    mutationFn: ({ id, status, notes, actualStart }: { id: number; status: DeploymentStatus; notes?: string; actualStart?: string }) =>
+      taApi.updateDeploymentStatus(id, { status, notes, actualStart }),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
       setStatusModalDeployment(null);
       setStatusNotes("");
       notify.success("Deployment Status Updated", `Deployment moved to ${getDeploymentStatusMeta(vars.status).label}.`);
@@ -59,10 +73,53 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
     },
   });
 
+  const endAssignmentMutation = useMutation({
+    mutationFn: () => {
+      if (!endModalDeployment) throw new Error("Select an assignment first.");
+      return employeesApi.endEmployeeDeployment(endModalDeployment.id, {
+        actualEnd,
+        reason: endReason.trim(),
+        disposition: endDisposition,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      setEndModalDeployment(null);
+      setEndReason("");
+      notify.success("Assignment ended", "The actual end date and employee status were recorded.");
+    },
+    onError: (err: any) => notify.error("Unable to end assignment", err?.message || err),
+  });
+
+  const recordReviewMutation = useMutation({
+    mutationFn: () => {
+      if (!reviewModalDeployment || !nextReviewAt) throw new Error("Choose the next check-in date.");
+      return taApi.recordDeploymentReview(reviewModalDeployment.id, { nextReviewAt, notes: reviewNotes.trim() || undefined });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
+      setReviewModalDeployment(null);
+      setReviewNotes("");
+      notify.success("Check-in recorded", "The next assignment review is scheduled.");
+    },
+    onError: (error: any) => notify.error("Could not record check-in", error?.message || error),
+  });
+
   const allDeployments = deploymentsQuery.data || [];
   const clients = clientsQuery.data || [];
+  const startsDueCount = allDeployments.filter((deployment) =>
+    deployment.status === DeploymentStatus.READY_FOR_DEPLOYMENT &&
+    deployment.contractStart && deployment.contractStart.slice(0, 10) <= getManilaToday()
+  ).length;
+  const reviewsDueCount = allDeployments.filter((deployment) =>
+    deployment.status === DeploymentStatus.ACTIVE &&
+    deployment.nextReviewAt && deployment.nextReviewAt.slice(0, 10) <= getManilaToday()
+  ).length;
 
   const filteredDeployments = allDeployments.filter((dep) => {
+    if (attentionFilter === "STARTS_DUE" && !(dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT && dep.contractStart && dep.contractStart.slice(0, 10) <= getManilaToday())) return false;
+    if (attentionFilter === "REVIEWS_DUE" && !(dep.status === DeploymentStatus.ACTIVE && dep.nextReviewAt && dep.nextReviewAt.slice(0, 10) <= getManilaToday())) return false;
     if (!search || !search.trim()) return true;
     const q = search.trim().toLowerCase();
     const emp = dep.employee;
@@ -100,6 +157,93 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
     setPage(1);
   };
 
+  const renderRowActions = (
+    dep: (typeof paginatedDeployments)[0],
+    employeeName: string
+  ) => {
+    if (dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT) {
+      return (
+        <div className="flex items-center justify-end gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setStatusModalDeployment({ id: dep.id, currentStatus: dep.status });
+              setNewStatus(DeploymentStatus.ACTIVE);
+              setActualStart(dep.contractStart?.slice(0, 10) || getManilaToday());
+            }}
+          >
+            Confirm start
+          </Button>
+          <ActionMenu
+            label={`Actions for ${employeeName}`}
+            items={[
+              {
+                label: "View details",
+                onSelect: () =>
+                  navigate({
+                    to: "/ta/deployments/$deploymentId",
+                    params: { deploymentId: String(dep.id) },
+                  }),
+              },
+            ]}
+          />
+        </div>
+      );
+    }
+
+    if (dep.status === DeploymentStatus.ACTIVE) {
+      return (
+        <div className="flex items-center justify-end gap-1.5">
+          <Link
+            to="/ta/deployments/$deploymentId"
+            params={{ deploymentId: String(dep.id) }}
+          >
+            <Button variant="outline" size="sm">
+              View details
+            </Button>
+          </Link>
+          <ActionMenu
+            label={`Actions for ${employeeName}`}
+            items={[
+              {
+                label: "Record check-in",
+                onSelect: () => {
+                  setReviewModalDeployment({ id: dep.id, employeeName });
+                  setNextReviewAt("");
+                  setReviewNotes("");
+                },
+              },
+              {
+                label: "End assignment",
+                tone: "danger",
+                onSelect: () => {
+                  setEndModalDeployment({ id: dep.id, employeeName });
+                  setActualEnd(getManilaToday());
+                  setEndReason("");
+                  setEndDisposition("NOT_CONFIRMED");
+                },
+              },
+            ]}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-end gap-1.5">
+        <Link
+          to="/ta/deployments/$deploymentId"
+          params={{ deploymentId: String(dep.id) }}
+        >
+          <Button variant="outline" size="sm">
+            View details
+          </Button>
+        </Link>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {!hideHeader && (
@@ -112,6 +256,12 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
           ]}
         />
       )}
+
+      <div className="flex flex-wrap gap-2" aria-label="Assignment attention filters">
+        <Button variant={attentionFilter === "ALL" ? "primary" : "outline"} size="sm" onClick={() => { setAttentionFilter("ALL"); setPage(1); }}>All assignments</Button>
+        <Button variant={attentionFilter === "STARTS_DUE" ? "primary" : "outline"} size="sm" onClick={() => { setAttentionFilter("STARTS_DUE"); setPage(1); }}>Start confirmations due ({startsDueCount})</Button>
+        <Button variant={attentionFilter === "REVIEWS_DUE" ? "primary" : "outline"} size="sm" onClick={() => { setAttentionFilter("REVIEWS_DUE"); setPage(1); }}>Check-ins due ({reviewsDueCount})</Button>
+      </div>
 
       {/* Filters Bar */}
       <SearchFilters
@@ -170,7 +320,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
               const employeeName = profile
                 ? `${profile.firstName} ${profile.lastName}`
                 : dep.employee?.employeeNumber || "Employee";
-              const allowedNext = ALLOWED_DEPLOYMENT_TRANSITIONS[dep.status] || [];
               return (
                 <article key={dep.id} className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -182,24 +331,12 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                   </div>
                   <dl className="grid grid-cols-2 gap-3 text-sm">
                     <div><dt className="text-slate-500">Site</dt><dd className="mt-0.5 text-slate-800 break-words">{dep.site || "Client site"}</dd></div>
-                    <div><dt className="text-slate-500">Contract</dt><dd className="mt-0.5 text-slate-800">{dep.contractStart ? formatDate(dep.contractStart) : "Not set"}</dd></div>
+                    <div><dt className="text-slate-500">Planned</dt><dd className="mt-0.5 text-slate-800">{dep.contractStart ? formatDate(dep.contractStart) : "Not set"}{dep.contractEnd ? ` – ${formatDate(dep.contractEnd)}` : " – Open"}</dd></div>
+                    <div><dt className="text-slate-500">Actual</dt><dd className="mt-0.5 text-slate-800">{dep.actualStart ? formatDate(dep.actualStart) : dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT ? "Not started" : "Start date not recorded"}{dep.actualEnd ? ` – ${formatDate(dep.actualEnd)}` : dep.status === DeploymentStatus.ACTIVE ? " – Ongoing" : dep.status === DeploymentStatus.ENDED ? " – End date not recorded" : ""}</dd></div>
+                    {dep.status === DeploymentStatus.ACTIVE && <div><dt className="text-slate-500">Next check-in</dt><dd className="mt-0.5 text-slate-800">{dep.nextReviewAt ? formatDate(dep.nextReviewAt) : "Not scheduled"}</dd></div>}
                   </dl>
-                  <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-                    {allowedNext.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setStatusModalDeployment({ id: dep.id, currentStatus: dep.status });
-                          setNewStatus(allowedNext[0]);
-                        }}
-                      >
-                        Update status
-                      </Button>
-                    )}
-                    <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(dep.id) }}>
-                      <Button variant="primary" size="sm">View details</Button>
-                    </Link>
+                  <div className="border-t border-slate-200 pt-3">
+                    {renderRowActions(dep, employeeName)}
                   </div>
                 </article>
               );
@@ -213,7 +350,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                   <th className="px-4 py-3 font-semibold">Client</th>
                   <th className="px-4 py-3 font-semibold">Site</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Contract Schedule</th>
+                  <th className="px-4 py-3 font-semibold">Planned / actual dates</th>
                   <th className="px-4 py-3 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
@@ -224,7 +361,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                   const empName = profile
                     ? `${profile.firstName} ${profile.lastName}`
                     : emp?.employeeNumber || "Employee";
-                  const allowedNext = ALLOWED_DEPLOYMENT_TRANSITIONS[dep.status] || [];
 
                   return (
                     <tr key={dep.id} className="hover:bg-slate-50/70 transition-colors">
@@ -267,32 +403,12 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                         <StatusBadge status={dep.status} type="deployment" />
                       </td>
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-700">
-                        {dep.contractStart ? formatDate(dep.contractStart) : "N/A"} —{" "}
-                        {dep.contractEnd ? formatDate(dep.contractEnd) : "Open"}
+                        <div>Planned: {dep.contractStart ? formatDate(dep.contractStart) : "N/A"} — {dep.contractEnd ? formatDate(dep.contractEnd) : "Open"}</div>
+                        <div>Actual: {dep.actualStart ? formatDate(dep.actualStart) : dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT ? "Not started" : "Start date not recorded"} — {dep.actualEnd ? formatDate(dep.actualEnd) : dep.status === DeploymentStatus.ACTIVE ? "Ongoing" : dep.status === DeploymentStatus.ENDED ? "End date not recorded" : "—"}</div>
+                        {dep.status === DeploymentStatus.ACTIVE && <div>Next check-in: {dep.nextReviewAt ? formatDate(dep.nextReviewAt) : "Not scheduled"}</div>}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {allowedNext.length > 0 && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setStatusModalDeployment({ id: dep.id, currentStatus: dep.status });
-                                setNewStatus(allowedNext[0]);
-                              }}
-                            >
-                              Update status
-                            </Button>
-                          )}
-                          <Link
-                            to="/ta/deployments/$deploymentId"
-                            params={{ deploymentId: String(dep.id) }}
-                          >
-                            <Button variant="outline" size="sm">
-                            View details
-                            </Button>
-                          </Link>
-                        </div>
+                        {renderRowActions(dep, empName)}
                       </td>
                     </tr>
                   );
@@ -319,8 +435,8 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
       <Dialog
         open={Boolean(statusModalDeployment)}
         onClose={() => setStatusModalDeployment(null)}
-        title="Update Deployment Status"
-            description="Update the employee’s current site assignment status."
+        title={newStatus === DeploymentStatus.ACTIVE ? "Confirm site start" : "Update deployment status"}
+        description={newStatus === DeploymentStatus.ACTIVE ? "Record the date the employee actually started at the client site." : "Update the scheduled placement status."}
       >
         <div className="space-y-4">
           {statusModalDeployment && (
@@ -329,7 +445,9 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
               <StatusBadge status={statusModalDeployment.currentStatus} type="deployment" />
             </div>
           )}
-          <Select
+          {newStatus === DeploymentStatus.ACTIVE ? (
+            <Input label="Actual first working date" type="date" value={actualStart} max={getManilaToday()} onChange={(event) => setActualStart(event.target.value)} required />
+          ) : <Select
             label="New status"
             value={newStatus}
             onChange={(e) => setNewStatus(e.target.value as DeploymentStatus)}
@@ -341,7 +459,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                   }))
                 : []
             }
-          />
+          />}
           <Textarea
             label="Notes (optional)"
             placeholder="Add a reason or note for this change..."
@@ -363,12 +481,50 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                     id: statusModalDeployment.id,
                     status: newStatus,
                     notes: statusNotes || undefined,
+                    actualStart: newStatus === DeploymentStatus.ACTIVE ? actualStart : undefined,
                   });
                 }
               }}
             >
-              Save status
+              {newStatus === DeploymentStatus.ACTIVE ? "Confirm start" : "Save status"}
             </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog open={Boolean(reviewModalDeployment)} onClose={() => setReviewModalDeployment(null)} title="Record assignment check-in" description={reviewModalDeployment ? `Record a check-in for ${reviewModalDeployment.employeeName} and set the next review date.` : undefined}>
+        <div className="space-y-4">
+          <Input label="Next check-in date" type="date" value={nextReviewAt} min={getManilaToday()} onChange={(event) => setNextReviewAt(event.target.value)} required />
+          <Textarea label="Check-in notes (optional)" value={reviewNotes} onChange={(event) => setReviewNotes(event.target.value)} rows={3} placeholder="Record whether the worker and client expect the assignment to continue." />
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <Button variant="outline" size="sm" onClick={() => setReviewModalDeployment(null)}>Cancel</Button>
+            <Button variant="primary" size="sm" disabled={!nextReviewAt} loading={recordReviewMutation.isPending} onClick={() => recordReviewMutation.mutate()}>Save check-in</Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(endModalDeployment)}
+        onClose={() => setEndModalDeployment(null)}
+        title="End assignment"
+        description={endModalDeployment ? `Record the last working date and next step for ${endModalDeployment.employeeName}.` : undefined}
+      >
+        <div className="space-y-4">
+          <Input label="Actual last working date" type="date" value={actualEnd} max={getManilaToday()} onChange={(event) => setActualEnd(event.target.value)} required />
+          <Select
+            label="Worker’s next step"
+            value={endDisposition}
+            onChange={(event) => setEndDisposition(event.target.value as typeof endDisposition)}
+            options={[
+              { value: "AVAILABLE_FOR_REDEPLOYMENT", label: "Wants another assignment" },
+              { value: "NOT_CONFIRMED", label: "Not confirmed yet" },
+              { value: "SEPARATED", label: "Leaving the agency" },
+            ]}
+          />
+          <Textarea label="Reason for ending this assignment" value={endReason} onChange={(event) => setEndReason(event.target.value)} rows={3} required placeholder="For example: client assignment ended or worker requested a transfer" />
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <Button variant="outline" size="sm" onClick={() => setEndModalDeployment(null)}>Cancel</Button>
+            <Button variant="danger" size="sm" loading={endAssignmentMutation.isPending} disabled={!actualEnd || !endReason.trim()} onClick={() => endAssignmentMutation.mutate()}>End assignment</Button>
           </div>
         </div>
       </Dialog>
