@@ -16,6 +16,7 @@ import {
 
 export interface StatusBadgeProps {
   status?: string | null;
+  employeeStatus?: string | null;
   type?: "application" | "deployment" | "employment" | "priority" | "targetDate" | "raw";
   audience?: "applicant" | "staff";
   className?: string;
@@ -25,6 +26,7 @@ export interface StatusBadgeProps {
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
+  employeeStatus,
   type = "application",
   audience = "staff",
   className,
@@ -39,7 +41,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   if (type === "application") {
     meta = getApplicationStatusPresentation(status, audience);
   } else if (type === "deployment") {
-    meta = getDeploymentStatusMeta(status);
+    meta = getDeploymentStatusMeta(status, employeeStatus);
   } else if (type === "employment") {
     meta = getEmploymentStatusMeta(status);
   } else if (type === "priority") {

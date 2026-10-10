@@ -191,7 +191,10 @@ export function getApplicationStatusMeta(status?: string | null) {
 /**
  * Map DeploymentStatus to readable label and badge colors
  */
-export function getDeploymentStatusMeta(status?: string | null): {
+export function getDeploymentStatusMeta(
+  status?: string | null,
+  employeeStatus?: string | null
+): {
   label: string;
   badgeClass: string;
 } {
@@ -201,9 +204,15 @@ export function getDeploymentStatusMeta(status?: string | null): {
     case DeploymentStatus.ACTIVE:
       return { label: "Active on Site", badgeClass: "bg-emerald-50 text-emerald-800 border-emerald-200" };
     case DeploymentStatus.ENDED:
-      return { label: "Assignment Completed", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
+      if (employeeStatus === "AVAILABLE_FOR_REDEPLOYMENT") {
+        return { label: "Ended • Ready for Next Job", badgeClass: "bg-teal-50 text-teal-800 border-teal-200" };
+      }
+      if (employeeStatus === "SEPARATED") {
+        return { label: "Ended • Left Agency", badgeClass: "bg-slate-100 text-slate-600 border-slate-300" };
+      }
+      return { label: "Assignment Ended", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
     case DeploymentStatus.CANCELLED:
-      return { label: "Cancelled", badgeClass: "bg-rose-50 text-rose-800 border-rose-200" };
+      return { label: "Did Not Start", badgeClass: "bg-slate-100 text-slate-600 border-slate-300" };
     default:
       return { label: status || "Unknown", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
   }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { taApi } from "../../../lib/api/ta.api";
 import { TADashboard } from "../TADashboard";
@@ -14,6 +14,7 @@ import { CompliancePage } from "../CompliancePage";
 import { DeploymentsPage } from "../DeploymentsPage";
 import { EmployeesPage } from "../EmployeesPage";
 import { AnalyticsPage } from "../AnalyticsPage";
+import { getManilaToday } from "../../../lib/field-limits";
 
 // Mock taApi and employeesApi
 vi.mock("../../../lib/api/ta.api", () => ({
@@ -66,6 +67,7 @@ vi.mock("../../../lib/api/ta.api", () => ({
         },
       ],
     }),
+    getDashboardCounts: vi.fn().mockResolvedValue({ openJobs: 1, activeDeployments: 35 }),
     listApplications: vi.fn().mockResolvedValue([
       {
         id: 1,
@@ -79,6 +81,30 @@ vi.mock("../../../lib/api/ta.api", () => ({
         jobPosting: { id: 10, title: "Forklift Operator", location: "Laguna" },
       },
     ]),
+    listApplicationsPage: vi.fn().mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          status: "SUBMITTED",
+          aiScore: 88,
+          candidateFitScore: 90,
+          isArchived: false,
+          createdAt: "2026-08-14T00:00:00Z",
+          interviewCount: 0,
+          recruiterDecisionCount: 0,
+          user: {
+            id: "candidate-1",
+            email: "candidate1@megs.ph",
+            applicantProfile: { firstName: "Juan", lastName: "Dela Cruz", mobileNumber: "09171234567" },
+          },
+          jobPosting: { id: 10, title: "Forklift Operator", location: "Laguna" },
+        },
+      ],
+      total: 17,
+      page: 1,
+      pageSize: 10,
+      totalPages: 2,
+    }),
     listJobs: vi.fn().mockResolvedValue([
       {
         id: 10,
@@ -91,6 +117,24 @@ vi.mock("../../../lib/api/ta.api", () => ({
         _count: { applications: 5 },
       },
     ]),
+    listJobsPage: vi.fn().mockResolvedValue({
+      items: [
+        {
+          id: 10,
+          title: "Forklift Operator",
+          location: "Laguna",
+          description: "Heavy machinery handling",
+          requirements: "NC II certified",
+          status: "OPEN",
+          createdAt: "2026-08-10T00:00:00Z",
+          _count: { applications: 5 },
+        },
+      ],
+      total: 21,
+      page: 1,
+      pageSize: 8,
+      totalPages: 3,
+    }),
     listMRFs: vi.fn().mockResolvedValue([
       {
         id: 1001,
@@ -149,6 +193,16 @@ vi.mock("../../../lib/api/ta.api", () => ({
         employee: {
           employeeNumber: "EMP-2026-003",
           user: { applicantProfile: { firstName: "Ana", lastName: "Cruz" } },
+        },
+      },
+      {
+        id: 504,
+        site: "Davao Site",
+        status: "CANCELLED",
+        client: { name: "Acme Industrial" },
+        employee: {
+          employeeNumber: "EMP-2026-004",
+          user: { applicantProfile: { firstName: "Juan", lastName: "Dela Cruz" } },
         },
       },
     ]),
@@ -326,6 +380,7 @@ describe("Talent Acquisition Interface Suite", () => {
     expect((await screen.findAllByText("Forklift Operator")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("Juan Dela Cruz")).length).toBeGreaterThan(0);
     expect(await screen.findByText("Active Job Openings")).toBeDefined();
+    expect(taApi.getDashboardCounts).toHaveBeenCalled();
 
 
     const mrfButton = await screen.findByRole("link", { name: /New manpower request/i });
@@ -564,15 +619,36 @@ describe("Talent Acquisition Interface Suite", () => {
     // Verify valid status badges are present (in table and filter)
     expect((await screen.findAllByText("Active on Site")).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText("Scheduled for Site")).length).toBeGreaterThanOrEqual(1);
-    expect((await screen.findAllByText("Assignment Completed")).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText("Assignment Ended")).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText("Did Not Start")).length).toBeGreaterThanOrEqual(1);
 
-    // Verify status update buttons only appear on non-terminal rows (2 non-terminal rows out of 3)
-    const updateStatusButtons = await screen.findAllByRole("button", { name: "Update status" });
-    expect(updateStatusButtons.length).toBe(4);
+    // Verify Confirm start button appears on READY_FOR_DEPLOYMENT row
+    const confirmStartButtons = await screen.findAllByRole("button", { name: "Confirm start" });
+    expect(confirmStartButtons.length).toBeGreaterThanOrEqual(1);
 
-    // Click Update Status on the READY_FOR_DEPLOYMENT row (2nd button)
-    fireEvent.click(updateStatusButtons[1]);
-    expect(await screen.findByText("Update the employee’s current site assignment status.")).toBeDefined();
+    // Click Confirm start on the READY_FOR_DEPLOYMENT row
+    fireEvent.click(confirmStartButtons[0]);
+    expect(await screen.findByText("Confirm site start")).toBeDefined();
+
+    // Verify date input is restricted to today and future (min = today)
+    const dateInput = screen.getByLabelText(/Actual first working date/i) as HTMLInputElement;
+    expect(dateInput.value).toBe(getManilaToday());
+    expect(dateInput.min).toBe(getManilaToday());
+    expect(dateInput.max).toBe("2100-12-31");
+    expect(screen.getByText("Must be today or a future date.")).toBeDefined();
+
+    // Verify confirm button in modal is enabled for today
+    const dialog = screen.getByRole("dialog");
+    const modalConfirmBtn = within(dialog).getByRole("button", { name: "Confirm start" });
+    expect(modalConfirmBtn.hasAttribute("disabled")).toBe(false);
+
+    // If date is altered to a future date, submit button is enabled
+    fireEvent.change(dateInput, { target: { value: "2028-05-15" } });
+    expect(modalConfirmBtn.hasAttribute("disabled")).toBe(false);
+
+    // If date is altered to a past date, submit button is disabled
+    fireEvent.change(dateInput, { target: { value: "2020-01-01" } });
+    expect(modalConfirmBtn.hasAttribute("disabled")).toBe(true);
   });
 
   it("renders EmployeesPage with personnel and 201 roster", async () => {

@@ -139,7 +139,7 @@ export function formatTaStatus(status?: string | null): string {
     [DeploymentStatus.READY_FOR_DEPLOYMENT]: "Scheduled for site",
     [DeploymentStatus.ACTIVE]: "Active on site",
     [DeploymentStatus.ENDED]: "Assignment completed",
-    [DeploymentStatus.CANCELLED]: "Cancelled",
+    [DeploymentStatus.CANCELLED]: "Did not start",
   };
   return labels[status] || status.replace(/_/g, " ").toLowerCase().replace(/^./, (char) => char.toUpperCase());
 }

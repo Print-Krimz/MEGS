@@ -28,7 +28,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
-  const [attentionFilter, setAttentionFilter] = useState<"ALL" | "STARTS_DUE" | "REVIEWS_DUE">("ALL");
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -46,11 +45,16 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
 
   const deploymentsQuery = useQuery({
     queryKey: ["ta", "deployments", filterValues],
-    queryFn: () =>
-      taApi.listDeployments({
-        status: filterValues.status || undefined,
+    queryFn: () => {
+      const backendStatus =
+        filterValues.status === "ENDED_REDEPLOYMENT" || filterValues.status === "ENDED_SEPARATED"
+          ? "ENDED"
+          : filterValues.status || undefined;
+      return taApi.listDeployments({
+        status: backendStatus,
         clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
-      }),
+      });
+    },
   });
 
   const clientsQuery = useQuery({
@@ -108,18 +112,20 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
 
   const allDeployments = deploymentsQuery.data || [];
   const clients = clientsQuery.data || [];
-  const startsDueCount = allDeployments.filter((deployment) =>
-    deployment.status === DeploymentStatus.READY_FOR_DEPLOYMENT &&
-    deployment.contractStart && deployment.contractStart.slice(0, 10) <= getManilaToday()
-  ).length;
-  const reviewsDueCount = allDeployments.filter((deployment) =>
-    deployment.status === DeploymentStatus.ACTIVE &&
-    deployment.nextReviewAt && deployment.nextReviewAt.slice(0, 10) <= getManilaToday()
-  ).length;
 
   const filteredDeployments = allDeployments.filter((dep) => {
-    if (attentionFilter === "STARTS_DUE" && !(dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT && dep.contractStart && dep.contractStart.slice(0, 10) <= getManilaToday())) return false;
-    if (attentionFilter === "REVIEWS_DUE" && !(dep.status === DeploymentStatus.ACTIVE && dep.nextReviewAt && dep.nextReviewAt.slice(0, 10) <= getManilaToday())) return false;
+    if (
+      filterValues.status === "ENDED_REDEPLOYMENT" &&
+      !(dep.status === DeploymentStatus.ENDED && dep.employee?.status === "AVAILABLE_FOR_REDEPLOYMENT")
+    ) {
+      return false;
+    }
+    if (
+      filterValues.status === "ENDED_SEPARATED" &&
+      !(dep.status === DeploymentStatus.ENDED && dep.employee?.status === "SEPARATED")
+    ) {
+      return false;
+    }
     if (!search || !search.trim()) return true;
     const q = search.trim().toLowerCase();
     const emp = dep.employee;
@@ -170,7 +176,10 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
             onClick={() => {
               setStatusModalDeployment({ id: dep.id, currentStatus: dep.status });
               setNewStatus(DeploymentStatus.ACTIVE);
-              setActualStart(dep.contractStart?.slice(0, 10) || getManilaToday());
+              const defaultStart = dep.contractStart && dep.contractStart.slice(0, 10) >= getManilaToday()
+                ? dep.contractStart.slice(0, 10)
+                : getManilaToday();
+              setActualStart(defaultStart);
             }}
           >
             Confirm start
@@ -258,12 +267,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
         />
       )}
 
-      <div className="flex flex-wrap gap-2" aria-label="Assignment attention filters">
-        <Button variant={attentionFilter === "ALL" ? "primary" : "outline"} size="sm" onClick={() => { setAttentionFilter("ALL"); setPage(1); }}>All assignments</Button>
-        <Button variant={attentionFilter === "STARTS_DUE" ? "primary" : "outline"} size="sm" onClick={() => { setAttentionFilter("STARTS_DUE"); setPage(1); }}>Start confirmations due ({startsDueCount})</Button>
-        <Button variant={attentionFilter === "REVIEWS_DUE" ? "primary" : "outline"} size="sm" onClick={() => { setAttentionFilter("REVIEWS_DUE"); setPage(1); }}>Check-ins due ({reviewsDueCount})</Button>
-      </div>
-
       {/* Filters Bar */}
       <SearchFilters
         searchPlaceholder="Search employee, employee number, client, or site..."
@@ -276,10 +279,14 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
           {
             key: "status",
             label: "Deployment Status",
-            options: Object.values(DeploymentStatus).map((s) => ({
-              value: s,
-              label: getDeploymentStatusMeta(s).label,
-            })),
+            options: [
+              { value: DeploymentStatus.READY_FOR_DEPLOYMENT, label: "Scheduled for Site" },
+              { value: DeploymentStatus.ACTIVE, label: "Active on Site" },
+              { value: DeploymentStatus.ENDED, label: "Assignment Ended" },
+              { value: "ENDED_REDEPLOYMENT", label: "Ended • Ready for Next Job" },
+              { value: "ENDED_SEPARATED", label: "Ended • Left Agency" },
+              { value: DeploymentStatus.CANCELLED, label: "Did Not Start" },
+            ],
           },
           {
             key: "clientId",
@@ -328,7 +335,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                       <h4 className="font-semibold text-slate-950 break-words">{employeeName}</h4>
                       <p className="mt-0.5 text-sm text-slate-600 break-words">{dep.client?.name || "Client not recorded"}</p>
                     </div>
-                    <StatusBadge status={dep.status} type="deployment" size="sm" />
+                    <StatusBadge status={dep.status} employeeStatus={dep.employee?.status} type="deployment" size="sm" />
                   </div>
                   <dl className="grid grid-cols-2 gap-3 text-sm">
                     <div>
@@ -425,7 +432,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                         {dep.site || "General Client Site"}
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={dep.status} type="deployment" />
+                        <StatusBadge status={dep.status} employeeStatus={dep.employee?.status} type="deployment" />
                       </td>
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-700">
                         <div className="space-y-0.5">
@@ -488,7 +495,15 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
             </div>
           )}
           {newStatus === DeploymentStatus.ACTIVE ? (
-            <Input label="Actual first working date" type="date" value={actualStart} max={getManilaToday()} onChange={(event) => setActualStart(event.target.value)} required />
+            <Input
+              label="Actual first working date"
+              type="date"
+              value={actualStart}
+              min={getManilaToday()}
+              onChange={(event) => setActualStart(event.target.value)}
+              helperText="Must be today or a future date."
+              required
+            />
           ) : <Select
             label="New status"
             value={newStatus}
@@ -517,6 +532,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
               variant="primary"
               size="sm"
               loading={updateStatusMutation.isPending}
+              disabled={newStatus === DeploymentStatus.ACTIVE && (!actualStart || actualStart < getManilaToday())}
               onClick={() => {
                 if (statusModalDeployment) {
                   updateStatusMutation.mutate({
