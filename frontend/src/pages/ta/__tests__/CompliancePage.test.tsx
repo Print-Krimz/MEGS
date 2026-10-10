@@ -397,6 +397,10 @@ describe("CompliancePage", () => {
     const notesInput = screen.getByPlaceholderText("Explain what was verified or what needs correction...");
     fireEvent.change(notesInput, { target: { value: "Verified valid" } });
 
+    // Select document validity to enable approval
+    const validitySelect = screen.getByLabelText(/Document validity/i);
+    fireEvent.change(validitySelect, { target: { value: "NO_EXPIRY" } });
+
     // Submit review
     const saveBtn = screen.getByRole("button", { name: /Save review/i });
     fireEvent.click(saveBtn);
@@ -405,6 +409,9 @@ describe("CompliancePage", () => {
       expect(taApi.reviewComplianceRequirement).toHaveBeenCalledWith(1, {
         reviewStatus: "APPROVED",
         reviewNotes: "Verified valid",
+        validityStatus: "NO_EXPIRY",
+        issuedAt: null,
+        expiresAt: null,
       });
     });
 
