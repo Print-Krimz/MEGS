@@ -39,6 +39,9 @@ model User {
   createdDeployments Deployment[] @relation("DeploymentCreatedBy")
   outboxNotifications NotificationOutbox[] @relation("OutboxRecipient")
   deploymentStatusHistory DeploymentStatusHistory[] @relation("DeploymentHistoryActor")
+  deploymentReviews DeploymentReview[] @relation("DeploymentReviewActor")
+  redeploymentEmployees Employee[] @relation("RedeploymentOwner")
+  deploymentAgreementVersions DeploymentAgreementVersion[] @relation("DeploymentAgreementVersionActor")
   talentPoolMembershipsAdded TalentPoolMembership[] @relation("PoolAddedBy")
   talentPoolContacts TalentPoolContact[] @relation("ContactRecruiter")
   sentTalentPoolInvitations TalentPoolInvitation[] @relation("InvitationRecruiter")
@@ -88,6 +91,9 @@ model Notification {
   link      String?  // Optional URL to redirect to when clicked
   
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isRead, createdAt(sort: Desc)])
 }
 
 // ─────────────────────────────────────────────

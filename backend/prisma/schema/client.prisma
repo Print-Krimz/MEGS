@@ -108,6 +108,9 @@ model Deployment {
   site                String?
   contractStart       DateTime?
   contractEnd         DateTime?
+  actualStart         DateTime?
+  actualEnd           DateTime?
+  nextReviewAt        DateTime?
   notes               String?
   contractDocumentUrl String?
   contractStatus      String?          @default("PENDING_REVIEW")
@@ -122,6 +125,8 @@ model Deployment {
   updatedAt           DateTime         @updatedAt
 
   statusHistory DeploymentStatusHistory[]
+  reviews DeploymentReview[]
+  agreementVersions DeploymentAgreementVersion[]
 
   @@index([employeeId])
   @@index([applicationId])
@@ -146,4 +151,38 @@ model DeploymentStatusHistory {
   createdAt    DateTime          @default(now())
 
   @@index([deploymentId, createdAt])
+}
+
+model DeploymentReview {
+  id            Int        @id @default(autoincrement())
+  deploymentId  Int
+  deployment    Deployment @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  reviewedById  String
+  reviewedBy    User       @relation("DeploymentReviewActor", fields: [reviewedById], references: [id], onDelete: Restrict)
+  reviewedAt    DateTime   @default(now())
+  nextReviewAt  DateTime?
+  notes         String?
+
+  @@index([deploymentId, reviewedAt(sort: Desc)])
+  @@index([nextReviewAt])
+}
+
+model DeploymentAgreementVersion {
+  id                  Int        @id @default(autoincrement())
+  deploymentId        Int
+  deployment          Deployment @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  recordedById        String
+  recordedBy          User       @relation("DeploymentAgreementVersionActor", fields: [recordedById], references: [id], onDelete: Restrict)
+  contractStart       DateTime?
+  contractEnd         DateTime?
+  contractDocumentUrl String?
+  contractStatus      String?
+  workerSigned        Boolean
+  workerSignedAt      DateTime?
+  clientSigned        Boolean
+  clientSignedAt      DateTime?
+  contractTerms       String?
+  recordedAt          DateTime   @default(now())
+
+  @@index([deploymentId, recordedAt(sort: Desc)])
 }

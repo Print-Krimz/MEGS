@@ -46,6 +46,12 @@ enum ApplicationStatus {
   ARCHIVED          // Discarded / no longer active
 }
 
+enum DocumentValidityStatus {
+  UNKNOWN
+  HAS_EXPIRY
+  NO_EXPIRY
+}
+
 enum InterviewType {
   INITIAL_SCREENING
   FINAL_INTERVIEW

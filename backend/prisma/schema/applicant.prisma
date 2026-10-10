@@ -79,6 +79,7 @@ model ApplicantProfile {
   scoringRevalidationTasks ScoringRevalidationTask[]
   storedDocuments StoredDocument[]
   talentPoolMembership TalentPoolMembership?
+  invitations TalentPoolInvitation[]
 }
 
 // ─────────────────────────────────────────────

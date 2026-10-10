@@ -30,6 +30,11 @@ model Employee {
   department              String?
   position                String?
   notes                   String?
+  redeploymentAvailableAt DateTime?
+  redeploymentFollowUpAt   DateTime?
+  redeploymentNotes        String?
+  redeploymentOwnerId      String?
+  redeploymentOwner        User? @relation("RedeploymentOwner", fields: [redeploymentOwnerId], references: [id], onDelete: SetNull)
 
   // Originating Application that led to initial hiring
   originatingApplicationId Int?              @unique
@@ -43,6 +48,7 @@ model Employee {
 
   @@index([status])
   @@index([employeeNumber])
+  @@index([redeploymentOwnerId])
 }
 
 model EmploymentEvent {

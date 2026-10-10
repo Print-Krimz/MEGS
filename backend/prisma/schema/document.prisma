@@ -31,6 +31,29 @@ model StoredDocument {
   profileId       Int?
   profile         ApplicantProfile?  @relation(fields: [profileId], references: [id])
 
+  complianceVersions ComplianceDocumentVersion[]
+
   @@index([ownerId, category])
   @@index([sha256])
+}
+
+model ComplianceDocumentVersion {
+  id             Int                    @id @default(autoincrement())
+  requirementId  Int
+  requirement    ComplianceRequirement  @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  documentId     Int
+  document       StoredDocument         @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  issuedAt       DateTime?
+  expiresAt      DateTime?
+  validityStatus DocumentValidityStatus @default(UNKNOWN)
+  reviewStatus   String                 @default("SUBMITTED")
+  reviewNotes    String?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  uploadedAt     DateTime               @default(now())
+  isCurrent      Boolean                @default(true)
+
+  @@unique([requirementId, documentId])
+  @@index([requirementId, uploadedAt(sort: Desc)])
+  @@index([documentId])
 }

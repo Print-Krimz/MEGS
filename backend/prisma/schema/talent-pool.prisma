@@ -57,25 +57,29 @@ enum TalentPoolInvitationStatus {
 }
 
 model TalentPoolInvitation {
-  id            Int                        @id @default(autoincrement())
-  membershipId  Int
-  membership    TalentPoolMembership       @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  id                 Int                        @id @default(autoincrement())
+  applicantProfileId Int
+  applicantProfile   ApplicantProfile           @relation(fields: [applicantProfileId], references: [id], onDelete: Cascade)
 
-  jobPostingId  Int
-  jobPosting    JobPosting                 @relation(fields: [jobPostingId], references: [id], onDelete: Restrict)
+  membershipId       Int?
+  membership         TalentPoolMembership?      @relation(fields: [membershipId], references: [id], onDelete: Cascade)
 
-  invitedById   String
-  invitedBy     User                       @relation("InvitationRecruiter", fields: [invitedById], references: [id])
+  jobPostingId       Int
+  jobPosting         JobPosting                 @relation(fields: [jobPostingId], references: [id], onDelete: Restrict)
 
-  status        TalentPoolInvitationStatus @default(PENDING)
-  message       String?
-  declineReason String?
-  responseNotes String?
-  expiresAt     DateTime?
-  respondedAt   DateTime?
-  createdAt     DateTime                   @default(now())
-  updatedAt     DateTime                   @updatedAt
+  invitedById        String
+  invitedBy          User                       @relation("InvitationRecruiter", fields: [invitedById], references: [id])
 
+  status             TalentPoolInvitationStatus @default(PENDING)
+  message            String?
+  declineReason      String?
+  responseNotes      String?
+  expiresAt          DateTime?
+  respondedAt        DateTime?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@index([applicantProfileId, status])
   @@index([membershipId, status])
   @@index([jobPostingId, status])
   @@index([status, createdAt(sort: Desc)])

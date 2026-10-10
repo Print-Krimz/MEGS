@@ -1,0 +1,3 @@
+ALTER TABLE "Client" ADD COLUMN IF NOT EXISTS "barangay" TEXT;
+ALTER TABLE "ApplicantProfile" ADD COLUMN IF NOT EXISTS "barangay" TEXT;
+ALTER TABLE "ApplicantProfile" ADD COLUMN IF NOT EXISTS "postalCode" TEXT;

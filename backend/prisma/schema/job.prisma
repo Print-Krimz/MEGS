@@ -65,6 +65,8 @@ model Application {
   jobPostingId Int
   jobPosting   JobPosting @relation(fields: [jobPostingId], references: [id])
 
+  attemptNumber Int @default(1)
+
   status    ApplicationStatus @default(SUBMITTED)
   resumeUrl String?           // Supabase Storage URL of uploaded resume
   aiScore   Float?            // 0–100 score returned by Gemini API
@@ -101,7 +103,8 @@ model Application {
   clientEndorsements ClientEndorsement[]
   talentPoolMembershipsSourced TalentPoolMembership[] @relation("SourceApplication")
 
-  @@unique([userId, jobPostingId])
+  @@unique([userId, jobPostingId, attemptNumber])
+  @@index([userId, jobPostingId, createdAt(sort: Desc)])
 }
 
 // ─────────────────────────────────────────────
@@ -216,8 +219,16 @@ model ComplianceRequirement {
   reviewNotes   String?
   reviewedAt    DateTime?
   expiresAt     DateTime?
+  issuedAt      DateTime?
+  validityStatus DocumentValidityStatus @default(UNKNOWN)
+  updateRequestedAt DateTime?
+  updateRequestReason String?
+  updateRequestDeadline DateTime?
+  updateRequestCompletedAt DateTime?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+
+  documentVersions ComplianceDocumentVersion[]
 
   @@index([applicationId, reviewStatus])
 }
