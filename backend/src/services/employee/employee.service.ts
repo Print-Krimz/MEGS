@@ -454,7 +454,7 @@ export const listRedeploymentQueue = async () => {
         redeploymentOwner: { select: { id: true, email: true } },
         deployments: { where: { status: "ENDED" }, orderBy: { actualEnd: "desc" }, take: 1, include: { client: { select: { name: true } }, mrf: { select: { title: true } }, application: { select: { jobPosting: { select: { title: true } } } } } },
         user: { select: {
-          applicantProfile: { select: { id: true, firstName: true, lastName: true, talentPoolMembership: { select: { invitations: { where: { status: "PENDING" }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true, jobPosting: { select: { title: true } } } } } } } },
+          applicantProfile: { select: { id: true, firstName: true, lastName: true, invitations: { where: { status: "PENDING" }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true, jobPosting: { select: { title: true } } } } } },
           applications: { where: { isArchived: false, status: { notIn: ["BACKOUT", "ARCHIVED", "DEPLOYED"] } }, orderBy: { createdAt: "desc" }, select: { id: true, status: true, jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } } } },
         } },
       },
@@ -465,7 +465,7 @@ export const listRedeploymentQueue = async () => {
     const previous = employee.deployments[0];
     const profile = employee.user.applicantProfile;
     const applications = employee.user.applications;
-    const invitation = profile?.talentPoolMembership?.invitations[0];
+    const invitation = profile?.invitations?.[0];
     return {
       id: employee.id, employeeNumber: employee.employeeNumber,
       applicantProfileId: profile?.id ?? null,
@@ -979,26 +979,6 @@ export const endEmployeeDeployment = async (
         },
       });
 
-      const profile = await tx.applicantProfile.findUnique({ where: { userId: deployment.employee.userId }, select: { id: true } });
-      if (profile && employeeStatus === "AVAILABLE_FOR_REDEPLOYMENT") {
-        await tx.talentPoolMembership.upsert({
-          where: { applicantProfileId: profile.id },
-          update: { status: "ACTIVE", availability: "AVAILABLE", lastContactedAt: new Date() },
-          create: {
-            applicantProfileId: profile.id,
-            sourceApplicationId: deployment.applicationId || deployment.employee.originatingApplicationId,
-            status: "ACTIVE",
-            availability: "AVAILABLE",
-            addedById: actorId,
-            notes: "Added to the redeployment pool after an assignment ended.",
-          },
-        });
-      } else if (profile && employeeStatus === "SEPARATED") {
-        await tx.talentPoolMembership.updateMany({
-          where: { applicantProfileId: profile.id },
-          data: { status: "INACTIVE", availability: "UNAVAILABLE" },
-        });
-      }
     }
 
     return updated;

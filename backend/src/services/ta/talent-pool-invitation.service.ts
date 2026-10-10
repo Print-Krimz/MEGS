@@ -47,6 +47,9 @@ export const sendTalentPoolJobInvitation = async (input: SendInvitationInput) =>
           applications: {
             where: { isArchived: false },
           },
+          employee: {
+            include: { deployments: true },
+          },
         },
       },
       talentPoolMembership: true,
@@ -57,12 +60,29 @@ export const sendTalentPoolJobInvitation = async (input: SendInvitationInput) =>
     throw new InvalidKnnRequestError("Candidate profile not found");
   }
 
-  if (!profile.talentPoolMembership || profile.talentPoolMembership.status !== "ACTIVE") {
-    throw new InvalidKnnRequestError("Candidate is not an active member of the Talent Pool.");
+  const isTalentPoolMember = profile.talentPoolMembership?.status === "ACTIVE";
+  const isRedeploymentEligible = Boolean(
+    profile.user.employee &&
+    (profile.user.employee.status === "AVAILABLE_FOR_REDEPLOYMENT" ||
+     profile.user.employee.deployments.length > 0)
+  );
+
+  if (!isTalentPoolMember && !isRedeploymentEligible) {
+    throw new InvalidKnnRequestError("Candidate is neither an active member of the Talent Pool nor eligible for redeployment.");
   }
 
-  if (profile.talentPoolMembership.availability === "UNAVAILABLE") {
+  if (isTalentPoolMember && profile.talentPoolMembership?.availability === "UNAVAILABLE") {
     throw new InvalidKnnRequestError("Candidate availability is currently marked as UNAVAILABLE.");
+  }
+
+  // For non-redeployment candidates, verify no active deployment.
+  // Redeployment candidates may be offered upcoming placements.
+  if (!isRedeploymentEligible && prisma.deployment) {
+    const activeDeployment = await prisma.deployment.findFirst({
+      where: { employee: { userId: profile.userId }, status: { notIn: ["ENDED", "CANCELLED"] } },
+      select: { id: true },
+    });
+    if (activeDeployment) throw new InvalidKnnRequestError("This candidate already has a scheduled or active client assignment.");
   }
 
   const job = await prisma.jobPosting.findUnique({
@@ -78,13 +98,13 @@ export const sendTalentPoolJobInvitation = async (input: SendInvitationInput) =>
   }
 
   const existingApp = profile.user.applications.find((app) => app.jobPostingId === targetJobId);
-  if (existingApp) {
+  if (existingApp && !["BACKOUT", "ARCHIVED", "DEPLOYED"].includes(existingApp.status)) {
     throw new InvalidKnnRequestError(`Candidate already has an active application (#${existingApp.id}) for this job.`);
   }
 
   const existingPending = await prisma.talentPoolInvitation.findFirst({
     where: {
-      membershipId: profile.talentPoolMembership.id,
+      applicantProfileId: profile.id,
       jobPostingId: targetJobId,
       status: "PENDING",
     },
@@ -96,7 +116,7 @@ export const sendTalentPoolJobInvitation = async (input: SendInvitationInput) =>
 
   const previousInvitationCount = await prisma.talentPoolInvitation.count({
     where: {
-      membershipId: profile.talentPoolMembership.id,
+      applicantProfileId: profile.id,
       jobPostingId: targetJobId,
     },
   });
@@ -110,7 +130,8 @@ export const sendTalentPoolJobInvitation = async (input: SendInvitationInput) =>
   const invitation = await prisma.$transaction(async (tx) => {
     const inv = await tx.talentPoolInvitation.create({
       data: {
-        membershipId: profile.talentPoolMembership!.id,
+        applicantProfileId: profile.id,
+        membershipId: profile.talentPoolMembership?.id ?? null,
         jobPostingId: targetJobId,
         invitedById: recruiterId,
         status: "PENDING",
@@ -119,20 +140,22 @@ export const sendTalentPoolJobInvitation = async (input: SendInvitationInput) =>
       },
     });
 
-    await tx.talentPoolContact.create({
-      data: {
-        membershipId: profile.talentPoolMembership!.id,
-        jobPostingId: targetJobId,
-        recruiterId,
-        outcome: "INTERESTED",
-        notes: message ? `Job invitation sent for ${job.title}: ${message}` : `Job invitation sent for ${job.title}`,
-      },
-    });
+    if (profile.talentPoolMembership) {
+      await tx.talentPoolContact.create({
+        data: {
+          membershipId: profile.talentPoolMembership.id,
+          jobPostingId: targetJobId,
+          recruiterId,
+          outcome: "INTERESTED",
+          notes: message ? `Job invitation sent for ${job.title}: ${message}` : `Job invitation sent for ${job.title}`,
+        },
+      });
 
-    await tx.talentPoolMembership.update({
-      where: { id: profile.talentPoolMembership!.id },
-      data: { lastContactedAt: new Date() },
-    });
+      await tx.talentPoolMembership.update({
+        where: { id: profile.talentPoolMembership.id },
+        data: { lastContactedAt: new Date() },
+      });
+    }
 
     return inv;
   });
@@ -214,16 +237,12 @@ export const listOutgoingInvitations = async (options: ListInvitationsQuery = {}
         jobPosting: {
           select: { id: true, title: true, location: true, status: true },
         },
-        membership: {
-          include: {
-            applicantProfile: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                user: { select: { id: true, email: true } },
-              },
-            },
+        applicantProfile: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            user: { select: { id: true, email: true } },
           },
         },
         invitedBy: {
@@ -242,12 +261,12 @@ export const listOutgoingInvitations = async (options: ListInvitationsQuery = {}
       jobPostingTitle: inv.jobPosting?.title || "Untitled Job",
       jobPostingLocation: inv.jobPosting?.location || null,
       jobPostingStatus: inv.jobPosting?.status || "OPEN",
-      candidateId: inv.membership?.applicantProfile?.user?.id || "",
-      applicantProfileId: inv.membership?.applicantProfile?.id || 0,
-      candidateName: inv.membership?.applicantProfile
-        ? `${inv.membership.applicantProfile.firstName || ""} ${inv.membership.applicantProfile.lastName || ""}`.trim() || "Candidate"
+      candidateId: inv.applicantProfile?.user?.id || "",
+      applicantProfileId: inv.applicantProfileId,
+      candidateName: inv.applicantProfile
+        ? `${inv.applicantProfile.firstName || ""} ${inv.applicantProfile.lastName || ""}`.trim() || "Candidate"
         : "Candidate",
-      candidateEmail: inv.membership?.applicantProfile?.user?.email || "No email",
+      candidateEmail: inv.applicantProfile?.user?.email || "No email",
       status: inv.status,
       message: inv.message,
       declineReason: inv.declineReason,
@@ -292,16 +311,15 @@ export const cancelTalentPoolInvitation = async (invitationId: number, recruiter
 export const getMyJobInvitations = async (userId: string) => {
   const profile = await prisma.applicantProfile.findUnique({
     where: { userId },
-    include: { talentPoolMembership: true },
   });
 
-  if (!profile || !profile.talentPoolMembership) {
+  if (!profile) {
     return [];
   }
 
   const invitations = await prisma.talentPoolInvitation.findMany({
     where: {
-      membershipId: profile.talentPoolMembership.id,
+      applicantProfileId: profile.id,
     },
     orderBy: { createdAt: "desc" },
     include: {
@@ -347,14 +365,10 @@ export const respondToJobInvitation = async (input: RespondInvitationInput) => {
   const invitation = await prisma.talentPoolInvitation.findUnique({
     where: { id: invitationId },
     include: {
-      membership: {
-        include: {
-          applicantProfile: {
-            select: { id: true, userId: true, firstName: true, lastName: true, resumeUrl: true },
-          },
-        },
+      applicantProfile: {
+        select: { id: true, userId: true, firstName: true, lastName: true, resumeUrl: true },
       },
-      jobPosting: { select: { id: true, title: true } },
+      jobPosting: { include: { mrf: { select: { clientId: true } } } },
     },
   });
 
@@ -362,7 +376,8 @@ export const respondToJobInvitation = async (input: RespondInvitationInput) => {
     throw new InvalidKnnRequestError("Invitation not found");
   }
 
-  if (invitation.membership.applicantProfile.userId !== userId) {
+  const applicantProfile = invitation.applicantProfile ?? (invitation as any).membership?.applicantProfile;
+  if (!applicantProfile || applicantProfile.userId !== userId) {
     throw new InvalidKnnRequestError("Unauthorized to respond to this invitation.");
   }
 
@@ -378,9 +393,43 @@ export const respondToJobInvitation = async (input: RespondInvitationInput) => {
     throw new InvalidKnnRequestError("This job invitation has expired.");
   }
 
-  const candidateName = `${invitation.membership.applicantProfile.firstName} ${invitation.membership.applicantProfile.lastName}`;
+  const candidateName = `${applicantProfile.firstName || ""} ${applicantProfile.lastName || ""}`.trim() || "Candidate";
 
   if (decision === "ACCEPT") {
+    if (invitation.membershipId && prisma.deployment) {
+      const activeDeployment = await prisma.deployment.findFirst({
+        where: { employee: { userId }, status: { notIn: ["ENDED", "CANCELLED"] } },
+        select: { id: true },
+      });
+      if (activeDeployment) throw new InvalidKnnRequestError("This worker is still assigned to a scheduled or active client placement.");
+    }
+
+    const attemptAggregate = prisma.application?.aggregate
+      ? await prisma.application.aggregate({
+          where: { userId, jobPostingId: invitation.jobPostingId },
+          _max: { attemptNumber: true },
+        })
+      : { _max: { attemptNumber: 0 } };
+    const attemptNumber = (attemptAggregate._max.attemptNumber ?? 0) + 1;
+    const priorSameClientDeployments = invitation.jobPosting.mrf?.clientId && prisma.deployment
+      ? await prisma.deployment.findMany({
+          where: {
+            employee: { userId },
+            clientId: invitation.jobPosting.mrf.clientId,
+            status: { in: ["ACTIVE", "ENDED"] },
+            OR: [
+              { actualStart: { not: null } },
+              { statusHistory: { some: { toStatus: "ACTIVE" } } },
+              { status: "ENDED", contractStart: { not: null } },
+            ],
+          },
+          select: { id: true, applicationId: true },
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
+    const priorSameClientDeployment = priorSameClientDeployments.length > 0;
+    const applicationStatus = priorSameClientDeployment ? "COMPLIANCE" : "SUBMITTED";
+
     const result = await prisma.$transaction(async (tx) => {
       const updatedInv = await tx.talentPoolInvitation.update({
         where: { id: invitationId },
@@ -395,8 +444,9 @@ export const respondToJobInvitation = async (input: RespondInvitationInput) => {
         data: {
           userId,
           jobPostingId: invitation.jobPostingId,
-          status: "SUBMITTED",
-          resumeUrl: invitation.membership.applicantProfile.resumeUrl,
+          attemptNumber,
+          status: applicationStatus,
+          resumeUrl: applicantProfile.resumeUrl,
         },
       });
 
@@ -404,24 +454,33 @@ export const respondToJobInvitation = async (input: RespondInvitationInput) => {
         data: {
           applicationId: newApplication.id,
           actorId: invitation.invitedById,
-          fromStatus: "TALENT_POOL",
-          toStatus: "SUBMITTED",
-          reason: `Candidate accepted talent pool job invitation #${invitationId}`,
+          fromStatus: invitation.membershipId ? "TALENT_POOL" : "REDEPLOYMENT",
+          toStatus: applicationStatus,
+          reason: `Candidate accepted ${invitation.membershipId ? "talent pool" : "redeployment"} job invitation #${invitationId}${priorSameClientDeployment ? "; routed to Requirements based on prior placement with this client" : ""}`,
         },
       });
 
-      await tx.talentPoolContact.create({
-        data: {
-          membershipId: invitation.membershipId,
-          jobPostingId: invitation.jobPostingId,
-          recruiterId: invitation.invitedById,
-          outcome: "INTERESTED",
-          notes: notes ? `Invitation accepted: ${notes}` : "Candidate accepted invitation and applied",
-        },
-      });
+      if (invitation.membershipId) {
+        await tx.talentPoolContact.create({
+          data: {
+            membershipId: invitation.membershipId,
+            jobPostingId: invitation.jobPostingId,
+            recruiterId: invitation.invitedById,
+            outcome: "INTERESTED",
+            notes: notes ? `Invitation accepted: ${notes}` : "Candidate accepted invitation and applied",
+          },
+        });
+      }
 
       return { invitation: updatedInv, application: newApplication };
     });
+
+    if (priorSameClientDeployment) {
+      const { generateComplianceRequirementsFromMRF, reuseValidSameClientDocuments } = await import("./ta.compliance.service.js");
+      await generateComplianceRequirementsFromMRF(result.application.id);
+      const priorApplicationIds = [...new Set(priorSameClientDeployments.map((deployment) => deployment.applicationId).filter((id): id is number => id !== null))];
+      await reuseValidSameClientDocuments(result.application.id, priorApplicationIds);
+    }
 
     try {
       await calculateAndPersistCandidateScore(result.application.id, invitation.jobPostingId);
@@ -461,22 +520,24 @@ export const respondToJobInvitation = async (input: RespondInvitationInput) => {
         },
       });
 
-      if (declineReason === "UNAVAILABLE_EMPLOYED") {
+      if (invitation.membershipId && declineReason === "UNAVAILABLE_EMPLOYED") {
         await tx.talentPoolMembership.update({
           where: { id: invitation.membershipId },
           data: { availability: "UNAVAILABLE" },
         });
       }
 
-      await tx.talentPoolContact.create({
-        data: {
-          membershipId: invitation.membershipId,
-          jobPostingId: invitation.jobPostingId,
-          recruiterId: invitation.invitedById,
-          outcome: declineReason === "UNAVAILABLE_EMPLOYED" ? "UNAVAILABLE" : "NOT_INTERESTED",
-          notes: notes ? `Invitation declined (${declineReason}): ${notes}` : `Invitation declined (${declineReason})`,
-        },
-      });
+      if (invitation.membershipId) {
+        await tx.talentPoolContact.create({
+          data: {
+            membershipId: invitation.membershipId,
+            jobPostingId: invitation.jobPostingId,
+            recruiterId: invitation.invitedById,
+            outcome: declineReason === "UNAVAILABLE_EMPLOYED" ? "UNAVAILABLE" : "NOT_INTERESTED",
+            notes: notes ? `Invitation declined (${declineReason}): ${notes}` : `Invitation declined (${declineReason})`,
+          },
+        });
+      }
 
       return inv;
     });
@@ -526,7 +587,9 @@ export const expirePendingInvitationsWorker = async () => {
   });
 
   // Check affected memberships for inactive pruning (e.g. >= 2 expired in last 60 days)
-  const uniqueMembershipIds = Array.from(new Set(overdue.map((o) => o.membershipId)));
+  const uniqueMembershipIds = Array.from(
+    new Set(overdue.map((o) => o.membershipId).filter((id): id is number => id !== null))
+  );
   for (const membershipId of uniqueMembershipIds) {
     const expiredCount = await prisma.talentPoolInvitation.count({
       where: {
