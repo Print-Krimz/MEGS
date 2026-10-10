@@ -9,10 +9,12 @@ import {
   LoadingState,
   ErrorState,
   Tabs,
+  DocumentPreviewModal,
+  ActionMenu,
 } from "../../components/common";
-import { Button, Dialog, Input, PhoneInput, Select, Textarea } from "../../components/ui";
+import { Button, ComboBox, Dialog, Input, PhoneInput, Select, Textarea } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
-import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
+import { addManilaCalendarDays, getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
 import { notify } from "../../lib/feedback";
 import {
@@ -31,6 +33,8 @@ import {
   validateAddressText,
 } from "../../lib/statutory-validation";
 import { EmploymentStatus } from "../../lib/types/enums";
+import { taApi } from "../../lib/api/ta.api";
+import { DocumentUpdateRequestDialog } from "../../components/ta/DocumentUpdateRequestDialog";
 import {
   User,
   Truck,
@@ -99,6 +103,15 @@ export const EmployeeDetailPage: React.FC = () => {
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<EmploymentStatus>(EmploymentStatus.ACTIVE);
   const [statusReason, setStatusReason] = useState("");
+  const [previewDocument, setPreviewDocument] = useState<{ id: number; title: string } | null>(null);
+  const [updateRequestTarget, setUpdateRequestTarget] = useState<{ id: number; label: string } | null>(null);
+  const [validityTarget, setValidityTarget] = useState<{ id: number; label: string } | null>(null);
+  const [validityStatus, setValidityStatus] = useState<"HAS_EXPIRY" | "NO_EXPIRY" | "UNKNOWN">("UNKNOWN");
+  const [issuedAt, setIssuedAt] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [placementDialogOpen, setPlacementDialogOpen] = useState(false);
+  const [targetJobId, setTargetJobId] = useState("");
+  const [placementMessage, setPlacementMessage] = useState("");
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
@@ -130,6 +143,13 @@ export const EmployeeDetailPage: React.FC = () => {
     enabled: Boolean(employeeId),
   });
 
+  const openJobsQuery = useQuery({
+    queryKey: ["ta", "redeployment-open-jobs"],
+    queryFn: () => taApi.listJobs({ status: "OPEN" }),
+    enabled: placementDialogOpen,
+  });
+  const applicantProfileIdForPlacement = digital201Query.data?.candidate.applicantProfileId ?? null;
+
   const updateStatusMutation = useMutation({
     mutationFn: (data: { status: EmploymentStatus; reason?: string }) =>
       employeesApi.updateEmployeeStatus(employeeId, data),
@@ -155,6 +175,44 @@ export const EmployeeDetailPage: React.FC = () => {
     onError: (err: any) => {
       notify.error("Update failed", err?.message || "Unable to update employee details.");
     },
+  });
+
+  const updateCredentialValidityMutation = useMutation({
+    mutationFn: () => {
+      if (!validityTarget) throw new Error("Select a document first.");
+      return taApi.reviewComplianceRequirement(validityTarget.id, {
+        reviewStatus: "APPROVED",
+        validityStatus,
+        issuedAt: issuedAt || null,
+        expiresAt: validityStatus === "HAS_EXPIRY" ? expiresAt || null : null,
+        reviewNotes: "Document validity checked in the employee Clearance Vault.",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "employee", employeeId, "201"] });
+      setValidityTarget(null);
+      notify.success("Document validity saved", "The verified validity information is now recorded.");
+    },
+    onError: (err: any) => notify.error("Could not save document validity", err?.message || err),
+  });
+
+  const inviteForPlacementMutation = useMutation({
+    mutationFn: () => {
+      if (!applicantProfileIdForPlacement || !targetJobId) throw new Error("Choose an open role first.");
+      return taApi.sendTalentPoolInvitation({
+        applicantProfileId: applicantProfileIdForPlacement,
+        targetJobId: Number(targetJobId),
+        message: placementMessage.trim() || "Your previous assignment has ended. Please review this opportunity and accept if you are interested.",
+        expiresInDays: 7,
+      });
+    },
+    onSuccess: () => {
+      setPlacementDialogOpen(false);
+      setTargetJobId("");
+      setPlacementMessage("");
+      notify.success("Opportunity sent", "The applicant can review and accept it from their account.");
+    },
+    onError: (error: any) => notify.error("Could not send opportunity", error?.message || error),
   });
 
   if (digital201Query.isLoading) {
@@ -344,6 +402,9 @@ export const EmployeeDetailPage: React.FC = () => {
                 Back to employee records
               </Button>
             </Link>
+            {emp.status === EmploymentStatus.AVAILABLE_FOR_REDEPLOYMENT && applicantProfileIdForPlacement && (
+              <Button variant="primary" size="sm" onClick={() => setPlacementDialogOpen(true)}>Find placement</Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -549,7 +610,7 @@ export const EmployeeDetailPage: React.FC = () => {
                     </h4>
                     <div className="divide-y divide-slate-100">
                       {followUpItems.map((req: any) => {
-                        const targetDate = req.toFollowExpectedAt || req.deadline;
+                        const targetDate = req.updateRequestDeadline || req.toFollowExpectedAt || req.deadline;
                         const overdue = isDateBeforeToday(targetDate);
                         return (
                           <div key={req.id} className="py-3 flex items-center justify-between gap-4 text-xs">
@@ -566,7 +627,10 @@ export const EmployeeDetailPage: React.FC = () => {
                                 </div>
                               )}
                             </div>
-                            <StatusBadge status={req.reviewStatus} type="raw" size="sm" />
+                            <div className="flex items-center gap-2">
+                              {req.documentId && <Button variant="outline" size="sm" onClick={() => setPreviewDocument({ id: req.documentId, title: req.documentLabel })}>View</Button>}
+                              <StatusBadge status={req.reviewStatus} type="raw" size="sm" />
+                            </div>
                           </div>
                         );
                       })}
@@ -583,16 +647,68 @@ export const EmployeeDetailPage: React.FC = () => {
                   ) : (
                     <div className="divide-y divide-slate-100">
                       {verifiedItems.map((req: any) => (
-                        <div key={req.id} className="py-3 flex items-center justify-between gap-4 text-xs">
-                          <div className="space-y-0.5">
-                            <div className="font-bold text-slate-900">{req.documentLabel}</div>
-                            {req.expiresAt && (
-                              <div className="text-[11px] text-slate-500 font-mono">
-                                Expires: {formatDate(req.expiresAt)}
-                              </div>
-                            )}
+                        <div key={req.id} className="py-3 text-xs">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="space-y-0.5">
+                              <div className="font-bold text-slate-900">{req.documentLabel}</div>
+                              <div className="text-[11px] text-slate-500 font-mono">Issued: {req.issuedAt ? formatDate(req.issuedAt) : "Not recorded"}</div>
+                              {req.expiresAt && <div className="text-[11px] text-slate-500 font-mono">Expires: {formatDate(req.expiresAt)}</div>}
+                              {req.clientName && <div className="text-[11px] text-slate-500">Client: {req.clientName}</div>}
+                            </div>
+                            <div className="flex items-center justify-end gap-2">
+                              {req.expiresAt && req.expiresAt.slice(0, 10) < getManilaToday() ? (
+                                <StatusBadge status="Expired" type="raw" size="sm" />
+                              ) : req.expiresAt && req.expiresAt.slice(0, 10) <= addManilaCalendarDays(getManilaToday(), 30) ? (
+                                <StatusBadge status="Expiring soon" type="raw" size="sm" />
+                              ) : req.validityStatus === "UNKNOWN" && !req.expiresAt ? (
+                                <StatusBadge status="Validity unrecorded" type="raw" size="sm" />
+                              ) : req.validityStatus === "NO_EXPIRY" ? (
+                                <StatusBadge status="No expiry" type="raw" size="sm" />
+                              ) : (
+                                <StatusBadge status="Approved" type="raw" size="sm" />
+                              )}
+                              {req.documentId && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setPreviewDocument({ id: req.documentId, title: req.documentLabel })}
+                                >
+                                  View
+                                </Button>
+                              )}
+                              <ActionMenu
+                                label={`Actions for ${req.documentLabel}`}
+                                items={[
+                                  {
+                                    label: "Record validity",
+                                    onSelect: () => {
+                                      setValidityTarget({ id: req.id, label: req.documentLabel });
+                                      setValidityStatus(req.expiresAt ? "HAS_EXPIRY" : req.validityStatus === "NO_EXPIRY" ? "NO_EXPIRY" : "UNKNOWN");
+                                      setIssuedAt(req.issuedAt?.slice(0, 10) || "");
+                                      setExpiresAt(req.expiresAt?.slice(0, 10) || "");
+                                    },
+                                  },
+                                  {
+                                    label: "Request updated copy",
+                                    onSelect: () => setUpdateRequestTarget({ id: req.id, label: req.documentLabel }),
+                                  },
+                                ]}
+                              />
+                            </div>
                           </div>
-                          <StatusBadge status={req.reviewStatus} type="raw" size="sm" />
+                          {req.documentVersions?.length > 1 && (
+                            <details className="mt-2 text-[11px]">
+                              <summary className="cursor-pointer text-teal-700">Document history ({req.documentVersions.length} versions)</summary>
+                              <div className="mt-2 space-y-2 pl-2">
+                                {req.documentVersions.map((version: any) => (
+                                  <div key={version.id} className="flex items-center justify-between gap-2 text-slate-600">
+                                    <span>Uploaded {formatDate(version.uploadedAt)} · {version.reviewStatus}{version.expiresAt ? ` · expires ${formatDate(version.expiresAt)}` : ""}</span>
+                                    <Button variant="outline" size="sm" onClick={() => setPreviewDocument({ id: version.documentId, title: `${req.documentLabel} (${formatDate(version.uploadedAt)})` })}>View</Button>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -673,6 +789,47 @@ export const EmployeeDetailPage: React.FC = () => {
             >
               Save status
             </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog open={Boolean(validityTarget)} onClose={() => setValidityTarget(null)} title="Record document validity" description={validityTarget?.label}>
+        <div className="space-y-4">
+          <Input label="Issue date (if shown)" type="date" value={issuedAt} onChange={(event) => setIssuedAt(event.target.value)} max={getManilaToday()} />
+          <Select label="Validity" value={validityStatus} onChange={(event) => setValidityStatus(event.target.value as typeof validityStatus)} options={[
+            { value: "UNKNOWN", label: "Not verified" },
+            { value: "HAS_EXPIRY", label: "Has an expiry date" },
+            { value: "NO_EXPIRY", label: "No expiry shown" },
+          ]} />
+          {validityStatus === "HAS_EXPIRY" && <Input label="Expiry date" type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} required />}
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <Button variant="outline" size="sm" onClick={() => setValidityTarget(null)}>Cancel</Button>
+            <Button variant="primary" size="sm" disabled={validityStatus === "HAS_EXPIRY" && !expiresAt} loading={updateCredentialValidityMutation.isPending} onClick={() => updateCredentialValidityMutation.mutate()}>Save validity</Button>
+          </div>
+        </div>
+      </Dialog>
+      {updateRequestTarget && <DocumentUpdateRequestDialog key={updateRequestTarget.id} target={updateRequestTarget} onClose={() => setUpdateRequestTarget(null)} />}
+      <DocumentPreviewModal open={Boolean(previewDocument)} documentId={previewDocument?.id} title={previewDocument?.title} onClose={() => setPreviewDocument(null)} />
+
+      <Dialog open={placementDialogOpen} onClose={() => setPlacementDialogOpen(false)} title="Find a placement" description={`Send an open role to ${empName}. They can accept it in their Applicant account.`}>
+        <div className="space-y-4">
+          {openJobsQuery.isError ? <ErrorState error={openJobsQuery.error} onRetry={() => openJobsQuery.refetch()} /> : (
+            <ComboBox
+              label="Open role"
+              placeholder="Search open roles and clients..."
+              value={targetJobId}
+              options={(openJobsQuery.data || []).map((job: any) => ({
+                value: String(job.id),
+                label: job.title,
+                subtitle: job.mrf?.client?.name || "Client not assigned",
+              }))}
+              onChange={(value) => setTargetJobId(value)}
+            />
+          )}
+          <Textarea label="Message (optional)" value={placementMessage} onChange={(event) => setPlacementMessage(event.target.value)} rows={3} placeholder="Add a short note about the role or work site." />
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <Button variant="outline" size="sm" onClick={() => setPlacementDialogOpen(false)}>Cancel</Button>
+            <Button variant="primary" size="sm" disabled={!targetJobId || !applicantProfileIdForPlacement} loading={inviteForPlacementMutation.isPending} onClick={() => inviteForPlacementMutation.mutate()}>Send opportunity</Button>
           </div>
         </div>
       </Dialog>
