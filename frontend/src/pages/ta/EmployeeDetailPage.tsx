@@ -608,32 +608,62 @@ export const EmployeeDetailPage: React.FC = () => {
                     <h4 className="text-xs font-mono font-bold uppercase text-slate-500">
                       Pending follow-up items
                     </h4>
-                    <div className="divide-y divide-slate-100">
-                      {followUpItems.map((req: any) => {
-                        const targetDate = req.updateRequestDeadline || req.toFollowExpectedAt || req.deadline;
-                        const overdue = isDateBeforeToday(targetDate);
-                        return (
-                          <div key={req.id} className="py-3 flex items-center justify-between gap-4 text-xs">
-                            <div className="space-y-0.5">
-                              <div className="font-bold text-slate-900">{req.documentLabel}</div>
-                              {targetDate && (
-                                <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono">
-                                  <span>Target date: {formatDate(targetDate)}</span>
-                                  {overdue && (
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
-                                      Overdue
-                                    </span>
+                    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-xs">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
+                          <tr>
+                            <th className="px-4 py-2.5 font-semibold">Document</th>
+                            <th className="px-4 py-2.5 font-semibold">Target date</th>
+                            <th className="px-4 py-2.5 font-semibold">Status</th>
+                            <th className="px-4 py-2.5 font-semibold text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {followUpItems.map((req: any) => {
+                            const targetDate = req.updateRequestDeadline || req.toFollowExpectedAt || req.deadline;
+                            const overdue = isDateBeforeToday(targetDate);
+                            return (
+                              <tr key={req.id} className="hover:bg-slate-50/70 transition-colors">
+                                <td className="px-4 py-3 font-semibold text-slate-900">
+                                  {req.documentLabel}
+                                </td>
+                                <td className="px-4 py-3 font-mono text-[11px] text-slate-600">
+                                  {targetDate ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <span>Target date: {formatDate(targetDate)}</span>
+                                      {overdue && (
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                                          Overdue
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    "—"
                                   )}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {req.documentId && <Button variant="outline" size="sm" onClick={() => setPreviewDocument({ id: req.documentId, title: req.documentLabel })}>View</Button>}
-                              <StatusBadge status={req.reviewStatus} type="raw" size="sm" />
-                            </div>
-                          </div>
-                        );
-                      })}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <StatusBadge status={req.reviewStatus} type="raw" size="sm" />
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex items-center justify-end">
+                                    {req.documentId ? (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setPreviewDocument({ id: req.documentId, title: req.documentLabel })}
+                                      >
+                                        View
+                                      </Button>
+                                    ) : (
+                                      <span className="text-slate-400 text-[11px] font-mono">—</span>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}
@@ -645,72 +675,102 @@ export const EmployeeDetailPage: React.FC = () => {
                   {verifiedItems.length === 0 ? (
                     <p className="text-xs text-slate-400 py-3">No verified documents on record yet.</p>
                   ) : (
-                    <div className="divide-y divide-slate-100">
-                      {verifiedItems.map((req: any) => (
-                        <div key={req.id} className="py-3 text-xs">
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="space-y-0.5">
-                              <div className="font-bold text-slate-900">{req.documentLabel}</div>
-                              <div className="text-[11px] text-slate-500 font-mono">Issued: {req.issuedAt ? formatDate(req.issuedAt) : "Not recorded"}</div>
-                              {req.expiresAt && <div className="text-[11px] text-slate-500 font-mono">Expires: {formatDate(req.expiresAt)}</div>}
-                              {req.clientName && <div className="text-[11px] text-slate-500">Client: {req.clientName}</div>}
-                            </div>
-                            <div className="flex items-center justify-end gap-2">
-                              {req.expiresAt && req.expiresAt.slice(0, 10) < getManilaToday() ? (
-                                <StatusBadge status="Expired" type="raw" size="sm" />
-                              ) : req.expiresAt && req.expiresAt.slice(0, 10) <= addManilaCalendarDays(getManilaToday(), 30) ? (
-                                <StatusBadge status="Expiring soon" type="raw" size="sm" />
-                              ) : req.validityStatus === "UNKNOWN" && !req.expiresAt ? (
-                                <StatusBadge status="Validity unrecorded" type="raw" size="sm" />
-                              ) : req.validityStatus === "NO_EXPIRY" ? (
-                                <StatusBadge status="No expiry" type="raw" size="sm" />
-                              ) : (
-                                <StatusBadge status="Approved" type="raw" size="sm" />
-                              )}
-                              {req.documentId && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setPreviewDocument({ id: req.documentId, title: req.documentLabel })}
-                                >
-                                  View
-                                </Button>
-                              )}
-                              <ActionMenu
-                                label={`Actions for ${req.documentLabel}`}
-                                items={[
-                                  {
-                                    label: "Record validity",
-                                    onSelect: () => {
-                                      setValidityTarget({ id: req.id, label: req.documentLabel });
-                                      setValidityStatus(req.expiresAt ? "HAS_EXPIRY" : req.validityStatus === "NO_EXPIRY" ? "NO_EXPIRY" : "UNKNOWN");
-                                      setIssuedAt(req.issuedAt?.slice(0, 10) || "");
-                                      setExpiresAt(req.expiresAt?.slice(0, 10) || "");
-                                    },
-                                  },
-                                  {
-                                    label: "Request updated copy",
-                                    onSelect: () => setUpdateRequestTarget({ id: req.id, label: req.documentLabel }),
-                                  },
-                                ]}
-                              />
-                            </div>
-                          </div>
-                          {req.documentVersions?.length > 1 && (
-                            <details className="mt-2 text-[11px]">
-                              <summary className="cursor-pointer text-teal-700">Document history ({req.documentVersions.length} versions)</summary>
-                              <div className="mt-2 space-y-2 pl-2">
-                                {req.documentVersions.map((version: any) => (
-                                  <div key={version.id} className="flex items-center justify-between gap-2 text-slate-600">
-                                    <span>Uploaded {formatDate(version.uploadedAt)} · {version.reviewStatus}{version.expiresAt ? ` · expires ${formatDate(version.expiresAt)}` : ""}</span>
-                                    <Button variant="outline" size="sm" onClick={() => setPreviewDocument({ id: version.documentId, title: `${req.documentLabel} (${formatDate(version.uploadedAt)})` })}>View</Button>
-                                  </div>
-                                ))}
-                              </div>
-                            </details>
-                          )}
-                        </div>
-                      ))}
+                    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-xs">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
+                          <tr>
+                            <th className="px-4 py-2.5 font-semibold">Document</th>
+                            <th className="px-4 py-2.5 font-semibold">Client</th>
+                            <th className="px-4 py-2.5 font-semibold">Issued / Expiry</th>
+                            <th className="px-4 py-2.5 font-semibold">Status</th>
+                            <th className="px-4 py-2.5 font-semibold text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {verifiedItems.map((req: any) => (
+                            <tr key={req.id} className="hover:bg-slate-50/70 transition-colors">
+                              <td className="px-4 py-3">
+                                <div className="font-semibold text-slate-900">{req.documentLabel}</div>
+                                {req.documentVersions?.length > 1 && (
+                                  <details className="mt-1 text-[11px]">
+                                    <summary className="cursor-pointer text-teal-700 hover:underline">
+                                      {req.documentVersions.length} versions
+                                    </summary>
+                                    <div className="mt-1.5 space-y-1.5 pl-2 border-l border-teal-200">
+                                      {req.documentVersions.map((version: any) => (
+                                        <div key={version.id} className="flex items-center justify-between gap-2 text-slate-600">
+                                          <span>Uploaded {formatDate(version.uploadedAt)} · {version.reviewStatus}</span>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setPreviewDocument({ id: version.documentId, title: `${req.documentLabel} (${formatDate(version.uploadedAt)})` })}
+                                          >
+                                            View
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </details>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">
+                                {req.clientName || "—"}
+                              </td>
+                              <td className="px-4 py-3 font-mono text-[11px] text-slate-600">
+                                {req.issuedAt && <div>Issued: {formatDate(req.issuedAt)}</div>}
+                                {req.expiresAt && <div>Expires: {formatDate(req.expiresAt)}</div>}
+                                {!req.issuedAt && !req.expiresAt && <span className="text-slate-400">Not recorded</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                {req.expiresAt && req.expiresAt.slice(0, 10) < getManilaToday() ? (
+                                  <StatusBadge status="Expired" type="raw" size="sm" />
+                                ) : req.expiresAt && req.expiresAt.slice(0, 10) <= addManilaCalendarDays(getManilaToday(), 30) ? (
+                                  <StatusBadge status="Expiring soon" type="raw" size="sm" />
+                                ) : req.validityStatus === "UNKNOWN" && !req.expiresAt ? (
+                                  <StatusBadge status="Validity unrecorded" type="raw" size="sm" />
+                                ) : req.validityStatus === "NO_EXPIRY" ? (
+                                  <StatusBadge status="No expiry" type="raw" size="sm" />
+                                ) : (
+                                  <StatusBadge status="Approved" type="raw" size="sm" />
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5 min-w-[100px]">
+                                  {req.documentId ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setPreviewDocument({ id: req.documentId, title: req.documentLabel })}
+                                    >
+                                      View
+                                    </Button>
+                                  ) : (
+                                    <div className="w-14" />
+                                  )}
+                                  <ActionMenu
+                                    label={`Actions for ${req.documentLabel}`}
+                                    items={[
+                                      {
+                                        label: "Record validity",
+                                        onSelect: () => {
+                                          setValidityTarget({ id: req.id, label: req.documentLabel });
+                                          setValidityStatus(req.expiresAt ? "HAS_EXPIRY" : req.validityStatus === "NO_EXPIRY" ? "NO_EXPIRY" : "UNKNOWN");
+                                          setIssuedAt(req.issuedAt?.slice(0, 10) || "");
+                                          setExpiresAt(req.expiresAt?.slice(0, 10) || "");
+                                        },
+                                      },
+                                      {
+                                        label: "Request updated copy",
+                                        onSelect: () => setUpdateRequestTarget({ id: req.id, label: req.documentLabel }),
+                                      },
+                                    ]}
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>

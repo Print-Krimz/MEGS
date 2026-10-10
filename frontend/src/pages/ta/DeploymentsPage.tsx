@@ -163,7 +163,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
   ) => {
     if (dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT) {
       return (
-        <div className="flex items-center justify-end gap-1.5">
+        <div className="flex items-center justify-end gap-1.5 w-36 ml-auto">
           <Button
             variant="outline"
             size="sm"
@@ -194,7 +194,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
 
     if (dep.status === DeploymentStatus.ACTIVE) {
       return (
-        <div className="flex items-center justify-end gap-1.5">
+        <div className="flex items-center justify-end gap-1.5 w-36 ml-auto">
           <Link
             to="/ta/deployments/$deploymentId"
             params={{ deploymentId: String(dep.id) }}
@@ -231,7 +231,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
     }
 
     return (
-      <div className="flex items-center justify-end gap-1.5">
+      <div className="flex items-center justify-end gap-1.5 w-36 ml-auto">
         <Link
           to="/ta/deployments/$deploymentId"
           params={{ deploymentId: String(dep.id) }}
@@ -240,6 +240,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
             View details
           </Button>
         </Link>
+        <div className="w-8 shrink-0" aria-hidden="true" />
       </div>
     );
   };
@@ -330,10 +331,34 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                     <StatusBadge status={dep.status} type="deployment" size="sm" />
                   </div>
                   <dl className="grid grid-cols-2 gap-3 text-sm">
-                    <div><dt className="text-slate-500">Site</dt><dd className="mt-0.5 text-slate-800 break-words">{dep.site || "Client site"}</dd></div>
-                    <div><dt className="text-slate-500">Planned</dt><dd className="mt-0.5 text-slate-800">{dep.contractStart ? formatDate(dep.contractStart) : "Not set"}{dep.contractEnd ? ` – ${formatDate(dep.contractEnd)}` : " – Open"}</dd></div>
-                    <div><dt className="text-slate-500">Actual</dt><dd className="mt-0.5 text-slate-800">{dep.actualStart ? formatDate(dep.actualStart) : dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT ? "Not started" : "Start date not recorded"}{dep.actualEnd ? ` – ${formatDate(dep.actualEnd)}` : dep.status === DeploymentStatus.ACTIVE ? " – Ongoing" : dep.status === DeploymentStatus.ENDED ? " – End date not recorded" : ""}</dd></div>
-                    {dep.status === DeploymentStatus.ACTIVE && <div><dt className="text-slate-500">Next check-in</dt><dd className="mt-0.5 text-slate-800">{dep.nextReviewAt ? formatDate(dep.nextReviewAt) : "Not scheduled"}</dd></div>}
+                    <div>
+                      <dt className="text-slate-500 text-xs">Site</dt>
+                      <dd className="mt-0.5 text-slate-800 break-words">{dep.site || "Client site"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500 text-xs">Planned</dt>
+                      <dd className="mt-0.5 text-slate-800 text-xs font-mono">
+                        {dep.contractStart ? formatDate(dep.contractStart) : "Open"}
+                        {dep.contractEnd ? ` → ${formatDate(dep.contractEnd)}` : " → Open"}
+                      </dd>
+                    </div>
+                    {dep.actualStart && (
+                      <div>
+                        <dt className="text-slate-500 text-xs">Actual</dt>
+                        <dd className="mt-0.5 text-slate-800 text-xs font-mono">
+                          {formatDate(dep.actualStart)}
+                          {dep.actualEnd ? ` → ${formatDate(dep.actualEnd)}` : dep.status === DeploymentStatus.ACTIVE ? " (Active)" : ""}
+                        </dd>
+                      </div>
+                    )}
+                    {dep.status === DeploymentStatus.ACTIVE && dep.nextReviewAt && (
+                      <div>
+                        <dt className="text-slate-500 text-xs">Next check-in</dt>
+                        <dd className="mt-0.5 text-teal-700 text-xs font-mono font-medium">
+                          {formatDate(dep.nextReviewAt)}
+                        </dd>
+                      </div>
+                    )}
                   </dl>
                   <div className="border-t border-slate-200 pt-3">
                     {renderRowActions(dep, employeeName)}
@@ -403,9 +428,26 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
                         <StatusBadge status={dep.status} type="deployment" />
                       </td>
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-700">
-                        <div>Planned: {dep.contractStart ? formatDate(dep.contractStart) : "N/A"} — {dep.contractEnd ? formatDate(dep.contractEnd) : "Open"}</div>
-                        <div>Actual: {dep.actualStart ? formatDate(dep.actualStart) : dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT ? "Not started" : "Start date not recorded"} — {dep.actualEnd ? formatDate(dep.actualEnd) : dep.status === DeploymentStatus.ACTIVE ? "Ongoing" : dep.status === DeploymentStatus.ENDED ? "End date not recorded" : "—"}</div>
-                        {dep.status === DeploymentStatus.ACTIVE && <div>Next check-in: {dep.nextReviewAt ? formatDate(dep.nextReviewAt) : "Not scheduled"}</div>}
+                        <div className="space-y-0.5">
+                          <div>
+                            <span className="text-slate-400 font-sans mr-1 text-[10px]">Planned:</span>
+                            {dep.contractStart ? formatDate(dep.contractStart) : "Open"}
+                            {dep.contractEnd ? ` → ${formatDate(dep.contractEnd)}` : " → Open"}
+                          </div>
+                          {dep.actualStart && (
+                            <div>
+                              <span className="text-slate-400 font-sans mr-1 text-[10px]">Actual:</span>
+                              {formatDate(dep.actualStart)}
+                              {dep.actualEnd ? ` → ${formatDate(dep.actualEnd)}` : dep.status === DeploymentStatus.ACTIVE ? " (Active)" : ""}
+                            </div>
+                          )}
+                          {dep.status === DeploymentStatus.ACTIVE && dep.nextReviewAt && (
+                            <div className="text-teal-700 font-medium">
+                              <span className="text-slate-400 font-sans mr-1 text-[10px]">Next check-in:</span>
+                              {formatDate(dep.nextReviewAt)}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right">
                         {renderRowActions(dep, empName)}
