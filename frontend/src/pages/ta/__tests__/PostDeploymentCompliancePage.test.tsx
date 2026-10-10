@@ -563,6 +563,14 @@ describe("PostDeploymentCompliancePage Component", () => {
     const decisionSelect = screen.getByRole("combobox", { name: /Review decision/i });
     fireEvent.change(decisionSelect, { target: { value: "APPROVED" } });
 
+    // Select document validity to enable approval
+    const validitySelect = screen.getByLabelText(/Document validity/i);
+    fireEvent.change(validitySelect, { target: { value: "NO_EXPIRY" } });
+
+    // Fit to Work Medical Exam requires issue date
+    const issueDateInput = screen.getByLabelText(/Issue date/i);
+    fireEvent.change(issueDateInput, { target: { value: "2026-09-01" } });
+
     // Click Save review
     const saveButton = screen.getByRole("button", { name: "Save review" });
     fireEvent.click(saveButton);
@@ -572,6 +580,8 @@ describe("PostDeploymentCompliancePage Component", () => {
         801,
         expect.objectContaining({
           reviewStatus: "APPROVED",
+          validityStatus: "NO_EXPIRY",
+          issuedAt: "2026-09-01",
         })
       );
     });

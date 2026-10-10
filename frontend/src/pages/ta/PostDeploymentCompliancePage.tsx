@@ -12,7 +12,7 @@ import {
   Pagination,
   DocumentPreviewModal,
 } from "../../components/common";
-import { Button, Dialog, Select, Textarea, Badge } from "../../components/ui";
+import { Button, Dialog, Select, Textarea, Badge, Input } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import type { Application } from "../../lib/types";
 import {
@@ -168,6 +168,9 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
   const [selectedReqId, setSelectedReqId] = useState<number | null>(null);
   const [reviewStatus, setReviewStatus] = useState<"APPROVED" | "REJECTED" | "TO_FOLLOW">("APPROVED");
   const [toFollowExpectedAt, setToFollowExpectedAt] = useState("");
+  const [documentIssuedAt, setDocumentIssuedAt] = useState("");
+  const [documentValidity, setDocumentValidity] = useState<"UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY">("UNKNOWN");
+  const [documentExpiresAt, setDocumentExpiresAt] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
   const [previewDocState, setPreviewDocState] = useState<{
     open: boolean;
@@ -240,6 +243,9 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
         reviewStatus: "APPROVED" | "REJECTED" | "TO_FOLLOW";
         reviewNotes?: string;
         toFollowExpectedAt?: string | null;
+        validityStatus?: "UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY";
+        issuedAt?: string | null;
+        expiresAt?: string | null;
       };
     }) => taApi.reviewComplianceRequirement(id, data),
     onSuccess: (_, vars) => {
@@ -257,6 +263,9 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                   reviewStatus: vars.data.reviewStatus,
                   reviewNotes: vars.data.reviewNotes ?? null,
                   toFollowExpectedAt: vars.data.toFollowExpectedAt ?? null,
+                  validityStatus: vars.data.validityStatus ?? (r as any).validityStatus,
+                  issuedAt: vars.data.issuedAt ?? (r as any).issuedAt,
+                  expiresAt: vars.data.expiresAt ?? (r as any).expiresAt,
                   reviewedAt: new Date().toISOString(),
                 }
               : r
@@ -297,6 +306,9 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
         : ""
     );
     setReviewNotes(defaultReq?.reviewNotes || "");
+    setDocumentIssuedAt((defaultReq as any)?.issuedAt?.slice(0, 10) || "");
+    setDocumentExpiresAt((defaultReq as any)?.expiresAt?.slice(0, 10) || "");
+    setDocumentValidity((defaultReq as any)?.validityStatus || "UNKNOWN");
   };
 
   const filteredApplications = useMemo(() => {
@@ -873,6 +885,9 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                               : ""
                           );
                           setReviewNotes(req.reviewNotes || "");
+                          setDocumentIssuedAt((req as any).issuedAt?.slice(0, 10) || "");
+                          setDocumentExpiresAt((req as any).expiresAt?.slice(0, 10) || "");
+                          setDocumentValidity((req as any).validityStatus || "UNKNOWN");
                         }}
                         className={`w-full p-2.5 text-left flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer ${
                           isSelected
@@ -939,6 +954,37 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                   ]}
                 />
 
+                {reviewStatus === "APPROVED" && (
+                  <>
+                    <Input
+                      label="Issue date (if shown)"
+                      type="date"
+                      value={documentIssuedAt}
+                      max={getManilaToday()}
+                      onChange={(event) => setDocumentIssuedAt(event.target.value)}
+                    />
+                    <Select
+                      label="Document validity"
+                      value={documentValidity}
+                      onChange={(event) => setDocumentValidity(event.target.value as typeof documentValidity)}
+                      options={[
+                        { value: "UNKNOWN", label: "Not verified" },
+                        { value: "HAS_EXPIRY", label: "Has an expiry date" },
+                        { value: "NO_EXPIRY", label: "No expiry" },
+                      ]}
+                    />
+                    {documentValidity === "HAS_EXPIRY" && (
+                      <Input
+                        label="Expiry date"
+                        type="date"
+                        value={documentExpiresAt}
+                        onChange={(event) => setDocumentExpiresAt(event.target.value)}
+                        required
+                      />
+                    )}
+                  </>
+                )}
+
                 {reviewStatus === "TO_FOLLOW" && (
                   <div>
                     <label className="text-xs font-semibold text-slate-700 block mb-1">
@@ -978,6 +1024,12 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                     variant={reviewStatus === "REJECTED" ? "danger" : "primary"}
                     size="sm"
                     loading={reviewMutation.isPending}
+                    disabled={
+                      reviewStatus === "APPROVED" &&
+                      (documentValidity === "UNKNOWN" ||
+                        (documentValidity === "HAS_EXPIRY" && !documentExpiresAt) ||
+                        (/medical|fit\s+to\s+work|health/i.test(selectedReq.documentLabel) && !documentIssuedAt))
+                    }
                     onClick={() => {
                       if (selectedReqId) {
                         reviewMutation.mutate({
@@ -985,7 +1037,18 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                           data: {
                             reviewStatus,
                             reviewNotes: reviewNotes.trim() || undefined,
-                            toFollowExpectedAt: toFollowExpectedAt ? toFollowExpectedAt : null,
+                            validityStatus: reviewStatus === "APPROVED" ? documentValidity : undefined,
+                            issuedAt: reviewStatus === "APPROVED" ? documentIssuedAt || null : undefined,
+                            expiresAt:
+                              reviewStatus === "APPROVED"
+                                ? documentValidity === "NO_EXPIRY"
+                                  ? null
+                                  : documentExpiresAt || null
+                                : undefined,
+                            toFollowExpectedAt:
+                              reviewStatus === "TO_FOLLOW"
+                                ? toFollowExpectedAt || null
+                                : undefined,
                           },
                         });
                       }
