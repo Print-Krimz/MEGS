@@ -10,22 +10,29 @@ import type {
 import type { EmploymentStatus } from "../types/enums";
 
 export const employeesApi = {
-  listEmployees: (query?: EmployeeListQuery) => {
+  getRedeploymentQueue: () => api.get<RedeploymentQueueResponse>("/api/employees/redeployment-queue"),
+  updateRedeploymentFollowUp: (id: number, data: { ownerId: string | null; followUpAt: string | null; notes: string }) => api.patch(`/api/employees/${id}/redeployment`, data),
+  getCredentialAlerts: () => api.get<EmployeeCredentialAlert[]>("/api/employees/credential-alerts"),
+  listEmployees: (query?: EmployeeListQuery, options?: RequestInit) => {
     const params = new URLSearchParams();
     if (query?.status) params.append("status", query.status);
     if (query?.department) params.append("department", query.department);
-    if (query?.search) params.append("search", query.search);
+    const search = query?.search?.trim();
+    if (search) params.append("search", search);
     if (query?.limit) params.append("limit", String(query.limit));
     if (query?.offset) params.append("offset", String(query.offset));
 
     const qs = params.toString();
-    return api.get<Employee[]>(`/api/employees${qs ? `?${qs}` : ""}`);
+    return api.get<Employee[]>(`/api/employees${qs ? `?${qs}` : ""}`, options);
   },
 
   getEmployee: (id: number | string) =>
     api.get<Employee>(`/api/employees/${id}`),
 
   getDigital201: (id: number | string) =>
+    api.get<Digital201Aggregate>(`/api/employees/${id}/digital-201`),
+
+  getEmployeeDetails: (id: number | string) =>
     api.get<Digital201Aggregate>(`/api/employees/${id}/digital-201`),
 
   getMyDigital201: () =>
@@ -46,7 +53,7 @@ export const employeesApi = {
 
   endEmployeeDeployment: (
     deploymentId: number | string,
-    data: { endDate?: string; reason: string; notes?: string }
+    data: { actualEnd: string; disposition: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED"; reason: string }
   ) => api.post<Deployment>(`/api/employees/deployments/${deploymentId}/end`, data),
 
   updateEmployeeDetails: (
@@ -54,3 +61,31 @@ export const employeesApi = {
     data: UpdateEmployeeDetailsDto
   ) => api.patch<Digital201Aggregate>(`/api/employees/${id}/details`, data),
 };
+
+export interface EmployeeCredentialAlert {
+  requirementId: number;
+  documentId: number | null;
+  documentLabel: string;
+  reviewStatus: string;
+  validityStatus: "UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY";
+  issuedAt?: string | null;
+  expiresAt?: string | null;
+  alertType: "REVIEW_REQUIRED" | "VALIDITY_UNKNOWN" | "EXPIRED" | "EXPIRING_SOON" | "UPDATE_OVERDUE";
+  updateRequestReason?: string | null;
+  updateRequestDeadline?: string | null;
+  employeeId: number;
+  employeeNumber: string;
+  employeeName: string;
+  employeeStatus: string;
+  clientName: string;
+  jobTitle: string;
+}
+
+export interface RedeploymentQueueResponse {
+  staff: Array<{ id: string; email: string }>;
+  items: Array<{
+    id: number; employeeNumber: string; applicantProfileId: number | null; name: string; previousClient: string | null; previousRole: string | null;
+    availableAt: string | null; followUpAt: string | null; ownerId: string | null; ownerEmail: string | null; notes: string | null; nextAction: string;
+    applications: Array<{ id: number; status: string; title: string; client: string | null }>;
+  }>;
+}

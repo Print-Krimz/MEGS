@@ -1,4 +1,5 @@
 import prisma from "../../utils/prisma.js";
+import { rethrowPlacementConflict } from "./placement-conflict.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 import { validateStructuredAddress } from "../../utils/address-validation.js";
 import { EmploymentStatus, EmploymentEventType, DeploymentStatus } from "@prisma/client";
@@ -29,6 +30,7 @@ export interface Digital201Aggregate {
   };
   candidate: {
     id: string;
+    applicantProfileId: number | null;
     email: string;
     firstName: string;
     middleName: string | null;
@@ -90,6 +92,16 @@ export const getDigital201ByEmployeeId = async (employeeId: number): Promise<Dig
           storedDocuments: {
             where: { deletedAt: null },
             orderBy: { uploadedAt: "desc" },
+          },
+          applications: {
+            orderBy: { createdAt: "desc" },
+            include: {
+              jobPosting: { include: { mrf: { include: { client: { select: { id: true, name: true } } } } } },
+              complianceRequirements: {
+                orderBy: { createdAt: "desc" },
+                include: { documentVersions: { orderBy: { uploadedAt: "desc" } } },
+              },
+            },
           },
         },
       },
@@ -158,6 +170,7 @@ export const getDigital201ByEmployeeId = async (employeeId: number): Promise<Dig
     },
     candidate: {
       id: employee.user.id,
+      applicantProfileId: profile?.id ?? null,
       email: employee.user.email,
       firstName: profile?.firstName ?? "",
       middleName: profile?.middleName ?? null,
@@ -218,7 +231,13 @@ export const getDigital201ByEmployeeId = async (employeeId: number): Promise<Dig
     },
     skills: profile?.skills?.map((s: any) => s.skill?.name || s.name || "").filter(Boolean) ?? [],
     originatingApplication: employee.originatingApplication ?? null,
-    compliance: employee.originatingApplication?.complianceRequirements ?? [],
+    compliance: employee.user.applications.flatMap((application) =>
+      application.complianceRequirements.map((requirement) => ({
+        ...requirement,
+        jobTitle: application.jobPosting.title,
+        clientName: application.jobPosting.mrf?.client?.name ?? null,
+      }))
+    ),
     deployments: employee.deployments ?? [],
     employmentHistory: employee.employmentEvents ?? [],
   };
@@ -349,6 +368,135 @@ export const listEmployees = async (filters: {
   return resolvedItems;
 };
 
+export const listEmployeeCredentialAlerts = async () => {
+  const today = manilaDateString();
+  const [year, month, day] = today.split("-").map(Number);
+  const horizonDay = new Date(Date.UTC(year, month - 1, day + 30)).toISOString().slice(0, 10);
+  const horizon = parseManilaDateOnly(horizonDay);
+  const requirements = await prisma.complianceRequirement.findMany({
+    where: {
+      isRequired: true,
+      documentId: { not: null },
+      application: {
+        isArchived: false,
+        user: { employee: { is: { status: { not: "SEPARATED" } } } },
+      },
+      OR: [
+        { reviewStatus: { in: ["SUBMITTED", "REJECTED", "PENDING"] } },
+        { validityStatus: "UNKNOWN" },
+        { validityStatus: "HAS_EXPIRY", expiresAt: { lte: horizon } },
+      ],
+    },
+    include: {
+      application: {
+        select: {
+          createdAt: true,
+          user: {
+            select: {
+              applicantProfile: { select: { firstName: true, lastName: true } },
+              employee: { select: { id: true, employeeNumber: true, status: true } },
+            },
+          },
+          jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } },
+        },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const latestByCredential = new Map<string, (typeof requirements)[number]>();
+  for (const requirement of requirements) {
+    const employee = requirement.application.user.employee;
+    if (!employee) continue;
+    const key = `${employee.id}:${requirement.documentLabel.trim().toLowerCase()}`;
+    if (!latestByCredential.has(key)) latestByCredential.set(key, requirement);
+  }
+
+  return [...latestByCredential.values()].map((requirement) => {
+    const employee = requirement.application.user.employee!;
+    const profile = requirement.application.user.applicantProfile;
+    const expiryDay = requirement.expiresAt ? toManilaDateOnly(requirement.expiresAt) : null;
+    const requestOverdue = requirement.updateRequestedAt && !requirement.updateRequestCompletedAt && requirement.updateRequestDeadline && toManilaDateOnly(requirement.updateRequestDeadline) < today;
+    const alertType = requestOverdue ? "UPDATE_OVERDUE" : requirement.reviewStatus !== "APPROVED"
+      ? "REVIEW_REQUIRED"
+      : requirement.validityStatus === "UNKNOWN"
+        ? "VALIDITY_UNKNOWN"
+        : expiryDay && expiryDay < today
+          ? "EXPIRED"
+          : "EXPIRING_SOON";
+    return {
+      requirementId: requirement.id,
+      documentId: requirement.documentId,
+      documentLabel: requirement.documentLabel,
+      reviewStatus: requirement.reviewStatus,
+      validityStatus: requirement.validityStatus,
+      issuedAt: requirement.issuedAt,
+      expiresAt: requirement.expiresAt,
+      updateRequestReason: requirement.updateRequestReason,
+      updateRequestDeadline: requirement.updateRequestDeadline,
+      alertType,
+      employeeId: employee.id,
+      employeeNumber: employee.employeeNumber,
+      employeeName: `${profile?.firstName || ""} ${profile?.lastName || ""}`.trim() || employee.employeeNumber,
+      employeeStatus: employee.status,
+      clientName: requirement.application.jobPosting.mrf?.client?.name || "Client not recorded",
+      jobTitle: requirement.application.jobPosting.title,
+    };
+  });
+};
+
+export const listRedeploymentQueue = async () => {
+  const [employees, staff] = await Promise.all([
+    prisma.employee.findMany({
+      where: { status: "AVAILABLE_FOR_REDEPLOYMENT", deployments: { none: { status: { notIn: ["ENDED", "CANCELLED"] } } } },
+      orderBy: [{ redeploymentFollowUpAt: "asc" }, { updatedAt: "asc" }],
+      include: {
+        redeploymentOwner: { select: { id: true, email: true } },
+        deployments: { where: { status: "ENDED" }, orderBy: { actualEnd: "desc" }, take: 1, include: { client: { select: { name: true } }, mrf: { select: { title: true } }, application: { select: { jobPosting: { select: { title: true } } } } } },
+        user: { select: {
+          applicantProfile: { select: { id: true, firstName: true, lastName: true, talentPoolMembership: { select: { invitations: { where: { status: "PENDING" }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true, jobPosting: { select: { title: true } } } } } } } },
+          applications: { where: { isArchived: false, status: { notIn: ["BACKOUT", "ARCHIVED", "DEPLOYED"] } }, orderBy: { createdAt: "desc" }, select: { id: true, status: true, jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } } } },
+        } },
+      },
+    }),
+    prisma.user.findMany({ where: { role: { in: ["TALENT_ACQUISITION", "ADMINISTRATOR"] }, isActive: true }, select: { id: true, email: true }, orderBy: { email: "asc" } }),
+  ]);
+  return { staff, items: employees.map((employee) => {
+    const previous = employee.deployments[0];
+    const profile = employee.user.applicantProfile;
+    const applications = employee.user.applications;
+    const invitation = profile?.talentPoolMembership?.invitations[0];
+    return {
+      id: employee.id, employeeNumber: employee.employeeNumber,
+      applicantProfileId: profile?.id ?? null,
+      name: `${profile?.firstName || ""} ${profile?.lastName || ""}`.trim() || employee.employeeNumber,
+      previousClient: previous?.client.name ?? null,
+      previousRole: previous?.application?.jobPosting.title || previous?.mrf?.title || employee.position,
+      availableAt: employee.redeploymentAvailableAt, followUpAt: employee.redeploymentFollowUpAt,
+      ownerId: employee.redeploymentOwnerId, ownerEmail: employee.redeploymentOwner?.email ?? null, notes: employee.redeploymentNotes,
+      nextAction: applications.length ? "Application in progress" : invitation ? "Waiting for applicant response" : "Find a placement",
+      applications: applications.map((application) => ({ id: application.id, status: application.status, title: application.jobPosting.title, client: application.jobPosting.mrf?.client.name ?? null })),
+    };
+  }) };
+};
+
+export const updateRedeploymentFollowUp = async (id: number, actorId: string, data: { ownerId?: string | null; followUpAt?: string | null; notes?: string }) => {
+  const employee = await prisma.employee.findUnique({ where: { id } });
+  if (!employee || employee.status !== "AVAILABLE_FOR_REDEPLOYMENT") throw new Error("Employee must be available for redeployment.");
+  if (data.followUpAt && data.followUpAt < manilaDateString()) throw new Error("Follow-up date must be today or in the future.");
+  if (data.ownerId) {
+    const owner = await prisma.user.findFirst({ where: { id: data.ownerId, isActive: true, role: { in: ["TALENT_ACQUISITION", "ADMINISTRATOR"] } }, select: { id: true } });
+    if (!owner) throw new Error("Choose an active TA or Admin for this follow-up.");
+  }
+  const updated = await prisma.employee.update({ where: { id }, data: {
+    ...(data.ownerId !== undefined ? { redeploymentOwnerId: data.ownerId } : {}),
+    ...(data.followUpAt !== undefined ? { redeploymentFollowUpAt: data.followUpAt ? parseManilaDateOnly(data.followUpAt) : null } : {}),
+    ...(data.notes !== undefined ? { redeploymentNotes: data.notes } : {}),
+  } });
+  await logAudit(actorId, "REDEPLOYMENT_FOLLOW_UP_UPDATED", "Employee", id, data);
+  return updated;
+};
+
 /**
  * Get basic employee details by ID.
  */
@@ -378,6 +526,7 @@ export const getEmployeeById = async (id: number) => {
   });
 
   if (!employee) throw new Error("Employee not found");
+
   return employee;
 };
 
@@ -552,6 +701,16 @@ export const updateEmployeeStatus = async (
 
   if (!employee) throw new Error("Employee not found");
 
+  if (status !== "ACTIVE") {
+    const activeDeployment = await prisma.deployment.findFirst({
+      where: { employeeId, status: { notIn: ["ENDED", "CANCELLED"] } },
+      select: { id: true },
+    });
+    if (activeDeployment) {
+      throw new Error("End or cancel the employee’s current assignment before changing employment status.");
+    }
+  }
+
   const eventType: EmploymentEventType =
     status === "SEPARATED"
       ? "SEPARATED"
@@ -562,7 +721,7 @@ export const updateEmployeeStatus = async (
   return await prisma.$transaction(async (tx) => {
     const updated = await tx.employee.update({
       where: { id: employeeId },
-      data: { status },
+      data: { status, ...(status === "AVAILABLE_FOR_REDEPLOYMENT" ? { redeploymentAvailableAt: employee.redeploymentAvailableAt || new Date(), ...(actorId ? { redeploymentOwnerId: actorId } : {}) } : {}) },
     });
 
     await tx.employmentEvent.create({
@@ -674,7 +833,7 @@ export const createEmployeeDeployment = async (
         client: { select: { id: true, name: true } },
         mrf: { select: { id: true, title: true } },
       },
-    });
+    }).catch(rethrowPlacementConflict);
 
     // Record deployment status history
     await tx.deploymentStatusHistory.create({
@@ -728,32 +887,38 @@ export const endEmployeeDeployment = async (
   deploymentId: number,
   actorId: string,
   options?: {
+    actualEnd?: string | Date;
     reason?: string;
-    makeAvailableForRedeployment?: boolean;
+    disposition?: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED";
   }
 ) => {
   const deployment = await prisma.deployment.findUnique({
     where: { id: deploymentId },
-    include: { client: true },
+    include: { client: true, employee: { select: { userId: true, originatingApplicationId: true } } },
   });
 
   if (!deployment) throw new Error("Deployment not found");
   if (deployment.status === "ENDED" || deployment.status === "CANCELLED") {
     throw new Error(`Deployment is already in ${deployment.status} state`);
   }
+  if (deployment.status !== "ACTIVE") {
+    throw new Error("Cancel a scheduled placement instead of ending an assignment that has not started.");
+  }
 
-  const now = new Date();
-  const effectiveEnd =
-    deployment.contractStart && deployment.contractStart > now
-      ? deployment.contractStart
-      : (deployment.contractEnd && deployment.contractEnd < now ? deployment.contractEnd : now);
+  const endDateText = options?.actualEnd ? toManilaDateOnly(options.actualEnd) : manilaDateString();
+  if (!isValidDateOnly(endDateText)) throw new Error("A valid actual end date is required");
+  if (endDateText > manilaDateString()) throw new Error("Actual end date cannot be in the future");
+  const actualEnd = parseManilaDateOnly(endDateText);
+  if (deployment.actualStart && actualEnd < deployment.actualStart) {
+    throw new Error("Actual end date cannot be before the recorded actual start date");
+  }
 
   const updatedDeployment = await prisma.$transaction(async (tx) => {
     const updated = await tx.deployment.update({
       where: { id: deploymentId },
       data: {
         status: "ENDED",
-        contractEnd: effectiveEnd,
+        actualEnd,
         ...(options?.reason ? { notes: options.reason } : {}),
       },
       include: {
@@ -777,31 +942,63 @@ export const endEmployeeDeployment = async (
         employeeId: deployment.employeeId,
         eventType: "ASSIGNMENT_ENDED",
         description: `Deployment ended with ${deployment.client.name}: ${options?.reason || "Assignment completed"}`,
-        effectiveDate: new Date(),
+        effectiveDate: actualEnd,
         actorId,
         metadata: {
           deploymentId,
           clientId: deployment.clientId,
           reason: options?.reason,
+          disposition: options?.disposition,
         },
       },
     });
 
-    if (options?.makeAvailableForRedeployment) {
+    if (options?.disposition) {
+      const employeeStatus = options.disposition === "AVAILABLE_FOR_REDEPLOYMENT"
+        ? "AVAILABLE_FOR_REDEPLOYMENT"
+        : options.disposition === "SEPARATED"
+          ? "SEPARATED"
+          : "INACTIVE";
       await tx.employee.update({
         where: { id: deployment.employeeId },
-        data: { status: "AVAILABLE_FOR_REDEPLOYMENT" },
+        data: { status: employeeStatus, ...(employeeStatus === "AVAILABLE_FOR_REDEPLOYMENT" ? { redeploymentAvailableAt: actualEnd, redeploymentOwnerId: actorId } : {}) },
       });
 
       await tx.employmentEvent.create({
         data: {
           employeeId: deployment.employeeId,
-          eventType: "STATUS_CHANGE",
-          description: "Employee marked as AVAILABLE FOR REDEPLOYMENT",
-          effectiveDate: new Date(),
+          eventType: employeeStatus === "SEPARATED" ? "SEPARATED" : "STATUS_CHANGE",
+          description: employeeStatus === "AVAILABLE_FOR_REDEPLOYMENT"
+            ? "Employee marked as available for redeployment"
+            : employeeStatus === "SEPARATED"
+              ? "Employee separated from the agency"
+              : "Redeployment availability has not been confirmed",
+          effectiveDate: actualEnd,
           actorId,
+          metadata: { deploymentId, disposition: options.disposition },
         },
       });
+
+      const profile = await tx.applicantProfile.findUnique({ where: { userId: deployment.employee.userId }, select: { id: true } });
+      if (profile && employeeStatus === "AVAILABLE_FOR_REDEPLOYMENT") {
+        await tx.talentPoolMembership.upsert({
+          where: { applicantProfileId: profile.id },
+          update: { status: "ACTIVE", availability: "AVAILABLE", lastContactedAt: new Date() },
+          create: {
+            applicantProfileId: profile.id,
+            sourceApplicationId: deployment.applicationId || deployment.employee.originatingApplicationId,
+            status: "ACTIVE",
+            availability: "AVAILABLE",
+            addedById: actorId,
+            notes: "Added to the redeployment pool after an assignment ended.",
+          },
+        });
+      } else if (profile && employeeStatus === "SEPARATED") {
+        await tx.talentPoolMembership.updateMany({
+          where: { applicantProfileId: profile.id },
+          data: { status: "INACTIVE", availability: "UNAVAILABLE" },
+        });
+      }
     }
 
     return updated;
