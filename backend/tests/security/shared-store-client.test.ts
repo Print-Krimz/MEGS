@@ -1,67 +1,31 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+const db = vi.hoisted(() => ({ query: vi.fn(), execute: vi.fn() }));
+vi.mock("../../src/utils/prisma.js", () => ({ default: { $queryRaw: db.query, $executeRaw: db.execute } }));
+import { connectSharedStore, PostgresRateLimitStore, cleanupSecurityState } from "../../src/security/shared-store.js";
 
-const transport = vi.hoisted(() => ({
-  createClient: vi.fn(), connect: vi.fn(), sendCommand: vi.fn(), on: vi.fn(),
-  client: { isReady: false } as { isReady: boolean; connect?: unknown; sendCommand?: unknown; on?: unknown },
-}));
-vi.mock("redis", () => ({ createClient: transport.createClient }));
-
-describe("shared security store connection boundary", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("REDIS_URL", "rediss://synthetic-cache.invalid:6380");
-    transport.client.isReady = false;
-    transport.createClient.mockReturnValue(Object.assign(transport.client, {
-      connect: transport.connect, sendCommand: transport.sendCommand, on: transport.on,
-    }));
-    transport.connect.mockImplementation(async () => { transport.client.isReady = true; });
-    transport.sendCommand.mockResolvedValue(1);
+describe("existing PostgreSQL security store boundary", () => {
+  beforeEach(() => { vi.clearAllMocks(); db.query.mockResolvedValue([]); db.execute.mockResolvedValue(1); });
+  it("checks both additive tables without any Redis config or network client", async () => {
+    await connectSharedStore(); expect(db.query).toHaveBeenCalledTimes(2);
+    expect(db.query.mock.calls.map(call => call[0].join("")).join(" ")).not.toContain('"SecurityControl"');
   });
-  afterEach(() => vi.unstubAllEnvs());
-
-  it("shares one connection attempt and disables offline queuing and unbounded reconnects", async () => {
-    const { connectSharedStore } = await import("../../src/security/shared-store.js");
-    await Promise.all(Array.from({ length: 12 }, () => connectSharedStore()));
-    expect(transport.createClient).toHaveBeenCalledTimes(1);
-    expect(transport.connect).toHaveBeenCalledTimes(1);
-    expect(transport.createClient).toHaveBeenCalledWith({
-      url: "rediss://synthetic-cache.invalid:6380", disableOfflineQueue: true,
-      socket: { connectTimeout: 5000, reconnectStrategy: false },
-    });
-    expect(transport.on).toHaveBeenCalledWith("error", expect.any(Function));
+  it("fails startup when the migration/database is unavailable", async () => {
+    db.query.mockRejectedValue(new Error("missing security tables"));
+    await expect(connectSharedStore()).rejects.toThrow("missing security tables");
   });
-
-  it("rejects connection failure without issuing commands or substituting local counters", async () => {
-    transport.connect.mockRejectedValue(new Error("synthetic transport unavailable"));
-    const { sharedCommand } = await import("../../src/security/shared-store.js");
-    await expect(sharedCommand("EXISTS", "synthetic-revocation-key")).rejects.toThrow("transport unavailable");
-    expect(transport.sendCommand).not.toHaveBeenCalled();
+  it("uses a parameterized atomic upsert with the database clock and namespaces", async () => {
+    const expiry = new Date(Date.now() + 60000); db.query.mockResolvedValue([{ hits: 2, expiresAt: expiry }]);
+    const store = new PostgresRateLimitStore("auth"); store.init({ windowMs: 60000 } as any);
+    expect(await store.increment("synthetic'key")).toEqual({ totalHits: 2, resetTime: expiry });
+    const [sql, key, window] = db.query.mock.calls[0]!;
+    expect(sql.join("?")).toContain('ON CONFLICT ("key") DO UPDATE');
+    expect(sql.join("?")).not.toContain("synthetic"); expect(key).toBe("rate:auth:synthetic'key"); expect(window).toBe(60000);
+    db.query.mockRejectedValue(new Error("offline")); await expect(store.increment("key")).rejects.toThrow("offline");
   });
-
-  it("refuses commands when the connection has lost readiness", async () => {
-    const { connectSharedStore, sharedCommand } = await import("../../src/security/shared-store.js");
-    await connectSharedStore();
-    transport.client.isReady = false;
-    await expect(sharedCommand("EXISTS", "synthetic-revocation-key")).rejects.toThrow("unavailable");
-    expect(transport.sendCommand).not.toHaveBeenCalled();
-  });
-
-  it("applies the command deadline and propagates command errors", async () => {
-    const { sharedCommand } = await import("../../src/security/shared-store.js");
-    await expect(sharedCommand("EXISTS", "synthetic-revocation-key")).resolves.toBe(1);
-    expect(transport.sendCommand).toHaveBeenCalledWith(["EXISTS", "synthetic-revocation-key"], { timeout: 5000 });
-    transport.sendCommand.mockRejectedValue(new Error("synthetic command deadline"));
-    await expect(sharedCommand("EXISTS", "synthetic-revocation-key")).rejects.toThrow("command deadline");
-  });
-
-  it("requires shared storage in production but permits the explicit local development boundary", async () => {
-    vi.stubEnv("REDIS_URL", "");
-    const { connectSharedStore } = await import("../../src/security/shared-store.js");
-    await expect(connectSharedStore()).rejects.toThrow("required in production");
-    vi.stubEnv("NODE_ENV", "development");
-    await expect(connectSharedStore()).resolves.toBeUndefined();
-    expect(transport.createClient).not.toHaveBeenCalled();
+  it("supports decrement/reset and bounded cleanup, keeping failures visible", async () => {
+    const store = new PostgresRateLimitStore("test");
+    await store.decrement("key"); await store.resetKey("key"); await cleanupSecurityState();
+    expect(db.execute).toHaveBeenCalledTimes(4);
+    expect(db.execute.mock.calls[2]![0].join("")).toContain("LIMIT 1000");
   });
 });

@@ -1,4 +1,4 @@
-import PQueue from "p-queue";
+import { BoundedWorkQueue } from "../security/bounded-work-queue.js";
 import prisma from "../utils/prisma.js";
 import supabase from "../utils/supabase.js";
 import { analyzeResume, analyzeResumeFromBuffer } from "../utils/gemini.js";
@@ -11,7 +11,8 @@ import { ensureBucketExists } from "../middleware/upload.middleware.js";
 import { safeLogError } from "../security/errors.js";
 
 // Concurrency 1 prevents rate limit exhaustion against Gemini API
-const queue = new PQueue({ concurrency: 1 });
+// One active job; other producers wait for admission, never a total-count rejection.
+const queue = new BoundedWorkQueue(1, 1);
 
 export interface ResumeFilePayload {
   buffer: Buffer;
@@ -303,29 +304,24 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
 };
 
 const admittedApplications = new Set<number>();
-export const ensureResumeQueueCapacity = (applicationId?: number): void => {
-  if (applicationId && admittedApplications.has(applicationId)) return;
-  if (queue.size + queue.pending >= 100) {
-    const error = new Error("Resume analysis queue is busy. Please retry later.");
-    Object.assign(error, { status: 429 });
-    throw error;
-  }
-};
-export const enqueueResumeAnalysis = (applicationId: number): void => {
+export const enqueueResumeAnalysis = async (applicationId: number): Promise<void> => {
   if (admittedApplications.has(applicationId)) return;
-  ensureResumeQueueCapacity(applicationId);
   admittedApplications.add(applicationId);
-  void queue.add(async () => {
-    try { await processResumeJob(applicationId); }
-    catch { console.error(`[Worker] Resume job failed for application #${applicationId}`); }
-    finally { admittedApplications.delete(applicationId); }
-  }).catch(() => {
-    admittedApplications.delete(applicationId);
-    console.error(`[Worker] Resume queue failed for application #${applicationId}`);
-  });
-
+  try {
+    await queue.admit(async () => {
+      try { await processResumeJob(applicationId); }
+      catch (error) {
+        safeLogError(`Worker: application #${applicationId}`, error);
+        await prisma.application.updateMany({ where: { id: applicationId }, data: {
+          status: "NEEDS_ATTENTION", aiSummary: "Analysis could not be saved. Retry resume analysis or review manually.",
+        } });
+      }
+      finally { admittedApplications.delete(applicationId); }
+    });
+  } catch (error) { admittedApplications.delete(applicationId); throw error; }
   console.log(`[Worker] Application #${applicationId} queued for analysis. Queue size: ${queue.size + queue.pending}`);
 };
+export const waitForResumeQueue = () => queue.onIdle();
 
 export const getQueueStatus = () => ({
   size: queue.size,

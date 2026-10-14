@@ -7,7 +7,7 @@ import { authenticateJWT } from "./src/middleware/auth.middleware.js";
 import { sendSuccess, sendError } from "./src/utils/response.js";
 import { allowedOrigins, proxyTrust, validateRuntimeSecurity } from "./src/security/runtime-config.js";
 import { installSafeErrorLogging, safeLogError } from "./src/security/errors.js";
-import { connectSharedStore } from "./src/security/shared-store.js";
+import { connectSharedStore, cleanupSecurityState } from "./src/security/shared-store.js";
 import { startEmailWorker } from "./src/workers/email.worker.js";
 
 const app = express();
@@ -119,6 +119,8 @@ app.use((err: any, _req: express.Request, res: express.Response, next: express.N
 const PORT = process.env.PORT ?? 3000;
 
 connectSharedStore().then(() => {
+  const cleanup = setInterval(() => { void cleanupSecurityState().catch(error => safeLogError("Security state cleanup", error)); }, 60_000);
+  cleanup.unref();
   app.listen(PORT, () => console.log(`✅ Server listening on port ${PORT}`));
 }).catch(error => {
   safeLogError("Security store startup", error);

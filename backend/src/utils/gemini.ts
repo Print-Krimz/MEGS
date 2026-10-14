@@ -1,3 +1,5 @@
+import { withProviderRetry } from "../security/provider-retry.js";
+import { BoundedWorkQueue } from "../security/bounded-work-queue.js";
 import { GoogleGenAI } from "@google/genai";
 import { AI_DATA_INSTRUCTION, aiData, parseAiJson, parseResumeAnalysis } from "../security/ai-output.js";
 
@@ -27,7 +29,7 @@ export const getCandidateModels = (): string[] => {
   return Array.from(new Set(models));
 };
 
-export const generateContentWithFallback = async (
+const generateUnqueued = async (
   params: {
     contents: any;
     config?: any;
@@ -38,28 +40,50 @@ export const generateContentWithFallback = async (
   const candidateModels = getCandidateModels();
 
   for (const model of candidateModels) {
-    const signal = AbortSignal.timeout(timeoutMs);
+    let signal: AbortSignal | undefined;
     try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: params.contents,
-        config: {
-          ...params.config,
-          systemInstruction: AI_DATA_INSTRUCTION,
-          abortSignal: signal,
-          maxOutputTokens: 8192,
-        },
+      const response = await withProviderRetry(async () => {
+        signal = AbortSignal.timeout(timeoutMs);
+        try {
+          return await ai.models.generateContent({
+            model,
+            contents: params.contents,
+            config: {
+              ...params.config,
+              systemInstruction: AI_DATA_INSTRUCTION,
+              abortSignal: signal,
+              maxOutputTokens: 8192,
+            },
+          });
+        } catch (error: any) {
+          if (signal.aborted) throw Object.assign(new Error("AI processing timed out"), { name: "TimeoutError" });
+          throw error;
+        }
       });
       return response;
     } catch (err: any) {
+      if (err?.retryable) throw err;
       console.warn("[Gemini] Request failed; trying the next configured model.");
       // A timeout may still incur provider cost; avoid submitting duplicate work.
-      if (signal.aborted || err?.name === "TimeoutError" || err?.name === "AbortError") throw new Error("AI processing timed out");
+      if (signal?.aborted || err?.name === "TimeoutError" || err?.name === "AbortError") throw new Error("AI processing timed out");
     }
   }
 
   throw new Error("AI processing is temporarily unavailable");
 };
+
+// Two active provider calls; waiting producers get admission without a count rejection.
+const providerQueue = new BoundedWorkQueue(2, 1);
+export const withGeminiCapacity = async <T>(request: () => Promise<T>): Promise<T> => {
+  let result!: T;
+  const { completion } = await providerQueue.admit(async () => { result = await request(); });
+  await completion;
+  return result;
+};
+
+export const generateContentWithFallback = (
+  params: { contents: any; config?: any }, timeoutMs = 10000,
+): Promise<any> => withGeminiCapacity(() => generateUnqueued(params, timeoutMs));
 
 export interface ResumeAnalysisResult {
   score: number;       // 0–100 match score

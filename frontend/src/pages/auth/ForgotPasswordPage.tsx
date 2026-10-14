@@ -19,6 +19,8 @@ import {
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { maskEmail } from "../../lib/utils";
 
+import { useSecurityControls } from "../../hooks/useSecurityControls";
+
 const emailSchema = z.object({
   email: z.string().trim().min(1, "Email is required").email("Please enter a valid email address"),
 });
@@ -42,6 +44,9 @@ export const ForgotPasswordPage: React.FC = () => {
   const isEmailLocked = Boolean(search?.email?.trim());
   const [email, setEmail] = useState(search?.email || "");
   const [step, setStep] = useState<"EMAIL" | "VERIFY_OTP" | "SET_PASSWORD" | "SUCCESS">("EMAIL");
+  const controls = useSecurityControls();
+  const otpDisabled = controls.data?.otpDisabled === true && !controls.isError;
+  const rateLimitDisabled = controls.data?.rateLimitDisabled === true && !controls.isError;
   const [otpCode, setOtpCode] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [passwordData, setPasswordData] = useState({ password: "", confirmPassword: "" });
@@ -57,6 +62,8 @@ export const ForgotPasswordPage: React.FC = () => {
       setEmail(search.email);
     }
   }, [search?.email]);
+
+  useEffect(() => { if (rateLimitDisabled) setCooldown(0); }, [rateLimitDisabled, cooldown]);
 
   // Cooldown countdown timer for resend
   useEffect(() => {
@@ -370,6 +377,12 @@ export const ForgotPasswordPage: React.FC = () => {
             <p className="text-[11px] text-slate-400 mt-1.5 text-center">Code expires in 10 minutes</p>
           </div>
 
+          {otpDisabled && <div className="rounded-lg bg-amber-50 p-3 space-y-2 text-sm">
+            <p>Email OTP is temporarily disabled for this demo. An unexpired pending challenge is still required.</p>
+            <Button type="button" loading={verifyOtpMutation.isPending} onClick={() => verifyOtpMutation.mutate({
+              email: email.trim(), otp: "000000", purpose: "PASSWORD_RESET",
+            })}>Continue without OTP</Button>
+          </div>}
           <Button
             type="submit"
             variant="primary"

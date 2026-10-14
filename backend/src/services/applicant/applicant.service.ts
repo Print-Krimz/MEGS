@@ -399,7 +399,7 @@ export const updateProfileResumeService = async (userId: string, resumeUrl: stri
 
       for (const app of activeApplications) {
         try {
-          enqueueResumeAnalysis(app.id);
+          await enqueueResumeAnalysis(app.id);
           const res = revalidateApplication(app.id, app.jobPostingId);
           if (res && typeof res.catch === "function") {
             void res.catch((err) =>
@@ -442,6 +442,7 @@ export const processResumeExtractionService = async (
           const extracted = await extractResumeProfileData(docxText);
           return { extractedData: extracted, extractionStatus: "SUCCESS" };
         } catch (textExtErr: any) {
+          if (textExtErr?.retryable || textExtErr?.message === "AI processing timed out") return { extractedData: null, extractionStatus: "UNAVAILABLE" };
           console.warn("[Resume Parser] Text-based extraction from docx failed, attempting buffer fallback:");
         }
       }
@@ -480,6 +481,7 @@ export const processResumeExtractionService = async (
         const extracted = await extractResumeProfileData(text);
         return { extractedData: extracted, extractionStatus: "SUCCESS" };
       } catch (textExtErr: any) {
+        if (textExtErr?.retryable || textExtErr?.message === "AI processing timed out") return { extractedData: null, extractionStatus: "UNAVAILABLE" };
         console.warn("[Resume Parser] Text-based extraction failed, attempting multimodal extraction:");
       }
     }

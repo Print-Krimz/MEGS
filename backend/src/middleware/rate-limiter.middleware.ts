@@ -1,20 +1,19 @@
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request, Response } from "express";
 import { createHash } from "node:crypto";
-import { RedisStore } from "rate-limit-redis";
-import { sharedCommand, usesSharedStore } from "../security/shared-store.js";
-import { isLocalBypassEnabled } from "../security/runtime-config.js";
-
-const securityStore = (name: string) => usesSharedStore() ? new RedisStore({
-  prefix: `megs:rate:${name}:`, sendCommand: sharedCommand,
-}) : undefined;
-const skipLocally = () => isLocalBypassEnabled("DISABLE_RATE_LIMIT");
+import { PostgresRateLimitStore } from "../security/shared-store.js";
+// Same developer switch as main MEGS. It applies in hosted production/Heroku.
+const skipDisabled = () => process.env.DISABLE_RATE_LIMIT === "true";
+const securityStore = (name: string) => new PostgresRateLimitStore(name);
+// Keep the initial corrective-patch counter namespace. Disabling skips charges;
+// re-enabling resumes existing windows, which persist across dyno restarts.
+const quotaKey = (key: string) => `0:${key}`;
 const hashIdentity = (value: string) => createHash("sha256").update(value).digest("hex");
 const clientIp = (req: Request) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || "127.0.0.1");
 
 const limiter = (name: string, max: number, windowMs: number, keyGenerator: (req: Request) => string) => rateLimit({
-  windowMs, max, keyGenerator, store: securityStore(name),
-  skip: skipLocally, standardHeaders: true, legacyHeaders: false, passOnStoreError: false,
+  windowMs, max, keyGenerator: req => quotaKey(keyGenerator(req)), store: securityStore(name),
+  skip: skipDisabled, standardHeaders: true, legacyHeaders: false, passOnStoreError: false,
   handler: rateLimitHandler("Too many requests. Please retry after the indicated delay.", Math.ceil(windowMs / 1000)),
 });
 
@@ -68,9 +67,9 @@ export const authLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: skipLocally,
+  skip: skipDisabled,
   store: securityStore("auth-pair"),
-  keyGenerator: req => hashIdentity(authKeyGenerator(req)),
+  keyGenerator: req => quotaKey(hashIdentity(authKeyGenerator(req))),
   handler: rateLimitHandler("Too many authentication attempts. Please try again after 15 minutes.", 900),
 });
 
@@ -83,9 +82,9 @@ export const forgotPasswordLimiter = rateLimit({
   max: 2,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: skipLocally,
+  skip: skipDisabled,
   store: securityStore("mail-account"),
-  keyGenerator: req => hashIdentity(emailKeyGenerator(req)),
+  keyGenerator: req => quotaKey(hashIdentity(emailKeyGenerator(req))),
   handler: rateLimitHandler("Too many password reset requests. Please wait an hour before requesting again.", 3600),
 });
 

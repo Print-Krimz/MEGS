@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../src/security/session-revocation.js", () => ({ isSessionRevoked: vi.fn().mockResolvedValue(false) }));
 
 const mocks = vi.hoisted(() => ({
@@ -56,10 +56,13 @@ const response = () => {
 describe("authentication policy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("DISABLE_MFA", "false");
     vi.mocked(isSessionRevoked).mockResolvedValue(false);
     mocks.verifyAccessToken.mockResolvedValue({ sub: "user-123", aal: "aal1" });
     mocks.findUnique.mockResolvedValue(activeUser);
   });
+
+  afterEach(() => vi.unstubAllEnvs());
 
   it("denies shared-store outages with 503 rather than invalidating the login", async () => {
     vi.mocked(isSessionRevoked).mockRejectedValue(new Error("offline"));
@@ -84,6 +87,16 @@ describe("authentication policy", () => {
     expect(next).toHaveBeenCalledOnce();
   });
 
+  it("restores staff AAL2 enforcement after the developer re-enables MFA", async () => {
+    mocks.findUnique.mockResolvedValue({ ...activeUser, role: "ADMINISTRATOR" });
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DISABLE_MFA", "true");
+    const next = vi.fn(); await authenticateJWT(request(), response().value, next);
+    expect(next).toHaveBeenCalledOnce();
+    vi.stubEnv("DISABLE_MFA", "false");
+    const denied = response(); await authenticateJWT(request(), denied.value, vi.fn());
+    expect(denied.state.status).toBe(403);
+  });
   it("requires AAL2 for staff operations", async () => {
     mocks.findUnique.mockResolvedValue({ ...activeUser, role: "ADMINISTRATOR" });
     const denied = response();

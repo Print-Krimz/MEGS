@@ -10,7 +10,7 @@ An intelligent, full-stack Recruitment Management, Applicant Tracking, and Talen
 | --- | --- |
 | Reset/setup codes could be used twice at the same time | Atomically claim each code before changing credentials; only one request proceeds. Restricted accounts cannot use recovery to become active. |
 | Backup keys depended on unrelated credentials | Require dedicated keys and retain explicit historical keys, including several old values under the same key ID. Synthetic recovery tests cover old and versioned backups. |
-| Production switches, origins and proxy assumptions weakened protection | Reject production bypasses, allow exact frontend/CAPTCHA sites and actions, and require an explicit verified proxy policy. |
+| Production switches, origins and proxy assumptions weakened protection | Reject production CAPTCHA bypasses, allow exact frontend/CAPTCHA sites and actions, and require an explicit verified proxy policy. Developer-owned MFA/OTP/rate flags support hosted demos. |
 | Expensive requests and uploaded files lacked complete bounds | Add shared user/IP/global budgets, bounded queue admission, file-content checks, isolated parser deadlines, archive limits and one maintenance operation at a time. |
 | Legacy resume downloads could reach unrestricted destinations | Allow approved HTTPS hosts only; pin checked public IPs, reject redirects and enforce size/time limits. |
 | Document signing and detailed errors needed consistent boundaries | Enforce owner/staff permissions across resolver paths, refuse public buckets and hide raw provider errors while preserving validation feedback. |
@@ -18,9 +18,28 @@ An intelligent, full-stack Recruitment Management, Applicant Tracking, and Talen
 | Notifications could outlive permission or reuse old credentials | Close at verified expiry, check shared logout revocation/account state, and reconnect with current credentials using finite retries. |
 | Security tests were missing from the published source | Restore and extend tracked regressions, add provider-free CI, and test actual compiled PDF/DOCX/DOC parsers. |
 
-**Before rollout:** configure dedicated/legacy keys, shared Redis, exact origins/CAPTCHA hosts and the actual proxy policy. The compiled report lists open cloud/policy checks and remaining dependency advisories; this is not a claim that every security risk is eliminated.
+### Corrective patches, 14 October 2026
 
-**Current verification:** 186 backend tests and 11 frontend tests passed. Both type checks and builds passed. Compiled PDF/DOCX/DOC parser checks passed offline. Frontend lint passed with 17 existing warnings; GitHub CI and live deployment checks remain pending.
+| Patch | Implemented behavior |
+| --- | --- |
+| Remove the Redis dependency | Shared request counters and logged-out token revocations use the existing PostgreSQL database through Prisma. Missing tables and store errors fail closed. |
+| Restore developer-owned hosted demo switches | The backend reads `DISABLE_MFA`, `DISABLE_OTP` and `DISABLE_RATE_LIMIT` from Heroku Config Vars. Only exact lowercase `true` bypasses that control; `false` or unset restores enforcement. |
+| Roll back administrator switch configuration | No Database Maintenance security-switch panel, write API or database override is included. MEGS roles cannot change these flags. Pending login/OTP forms can read status and continue only through validated backend flows. |
+| Restore rate middleware behavior from main | `DISABLE_RATE_LIMIT` uses the creator's environment-based skip behavior. Shared PostgreSQL counters remain; re-enabling resumes unexpired windows rather than clearing exhausted counters. |
+| Remove resume-count quotas | Resume upload, job applications and analysis no longer share the 20-per-user/hour AI-operation quota. Unrelated AI search/ranking quotas remain. |
+| Bound AI work and recover temporary failures | Analyze one resume at a time and share two active Gemini calls per backend process. Retry explicit Gemini 429/500/503 errors up to three attempts with backoff and retry hints. Failures stay visible for review/retry. |
+
+**Resume volume clarification:** there is no cumulative resume-count cap. The 50-resume checks cover 50 sequential uploads and 50 queued analyses processed one at a time, with database/provider boundaries mocked. They do not establish 50 simultaneous AI analyses or real production capacity. File validation, owner/role checks and bounded upload/parser work remain enabled.
+
+**Suggestions, not implemented:** quota-aware pacing over rolling 60-second windows, a durable PostgreSQL resume queue, and immediate durable admission of large bursts. Live database/provider tests and realistic agency load tests remain pending.
+
+See [the corrective patch report](docs/security-review/corrective-patch-report.md) for developer-owned Heroku demo switches, uncapped resume processing, migration prerequisites and patch-only rollback. Before starting this version, apply the existing Prisma migration workflow for `20261014000000_security_state_without_redis`; it adds only `SecurityCounter` and `SessionRevocation`. No live migration or Heroku setting change has been performed.
+
+**Before rollout:** configure dedicated/legacy keys, the additive PostgreSQL security-state migration, exact origins/CAPTCHA hosts and the actual proxy policy. The compiled report lists open cloud/policy checks and remaining dependency advisories; this is not a claim that every security risk is eliminated.
+
+**Current verification (14 October corrective patch):** 207 backend tests and 14 frontend tests passed. Both type checks and builds passed. Compiled PDF/DOCX/DOC parser checks passed offline. Frontend lint passed with 17 existing warnings; GitHub CI and live deployment checks remain pending.
+
+**Integration status:** this branch was tested against its recorded baseline, not a merge with current remote `main`. Remote main has advanced to `991a687`; a non-mutating merge check found conflicts with the earlier hardening implementation. Resolve those conflicts and rerun verification before merging or deploying the combined version.
 
 ---
 

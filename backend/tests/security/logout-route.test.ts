@@ -1,3 +1,4 @@
+vi.mock("../../src/controllers/core/mfa-continue.controller.js", () => ({ continueWithoutMfa: vi.fn() }));
 import { describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";

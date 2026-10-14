@@ -20,11 +20,11 @@ import {
 import { maskEmail } from '../../utils/mask.js';
 import { ensureApplicantProfile } from '../applicant/applicant.service.js';
 import { isActiveAccount, isMfaEnforced } from '../../security/auth-policy.js';
-import { isLocalBypassEnabled } from '../../security/runtime-config.js';
+import { getSecurityControls } from '../../security/security-controls.js';
 import { safeLogError } from '../../security/errors.js';
 
-const isOtpTestBypassEnabled = (): boolean =>
-  isLocalBypassEnabled("DISABLE_OTP");
+const isOtpTestBypassEnabled = async (): Promise<boolean> =>
+  (await getSecurityControls()).otpDisabled;
 
 export const registerUser = async (email: string, password: string) => {
   if (password.length < 8) {
@@ -95,7 +95,7 @@ export const registerUser = async (email: string, password: string) => {
     },
   });
 
-  if (isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+  if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
     console.log(`🔑 [DEV OTP] REGISTRATION code generated for ${maskEmail(emailLower)}.`);
   }
 
@@ -153,7 +153,8 @@ export const verifyOtp = async (
     throw new Error("Verification code has expired. Please request a new one.");
   }
 
-  if (activeOtp.attempts >= activeOtp.maxAttempts) {
+  const isDevMasterOtp = await isOtpTestBypassEnabled();
+  if (!isDevMasterOtp && activeOtp.attempts >= activeOtp.maxAttempts) {
     await prisma.authOtp.update({
       where: { id: activeOtp.id },
       data: { isUsed: true },
@@ -162,7 +163,7 @@ export const verifyOtp = async (
   }
 
   // Reserve an attempt atomically; simultaneous requests cannot exceed the budget.
-  const attempt = await prisma.authOtp.updateMany({
+  const attempt = isDevMasterOtp ? { count: 1 } : await prisma.authOtp.updateMany({
     where: {
       id: activeOtp.id,
       isUsed: false,
@@ -174,8 +175,6 @@ export const verifyOtp = async (
   if (attempt.count !== 1) {
     throw new Error("Invalid or expired verification code. Please request a new one.");
   }
-
-  const isDevMasterOtp = isOtpTestBypassEnabled();
 
   const isMatch = isDevMasterOtp || verifyOtpHash(cleanOtp, activeOtp.otpHash);
   if (!isMatch) {
@@ -265,7 +264,7 @@ export const resendOtp = async (
     orderBy: { createdAt: "desc" },
   });
 
-  if (latestOtp) {
+  if (latestOtp && !(await getSecurityControls()).rateLimitDisabled) {
     const elapsed = Date.now() - new Date(latestOtp.createdAt).getTime();
     if (elapsed < 60000) {
       const remainingSeconds = Math.ceil((60000 - elapsed) / 1000);
@@ -309,7 +308,7 @@ export const resendOtp = async (
     },
   });
 
-  if (isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+  if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
     console.log(`🔑 [DEV OTP] RESEND (${purpose}) code generated for ${maskEmail(emailLower)}.`);
   }
 
@@ -386,7 +385,7 @@ export const loginUser = async (email: string, password: string, ip?: string) =>
   }
 
   // Staff MFA Enforcement (ADMINISTRATOR and TALENT_ACQUISITION)
-  if (isMfaEnforced() && (dbUser.role === "ADMINISTRATOR" || dbUser.role === "TALENT_ACQUISITION")) {
+  if ((dbUser.role === "ADMINISTRATOR" || dbUser.role === "TALENT_ACQUISITION") && await isMfaEnforced()) {
     const { isEnrolled, verifiedFactor } = await getUserMfaFactors(data.session.access_token);
 
     if (!isEnrolled || !verifiedFactor) {
@@ -487,7 +486,7 @@ export const requestPasswordReset = async (email: string) => {
       orderBy: { createdAt: "desc" },
     });
 
-    if (latestOtp) {
+    if (latestOtp && !(await getSecurityControls()).rateLimitDisabled) {
       const elapsed = Date.now() - new Date(latestOtp.createdAt).getTime();
       if (elapsed < 60000) {
         const remainingSeconds = Math.ceil((60000 - elapsed) / 1000);
@@ -516,7 +515,7 @@ export const requestPasswordReset = async (email: string) => {
       },
     });
 
-    if (isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+    if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
       console.log(`🔑 [DEV OTP] PASSWORD_RESET code generated for ${maskEmail(emailLower)}.`);
     }
 

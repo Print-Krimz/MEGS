@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { isLocalBypassEnabled } from "./runtime-config.js";
+import { getSecurityControls } from "./security-controls.js";
 
 export const STAFF_ROLES = new Set(["ADMINISTRATOR", "TALENT_ACQUISITION"]);
 
@@ -20,6 +20,6 @@ export const isStaffMfaExceptionRoute = (
 export const isActiveAccount = (isActive: boolean, accountStatus: string): boolean =>
   isActive && accountStatus === "ACTIVE";
 
-export const isMfaEnforced = (): boolean =>
-  !isLocalBypassEnabled("DISABLE_MFA");
+export const isMfaEnforced = async (): Promise<boolean> =>
+  !(await getSecurityControls()).mfaDisabled;
 

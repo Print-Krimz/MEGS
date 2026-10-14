@@ -74,9 +74,13 @@ export const authenticateJWT = async (
     tokenExpiresAt: verifiedToken.exp,
   };
 
+  let enforceMfa = false;
+  if (STAFF_ROLES.has(dbUser.role)) {
+    try { enforceMfa = await isMfaEnforced(); }
+    catch { sendError(res, "Session verification is temporarily unavailable", 503); return; }
+  }
   if (
-    isMfaEnforced() &&
-    STAFF_ROLES.has(dbUser.role) &&
+    enforceMfa &&
     verifiedToken.aal !== "aal2" &&
     !isStaffMfaExceptionRoute(req)
   ) {

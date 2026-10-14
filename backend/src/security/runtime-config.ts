@@ -1,6 +1,6 @@
 import { isIP } from "node:net";
 type Environment = Record<string, string | undefined>;
-const bypassFlags = ["DISABLE_CAPTCHA", "DISABLE_RATE_LIMIT", "DISABLE_OTP", "DISABLE_MFA"];
+const bypassFlags = ["DISABLE_CAPTCHA"];
 
 export const isLocalBypassEnabled = (flag: string, env: Environment = process.env): boolean =>
   (env.NODE_ENV === "development" || env.NODE_ENV === "test") && env[flag] === "true";
@@ -45,12 +45,10 @@ export const validateRuntimeSecurity = (env: Environment = process.env): void =>
     for (const key of ["OTP_SECRET", "BACKUP_ENCRYPTION_SECRET"]) {
       if ((env[key]?.trim().length || 0) < 32) throw new Error(`${key} requires an explicit dedicated secret of at least 32 characters`);
     }
-    for (const key of ["FRONTEND_URL", "TRUST_PROXY", "REDIS_URL", "TURNSTILE_HOSTNAMES"]) {
+    for (const key of ["FRONTEND_URL", "TRUST_PROXY", "TURNSTILE_HOSTNAMES"]) {
       if (!env[key]?.trim()) throw new Error(`${key} must be explicitly configured in production`);
     }
     if (!(env.TURNSTILE_SECRET || env.TURNSTILE_SECRET_KEY)?.trim()) throw new Error("Turnstile secret must be explicitly configured in production");
-    const redis = new URL(env.REDIS_URL!);
-    if (!['redis:', 'rediss:'].includes(redis.protocol)) throw new Error("REDIS_URL must use Redis transport");
   }
   allowedOrigins(env);
   proxyTrust(env);

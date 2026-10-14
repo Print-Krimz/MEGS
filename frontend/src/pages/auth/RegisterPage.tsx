@@ -9,6 +9,8 @@ import { AlertCircle, CheckCircle2, ArrowRight, ArrowLeft, ShieldCheck, RefreshC
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { maskEmail } from "../../lib/utils";
 
+import { useSecurityControls } from "../../hooks/useSecurityControls";
+
 const registerSchema = z
   .object({
     email: z.string().trim().min(1, "Email is required").email("Please enter a valid email address"),
@@ -31,6 +33,9 @@ export const RegisterPage: React.FC = () => {
     confirmPassword: "",
   });
 
+  const controls = useSecurityControls();
+  const otpDisabled = controls.data?.otpDisabled === true && !controls.isError;
+  const rateLimitDisabled = controls.data?.rateLimitDisabled === true && !controls.isError;
   const [otpCode, setOtpCode] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string>("");
   const turnstileRef = React.useRef<TurnstileWidgetRef>(null);
@@ -38,6 +43,8 @@ export const RegisterPage: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(60);
+
+  useEffect(() => { if (rateLimitDisabled) setCooldown(0); }, [rateLimitDisabled, cooldown]);
 
   // Cooldown countdown timer for resend
   useEffect(() => {
@@ -295,6 +302,12 @@ export const RegisterPage: React.FC = () => {
             <p className="text-[11px] text-[#627D98] mt-1.5 text-center">Code expires in 10 minutes</p>
           </div>
 
+          {otpDisabled && <div className="rounded-lg bg-amber-50 p-3 space-y-2 text-sm">
+            <p>Email OTP is temporarily disabled for this demo. An unexpired pending challenge is still required.</p>
+            <Button type="button" loading={verifyMutation.isPending} onClick={() => verifyMutation.mutate({
+              email: formData.email.trim(), otp: "000000", purpose: "REGISTRATION",
+            })}>Continue without OTP</Button>
+          </div>}
           <Button
             type="submit"
             variant="primary"

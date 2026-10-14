@@ -5,19 +5,22 @@ import cors from "cors";
 import { allowedOrigins, isLocalBypassEnabled, proxyTrust, validateRuntimeSecurity } from "../../src/security/runtime-config.js";
 
 const production = () => ({ NODE_ENV: "production", FRONTEND_URL: "https://megs.example", TRUST_PROXY: "false",
-  REDIS_URL: "rediss://cache.example:6380", OTP_SECRET: "o".repeat(32), BACKUP_ENCRYPTION_SECRET: "b".repeat(32),
+  OTP_SECRET: "o".repeat(32), BACKUP_ENCRYPTION_SECRET: "b".repeat(32),
   TURNSTILE_SECRET_KEY: "synthetic", TURNSTILE_HOSTNAMES: "megs.example" });
 describe("production security configuration", () => {
   it("accepts explicit dedicated production prerequisites", () => expect(() => validateRuntimeSecurity(production())).not.toThrow());
-  it.each(["DISABLE_CAPTCHA", "DISABLE_RATE_LIMIT", "DISABLE_OTP", "DISABLE_MFA"])("rejects production %s and unknown runtime bypass", flag => {
+  it.each(["DISABLE_CAPTCHA"])("rejects production %s and unknown runtime bypass", flag => {
     expect(() => validateRuntimeSecurity({ ...production(), [flag]: "true" })).toThrow();
     expect(isLocalBypassEnabled(flag, { NODE_ENV: "production", [flag]: "true" })).toBe(false);
     expect(isLocalBypassEnabled(flag, { [flag]: "true" })).toBe(false);
     expect(isLocalBypassEnabled(flag, { NODE_ENV: "test", [flag]: "true" })).toBe(true);
     expect(isLocalBypassEnabled(flag, { NODE_ENV: "development", [flag]: "true" })).toBe(true);
   });
-  it.each(["OTP_SECRET", "BACKUP_ENCRYPTION_SECRET", "FRONTEND_URL", "REDIS_URL", "TRUST_PROXY", "TURNSTILE_HOSTNAMES"])("requires %s", key => {
+  it.each(["OTP_SECRET", "BACKUP_ENCRYPTION_SECRET", "FRONTEND_URL", "TRUST_PROXY", "TURNSTILE_HOSTNAMES"])("requires %s", key => {
     expect(() => validateRuntimeSecurity({ ...production(), [key]: "" })).toThrow();
+  });
+  it.each(["DISABLE_MFA", "DISABLE_OTP", "DISABLE_RATE_LIMIT"])("permits the creator's hosted demo %s", flag => {
+    expect(() => validateRuntimeSecurity({ ...production(), [flag]: "true" })).not.toThrow();
   });
   it("rejects unknown runtime and blanket proxy trust", () => {
     expect(() => validateRuntimeSecurity({ NODE_ENV: "staging" })).toThrow();

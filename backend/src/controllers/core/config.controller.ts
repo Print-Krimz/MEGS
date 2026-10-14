@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { getActiveScoringConfiguration } from "../../services/scoring/scoring-configuration.service.js";
+import { getSecurityControls } from "../../security/security-controls.js";
 import { sendSuccess } from "../../utils/response.js";
 
 /**
@@ -20,3 +21,7 @@ export const getGlobalConfig = async (_req: Request, res: Response) => {
     });
   }
 };
+
+// Only public booleans needed by pending demo forms; no environment secrets.
+export const getSecurityStatus = (_req: Request, res: Response) =>
+  sendSuccess(res, "Security status retrieved", getSecurityControls());

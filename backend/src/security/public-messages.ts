@@ -197,7 +197,6 @@ export const publicMessages = new Set<string>([
   "Please upload a valid encrypted backup file (.enc.gz).",
   "Please verify your email address with the 6-digit code sent to your inbox before signing in.",
   "Production frontend origins require HTTPS",
-  "REDIS_URL must use Redis transport",
   "Requested backup snapshot is not available for download.",
   "requirementId and documentId are required",
   "result must be PASS, PASSED, FAIL, FAILED, NO_SHOW, or PENDING",

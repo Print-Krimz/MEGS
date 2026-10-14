@@ -29,7 +29,9 @@ import {
 } from '../../middleware/rate-limiter.middleware.js';
 import { verifyTurnstile } from '../../middleware/turnstile.middleware.js';
 
+import { continueWithoutMfa } from "../../controllers/core/mfa-continue.controller.js";
 const router = Router();
+router.post("/mfa/continue", authLimiter, continueWithoutMfa);
 // Revocation must remain available even after the authentication budgets are exhausted.
 router.post("/logout", authenticateJWT, logout);
 router.use(authIpLimiter, authAccountLimiter);

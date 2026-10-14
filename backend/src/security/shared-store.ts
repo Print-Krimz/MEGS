@@ -1,31 +1,42 @@
-import { createClient } from "redis";
-import type { RedisReply } from "rate-limit-redis";
-
-let client: ReturnType<typeof createClient> | undefined;
-let connecting: Promise<unknown> | undefined;
-
-export const usesSharedStore = (): boolean => Boolean(process.env.REDIS_URL);
+import type { Options, Store } from "express-rate-limit";
+import prisma from "../utils/prisma.js";
 
 export const connectSharedStore = async (): Promise<void> => {
-  if (!usesSharedStore()) {
-    if (process.env.NODE_ENV === "production") throw new Error("Shared security storage is required in production");
-    return;
-  }
-  if (!client) {
-    client = createClient({
-      url: process.env.REDIS_URL,
-      disableOfflineQueue: true,
-      socket: { connectTimeout: 5000, reconnectStrategy: false },
-    });
-    client.on("error", () => console.error("[Security store] Connection unavailable"));
-    connecting = client.connect();
-  }
-  await connecting;
-  if (!client.isReady) throw new Error("Shared security storage is unavailable");
+  await prisma.$queryRaw`SELECT "key" FROM "SecurityCounter" LIMIT 0`;
+  await prisma.$queryRaw`SELECT "tokenHash" FROM "SessionRevocation" LIMIT 0`;
 };
 
-export const sharedCommand = async (...args: string[]): Promise<RedisReply> => {
-  await connectSharedStore();
-  if (!client) throw new Error("Shared security storage is unavailable");
-  return client.sendCommand<RedisReply>(args, { timeout: 5000 });
+export class PostgresRateLimitStore implements Store {
+  localKeys = false;
+  readonly prefix: string;
+  private windowMs = 60_000;
+  constructor(name: string) { this.prefix = `rate:${name}:`; }
+  init(options: Options): void { this.windowMs = options.windowMs; }
+  async increment(key: string) {
+    // ON CONFLICT holds a row lock: concurrent replicas cannot lose increments.
+    // The database clock controls window expiry and renewal.
+    const rows = await prisma.$queryRaw<{ hits: number; expiresAt: Date }[]>`
+      INSERT INTO "SecurityCounter" ("key", "hits", "expiresAt")
+      VALUES (${this.prefix + key}, 1, statement_timestamp() + ${this.windowMs} * interval '1 millisecond')
+      ON CONFLICT ("key") DO UPDATE SET
+        "hits" = CASE WHEN "SecurityCounter"."expiresAt" <= statement_timestamp() THEN 1 ELSE "SecurityCounter"."hits" + 1 END,
+        "expiresAt" = CASE WHEN "SecurityCounter"."expiresAt" <= statement_timestamp()
+          THEN statement_timestamp() + ${this.windowMs} * interval '1 millisecond' ELSE "SecurityCounter"."expiresAt" END
+      RETURNING "hits", "expiresAt"`;
+    return { totalHits: rows[0]!.hits, resetTime: rows[0]!.expiresAt };
+  }
+  async decrement(key: string): Promise<void> {
+    await prisma.$executeRaw`UPDATE "SecurityCounter" SET "hits" = GREATEST(0, "hits" - 1) WHERE "key" = ${this.prefix + key}`;
+  }
+  async resetKey(key: string): Promise<void> {
+    await prisma.$executeRaw`DELETE FROM "SecurityCounter" WHERE "key" = ${this.prefix + key}`;
+  }
+}
+
+// Bounded indexed cleanup. Expired rows never affect enforcement if cleanup fails.
+export const cleanupSecurityState = async (): Promise<void> => {
+  await prisma.$executeRaw`DELETE FROM "SecurityCounter" WHERE "key" IN
+    (SELECT "key" FROM "SecurityCounter" WHERE "expiresAt" <= statement_timestamp() LIMIT 1000)`;
+  await prisma.$executeRaw`DELETE FROM "SessionRevocation" WHERE "tokenHash" IN
+    (SELECT "tokenHash" FROM "SessionRevocation" WHERE "expiresAt" <= statement_timestamp() LIMIT 1000)`;
 };

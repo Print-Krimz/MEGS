@@ -120,7 +120,7 @@ router.use(authenticateJWT);
 router.use(requireRole("TALENT_ACQUISITION"));
 router.use("/analytics", ...analyticsLimiters);
 router.use("/reports", ...reportLimiters);
-router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates", "/applications/:id/analyze"], ...aiLimiters);
+router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates"], ...aiLimiters);
 
 // Client & MRF Management
 router.get("/clients", listClientsHandler);

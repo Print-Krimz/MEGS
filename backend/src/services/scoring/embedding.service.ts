@@ -1,4 +1,5 @@
-import { getGeminiClient } from "../../utils/gemini.js";
+import { getGeminiClient, withGeminiCapacity } from "../../utils/gemini.js";
+import { withProviderRetry } from "../../security/provider-retry.js";
 
 export const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001";
 export const EMBEDDING_MODEL = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
@@ -34,14 +35,14 @@ export const generateEmbedding = async (
   const model = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
 
   const ai = getGeminiClient();
-  const response = await ai.models.embedContent({
+  const response = await withGeminiCapacity(() => withProviderRetry(() => ai.models.embedContent({
     model,
     contents: cleanText,
     config: {
       outputDimensionality: EMBEDDING_DIMENSION,
       taskType,
     },
-  });
+  })));
 
   const embeddingObj = response.embeddings?.[0];
   if (!embeddingObj || !Array.isArray(embeddingObj.values) || embeddingObj.values.length === 0) {

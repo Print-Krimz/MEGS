@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { aiLimiters } from '../../middleware/rate-limiter.middleware.js';
 import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
 import { upload } from '../../middleware/upload.middleware.js';
 import {
@@ -31,7 +30,7 @@ router.use(authenticateJWT);
 router.use(requireRole("APPLICANT"));
 
 router.get("/jobs/:id", getJobDetails);
-router.post("/jobs/:id/apply", ...aiLimiters, upload.single("file"), applyToJob);
+router.post("/jobs/:id/apply", upload.single("file"), applyToJob);
 router.post("/jobs/:id/save", saveJobHandler);
 router.delete("/jobs/:id/save", unsaveJobHandler);
 router.get("/saved-jobs", listSavedJobsHandler);

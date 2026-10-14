@@ -51,10 +51,10 @@ export const streamNotifications = (req: Request, res: Response): void => {
         return prisma.user.findUnique({ where: { id: userId }, select: {
         role: true, isActive: true, accountStatus: true, mustChangePassword: true,
         } });
-      }).then((account) => {
+      }).then(async (account) => {
         const allowed = !!account && isActiveAccount(account.isActive, account.accountStatus) &&
           !account.mustChangePassword && account.role === req.user!.role &&
-          (!isMfaEnforced() || !STAFF_ROLES.has(account.role) || req.user!.aal === "aal2");
+          (!STAFF_ROLES.has(account.role) || req.user!.aal === "aal2" || !await isMfaEnforced());
         if (!allowed) close();
         return allowed && !closed && Date.now() < expiresAt;
       }).catch(() => { close(); return false; }).finally(() => { pendingCheck = undefined; });

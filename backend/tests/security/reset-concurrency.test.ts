@@ -150,6 +150,15 @@ describe("atomic recovery, verification and invitation claims", () => {
     expect(mocks.resetCreate).not.toHaveBeenCalled();
   });
 
+  it("continues a pending challenge with OTP disabled in production, then restores code checks", async () => {
+    vi.stubEnv("NODE_ENV", "production"); vi.stubEnv("DISABLE_OTP", "true");
+    await expect(verifyOtp(user.email, "000000", "PASSWORD_RESET")).resolves.toHaveProperty("resetToken");
+    consumed = false; attempts = 0; mocks.resetCreate.mockClear();
+    vi.stubEnv("DISABLE_OTP", "false");
+    await expect(verifyOtp(user.email, "000000", "PASSWORD_RESET")).rejects.toThrow("Invalid verification code");
+    expect(mocks.resetCreate).not.toHaveBeenCalled();
+    await expect(verifyOtp(user.email, "123456", "PASSWORD_RESET")).resolves.toHaveProperty("resetToken");
+  });
   it("preserves pending applicant email verification without issuing a reset token", async () => {
     user.accountStatus = "PENDING_VERIFICATION";
     await expect(verifyOtp(user.email, "123456", "REGISTRATION")).resolves.toMatchObject({ message: expect.stringContaining("verified successfully") });

@@ -5,6 +5,8 @@ import { ShieldCheck, Copy, Download, Check, AlertCircle, QrCode, Lock } from "l
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import type { LoginResponse, MfaEnrollResponse, VerifyMfaEnrollResponse } from "../../lib/types/auth.types";
 
+import { MfaDisabledContinuation } from "./MfaDisabledContinuation";
+
 interface MfaSetupModalProps {
   open: boolean;
   onClose: () => void;
@@ -163,6 +165,7 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
       description={step === "ENROLL" ? `Mandatory security protection for ${email}` : "Keep these single-use codes in a secure location"}
       size="md"
     >
+      <MfaDisabledContinuation token={tempToken} open={open} onSuccess={onSuccess} />
       <div className="space-y-4 pt-1">
         {error && (
           <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">

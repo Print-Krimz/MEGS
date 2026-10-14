@@ -5,6 +5,8 @@ import { ShieldCheck, KeyRound, AlertCircle, Smartphone } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import type { LoginResponse } from "../../lib/types/auth.types";
 
+import { MfaDisabledContinuation } from "./MfaDisabledContinuation";
+
 interface MfaChallengeModalProps {
   open: boolean;
   onClose: () => void;
@@ -95,6 +97,7 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
       description={`Security verification required for ${email}`}
       size="sm"
     >
+      <MfaDisabledContinuation token={tempToken} open={open} onSuccess={onSuccess} />
       <div className="space-y-4 pt-1">
         {error && (
           <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">

@@ -271,7 +271,7 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     },
   });
 
-  try { enqueueResumeAnalysis(application.id); }
+  try { await enqueueResumeAnalysis(application.id); }
   catch {
     // Submission is already saved. Preserve it for staff review rather than
     // falsely reporting failure and encouraging a duplicate application.
