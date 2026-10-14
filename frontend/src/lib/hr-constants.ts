@@ -212,6 +212,43 @@ export const CIVIL_STATUS_OPTIONS = [
   "Divorced",
 ] as const;
 
+export const RELIGION_OTHER = "Other (Please Specify)";
+
+export const RELIGION_OPTIONS: string[] = [
+  "Roman Catholic",
+  "Protestant",
+  "Iglesia ni Cristo",
+  "Islam",
+  "Seventh-day Adventist",
+  "Born Again Christian",
+  "Aglipayan (Philippine Independent Church)",
+  "Buddhism",
+  "Hinduism",
+  RELIGION_OTHER,
+  "Prefer Not to Say",
+];
+
+/**
+ * Splits a stored religion string into the dropdown selection and the
+ * "Please specify" text. Legacy free-text values are shown as Other + text.
+ */
+export function splitReligion(value: string): { selected: string; other: string } {
+  if (!value || !value.trim()) return { selected: "", other: "" };
+  const needle = value.trim().toLowerCase();
+  const match = RELIGION_OPTIONS.find((opt) => opt.toLowerCase() === needle);
+  if (match) return { selected: match, other: "" };
+  return { selected: RELIGION_OTHER, other: value };
+}
+
+/**
+ * Builds the single stored religion string from the dropdown selection and
+ * the "Please specify" text.
+ */
+export function joinReligion(selected: string, other: string): string {
+  if (selected === RELIGION_OTHER) return other.trim() || RELIGION_OTHER;
+  return selected;
+}
+
 export function formatPresetOption(val: string): { value: string; label: string } {
   return { value: val, label: val };
 }

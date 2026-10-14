@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useId, useMemo } from "react";
+import { formatRecruiterName } from "../../lib/recruiter-label";
 import { Filter, RotateCcw, Calendar as CalendarIcon, X, Check, SlidersHorizontal } from "lucide-react";
 import { Button, ComboBox } from "../ui";
 import type { ComboBoxOption } from "../ui/ComboBox";
@@ -10,7 +11,6 @@ interface AnalyticsFilterBarProps {
   options?: AnalyticsFilterOptions;
   showRecruiterFilter?: boolean;
   showClientFilter?: boolean;
-  showMineOnlyFilter?: boolean;
 }
 
 export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
@@ -19,8 +19,8 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
   options,
   showRecruiterFilter = false,
   showClientFilter = false,
-  showMineOnlyFilter = false,
 }) => {
+  const moreFiltersId = useId();
   // Local draft state for user configuration before clicking "Apply Filters"
   const [draftFilters, setDraftFilters] = useState<AnalyticsFilterState>(filters);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
@@ -51,9 +51,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
       clientId: undefined,
       mrfId: undefined,
       jobPostingId: undefined,
-      stage: undefined,
       recruiterId: undefined,
-      mineOnly: undefined,
     };
     setDraftFilters(cleared);
     onChange(cleared);
@@ -79,6 +77,16 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
     return JSON.stringify(draftFilters) !== JSON.stringify(filters);
   }, [draftFilters, filters]);
 
+  // A custom range needs both dates, in order, before it can be applied.
+  const customRangeError =
+    draftFilters.range !== "custom"
+      ? null
+      : !draftFilters.startDate || !draftFilters.endDate
+        ? "Choose a start and an end date."
+        : draftFilters.startDate > draftFilters.endDate
+          ? "The start date must be on or before the end date."
+          : null;
+
   // Check if any filter is active (differs from default clean 7d state)
   const hasActiveFilters = useMemo(() => {
     return (
@@ -86,9 +94,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
       filters.clientId !== undefined ||
       filters.mrfId !== undefined ||
       filters.jobPostingId !== undefined ||
-      filters.stage !== undefined ||
       filters.recruiterId !== undefined ||
-      filters.mineOnly === true ||
       Boolean(filters.startDate) ||
       Boolean(filters.endDate)
     );
@@ -129,17 +135,10 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
     }));
   }, [availableJobPostings]);
 
-  const stageOptions: ComboBoxOption[] = useMemo(() => {
-    return (options?.stages || []).map((s) => ({
-      value: s.key,
-      label: s.label,
-    }));
-  }, [options?.stages]);
-
   const recruiterOptions: ComboBoxOption[] = useMemo(() => {
     return (options?.recruiters || []).map((r) => ({
       value: r.id,
-      label: r.name,
+      label: formatRecruiterName(r.name).label,
       subtitle: r.email,
     }));
   }, [options?.recruiters]);
@@ -172,18 +171,9 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
        chips.push({ key: "jobPostingId", label: "Job opening", value: j?.title || `Job #${filters.jobPostingId}` });
     }
 
-    if (filters.stage) {
-      const s = options?.stages.find((x) => x.key === filters.stage);
-      chips.push({ key: "stage", label: "Stage", value: s?.label || filters.stage });
-    }
-
     if (filters.recruiterId) {
       const r = options?.recruiters.find((x) => x.id === filters.recruiterId);
-      chips.push({ key: "recruiterId", label: "Recruiter", value: r?.name || filters.recruiterId });
-    }
-
-    if (filters.mineOnly) {
-      chips.push({ key: "mineOnly", label: "Scope", value: "My requisitions only" });
+      chips.push({ key: "recruiterId", label: "Recruiter", value: r ? formatRecruiterName(r.name).label : filters.recruiterId });
     }
 
     return chips;
@@ -224,28 +214,6 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               </button>
             );
           })}
-
-          {showMineOnlyFilter && (
-            <label className="ml-2 flex items-center gap-2 text-xs font-mono font-medium text-slate-700 cursor-pointer select-none bg-slate-50 px-2.5 py-1.5 border border-slate-300 hover:bg-slate-100">
-              <input
-                type="checkbox"
-                checked={Boolean(draftFilters.mineOnly)}
-                onChange={(e) => {
-                  const nextMineOnly = e.target.checked ? true : undefined;
-                  setDraftFilters((prev) => ({
-                    ...prev,
-                    mineOnly: nextMineOnly,
-                  }));
-                  onChange({
-                    ...filters,
-                    mineOnly: nextMineOnly,
-                  });
-                }}
-                className="rounded border-slate-300 text-teal-700 focus:ring-teal-600 h-4 w-4 cursor-pointer"
-              />
-              <span>My requisitions only</span>
-            </label>
-          )}
         </div>
 
         {/* Action Controls: Apply Filters & Clear Filters */}
@@ -266,6 +234,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
             variant={hasUnappliedChanges ? "primary" : "secondary"}
             size="sm"
             onClick={handleApply}
+            disabled={customRangeError !== null}
             leftIcon={hasUnappliedChanges ? <SlidersHorizontal className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
              className="text-sm font-semibold"
           >
@@ -276,11 +245,11 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => setShowMoreFilters((current) => !current)}
-              aria-expanded={showMoreFilters || hasActiveFilters}
-              aria-controls="admin-analytics-more-filters"
+              aria-expanded={showMoreFilters}
+              aria-controls={moreFiltersId}
               className="text-sm"
             >
-              {showMoreFilters || hasActiveFilters ? "Hide filters" : "More filters"}
+              {showMoreFilters ? "Hide filters" : "More filters"}
             </Button>
           )}
         </div>
@@ -318,12 +287,17 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               className="border border-slate-300 bg-white px-2 py-1 text-xs font-mono text-slate-900 focus:outline-none focus:border-teal-700"
             />
           </div>
+          {customRangeError && (
+            <p role="alert" className="text-xs text-rose-700 font-sans">
+              {customRangeError}
+            </p>
+          )}
         </div>
       )}
 
       {/* Relational Searchable ComboBox Dropdowns */}
-      {options && (showMoreFilters || hasActiveFilters) && (
-        <div id="admin-analytics-more-filters" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
+      {options && showMoreFilters && (
+        <div id={moreFiltersId} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
           {/* Client Filter (Admin only) */}
           {showClientFilter && options.clients && options.clients.length > 0 && (
             <ComboBox
@@ -396,24 +370,6 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
             />
           )}
 
-          {/* Recruitment Stage Combobox */}
-          {options.stages && options.stages.length > 0 && (
-            <ComboBox
-               label="Hiring stage"
-              options={stageOptions}
-              value={draftFilters.stage || ""}
-              onChange={(val) => {
-                setDraftFilters((prev) => ({
-                  ...prev,
-                  stage: val || undefined,
-                }));
-              }}
-               placeholder="All hiring stages"
-              clearable={true}
-              size="sm"
-            />
-          )}
-
           {/* Recruiter / TA Specialist Combobox (Admin only) */}
           {showRecruiterFilter && options.recruiters && options.recruiters.length > 0 && (
             <ComboBox
@@ -440,7 +396,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
           <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-700 mr-1">
             <Filter className="w-3.5 h-3.5 text-teal-800" />
             <span>Filters applied:</span>
-            <span className="px-1.5 py-0.2 bg-teal-100 text-teal-900 text-[10px] border border-teal-300 font-mono font-bold">
+            <span className="px-1.5 py-0.2 bg-teal-100 text-teal-900 text-[11px] border border-teal-300 font-mono font-bold">
               {activeChips.length}
             </span>
           </div>
@@ -451,12 +407,12 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               data-testid={`active-filter-chip-${chip.key}`}
               className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-300 text-xs font-mono"
             >
-              <span className="text-slate-500 font-bold uppercase text-[10px]">{chip.label}:</span>
+              <span className="text-slate-500 font-bold uppercase text-[11px]">{chip.label}:</span>
               <span className="font-bold text-slate-900 max-w-[200px] truncate">{chip.value}</span>
               <button
                 type="button"
                 onClick={() => handleRemoveFilter(chip.key)}
-                className="hover:text-rose-700 text-slate-400 font-bold ml-0.5 cursor-pointer"
+                className="hover:text-rose-700 text-slate-500 font-bold ml-0.5 cursor-pointer"
                 title={`Remove ${chip.label} filter`}
                 aria-label={`Remove ${chip.label} filter`}
               >

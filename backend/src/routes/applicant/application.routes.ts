@@ -5,10 +5,15 @@ import { upload } from '../../middleware/upload.middleware.js';
 import { applicantApplicationSchema } from '../../schemas/applicant-application.schema.js';
 import {
   getOpenJobs,
+  getOpenEmployerSummary,
   getJobDetails,
   applyToJob,
   getMyApplications,
+  getMyDocuments,
+  getMyDocumentLibrary,
+  reuseComplianceDocumentHandler,
   getMyApplicationDetails,
+  withdrawApplicationHandler,
   uploadComplianceDocumentHandler,
   getActiveDeployment,
 } from '../../controllers/applicant/application.controller.js';
@@ -27,6 +32,7 @@ const router = Router();
 
 // Publicly browse open job listings
 router.get("/jobs", validate(applicantApplicationSchema.listJobs), getOpenJobs);
+router.get("/employers/summary", validate(applicantApplicationSchema.employerSummary), getOpenEmployerSummary);
 
 router.use(authenticateJWT);
 router.use(requireRole("APPLICANT"));
@@ -40,9 +46,13 @@ router.get("/saved-jobs/ids", getSavedJobIdsHandler);
 router.get("/active-deployment", getActiveDeployment);
 router.get("/invitations", getMyInvitationsHandler);
 router.post("/invitations/:id/respond", validate(applicantApplicationSchema.respondInvitation), respondToInvitationHandler);
-router.get("/my-applications", getMyApplications);
+router.get("/my-applications", validate(applicantApplicationSchema.myApplications), getMyApplications);
+router.get("/my-documents", getMyDocuments);
+router.get("/my-documents/library", getMyDocumentLibrary);
 router.get("/my-applications/:id", validate(applicantApplicationSchema.jobParams), getMyApplicationDetails);
 router.get("/applications/:id", validate(applicantApplicationSchema.jobParams), getMyApplicationDetails);
+router.post("/applications/:id/withdraw", validate(applicantApplicationSchema.withdraw), withdrawApplicationHandler);
+router.post("/compliance/:requirementId/reuse", validate(applicantApplicationSchema.complianceReuse), reuseComplianceDocumentHandler);
 router.post("/compliance/:requirementId/upload", validate(applicantApplicationSchema.complianceUploadParams), upload.single("file"), validate(applicantApplicationSchema.complianceUpload), uploadComplianceDocumentHandler);
 
 export default router;

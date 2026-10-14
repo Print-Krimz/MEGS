@@ -23,6 +23,10 @@ import {
   Calendar,
 } from "lucide-react";
 import { computeProfileHealth } from "../../lib/profile-health";
+import {
+  getApplicationRefetchInterval,
+  INVITATION_POLL_MS,
+} from "../../lib/query-policies";
 
 export const ApplicantDashboard: React.FC = () => {
   const profileQuery = useQuery({
@@ -33,20 +37,20 @@ export const ApplicantDashboard: React.FC = () => {
 
   const applicationsQuery = useQuery({
     queryKey: ["applicant", "my-applications"],
-    queryFn: applicantJobsApi.getMyApplications,
-    refetchInterval: 5000,
+    queryFn: ({ signal }) => applicantJobsApi.getMyApplicationSummaries({ summary: true }, { signal }),
+    refetchInterval: (query) => getApplicationRefetchInterval(query.state.data),
     refetchOnWindowFocus: true,
   });
 
   const invitationsQuery = useQuery({
     queryKey: ["applicant", "invitations"],
-    queryFn: applicantJobsApi.getMyInvitations,
-    refetchInterval: 10000,
+    queryFn: ({ signal }) => applicantJobsApi.getMyInvitations({ signal }),
+    refetchInterval: INVITATION_POLL_MS,
   });
 
   const jobsQuery = useQuery({
     queryKey: ["applicant", "open-jobs-preview"],
-    queryFn: () => applicantJobsApi.getJobs({ limit: 4 }),
+    queryFn: ({ signal }) => applicantJobsApi.getJobsPage({ page: 1, limit: 4 }, { signal }),
   });
 
   if (profileQuery.isLoading || applicationsQuery.isLoading) {
@@ -81,14 +85,16 @@ export const ApplicantDashboard: React.FC = () => {
   }
 
   const profile = profileQuery.data || null;
-  const applications = Array.isArray(applicationsQuery.data) ? applicationsQuery.data : [];
-  const openJobs = Array.isArray(jobsQuery.data) ? jobsQuery.data : [];
+  const applicationData = applicationsQuery.data;
+  const applications = Array.isArray(applicationData) ? applicationData : applicationData?.items ?? [];
+  const openJobs = Array.isArray(jobsQuery.data) ? jobsQuery.data : jobsQuery.data?.items ?? [];
+  const openJobsTotal = Array.isArray(jobsQuery.data) ? jobsQuery.data.length : jobsQuery.data?.total ?? openJobs.length;
 
   const allInvitations = Array.isArray(invitationsQuery.data) ? invitationsQuery.data : [];
   const pendingInvitations = allInvitations.filter((inv) => inv.status === "PENDING");
 
   // Metrics computation
-  const totalApps = applications.length;
+  const totalApps = Array.isArray(applicationData) ? applications.length : applicationData?.total ?? applications.length;
   const activeApps = applications.filter(
     (a) =>
       a.status !== ApplicationStatus.DEPLOYED &&
@@ -363,7 +369,7 @@ export const ApplicantDashboard: React.FC = () => {
               to="/app/jobs"
               className="text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline"
             >
-              Browse All ({openJobs.length})
+              Browse All ({openJobsTotal})
             </Link>
           </div>
 

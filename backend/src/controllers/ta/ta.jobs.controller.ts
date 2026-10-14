@@ -15,13 +15,18 @@ export const listJobs = async (req: Request, res: Response): Promise<void> => {
     const search = req.query.search as string | undefined;
     const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
     const mineOnly = req.query.mineOnly === "true";
+    const page = req.query.page as number | undefined;
+    const limit = req.query.limit as number | undefined;
     const currentUserId = req.user?.id;
     const jobs = await listTAJobs({
       status,
       search,
       clientId: !isNaN(clientId!) ? clientId : undefined,
       mineOnly,
+      page,
+      limit,
       currentUserId,
+      actor: req.user,
     });
     sendSuccess(res, "Job postings retrieved", jobs);
   } catch (error: any) {
@@ -32,7 +37,7 @@ export const listJobs = async (req: Request, res: Response): Promise<void> => {
 // POST /api/ta/jobs - Create job posting (defaults to DRAFT)
 export const createJob = async (req: Request, res: Response): Promise<void> => {
   try {
-    const job = await createTAJob(req.user!.id, req.body);
+    const job = await createTAJob(req.user!.id, req.body, req.user);
     sendSuccess(res, `Job posting created with status: ${job.status}`, job, 201);
   } catch (error: any) {
     sendError(res, error.message, 400);
@@ -63,7 +68,7 @@ export const updateJob = async (req: Request, res: Response): Promise<void> => {
       sendError(res, "Invalid job ID", 400);
       return;
     }
-    const updated = await updateTAJob(jobId, req.body);
+    const updated = await updateTAJob(jobId, req.body, req.user);
     sendSuccess(res, "Job posting updated", updated);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;

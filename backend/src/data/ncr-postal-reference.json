@@ -1,0 +1,2160 @@
+{
+  "version": "NCR postal-zone reference extracted 2026-10-02",
+  "source": "PHLPost city postal locality pages (current NCR pages link the PHLPost locator as authority)",
+  "localities": [
+    {
+      "psgc_code": "1380100000",
+      "name": "City of Caloocan",
+      "postalZones": [
+        {
+          "locality": "Caloocan City CPO",
+          "postalCode": "1400"
+        },
+        {
+          "locality": "Baesa",
+          "postalCode": "1401"
+        },
+        {
+          "locality": "Santa Quiteria",
+          "postalCode": "1402"
+        },
+        {
+          "locality": "Grace Park East",
+          "postalCode": "1403"
+        },
+        {
+          "locality": "San Jose",
+          "postalCode": "1404"
+        },
+        {
+          "locality": "1st Ave. to 7th Ave. (West)",
+          "postalCode": "1405"
+        },
+        {
+          "locality": "Grace Park West",
+          "postalCode": "1406"
+        },
+        {
+          "locality": "University Hills",
+          "postalCode": "1407"
+        },
+        {
+          "locality": "Sangandaan",
+          "postalCode": "1408"
+        },
+        {
+          "locality": "Kaunlaran Village",
+          "postalCode": "1409"
+        },
+        {
+          "locality": "Maypajo",
+          "postalCode": "1410"
+        },
+        {
+          "locality": "Fish Market",
+          "postalCode": "1411"
+        },
+        {
+          "locality": "Isla de Cocomo",
+          "postalCode": "1412"
+        },
+        {
+          "locality": "Kapitbahayan East",
+          "postalCode": "1413"
+        },
+        {
+          "locality": "Kaybiga / Deparo",
+          "postalCode": "1420"
+        },
+        {
+          "locality": "Bagumbong / Pag-asa",
+          "postalCode": "1421"
+        },
+        {
+          "locality": "Novaliches North (Camarin North)",
+          "postalCode": "1422"
+        },
+        {
+          "locality": "Lilles Ville Subdivision",
+          "postalCode": "1423"
+        },
+        {
+          "locality": "Capitol Parkland Subdivision",
+          "postalCode": "1424"
+        },
+        {
+          "locality": "Amparo Subdivision",
+          "postalCode": "1425"
+        },
+        {
+          "locality": "Bankers Village",
+          "postalCode": "1426"
+        },
+        {
+          "locality": "Tala Leprosarium / Victory Heights",
+          "postalCode": "1427"
+        },
+        {
+          "locality": "Bagong Silang",
+          "postalCode": "1428"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380200000",
+      "name": "City of Las Piñas",
+      "postalZones": [
+        {
+          "locality": "Alabang-Zapote Territory / Zapote",
+          "postalCode": "1742"
+        },
+        {
+          "locality": "Almanza Dos",
+          "postalCode": "1751"
+        },
+        {
+          "locality": "Almanza Uno",
+          "postalCode": "1750"
+        },
+        {
+          "locality": "B. F. International Village",
+          "postalCode": "1740"
+        },
+        {
+          "locality": "Daniel Fajardo",
+          "postalCode": "1740"
+        },
+        {
+          "locality": "Elias Aldana",
+          "postalCode": "1740"
+        },
+        {
+          "locality": "Ilaya",
+          "postalCode": "1740"
+        },
+        {
+          "locality": "Las Piñas Central Post Office (CPO)",
+          "postalCode": "1740"
+        },
+        {
+          "locality": "Manuyo Dos",
+          "postalCode": "1745"
+        },
+        {
+          "locality": "Manuyo Uno",
+          "postalCode": "1744"
+        },
+        {
+          "locality": "Pamplona Dos",
+          "postalCode": "1740"
+        },
+        {
+          "locality": "Pamplona Tres",
+          "postalCode": "1740"
+        },
+        {
+          "locality": "Pamplona Uno",
+          "postalCode": "1740"
+        },
+        {
+          "locality": "Pilar",
+          "postalCode": "1740"
+        },
+        {
+          "locality": "Pulang Lupa Dos",
+          "postalCode": "1742"
+        },
+        {
+          "locality": "Pulang Lupa Uno",
+          "postalCode": "1742"
+        },
+        {
+          "locality": "Talon Dos",
+          "postalCode": "1747"
+        },
+        {
+          "locality": "Talon Kuatro",
+          "postalCode": "1747"
+        },
+        {
+          "locality": "Talon Singko",
+          "postalCode": "1747"
+        },
+        {
+          "locality": "Talon Tres",
+          "postalCode": "1747"
+        },
+        {
+          "locality": "Talon Uno",
+          "postalCode": "1747"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380300000",
+      "name": "City of Makati",
+      "postalZones": [
+        {
+          "locality": "Ayala Center / Glorietta / Greenbelt",
+          "postalCode": "1224"
+        },
+        {
+          "locality": "Bangkal",
+          "postalCode": "1233"
+        },
+        {
+          "locality": "Bel-Air",
+          "postalCode": "1209"
+        },
+        {
+          "locality": "Carmona",
+          "postalCode": "1207"
+        },
+        {
+          "locality": "Dasmariñas Village",
+          "postalCode": "1222"
+        },
+        {
+          "locality": "Forbes Park",
+          "postalCode": "1219"
+        },
+        {
+          "locality": "Guadalupe Nuevo",
+          "postalCode": "1212"
+        },
+        {
+          "locality": "Guadalupe Viejo",
+          "postalCode": "1211"
+        },
+        {
+          "locality": "Kasilawan",
+          "postalCode": "1206"
+        },
+        {
+          "locality": "La Paz",
+          "postalCode": "1204"
+        },
+        {
+          "locality": "Magallanes",
+          "postalCode": "1232"
+        },
+        {
+          "locality": "Makati Central Post Office (CPO)",
+          "postalCode": "1200"
+        },
+        {
+          "locality": "Makati Commercial Center",
+          "postalCode": "1226"
+        },
+        {
+          "locality": "Olympia",
+          "postalCode": "1207"
+        },
+        {
+          "locality": "Palanan",
+          "postalCode": "1235"
+        },
+        {
+          "locality": "Pio del Pilar",
+          "postalCode": "1230"
+        },
+        {
+          "locality": "Poblacion",
+          "postalCode": "1210"
+        },
+        {
+          "locality": "San Antonio",
+          "postalCode": "1203"
+        },
+        {
+          "locality": "San Isidro",
+          "postalCode": "1234"
+        },
+        {
+          "locality": "San Lorenzo",
+          "postalCode": "1223"
+        },
+        {
+          "locality": "Santa Cruz",
+          "postalCode": "1205"
+        },
+        {
+          "locality": "Singkamas",
+          "postalCode": "1204"
+        },
+        {
+          "locality": "Tejeros",
+          "postalCode": "1204"
+        },
+        {
+          "locality": "Urdaneta",
+          "postalCode": "1225"
+        },
+        {
+          "locality": "Valenzuela",
+          "postalCode": "1208"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380400000",
+      "name": "City of Malabon",
+      "postalZones": [
+        {
+          "locality": "Acacia",
+          "postalCode": "1474"
+        },
+        {
+          "locality": "Baritan",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Bayan-Bayanan",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Catmon",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Concepcion",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Dampalit",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Flores",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Hulong Duhat",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Ibaba",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Longos",
+          "postalCode": "1472"
+        },
+        {
+          "locality": "Malabon Central Post Office (CPO)",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Maysilo",
+          "postalCode": "1477"
+        },
+        {
+          "locality": "Muzon",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Niugan",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Panghulo",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Potrero",
+          "postalCode": "1475"
+        },
+        {
+          "locality": "San Agustin",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Santolan",
+          "postalCode": "1478"
+        },
+        {
+          "locality": "Tañong",
+          "postalCode": "1470"
+        },
+        {
+          "locality": "Tinajeros",
+          "postalCode": "1471"
+        },
+        {
+          "locality": "Tonsuya",
+          "postalCode": "1473"
+        },
+        {
+          "locality": "Tugatog",
+          "postalCode": "1470"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380500000",
+      "name": "City of Mandaluyong",
+      "postalZones": [
+        {
+          "locality": "Addition Hills",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Bagong Silang",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Barangka Drive",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Barangka Ibaba",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Barangka Ilaya",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Barangka Itaas",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Buayang Bato",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Burol",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Daang Bakal",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "East EDSA",
+          "postalCode": "1554"
+        },
+        {
+          "locality": "Greenhills South",
+          "postalCode": "1556"
+        },
+        {
+          "locality": "Hagdang Bato Itaas",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Hagdang Bato Libis",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Harapin Ang Bukas",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Highway Hills",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Hulo",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Mabini-J. Rizal",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Malamig",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Mandaluyong Central Post Office (CPO)",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Mauway",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Namayan",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "National Center for Mental Health (NCMH)",
+          "postalCode": "1553"
+        },
+        {
+          "locality": "New Zañiga",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Old Zañiga",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Pag-asa",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Plainview",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Poblacion",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "San Jose",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Shaw Boulevard",
+          "postalCode": "1552"
+        },
+        {
+          "locality": "Vergara",
+          "postalCode": "1551"
+        },
+        {
+          "locality": "Wack-Wack Greenhills (Barangay Proper)",
+          "postalCode": "1550"
+        },
+        {
+          "locality": "Wack Wack (Golf Club / Village Enclave)",
+          "postalCode": "1555"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380600000",
+      "name": "City of Manila",
+      "postalZones": [
+        {
+          "locality": "Binondo / Chinatown (Ongpin, Escolta, Lucky Chinatown)",
+          "postalCode": "1006"
+        },
+        {
+          "locality": "Ermita / Manila CPO (Rizal Park / Luneta, US Embassy, Padre Faura)",
+          "postalCode": "1000"
+        },
+        {
+          "locality": "Intramuros (Walled City, Fort Santiago, Manila Cathedral, San Agustin)",
+          "postalCode": "1002"
+        },
+        {
+          "locality": "Malate (Robinsons Place Manila, Remedios Circle, DLSU Area)",
+          "postalCode": "1004"
+        },
+        {
+          "locality": "Paco (Paco Park, Plaza Dilao, Otis)",
+          "postalCode": "1007"
+        },
+        {
+          "locality": "Pandacan (Beata, Jesus St., Pandacan Church)",
+          "postalCode": "1011"
+        },
+        {
+          "locality": "Port Area South (Manila South Harbor, Pier 13/15)",
+          "postalCode": "1018"
+        },
+        {
+          "locality": "Quiapo (Minor Basilica / Black Nazarene, Quinta Market, Hidalgo)",
+          "postalCode": "1001"
+        },
+        {
+          "locality": "Sampaloc East (U-Belt / UST Campus, Earnshaw, España East)",
+          "postalCode": "1008"
+        },
+        {
+          "locality": "Sampaloc West (U-Belt / FEU, UE, Morayta, Vicente Cruz)",
+          "postalCode": "1015"
+        },
+        {
+          "locality": "San Andres Bukid (Zobel Roxas, San Andres Market)",
+          "postalCode": "1017"
+        },
+        {
+          "locality": "San Miguel (Malacañang Palace, Mendiola, San Beda)",
+          "postalCode": "1005"
+        },
+        {
+          "locality": "San Nicolas (Divisoria Market, Tutuban Center, Elcano)",
+          "postalCode": "1010"
+        },
+        {
+          "locality": "Santa Ana (Santa Ana Church, Plaza Calderon, Pedro Gil East)",
+          "postalCode": "1009"
+        },
+        {
+          "locality": "Santa Cruz North (Blumentritt, Tayuman, San Lazaro / SM San Lazaro)",
+          "postalCode": "1014"
+        },
+        {
+          "locality": "Santa Cruz South (Avenida, Carriedo, Santa Cruz Church)",
+          "postalCode": "1003"
+        },
+        {
+          "locality": "Santa Mesa (PUP Main Campus, Stop & Shop, V. Mapa)",
+          "postalCode": "1016"
+        },
+        {
+          "locality": "Tondo North (Balut, Gagalangin, Pritil Market, Smokey Mountain)",
+          "postalCode": "1013"
+        },
+        {
+          "locality": "Tondo South (Moriones, Plaza Noli, Dagupan, Harbor Center)",
+          "postalCode": "1012"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380700000",
+      "name": "City of Marikina",
+      "postalZones": [
+        {
+          "locality": "Barangka",
+          "postalCode": "1803"
+        },
+        {
+          "locality": "Calumpang",
+          "postalCode": "1801"
+        },
+        {
+          "locality": "Concepcion Dos",
+          "postalCode": "1811"
+        },
+        {
+          "locality": "Concepcion Uno",
+          "postalCode": "1807"
+        },
+        {
+          "locality": "Fortune",
+          "postalCode": "1809"
+        },
+        {
+          "locality": "Industrial Valley Complex (IVC)",
+          "postalCode": "1802"
+        },
+        {
+          "locality": "Jesus Dela Peña",
+          "postalCode": "1804"
+        },
+        {
+          "locality": "Malanday",
+          "postalCode": "1805"
+        },
+        {
+          "locality": "Marikina Central Post Office (CPO)",
+          "postalCode": "1800"
+        },
+        {
+          "locality": "Marikina Heights",
+          "postalCode": "1810"
+        },
+        {
+          "locality": "Nangka",
+          "postalCode": "1808"
+        },
+        {
+          "locality": "Parang",
+          "postalCode": "1809"
+        },
+        {
+          "locality": "San Roque",
+          "postalCode": "1801"
+        },
+        {
+          "locality": "Santo Niño",
+          "postalCode": "1800"
+        },
+        {
+          "locality": "Tañong",
+          "postalCode": "1803"
+        },
+        {
+          "locality": "Tumana",
+          "postalCode": "1806"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380800000",
+      "name": "City of Muntinlupa",
+      "postalZones": [
+        {
+          "locality": "Alabang",
+          "postalCode": "1770"
+        },
+        {
+          "locality": "Ayala Alabang Village",
+          "postalCode": "1780"
+        },
+        {
+          "locality": "Bayanan",
+          "postalCode": "1772"
+        },
+        {
+          "locality": "Bilibid Prison / NBP Compound",
+          "postalCode": "1776"
+        },
+        {
+          "locality": "Buli",
+          "postalCode": "1771"
+        },
+        {
+          "locality": "Cupang",
+          "postalCode": "1771"
+        },
+        {
+          "locality": "Muntinlupa CPO / City Center",
+          "postalCode": "1770"
+        },
+        {
+          "locality": "Pleasant Village",
+          "postalCode": "1777"
+        },
+        {
+          "locality": "Poblacion",
+          "postalCode": "1776"
+        },
+        {
+          "locality": "Putatan",
+          "postalCode": "1772"
+        },
+        {
+          "locality": "Resettlement Area",
+          "postalCode": "1775"
+        },
+        {
+          "locality": "Soldiers’ Hills Subdivision",
+          "postalCode": "1775"
+        },
+        {
+          "locality": "Sucat",
+          "postalCode": "1770"
+        },
+        {
+          "locality": "Tunasan",
+          "postalCode": "1773"
+        },
+        {
+          "locality": "Victoria Homes",
+          "postalCode": "1774"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380900000",
+      "name": "City of Navotas",
+      "postalZones": [
+        {
+          "locality": "Bagumbayan North",
+          "postalCode": "1485"
+        },
+        {
+          "locality": "Bagumbayan South",
+          "postalCode": "1485"
+        },
+        {
+          "locality": "Bangkulas",
+          "postalCode": "1485"
+        },
+        {
+          "locality": "Daanghari",
+          "postalCode": "1485"
+        },
+        {
+          "locality": "Navotas Central Post Office (CPO)",
+          "postalCode": "1485"
+        },
+        {
+          "locality": "Navotas East",
+          "postalCode": "1485"
+        },
+        {
+          "locality": "Navotas West",
+          "postalCode": "1485"
+        },
+        {
+          "locality": "North Bay Boulevard East (NBBE)",
+          "postalCode": "1489"
+        },
+        {
+          "locality": "North Bay Boulevard South (NBBS) Dagat-Dagatan",
+          "postalCode": "1489"
+        },
+        {
+          "locality": "North Bay Boulevard South (NBBS) Kaunlaran",
+          "postalCode": "1489"
+        },
+        {
+          "locality": "North Bay Boulevard South (NBBS) Proper",
+          "postalCode": "1489"
+        },
+        {
+          "locality": "San Jose",
+          "postalCode": "1485"
+        },
+        {
+          "locality": "San Roque",
+          "postalCode": "1485"
+        },
+        {
+          "locality": "Sipac-Almacen",
+          "postalCode": "1485"
+        },
+        {
+          "locality": "Tangos North",
+          "postalCode": "1490"
+        },
+        {
+          "locality": "Tangos South",
+          "postalCode": "1490"
+        },
+        {
+          "locality": "Tanza 1",
+          "postalCode": "1490"
+        },
+        {
+          "locality": "Tanza 2",
+          "postalCode": "1490"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381000000",
+      "name": "City of Parañaque",
+      "postalZones": [
+        {
+          "locality": "Baclaran",
+          "postalCode": "1702"
+        },
+        {
+          "locality": "Better Living Subdivision",
+          "postalCode": "1711"
+        },
+        {
+          "locality": "BF Homes 1",
+          "postalCode": "1720"
+        },
+        {
+          "locality": "BF Homes 2",
+          "postalCode": "1718"
+        },
+        {
+          "locality": "Don Bosco",
+          "postalCode": "1711"
+        },
+        {
+          "locality": "Don Galo",
+          "postalCode": "1700"
+        },
+        {
+          "locality": "La Huerta",
+          "postalCode": "1700"
+        },
+        {
+          "locality": "Marcelo Green",
+          "postalCode": "1712"
+        },
+        {
+          "locality": "Merville",
+          "postalCode": "1709"
+        },
+        {
+          "locality": "Moonwalk",
+          "postalCode": "1709"
+        },
+        {
+          "locality": "Multinational Subdivision",
+          "postalCode": "1708"
+        },
+        {
+          "locality": "NAIA (Airport)",
+          "postalCode": "1705"
+        },
+        {
+          "locality": "Parañaque Central Post Office (CPO)",
+          "postalCode": "1700"
+        },
+        {
+          "locality": "San Antonio",
+          "postalCode": "1715"
+        },
+        {
+          "locality": "San Dionisio",
+          "postalCode": "1700"
+        },
+        {
+          "locality": "San Isidro",
+          "postalCode": "1700"
+        },
+        {
+          "locality": "San Martin de Porres",
+          "postalCode": "1713"
+        },
+        {
+          "locality": "Santo Niño",
+          "postalCode": "1704"
+        },
+        {
+          "locality": "Sun Valley",
+          "postalCode": "1700"
+        },
+        {
+          "locality": "Tambo",
+          "postalCode": "1701"
+        },
+        {
+          "locality": "United Parañaque Subdivision (UPS 1-4)",
+          "postalCode": "1713"
+        },
+        {
+          "locality": "United Parañaque Subdivision (UPS 5 / Aeropark)",
+          "postalCode": "1714"
+        },
+        {
+          "locality": "Vitalez",
+          "postalCode": "1700"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381100000",
+      "name": "Pasay City",
+      "postalZones": [
+        {
+          "locality": "Pasay City Central Post Office (CPO) / Malibay",
+          "postalCode": "1300"
+        },
+        {
+          "locality": "Domestic Airport / NAIA Terminal 4 Area",
+          "postalCode": "1301"
+        },
+        {
+          "locality": "San Jose",
+          "postalCode": "1302"
+        },
+        {
+          "locality": "San Rafael",
+          "postalCode": "1303"
+        },
+        {
+          "locality": "San Roque",
+          "postalCode": "1304"
+        },
+        {
+          "locality": "San Isidro",
+          "postalCode": "1305"
+        },
+        {
+          "locality": "Santa Clara / Sta. Clara",
+          "postalCode": "1306"
+        },
+        {
+          "locality": "CCP Complex / Cultural Center of the Philippines Area",
+          "postalCode": "1307"
+        },
+        {
+          "locality": "Manila Bay Reclamation Area / SM Mall of Asia (MOA) Sector",
+          "postalCode": "1308"
+        },
+        {
+          "locality": "Nichols / Villamor Air Base",
+          "postalCode": "1309"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381200000",
+      "name": "City of Pasig",
+      "postalZones": [
+        {
+          "locality": "Bagong Ilog",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Bagong Katipunan",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Bambang",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Buting",
+          "postalCode": "1601"
+        },
+        {
+          "locality": "Caniogan",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "De La Paz",
+          "postalCode": "1612"
+        },
+        {
+          "locality": "Kalawaan",
+          "postalCode": "1603"
+        },
+        {
+          "locality": "Kapasigan",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Kapitolyo",
+          "postalCode": "1606"
+        },
+        {
+          "locality": "Malinao",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Manggahan",
+          "postalCode": "1608"
+        },
+        {
+          "locality": "Maybunga",
+          "postalCode": "1607"
+        },
+        {
+          "locality": "Oranbo",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Ortigas Center (Pasig side)",
+          "postalCode": "1605"
+        },
+        {
+          "locality": "Palatiw",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Pasig Central Post Office (CPO)",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Pinagbuhatan",
+          "postalCode": "1611"
+        },
+        {
+          "locality": "Pineda",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Rosario",
+          "postalCode": "1609"
+        },
+        {
+          "locality": "Sagad",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "San Antonio",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "San Joaquin",
+          "postalCode": "1603"
+        },
+        {
+          "locality": "San Jose",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "San Miguel",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "San Nicolas",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Santa Cruz",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Santa Lucia",
+          "postalCode": "1608"
+        },
+        {
+          "locality": "Santa Rosa",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Santo Tomas",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Santolan",
+          "postalCode": "1610"
+        },
+        {
+          "locality": "Sumilang",
+          "postalCode": "1600"
+        },
+        {
+          "locality": "Ugong",
+          "postalCode": "1604"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381300000",
+      "name": "Quezon City",
+      "postalZones": [
+        {
+          "locality": "Alicia",
+          "postalCode": "1105"
+        },
+        {
+          "locality": "Amihan",
+          "postalCode": "1102"
+        },
+        {
+          "locality": "Apolonio Samson",
+          "postalCode": "1106"
+        },
+        {
+          "locality": "Baesa",
+          "postalCode": "1106"
+        },
+        {
+          "locality": "Bagbag",
+          "postalCode": "1116"
+        },
+        {
+          "locality": "Bagumbuhay",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "Bagong Lipunan ng Crame",
+          "postalCode": "1111"
+        },
+        {
+          "locality": "Bagong Pag-asa",
+          "postalCode": "1105"
+        },
+        {
+          "locality": "Bagong Silangan",
+          "postalCode": "1119"
+        },
+        {
+          "locality": "Bagumbayan / Eastwood",
+          "postalCode": "1110"
+        },
+        {
+          "locality": "Bahay Toro",
+          "postalCode": "1106"
+        },
+        {
+          "locality": "Balingasa",
+          "postalCode": "1115"
+        },
+        {
+          "locality": "Balintawak",
+          "postalCode": "1106"
+        },
+        {
+          "locality": "Balumbato",
+          "postalCode": "1106"
+        },
+        {
+          "locality": "Batasan Hills",
+          "postalCode": "1126"
+        },
+        {
+          "locality": "Bayanihan",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "BF Homes",
+          "postalCode": "1120"
+        },
+        {
+          "locality": "Blue Ridge A & B",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "Botocan",
+          "postalCode": "1101"
+        },
+        {
+          "locality": "Bungad",
+          "postalCode": "1105"
+        },
+        {
+          "locality": "Camp Aguinaldo",
+          "postalCode": "1110"
+        },
+        {
+          "locality": "Capitol Hills / Park",
+          "postalCode": "1126"
+        },
+        {
+          "locality": "Capri",
+          "postalCode": "1117"
+        },
+        {
+          "locality": "Central / QC CPO",
+          "postalCode": "1100"
+        },
+        {
+          "locality": "Claro",
+          "postalCode": "1102"
+        },
+        {
+          "locality": "Commonwealth",
+          "postalCode": "1121"
+        },
+        {
+          "locality": "Crame",
+          "postalCode": "1111"
+        },
+        {
+          "locality": "Cubao",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "Culiat",
+          "postalCode": "1128"
+        },
+        {
+          "locality": "Damar",
+          "postalCode": "1115"
+        },
+        {
+          "locality": "Damayan",
+          "postalCode": "1104"
+        },
+        {
+          "locality": "Damayan Lagi",
+          "postalCode": "1112"
+        },
+        {
+          "locality": "Damong Maliit",
+          "postalCode": "1123"
+        },
+        {
+          "locality": "Del Monte",
+          "postalCode": "1105"
+        },
+        {
+          "locality": "Diliman",
+          "postalCode": "1101"
+        },
+        {
+          "locality": "Dioquino Zobel",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "Don Manuel",
+          "postalCode": "1113"
+        },
+        {
+          "locality": "Doña Aurora",
+          "postalCode": "1113"
+        },
+        {
+          "locality": "Doña Faustina Subd.",
+          "postalCode": "1125"
+        },
+        {
+          "locality": "Doña Imelda",
+          "postalCode": "1113"
+        },
+        {
+          "locality": "Doña Josefa",
+          "postalCode": "1113"
+        },
+        {
+          "locality": "Duyan-Duyan",
+          "postalCode": "1102"
+        },
+        {
+          "locality": "E. Rodriguez",
+          "postalCode": "1102"
+        },
+        {
+          "locality": "Escopa I to IV",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "Fairview",
+          "postalCode": "1118"
+        },
+        {
+          "locality": "Fairview North",
+          "postalCode": "1121"
+        },
+        {
+          "locality": "Fairview South",
+          "postalCode": "1122"
+        },
+        {
+          "locality": "Gintong Silahis",
+          "postalCode": "1114"
+        },
+        {
+          "locality": "Gulod",
+          "postalCode": "1117"
+        },
+        {
+          "locality": "Holy Spirit",
+          "postalCode": "1127"
+        },
+        {
+          "locality": "Horseshoe",
+          "postalCode": "1112"
+        },
+        {
+          "locality": "Immaculate Conception",
+          "postalCode": "1111"
+        },
+        {
+          "locality": "Kaligayahan",
+          "postalCode": "1124"
+        },
+        {
+          "locality": "Kalusugan",
+          "postalCode": "1112"
+        },
+        {
+          "locality": "Kamias",
+          "postalCode": "1102"
+        },
+        {
+          "locality": "Kamuning",
+          "postalCode": "1103"
+        },
+        {
+          "locality": "Katipunan",
+          "postalCode": "1105"
+        },
+        {
+          "locality": "Kaunlaran",
+          "postalCode": "1111"
+        },
+        {
+          "locality": "Kristong Hari",
+          "postalCode": "1112"
+        },
+        {
+          "locality": "Krus na Ligas",
+          "postalCode": "1101"
+        },
+        {
+          "locality": "Laging Handa",
+          "postalCode": "1103"
+        },
+        {
+          "locality": "La Loma",
+          "postalCode": "1114"
+        },
+        {
+          "locality": "Libis",
+          "postalCode": "1110"
+        },
+        {
+          "locality": "Lourdes",
+          "postalCode": "1114"
+        },
+        {
+          "locality": "Loyola Heights",
+          "postalCode": "1108"
+        },
+        {
+          "locality": "Maharlika",
+          "postalCode": "1114"
+        },
+        {
+          "locality": "Malaya",
+          "postalCode": "1101"
+        },
+        {
+          "locality": "Mangga",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "Manresa",
+          "postalCode": "1115"
+        },
+        {
+          "locality": "Mariana",
+          "postalCode": "1112"
+        },
+        {
+          "locality": "Mariblo",
+          "postalCode": "1104"
+        },
+        {
+          "locality": "Marilag",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "Masagana",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "Masambong",
+          "postalCode": "1105"
+        },
+        {
+          "locality": "Matalahib / Sto. Domingo",
+          "postalCode": "1114"
+        },
+        {
+          "locality": "Matandang Balara",
+          "postalCode": "1119"
+        },
+        {
+          "locality": "Milagrosa",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "Nagkaisang Nayon",
+          "postalCode": "1125"
+        },
+        {
+          "locality": "Nayon Kaunlaran",
+          "postalCode": "1104"
+        },
+        {
+          "locality": "New Era",
+          "postalCode": "1107"
+        },
+        {
+          "locality": "Novaliches Town Proper",
+          "postalCode": "1123"
+        },
+        {
+          "locality": "Obrero",
+          "postalCode": "1103"
+        },
+        {
+          "locality": "Old Capitol Site",
+          "postalCode": "1101"
+        },
+        {
+          "locality": "Pag-Ibig sa Nayon",
+          "postalCode": "1115"
+        },
+        {
+          "locality": "Paligsahan",
+          "postalCode": "1103"
+        },
+        {
+          "locality": "Paltok",
+          "postalCode": "1105"
+        },
+        {
+          "locality": "Pansol",
+          "postalCode": "1108"
+        },
+        {
+          "locality": "Paraiso",
+          "postalCode": "1104"
+        },
+        {
+          "locality": "Parang Bundok",
+          "postalCode": "1114"
+        },
+        {
+          "locality": "Pasong Putik",
+          "postalCode": "1118"
+        },
+        {
+          "locality": "Pasong Tamo",
+          "postalCode": "1107"
+        },
+        {
+          "locality": "Payatas",
+          "postalCode": "1119"
+        },
+        {
+          "locality": "Phil-Am / Philam",
+          "postalCode": "1104"
+        },
+        {
+          "locality": "Pinagkaisahan",
+          "postalCode": "1111"
+        },
+        {
+          "locality": "Piñahan",
+          "postalCode": "1100"
+        },
+        {
+          "locality": "Project 2 & 3 / Quirino District",
+          "postalCode": "1102"
+        },
+        {
+          "locality": "Project 4",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "Project 6",
+          "postalCode": "1100"
+        },
+        {
+          "locality": "Project 7",
+          "postalCode": "1105"
+        },
+        {
+          "locality": "Project 8",
+          "postalCode": "1106"
+        },
+        {
+          "locality": "Ramon Magsaysay",
+          "postalCode": "1105"
+        },
+        {
+          "locality": "Roxas District",
+          "postalCode": "1103"
+        },
+        {
+          "locality": "Sacred Heart",
+          "postalCode": "1103"
+        },
+        {
+          "locality": "Salvacion",
+          "postalCode": "1114"
+        },
+        {
+          "locality": "San Agustin",
+          "postalCode": "1117"
+        },
+        {
+          "locality": "San Antonio",
+          "postalCode": "1105"
+        },
+        {
+          "locality": "San Bartolome",
+          "postalCode": "1116"
+        },
+        {
+          "locality": "San Isidro",
+          "postalCode": "1113"
+        },
+        {
+          "locality": "San Isidro Labrador",
+          "postalCode": "1114"
+        },
+        {
+          "locality": "San Jose",
+          "postalCode": "1115"
+        },
+        {
+          "locality": "San Martin de Porres",
+          "postalCode": "1111"
+        },
+        {
+          "locality": "San Roque",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "San Vicente",
+          "postalCode": "1101"
+        },
+        {
+          "locality": "Sangandaan",
+          "postalCode": "1116"
+        },
+        {
+          "locality": "Santa Cruz",
+          "postalCode": "1104"
+        },
+        {
+          "locality": "Santa Lucia",
+          "postalCode": "1117"
+        },
+        {
+          "locality": "Santa Monica",
+          "postalCode": "1117"
+        },
+        {
+          "locality": "Santa Teresita",
+          "postalCode": "1114"
+        },
+        {
+          "locality": "Santol",
+          "postalCode": "1113"
+        },
+        {
+          "locality": "Sauyo",
+          "postalCode": "1116"
+        },
+        {
+          "locality": "Sienna",
+          "postalCode": "1114"
+        },
+        {
+          "locality": "Sikatuna Village",
+          "postalCode": "1101"
+        },
+        {
+          "locality": "Silangan",
+          "postalCode": "1102"
+        },
+        {
+          "locality": "Socorro",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "South Triangle",
+          "postalCode": "1103"
+        },
+        {
+          "locality": "St. Ignatius",
+          "postalCode": "1110"
+        },
+        {
+          "locality": "St. Peter",
+          "postalCode": "1114"
+        },
+        {
+          "locality": "Sto. Cristo",
+          "postalCode": "1105"
+        },
+        {
+          "locality": "Santo Niño",
+          "postalCode": "1113"
+        },
+        {
+          "locality": "Tagumpay",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "Talampas",
+          "postalCode": "1110"
+        },
+        {
+          "locality": "Talayan",
+          "postalCode": "1104"
+        },
+        {
+          "locality": "Talipapa",
+          "postalCode": "1116"
+        },
+        {
+          "locality": "Tandang Sora",
+          "postalCode": "1116"
+        },
+        {
+          "locality": "Tatalon",
+          "postalCode": "1113"
+        },
+        {
+          "locality": "Teacher’s Village",
+          "postalCode": "1101"
+        },
+        {
+          "locality": "Ugong Norte",
+          "postalCode": "1110"
+        },
+        {
+          "locality": "Unang Sigaw",
+          "postalCode": "1106"
+        },
+        {
+          "locality": "UP Campus / UP Village",
+          "postalCode": "1101"
+        },
+        {
+          "locality": "Valencia",
+          "postalCode": "1112"
+        },
+        {
+          "locality": "Vasra",
+          "postalCode": "1128"
+        },
+        {
+          "locality": "Veterans Village",
+          "postalCode": "1105"
+        },
+        {
+          "locality": "Villa Maria Clara",
+          "postalCode": "1109"
+        },
+        {
+          "locality": "Violago Homes",
+          "postalCode": "1120"
+        },
+        {
+          "locality": "West Triangle",
+          "postalCode": "1104"
+        },
+        {
+          "locality": "White Plains",
+          "postalCode": "1110"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381400000",
+      "name": "City of San Juan",
+      "postalZones": [
+        {
+          "locality": "Addition Hills",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Balong-Bato",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Batis",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Cabrera",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Corazon de Jesus",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Ermitaño",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Greenhills",
+          "postalCode": "1502"
+        },
+        {
+          "locality": "Isabelita",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Kabayanan",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Little Baguio",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Maytunas",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Onse",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Pasadeña",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Pedro Cruz",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Progreso",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Rivera",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Salapan",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "San Jose",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "San Juan Central Post Office (CPO)",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Santa Lucia",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "Tibagan",
+          "postalCode": "1500"
+        },
+        {
+          "locality": "West Crame",
+          "postalCode": "1505"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381500000",
+      "name": "City of Taguig",
+      "postalZones": [
+        {
+          "locality": "Bagumbayan",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Bambang",
+          "postalCode": "1637"
+        },
+        {
+          "locality": "Bonifacio Global City Central / High Street",
+          "postalCode": "1635"
+        },
+        {
+          "locality": "Calzada",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Cembo",
+          "postalCode": "1214"
+        },
+        {
+          "locality": "Central Bichara",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Central Signal Village",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Comembo",
+          "postalCode": "1217"
+        },
+        {
+          "locality": "East Rembo",
+          "postalCode": "1216"
+        },
+        {
+          "locality": "Forbes Town Center / Burgos Circle (BGC)",
+          "postalCode": "1634"
+        },
+        {
+          "locality": "Fort Bonifacio / BGC General",
+          "postalCode": "1634"
+        },
+        {
+          "locality": "Hagonoy",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Ibayo-Tipas",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Katuparan",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Ligid-Tipas",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Lower Bicutan",
+          "postalCode": "1632"
+        },
+        {
+          "locality": "Maharlika Village",
+          "postalCode": "1636"
+        },
+        {
+          "locality": "McKinley Hill / McKinley West",
+          "postalCode": "1634"
+        },
+        {
+          "locality": "Napindan",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "New Lower Bicutan",
+          "postalCode": "1632"
+        },
+        {
+          "locality": "North Daang Hari",
+          "postalCode": "1632"
+        },
+        {
+          "locality": "North Signal Village",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Palar Village (BGC Sector)",
+          "postalCode": "1635"
+        },
+        {
+          "locality": "Palingon",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Pembo",
+          "postalCode": "1201"
+        },
+        {
+          "locality": "Pinagsama",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Pitogo",
+          "postalCode": "1213"
+        },
+        {
+          "locality": "Post Proper Northside (Rizal)",
+          "postalCode": "1218"
+        },
+        {
+          "locality": "Post Proper Southside (Pensag)",
+          "postalCode": "1218"
+        },
+        {
+          "locality": "San Miguel",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Santa Ana",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "South Cembo",
+          "postalCode": "1214"
+        },
+        {
+          "locality": "South Daang Hari",
+          "postalCode": "1632"
+        },
+        {
+          "locality": "South Signal Village",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Taktakan",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Tanyag",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "Tibagan",
+          "postalCode": "1201"
+        },
+        {
+          "locality": "Tuktukan",
+          "postalCode": "1637"
+        },
+        {
+          "locality": "Upper Bicutan",
+          "postalCode": "1633"
+        },
+        {
+          "locality": "Uptown Bonifacio / North BGC",
+          "postalCode": "1634"
+        },
+        {
+          "locality": "Ususan",
+          "postalCode": "1639"
+        },
+        {
+          "locality": "Wawa",
+          "postalCode": "1630"
+        },
+        {
+          "locality": "West Rembo",
+          "postalCode": "1215"
+        },
+        {
+          "locality": "Western Bicutan",
+          "postalCode": "1630"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381600000",
+      "name": "City of Valenzuela",
+      "postalZones": [
+        {
+          "locality": "Arkong Bato",
+          "postalCode": "1444"
+        },
+        {
+          "locality": "Bagbaguin",
+          "postalCode": "1447"
+        },
+        {
+          "locality": "Balangkas",
+          "postalCode": "1445"
+        },
+        {
+          "locality": "Bignay",
+          "postalCode": "1447"
+        },
+        {
+          "locality": "Bisig",
+          "postalCode": "1440"
+        },
+        {
+          "locality": "Canumay East",
+          "postalCode": "1443"
+        },
+        {
+          "locality": "Canumay West",
+          "postalCode": "1443"
+        },
+        {
+          "locality": "Coloong",
+          "postalCode": "1445"
+        },
+        {
+          "locality": "Dalandanan",
+          "postalCode": "1443"
+        },
+        {
+          "locality": "Hen. T. de Leon",
+          "postalCode": "1442"
+        },
+        {
+          "locality": "Isla",
+          "postalCode": "1444"
+        },
+        {
+          "locality": "Karuhatan",
+          "postalCode": "1441"
+        },
+        {
+          "locality": "Lawang Bato",
+          "postalCode": "1447"
+        },
+        {
+          "locality": "Lingunan",
+          "postalCode": "1446"
+        },
+        {
+          "locality": "Mabolo",
+          "postalCode": "1444"
+        },
+        {
+          "locality": "Malanday",
+          "postalCode": "1444"
+        },
+        {
+          "locality": "Malinta",
+          "postalCode": "1440"
+        },
+        {
+          "locality": "Mapulang Lupa",
+          "postalCode": "1448"
+        },
+        {
+          "locality": "Marulas",
+          "postalCode": "1440"
+        },
+        {
+          "locality": "Maysan",
+          "postalCode": "1440"
+        },
+        {
+          "locality": "Palasan",
+          "postalCode": "1444"
+        },
+        {
+          "locality": "Parada",
+          "postalCode": "1440"
+        },
+        {
+          "locality": "Pariancillo Villa",
+          "postalCode": "1444"
+        },
+        {
+          "locality": "Paso de Blas",
+          "postalCode": "1442"
+        },
+        {
+          "locality": "Pasolo",
+          "postalCode": "1444"
+        },
+        {
+          "locality": "Poblacion",
+          "postalCode": "1444"
+        },
+        {
+          "locality": "Pulo",
+          "postalCode": "1444"
+        },
+        {
+          "locality": "Punturin",
+          "postalCode": "1447"
+        },
+        {
+          "locality": "Rincón",
+          "postalCode": "1444"
+        },
+        {
+          "locality": "Tagalag",
+          "postalCode": "1444"
+        },
+        {
+          "locality": "Ugong",
+          "postalCode": "1442"
+        },
+        {
+          "locality": "Valenzuela Central Post Office (CPO)",
+          "postalCode": "1440"
+        },
+        {
+          "locality": "Viente Reales",
+          "postalCode": "1444"
+        },
+        {
+          "locality": "Wawang Pulo",
+          "postalCode": "1444"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381701000",
+      "name": "Pateros",
+      "postalZones": [
+        {
+          "locality": "Aguho",
+          "postalCode": "1620"
+        },
+        {
+          "locality": "Alvarez",
+          "postalCode": "1620"
+        },
+        {
+          "locality": "Esguerra",
+          "postalCode": "1620"
+        },
+        {
+          "locality": "Martirez del 96",
+          "postalCode": "1620"
+        },
+        {
+          "locality": "Pateros Central Post Office / CPO",
+          "postalCode": "1620"
+        },
+        {
+          "locality": "Poblacion",
+          "postalCode": "1620"
+        },
+        {
+          "locality": "San Pedro",
+          "postalCode": "1620"
+        },
+        {
+          "locality": "San Roque",
+          "postalCode": "1620"
+        },
+        {
+          "locality": "Santa Ana",
+          "postalCode": "1620"
+        },
+        {
+          "locality": "Santo Rosario-Kanluran",
+          "postalCode": "1620"
+        },
+        {
+          "locality": "Santo Rosario-Silangan",
+          "postalCode": "1620"
+        }
+      ]
+    }
+  ]
+}

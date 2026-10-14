@@ -44,11 +44,9 @@ export const ScoringQualityPage: React.FC = () => {
   const m = qualityQuery.data;
   const dist = m.scoreDistribution || {};
   const totalCalculated = m.totalCalculated ?? 0;
-  const avgFit = Number.isFinite(Number(m.averageFitScore)) ? Number(m.averageFitScore) : 0;
-  const minFit = Number.isFinite(Number(m.minFitScore)) ? Number(m.minFitScore) : 0;
-  const maxFit = Number.isFinite(Number(m.maxFitScore)) ? Number(m.maxFitScore) : 0;
-  const coverage = Number.isFinite(Number(m.coveragePercentage)) ? Number(m.coveragePercentage) : 100;
-  const p95Latency = m.knnLatencyP95 || 42;
+  const metric = (value: number | undefined | null, decimals = 0) =>
+    value != null && Number.isFinite(Number(value)) ? Number(value).toFixed(decimals) + "%" : "Not available";
+  const p95Latency = m.knnLatencyP95;
 
   if (totalCalculated === 0) {
     return (
@@ -84,7 +82,7 @@ export const ScoringQualityPage: React.FC = () => {
           { label: "Match results" },
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -108,39 +106,39 @@ export const ScoringQualityPage: React.FC = () => {
       />
 
        {/* Core Metrics */}
-       <div className="border border-slate-300 bg-white grid grid-cols-2 lg:grid-cols-3 divide-y lg:divide-y-0 divide-x divide-slate-300">
+       <div className="admin-panel grid grid-cols-2 lg:grid-cols-3 divide-y lg:divide-y-0 divide-x divide-slate-300">
         <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
+          <div className="text-xs font-sans font-bold text-slate-500  ">
             Candidates scored
           </div>
           <div className="text-2xl font-bold font-sans text-slate-950 mt-0.5 tabular-nums">
             {totalCalculated}
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
+          <div className="text-xs text-slate-500 mt-0.5 font-sans">
             Applications evaluated
           </div>
         </div>
 
         <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-wider">
+          <div className="text-xs font-sans font-bold text-teal-800  ">
             Average match score
           </div>
           <div className="text-2xl font-bold font-sans text-teal-950 mt-0.5 tabular-nums">
-            {avgFit.toFixed(1)}%
+            {metric(m.averageFitScore, 1)}
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
-            Min: {minFit.toFixed(0)}% • Max: {maxFit.toFixed(0)}%
+          <div className="text-xs text-slate-500 mt-0.5 font-sans">
+            Min: {metric(m.minFitScore)} · Max: {metric(m.maxFitScore)}
           </div>
         </div>
 
         <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-blue-800 uppercase tracking-wider">
+          <div className="text-xs font-sans font-bold text-blue-800  ">
             Candidates ready for matching
           </div>
           <div className="text-2xl font-bold font-sans text-blue-950 mt-0.5 tabular-nums">
-            {coverage.toFixed(0)}%
+            {metric(m.coveragePercentage)}
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
+          <div className="text-xs text-slate-500 mt-0.5 font-sans">
             Profiles ready for matching
           </div>
         </div>
@@ -148,10 +146,10 @@ export const ScoringQualityPage: React.FC = () => {
       </div>
 
       {/* Score Distribution Histogram */}
-      <div className="border border-slate-300 bg-white">
-        <div className="p-3 border-b border-slate-300 flex items-center gap-2 bg-slate-100">
+      <div className="admin-panel">
+        <div className="p-3 border-b border-slate-300 flex flex-wrap items-center gap-2 bg-slate-100">
           <BarChart3 className="w-4 h-4 text-teal-700" />
-          <h3 className="text-xs font-semibold font-sans text-slate-900">
+          <h3 className="text-sm font-semibold font-sans text-slate-900">
             Score distribution
           </h3>
         </div>
@@ -168,9 +166,9 @@ export const ScoringQualityPage: React.FC = () => {
             const percentage = totalCalculated > 0 ? (count / totalCalculated) * 100 : 0;
 
             return (
-              <div key={bucket.key} className="space-y-1 text-xs">
-                <div className="flex justify-between font-mono">
-                  <span className="font-semibold text-slate-800 uppercase">{bucket.range}</span>
+              <div key={bucket.key} className="space-y-1 text-sm">
+                <div className="flex flex-wrap justify-between gap-2 font-sans">
+                  <span className="font-semibold text-slate-800 ">{bucket.range}</span>
                   <span className="text-slate-600 tabular-nums font-bold">
                     {count} candidates ({percentage.toFixed(1)}%)
                   </span>
@@ -187,19 +185,21 @@ export const ScoringQualityPage: React.FC = () => {
         </div>
       </div>
 
-      <details className="border border-slate-300 bg-white p-4">
+      <details className="admin-panel p-4">
         <summary className="cursor-pointer text-sm font-semibold text-slate-900">Technical performance</summary>
-        <p className="mt-2 text-sm text-slate-600">The slowest 5% of match calculations take about {p95Latency} milliseconds.</p>
+        <p className="mt-2 text-sm text-slate-600">{p95Latency != null && Number.isFinite(p95Latency)
+          ? `95% of match calculations finish within ${p95Latency} milliseconds.`
+          : "Calculation timing is not available."}</p>
       </details>
 
       {/* Matching guidance */}
-      <div className="border border-slate-300 bg-white p-4 space-y-2">
-        <h4 className="text-xs font-semibold font-sans text-slate-900 border-b border-slate-200 pb-1.5">
+      <div className="admin-panel p-4 space-y-2">
+        <h4 className="text-sm font-semibold font-sans text-slate-900 border-b border-slate-200 pb-1.5">
           How matching works
         </h4>
-        <p className="text-xs text-slate-600 leading-relaxed font-sans">
+        <p className="text-sm text-slate-600 leading-relaxed font-sans">
             Candidate match scores consider skills, experience, location, requirements, and education. You can change their importance in{" "}
-          <Link to="/admin/scoring" className="font-mono text-teal-900 font-bold underline hover:text-teal-700">
+          <Link to="/admin/scoring" className="font-sans text-teal-900 font-bold underline hover:text-teal-700">
             Matching settings
           </Link>{" "}
           to match specific hiring requirements.

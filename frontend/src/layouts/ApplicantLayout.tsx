@@ -62,6 +62,7 @@ export const ApplicantLayout: React.FC = () => {
     { to: "/app", label: "Dashboard", icon: Layers },
     { to: "/app/jobs", label: "Explore Jobs", icon: Briefcase },
     { to: "/app/applications", label: "My Applications", icon: FileText },
+    { to: "/app/documents", label: "My Documents", icon: FileText },
     { to: "/app/profile", label: "My Profile", icon: User },
   ];
 

@@ -1,591 +1,769 @@
 import prisma from "../../utils/prisma.js";
-import type { AnalyticsFilterDto } from "./analytics.service.js";
+import { parseDateRange, type AnalyticsFilterDto } from "./analytics.service.js";
 import {
-  getReportMetadata,
-  ReportRoleScope,
-} from "./report-theme.js";
+  buildJobClause,
+  getAdminReportData,
+  getTAReportData,
+  type AdminDeliveryResult,
+  type CandidateStatus,
+  type DeliveryDetail,
+  type RequestAttention,
+  type TADeliveryResult,
+} from "./delivery.service.js";
+import { STAGE_ROWS, manilaDayDiff, stageRowFor } from "./metric-definitions.js";
+import { manilaDateString } from "../../schemas/field-limits.js";
+import { ownedWhere } from "../ta/ownership.js";
+import { getReportMetadata, type ReportMetadata, type ReportRoleScope } from "./report-theme.js";
 import {
   createHRDocument,
   renderCorporateHeader,
-  renderSummaryKPIs,
-  renderGridTable,
   renderFootersAndPagination,
-  ColumnDef,
+  renderGridTable,
+  renderSectionTitle,
+  renderSummaryKPIs,
 } from "./report-pdf-builder.js";
 import {
-  createHRExcelWorkbook,
+  applyDataRowsAndFormatting,
   applySpreadsheetHeaderBlock,
   applyTableHeaders,
-  applyDataRowsAndFormatting,
+  createHRExcelWorkbook,
   writeWorkbookToBuffer,
-  ExcelColumnDef,
+  type ExcelColumnDef,
 } from "./report-excel-builder.js";
 
-const safeFormatDate = (date: Date | string | null | undefined): string => {
-  if (!date) return "N/A";
-  try {
-    const d = typeof date === "string" ? new Date(date) : date;
-    return isNaN(d.getTime()) ? "N/A" : d.toISOString().split("T")[0];
-  } catch {
-    return "N/A";
-  }
+// ─────────────────────────────────────────────
+// Reports are built from the dashboard's own computation (getAdminReportData / getTAReportData), so a figure in a
+// report is the same number the dashboard shows. Each table is defined once and drawn by both the PDF and the Excel
+// writer, so the two formats cannot disagree either.
+// ─────────────────────────────────────────────
+
+type Cell = string | number | null;
+
+interface Column {
+  header: string;
+  /** A shorter heading for the PDF, where columns are narrow. Excel keeps the full heading. */
+  short?: string;
+  key: string;
+  /** Relative width. Scaled to the page in the PDF and to a column width in Excel. */
+  weight: number;
+  align?: "left" | "center" | "right";
+  badge?: boolean;
+}
+
+interface Section {
+  sheet: string;
+  title: string;
+  note?: string;
+  /** False for long raw lists that are Excel-only. The PDF says so instead of printing hundreds of pages. */
+  inPdf?: boolean;
+  columns: Column[];
+  rows: Record<string, Cell>[];
+}
+
+interface Kpi {
+  label: string;
+  value: string | number;
+  detail: string;
+  basis: "Now" | "In period";
+  definition: string;
+}
+
+interface ReportModel {
+  kpis: Kpi[];
+  sections: Section[];
+  /** The period and filters the numbers cover, in words. */
+  filterSummary: string;
+}
+
+type ReportResult = (AdminDeliveryResult | TADeliveryResult) & { team?: AdminDeliveryResult["team"]; unassigned?: AdminDeliveryResult["unassigned"] };
+type Requester = { id: string; email: string; role?: string };
+
+const PDF_ROW_LIMIT = 1000;
+const TA = "TALENT_ACQUISITION";
+
+// ─────────────────────────────────────────────
+// Text helpers
+// ─────────────────────────────────────────────
+/** Drops characters that break Excel's XML or a one-line PDF cell. */
+const clean = (value: string): string => value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").replace(/[\r\n\t]+/g, " ").trim();
+const sentenceCase = (code: string): string => {
+  const text = code.toLowerCase().replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+const date = (d: Date | string | null | undefined): string => (d ? manilaDateString(typeof d === "string" ? new Date(d) : d) : "");
+const stageLabelOf = (status: string): string => {
+  const row = stageRowFor(status);
+  return row ? STAGE_ROWS.find((r) => r.key === row)!.label : sentenceCase(status);
 };
 
-const resolveRoleScope = (
-  requestedBy: { id: string; email: string; role?: string },
-  explicitScope?: ReportRoleScope
-): ReportRoleScope => {
-  if (explicitScope) return explicitScope;
-  if (requestedBy.role === "ADMINISTRATOR") return "ADMINISTRATOR";
-  return "TALENT_ACQUISITION";
+const HEALTH_LABEL = { OVERDUE: "Overdue", AT_RISK: "At risk", ON_TRACK: "On track", FILLED: "Filled" } as const;
+const ATTENTION_LABEL: Record<Exclude<RequestAttention, null>, string> = {
+  NO_OPENING: "No opening posted",
+  NO_APPLICANTS: "No applicants",
+  FIRST_STAGE_ONLY: "First stage only",
 };
-
-const buildFilterDescription = (filters?: AnalyticsFilterDto): string => {
-  if (!filters) return "Default: Last 30 Days (All Records)";
-  const parts: string[] = [];
-  if (filters.mrfId) parts.push(`MRF #${filters.mrfId}`);
-  if (filters.jobPostingId) parts.push(`Job #${filters.jobPostingId}`);
-  if (filters.stage) parts.push(`Stage: ${filters.stage}`);
-  if (filters.clientId) parts.push(`Client #${filters.clientId}`);
-  if (filters.recruiterId) parts.push(`Recruiter: ${filters.recruiterId}`);
-  if (filters.mineOnly) parts.push("My Requisitions Only");
-  if (filters.startDate && filters.endDate) {
-    parts.push(`Date: ${filters.startDate} to ${filters.endDate}`);
-  } else if (filters.range) {
-    parts.push(`Range: ${filters.range.toUpperCase()}`);
-  }
-  return parts.length > 0 ? parts.join(" | ") : "All Records (Last 30 Days)";
+const CANDIDATE_STATUS_LABEL: Record<CandidateStatus, string> = {
+  OVERDUE: "Overdue",
+  OVERDUE_BY_AGE: "Overdue (age only)",
+  ON_TIME: "On time",
+  CLOSED_OPENING: "Closed opening",
+  AWAITING_START: "Awaiting start",
 };
+const PARTY_LABEL: Record<string, string> = { APPLICANT: "Applicant", CLIENT: "Client", AGENCY: "MEGS (agency)" };
+const POST_SELECTION = ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "CONTRACT_SIGNING", "DEPLOYED"];
 
-const buildApplicationWhere = (filters?: AnalyticsFilterDto, requestedBy?: { id: string }) => {
-  const where: any = {};
-  const jobWhere: any = {};
+// ─────────────────────────────────────────────
+// Scope and filters
+// ─────────────────────────────────────────────
+/** Authorization follows the signed-in user, never the layout the caller asks for. */
+const isAdminUser = (requestedBy: Requester) => requestedBy.role === "ADMINISTRATOR";
+const roleScopeOf = (requestedBy: Requester): ReportRoleScope => (isAdminUser(requestedBy) ? "ADMINISTRATOR" : "TALENT_ACQUISITION");
 
-  if (filters?.mrfId) {
-    jobWhere.mrfId = filters.mrfId;
+async function describeFilters(filters: AnalyticsFilterDto, requestedBy: Requester, start: Date, end: Date): Promise<string> {
+  const admin = isAdminUser(requestedBy);
+  // A TA can only have names resolved for their own records, so a guessed id never reveals someone else's client.
+  const actor = { id: requestedBy.id, role: admin ? "ADMINISTRATOR" : TA };
+  const [client, request, job, recruiter] = await Promise.all([
+    filters.clientId ? prisma.client.findFirst({ where: { id: filters.clientId, ...ownedWhere.client(actor) } as any, select: { name: true } }) : null,
+    filters.mrfId ? prisma.manpowerRequest.findFirst({ where: { id: filters.mrfId, ...ownedWhere.mrf(actor) } as any, select: { title: true } }) : null,
+    filters.jobPostingId ? prisma.jobPosting.findFirst({ where: { id: filters.jobPostingId, ...ownedWhere.job(actor) } as any, select: { title: true } }) : null,
+    admin && filters.recruiterId
+      ? prisma.user.findFirst({
+          where: { id: filters.recruiterId, role: TA },
+          select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } },
+        })
+      : null,
+  ]);
+  const parts = [`Period: ${manilaDateString(start)} to ${manilaDateString(end)}`];
+  if (filters.clientId) parts.push(`Client: ${client?.name ?? "not available"}`);
+  if (filters.mrfId) parts.push(`Request: ${request?.title ?? "not available"}`);
+  if (filters.jobPostingId) parts.push(`Opening: ${job?.title ?? "not available"}`);
+  if (admin) {
+    const name = recruiter ? `${recruiter.applicantProfile?.firstName ?? ""} ${recruiter.applicantProfile?.lastName ?? ""}`.trim() || recruiter.email : null;
+    parts.push(filters.recruiterId ? `Recruiter: ${name ?? "not available"}` : "All recruiters");
+  } else {
+    parts.push("Your records only");
   }
-  if (filters?.clientId) {
-    jobWhere.mrf = { clientId: filters.clientId };
-  }
-  if (filters?.recruiterId) {
-    jobWhere.postedById = filters.recruiterId;
-  } else if (filters?.mineOnly && requestedBy?.id) {
-    jobWhere.postedById = requestedBy.id;
-  }
+  return parts.join(" | ");
+}
 
-  if (Object.keys(jobWhere).length > 0) {
-    where.jobPosting = jobWhere;
-  }
+// ─────────────────────────────────────────────
+// KPI and table definitions (shared by PDF and Excel)
+// ─────────────────────────────────────────────
+function kpisFor(result: ReportResult, admin: boolean, extra: Kpi[] = []): Kpi[] {
+  const k = result.kpis;
+  const list: Kpi[] = [
+    {
+      label: "Active applicants",
+      value: k.activeApplicants,
+      detail: k.unlinkedApplicants > 0 ? `${k.unlinkedApplicants} on openings with no request` : "In the pipeline now",
+      basis: "Now",
+      definition: "Candidates between application and start, not yet deployed. Excludes anyone awaiting a start date.",
+    },
+    {
+      label: "Open requests",
+      value: k.requisitions.open,
+      detail: `${k.filledSeats} of ${k.requestedSeats} seats filled (${k.fillRate}%)`,
+      basis: "Now",
+      definition: "Requests with seats still to fill. Seats count as filled while a placement holds them.",
+    },
+    {
+      label: "Overdue candidates",
+      value: k.overdueCandidates,
+      detail: k.overdueEstimated > 0 ? `+${k.overdueEstimated} by application age only` : "Past their stage limit",
+      basis: "Now",
+      definition: "Candidates past the allowed days for their stage, counted from a recorded stage change. Age-only cases are listed apart.",
+    },
+    {
+      label: "Starts",
+      value: k.placementsStarted,
+      detail: `${k.newStarts} new, ${k.redeployStarts} redeployed`,
+      basis: "In period",
+      definition: "Workers whose actual start date falls in the period. A redeployed worker counts once.",
+    },
+    {
+      label: "Backouts",
+      value: k.backoutsAfterClientReview,
+      detail: `${k.backoutsAfterClientReview} of ${k.backoutRateBase} (${k.backoutRate}%)`,
+      basis: "In period",
+      definition: "Candidates who left after client review, out of those plus starts that came from an application.",
+    },
+    {
+      label: "Withdrawals",
+      value: result.backouts.withdrawals,
+      detail: `${result.backouts.noShows} recorded as no-show`,
+      basis: "In period",
+      definition: "Candidates who left before the client reviewed them. Client declines are counted separately.",
+    },
+  ];
+  return [...list, ...extra];
+}
 
-  if (filters?.jobPostingId) {
-    where.jobPostingId = filters.jobPostingId;
-  }
+function requestsSection(result: ReportResult, admin: boolean): Section {
+  const columns: Column[] = [
+    { header: "Request", key: "title", weight: 135 },
+    { header: "Client", key: "client", weight: 105 },
+    ...(admin ? [{ header: "Assigned to", key: "owner", weight: 100 }] : []),
+    { header: "Seats", key: "headcount", weight: 36, align: "right" as const },
+    { header: "Filled", key: "filled", weight: 38, align: "right" as const },
+    { header: "Open", key: "open", weight: 34, align: "right" as const },
+    { header: "Pipeline", key: "pipeline", weight: 50, align: "right" as const },
+    { header: "Overdue", key: "overdue", weight: 48, align: "right" as const },
+    { header: "Applicants", key: "applicants", weight: 58, align: "right" as const },
+    { header: "Status", key: "status", weight: 55, align: "center" as const, badge: true },
+    { header: "Due", key: "due", weight: 56, align: "center" as const },
+    { header: "Needs attention", key: "attention", weight: 95 },
+  ];
+  return {
+    sheet: "Requests",
+    title: "Client requests",
+    note: "Open requests, plus any filled in the period. Seats filled come from placements, never from the request status. Overdue counts candidates; Due is the target date.",
+    columns,
+    rows: result.requests.map((r) => ({
+      title: clean(r.title),
+      client: clean(r.clientName),
+      owner: clean(r.ownerName),
+      headcount: r.headcount,
+      filled: r.filled,
+      open: r.openSeats,
+      pipeline: r.pipeline,
+      overdue: r.overdueCandidates,
+      applicants: r.applicantCount,
+      status: HEALTH_LABEL[r.health],
+      due: date(r.targetFillDate),
+      attention: r.attention ? ATTENTION_LABEL[r.attention] : "",
+    })),
+  };
+}
 
-  if (filters?.stage) {
-    where.status = filters.stage;
-  }
+function overdueSection(detail: DeliveryDetail, admin: boolean): Section {
+  return {
+    sheet: "Overdue candidates",
+    title: "Overdue candidates",
+    note: "Verified cases come first. Age-only cases have no recorded stage change, so their days run from the application date and may overstate the wait.",
+    columns: [
+      { header: "Candidate", key: "candidate", weight: 120 },
+      { header: "Job opening", key: "job", weight: 115 },
+      { header: "Client", key: "client", weight: 95 },
+      ...(admin ? [{ header: "Recruiter", key: "recruiter", weight: 90 }] : []),
+      { header: "Stage", key: "stage", weight: 90 },
+      { header: "Days in stage", key: "days", weight: 66, align: "right" as const },
+      { header: "Limit", key: "limit", weight: 40, align: "right" as const },
+      { header: "Days over", key: "over", weight: 56, align: "right" as const },
+      { header: "Basis", key: "basis", weight: 105 },
+      { header: "Urgency", key: "urgency", weight: 55, align: "center" as const, badge: true },
+    ],
+    rows: detail.overdue.map((o) => ({
+      candidate: clean(o.candidateName),
+      job: clean(o.jobTitle),
+      client: clean(o.clientName ?? ""),
+      recruiter: clean(o.recruiterName),
+      stage: o.stageLabel,
+      days: o.daysInStage,
+      limit: o.slaDays,
+      over: o.daysOver,
+      basis: o.estimated ? "Application age only" : "Verified stage change",
+      urgency: o.urgency === "critical" ? "Critical" : "Overdue",
+    })),
+  };
+}
 
-  if (filters?.startDate && filters?.endDate) {
-    where.createdAt = {
-      gte: new Date(filters.startDate),
-      lte: new Date(`${filters.endDate}T23:59:59.999Z`),
-    };
-  } else if (filters?.range && filters.range !== "custom") {
-    const days = filters.range === "7d" ? 7 : filters.range === "90d" ? 90 : 30;
-    const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    where.createdAt = { gte: start };
-  }
+function stageSection(result: ReportResult): Section {
+  return {
+    sheet: "Stage durations",
+    title: "Stage durations",
+    note: "In stage, overdue and days are as of today. Age only means overdue by application age with no recorded stage change. Entered and backed out cover the period.",
+    columns: [
+      { header: "Stage", key: "stage", weight: 120 },
+      { header: "In stage", key: "inStage", weight: 50, align: "right" },
+      { header: "Overdue", key: "overdue", weight: 50, align: "right" },
+      { header: "Age only", key: "estimated", weight: 55, align: "right" },
+      { header: "Median days", key: "median", weight: 60, align: "right" },
+      { header: "Average days", key: "avg", weight: 60, align: "right" },
+      { header: "Limit (days)", key: "limit", weight: 70, align: "right" },
+      { header: "Entered", key: "entered", weight: 50, align: "right" },
+      { header: "Backed out", key: "backedOut", weight: 55, align: "right" },
+    ],
+    rows: result.stageTable.map((s) => ({
+      stage: s.label,
+      inStage: s.inStageNow,
+      overdue: s.stage === "DEPLOYED" ? null : s.overdue,
+      estimated: s.stage === "DEPLOYED" ? null : s.overdueEstimated,
+      median: s.medianDaysInStage,
+      avg: s.avgDaysInStage,
+      limit: s.stage === "DEPLOYED" ? "None" : s.stage === "CLIENT_ENDORSEMENT" ? "Per client" : s.slaDays,
+      entered: s.entered,
+      backedOut: s.backedOut,
+    })),
+  };
+}
 
-  return where;
-};
+function recruiterSections(result: ReportResult): Section[] {
+  const team = result.team ?? [];
+  const sections: Section[] = [
+    {
+      sheet: "Recruiters",
+      title: "Recruiter workload and results",
+      note: "Workload (active, overdue, seats) is as of today. Age only is overdue by application age with no recorded stage change. Sent, started and backed out cover the period.",
+      columns: [
+        { header: "Recruiter", key: "name", weight: 120 },
+        { header: "Active", key: "active", weight: 40, align: "right" },
+        { header: "Overdue", key: "overdue", weight: 44, align: "right" },
+        { header: "Age only", key: "estimated", weight: 50, align: "right" },
+        { header: "Open requests", short: "Open req.", key: "open", weight: 52, align: "right" },
+        { header: "Seats", key: "seats", weight: 40, align: "right" },
+        { header: "Filled", key: "filled", weight: 40, align: "right" },
+        { header: "Fill %", key: "fill", weight: 40, align: "right" },
+        { header: "Sent to client", short: "Sent", key: "sent", weight: 50, align: "right" },
+        { header: "New starts", short: "New", key: "newStarts", weight: 48, align: "right" },
+        { header: "Redeployed", short: "Redeploy", key: "redeploy", weight: 52, align: "right" },
+        { header: "Backed out", short: "Backed", key: "backouts", weight: 48, align: "right" },
+        { header: "Backout %", short: "Back %", key: "backoutRate", weight: 48, align: "right" },
+        { header: "Median days to fill", short: "Days to fill", key: "days", weight: 58, align: "right" },
+      ],
+      rows: team.map((t) => ({
+        name: clean(t.name),
+        active: t.active,
+        overdue: t.overdue,
+        estimated: t.overdueEstimated,
+        open: t.openRequisitions,
+        seats: t.requestedSeats,
+        filled: t.filledSeats,
+        fill: t.fillRate,
+        sent: t.sentToClient,
+        newStarts: t.newStarts,
+        redeploy: t.redeployStarts,
+        backouts: t.backouts,
+        backoutRate: t.backoutRate,
+        days: t.medianDaysToFill,
+      })),
+    },
+  ];
+  return sections;
+}
 
-const buildDeploymentWhere = (filters?: AnalyticsFilterDto, requestedBy?: { id: string }) => {
-  const where: any = {};
+function exceptionsSection(result: ReportResult, admin: boolean): Section {
+  const k = result.kpis;
+  const count = (attention: RequestAttention) => result.requests.filter((r) => r.attention === attention).length;
+  const rows: Record<string, Cell>[] = [
+    { item: "Critical overdue candidates", count: k.criticalCandidates, meaning: "Waited at least twice the stage limit. Includes candidates counted by application age only." },
+    { item: "Open requests with no opening posted", count: count("NO_OPENING"), meaning: "Nothing is advertised for these requests yet." },
+    { item: "Open requests with no applicants", count: count("NO_APPLICANTS"), meaning: "An opening exists but nobody has applied." },
+    { item: "Open requests with first-stage applicants only", count: count("FIRST_STAGE_ONLY"), meaning: "Applicants exist but none has passed initial review." },
+    { item: "Candidates on openings with no request", count: k.unlinkedApplicants, meaning: "No request counts these candidates, so request pipeline counts understate them." },
+    { item: "Candidates on closed openings", count: k.closedOpenings, meaning: "The opening is closed or its request is filled or cancelled. Not counted as overdue." },
+    { item: "Requests marked filled with no placement", count: k.staleFilledRequisitions, meaning: "Left out of seat counts. Usually leftover test or cleanup data." },
+  ];
+  return {
+    sheet: "Exceptions",
+    title: "Operational exceptions",
+    columns: [
+      { header: "Item", key: "item", weight: 260 },
+      { header: "Count", key: "count", weight: 60, align: "right" },
+      { header: "What it means", key: "meaning", weight: 430 },
+    ],
+    rows,
+  };
+}
 
-  if (filters?.mrfId) {
-    where.mrfId = filters.mrfId;
-  }
-  if (filters?.clientId) {
-    where.clientId = filters.clientId;
-  }
-  if (filters?.jobPostingId) {
-    where.application = { jobPostingId: filters.jobPostingId };
-  }
-  if (filters?.recruiterId) {
-    where.createdById = filters.recruiterId;
-  } else if (filters?.mineOnly && requestedBy?.id) {
-    where.createdById = requestedBy.id;
-  }
+function backoutSection(detail: DeliveryDetail, admin: boolean): Section {
+  return {
+    sheet: "Withdrawals and backouts",
+    title: "Withdrawals and backouts",
+    note: "Every record in the period. After client review counts as a backout; before client review counts as a withdrawal. Client declines are not listed here.",
+    columns: [
+      { header: "Date", key: "date", weight: 52, align: "center" },
+      { header: "Type", key: "type", weight: 78 },
+      { header: "Candidate", key: "candidate", weight: 100 },
+      { header: "Job opening", key: "job", weight: 100 },
+      { header: "Client", key: "client", weight: 85 },
+      { header: "Request", key: "request", weight: 100 },
+      { header: "Stage", key: "stage", weight: 80 },
+      { header: "Who pulled out", key: "party", weight: 70 },
+      { header: "Reason", key: "reason", weight: 100 },
+      { header: "No-show", key: "noShow", weight: 42, align: "center" },
+      ...(admin ? [{ header: "Recruiter", key: "recruiter", weight: 80 }] : []),
+      { header: "Recorded by", key: "recordedBy", weight: 80 },
+      { header: "Notes", key: "notes", weight: 140 },
+    ],
+    rows: detail.backouts.map((b) => ({
+      date: date(b.occurredAt),
+      type: POST_SELECTION.includes(b.stage) ? "Backout (after client review)" : "Withdrawal (before client review)",
+      candidate: clean(b.candidateName),
+      job: clean(b.jobTitle),
+      client: clean(b.clientName ?? ""),
+      request: clean(b.mrfTitle ?? ""),
+      stage: stageLabelOf(b.stage),
+      party: PARTY_LABEL[b.party] ?? b.party,
+      reason: sentenceCase(b.reason),
+      noShow: b.reason === "NO_SHOW" ? "Yes" : "",
+      recruiter: clean(b.recruiterName),
+      recordedBy: clean(b.recordedBy),
+      notes: clean(b.notes ?? ""),
+    })),
+  };
+}
 
-  if (filters?.startDate && filters?.endDate) {
-    where.createdAt = {
-      gte: new Date(filters.startDate),
-      lte: new Date(`${filters.endDate}T23:59:59.999Z`),
-    };
-  } else if (filters?.range && filters.range !== "custom") {
-    const days = filters.range === "7d" ? 7 : filters.range === "90d" ? 90 : 30;
-    const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    where.createdAt = { gte: start };
-  }
+function candidatesSection(detail: DeliveryDetail, admin: boolean): Section {
+  return {
+    sheet: "Active candidates",
+    inPdf: false,
+    title: "Candidates in the pipeline now",
+    note: "Every candidate currently in the pipeline. Rows other than 'Awaiting start' add up to the Active applicants figure.",
+    columns: [
+      { header: "Application", key: "id", weight: 52, align: "center" },
+      { header: "Candidate", key: "candidate", weight: 115 },
+      { header: "Job opening", key: "job", weight: 115 },
+      { header: "Client", key: "client", weight: 95 },
+      { header: "Request", key: "request", weight: 110 },
+      ...(admin ? [{ header: "Recruiter", key: "recruiter", weight: 90 }] : []),
+      { header: "Stage", key: "stage", weight: 90 },
+      { header: "Days in stage", key: "days", weight: 50, align: "right" as const },
+      { header: "Limit", key: "limit", weight: 36, align: "right" as const },
+      { header: "Status", key: "status", weight: 85, align: "center" as const, badge: true },
+    ],
+    rows: detail.candidates.map((c) => ({
+      id: `#${c.applicationId}`,
+      candidate: clean(c.candidateName),
+      job: clean(c.jobTitle),
+      client: clean(c.clientName ?? ""),
+      request: clean(c.mrfTitle ?? "Not linked to a request"),
+      recruiter: clean(c.recruiterName),
+      stage: c.stageLabel,
+      days: c.daysInStage,
+      limit: c.stage === "DEPLOYED" ? null : c.slaDays,
+      status: CANDIDATE_STATUS_LABEL[c.status],
+    })),
+  };
+}
 
-  return where;
-};
-
-export const generatePipelineReportPDF = async (
-  requestedBy: { id: string; email: string; role?: string },
-  filters?: AnalyticsFilterDto,
-  roleScopeOverride?: ReportRoleScope
-): Promise<Buffer> => {
-  const roleScope = resolveRoleScope(requestedBy, roleScopeOverride);
-  const where = buildApplicationWhere(filters, requestedBy);
-
-  const applications = await prisma.application.findMany({
-    where,
-    take: 300,
+async function receivedSection(filters: AnalyticsFilterDto, requestedBy: Requester, start: Date, end: Date): Promise<Section> {
+  const scope = { role: isAdminUser(requestedBy) ? "ADMINISTRATOR" : TA, userId: requestedBy.id };
+  const apps = await prisma.application.findMany({
+    where: { jobPosting: buildJobClause(filters, scope) as any, createdAt: { gte: start, lte: end } },
     orderBy: { createdAt: "desc" },
-    include: {
-      jobPosting: {
-        select: {
-          title: true,
-          mrf: { select: { id: true, title: true, client: { select: { name: true } } } },
-          postedBy: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
-        },
-      },
+    select: {
+      id: true,
+      status: true,
+      aiScore: true,
+      createdAt: true,
       user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
+      jobPosting: { select: { title: true, mrf: { select: { title: true, client: { select: { name: true } } } } } },
     },
   });
+  return {
+    sheet: "Received in period",
+    inPdf: false,
+    title: "Applications received in the period",
+    note: "Every application received in the period, whatever its status today. A returning applicant appears once per attempt.",
+    columns: [
+      { header: "Application", key: "id", weight: 55, align: "center" },
+      { header: "Candidate", key: "candidate", weight: 130 },
+      { header: "Email", key: "email", weight: 140 },
+      { header: "Job opening", key: "job", weight: 130 },
+      { header: "Client", key: "client", weight: 100 },
+      { header: "Request", key: "request", weight: 120 },
+      { header: "Status now", key: "status", weight: 90, align: "center", badge: true },
+      { header: "AI match", key: "score", weight: 45, align: "right" },
+      { header: "Received", key: "received", weight: 58, align: "center" },
+    ],
+    rows: apps.map((a) => {
+      const p = a.user.applicantProfile;
+      return {
+        id: `#${a.id}`,
+        candidate: clean(p ? `${p.firstName} ${p.lastName}`.trim() : a.user.email),
+        email: clean(a.user.email),
+        job: clean(a.jobPosting?.title ?? ""),
+        client: clean(a.jobPosting?.mrf?.client?.name ?? ""),
+        request: clean(a.jobPosting?.mrf?.title ?? "Not linked to a request"),
+        status: stageLabelOf(a.status),
+        score: a.aiScore !== null && a.aiScore !== undefined ? `${a.aiScore}%` : null,
+        received: date(a.createdAt),
+      };
+    }),
+  };
+}
 
-  const filterSummary = buildFilterDescription(filters);
-  const meta = getReportMetadata({
-    reportType: "PIPELINE",
-    roleScope,
-    requestedByEmail: requestedBy.email,
-    filterSummary,
+function startsSection(detail: DeliveryDetail, admin: boolean): Section {
+  return {
+    sheet: "Starts in period",
+    title: "Starts in the period",
+    note: "Workers whose actual start date falls in the period. The row count is the Starts figure. Days to fill is calendar days from request to start.",
+    columns: [
+      { header: "Started", key: "started", weight: 55, align: "center" },
+      { header: "Worker", key: "worker", weight: 120 },
+      { header: "Client", key: "client", weight: 110 },
+      { header: "Request", key: "request", weight: 120 },
+      { header: "Type", key: "type", weight: 70, align: "center", badge: true },
+      ...(admin ? [{ header: "Recruiter", key: "recruiter", weight: 90 }] : []),
+      { header: "Site", key: "site", weight: 90 },
+      { header: "Status", key: "status", weight: 70, align: "center" as const, badge: true },
+      { header: "Contract end", key: "end", weight: 58, align: "center" as const },
+      { header: "Days to fill", key: "days", weight: 48, align: "right" as const },
+    ],
+    rows: detail.starts.map((s) => ({
+      started: date(s.startedAt),
+      worker: clean(s.workerName),
+      client: clean(s.clientName),
+      request: clean(s.mrfTitle ?? "No request"),
+      type: s.isRedeployment ? "Redeployment" : "New",
+      recruiter: clean(s.recruiterName),
+      site: clean(s.site ?? ""),
+      status: sentenceCase(s.status),
+      end: date(s.contractEnd),
+      days: s.daysToFill,
+    })),
+  };
+}
+
+async function awaitingStartSection(filters: AnalyticsFilterDto, requestedBy: Requester, admin: boolean, now: Date): Promise<Section> {
+  const owner = admin ? filters.recruiterId : requestedBy.id;
+  const where: any = { status: "READY_FOR_DEPLOYMENT", actualStart: null };
+  if (filters.clientId) where.clientId = filters.clientId;
+  if (filters.mrfId) where.mrfId = filters.mrfId;
+  if (filters.jobPostingId) where.application = { jobPostingId: filters.jobPostingId };
+  if (owner) where.AND = [ownedWhere.deployment({ id: owner, role: TA })];
+
+  const rows = await prisma.deployment.findMany({
+    where,
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      createdAt: true,
+      contractStart: true,
+      site: true,
+      client: { select: { name: true } },
+      mrf: { select: { title: true, assignedTa: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
+      employee: { select: { user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
+    },
   });
+  const nameOf = (u?: { email: string; applicantProfile?: { firstName: string | null; lastName: string | null } | null } | null) => {
+    const full = `${u?.applicantProfile?.firstName ?? ""} ${u?.applicantProfile?.lastName ?? ""}`.trim();
+    return full || u?.email || "";
+  };
+  return {
+    sheet: "Awaiting start",
+    title: "Placements awaiting a start",
+    note: "Placements made but not yet started, as of today. They hold a seat but are not yet counted as starts.",
+    columns: [
+      { header: "Worker", key: "worker", weight: 130 },
+      { header: "Client", key: "client", weight: 120 },
+      { header: "Request", key: "request", weight: 130 },
+      ...(admin ? [{ header: "Recruiter", key: "recruiter", weight: 100 }] : []),
+      { header: "Site", key: "site", weight: 100 },
+      { header: "Planned start", key: "planned", weight: 65, align: "center" as const },
+      { header: "Days past plan", key: "late", weight: 60, align: "right" as const },
+    ],
+    rows: rows.map((d) => ({
+      worker: clean(nameOf(d.employee?.user)),
+      client: clean(d.client?.name ?? ""),
+      request: clean(d.mrf?.title ?? "No request"),
+      recruiter: clean(d.mrf?.assignedTa ? nameOf(d.mrf.assignedTa) : "No recruiter assigned"),
+      site: clean(d.site ?? ""),
+      planned: date(d.contractStart),
+      late: d.contractStart ? Math.max(0, manilaDayDiff(d.contractStart, now)) : null,
+    })),
+  };
+}
 
+// ─────────────────────────────────────────────
+// Report builders
+// ─────────────────────────────────────────────
+async function loadReport(requestedBy: Requester, filters: AnalyticsFilterDto) {
+  const admin = isAdminUser(requestedBy);
+  const { start, end } = parseDateRange(filters);
+  const [data, filterSummary] = await Promise.all([
+    admin ? getAdminReportData(filters) : getTAReportData(filters, { role: TA, userId: requestedBy.id }),
+    describeFilters(filters, requestedBy, start, end),
+  ]);
+  return { admin, start, end, result: data.result as ReportResult, detail: data.detail, filterSummary };
+}
+
+async function buildPipelineModel(requestedBy: Requester, filters: AnalyticsFilterDto): Promise<ReportModel> {
+  const { admin, start, end, result, detail, filterSummary } = await loadReport(requestedBy, filters);
+  const received = await receivedSection(filters, requestedBy, start, end);
+  // Admin rows carry the recruiter name from the shared detail; backouts get it from the same owner lookup.
+  const sections: Section[] = [
+    requestsSection(result, admin),
+    overdueSection(detail, admin),
+    stageSection(result),
+    ...(admin ? recruiterSections(result) : []),
+    exceptionsSection(result, admin),
+    backoutSection(detail, admin),
+    candidatesSection(detail, admin),
+    received,
+  ];
+  return { kpis: kpisFor(result, admin), sections, filterSummary };
+}
+
+async function buildDeploymentModel(requestedBy: Requester, filters: AnalyticsFilterDto): Promise<ReportModel> {
+  const { admin, result, detail, filterSummary } = await loadReport(requestedBy, filters);
+  const awaiting = await awaitingStartSection(filters, requestedBy, admin, new Date());
+  const k = result.kpis;
+  const kpis: Kpi[] = [
+    {
+      label: "Starts",
+      value: k.placementsStarted,
+      detail: `${k.newStarts} new, ${k.redeployStarts} redeployed`,
+      basis: "In period",
+      definition: "Workers whose actual start date falls in the period. A redeployed worker counts once.",
+    },
+    {
+      label: "Seats filled",
+      value: `${k.fillRate}%`,
+      detail: `${k.filledSeats} of ${k.requestedSeats} seats`,
+      basis: "Now",
+      definition: "Seats a placement holds, out of seats requested on open requests and requests filled in the period.",
+    },
+    { label: "Open seats", value: k.openSeats, detail: `${k.requisitions.open} open requests`, basis: "Now", definition: "Requested seats that no placement holds yet." },
+    {
+      label: "Awaiting start",
+      value: awaiting.rows.length,
+      detail: "Placed, not yet started",
+      basis: "Now",
+      definition: "Placements made that hold a seat but have no actual start date yet.",
+    },
+    {
+      label: "Days to fill",
+      value: k.medianDaysToFill === null ? "—" : k.medianDaysToFill,
+      detail: k.daysToFillSample === 0 ? "No starts with a request" : `Median of ${k.daysToFillSample} ${k.daysToFillSample === 1 ? "start" : "starts"}`,
+      basis: "In period",
+      definition: "Calendar days from the request being opened to the worker starting. 0 means the same day.",
+    },
+    {
+      label: "Backout rate",
+      value: k.backoutRateBase === 0 ? "—" : `${k.backoutRate}%`,
+      detail: `${k.backoutsAfterClientReview} of ${k.backoutRateBase}`,
+      basis: "In period",
+      definition: "Backouts after client review, out of those backouts plus starts that came from an application.",
+    },
+  ];
+  return { kpis, sections: [startsSection(detail, admin), awaiting, requestsSection(result, admin)], filterSummary };
+}
+
+// ─────────────────────────────────────────────
+// Writers
+// ─────────────────────────────────────────────
+const metaFor = (requestedBy: Requester, reportType: "PIPELINE" | "DEPLOYMENT", model: ReportModel): ReportMetadata =>
+  getReportMetadata({ reportType, roleScope: roleScopeOf(requestedBy), requestedByEmail: requestedBy.email, filterSummary: model.filterSummary });
+
+const cellText = (value: Cell): string => (value === null || value === undefined || value === "" ? "" : typeof value === "number" ? String(value) : value);
+
+/** Shortens text to fit a column so it never wraps into the next row. */
+function fit(doc: PDFKit.PDFDocument, text: string, width: number, font: string, size: number): string {
+  doc.font(font).fontSize(size);
+  const room = width - 3; // slack so rounding never tips a cell into wrapping
+  if (doc.widthOfString(text) <= room) return text;
+  let out = text;
+  while (out.length > 1 && doc.widthOfString(`${out}...`) > room) out = out.slice(0, -1);
+  return `${out.trimEnd()}...`;
+}
+
+async function writePdf(meta: ReportMetadata, model: ReportModel): Promise<Buffer> {
   const doc = createHRDocument({ orientation: "landscape" });
   renderCorporateHeader(doc, meta);
+  const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const kpiCount = Math.min(model.kpis.length, 7);
+  const cardWidth = (contentWidth - (kpiCount - 1) * 8) / kpiCount - 16;
+  renderSummaryKPIs(
+    doc,
+    model.kpis.map((k) => ({ label: k.label, value: k.value, subtext: fit(doc, k.detail, cardWidth, "Helvetica", 6.5) }))
+  );
 
-  // Compute summary KPI metrics
-  const totalApps = applications.length;
-  const activeScreening = applications.filter((a) =>
-    ["SUBMITTED", "REVIEW", "MATCHED", "INITIAL_SCREENING", "FINAL_INTERVIEW"].includes(a.status)
-  ).length;
-  const endorsedOrHired = applications.filter((a) =>
-    ["CLIENT_ENDORSEMENT", "HIRED", "ONBOARDING", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"].includes(a.status)
-  ).length;
-  const scoredApps = applications.filter((a) => a.aiScore !== null && a.aiScore !== undefined && !isNaN(Number(a.aiScore)));
-  const avgScore =
-    scoredApps.length > 0
-      ? (scoredApps.reduce((acc, a) => acc + (a.aiScore || 0), 0) / scoredApps.length).toFixed(1) + "%"
-      : "N/A";
-
-  renderSummaryKPIs(doc, [
-    { label: "Total Applications", value: totalApps },
-    { label: "Active in Pipeline", value: activeScreening },
-    { label: "Endorsed / Placed", value: endorsedOrHired },
-    { label: "Avg AI Match Score", value: avgScore },
-  ]);
-
-  let columns: ColumnDef[];
-  let rows: (string | number | null | undefined)[][];
-
-  if (roleScope === "TALENT_ACQUISITION") {
-    columns = [
-      { header: "App ID", width: 55, align: "center" },
-      { header: "Candidate Name", width: 135, align: "left" },
-      { header: "Candidate Email", width: 130, align: "left" },
-      { header: "Applied Job Role", width: 150, align: "left" },
-      { header: "MRF Order", width: 90, align: "left" },
-      { header: "Pipeline Stage", width: 100, align: "center", badge: true },
-      { header: "AI Match", width: 55, align: "right" },
-      { header: "Applied", width: 55, align: "center" },
-    ];
-
-    rows = applications.map((app) => {
-      const name = app.user.applicantProfile
-        ? `${app.user.applicantProfile.firstName} ${app.user.applicantProfile.lastName}`
-        : "N/A";
-      const mrfTitle = app.jobPosting?.mrf?.title ? `MRF-${app.jobPosting.mrf.id}` : "Direct";
-      const score = app.aiScore !== null && app.aiScore !== undefined ? `${app.aiScore}%` : "N/A";
-      return [
-        `#${app.id}`,
-        name,
-        app.user.email,
-        app.jobPosting?.title || "N/A",
-        mrfTitle,
-        app.status,
-        score,
-        safeFormatDate(app.createdAt),
-      ];
-    });
-  } else {
-    // Administrator Role: Executive governance view
-    columns = [
-      { header: "Record ID", width: 50, align: "center" },
-      { header: "Candidate Name", width: 125, align: "left" },
-      { header: "Client Partner", width: 125, align: "left" },
-      { header: "MRF Requisition", width: 110, align: "left" },
-      { header: "Assigned Recruiter", width: 120, align: "left" },
-      { header: "Processing Stage", width: 105, align: "center", badge: true },
-      { header: "AI Match", width: 60, align: "right" },
-      { header: "Submission Date", width: 75, align: "center" },
-    ];
-
-    rows = applications.map((app) => {
-      const name = app.user.applicantProfile
-        ? `${app.user.applicantProfile.firstName} ${app.user.applicantProfile.lastName}`
-        : "N/A";
-      const clientName = app.jobPosting?.mrf?.client?.name || "Direct Requisition";
-      const mrfTitle = app.jobPosting?.mrf?.title || (app.jobPosting?.mrf?.id ? `MRF-${app.jobPosting.mrf.id}` : "N/A");
-      const recruiter = app.jobPosting?.postedBy?.applicantProfile
-        ? `${app.jobPosting.postedBy.applicantProfile.firstName} ${app.jobPosting.postedBy.applicantProfile.lastName}`
-        : app.jobPosting?.postedBy?.email || "Unassigned";
-      const score = app.aiScore !== null && app.aiScore !== undefined ? `${app.aiScore}%` : "N/A";
-
-      return [
-        `#${app.id}`,
-        name,
-        clientName,
-        mrfTitle,
-        recruiter,
-        app.status,
-        score,
-        safeFormatDate(app.createdAt),
-      ];
+  const longLists: string[] = [];
+  for (const section of model.sections) {
+    if (section.inPdf === false) {
+      longLists.push(`${section.title} (${section.rows.length})`);
+      continue;
+    }
+    const shown = section.rows.slice(0, PDF_ROW_LIMIT);
+    const capNote =
+      section.rows.length > shown.length ? ` Showing the first ${shown.length} of ${section.rows.length} rows here; the Excel report lists all of them.` : "";
+    renderSectionTitle(doc, `${section.title} (${section.rows.length})`, `${section.note ?? ""}${capNote}`.trim() || undefined);
+    const total = section.columns.reduce((sum, c) => sum + c.weight, 0);
+    const widths = section.columns.map((c) => (c.weight / total) * contentWidth);
+    renderGridTable(doc, {
+      columns: section.columns.map((c, i) => ({
+        header: fit(doc, (c.short ?? c.header).toUpperCase(), widths[i] - 8, "Helvetica-Bold", 7.5),
+        width: widths[i],
+        align: c.align,
+        badge: c.badge,
+      })),
+      rows: shown.map((row) =>
+        section.columns.map((c, i) => fit(doc, cellText(row[c.key]), widths[i] - (c.badge ? 14 : 8), c.badge ? "Helvetica-Bold" : "Helvetica", c.badge ? 6.5 : 7.5))
+      ),
     });
   }
-
-  renderGridTable(doc, { columns, rows });
+  if (longLists.length > 0) {
+    renderSectionTitle(doc, "Also in the Excel report", `Full lists that are too long to print: ${longLists.join("; ")}.`);
+  }
   return renderFootersAndPagination(doc, meta);
-};
+}
 
-export const generatePipelineReportXLSX = async (
-  requestedBy: { id: string; email: string; role?: string },
-  filters?: AnalyticsFilterDto,
-  roleScopeOverride?: ReportRoleScope
-): Promise<Buffer> => {
-  const roleScope = resolveRoleScope(requestedBy, roleScopeOverride);
-  const where = buildApplicationWhere(filters, requestedBy);
-
-  const applications = await prisma.application.findMany({
-    where,
-    take: 1000,
-    orderBy: { createdAt: "desc" },
-    include: {
-      jobPosting: {
-        select: {
-          title: true,
-          mrf: { select: { id: true, title: true, client: { select: { name: true } } } },
-          postedBy: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
-        },
-      },
-      user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
-    },
-  });
-
-  const filterSummary = buildFilterDescription(filters);
-  const meta = getReportMetadata({
-    reportType: "PIPELINE",
-    roleScope,
-    requestedByEmail: requestedBy.email,
-    filterSummary,
-  });
-
-  const { workbook, worksheet } = createHRExcelWorkbook(meta, "Candidate Pipeline");
+async function writeXlsx(meta: ReportMetadata, model: ReportModel): Promise<Buffer> {
+  const { workbook, worksheet } = createHRExcelWorkbook(meta, "Summary");
   applySpreadsheetHeaderBlock(worksheet, meta);
+  const kpiColumns: ExcelColumnDef[] = [
+    { header: "Metric", key: "label", minWidth: 24 },
+    { header: "Value", key: "value", minWidth: 12, align: "right" },
+    { header: "Counts", key: "detail", minWidth: 36 },
+    { header: "Basis", key: "basis", minWidth: 12, align: "center" },
+    { header: "How it is worked out", key: "definition", minWidth: 60 },
+  ];
+  applyTableHeaders(worksheet, 8, kpiColumns);
+  applyDataRowsAndFormatting(
+    worksheet,
+    8,
+    kpiColumns,
+    model.kpis.map((k) => ({ ...k }))
+  );
 
-  let columns: ExcelColumnDef[];
-  let rows: Record<string, any>[];
-
-  if (roleScope === "TALENT_ACQUISITION") {
-    columns = [
-      { header: "Application ID", key: "id", minWidth: 15, align: "center" },
-      { header: "Candidate Name", key: "name", minWidth: 24 },
-      { header: "Applicant Email", key: "email", minWidth: 26 },
-      { header: "Job Title", key: "job", minWidth: 26 },
-      { header: "MRF Order", key: "mrf", minWidth: 20 },
-      { header: "Pipeline Status", key: "status", minWidth: 22, align: "center" },
-      { header: "AI Match Score", key: "aiScore", minWidth: 16, align: "right" },
-      { header: "Applied Date", key: "createdAt", minWidth: 16, align: "center" },
-    ];
-
-    rows = applications.map((app) => {
-      const name = app.user.applicantProfile
-        ? `${app.user.applicantProfile.firstName} ${app.user.applicantProfile.lastName}`
-        : "N/A";
-      return {
-        id: app.id,
-        name,
-        email: app.user.email,
-        job: app.jobPosting?.title || "N/A",
-        mrf: app.jobPosting?.mrf?.title || (app.jobPosting?.mrf?.id ? `MRF-${app.jobPosting.mrf.id}` : "Direct"),
-        status: app.status,
-        aiScore: app.aiScore !== null && app.aiScore !== undefined ? app.aiScore : "N/A",
-        createdAt: safeFormatDate(app.createdAt),
-      };
-    });
-  } else {
-    // Administrator View
-    columns = [
-      { header: "Record ID", key: "id", minWidth: 14, align: "center" },
-      { header: "Candidate Name", key: "name", minWidth: 24 },
-      { header: "Candidate Email", key: "email", minWidth: 26 },
-      { header: "Client Partner", key: "client", minWidth: 26 },
-      { header: "MRF Order", key: "mrf", minWidth: 20 },
-      { header: "Job Title", key: "job", minWidth: 24 },
-      { header: "Responsible Recruiter", key: "recruiter", minWidth: 24 },
-      { header: "Processing Stage", key: "status", minWidth: 22, align: "center" },
-      { header: "AI Match Score", key: "aiScore", minWidth: 16, align: "right" },
-      { header: "Submission Date", key: "createdAt", minWidth: 16, align: "center" },
-    ];
-
-    rows = applications.map((app) => {
-      const name = app.user.applicantProfile
-        ? `${app.user.applicantProfile.firstName} ${app.user.applicantProfile.lastName}`
-        : "N/A";
-      const clientName = app.jobPosting?.mrf?.client?.name || "Direct Requisition";
-      const mrfTitle = app.jobPosting?.mrf?.title || (app.jobPosting?.mrf?.id ? `MRF-${app.jobPosting.mrf.id}` : "N/A");
-      const recruiter = app.jobPosting?.postedBy?.applicantProfile
-        ? `${app.jobPosting.postedBy.applicantProfile.firstName} ${app.jobPosting.postedBy.applicantProfile.lastName}`
-        : app.jobPosting?.postedBy?.email || "Unassigned";
-
-      return {
-        id: app.id,
-        name,
-        email: app.user.email,
-        client: clientName,
-        mrf: mrfTitle,
-        job: app.jobPosting?.title || "N/A",
-        recruiter,
-        status: app.status,
-        aiScore: app.aiScore !== null && app.aiScore !== undefined ? app.aiScore : "N/A",
-        createdAt: safeFormatDate(app.createdAt),
-      };
-    });
+  for (const section of model.sections) {
+    const sheet = workbook.addWorksheet(section.sheet.replace(/[\\/*?[\]:]/g, " ").slice(0, 31), { properties: { defaultRowHeight: 20 } });
+    sheet.getCell("A1").value = `${section.title} (${section.rows.length})`;
+    sheet.getCell("A1").font = { name: "Arial", size: 11, bold: true, color: { argb: "FF0F172A" } };
+    sheet.getCell("A2").value = section.rows.length === 0 ? "No matching records for these filters." : section.note ?? "";
+    sheet.getCell("A2").font = { name: "Arial", size: 9, italic: true, color: { argb: "FF475569" } };
+    const columns: ExcelColumnDef[] = section.columns.map((c) => ({
+      header: c.header,
+      key: c.key,
+      minWidth: Math.max(10, Math.round(c.weight / 6)),
+      align: c.align,
+    }));
+    applyTableHeaders(sheet, 3, columns);
+    applyDataRowsAndFormatting(
+      sheet,
+      3,
+      columns,
+      section.rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === "string" ? clean(v) : v])))
+    );
   }
-
-  applyTableHeaders(worksheet, 7, columns);
-  applyDataRowsAndFormatting(worksheet, 7, columns, rows);
-
   return writeWorkbookToBuffer(workbook);
+}
+
+// ─────────────────────────────────────────────
+// Public API (unchanged signatures). The layout follows the signed-in user; the optional override is ignored so a
+// caller cannot ask for a wider report than the user may see.
+// ─────────────────────────────────────────────
+export const generatePipelineReportPDF = async (requestedBy: Requester, filters?: AnalyticsFilterDto, _override?: ReportRoleScope): Promise<Buffer> => {
+  const model = await buildPipelineModel(requestedBy, filters ?? {});
+  return writePdf(metaFor(requestedBy, "PIPELINE", model), model);
 };
 
-export const generateDeploymentReportPDF = async (
-  requestedBy: { id: string; email: string; role?: string },
-  filters?: AnalyticsFilterDto,
-  roleScopeOverride?: ReportRoleScope
-): Promise<Buffer> => {
-  const roleScope = resolveRoleScope(requestedBy, roleScopeOverride);
-  const where = buildDeploymentWhere(filters, requestedBy);
-
-  const deployments = await prisma.deployment.findMany({
-    where,
-    take: 300,
-    orderBy: { createdAt: "desc" },
-    include: {
-      client: { select: { name: true } },
-      mrf: { select: { title: true } },
-      employee: { select: { user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
-      application: { select: { user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
-      createdBy: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
-    },
-  });
-
-  const filterSummary = buildFilterDescription(filters);
-  const meta = getReportMetadata({
-    reportType: "DEPLOYMENT",
-    roleScope,
-    requestedByEmail: requestedBy.email,
-    filterSummary,
-  });
-
-  const doc = createHRDocument({ orientation: "landscape" });
-  renderCorporateHeader(doc, meta);
-
-  const totalDeployments = deployments.length;
-  const activeDeployments = deployments.filter((d) => ["ACTIVE", "DISPATCHED"].includes(d.status)).length;
-  const pendingDeployments = deployments.filter((d) =>
-    ["READY_FOR_DEPLOYMENT", "PENDING_ORIENTATION", "READY"].includes(d.status)
-  ).length;
-  const clientCount = new Set(deployments.map((d) => d.client?.name).filter(Boolean)).size;
-
-  renderSummaryKPIs(doc, [
-    { label: "Total Deployments", value: totalDeployments },
-    { label: "Active on Site", value: activeDeployments },
-    { label: "Pending Processing", value: pendingDeployments },
-    { label: "Client Partners", value: clientCount },
-  ]);
-
-  let columns: ColumnDef[];
-  let rows: (string | number | null | undefined)[][];
-
-  if (roleScope === "TALENT_ACQUISITION") {
-    columns = [
-      { header: "Placement ID", width: 65, align: "center" },
-      { header: "Candidate Name", width: 140, align: "left" },
-      { header: "Client Partner", width: 140, align: "left" },
-      { header: "MRF Role", width: 120, align: "left" },
-      { header: "Deployment Status", width: 110, align: "center", badge: true },
-      { header: "Site Location", width: 95, align: "left" },
-      { header: "Contract Start", width: 50, align: "center" },
-      { header: "Contract End", width: 50, align: "center" },
-    ];
-
-    rows = deployments.map((dep) => {
-      const user = dep.employee?.user || dep.application?.user;
-      const name = user?.applicantProfile
-        ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
-        : user?.email || "Unknown";
-
-      return [
-        `#${dep.id}`,
-        name,
-        dep.client.name,
-        dep.mrf?.title || "N/A",
-        dep.status,
-        dep.site || "N/A",
-        safeFormatDate(dep.contractStart),
-        safeFormatDate(dep.contractEnd),
-      ];
-    });
-  } else {
-    // Administrator View
-    columns = [
-      { header: "Deployment ID", width: 65, align: "center" },
-      { header: "Client Organization", width: 145, align: "left" },
-      { header: "Department / MRF", width: 120, align: "left" },
-      { header: "Placed Employee", width: 135, align: "left" },
-      { header: "Placement Status", width: 110, align: "center", badge: true },
-      { header: "Assigned Facility", width: 95, align: "left" },
-      { header: "Deployment Officer", width: 125, align: "left" },
-      { header: "Effective Date", width: 50, align: "center" },
-    ];
-
-    rows = deployments.map((dep) => {
-      const user = dep.employee?.user || dep.application?.user;
-      const name = user?.applicantProfile
-        ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
-        : user?.email || "Unknown";
-
-      const recruiter = dep.createdBy?.applicantProfile
-        ? `${dep.createdBy.applicantProfile.firstName} ${dep.createdBy.applicantProfile.lastName}`
-        : dep.createdBy?.email || "System";
-
-      return [
-        `#${dep.id}`,
-        dep.client.name,
-        dep.mrf?.title || "Direct Assignment",
-        name,
-        dep.status,
-        dep.site || "N/A",
-        recruiter,
-        safeFormatDate(dep.contractStart),
-      ];
-    });
-  }
-
-  renderGridTable(doc, { columns, rows });
-  return renderFootersAndPagination(doc, meta);
+export const generatePipelineReportXLSX = async (requestedBy: Requester, filters?: AnalyticsFilterDto, _override?: ReportRoleScope): Promise<Buffer> => {
+  const model = await buildPipelineModel(requestedBy, filters ?? {});
+  return writeXlsx(metaFor(requestedBy, "PIPELINE", model), model);
 };
 
-export const generateDeploymentReportXLSX = async (
-  requestedBy: { id: string; email: string; role?: string },
-  filters?: AnalyticsFilterDto,
-  roleScopeOverride?: ReportRoleScope
-): Promise<Buffer> => {
-  const roleScope = resolveRoleScope(requestedBy, roleScopeOverride);
-  const where = buildDeploymentWhere(filters, requestedBy);
-
-  const deployments = await prisma.deployment.findMany({
-    where,
-    take: 1000,
-    orderBy: { createdAt: "desc" },
-    include: {
-      client: { select: { name: true } },
-      mrf: { select: { title: true } },
-      employee: { select: { user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
-      application: { select: { user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
-    },
-  });
-
-  const filterSummary = buildFilterDescription(filters);
-  const meta = getReportMetadata({
-    reportType: "DEPLOYMENT",
-    roleScope,
-    requestedByEmail: requestedBy.email,
-    filterSummary,
-  });
-
-  const { workbook, worksheet } = createHRExcelWorkbook(meta, "Deployments");
-  applySpreadsheetHeaderBlock(worksheet, meta);
-
-  let columns: ExcelColumnDef[];
-  let rows: Record<string, any>[];
-
-  if (roleScope === "TALENT_ACQUISITION") {
-    columns = [
-      { header: "Deployment ID", key: "id", minWidth: 15, align: "center" },
-      { header: "Candidate Name", key: "candidate", minWidth: 24 },
-      { header: "Client Partner", key: "client", minWidth: 25 },
-      { header: "MRF Title", key: "mrf", minWidth: 25 },
-      { header: "Deployment Status", key: "status", minWidth: 22, align: "center" },
-      { header: "Site Location", key: "site", minWidth: 22 },
-      { header: "Contract Start", key: "start", minWidth: 16, align: "center" },
-      { header: "Contract End", key: "end", minWidth: 16, align: "center" },
-    ];
-
-    rows = deployments.map((dep) => {
-      const user = dep.employee?.user || dep.application?.user;
-      const name = user?.applicantProfile
-        ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
-        : user?.email || "Unknown";
-
-      return {
-        id: dep.id,
-        candidate: name,
-        client: dep.client.name,
-        mrf: dep.mrf?.title || "N/A",
-        status: dep.status,
-        site: dep.site || "N/A",
-        start: safeFormatDate(dep.contractStart),
-        end: safeFormatDate(dep.contractEnd),
-      };
-    });
-  } else {
-    // Administrator View
-    columns = [
-      { header: "Deployment ID", key: "id", minWidth: 15, align: "center" },
-      { header: "Client Organization", key: "client", minWidth: 26 },
-      { header: "Department / MRF", key: "mrf", minWidth: 24 },
-      { header: "Placed Employee", key: "candidate", minWidth: 24 },
-      { header: "Placement Status", key: "status", minWidth: 22, align: "center" },
-      { header: "Assigned Facility", key: "site", minWidth: 22 },
-      { header: "Contract Start", key: "start", minWidth: 16, align: "center" },
-      { header: "Contract End", key: "end", minWidth: 16, align: "center" },
-    ];
-
-    rows = deployments.map((dep) => {
-      const user = dep.employee?.user || dep.application?.user;
-      const name = user?.applicantProfile
-        ? `${user.applicantProfile.firstName} ${user.applicantProfile.lastName}`
-        : user?.email || "Unknown";
-
-      return {
-        id: dep.id,
-        client: dep.client.name,
-        mrf: dep.mrf?.title || "N/A",
-        candidate: name,
-        status: dep.status,
-        site: dep.site || "N/A",
-        start: safeFormatDate(dep.contractStart),
-        end: safeFormatDate(dep.contractEnd),
-      };
-    });
-  }
-
-  applyTableHeaders(worksheet, 7, columns);
-  applyDataRowsAndFormatting(worksheet, 7, columns, rows);
-
-  return writeWorkbookToBuffer(workbook);
+export const generateDeploymentReportPDF = async (requestedBy: Requester, filters?: AnalyticsFilterDto, _override?: ReportRoleScope): Promise<Buffer> => {
+  const model = await buildDeploymentModel(requestedBy, filters ?? {});
+  return writePdf(metaFor(requestedBy, "DEPLOYMENT", model), model);
 };
+
+export const generateDeploymentReportXLSX = async (requestedBy: Requester, filters?: AnalyticsFilterDto, _override?: ReportRoleScope): Promise<Buffer> => {
+  const model = await buildDeploymentModel(requestedBy, filters ?? {});
+  return writeXlsx(metaFor(requestedBy, "DEPLOYMENT", model), model);
+};
+
+/** Exposed for tests: the data a report is built from, before it is drawn. */
+export const __reportModels = { buildPipelineModel, buildDeploymentModel };

@@ -4,29 +4,7 @@ import { SCORING_DIMENSIONS, ScoringDimension, ScoringWeights, JobFeatureInput }
 import { EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION, rebuildCandidateFeatureProfile, readFeatureInput } from "./talent-pool-knn.service.js";
 import { getActiveScoringConfiguration, DEFAULT_WEIGHTS } from "./scoring-configuration.service.js";
 import { calculateFitDimensions, clampScore, requiredYearsFromText } from "./scoring.dimensions.js";
-import { generateEmbedding } from "./embedding.service.js";
-
-type CompletedOrStaleCandidateScore = {
-  applicationId: number;
-  configurationId: number;
-  status: string;
-};
-
-const selectCurrentOrFallbackScores = <T extends CompletedOrStaleCandidateScore>(
-  rows: T[],
-  activeConfigurationId: number,
-) => {
-  const selected = new Map<number, T>();
-  for (const row of rows) {
-    const current = selected.get(row.applicationId);
-    const isActiveCalculation = row.configurationId === activeConfigurationId && row.status === "CALCULATED";
-    const currentIsActiveCalculation = current !== undefined
-      && current.configurationId === activeConfigurationId
-      && current.status === "CALCULATED";
-    if (!current || (isActiveCalculation && !currentIsActiveCalculation)) selected.set(row.applicationId, row);
-  }
-  return [...selected.values()];
-};
+import { generateJobEmbedding } from "./embedding.service.js";
 
 const serializeScore = (score: any) => ({
   id: score.id,
@@ -127,7 +105,7 @@ export const calculateAndPersistCandidateScore = async (
   if (computedKnnSimilarity === undefined && featureProfile?.id) {
     try {
       const jobText = [job.title, job.requirements, mrf?.requiredSkills, mrf?.requiredExperience].filter(Boolean).join(" ");
-      const jobEmbedding = await generateEmbedding(jobText, { taskType: "RETRIEVAL_QUERY" });
+      const jobEmbedding = await generateJobEmbedding(jobText);
       const vectorStr = `[${jobEmbedding.join(",")}]`;
       const vectorResults = await prisma.$queryRaw<Array<{ similarity: number }>>`
         SELECT (1 - ("embedding" <=> ${vectorStr}::vector)) AS similarity
@@ -225,6 +203,14 @@ export const calculateAndPersistCandidateScore = async (
       include: { configuration: { select: { version: true } } },
     });
 
+  // Prune any superseded stale scores for this application to keep the table clean and backups fast
+  await prisma.candidateScore.deleteMany({
+    where: {
+      applicationId,
+      status: "STALE",
+    },
+  }).catch(() => null);
+
   const { applyScoreCategorization } = await import("../ta/ta.applications.service.js");
   await applyScoreCategorization(applicationId, finalFitScore);
 
@@ -233,39 +219,95 @@ export const calculateAndPersistCandidateScore = async (
 
 export const listRankedCandidates = async (jobPostingId: number, cursor?: number, limit = 25) => {
   const active = await getActiveScoringConfiguration();
-  const rows = await prisma.candidateScore.findMany({
-    where: { jobPostingId, status: { in: ["CALCULATED", "STALE"] }, ...(cursor ? { id: { lt: cursor } } : {}) },
-    orderBy: [{ calculatedAt: "desc" }, { id: "desc" }],
-    include: {
-      configuration: { select: { version: true } },
-      application: {
-        select: {
-          status: true,
-          user: {
+  const cursorScore = cursor === undefined
+    ? null
+    : await prisma.candidateScore.findFirst({
+        where: { id: cursor, jobPostingId },
+        select: { applicationId: true },
+      });
+  if (cursor !== undefined && !cursorScore) return { items: [], nextCursor: null };
+  const cursorApplicationId = cursorScore?.applicationId;
+  const cursorPredicate = cursorApplicationId === undefined ? Prisma.empty : Prisma.sql`
+    AND EXISTS (SELECT 1 FROM cursor_score)
+    AND (
+      selected_scores."finalFitScore" < (SELECT "finalFitScore" FROM cursor_score)
+      OR (selected_scores."finalFitScore" = (SELECT "finalFitScore" FROM cursor_score)
+        AND selected_scores."applicationId" > (SELECT "applicationId" FROM cursor_score))
+    )
+  `;
+  const query = Prisma.sql`
+    WITH candidate_scores AS (
+      SELECT
+        score."id",
+        score."applicationId",
+        score."configurationId",
+        score."status",
+        score."finalFitScore",
+        score."calculatedAt",
+        ROW_NUMBER() OVER (
+          PARTITION BY score."applicationId"
+          ORDER BY
+            CASE WHEN score."configurationId" = ${active.id} AND score."status" = 'CALCULATED' THEN 0 ELSE 1 END,
+            score."calculatedAt" DESC,
+            score."id" DESC
+        ) AS preference
+      FROM "CandidateScore" AS score
+      WHERE score."jobPostingId" = ${jobPostingId}
+        AND score."status" IN ('CALCULATED', 'STALE')
+    ), selected_scores AS (
+      SELECT "id", "applicationId", "finalFitScore"
+      FROM candidate_scores
+      WHERE preference = 1
+    ), cursor_score AS (
+      SELECT "applicationId", "finalFitScore"
+      FROM selected_scores
+      WHERE "applicationId" = ${cursorApplicationId ?? -1}
+    )
+    SELECT selected_scores."id", selected_scores."applicationId"
+    FROM selected_scores
+    WHERE TRUE ${cursorPredicate}
+    ORDER BY selected_scores."finalFitScore" DESC, selected_scores."applicationId" ASC
+    LIMIT ${limit + 1}
+  `;
+  const pageRows = await prisma.$queryRaw<Array<{ id: number; applicationId: number }>>(query);
+  const hasMore = pageRows.length > limit;
+  const selectedRows = pageRows.slice(0, limit);
+  const hydratedRows = selectedRows.length === 0
+    ? []
+    : await prisma.candidateScore.findMany({
+        where: { id: { in: selectedRows.map((row) => row.id) } },
+        include: {
+          configuration: { select: { version: true } },
+          application: {
             select: {
-              id: true,
-              email: true,
-              applicantProfile: { select: { firstName: true, lastName: true, city: true, province: true } },
+              status: true,
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  applicantProfile: { select: { firstName: true, lastName: true, city: true, province: true } },
+                },
+              },
             },
           },
         },
+      });
+  const hydratedById = new Map(hydratedRows.map((row) => [row.id, row]));
+  const items = selectedRows.flatMap(({ id }) => {
+    const row = hydratedById.get(id);
+    if (!row) return [];
+    return [{
+      ...serializeScore(row),
+      candidate: {
+        id: row.application.user.id,
+        email: row.application.user.email,
+        firstName: row.application.user.applicantProfile?.firstName ?? null,
+        lastName: row.application.user.applicantProfile?.lastName ?? null,
+        city: row.application.user.applicantProfile?.city ?? null,
+        province: row.application.user.applicantProfile?.province ?? null,
+        applicationStatus: row.application.status,
       },
-    },
+    }];
   });
-  const latestRows = selectCurrentOrFallbackScores(rows, active.id)
-    .sort((left, right) => Number(right.finalFitScore) - Number(left.finalFitScore) || left.applicationId - right.applicationId);
-  const hasMore = latestRows.length > limit;
-  const items = latestRows.slice(0, limit).map((row) => ({
-    ...serializeScore(row),
-    candidate: {
-      id: row.application.user.id,
-      email: row.application.user.email,
-      firstName: row.application.user.applicantProfile?.firstName ?? null,
-      lastName: row.application.user.applicantProfile?.lastName ?? null,
-      city: row.application.user.applicantProfile?.city ?? null,
-      province: row.application.user.applicantProfile?.province ?? null,
-      applicationStatus: row.application.status,
-    },
-  }));
-  return { items, nextCursor: hasMore ? latestRows[limit - 1]?.id ?? null : null };
+  return { items, nextCursor: hasMore ? selectedRows.at(-1)?.id ?? null : null };
 };

@@ -111,6 +111,8 @@ export interface CreateJobDto {
   description: string;
   requirements: string;
   location?: string;
+  imageUrl?: string;
+  mrfId?: number;
   status?: JobStatus;
   isEvergreen?: boolean;
 }
@@ -120,6 +122,8 @@ export interface UpdateJobDto {
   description?: string;
   requirements?: string;
   location?: string;
+  imageUrl?: string;
+  mrfId?: number;
   status?: JobStatus;
   isEvergreen?: boolean;
 }
@@ -152,6 +156,8 @@ export interface ReviewComplianceDto {
   reviewStatus: "APPROVED" | "REJECTED" | "PENDING" | "EXPIRED" | "TO_FOLLOW";
   reviewNotes?: string;
   expiresAt?: string | null;
+  issuedAt?: string | null;
+  validityStatus?: "UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY";
   toFollowExpectedAt?: string | null;
 }
 
@@ -161,12 +167,16 @@ export interface DeployCandidateDto {
   site?: string;
   contractStart?: string;
   contractEnd?: string;
+  actualStart?: string;
+  actualEnd?: string;
+  nextReviewAt?: string | null;
   notes?: string;
 }
 
 export interface UpdateDeploymentStatusDto {
   status: DeploymentStatus;
   notes?: string;
+  actualStart?: string;
 }
 
 export interface TalentPoolMembership {
@@ -308,24 +318,7 @@ export interface HireCandidateDto {
 }
 
 export interface PipelineAnalytics {
-  totalApplications: number;
-  archivedApplications: number;
-  statusBreakdown: Record<string, number>;
-}
-
-export interface TimeToFillAnalytics {
-  averageDaysToFill: number;
-  totalFilledDeployments: number;
-  details?: Array<{
-    mrfId: number;
-    title: string;
-    clientName: string;
-    daysToFill: number;
-  }>;
-}
-
-export interface DeploymentAnalytics {
-  totalDeployments: number;
+  activeApplications: number;
   statusBreakdown: Record<string, number>;
 }
 

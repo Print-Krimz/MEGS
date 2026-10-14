@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
 import { sendSuccess, sendError } from '../../utils/response.js';
 import prisma from '../../utils/prisma.js';
+import { recordBackout, BackoutConflictError } from '../../services/ta/backout.service.js';
 import { logAudit } from '../../utils/audit.js';
 import { validateStructuredAddress } from '../../utils/address-validation.js';
-import { isValidDateOnly, manilaDateString } from '../../schemas/field-limits.js';
+import { isValidDateOnly, manilaDateString, parseManilaDateOnly } from '../../schemas/field-limits.js';
 import {
   listTAApplications,
   getTAApplication,
@@ -11,14 +12,14 @@ import {
   archiveTAApplication,
   restoreTAApplication,
   getRecruiterDecisionsService,
-  signApplicationContract,
-  completeApplicationOrientation
+  getContractPdf,
+  recordSignedContract,
 } from '../../services/ta/ta.applications.service.js';
 
 // GET /api/ta/applications - List and filter applications across postings
 export const listApplications = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status, jobPostingId, jobId, clientId, search, isArchived, page, limit, mineOnly } = req.query;
+    const { status, jobPostingId, jobId, clientId, search, isArchived, page, limit, mineOnly, summary } = req.query;
     const currentUserId = req.user?.id;
     const result = await listTAApplications({
       status: status as string,
@@ -29,7 +30,9 @@ export const listApplications = async (req: Request, res: Response): Promise<voi
       page: page ? parseInt(page as string, 10) : undefined,
       limit: limit ? parseInt(limit as string, 10) : undefined,
       mineOnly: mineOnly === "true",
+      summary: summary === "true",
       currentUserId,
+      actor: req.user,
     });
     sendSuccess(res, "Applications retrieved", result);
   } catch (error: any) {
@@ -61,16 +64,39 @@ export const updateApplicationStatus = async (req: Request, res: Response): Prom
       sendError(res, "Invalid application ID", 400);
       return;
     }
-    const { status, reason } = req.body;
+    const { status, reason, reasonCode } = req.body;
     if (!status) {
       sendError(res, "status is required", 400);
       return;
     }
-    const updated = await updateTAApplicationStatus(id, status, req.user!.id, reason);
+    const updated = await updateTAApplicationStatus(id, status, req.user!.id, reason, reasonCode);
     sendSuccess(res, `Application moved to ${updated.status}`, updated);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, statusCode);
+  }
+};
+
+// POST /api/ta/applications/:id/backout - Record a backout with responsible party and reason
+export const recordBackoutHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const applicationId = parseInt(req.params.id as string, 10);
+    const { party, reason, notes, occurredOn } = req.body;
+    const today = manilaDateString();
+    const occurredAt = !occurredOn || occurredOn === today ? new Date() : parseManilaDateOnly(occurredOn);
+    const backout = await recordBackout({
+      applicationId,
+      party,
+      reason,
+      notes,
+      occurredAt,
+      actorId: req.user!.id,
+      actorRole: req.user!.role as "TALENT_ACQUISITION" | "ADMINISTRATOR",
+    });
+    sendSuccess(res, "Backout recorded", backout, 201);
+  } catch (error: any) {
+    const status = error instanceof BackoutConflictError ? 409 : error.message.includes("not found") ? 404 : 400;
+    sendError(res, error.message, status);
   }
 };
 
@@ -96,7 +122,8 @@ export const archiveApplication = async (req: Request, res: Response): Promise<v
       sendError(res, "Invalid application ID", 400);
       return;
     }
-    const updated = await archiveTAApplication(id);
+    const archiveReason = req.body?.reason ?? req.body?.notes;
+    const updated = await archiveTAApplication(id, req.user!.id, archiveReason);
     sendSuccess(res, "Application archived", updated);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;
@@ -120,37 +147,43 @@ export const restoreApplication = async (req: Request, res: Response): Promise<v
   }
 };
 
-// POST /api/ta/applications/:id/contract/sign - Record employment contract signed
-export const signContractHandler = async (req: Request, res: Response): Promise<void> => {
+const contractStatusCode = (message: string) => (message.includes("not found") ? 404 : 400);
+
+// GET /api/ta/applications/:id/contract/pdf - Optional printable copy (rate left blank)
+export const downloadContractPdfHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
     if (isNaN(id)) {
       sendError(res, "Invalid application ID", 400);
       return;
     }
-    const { contractNotes, contractDocumentUrl } = req.body || {};
-    const updated = await signApplicationContract(id, { contractNotes, contractDocumentUrl }, req.user!.id);
-    sendSuccess(res, "Employment contract marked as signed", updated);
+    const startDate = typeof req.query.startDate === "string" ? req.query.startDate : undefined;
+    const { buffer, fileName } = await getContractPdf(id, startDate);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.send(buffer);
   } catch (error: any) {
-    const statusCode = error.message.includes("not found") ? 404 : 400;
-    sendError(res, error.message, statusCode);
+    sendError(res, error.message, contractStatusCode(error.message));
   }
 };
 
-// POST /api/ta/applications/:id/orientation/complete - Record candidate orientation complete
-export const completeOrientationHandler = async (req: Request, res: Response): Promise<void> => {
+// POST /api/ta/applications/:id/contract/signed - Upload the signed scan and deploy
+export const uploadSignedContractHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
     if (isNaN(id)) {
       sendError(res, "Invalid application ID", 400);
       return;
     }
-    const { orientationDate, orientationNotes } = req.body || {};
-    const updated = await completeApplicationOrientation(id, { orientationDate, orientationNotes }, req.user!.id);
-    sendSuccess(res, "Orientation marked as completed", updated);
+    if (!req.file) {
+      sendError(res, "No signed contract file provided", 400);
+      return;
+    }
+    const { startDate } = req.body || {};
+    const updated = await recordSignedContract(id, req.file, { startDate }, req.user!.id);
+    sendSuccess(res, "Signed contract recorded and candidate deployed", updated);
   } catch (error: any) {
-    const statusCode = error.message.includes("not found") ? 404 : 400;
-    sendError(res, error.message, statusCode);
+    sendError(res, error.message, contractStatusCode(error.message));
   }
 };
 
@@ -206,13 +239,19 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       emergencyContactAddress,
     } = req.body || {};
 
-    validateStructuredAddress({
-      province: province !== undefined ? province : profile.province,
-      city: city !== undefined ? city : profile.city,
-      barangay: barangay !== undefined ? barangay : profile.barangay,
-      postalCode: postalCode !== undefined ? postalCode : profile.postalCode,
-      address: address !== undefined ? address : profile.address,
-    }, profile);
+    // Address problems are user input errors (400), not server failures.
+    try {
+      validateStructuredAddress({
+        province: province !== undefined ? province : profile.province,
+        city: city !== undefined ? city : profile.city,
+        barangay: barangay !== undefined ? barangay : profile.barangay,
+        postalCode: postalCode !== undefined ? postalCode : profile.postalCode,
+        address: address !== undefined ? address : profile.address,
+      }, profile);
+    } catch (validationError: any) {
+      sendError(res, validationError.message, 400);
+      return;
+    }
 
     const updateData: Record<string, any> = {};
     const changes: Record<string, { from: any; to: any }> = {};

@@ -1,34 +1,51 @@
 import { z } from "zod";
-import { boundedIdText, boundedText, FIELD_LIMITS, finiteNumber, dateOnly, formattedDigits, formattedMobile, formattedPhone } from "./field-limits.js";
+import {
+  boundedIdText,
+  boundedText,
+  FIELD_LIMITS,
+  finiteNumber,
+  dateOnly,
+  formattedDigits,
+  formattedMobile,
+  formattedPhone,
+  optionalPersonNameSchema,
+  optionalSafeAddress,
+  optionalSafeText,
+  optionalSafeProse,
+} from "./field-limits.js";
 
 export const employeeSchema = {
+  updateRedeployment: z.object({
+    params: z.object({ id: boundedIdText }).strict(),
+    body: z.object({ ownerId: z.string().uuid().nullable().optional(), followUpAt: dateOnly.nullable().optional(), notes: optionalSafeProse("Notes", FIELD_LIMITS.notes) }).strict(),
+  }),
   idParams: z.object({ params: z.object({ id: boundedIdText }).strict() }),
   updateDetails: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({
-      firstName: boundedText(FIELD_LIMITS.name).optional(),
-      middleName: boundedText(FIELD_LIMITS.name).optional().nullable(),
-      lastName: boundedText(FIELD_LIMITS.name).optional(),
+      firstName: optionalPersonNameSchema("First Name"),
+      middleName: optionalPersonNameSchema("Middle Name"),
+      lastName: optionalPersonNameSchema("Last Name"),
       mobileNumber: formattedMobile,
-      address: boundedText(FIELD_LIMITS.address).optional().nullable(),
-      city: boundedText(FIELD_LIMITS.name).optional().nullable(),
-      province: boundedText(FIELD_LIMITS.name).optional().nullable(),
-      barangay: boundedText(FIELD_LIMITS.barangay).optional().nullable(),
+      address: optionalSafeAddress("Residential Address"),
+      city: optionalSafeText("City", FIELD_LIMITS.name),
+      province: optionalSafeText("Province", FIELD_LIMITS.name),
+      barangay: optionalSafeText("Barangay", FIELD_LIMITS.barangay),
       postalCode: z.union([z.string().regex(/^\d{4}$/), z.literal("")]).optional().nullable(),
       dateOfBirth: z.string().max(35).optional().nullable(),
-      civilStatus: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      gender: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+      civilStatus: optionalSafeText("Civil Status", FIELD_LIMITS.shortText),
+      gender: optionalSafeText("Gender", FIELD_LIMITS.shortText),
       sss: formattedDigits(0, 10),
       philhealth: formattedDigits(0, 12),
       pagibig: formattedDigits(0, 12),
       tin: formattedDigits(9, 12),
-      emergencyContactName: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      emergencyContactName: optionalPersonNameSchema("Emergency Contact Name"),
       emergencyContactPhone: formattedPhone,
-      emergencyContactRelationship: boundedText(FIELD_LIMITS.name).optional().nullable(),
-      emergencyContactAddress: boundedText(FIELD_LIMITS.address).optional().nullable(),
-      position: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      department: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
+      emergencyContactRelationship: optionalSafeText("Emergency Contact Relationship", FIELD_LIMITS.name),
+      emergencyContactAddress: optionalSafeAddress("Emergency Contact Address"),
+      position: optionalSafeText("Position", FIELD_LIMITS.shortText),
+      department: optionalSafeText("Department", FIELD_LIMITS.shortText),
+      notes: optionalSafeProse("Notes", FIELD_LIMITS.notes),
     }).strict(),
   }),
   listEmployees: z.object({
@@ -47,7 +64,7 @@ export const employeeSchema = {
     params: z.object({ id: boundedIdText }).strict(),
     body: z.object({
       status: z.enum(["ACTIVE", "INACTIVE", "SEPARATED", "AVAILABLE_FOR_REDEPLOYMENT"]),
-      reason: boundedText(FIELD_LIMITS.notes).optional(),
+      reason: optionalSafeProse("Reason", FIELD_LIMITS.notes),
     }).strict(),
   }),
 
@@ -56,18 +73,19 @@ export const employeeSchema = {
     body: z.object({
       clientId: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }),
       mrfId: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional(),
-      site: boundedText(FIELD_LIMITS.shortText).optional(),
+      site: optionalSafeText("Site", FIELD_LIMITS.shortText),
       contractStart: z.string().max(35).optional(),
       contractEnd: z.string().max(35).optional(),
-      notes: boundedText(FIELD_LIMITS.notes).optional(),
+      notes: optionalSafeProse("Notes", FIELD_LIMITS.notes),
     }).strict(),
   }),
 
   endDeployment: z.object({
     params: z.object({ id: boundedIdText }).strict(),
     body: z.object({
-      reason: boundedText(FIELD_LIMITS.notes).optional(),
-      makeAvailableForRedeployment: z.boolean().optional().default(true),
+      actualEnd: dateOnly,
+      reason: z.string().trim().min(1, "Reason is required").max(FIELD_LIMITS.notes),
+      disposition: z.enum(["AVAILABLE_FOR_REDEPLOYMENT", "NOT_CONFIRMED", "SEPARATED"]),
     }).strict(),
   }),
 };

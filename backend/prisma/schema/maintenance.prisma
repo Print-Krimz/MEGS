@@ -23,8 +23,29 @@ model DatabaseBackupRecord {
   durationMs       Int?
   initiatedById    String?
   initiatedBy      User?        @relation(fields: [initiatedById], references: [id], onDelete: SetNull)
+  progress         Json?
   createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @default(now()) @updatedAt
   completedAt      DateTime?
+
+  @@index([status, createdAt])
+}
+
+model DatabaseRestoreRecord {
+  id            String       @id @default(uuid())
+  status        BackupStatus @default(IN_PROGRESS)
+  source        String
+  backupId      String?
+  filename      String
+  progress      Json?
+  totalRecords  Int?
+  errorMessage  String?
+  durationMs    Int?
+  initiatedById String?
+  initiatedBy   User?        @relation(fields: [initiatedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @default(now()) @updatedAt
+  completedAt   DateTime?
 
   @@index([status, createdAt])
 }

@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { notificationApi } from "../lib/api/notification.api";
 import { resolveApiBase } from "../lib/api/client";
 import { resolveNotificationLink } from "../lib/utils";
+import { getNotificationInvalidationKeys } from "../lib/notification-invalidation";
+import { NOTIFICATION_COUNT_POLL_MS } from "../lib/query-policies";
 import { useAuth } from "./useAuth";
 
 export interface RealtimeToast {
@@ -18,25 +20,38 @@ export interface RealtimeToast {
 
 export function useRealtimeNotifications() {
   const { isAuthenticated, user } = useAuth();
+  const role = user?.role;
+  const userId = user?.id;
+  const accessToken = isAuthenticated && typeof window !== "undefined"
+    ? window.localStorage.getItem("access_token")
+    : null;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeToasts, setActiveToasts] = useState<RealtimeToast[]>([]);
+  const toastTimeouts = useRef(new Map<number, number>());
+
+  useEffect(() => () => {
+    toastTimeouts.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    toastTimeouts.current.clear();
+  }, []);
 
   // 1. Unread count query
   const unreadCountQuery = useQuery({
     queryKey: ["notifications", "unread-count"],
-    queryFn: async () => {
-      const res = await notificationApi.getUnreadCount();
+    queryFn: async ({ signal }) => {
+      const res = await notificationApi.getUnreadCount({ signal });
       return res.count;
     },
     enabled: isAuthenticated,
-    refetchInterval: 30000, // Background polling fallback
+    refetchInterval: NOTIFICATION_COUNT_POLL_MS, // Process-local SSE needs cross-process reconciliation.
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   // 2. Recent notifications query
   const recentNotificationsQuery = useQuery({
     queryKey: ["notifications", "recent"],
-    queryFn: () => notificationApi.getNotifications({ limit: 10 }),
+    queryFn: ({ signal }) => notificationApi.getNotifications({ limit: 10 }, { signal }),
     enabled: isAuthenticated,
   });
 
@@ -50,10 +65,7 @@ export function useRealtimeNotifications() {
 
   // 4. SSE real-time stream connection
   useEffect(() => {
-    if (!isAuthenticated || !user) return;
-
-    const token = localStorage.getItem("access_token");
-    if (!token) return;
+    if (!isAuthenticated || !userId || !role || !accessToken) return;
 
     const controller = new AbortController();
     const API_BASE = resolveApiBase(import.meta.env.VITE_API_URL);
@@ -61,7 +73,7 @@ export function useRealtimeNotifications() {
     fetchEventSource(`${API_BASE}/api/notifications/stream`, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       signal: controller.signal,
       onmessage(event) {
@@ -69,15 +81,12 @@ export function useRealtimeNotifications() {
           const data = JSON.parse(event.data);
           if (data.type === "CONNECTED" || !data.id) return;
 
-          // Invalidate notification counts and scope invalidation to the user's role
-          queryClient.invalidateQueries({ queryKey: ["notifications"] });
-          if (user.role === "ADMINISTRATOR") {
-            queryClient.invalidateQueries({ queryKey: ["admin"] });
-          } else if (user.role === "TALENT_ACQUISITION") {
-            queryClient.invalidateQueries({ queryKey: ["ta"] });
-          } else if (user.role === "APPLICANT") {
-            queryClient.invalidateQueries({ queryKey: ["applicant"] });
-          }
+          // The stream is process-local, so polling remains the cross-instance fallback.
+          // Only a recognized link identifies a cache slice; unknown events keep the role-wide fallback.
+          const invalidationKeys = getNotificationInvalidationKeys(data, role);
+          void Promise.all(
+            invalidationKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey }))
+          );
 
           // Trigger live toast notification
           const newToast: RealtimeToast = {
@@ -92,9 +101,13 @@ export function useRealtimeNotifications() {
           setActiveToasts((prev) => [newToast, ...prev.slice(0, 2)]);
 
           // Auto-dismiss toast after 6 seconds
-          setTimeout(() => {
+          const priorTimeout = toastTimeouts.current.get(newToast.id);
+          if (priorTimeout !== undefined) window.clearTimeout(priorTimeout);
+          const timeoutId = window.setTimeout(() => {
+            toastTimeouts.current.delete(newToast.id);
             setActiveToasts((prev) => prev.filter((t) => t.id !== newToast.id));
           }, 6000);
+          toastTimeouts.current.set(newToast.id, timeoutId);
         } catch {
           // Ignore parse errors (e.g. heartbeat)
         }
@@ -110,16 +123,21 @@ export function useRealtimeNotifications() {
     return () => {
       controller.abort();
     };
-  }, [isAuthenticated, user, queryClient]);
+  }, [isAuthenticated, userId, role, accessToken, queryClient]);
 
   const dismissToast = (id: number) => {
+    const timeoutId = toastTimeouts.current.get(id);
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+      toastTimeouts.current.delete(id);
+    }
     setActiveToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
   const handleToastClick = (toast: RealtimeToast) => {
     dismissToast(toast.id);
     markAsReadMutation.mutate(toast.id);
-    const notificationLink = resolveNotificationLink(toast.link, user?.role);
+    const notificationLink = resolveNotificationLink(toast.link, role);
     if (notificationLink) {
       if (notificationLink.includes("?")) {
         const [path, qs] = notificationLink.split("?");

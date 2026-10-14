@@ -45,32 +45,103 @@ export const unsaveJobService = async (userId: string, jobPostingId: number) => 
   return { success: true };
 };
 
+export interface ListSavedJobsFilters {
+  search?: string;
+  location?: string;
+  department?: string;
+  page?: number;
+  limit?: number;
+}
+
 /**
  * List full saved job postings with relations for the applicant.
+ * Supports server-side search, location filtering, and pagination.
  */
-export const listSavedJobsService = async (userId: string) => {
-  const saved = await prisma.savedJob.findMany({
-    where: { userId },
-    include: {
-      jobPosting: {
-        include: {
-          mrf: {
-            include: {
-              client: true,
-            },
+export const listSavedJobsService = async (
+  userId: string,
+  filters?: ListSavedJobsFilters
+) => {
+  const jobPostingWhere: any = {
+    status: "OPEN",
+  };
+
+  if (filters?.search?.trim()) {
+    const term = filters.search.trim();
+    jobPostingWhere.OR = [
+      { title: { contains: term, mode: "insensitive" } },
+      { description: { contains: term, mode: "insensitive" } },
+    ];
+  }
+
+  if (filters?.location?.trim()) {
+    jobPostingWhere.location = {
+      contains: filters.location.trim(),
+      mode: "insensitive",
+    };
+  }
+
+  const where: any = {
+    userId,
+    jobPosting: jobPostingWhere,
+  };
+
+  const isPaginated = filters?.page !== undefined || filters?.limit !== undefined;
+
+  const includeRelations = {
+    jobPosting: {
+      include: {
+        mrf: {
+          include: {
+            client: true,
           },
-          _count: {
-            select: {
-              applications: true,
-            },
+        },
+        _count: {
+          select: {
+            applications: true,
           },
         },
       },
     },
+  };
+
+  if (isPaginated) {
+    const page = Math.max(1, filters?.page ?? 1);
+    const limit = Math.max(1, filters?.limit ?? 25);
+    const skip = (page - 1) * limit;
+
+    const [saved, total] = await Promise.all([
+      prisma.savedJob.findMany({
+        where,
+        include: includeRelations,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.savedJob.count({ where }),
+    ]);
+
+    const items = saved.map((s: any) => ({
+      ...s.jobPosting,
+      savedAt: s.createdAt,
+      savedJobId: s.id,
+    }));
+
+    return {
+      items,
+      total,
+      page,
+      pageSize: limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  const saved = await prisma.savedJob.findMany({
+    where,
+    include: includeRelations,
     orderBy: { createdAt: "desc" },
   });
 
-  return saved.map((s) => ({
+  return saved.map((s: any) => ({
     ...s.jobPosting,
     savedAt: s.createdAt,
     savedJobId: s.id,

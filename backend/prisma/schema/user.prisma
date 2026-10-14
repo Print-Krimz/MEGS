@@ -33,7 +33,10 @@ model User {
   scoringConfigurationsActivated CandidateScoringConfiguration[] @relation("ScoringConfigurationActivatedBy")
   storedDocuments StoredDocument[]
   createdMRFs ManpowerRequest[] @relation("MRFCreatedBy")
+  assignedMRFs ManpowerRequest[] @relation("MRFAssignedTa")
+  assignedClients Client[] @relation("ClientAssignedTa")
   recruiterDecisions RecruiterDecision[] @relation("DecisionActor")
+  recordedBackouts ApplicationBackout[] @relation("BackoutRecordedBy")
   endorsedCandidates ClientEndorsement[] @relation("EndorsementActor")
   reviewedComplianceRequirements ComplianceRequirement[] @relation("ComplianceReviewer")
   createdDeployments Deployment[] @relation("DeploymentCreatedBy")
@@ -51,6 +54,7 @@ model User {
   invitations UserInvitation[]
   savedJobs SavedJob[]
   initiatedBackups DatabaseBackupRecord[]
+  initiatedRestores DatabaseRestoreRecord[]
 }
 
 // ─────────────────────────────────────────────

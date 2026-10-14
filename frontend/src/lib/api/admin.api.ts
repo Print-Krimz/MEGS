@@ -6,9 +6,40 @@ import type {
   AuditLog,
   AuditLogQueryFilters,
   DatabaseBackupRecord,
+  DatabaseRestoreRecord,
   QualityMetricsResponse,
 } from "../types/admin.types";
 import type { Role } from "../types/enums";
+import type { PaginatedListResponse } from "../types/api.types";
+
+export interface AdminUserListItem {
+  id: string;
+  email: string;
+  role: Role;
+  isActive: boolean;
+  accountStatus: string;
+  invitationStatus?: string;
+  createdAt: string;
+  applicantProfile?: {
+    id?: number;
+    firstName: string;
+    lastName: string;
+    photoUrl?: string | null;
+  } | null;
+}
+
+export interface AdminUserListQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  role?: Role | "";
+}
+
+export interface AdminUserSummary {
+  totalUsers: number;
+  recruiters: number;
+  administrators: number;
+}
 
 export interface InviteTADto {
   email: string;
@@ -17,11 +48,7 @@ export interface InviteTADto {
 }
 
 import type {
-  AdminOverviewStats,
-  RecruitmentActivityTrend,
-  FunnelAnalytics,
-  BottleneckItem,
-  JobDemandItem,
+  AdminDeliveryDashboard,
   AnalyticsFilterOptions,
   AnalyticsFilterState,
 } from "../types/analytics.types";
@@ -35,7 +62,6 @@ function buildAnalyticsQueryString(filters?: Partial<AnalyticsFilterState>): str
   if (filters.clientId) params.append("clientId", String(filters.clientId));
   if (filters.mrfId) params.append("mrfId", String(filters.mrfId));
   if (filters.jobPostingId) params.append("jobPostingId", String(filters.jobPostingId));
-  if (filters.stage) params.append("stage", filters.stage);
   if (filters.recruiterId) params.append("recruiterId", filters.recruiterId);
   const qs = params.toString();
   return qs ? `?${qs}` : "";
@@ -45,8 +71,25 @@ export const adminApi = {
   // -------------------------------------------------------------
   // 1. User & Role Management
   // -------------------------------------------------------------
-  listUsers: () =>
-    api.get<User[]>("/api/admin/users"),
+  listUsers: (options?: RequestInit) =>
+    api.get<User[]>("/api/admin/users", options),
+
+  listUsersPage: (filters: AdminUserListQuery & { page: number; limit: number }, options?: RequestInit) => {
+    const params = new URLSearchParams();
+    if (filters?.page) params.append("page", String(filters.page));
+    if (filters?.limit) params.append("limit", String(filters.limit));
+    const search = filters?.search?.trim();
+    if (search) params.append("search", search);
+    if (filters?.role) params.append("role", filters.role);
+    const qs = params.toString();
+    return api.get<PaginatedListResponse<AdminUserListItem>>(
+      `/api/admin/users${qs ? `?${qs}` : ""}`,
+      options,
+    );
+  },
+
+  getUserSummary: (options?: RequestInit) =>
+    api.get<AdminUserSummary>("/api/admin/users/summary", options),
 
   inviteTA: (data: InviteTADto) =>
     api.post<User>("/api/admin/invite-ta", data),
@@ -149,8 +192,11 @@ export const adminApi = {
   downloadDatabaseBackup: (id: string) =>
     api.blob(`/api/admin/maintenance/backups/${id}/download`),
 
+  listDatabaseRestores: (limit = 10) =>
+    api.get<DatabaseRestoreRecord[]>(`/api/admin/maintenance/restores?limit=${limit}`),
+
   restoreDatabaseBackup: (id: string) =>
-    api.post<{ success: boolean; totalRecords: number; durationMs: number }>(
+    api.post<DatabaseRestoreRecord>(
       `/api/admin/maintenance/backups/${id}/restore`,
       {}
     ),
@@ -158,39 +204,23 @@ export const adminApi = {
   restoreUploadedBackup: (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    return api.upload<{ success: boolean; totalRecords: number; durationMs: number }>(
+    return api.upload<DatabaseRestoreRecord>(
       "/api/admin/maintenance/backups/restore-upload",
       formData
     );
   },
 
+  cancelMaintenance: () =>
+    api.post<{ cancelledBackups: number; cancelledRestores: number }>(
+      "/api/admin/maintenance/cancel",
+      {}
+    ),
+
   // -------------------------------------------------------------
   // 5. Recruitment Analytics
   // -------------------------------------------------------------
   getDashboardSummary: (filters?: Partial<AnalyticsFilterState>) =>
-    api.get<{
-      overview: AdminOverviewStats;
-      activity: RecruitmentActivityTrend;
-      funnel: FunnelAnalytics;
-      bottlenecks: BottleneckItem[];
-      jobDemands: JobDemandItem[];
-      filterOptions: AnalyticsFilterOptions;
-    }>(`/api/admin/analytics/dashboard${buildAnalyticsQueryString(filters)}`),
-
-  getOverviewStats: (filters?: Partial<AnalyticsFilterState>) =>
-    api.get<AdminOverviewStats>(`/api/admin/analytics/overview${buildAnalyticsQueryString(filters)}`),
-
-  getActivityTrend: (filters?: Partial<AnalyticsFilterState>) =>
-    api.get<RecruitmentActivityTrend>(`/api/admin/analytics/activity${buildAnalyticsQueryString(filters)}`),
-
-  getFunnelAnalytics: (filters?: Partial<AnalyticsFilterState>) =>
-    api.get<FunnelAnalytics>(`/api/admin/analytics/funnel${buildAnalyticsQueryString(filters)}`),
-
-  getBottlenecks: (filters?: Partial<AnalyticsFilterState>) =>
-    api.get<BottleneckItem[]>(`/api/admin/analytics/bottlenecks${buildAnalyticsQueryString(filters)}`),
-
-  getJobDemands: (filters?: Partial<AnalyticsFilterState>) =>
-    api.get<JobDemandItem[]>(`/api/admin/analytics/jobs${buildAnalyticsQueryString(filters)}`),
+    api.get<AdminDeliveryDashboard>(`/api/admin/analytics/dashboard${buildAnalyticsQueryString(filters)}`),
 
   getFilterOptions: () =>
     api.get<AnalyticsFilterOptions>("/api/admin/analytics/filters"),
@@ -200,6 +230,25 @@ export const adminApi = {
   // -------------------------------------------------------------
   getMRFDetails: (id: string | number) =>
     api.get<any>(`/api/admin/mrfs/${id}`),
+
+  /** Read-only application detail, opened from the reports. */
+  getApplication: (id: string | number) =>
+    api.get<any>(`/api/admin/applications/${id}`),
+
+  // -------------------------------------------------------------
+  // 7. Ownership: Admin reassigns requisitions, clients and a departing TA's records
+  // -------------------------------------------------------------
+  assignMrf: (id: string | number, assignedTaId: string | null) =>
+    api.patch<{ id: number; assignedTaId: string | null }>(`/api/admin/mrfs/${id}/assignment`, { assignedTaId }),
+
+  assignClient: (id: string | number, assignedTaId: string | null) =>
+    api.patch<{ id: number; assignedTaId: string | null }>(`/api/admin/clients/${id}/assignment`, { assignedTaId }),
+
+  reassignTaRecords: (fromTaId: string, toTaId: string) =>
+    api.post<{ manpowerRequests: number; clients: number; standaloneJobs: number; redeploymentFollowUps: number }>(
+      `/api/admin/users/${fromTaId}/reassign-records`,
+      { toTaId },
+    ),
 
   exportPipelineReport: (format: "pdf" | "xlsx" = "pdf", filters?: Partial<AnalyticsFilterState>) => {
     const qs = buildAnalyticsQueryString(filters);

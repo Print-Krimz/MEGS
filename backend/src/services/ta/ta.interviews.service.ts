@@ -1,7 +1,9 @@
 import prisma from '../../utils/prisma.js';
 import { sendNotification } from '../../utils/notification.js';
 import { logAudit } from '../../utils/audit.js';
+import { recordBackout } from './backout.service.js';
 import { isFutureDateTime } from "../../schemas/field-limits.js";
+import { ownedWhere, type Actor } from "./ownership.js";
 
 export const fetchInterviews = async (applicationId: number) => {
   return await prisma.interview.findMany({
@@ -52,9 +54,19 @@ export const scheduleNewInterview = async (
   }
 
   if (type === "INITIAL_SCREENING") {
-    const screeningStages = ["SUBMITTED", "PARSING", "REVIEW", "MATCHED", "INITIAL_SCREENING", "NEEDS_ATTENTION", "TALENT_POOL"];
+    // TALENT_POOL is excluded: a pooled application can only be archived (see pipeline-rules.ts); invite the
+    // candidate to a new application instead.
+    const screeningStages = ["SUBMITTED", "PARSING", "REVIEW", "MATCHED", "INITIAL_SCREENING", "NEEDS_ATTENTION"];
     if (!screeningStages.includes(application.status)) {
       throw new Error(`Cannot schedule INITIAL_SCREENING interview for application currently in ${application.status} stage.`);
+    }
+
+    const passedScreening = await prisma.interview.findFirst({
+      where: { applicationId, type: "INITIAL_SCREENING", result: { in: ["PASS", "PASSED"] }, isActive: true },
+      select: { id: true, result: true },
+    });
+    if (passedScreening && ["PASS", "PASSED"].includes(String(passedScreening.result))) {
+      throw new Error("The candidate already passed the Initial interview. Another Initial interview cannot be scheduled.");
     }
 
     // Advance application status to INITIAL_SCREENING if in pre-screening stages
@@ -89,6 +101,14 @@ export const scheduleNewInterview = async (
     });
     if (declinedEndorsement) {
       throw new Error("Cannot schedule FINAL_INTERVIEW. Client endorsement was declined.");
+    }
+
+    const passedFinal = await prisma.interview.findFirst({
+      where: { applicationId, type: "FINAL_INTERVIEW", result: { in: ["PASS", "PASSED"] }, isActive: true },
+      select: { id: true, result: true },
+    });
+    if (passedFinal && ["PASS", "PASSED"].includes(String(passedFinal.result))) {
+      throw new Error("The candidate already passed the Final interview. Another Final interview cannot be scheduled.");
     }
 
     const finalStages = ["INITIAL_SCREENING", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW"];
@@ -210,6 +230,12 @@ export const scheduleNewInterview = async (
   return interview;
 };
 
+export const FINAL_INTERVIEW_RESULTS = ["PASS", "PASSED", "FAIL", "FAILED", "NO_SHOW"] as const;
+
+/** A result is final once anything other than PENDING/empty has been recorded. */
+export const isInterviewResultFinal = (result?: string | null): boolean =>
+  !!result && (FINAL_INTERVIEW_RESULTS as readonly string[]).includes(result);
+
 // Records direct interview or client evaluation outcome without forcing prior scheduling
 export const recordDirectInterviewResult = async (
   applicationId: number,
@@ -252,6 +278,17 @@ export const recordDirectInterviewResult = async (
 
   if (existingInterview) {
     return await updateInterviewResult(applicationId, existingInterview.id, result, conductedAt || undefined, notes, actorId);
+  }
+
+  // Recording directly must not sidestep a finalized result of the same interview type.
+  const finalized = await prisma.interview.findFirst({
+    where: { applicationId, type, isActive: true, result: { in: [...FINAL_INTERVIEW_RESULTS] } },
+    select: { id: true, result: true },
+  });
+  if (finalized) {
+    throw new Error(
+      `Interview result is finalized (${finalized.result}) and can no longer be edited. Contact an administrator to request a correction, or schedule a new interview round.`
+    );
   }
 
   // Otherwise create a new interview record directly
@@ -306,12 +343,18 @@ export const recordDirectInterviewResult = async (
       }
     }
 
-    const { archiveTAApplication } = await import("./ta.applications.service.js");
     try {
-      await archiveTAApplication(applicationId, actorId, "Interview NO_SHOW auto-archive");
-      applicationUpdateMessage = " Application automatically moved to ARCHIVED due to NO_SHOW.";
+      await recordBackout({
+        applicationId,
+        party: "APPLICANT",
+        reason: "NO_SHOW",
+        notes: "Missed scheduled interview",
+        actorId: actorId || application.userId,
+        actorRole: "TALENT_ACQUISITION",
+      });
+      applicationUpdateMessage = " Recorded as an applicant backout (no-show).";
     } catch (err: any) {
-      applicationUpdateMessage = ` Could not auto-archive application: ${err.message}`;
+      applicationUpdateMessage = ` Could not record the backout: ${err.message}`;
     }
   } else if (type === "INITIAL_SCREENING" && ["PASS", "PASSED"].includes(result)) {
     const { updateTAApplicationStatus } = await import("./ta.applications.service.js");
@@ -406,6 +449,12 @@ export const updateInterviewResult = async (
 
   if (!interview) throw new Error("Interview not found");
 
+  if (isInterviewResultFinal(interview.result)) {
+    throw new Error(
+      "Interview result is finalized and can no longer be edited. Contact an administrator to request a correction."
+    );
+  }
+
   if (conductedAt) {
     const conductedDate = new Date(conductedAt);
     if (!Number.isFinite(conductedDate.getTime()) || conductedDate.getTime() > Date.now()) {
@@ -454,12 +503,18 @@ export const updateInterviewResult = async (
       }
     }
 
-    const { archiveTAApplication } = await import("./ta.applications.service.js");
     try {
-      await archiveTAApplication(applicationId, actorId, "Interview NO_SHOW auto-archive");
-      applicationUpdateMessage = " Application automatically moved to ARCHIVED due to NO_SHOW.";
+      await recordBackout({
+        applicationId,
+        party: "APPLICANT",
+        reason: "NO_SHOW",
+        notes: "Missed scheduled interview",
+        actorId: actorId || interview.application.userId,
+        actorRole: "TALENT_ACQUISITION",
+      });
+      applicationUpdateMessage = " Recorded as an applicant backout (no-show).";
     } catch (err: any) {
-      applicationUpdateMessage = ` Could not auto-archive application: ${err.message}`;
+      applicationUpdateMessage = ` Could not record the backout: ${err.message}`;
     }
   } else if (interview.type === "INITIAL_SCREENING" && ["PASS", "PASSED"].includes(result)) {
     const { updateTAApplicationStatus } = await import("./ta.applications.service.js");
@@ -526,11 +581,12 @@ export const updateInterviewResult = async (
 };
 
 // Calculates elapsed days in current interview stage against the 7-day SLA
-export const getInterviewComplianceReport = async () => {
+export const getInterviewComplianceReport = async (actor?: Actor) => {
   const applications = await prisma.application.findMany({
     where: {
       status: { in: ["INITIAL_SCREENING", "FINAL_INTERVIEW"] },
       isArchived: false,
+      ...(actor ? ownedWhere.application(actor) : {}),
     },
     select: {
       id: true,
@@ -588,3 +644,58 @@ export const getInterviewComplianceReport = async () => {
 export const scheduleInterview = scheduleNewInterview;
 export const completeInterview = updateInterviewResult;
 
+
+
+/**
+ * Admin-only correction of a finalized interview result.
+ * The original result is preserved in the (immutable) audit log along with every later correction.
+ */
+export const correctInterviewResult = async (
+  interviewId: number,
+  newResult: string,
+  reason: string,
+  adminId: string,
+  notes?: string
+) => {
+  if (!["PASS", "PASSED", "FAIL", "FAILED", "NO_SHOW"].includes(newResult)) {
+    throw new Error("result must be PASS, PASSED, FAIL, FAILED, or NO_SHOW");
+  }
+  if (!reason || reason.trim().length < 10) {
+    throw new Error("A reason of at least 10 characters is required to correct an interview result.");
+  }
+
+  const interview = await prisma.interview.findUnique({
+    where: { id: interviewId },
+    include: { application: { select: { id: true, status: true } } },
+  });
+  if (!interview) throw new Error("Interview not found");
+  if (!isInterviewResultFinal(interview.result)) {
+    throw new Error("Only finalized interview results can be corrected. Use the normal result update instead.");
+  }
+  if (interview.result === newResult) {
+    throw new Error("The new result is the same as the current result.");
+  }
+
+  const updatedInterview = await prisma.interview.update({
+    where: { id: interviewId },
+    data: { result: newResult, ...(notes !== undefined ? { notes } : {}) },
+  });
+
+  await logAudit(adminId, "INTERVIEW_RESULT_CORRECTED", "Interview", interviewId, {
+    applicationId: interview.applicationId,
+    type: interview.type,
+    previousResult: interview.result,
+    newResult,
+    reason: reason.trim(),
+    applicationStatus: interview.application?.status,
+  });
+
+  const stageWarning =
+    interview.application &&
+    ((interview.type === "FINAL_INTERVIEW" && ["COMPLIANCE", "CONTRACT_SIGNING", "DEPLOYED"].includes(interview.application.status)) ||
+      (interview.type === "INITIAL_SCREENING" && ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "CONTRACT_SIGNING", "DEPLOYED"].includes(interview.application.status)))
+      ? `The application is already in ${interview.application.status}; its stage was not changed automatically. Review it manually.`
+      : null;
+
+  return { updatedInterview, previousResult: interview.result, stageWarning };
+};

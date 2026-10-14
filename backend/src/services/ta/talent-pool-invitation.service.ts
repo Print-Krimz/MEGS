@@ -288,7 +288,7 @@ export const cancelTalentPoolInvitation = async (invitationId: number, recruiter
     where: { id: invitationId },
   });
 
-  if (!invitation) {
+  if (!invitation || invitation.invitedById !== recruiterId) {
     throw new InvalidKnnRequestError("Invitation not found");
   }
 

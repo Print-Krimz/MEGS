@@ -1,0 +1,78 @@
+/* Admin surfaces share MEGS controls without changing other role layouts. */
+.admin-portal {
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  accent-color: var(--color-primary);
+  caret-color: var(--color-primary);
+}
+
+.admin-portal ::selection {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.admin-portal :where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+.admin-skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  transform: translateY(-200%);
+}
+
+.admin-skip-link:focus { transform: translateY(0); }
+
+.admin-portal .admin-panel {
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+}
+
+.admin-portal main :where(div.bg-white.border) { border-radius: 0.75rem; border-color: var(--color-border); }
+.admin-portal main :where(.text-xs) { font-size: 0.75rem; }
+.admin-portal main :where(p, label) { line-height: 1.5; }
+.admin-portal main :where(.admin-panel) { overflow-wrap: anywhere; }
+.admin-portal main :where(.admin-matching-form) { max-width: 64rem; }
+
+.admin-portal .admin-panel:not(.admin-metrics) > :first-child { border-top-left-radius: inherit; border-top-right-radius: inherit; }
+.admin-portal .admin-panel:not(.admin-metrics) > :last-child { border-bottom-left-radius: inherit; border-bottom-right-radius: inherit; }
+.admin-portal main :where(h2, h3, h4) { font-size: 0.875rem; font-weight: 600; }
+.admin-portal main :where(th) { font-size: 0.75rem; font-weight: 600; text-transform: none; letter-spacing: normal; }
+.admin-portal main :where(td) { font-size: 0.875rem; }
+.admin-portal main :where(.text-slate-400, .text-slate-500) { color: #52677d; }
+.admin-portal main :where(.font-mono) { font-family: var(--font-sans); }
+.admin-portal main :where(code, pre) { font-family: var(--font-mono); overflow-wrap: anywhere; }
+.admin-portal main :where([class*="text-[9px]"], [class*="text-[10px]"], [class*="text-[11px]"]) { font-size: 0.75rem; }
+.admin-portal main :where([class*="uppercase"]) { text-transform: none; letter-spacing: normal; }
+.admin-portal main :where(table) { line-height: 1.5; }
+.admin-portal main :where(th, td) { overflow-wrap: anywhere; }
+.admin-portal main :where(th, td) { padding-top: 0.875rem; padding-bottom: 0.875rem; }
+.admin-portal main :where(.admin-section-heading) { padding: 1rem 1.25rem; border-bottom: 1px solid var(--color-border); }
+.admin-portal .admin-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.admin-portal .admin-metrics > section { min-width: 0; padding: 1.25rem; }
+.admin-portal .admin-metrics > section + section { border-left: 1px solid var(--color-border); }
+.admin-portal .admin-metric-value { margin-top: 0.5rem; font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.admin-portal .admin-section-link { color: var(--color-primary); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.admin-portal .admin-weights { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1rem; padding: 1.25rem; }
+.admin-portal main :where(.admin-form-actions) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+
+@media (max-width: 1023px) {
+  .admin-portal .admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-portal .admin-metrics > section:nth-child(3) { border-left: 0; }
+  .admin-portal .admin-metrics > section:nth-child(n+3) { border-top: 1px solid var(--color-border); }
+}
+
+@media (max-width: 767px) {
+  .admin-portal main :where(button, [role="button"]) { min-height: 44px; }
+  .admin-portal main :where(input:not([type="range"]):not([type="checkbox"]), select, textarea) { font-size: 16px; min-height: 44px; }
+  .admin-portal main :where(.flex.items-center.justify-between) { flex-wrap: wrap; gap: 0.75rem; }
+  .admin-portal .admin-weights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-portal .admin-metrics > section { padding: 1rem; }
+}

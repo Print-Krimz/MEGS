@@ -6,6 +6,7 @@ import {
   listSavedJobsService,
   getSavedJobIdsService,
 } from "../../services/applicant/saved-job.service.js";
+import { applicantSchema } from "../../schemas/applicant.schema.js";
 
 export const saveJobHandler = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -44,10 +45,27 @@ export const unsaveJobHandler = async (req: Request, res: Response): Promise<voi
 export const listSavedJobsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const jobs = await listSavedJobsService(userId);
+    const search = typeof req.query.search === "string" ? req.query.search : undefined;
+    const location = typeof req.query.location === "string" ? req.query.location : undefined;
+    const department = typeof req.query.department === "string" ? req.query.department : undefined;
+    const rawPage = req.query.page;
+    const rawLimit = req.query.limit;
+    const page = rawPage !== undefined && rawPage !== "" ? rawPage : undefined;
+    const limit = rawLimit !== undefined && rawLimit !== "" ? rawLimit : undefined;
+
+    const validated = applicantSchema.listSavedJobsQuery.parse({
+      search,
+      location,
+      department,
+      page,
+      limit,
+    });
+
+    const jobs = await listSavedJobsService(userId, validated);
     sendSuccess(res, "Saved jobs retrieved", jobs, 200);
   } catch (error: any) {
-    sendError(res, error.message || "Failed to list saved jobs", 500);
+    const statusCode = error?.name === "ZodError" ? 400 : 500;
+    sendError(res, error.message || "Failed to list saved jobs", statusCode);
   }
 };
 

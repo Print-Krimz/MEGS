@@ -6,24 +6,34 @@ import prisma from "../utils/prisma.js";
 // In-memory storage allows direct buffer streaming to Supabase Storage. Max 5MB.
 const storage = multer.memoryStorage();
 
+const allowedMimeTypes = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+];
+
+const documentFileFilter: multer.Options["fileFilter"] = (req, file, cb) => {
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only PDF, DOCX, DOC, JPEG, PNG, and WEBP files are allowed.'));
+  }
+};
+
 export const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowedMimeTypes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword',
-    ];
-    if (allowedMimeTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only PDF, DOCX, DOC, JPEG, PNG, and WEBP files are allowed.'));
-    }
-  },
+  fileFilter: documentFileFilter,
+});
+
+// Signed contract scans are often phone photos of a full page, so they get a larger limit (10MB).
+export const uploadContractScan = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: documentFileFilter,
 });
 
 // Uploads buffer to Supabase bucket and registers a StoredDocument metadata record.

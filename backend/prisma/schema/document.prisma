@@ -9,6 +9,7 @@ enum DocumentCategory {
   ASSET
   POST_HIRE
   VAULT_201
+  CONTRACT
 }
 
 model StoredDocument {

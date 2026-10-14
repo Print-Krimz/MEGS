@@ -1,13 +1,17 @@
 import { Request, Response } from "express";
 import { sendSuccess, sendError } from "../../utils/response.js";
 import {
-  triggerDatabaseBackupRoutine,
+  startDatabaseBackupInBackground,
   listDatabaseBackups,
   renameDatabaseBackup,
   getBackupDownloadStream,
-  restoreDatabaseBackupById,
-  restoreDatabaseBackupFromBuffer,
+  startRestoreInBackground,
+  listDatabaseRestores,
+  cancelMaintenance,
+  MaintenanceBusyError,
 } from "../../services/admin/backup.service.js";
+
+const errorStatus = (err: unknown, fallback: number) => (err instanceof MaintenanceBusyError ? 409 : fallback);
 
 export const listBackupsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -23,18 +27,18 @@ export const triggerBackupHandler = async (req: Request, res: Response): Promise
   try {
     const userId = (req as any).user?.id;
     const customName = req.body?.customName ? String(req.body.customName).trim() : undefined;
-    const backup = await triggerDatabaseBackupRoutine(userId, "MANUAL", customName);
+    const backup = await startDatabaseBackupInBackground(userId, "MANUAL", customName);
     sendSuccess(
       res,
-      "Database backup created successfully",
+      "Database backup started",
       {
         ...backup,
         sizeBytes: backup.sizeBytes ? Number(backup.sizeBytes) : null,
       },
-      201
+      202
     );
   } catch (err: any) {
-    sendError(res, err.message || "Failed to execute database backup routine", 500);
+    sendError(res, err.message || "Failed to execute database backup routine", errorStatus(err, 500));
   }
 };
 
@@ -72,14 +76,24 @@ export const downloadBackupHandler = async (req: Request, res: Response): Promis
   }
 };
 
+export const listRestoresHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 20;
+    const restores = await listDatabaseRestores(isNaN(limit) ? 20 : limit);
+    sendSuccess(res, "Database restores retrieved successfully", restores);
+  } catch (err: any) {
+    sendError(res, err.message || "Failed to retrieve database restores", 500);
+  }
+};
+
 export const restoreDatabaseBackupHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).user?.id;
     const { id } = req.params;
-    const result = await restoreDatabaseBackupById(String(id), userId);
-    sendSuccess(res, "Database restored successfully.", result);
+    const restore = await startRestoreInBackground({ backupId: String(id) }, userId);
+    sendSuccess(res, "Database restore started.", restore, 202);
   } catch (err: any) {
-    sendError(res, err.message || "Failed to restore database backup.", 500);
+    sendError(res, err.message || "Failed to restore database backup.", errorStatus(err, 500));
   }
 };
 
@@ -91,9 +105,19 @@ export const restoreUploadedBackupHandler = async (req: Request, res: Response):
       sendError(res, "Please upload a valid encrypted backup file (.enc.gz).", 400);
       return;
     }
-    const result = await restoreDatabaseBackupFromBuffer(file.buffer, userId);
-    sendSuccess(res, "Database restored from uploaded backup file successfully.", result);
+    const restore = await startRestoreInBackground({ buffer: file.buffer, filename: file.originalname || "uploaded-backup.enc.gz" }, userId);
+    sendSuccess(res, "Database restore started.", restore, 202);
   } catch (err: any) {
-    sendError(res, err.message || "Failed to restore uploaded backup file.", 500);
+    sendError(res, err.message || "Failed to restore uploaded backup file.", errorStatus(err, 500));
+  }
+};
+
+export const cancelMaintenanceHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    const result = await cancelMaintenance(userId);
+    sendSuccess(res, "Maintenance jobs cancelled successfully", result);
+  } catch (err: any) {
+    sendError(res, err.message || "Failed to cancel maintenance jobs", 500);
   }
 };

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ApplicationStatus } from "@prisma/client";
-import { boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedDigits, formattedMobile, formattedPhone, requiredText } from "./field-limits.js";
+import { BACKOUT_REASONS_BY_PARTY, REJECTION_REASON_CODES } from "../services/ta/backout-rules.js";
+import { boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedDigits, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl } from "./field-limits.js";
 
 const phoneField = formattedPhone;
 
@@ -10,26 +11,33 @@ const mrfDate = z.union([
 ]);
 const salary = finiteNumber({ min: 0, max: 1_000_000, decimals: 2 }).optional().nullable();
 const age = finiteNumber({ min: 18, max: 65, integer: true }).optional().nullable();
+const BACKOUT_REASON_VALUES = [...new Set(Object.values(BACKOUT_REASONS_BY_PARTY).flat())] as [string, ...string[]];
 const idValue = finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true });
 
 export const taSchema = {
   idParams: z.object({ params: z.object({ id: boundedIdText }).strict() }),
   createJob: z.object({
     body: z.object({
-      title: requiredText("Title", FIELD_LIMITS.shortText),
-      description: requiredText("Description", FIELD_LIMITS.longText),
-      requirements: requiredText("Requirements", FIELD_LIMITS.longText),
-      location: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+      title: safeTextSchema("Title", FIELD_LIMITS.shortText),
+      description: safeProseSchema("Description", FIELD_LIMITS.longText),
+      requirements: safeProseSchema("Requirements", FIELD_LIMITS.longText),
+      location: optionalSafeText("Location", FIELD_LIMITS.shortText),
+      imageUrl: optionalSafeUrl("Image web address", FIELD_LIMITS.url),
+      mrfId: idValue.optional().nullable(),
+      isEvergreen: z.boolean().optional(),
       status: z.enum(["DRAFT", "OPEN", "CLOSED"]).optional(),
     }),
   }),
   updateJob: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({
-      title: boundedText(FIELD_LIMITS.shortText).optional(),
-      description: boundedText(FIELD_LIMITS.longText).optional(),
-      requirements: boundedText(FIELD_LIMITS.longText).optional(),
-      location: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+      title: optionalSafeText("Title", FIELD_LIMITS.shortText),
+      description: optionalSafeProse("Description", FIELD_LIMITS.longText),
+      requirements: optionalSafeProse("Requirements", FIELD_LIMITS.longText),
+      location: optionalSafeText("Location", FIELD_LIMITS.shortText),
+      imageUrl: optionalSafeUrl("Image web address", FIELD_LIMITS.url),
+      mrfId: idValue.optional().nullable(),
+      isEvergreen: z.boolean().optional(),
       status: z.enum(["DRAFT", "OPEN", "CLOSED"]).optional(),
     }),
   }),
@@ -39,12 +47,22 @@ export const taSchema = {
       status: z.string().trim().min(1, "Status is required").max(FIELD_LIMITS.shortText),
     }),
   }),
+  updateApplicationStatus: z.object({
+    params: z.object({ id: boundedIdText }),
+    body: z.object({
+      status: z.string().trim().min(1, "Status is required").max(FIELD_LIMITS.shortText),
+      reason: boundedText(FIELD_LIMITS.notes).optional(),
+      reasonCode: z.enum(REJECTION_REASON_CODES).optional(),
+    }),
+  }),
   listJobs: z.object({
     query: z.object({
       status: z.enum(["DRAFT", "OPEN", "CLOSED"]).optional(),
       clientId: idValue.optional(),
       search: boundedText(FIELD_LIMITS.search).optional(),
       mineOnly: z.enum(["true", "false"]).optional(),
+      page: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional(),
+      limit: finiteNumber({ min: 1, max: FIELD_LIMITS.pageSize, integer: true }).optional(),
     }).strict(),
   }),
   listApplications: z.object({
@@ -58,6 +76,7 @@ export const taSchema = {
       mineOnly: z.enum(["true", "false"]).optional(),
       page: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional(),
       limit: finiteNumber({ min: 1, max: FIELD_LIMITS.pageSize, integer: true }).optional(),
+      summary: z.enum(["true", "false"]).optional(),
     }).strict(),
   }),
   listClients: z.object({
@@ -77,10 +96,20 @@ export const taSchema = {
       status: z.enum(["READY_FOR_DEPLOYMENT", "ACTIVE", "ENDED", "CANCELLED", "PENDING_ORIENTATION", "READY", "DISPATCHED"]).optional(),
     }).strict(),
   }),
+  recordBackout: z.object({
+    params: z.object({ id: boundedIdText }),
+    body: z.object({
+      party: z.enum(["APPLICANT", "CLIENT", "AGENCY"]),
+      reason: z.enum(BACKOUT_REASON_VALUES),
+      notes: boundedText(FIELD_LIMITS.notes).optional(),
+      occurredOn: dateOnly.optional(), // Manila calendar date; defaults to now
+    }),
+  }),
   archiveRestore: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({
       notes: boundedText(FIELD_LIMITS.notes).optional(),
+      reason: boundedText(FIELD_LIMITS.notes).optional(),
     }).optional(),
   }),
   scheduleInterview: z.object({
@@ -147,19 +176,13 @@ export const taSchema = {
       isRequired: z.boolean().optional(),
     }),
   }),
-  signContract: z.object({
+  downloadContractPdf: z.object({
     params: z.object({ id: boundedIdText }),
-    body: z.object({
-      contractNotes: boundedText(FIELD_LIMITS.notes).optional(),
-      contractDocumentUrl: z.string().max(FIELD_LIMITS.url).optional(),
-    }),
+    query: z.object({ startDate: dateOnly.optional() }).strict(),
   }),
-  completeOrientation: z.object({
+  uploadSignedContract: z.object({
     params: z.object({ id: boundedIdText }),
-    body: z.object({
-      orientationDate: dateOnly.optional(),
-      orientationNotes: boundedText(FIELD_LIMITS.notes).optional(),
-    }),
+    body: z.object({ startDate: dateOnly }),
   }),
   linkJobToMRF: z.object({
     params: z.object({ id: boundedIdText }),
@@ -176,6 +199,7 @@ export const taSchema = {
     body: z.object({
       status: z.enum(["READY_FOR_DEPLOYMENT", "ACTIVE", "ENDED", "CANCELLED"]),
       notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
+      actualStart: dateOnly.optional(),
     }).strict(),
   }),
   signDeploymentContract: z.object({
@@ -191,6 +215,14 @@ export const taSchema = {
       contractDocumentUrl: z.string().max(FIELD_LIMITS.url).optional().nullable(),
       contractTerms: boundedText(FIELD_LIMITS.longText).optional().nullable(),
       contractStatus: z.enum(["PENDING_REVIEW", "PENDING_SIGNATURES", "WORKER_SIGNED", "CLIENT_SIGNED", "FULLY_EXECUTED"]).optional().nullable(),
+      contractEnd: dateOnly.optional().nullable(),
+    }).strict(),
+  }),
+  recordDeploymentReview: z.object({
+    params: z.object({ id: boundedIdText }),
+    body: z.object({
+      nextReviewAt: dateOnly.optional().nullable(),
+      notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
     }).strict(),
   }),
   fastTrackRedeployment: z.object({
@@ -215,8 +247,14 @@ export const taSchema = {
       reviewStatus: z.enum(["APPROVED", "REJECTED", "PENDING", "EXPIRED", "TO_FOLLOW", "SUBMITTED"]),
       reviewNotes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
       expiresAt: dateOnly.optional().nullable(),
+      issuedAt: dateOnly.optional().nullable(),
+      validityStatus: z.enum(["UNKNOWN", "HAS_EXPIRY", "NO_EXPIRY"]).optional(),
       toFollowExpectedAt: dateOnly.optional().nullable(),
     }).strict(),
+  }),
+  requestDocumentUpdate: z.object({
+    params: z.object({ requirementId: boundedIdText }).strict(),
+    body: z.object({ reason: z.string().trim().min(1).max(FIELD_LIMITS.notes), deadline: dateOnly }).strict(),
   }),
   updateComplianceDeadline: z.object({
     params: z.object({ requirementId: boundedIdText }),
@@ -248,20 +286,20 @@ export const taSchema = {
   createMRF: z.object({
     body: z.object({
       clientId: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }),
-      title: z.string().trim().min(1).max(FIELD_LIMITS.shortText),
+      title: safeTextSchema("MRF title", FIELD_LIMITS.shortText),
       headcount: finiteNumber({ min: 1, max: 1000, integer: true }).optional(),
       priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
-      location: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+      location: optionalSafeText("Location", FIELD_LIMITS.shortText),
       targetFillDate: mrfDate.optional().nullable(),
-      requiredSkills: boundedText(FIELD_LIMITS.notes).optional().nullable(),
-      requiredExperience: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      requiredEducation: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      requiredCertifications: boundedText(FIELD_LIMITS.notes).optional().nullable(),
-      description: boundedText(FIELD_LIMITS.longText).optional().nullable(),
+      requiredSkills: optionalSafeProse("Required skills", FIELD_LIMITS.notes),
+      requiredExperience: optionalSafeText("Required experience", FIELD_LIMITS.shortText),
+      requiredEducation: optionalSafeText("Required education", FIELD_LIMITS.shortText),
+      requiredCertifications: optionalSafeProse("Required certifications", FIELD_LIMITS.notes),
+      description: optionalSafeProse("MRF description", FIELD_LIMITS.longText),
       salaryRangeMin: salary,
       salaryRangeMax: salary,
-      employmentType: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      workArrangement: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+      employmentType: optionalSafeText("Employment type", FIELD_LIMITS.shortText),
+      workArrangement: optionalSafeText("Work arrangement", FIELD_LIMITS.shortText),
       ageMin: age,
       ageMax: age,
       genderPreference: z.enum(["ANY", "MALE", "FEMALE"]).optional(),
@@ -278,20 +316,20 @@ export const taSchema = {
   updateMRF: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({
-      title: z.string().trim().min(1).max(FIELD_LIMITS.shortText).optional(),
+      title: optionalSafeText("MRF title", FIELD_LIMITS.shortText),
       headcount: finiteNumber({ min: 1, max: 1000, integer: true }).optional(),
       priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
-      location: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+      location: optionalSafeText("Location", FIELD_LIMITS.shortText),
       targetFillDate: mrfDate.optional().nullable(),
-      requiredSkills: boundedText(FIELD_LIMITS.notes).optional().nullable(),
-      requiredExperience: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      requiredEducation: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      requiredCertifications: boundedText(FIELD_LIMITS.notes).optional().nullable(),
-      description: boundedText(FIELD_LIMITS.longText).optional().nullable(),
+      requiredSkills: optionalSafeProse("Required skills", FIELD_LIMITS.notes),
+      requiredExperience: optionalSafeText("Required experience", FIELD_LIMITS.shortText),
+      requiredEducation: optionalSafeText("Required education", FIELD_LIMITS.shortText),
+      requiredCertifications: optionalSafeProse("Required certifications", FIELD_LIMITS.notes),
+      description: optionalSafeProse("MRF description", FIELD_LIMITS.longText),
       salaryRangeMin: salary,
       salaryRangeMax: salary,
-      employmentType: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      workArrangement: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
+      employmentType: optionalSafeText("Employment type", FIELD_LIMITS.shortText),
+      workArrangement: optionalSafeText("Work arrangement", FIELD_LIMITS.shortText),
       ageMin: age,
       ageMax: age,
       genderPreference: z.enum(["ANY", "MALE", "FEMALE"]).optional(),
@@ -308,10 +346,10 @@ export const taSchema = {
   }),
   createClient: z.object({
     body: z.object({
-      name: z.string().trim().min(1, "Company name is required").max(FIELD_LIMITS.shortText),
-      tradeName: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      industry: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      contactName: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      name: safeTextSchema("Company name", FIELD_LIMITS.shortText),
+      tradeName: optionalSafeText("Brand name", FIELD_LIMITS.shortText),
+      industry: optionalSafeText("Industry", FIELD_LIMITS.shortText),
+      contactName: optionalPersonNameSchema("Contact name"),
       contactEmail: z
         .string()
         .email("Invalid email format")
@@ -329,11 +367,11 @@ export const taSchema = {
         .nullable()
         .or(z.literal("")),
       contactPhone: phoneField,
-      address: boundedText(FIELD_LIMITS.address).optional().nullable(),
-      street: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      barangay: boundedText(FIELD_LIMITS.barangay).optional().nullable(),
-      city: boundedText(FIELD_LIMITS.name).optional().nullable(),
-      province: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      address: optionalSafeAddress("Address"),
+      street: optionalSafeAddress("Street"),
+      barangay: optionalSafeText("Barangay", FIELD_LIMITS.barangay),
+      city: optionalSafeText("City", FIELD_LIMITS.name),
+      province: optionalSafeText("Province", FIELD_LIMITS.name),
       postalCode: z
         .string()
         .optional()
@@ -354,35 +392,35 @@ export const taSchema = {
   updateCandidateProfile: z.object({
     params: z.object({ id: z.string().min(1).max(128) }),
     body: z.object({
-      firstName: z.string().trim().min(1).max(FIELD_LIMITS.name).optional(),
-      lastName: z.string().trim().min(1).max(FIELD_LIMITS.name).optional(),
-      middleName: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      firstName: optionalPersonNameSchema("First Name"),
+      lastName: optionalPersonNameSchema("Last Name"),
+      middleName: optionalPersonNameSchema("Middle Name"),
       mobileNumber: formattedMobile,
       dateOfBirth: z.string().max(35).optional().nullable(),
-      gender: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      city: boundedText(FIELD_LIMITS.name).optional().nullable(),
-      province: boundedText(FIELD_LIMITS.name).optional().nullable(),
-      barangay: boundedText(FIELD_LIMITS.barangay).optional().nullable(),
+      gender: optionalSafeText("Gender", FIELD_LIMITS.shortText),
+      city: optionalSafeText("City", FIELD_LIMITS.name),
+      province: optionalSafeText("Province", FIELD_LIMITS.name),
+      barangay: optionalSafeText("Barangay", FIELD_LIMITS.barangay),
       postalCode: z.string().regex(/^\d{4}$/).optional().nullable(),
       tattooStatus: z.enum(["NONE", "NON_VISIBLE", "VISIBLE"]).optional().nullable(),
       sss: formattedDigits(0, 10),
       philhealth: formattedDigits(0, 12),
       pagibig: formattedDigits(0, 12),
       tin: formattedDigits(9, 12),
-      address: boundedText(FIELD_LIMITS.address).optional().nullable(),
-      emergencyContactName: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      address: optionalSafeAddress("Residential Address"),
+      emergencyContactName: optionalPersonNameSchema("Emergency Contact Name"),
       emergencyContactPhone: phoneField,
-      emergencyContactRelationship: boundedText(FIELD_LIMITS.name).optional().nullable(),
-      emergencyContactAddress: boundedText(FIELD_LIMITS.address).optional().nullable(),
+      emergencyContactRelationship: optionalSafeText("Emergency Contact Relationship", FIELD_LIMITS.name),
+      emergencyContactAddress: optionalSafeAddress("Emergency Contact Address"),
     }).strict(),
   }),
   updateClient: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({
-      name: z.string().trim().min(1, "Company name is required").max(FIELD_LIMITS.shortText).optional(),
-      tradeName: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      industry: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      contactName: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      name: optionalSafeText("Company name", FIELD_LIMITS.shortText),
+      tradeName: optionalSafeText("Brand name", FIELD_LIMITS.shortText),
+      industry: optionalSafeText("Industry", FIELD_LIMITS.shortText),
+      contactName: optionalPersonNameSchema("Contact name"),
       contactEmail: z
         .string()
         .email("Invalid email format")
@@ -400,11 +438,11 @@ export const taSchema = {
         .nullable()
         .or(z.literal("")),
       contactPhone: phoneField,
-      address: boundedText(FIELD_LIMITS.address).optional().nullable(),
-      street: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
-      barangay: boundedText(FIELD_LIMITS.barangay).optional().nullable(),
-      city: boundedText(FIELD_LIMITS.name).optional().nullable(),
-      province: boundedText(FIELD_LIMITS.name).optional().nullable(),
+      address: optionalSafeAddress("Address"),
+      street: optionalSafeAddress("Street"),
+      barangay: optionalSafeText("Barangay", FIELD_LIMITS.barangay),
+      city: optionalSafeText("City", FIELD_LIMITS.name),
+      province: optionalSafeText("Province", FIELD_LIMITS.name),
       postalCode: z
         .string()
         .optional()

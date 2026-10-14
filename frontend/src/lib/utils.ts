@@ -131,8 +131,8 @@ export function getApplicationStatusPresentation(
       case ApplicationStatus.COMPLIANCE:
         return { label: "Requirements", badgeClass: "bg-[#FFF7ED] text-[#B45309] border-[#FED7AA]" };
       case ApplicationStatus.ONBOARDING:
-      case ApplicationStatus.CONTRACT_AND_ORIENTATION:
-        return { label: "Contract & Orientation", badgeClass: "bg-[#F3F0FF] text-[#6D4FD3] border-[#DDD6FE]" };
+      case ApplicationStatus.CONTRACT_SIGNING:
+        return { label: "Contract Signing", badgeClass: "bg-[#F3F0FF] text-[#6D4FD3] border-[#DDD6FE]" };
       case ApplicationStatus.DEPLOYED:
         return { label: "Deployed", badgeClass: "bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]" };
       case ApplicationStatus.TALENT_POOL:
@@ -166,8 +166,8 @@ export function getApplicationStatusPresentation(
     case ApplicationStatus.COMPLIANCE:
       return { label: "Requirements", badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
     case ApplicationStatus.ONBOARDING:
-    case ApplicationStatus.CONTRACT_AND_ORIENTATION:
-      return { label: TA_COPY.pipeline.contractAndOrientation, badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
+    case ApplicationStatus.CONTRACT_SIGNING:
+      return { label: TA_COPY.pipeline.contractSigning, badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
     case ApplicationStatus.DEPLOYED:
       return { label: "Deployed", badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300" };
     case ApplicationStatus.TALENT_POOL:
@@ -351,7 +351,7 @@ function formatAdminNotificationMessage(message: string): string {
     .replace(/INITIAL_SCREENING/g, "initial review")
     .replace(/CLIENT_ENDORSEMENT/g, "client review")
     .replace(/FINAL_INTERVIEW/g, "final interview")
-    .replace(/CONTRACT_AND_ORIENTATION/g, "contract and orientation")
+    .replace(/CONTRACT_SIGNING/g, "contract signing")
     .replace(/COMPLIANCE/g, "requirements")
     .replace(/TALENT_POOL/g, "candidate pool")
     .replace(/BACKOUT/g, "withdrawn")

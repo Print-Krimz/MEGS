@@ -21,6 +21,11 @@ import {
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
 import { TA_COPY, formatPriority, formatTaStatus } from "../../lib/ta-copy";
+import {
+  validatePersonName,
+  validateStandardText,
+  validatePhilippineContactPhone,
+} from "../../lib/statutory-validation";
 
 export const ClientDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -265,7 +270,7 @@ export const ClientDetailPage: React.FC = () => {
           <div className="pt-2 border-t border-slate-100 text-xs">
             <span className="text-slate-500 block mb-1">Standard 201 requirements</span>
             <p className="text-slate-700 leading-relaxed">
-              Government Issued ID, NBI Clearance, Fit to Work Medical Exam, SSS Document, PhilHealth Member Data Record, Pag-IBIG Member ID, Signed Employment Contract, Client NDA & Security Briefing
+              Government Issued ID, NBI Clearance, Fit to Work Medical Exam, SSS Document, PhilHealth Member Data Record, Pag-IBIG Member ID, Client NDA & Security Briefing
             </p>
           </div>
         )}
@@ -369,6 +374,45 @@ export const ClientDetailPage: React.FC = () => {
           onSubmit={(e) => {
             e.preventDefault();
             if (!editName.trim()) return;
+
+            const nameErr = validateStandardText(editName, "Legal company name", { maxLength: 200 });
+            if (nameErr) {
+              notify.error("Invalid Company Name", nameErr);
+              return;
+            }
+
+            if (editTradeName.trim()) {
+              const tradeErr = validateStandardText(editTradeName, "Brand name", { maxLength: 200 });
+              if (tradeErr) {
+                notify.error("Invalid Brand Name", tradeErr);
+                return;
+              }
+            }
+
+            if (editContactFirstName.trim()) {
+              const fnErr = validatePersonName(editContactFirstName, "Contact first name");
+              if (fnErr) {
+                notify.error("Invalid Contact Name", fnErr);
+                return;
+              }
+            }
+
+            if (editContactLastName.trim()) {
+              const lnErr = validatePersonName(editContactLastName, "Contact last name");
+              if (lnErr) {
+                notify.error("Invalid Contact Name", lnErr);
+                return;
+              }
+            }
+
+            if (editContactPhone.trim()) {
+              const phoneErr = validatePhilippineContactPhone(editContactPhone, { label: "Contact phone" });
+              if (phoneErr) {
+                notify.error("Invalid Contact Phone", phoneErr);
+                return;
+              }
+            }
+
             if (editContactEmail.trim() && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(editContactEmail.trim())) {
               setEditEmailError("Official contact email must be a valid @gmail.com address");
               return;
@@ -428,6 +472,7 @@ export const ClientDetailPage: React.FC = () => {
             <Input
               label="Contact first name"
               maxLength={100}
+              nameInput
               placeholder="e.g. Roberto"
               value={editContactFirstName}
               onChange={(e) => setEditContactFirstName(e.target.value)}
@@ -435,6 +480,7 @@ export const ClientDetailPage: React.FC = () => {
             <Input
               label="Contact last name"
               maxLength={100}
+              nameInput
               placeholder="e.g. Tan"
               value={editContactLastName}
               onChange={(e) => setEditContactLastName(e.target.value)}

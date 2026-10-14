@@ -29,6 +29,9 @@ export interface Deployment {
   site?: string | null;
   contractStart?: string | null;
   contractEnd?: string | null;
+  actualStart?: string | null;
+  actualEnd?: string | null;
+  nextReviewAt?: string | null;
   notes?: string | null;
   contractDocumentUrl?: string | null;
   contractStatus?: string | null;
@@ -60,6 +63,22 @@ export interface Deployment {
     } | null;
   } | null;
   statusHistory?: DeploymentStatusHistory[];
+  agreementVersions?: Array<{
+    id: number;
+    contractStart?: string | null;
+    contractEnd?: string | null;
+    contractDocumentUrl?: string | null;
+    contractStatus?: string | null;
+    contractTerms?: string | null;
+    recordedAt: string;
+  }>;
+  reviews?: Array<{
+    id: number;
+    reviewedAt: string;
+    nextReviewAt?: string | null;
+    notes?: string | null;
+    reviewedBy?: { id: string; email: string };
+  }>;
 }
 
 export interface EmploymentEvent {
@@ -126,6 +145,7 @@ export interface Digital201Aggregate {
   employee: Employee;
   candidate: ApplicantProfile & {
     id?: string;
+    applicantProfileId?: number | null;
     email?: string;
     profile?: ApplicantProfile;
   };

@@ -1,31 +1,20 @@
 import prisma from '../../utils/prisma.js';
+import { Prisma } from '@prisma/client';
 import { ApplicationStatus } from "@prisma/client";
 import { sendNotification, sendRoleNotification } from '../../utils/notification.js';
 import { scoringFlags } from '../../utils/scoring-flags.js';
 import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.service.js";
 import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
 import { logAudit } from '../../utils/audit.js';
-import { resolveDocumentSignedUrl } from '../document/document.service.js';
+import { resolveDocumentSignedUrl, uploadAndStoreDocument } from '../document/document.service.js';
+import { buildContractPdfBuffer } from './contract-pdf-builder.js';
 import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
+import { ownedWhere, type Actor } from "./ownership.js";
+import { syncMRFFulfillmentStatus } from "./ta.mrf.service.js";
 
-// Authoritative State Machine governing valid applicant pipeline stage transitions
-export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  SUBMITTED:                 ["PARSING", "REVIEW", "MATCHED", "INITIAL_SCREENING", "NEEDS_ATTENTION", "BACKOUT", "ARCHIVED"],
-  PARSING:                   ["REVIEW", "MATCHED", "INITIAL_SCREENING", "NEEDS_ATTENTION", "ARCHIVED"],
-  REVIEW:                    ["INITIAL_SCREENING", "MATCHED", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  NEEDS_ATTENTION:           ["PARSING", "REVIEW", "MATCHED", "INITIAL_SCREENING", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  MATCHED:                   ["INITIAL_SCREENING", "REVIEW", "TALENT_POOL", "ARCHIVED"],
-  TALENT_POOL:               ["ARCHIVED"],
-  INITIAL_SCREENING:         ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  CLIENT_ENDORSEMENT:        ["FINAL_INTERVIEW", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  FINAL_INTERVIEW:           ["COMPLIANCE", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  COMPLIANCE:                ["CONTRACT_AND_ORIENTATION", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  CONTRACT_AND_ORIENTATION: ["DEPLOYED", "TALENT_POOL", "BACKOUT", "ARCHIVED"],
-  DEPLOYED:                  ["ARCHIVED"],
-  BACKOUT:                   [],
-  ARCHIVED:                  [],
-};
+import { ALLOWED_TRANSITIONS, SKIPPABLE_STAGES, stagesBetween, type TransitionType } from "./pipeline-rules.js";
+export { ALLOWED_TRANSITIONS };
 
 export interface ListTAApplicationsOptions {
   status?: string;
@@ -36,8 +25,10 @@ export interface ListTAApplicationsOptions {
   page?: number;
   limit?: number;
   mineOnly?: boolean;
+  actor?: Actor;
   currentUserId?: string;
   postedById?: string;
+  summary?: boolean;
 }
 
 export const listTAApplications = async (
@@ -52,11 +43,12 @@ export const listTAApplications = async (
           jobPostingId: legacyJobPostingId,
         };
 
-  const { status, jobPostingId, clientId, search, isArchived, page, limit, mineOnly, currentUserId, postedById } = options;
+  const { status, jobPostingId, clientId, search, isArchived, page, limit, mineOnly, currentUserId, postedById, summary, actor } = options;
   const dynamicScoring = scoringFlags.dynamicCandidateScoringEnabled();
   const configuration = dynamicScoring ? await getActiveScoringConfiguration() : null;
 
   const andConditions: any[] = [];
+  if (actor) andConditions.push(ownedWhere.application(actor));
 
   if (postedById || (mineOnly && currentUserId)) {
     andConditions.push({ jobPosting: { postedById: postedById || currentUserId } });
@@ -126,6 +118,89 @@ export const listTAApplications = async (
 
   const where: any = andConditions.length > 0 ? { AND: andConditions } : {};
 
+  if (summary) {
+    const resolvedPage = page ?? 1;
+    const resolvedLimit = limit ?? 25;
+    const [total, applications] = await Promise.all([
+      prisma.application.count({ where }),
+      prisma.application.findMany({
+        where,
+        skip: (resolvedPage - 1) * resolvedLimit,
+        take: resolvedLimit,
+        orderBy: dynamicScoring ? { createdAt: "desc" } : [
+          { aiScore: { sort: "desc", nulls: "last" } },
+          { createdAt: "desc" },
+        ],
+        select: {
+          id: true,
+          status: true,
+          aiScore: true,
+          isArchived: true,
+          createdAt: true,
+          jobPosting: {
+            select: {
+              id: true,
+              title: true,
+              location: true,
+              mrf: { select: { id: true, title: true, clientId: true, client: { select: { id: true, name: true } } } },
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              email: true,
+              applicantProfile: { select: { firstName: true, lastName: true, mobileNumber: true } },
+            },
+          },
+          _count: { select: { interviews: true, recruiterDecisions: true, complianceRequirements: true } },
+        },
+      }),
+    ]);
+
+
+    const scoreRows = applications.length === 0
+      ? []
+      : await prisma.$queryRaw<Array<{ applicationId: number; finalFitScore: number; calculatedAt: Date }>>`
+          SELECT DISTINCT ON (score."applicationId") score."applicationId", score."finalFitScore", score."calculatedAt"
+          FROM "CandidateScore" AS score
+          JOIN "Application" AS application ON application."id" = score."applicationId"
+          WHERE application."id" IN (${Prisma.join(applications.map((application) => application.id))})
+            AND score."jobPostingId" = application."jobPostingId"
+          ORDER BY score."applicationId",
+            CASE WHEN score."configurationId" = ${configuration?.id ?? -1} AND score."status" = 'CALCULATED' THEN 0 ELSE 1 END,
+            score."calculatedAt" DESC, score."id" DESC
+        `;
+    const scoresByApplication = new Map(scoreRows.map((row) => [row.applicationId, row]));
+
+    const items = applications.map((application) => {
+        const score = scoresByApplication.get(application.id);
+        const { _count, ...row } = application;
+        return {
+          ...row,
+          candidateFitScore: score ? Number(score.finalFitScore) : null,
+          candidateFitScoreCalculatedAt: score?.calculatedAt ?? null,
+          candidateScoringConfigurationVersion: configuration?.version ?? null,
+          interviewCount: _count.interviews,
+          recruiterDecisionCount: _count.recruiterDecisions,
+        };
+      }).sort((left, right) => {
+        if (dynamicScoring) {
+          return (right.candidateFitScore ?? -1) - (left.candidateFitScore ?? -1)
+            || right.createdAt.getTime() - left.createdAt.getTime();
+        }
+        return (right.candidateFitScore ?? right.aiScore ?? -1) - (left.candidateFitScore ?? left.aiScore ?? -1)
+          || right.createdAt.getTime() - left.createdAt.getTime();
+      });
+
+    return {
+      items,
+      total,
+      page: resolvedPage,
+      pageSize: resolvedLimit,
+      totalPages: Math.ceil(total / resolvedLimit),
+    };
+  }
+
   const take = limit ? Math.max(1, limit) : undefined;
   const skip = page && limit ? Math.max(0, (page - 1) * limit) : undefined;
 
@@ -194,29 +269,6 @@ export const listTAApplications = async (
     }),
   ]);
 
-  for (const app of applications) {
-    if (app.status === "COMPLIANCE" && (!app.complianceRequirements || app.complianceRequirements.length === 0)) {
-      try {
-        const generated = await generateComplianceRequirementsFromMRF(app.id);
-        if (generated?.length) {
-          app.complianceRequirements = generated.map((g: any) => ({
-            id: g.id,
-            documentLabel: g.documentLabel,
-            reviewStatus: g.reviewStatus,
-            isRequired: g.isRequired,
-            updatedAt: g.updatedAt,
-            deadline: g.deadline,
-            documentId: g.documentId,
-            toFollowExpectedAt: g.toFollowExpectedAt,
-            reviewNotes: g.reviewNotes,
-            expiresAt: g.expiresAt,
-          })) as any;
-        }
-      } catch {
-        // Safe fallback
-      }
-    }
-  }
 
   const formatted = applications
     .map((application) => {
@@ -276,7 +328,7 @@ export const listTAApplications = async (
   };
 };
 
-export const getTAApplication = async (id: number) => {
+export const getTAApplication = async (id: number, options: { generateRequirements?: boolean } = {}) => {
   const application = await prisma.application.findUnique({
     where: { id },
     include: {
@@ -355,6 +407,7 @@ export const getTAApplication = async (id: number) => {
         include: { client: true },
         orderBy: { createdAt: "desc" },
       },
+      backout: true,
       hiredEmployee: {
         select: {
           id: true,
@@ -370,7 +423,12 @@ export const getTAApplication = async (id: number) => {
 
   if (!application) throw new Error("Application not found");
 
-  if (application.status === "COMPLIANCE" && (!application.complianceRequirements || application.complianceRequirements.length === 0)) {
+  // Opening an application normally fills in its requirements checklist. Read-only callers (Admin) skip that write.
+  if (
+    options.generateRequirements !== false &&
+    application.status === "COMPLIANCE" &&
+    (!application.complianceRequirements || application.complianceRequirements.length === 0)
+  ) {
     try {
       const generated = await generateComplianceRequirementsFromMRF(application.id);
       if (generated?.length) {
@@ -385,7 +443,7 @@ export const getTAApplication = async (id: number) => {
   if (application.complianceRequirements?.length) {
     for (const req of application.complianceRequirements) {
       if (!req.deadline) {
-        req.deadline = new Date(req.createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+        req.deadline = new Date((req.createdAt instanceof Date ? req.createdAt.getTime() : (req.createdAt ? new Date(req.createdAt).getTime() : Date.now())) + 7 * 24 * 60 * 60 * 1000);
       }
     }
   }
@@ -483,7 +541,8 @@ export const updateTAApplicationStatus = async (
   id: number,
   status: any,
   actorId?: string,
-  reason?: string
+  reason?: string,
+  reasonCode?: string
 ) => {
   const application = await prisma.application.findUnique({
     where: { id },
@@ -491,6 +550,9 @@ export const updateTAApplicationStatus = async (
   });
 
   if (!application) throw new Error("Application not found");
+  if (status === "BACKOUT") {
+    throw new Error("Use the backout form so the stage, responsible party and reason are recorded.");
+  }
   if (application.isArchived && status !== "SUBMITTED" && status !== "ARCHIVED") {
     throw new Error("Cannot change status of an archived application. Restore it first.");
   }
@@ -549,53 +611,50 @@ export const updateTAApplicationStatus = async (
     }
   }
 
-  // Pre-transition rule: FINAL_INTERVIEW -> COMPLIANCE requires PASS from client final evaluation
+  // Authorised skip detection: stages bypassed on the main pipeline (Client review / Final interview only).
+  let transitionType: TransitionType = "NORMAL";
+  let skippedStages: string[] = stagesBetween(currentStatus, status);
+
+  // Pre-transition rule: FINAL_INTERVIEW -> COMPLIANCE requires a PASS from the client final evaluation.
+  // (Redeployed / same-client candidates reach Requirements through Fast Track, which is recorded separately.)
   if (status === "COMPLIANCE") {
-    if (currentStatus === "FINAL_INTERVIEW") {
-      const passedClientEval = await prisma.interview.findFirst({
-        where: {
-          applicationId: id,
-          type: "FINAL_INTERVIEW",
-          result: { in: ["PASS", "PASSED"] },
-          isActive: true,
-        },
-      });
-      if (!passedClientEval) {
-        throw new Error("Cannot move to COMPLIANCE. Client final evaluation result must be PASS.");
-      }
-    } else if (currentStatus === "CLIENT_ENDORSEMENT") {
-      const endorsement = await prisma.clientEndorsement.findFirst({
-        where: {
-          applicationId: id,
-          outcome: { in: ["APPROVED", "ENDORSED"] },
-        },
-      });
-      const passedClientEval = await prisma.interview.findFirst({
-        where: {
-          applicationId: id,
-          type: "FINAL_INTERVIEW",
-          result: { in: ["PASS", "PASSED"] },
-          isActive: true,
-        },
-      });
-      if (!endorsement && !passedClientEval) {
-        throw new Error("Cannot move to COMPLIANCE. Client acceptance or passed evaluation is required.");
-      }
+    const passedClientEval = await prisma.interview.findFirst({
+      where: {
+        applicationId: id,
+        type: "FINAL_INTERVIEW",
+        result: { in: ["PASS", "PASSED"] },
+        isActive: true,
+      },
+    });
+    if (!passedClientEval) {
+      throw new Error("Cannot move to COMPLIANCE. Client final evaluation result must be PASS.");
     }
   }
 
-  // Pre-transition rule: COMPLIANCE -> CONTRACT_AND_ORIENTATION requires all mandatory requirements APPROVED & valid
-  if (status === "CONTRACT_AND_ORIENTATION") {
+  if (skippedStages.length > 0) {
+    const illegal = skippedStages.filter((stage) => !SKIPPABLE_STAGES.includes(stage));
+    if (illegal.length > 0) {
+      throw new Error(`Stage(s) cannot be skipped: ${illegal.join(", ")}.`);
+    }
+    if (!reason || !reason.trim()) {
+      throw new Error(
+        `A reason is required to skip ${skippedStages.join(" and ")}. Provide the client instruction or recruitment rule that justifies the skip.`
+      );
+    }
+    transitionType = "SKIP";
+  }
+
+  // Pre-transition rule: COMPLIANCE -> CONTRACT_SIGNING requires all mandatory requirements APPROVED & valid
+  if (status === "CONTRACT_SIGNING") {
     const compliant = await isFullyCompliant(id);
     if (!compliant) {
-      throw new Error("Cannot move to Contract Signing & Orientation. All mandatory compliance documents must be APPROVED and valid.");
+      throw new Error("Cannot move to Contract Signing. All mandatory compliance documents must be APPROVED and valid.");
     }
   }
 
-  // Pre-transition rule: CONTRACT_AND_ORIENTATION -> DEPLOYED requires:
+  // Pre-transition rule: CONTRACT_SIGNING -> DEPLOYED requires:
   // 1. All mandatory compliance APPROVED
-  // 2. contractSigned === true
-  // 3. orientationCompleted === true
+  // 2. The signed contract scan uploaded and recorded
   if (status === "DEPLOYED") {
     const compliant = await isFullyCompliant(id);
     if (!compliant) {
@@ -603,20 +662,15 @@ export const updateTAApplicationStatus = async (
     }
     const appRecord = await prisma.application.findUnique({
       where: { id },
-      select: { contractSigned: true, orientationCompleted: true },
+      select: { contractSigned: true, contractDocumentId: true },
     });
-    if (!appRecord?.contractSigned && !appRecord?.orientationCompleted) {
-      throw new Error("Cannot deploy candidate. Both contract signing and orientation must be completed first.");
-    }
-    if (!appRecord?.contractSigned) {
-      throw new Error("Cannot deploy candidate. Employment contract must be signed first.");
-    }
-    if (!appRecord?.orientationCompleted) {
-      throw new Error("Cannot deploy candidate. Candidate orientation must be completed first.");
+    if (!appRecord?.contractSigned || !appRecord.contractDocumentId) {
+      throw new Error("Cannot deploy candidate. Upload the signed employment contract first.");
     }
   }
 
   // Execute status update
+  const resolvedActorId = actorId || application.userId;
   const updated = await prisma.application.update({
     where: { id },
     data: {
@@ -626,15 +680,17 @@ export const updateTAApplicationStatus = async (
     select: { id: true, status: true, updatedAt: true },
   });
 
-  // Record audit decision
-  const resolvedActorId = actorId || application.userId;
+  // Record audit decision (including authorised skips)
   await prisma.recruiterDecision.create({
     data: {
       applicationId: id,
       actorId: resolvedActorId,
       fromStatus: currentStatus,
       toStatus: status,
-      reason: reason || null,
+      reason: reason?.trim() || null,
+      reasonCode: reasonCode ?? null,
+      transitionType,
+      skippedStages,
     },
   });
 
@@ -659,6 +715,8 @@ export const updateTAApplicationStatus = async (
         fromStatus: currentStatus,
         toStatus: status,
         reason: reason || null,
+        transitionType,
+        skippedStages,
         jobTitle: appInfo?.jobPosting?.title,
         applicantName,
         applicantEmail: appInfo?.user?.email,
@@ -709,7 +767,7 @@ export const updateTAApplicationStatus = async (
         await rebuildCandidateFeatureProfile(applicantProfileId).catch(() => {});
       }
     }
-  } else if (status === "COMPLIANCE" || status === "CONTRACT_AND_ORIENTATION" || status === "DEPLOYED") {
+  } else if (status === "COMPLIANCE" || status === "CONTRACT_SIGNING" || status === "DEPLOYED") {
     const appWithProfile = await prisma.application.findUnique({
       where: { id },
       include: { user: { select: { applicantProfile: { select: { id: true } } } } },
@@ -801,7 +859,7 @@ export const updateTAApplicationStatus = async (
             mrfId: appWithJob?.jobPosting?.mrfId || null,
             createdById: resolvedActorId,
             site: appWithJob?.jobPosting?.location || "Main Client Site",
-            contractStart: new Date(),
+            contractStart: appWithJob?.contractStartDate ?? new Date(),
             notes: reason || "Deployed via TA recruitment pipeline",
             status: "READY_FOR_DEPLOYMENT",
           },
@@ -815,6 +873,9 @@ export const updateTAApplicationStatus = async (
             reason: reason || "Auto-created on DEPLOYED stage transition",
           },
         });
+
+        // Keep the requisition's FILLED / OPEN status in step with the seat this deployment takes.
+        if (deployment.mrfId) await syncMRFFulfillmentStatus(deployment.mrfId, resolvedActorId).catch(() => {});
 
         await prisma.employmentEvent.create({
           data: {
@@ -848,8 +909,8 @@ export const updateTAApplicationStatus = async (
         return "Your application has advanced to Final Interview.";
       case "COMPLIANCE":
         return "Employment documents (201) are needed. Please submit the requested documents.";
-      case "CONTRACT_AND_ORIENTATION":
-        return "Your application has advanced to Contract Signing & Orientation.";
+      case "CONTRACT_SIGNING":
+        return "Your application has advanced to Contract Signing. Your TA will contact you to sign your employment contract.";
       case "DEPLOYED":
         return "You have been placed at your work site. Your employee record is ready.";
       case "ARCHIVED":
@@ -879,117 +940,88 @@ export const updateTAApplicationStatus = async (
   return updated;
 };
 
-export const signApplicationContract = async (
-  applicationId: number,
-  data: {
-    contractNotes?: string;
-    contractDocumentUrl?: string;
-  },
-  actorId?: string
-) => {
+const CONTRACT_SCAN_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+
+const parseContractStartDate = (value: string | undefined) => {
+  const startDate = value ? toManilaDateOnly(value) : undefined;
+  if (!startDate || !isValidDateOnly(startDate)) throw new Error("A valid start date is required.");
+  return parseManilaDateOnly(startDate);
+};
+
+// Optional printable copy: name, position and start date prefilled; the daily rate is written by hand.
+export const getContractPdf = async (applicationId: number, startDateInput?: string) => {
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { id: true, status: true, userId: true, contractSigned: true },
+    select: {
+      id: true,
+      contractStartDate: true,
+      jobPosting: { select: { title: true } },
+      user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
+    },
   });
   if (!application) throw new Error("Application not found");
 
-  const compliant = await isFullyCompliant(applicationId);
-  if (!compliant && application.status === "COMPLIANCE") {
-    throw new Error("Cannot sign contract. All mandatory pre-employment compliance requirements must be approved first.");
+  const startDate = startDateInput
+    ? parseContractStartDate(startDateInput)
+    : application.contractStartDate ?? parseManilaDateOnly(manilaDateString());
+
+  const profile = application.user?.applicantProfile;
+  const employeeName =
+    `${profile?.firstName || ""} ${profile?.lastName || ""}`.trim() || application.user?.email || "";
+  const buffer = await buildContractPdfBuffer({
+    employeeName,
+    issueDate: new Date(),
+    startDate,
+    position: application.jobPosting?.title || "",
+  });
+  return { buffer, fileName: `MEGS-Contract-${applicationId}.pdf` };
+};
+
+// The TA photographs or scans the signed paper contract. Saving it records the start date and deploys the candidate.
+export const recordSignedContract = async (
+  applicationId: number,
+  file: Express.Multer.File,
+  data: { startDate: string },
+  actorId: string
+) => {
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { id: true, status: true, contractDocumentId: true },
+  });
+  if (!application) throw new Error("Application not found");
+  if (application.status !== "CONTRACT_SIGNING") {
+    throw new Error("The signed contract can only be uploaded while the application is in the Contract Signing stage.");
+  }
+  if (!CONTRACT_SCAN_MIME_TYPES.includes(file.mimetype)) {
+    throw new Error("The signed contract must be a PDF or an image (JPEG, PNG, WEBP).");
+  }
+  const contractStartDate = parseContractStartDate(data.startDate);
+
+  const stored = await uploadAndStoreDocument(actorId, "CONTRACT", file, applicationId);
+  if (application.contractDocumentId) {
+    await prisma.storedDocument
+      .update({ where: { id: application.contractDocumentId }, data: { deletedAt: new Date() } })
+      .catch(() => {});
   }
 
   const now = new Date();
-  const updated = await prisma.application.update({
+  await prisma.application.update({
     where: { id: applicationId },
     data: {
       contractSigned: true,
       contractSignedAt: now,
-      contractNotes: data.contractNotes || null,
-      ...(data.contractDocumentUrl ? { contractDocumentUrl: data.contractDocumentUrl } : {}),
+      contractSignedById: actorId,
+      contractDocumentId: stored.id,
+      contractStartDate,
     },
   });
-
-  const resolvedActorId = actorId || application.userId;
-  void logAudit(resolvedActorId, "CONTRACT_SIGNED", "Application", applicationId, {
+  void logAudit(actorId, "CONTRACT_SIGNED", "Application", applicationId, {
     applicationId,
-    contractSigned: true,
     contractSignedAt: now,
-    notes: data.contractNotes,
+    documentId: stored.id,
   });
 
-  if (application.userId) {
-    void sendNotification(
-      application.userId,
-      "Employment Contract Signed",
-      "Your employment contract has been successfully recorded.",
-      "SUCCESS",
-      `/app/applications/${applicationId}`,
-      {
-        sendEmail: true,
-        ctaText: "View Application",
-      }
-    );
-  }
-
-  return updated;
-};
-
-export const completeApplicationOrientation = async (
-  applicationId: number,
-  data: {
-    orientationDate?: string | Date;
-    orientationNotes?: string;
-  },
-  actorId?: string
-) => {
-  const application = await prisma.application.findUnique({
-    where: { id: applicationId },
-    select: { id: true, status: true, userId: true, contractSigned: true },
-  });
-  if (!application) throw new Error("Application not found");
-
-  const orientationDate = data.orientationDate
-    ? toManilaDateOnly(data.orientationDate)
-    : undefined;
-  if (orientationDate && (!isValidDateOnly(orientationDate) || orientationDate > manilaDateString())) {
-    throw new Error("Completed orientation date must be today or an earlier date.");
-  }
-
-  const now = new Date();
-  const updated = await prisma.application.update({
-    where: { id: applicationId },
-    data: {
-      orientationCompleted: true,
-      orientationCompletedAt: now,
-      orientationDate: orientationDate ? parseManilaDateOnly(orientationDate) : now,
-      orientationNotes: data.orientationNotes || null,
-    },
-  });
-
-  const resolvedActorId = actorId || application.userId;
-  void logAudit(resolvedActorId, "ORIENTATION_COMPLETED", "Application", applicationId, {
-    applicationId,
-    orientationCompleted: true,
-    orientationCompletedAt: now,
-    orientationDate: data.orientationDate,
-    notes: data.orientationNotes,
-  });
-
-  if (application.userId) {
-    void sendNotification(
-      application.userId,
-      "Orientation Completed",
-      "Your company and work site orientation has been marked complete.",
-      "SUCCESS",
-      `/app/applications/${applicationId}`,
-      {
-        sendEmail: true,
-        ctaText: "View Application",
-      }
-    );
-  }
-
-  return updated;
+  return updateTAApplicationStatus(applicationId, "DEPLOYED", actorId, "Signed employment contract uploaded");
 };
 
 export const getRecruiterDecisionsService = async (applicationId: number) => {
@@ -1156,3 +1188,8 @@ export const applyScoreCategorization = async (applicationId: number, score: num
     }
   }
 };
+
+// Export aliases for consistency with architectural guidelines
+export const listApplicationsService = listTAApplications;
+export const listApplicationsPaginatedService = listTAApplications;
+export const getApplicationDetailsService = getTAApplication;

@@ -7,8 +7,7 @@ import {
   Navigation,
   ExternalLink
 } from "lucide-react";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import { scrollToSection } from "../../lib/scrollToSection";
 
 interface Branch {
@@ -38,8 +37,11 @@ export const LandingBranches: React.FC = () => {
   });
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  const markersRef = useRef<{ [key: string]: L.Marker }>({});
+  const mapInstanceRef = useRef<LeafletMap | null>(null);
+  const markersRef = useRef<{ [key: string]: LeafletMarker }>({});
+  const [mapInRange, setMapInRange] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapLoadFailed, setMapLoadFailed] = useState(false);
 
   const updateRegionSlider = (r: string) => {
     const container = regionContainerRef.current;
@@ -62,7 +64,7 @@ export const LandingBranches: React.FC = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, [regionFilter]);
 
-  const branches: Branch[] = [
+  const branches: Branch[] = React.useMemo(() => [
     {
       id: "valenzuela",
       name: "Valenzuela Central Office",
@@ -135,7 +137,7 @@ export const LandingBranches: React.FC = () => {
       latLng: [7.0707, 125.6087],
       focus: "Southern Mindanao industrial staffing, warehousing, distribution",
     },
-  ];
+  ], []);
 
   const filteredBranches = regionFilter === "ALL" 
     ? branches 
@@ -149,12 +151,46 @@ export const LandingBranches: React.FC = () => {
     setTimeout(() => setCopiedId(null), 2500);
   };
 
-  // Initialize Leaflet Map
+  // Defer the map library and its stylesheet until the map is close to view.
+  // The fixed-height container below keeps the original layout stable meanwhile.
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    const container = mapContainerRef.current;
+    if (!container) return;
 
-    try {
-      if (!mapInstanceRef.current) {
+    if (typeof IntersectionObserver === "undefined") {
+      setMapInRange(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setMapInRange(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "360px 0px" },
+    );
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!mapInRange || !mapContainerRef.current) return;
+
+    let cancelled = false;
+    let initializingMap: LeafletMap | null = null;
+
+    const initializeMap = async () => {
+      try {
+        const [{ default: L }] = await Promise.all([
+          import("leaflet"),
+          import("leaflet/dist/leaflet.css"),
+        ]);
+
+        if (cancelled || !mapContainerRef.current || mapInstanceRef.current) return;
+
         const map = L.map(mapContainerRef.current, {
           center: [12.8797, 121.7740],
           zoom: 6,
@@ -162,6 +198,7 @@ export const LandingBranches: React.FC = () => {
           maxZoom: 18,
           scrollWheelZoom: false,
         });
+        initializingMap = map;
 
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution:
@@ -169,7 +206,6 @@ export const LandingBranches: React.FC = () => {
           maxZoom: 19,
         }).addTo(map);
 
-        // Add Markers
         branches.forEach((b) => {
           const isHQ = b.isHQ;
           const pinColor = isHQ ? "#0f294a" : "#1d4ed8";
@@ -196,30 +232,32 @@ export const LandingBranches: React.FC = () => {
           });
 
           const marker = L.marker(b.latLng, { icon: customIcon }).addTo(map);
-          marker.on("click", () => {
-            setSelectedBranchId(b.id);
-          });
-
+          marker.on("click", () => setSelectedBranchId(b.id));
           markersRef.current[b.id] = marker;
         });
 
         mapInstanceRef.current = map;
+        setMapReady(true);
+      } catch {
+        initializingMap?.remove();
+        setMapLoadFailed(true);
       }
-    } catch {
-      // Graceful fallback for test/non-DOM environments
-    }
+    };
+
+    void initializeMap();
 
     return () => {
+      cancelled = true;
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
     };
-  }, []);
+  }, [branches, mapInRange]);
 
   // Sync Map Camera when selected branch changes
   useEffect(() => {
-    if (mapInstanceRef.current && selectedBranch) {
+    if (mapReady && mapInstanceRef.current && selectedBranch) {
       try {
         mapInstanceRef.current.flyTo(selectedBranch.latLng, 12, {
           duration: 1.0,
@@ -228,11 +266,11 @@ export const LandingBranches: React.FC = () => {
         // Ignored in non-DOM tests
       }
     }
-  }, [selectedBranchId]);
+  }, [mapReady, selectedBranch, selectedBranchId]);
 
   // Sync Map Camera when region tab changes
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
+    if (!mapReady || !mapInstanceRef.current) return;
     try {
       if (regionFilter === "ALL") {
         mapInstanceRef.current.flyTo([12.8797, 121.7740], 6, { duration: 0.8 });
@@ -246,7 +284,7 @@ export const LandingBranches: React.FC = () => {
     } catch {
       // Ignored in non-DOM tests
     }
-  }, [regionFilter]);
+  }, [mapReady, regionFilter]);
 
   return (
     <section id="branches" className="py-16 sm:py-20 bg-white border-b border-slate-200 scroll-mt-20">
@@ -338,7 +376,13 @@ export const LandingBranches: React.FC = () => {
                 className="w-full h-full"
                 tabIndex={0}
                 aria-label="Interactive map of the Philippines showing MEGS branch offices"
+                aria-busy={!mapReady && !mapLoadFailed}
               />
+              {!mapReady && (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-600 pointer-events-none" role="status">
+                  {mapLoadFailed ? "Map is temporarily unavailable." : "Loading branch map…"}
+                </div>
+              )}
             </div>
 
             {/* Map Legend */}

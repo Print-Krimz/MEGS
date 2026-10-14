@@ -14,8 +14,8 @@ export const listMRFsHandler = async (req: Request, res: Response): Promise<void
     const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
     const status = req.query.status as string | undefined;
     const priority = req.query.priority as string | undefined;
-    const sortBy = (req.query.sortBy as any) || "priority";
-    const mrfs = await listMRFs(clientId, status, priority, sortBy);
+    const sortBy = (req.query.sortBy as any) || "created_desc";
+    const mrfs = await listMRFs(clientId, status, priority, sortBy, req.user);
     sendSuccess(res, "Manpower Requests retrieved successfully", mrfs);
   } catch (error: any) {
     sendError(res, error.message, 500);
@@ -120,7 +120,7 @@ export const createMRFHandler = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    const mrf = await createMRF(req.user!.id, req.body);
+    const mrf = await createMRF(req.user!.id, req.body, req.user);
     sendSuccess(res, "Manpower Request created successfully", mrf, 201);
   } catch (error: any) {
     sendError(res, error.message, 400);
@@ -175,7 +175,7 @@ export const linkJobToMRFHandler = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const updatedJob = await linkJobToMRF(mrfId, jobPostingId);
+    const updatedJob = await linkJobToMRF(mrfId, jobPostingId, req.user);
     sendSuccess(res, "Job successfully linked to MRF", updatedJob);
   } catch (error: any) {
     sendError(res, error.message, 400);

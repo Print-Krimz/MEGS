@@ -49,7 +49,36 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    const formatted = mobileOnly ? formatPhilippineMobileDisplay(raw) : formatPhilippinePhoneDisplay(raw);
+    if (mobileOnly) {
+      let digits = raw.replace(/\D/g, "");
+      if (digits.startsWith("63") && digits.length > 2) {
+        digits = digits.slice(2);
+        if (digits.startsWith("9")) digits = `0${digits}`;
+      } else if (digits.startsWith("9")) {
+        digits = `0${digits}`;
+      } else if (digits.length > 0 && !digits.startsWith("0")) {
+        digits = `09${digits}`;
+      } else if (digits.startsWith("0") && digits.length > 1 && digits[1] !== "9") {
+        digits = `09${digits.slice(1)}`;
+      }
+      digits = digits.slice(0, 11);
+      if (!digits) {
+        onChange("");
+        return;
+      }
+      const formatted = formatPhilippineMobileDisplay(digits);
+      onChange(formatted);
+      return;
+    }
+
+    const hasPlus = raw.trim().startsWith("+");
+    const digitsOnly = raw.replace(/\D/g, "").slice(0, 12);
+    if (!digitsOnly) {
+      onChange("");
+      return;
+    }
+    const cleanRaw = hasPlus ? `+${digitsOnly}` : digitsOnly;
+    const formatted = formatPhilippinePhoneDisplay(cleanRaw);
     onChange(formatted);
   };
 
@@ -73,7 +102,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
           placeholder={placeholder}
           value={value}
           onChange={handleInputChange}
-          maxLength={64}
+          maxLength={16}
           aria-invalid={Boolean(activeError)}
           aria-describedby={activeError ? errorId : helperText ? helperId : undefined}
           className={cn(

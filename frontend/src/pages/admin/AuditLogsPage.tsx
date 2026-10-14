@@ -12,6 +12,7 @@ import {
 } from "../../components/common";
 import { Button, Dialog } from "../../components/ui";
 import { formatDateTime } from "../../lib/utils";
+import { getManilaToday, addManilaCalendarDays } from "../../lib/field-limits";
 import {
   Shield,
   Eye,
@@ -58,18 +59,15 @@ export const AuditLogsPage: React.FC = () => {
     if (datePreset === "CUSTOM") {
       return { startDate: startDate || undefined, endDate: endDate || undefined };
     }
-    const now = new Date();
+    const today = getManilaToday();
     if (datePreset === "TODAY") {
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      return { startDate: today.toISOString() };
+      return { startDate: today };
     }
     if (datePreset === "7D") {
-      const d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return { startDate: d.toISOString() };
+      return { startDate: addManilaCalendarDays(today, -7) };
     }
     if (datePreset === "30D") {
-      const d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      return { startDate: d.toISOString() };
+      return { startDate: addManilaCalendarDays(today, -30) };
     }
     return { startDate: undefined, endDate: undefined };
   }, [datePreset, startDate, endDate]);
@@ -89,7 +87,7 @@ export const AuditLogsPage: React.FC = () => {
         category: filterValues.category || undefined,
         startDate: effectiveDates.startDate,
         endDate: effectiveDates.endDate,
-        limit: 500,
+        limit: 100,
       }),
   });
 
@@ -265,7 +263,7 @@ export const AuditLogsPage: React.FC = () => {
           { label: "Activity history" },
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
              <Button
                variant="outline"
               size="sm"
@@ -288,42 +286,44 @@ export const AuditLogsPage: React.FC = () => {
         }
       />
 
+      <p className="text-sm text-slate-600">Review up to 100 recent records. Narrow the date range or download a report to review more activity.</p>
+
       {/* Summary Metrics Cards */}
-      {auditLogsQuery.isLoading ? <LoadingState variant="cards" /> : <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="p-3 bg-white border border-slate-300 rounded-sm">
+      {auditLogsQuery.isLoading ? <LoadingState variant="cards" /> : auditLogsQuery.isError ? null : <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="p-3 admin-panel rounded-lg">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-sm font-medium">All activity</span>
             <Layers className="w-3.5 h-3.5 text-slate-400" />
           </div>
           <div className="text-lg font-bold text-slate-900">{summaryStats.total}</div>
-            <p className="text-xs text-slate-500 mt-0.5">Across the selected period</p>
+            <p className="text-sm text-slate-500 mt-0.5">Within the loaded records</p>
         </div>
 
-        <div className="p-3 bg-white border border-slate-300 rounded-sm">
+        <div className="p-3 admin-panel rounded-lg">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-sm font-medium">Needs attention</span>
             <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
           </div>
           <div className="text-lg font-bold text-slate-900">{summaryStats.securityAttention}</div>
-            <p className="text-xs text-slate-500 mt-0.5">Warnings and security events</p>
+            <p className="text-sm text-slate-500 mt-0.5">Warnings and security events</p>
         </div>
 
-        <div className="p-3 bg-white border border-slate-300 rounded-sm">
+        <div className="p-3 admin-panel rounded-lg">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-sm font-medium">Hiring activity</span>
             <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
           </div>
           <div className="text-lg font-bold text-slate-900">{summaryStats.recruitment}</div>
-            <p className="text-xs text-slate-500 mt-0.5">Hiring and requirements changes</p>
+            <p className="text-sm text-slate-500 mt-0.5">Hiring and requirements changes</p>
         </div>
 
-        <div className="p-3 bg-white border border-slate-300 rounded-sm">
+        <div className="p-3 admin-panel rounded-lg">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-sm font-medium">Account and settings changes</span>
             <Shield className="w-3.5 h-3.5 text-indigo-600" />
           </div>
           <div className="text-lg font-bold text-slate-900">{summaryStats.configuration}</div>
-            <p className="text-xs text-slate-500 mt-0.5">Access, settings, and backups</p>
+            <p className="text-sm text-slate-500 mt-0.5">Access, settings, and backups</p>
         </div>
       </div>}
 
@@ -365,9 +365,9 @@ export const AuditLogsPage: React.FC = () => {
       {/* Toolbar: Severity Filter & Date Range Filter */}
       <div id="activity-advanced-filters" className="bg-white p-3 border border-slate-300 flex flex-wrap items-center justify-between gap-3 text-sm">
         {/* Severity Quick Filter */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold text-slate-600">Importance:</span>
-          <div className="inline-flex rounded-sm border border-slate-300 p-0.5 bg-slate-100">
+          <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-100">
             {[
               { id: "ALL", label: "All" },
               { id: "CRITICAL", label: "Critical" },
@@ -382,7 +382,7 @@ export const AuditLogsPage: React.FC = () => {
                   setPage(1);
                 }}
                  aria-pressed={severityFilter === s.id}
-                 className={`min-h-9 px-3 py-1 text-sm font-medium transition-colors rounded-xs ${
+                 className={`min-h-9 px-3 py-1 text-sm font-medium transition-colors rounded-md ${
                   severityFilter === s.id
                     ? "bg-white text-slate-950 font-bold shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -396,12 +396,12 @@ export const AuditLogsPage: React.FC = () => {
 
         {/* Date Range Selector */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+          <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
              Date:
           </span>
 
-          <div className="inline-flex rounded-sm border border-slate-300 p-0.5 bg-slate-100">
+          <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-100">
             {[
               { id: "ALL", label: "All Time" },
               { id: "TODAY", label: "Today" },
@@ -414,7 +414,7 @@ export const AuditLogsPage: React.FC = () => {
                 type="button"
                 onClick={() => handleDatePresetChange(p.id)}
                  aria-pressed={datePreset === p.id}
-                 className={`min-h-9 px-3 py-1 text-sm font-medium transition-colors rounded-xs ${
+                 className={`min-h-9 px-3 py-1 text-sm font-medium transition-colors rounded-md ${
                   datePreset === p.id
                     ? "bg-white text-slate-950 font-bold shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -439,7 +439,7 @@ export const AuditLogsPage: React.FC = () => {
                  className="min-h-10 px-2 py-1 border border-slate-300 rounded text-sm bg-white"
                 aria-label="Start date"
               />
-              <span className="text-slate-400 text-xs">to</span>
+              <span className="text-slate-400 text-sm">to</span>
               <input
                 type="date"
                 min={startDate || "1900-01-01"}
@@ -458,16 +458,16 @@ export const AuditLogsPage: React.FC = () => {
       </div>
 
       {/* Main Table */}
-      <div className="border border-slate-300 bg-white shadow-xs">
+      <div className="admin-panel shadow-xs">
         <div className="px-3.5 py-2.5 border-b border-slate-300 flex items-center justify-between bg-slate-100">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Shield className="w-4 h-4 text-slate-700" />
              <h3 className="text-sm font-semibold text-slate-900">
                Activity records
             </h3>
           </div>
-          <span className="text-[11px] text-slate-600 font-medium">
-             Showing {filteredLogs.length} matching records
+          <span className="text-xs text-slate-600 font-medium">
+             {auditLogsQuery.isError ? "Activity unavailable" : `Showing ${filteredLogs.length} matching records`}
           </span>
         </div>
 
@@ -501,16 +501,16 @@ export const AuditLogsPage: React.FC = () => {
                    <div className="flex items-start justify-between gap-3">
                      <div>
                        <div className="font-semibold text-sm text-slate-950">{formatAction(log.action)}</div>
-                       <div className="text-xs text-slate-600">{category} · {severity === "CRITICAL" ? "Needs attention" : severity === "WARNING" ? "Watch" : "Info"}</div>
+                       <div className="text-sm text-slate-600">{category} · {severity === "CRITICAL" ? "Needs attention" : severity === "WARNING" ? "Watch" : "Info"}</div>
                      </div>
-                     <span className="shrink-0 text-xs text-slate-500">{formatDateTime(log.createdAt)}</span>
+                     <span className="shrink-0 text-sm text-slate-500">{formatDateTime(log.createdAt)}</span>
                    </div>
                    <div className="text-sm text-slate-700">
                      <span className="font-medium">{targetEntity.label}</span>
                      {targetEntity.secondary && <span className="text-slate-500"> · {targetEntity.secondary}</span>}
                    </div>
                    <div className="flex items-center justify-between gap-3">
-                     <span className="text-xs text-slate-500">{actor.name}</span>
+                     <span className="text-sm text-slate-500">{actor.name}</span>
                      <Button variant="outline" size="sm" onClick={() => setSelectedLog(log)}>View details</Button>
                    </div>
                  </div>
@@ -518,8 +518,8 @@ export const AuditLogsPage: React.FC = () => {
              })}
            </div>
            <div className="hidden md:block overflow-x-auto">
-             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-50 text-slate-700 font-semibold text-[11px] border-b border-slate-300">
+             <table className="w-full text-left text-sm border-collapse">
+              <thead className="bg-slate-50 text-slate-700 font-semibold text-xs border-b border-slate-300">
                 <tr>
                    <th className="px-3.5 py-2.5">What happened</th>
                    <th className="px-3.5 py-2.5">Area</th>
@@ -543,11 +543,11 @@ export const AuditLogsPage: React.FC = () => {
                     <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-3.5 py-2.5">
                         <div className="flex flex-col gap-1">
-                          <span className="font-bold text-slate-950 font-sans text-xs">
+                          <span className="font-bold text-slate-950 font-sans text-sm">
                             {formattedAct}
                           </span>
                           <span
-                            className={`inline-block w-fit px-1.5 py-0.2 text-[9px] font-semibold uppercase rounded-xs border ${getAuditSeverityBadgeClass(
+                            className={`inline-block w-fit px-1.5 py-0.2 text-xs font-semibold  rounded-md border ${getAuditSeverityBadgeClass(
                               severity
                             )}`}
                           >
@@ -557,7 +557,7 @@ export const AuditLogsPage: React.FC = () => {
                       </td>
                       <td className="px-3.5 py-2.5">
                         <span
-                          className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-xs border ${getCategoryBadgeClass(
+                          className={`inline-block px-1.5 py-0.5 text-xs font-medium rounded-md border ${getCategoryBadgeClass(
                             category
                           )}`}
                         >
@@ -573,7 +573,7 @@ export const AuditLogsPage: React.FC = () => {
                             </span>
                           </div>
                           {actor.role && (
-                            <span className="text-[10px] text-slate-500 pl-4">
+                            <span className="text-xs text-slate-500 pl-4">
                               {actor.role}
                             </span>
                           )}
@@ -583,7 +583,7 @@ export const AuditLogsPage: React.FC = () => {
                         <div className="flex flex-col">
                           <span className="font-medium text-slate-900">{targetEntity.label}</span>
                           {targetEntity.secondary && (
-                            <span className="text-[10px] text-slate-500">
+                            <span className="text-xs text-slate-500">
                               {targetEntity.secondary}
                             </span>
                           )}
@@ -594,7 +594,7 @@ export const AuditLogsPage: React.FC = () => {
                           ? summary.map((s) => `${s.label}: ${s.value}`).join(" • ")
                           : "—"}
                       </td>
-                      <td className="px-3.5 py-2.5 text-right text-[11px] text-slate-600 whitespace-nowrap">
+                      <td className="px-3.5 py-2.5 text-right text-xs text-slate-600 whitespace-nowrap">
                         {formatDateTime(log.createdAt)}
                       </td>
                       <td className="px-3.5 py-2.5 text-center">
@@ -652,14 +652,14 @@ export const AuditLogsPage: React.FC = () => {
              description={`Recorded ${formatDateTime(selectedLog.createdAt)}`}
             size="md"
           >
-            <div className="space-y-3 font-sans text-xs">
+            <div className="space-y-3 font-sans text-sm">
               {/* Security Alert (Only when critical) */}
               {severity === "CRITICAL" && (
-                <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-sm flex items-start gap-2">
+                <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg flex items-start gap-2">
                   <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div className="space-y-0.5">
                      <span className="font-semibold text-sm">Security notice</span>
-                    <p className="text-[11px] text-amber-800 leading-normal">
+                    <p className="text-xs text-amber-800 leading-normal">
                       {explanation.whyItMatters || "This action involves elevated system privileges or security verification."}
                     </p>
                   </div>
@@ -667,7 +667,7 @@ export const AuditLogsPage: React.FC = () => {
               )}
 
               {/* Single Clean Details Card */}
-              <div className="bg-slate-50 border border-slate-200 rounded-sm p-3 divide-y divide-slate-200 text-xs">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 divide-y divide-slate-200 text-sm">
                 {/* Subject & Candidate */}
                 {targetEntity.label && (
                   <div className="py-2 first:pt-0 flex items-start justify-between gap-3">
@@ -675,7 +675,7 @@ export const AuditLogsPage: React.FC = () => {
                     <div className="text-right">
                       <span className="font-bold text-slate-900">{targetEntity.label}</span>
                       {targetEntity.secondary && (
-                        <span className="block text-[11px] text-slate-500">{targetEntity.secondary}</span>
+                        <span className="block text-xs text-slate-500">{targetEntity.secondary}</span>
                       )}
                     </div>
                   </div>
@@ -699,7 +699,7 @@ export const AuditLogsPage: React.FC = () => {
                       {actor.name}
                     </span>
                     {actor.role && (
-                      <span className="block text-[11px] text-slate-500">
+                      <span className="block text-xs text-slate-500">
                         {actor.role}
                       </span>
                     )}
@@ -708,11 +708,11 @@ export const AuditLogsPage: React.FC = () => {
               </div>
 
               {/* Minimalist Advanced Details (Hidden by default) */}
-              <details className="text-[11px] text-slate-400">
+              <details className="text-xs text-slate-400">
                 <summary className="cursor-pointer hover:text-slate-600 select-none py-1">
                    Technical information
                 </summary>
-                <div className="mt-1.5 p-2 bg-slate-100 border border-slate-200 rounded-xs space-y-1 font-mono text-[10px] text-slate-600">
+                <div className="mt-1.5 p-2 bg-slate-100 border border-slate-200 rounded-md space-y-1 font-sans text-xs text-slate-600">
                   <div className="flex justify-between">
                    <span>IP address:</span>
                     <span>{formatIpAddress(selectedLog.ipAddress)}</span>

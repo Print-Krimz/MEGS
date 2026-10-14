@@ -1,6 +1,7 @@
 import prisma from "../../utils/prisma.js";
 import { logAudit } from "../../utils/audit.js";
 import { sendRoleNotification, sendNotification } from "../../utils/notification.js";
+import { assertOwns, ownedWhere, type Actor } from "./ownership.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 
 export interface MRFFulfillmentStats {
@@ -195,9 +196,10 @@ export const listMRFs = async (
   clientId?: number,
   status?: string,
   priority?: string,
-  sortBy: MRFSortOption = "priority"
+  sortBy: MRFSortOption = "priority",
+  actor?: Actor
 ) => {
-  const where: any = {};
+  const where: any = actor ? { ...ownedWhere.mrf(actor) } : {};
   if (clientId) where.clientId = clientId;
   if (status) where.status = status;
   if (priority) where.priority = priority;
@@ -228,7 +230,7 @@ export const listMRFs = async (
         },
       },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
   });
 
   const PRIORITY_RANK: Record<string, number> = {
@@ -287,12 +289,16 @@ export const listMRFs = async (
         return 1;
       }
 
-      // 4. Chronological fallback (newest first)
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      // 4. Chronological fallback (newest first), then higher id first as a stable tiebreaker
+      const chronoDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (chronoDiff !== 0) return chronoDiff;
+      return b.id - a.id;
     }
 
     if (sortBy === "created_asc") {
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      const chronoDiff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      if (chronoDiff !== 0) return chronoDiff;
+      return a.id - b.id;
     }
 
     if (sortBy === "target_date") {
@@ -301,10 +307,14 @@ export const listMRFs = async (
       }
       if (a.targetFillDate) return -1;
       if (b.targetFillDate) return 1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      const chronoDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (chronoDiff !== 0) return chronoDiff;
+      return b.id - a.id;
     }
 
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    const chronoDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (chronoDiff !== 0) return chronoDiff;
+    return b.id - a.id;
   });
 };
 
@@ -331,7 +341,8 @@ export const createMRF = async (
     ageMax?: number | null;
     genderPreference?: string | null;
     tattooPolicy?: string | null;
-  }
+  },
+  actor?: Actor
 ) => {
   if (data.targetFillDate) {
     const target = String(data.targetFillDate).slice(0, 10);
@@ -341,11 +352,13 @@ export const createMRF = async (
   }
   const client = await prisma.client.findUnique({ where: { id: data.clientId } });
   if (!client) throw new Error("Client not found");
+  if (actor) await assertOwns("client", data.clientId, actor);
 
   const mrf = await prisma.manpowerRequest.create({
     data: {
       clientId: data.clientId,
       createdById,
+      ...(actor?.role === "TALENT_ACQUISITION" ? { assignedTaId: actor.id } : {}),
       title: data.title,
       description: data.description,
       headcount: data.headcount ?? 1,
@@ -621,7 +634,11 @@ export const removeMRFComplianceTemplate = async (templateId: number) => {
   });
 };
 
-export const linkJobToMRF = async (mrfId: number, jobPostingId: number) => {
+export const linkJobToMRF = async (mrfId: number, jobPostingId: number, actor?: Actor) => {
+  if (actor) {
+    await assertOwns("mrf", mrfId, actor);
+    await assertOwns("job", jobPostingId, actor);
+  }
   const mrf = await prisma.manpowerRequest.findUnique({ where: { id: mrfId } });
   if (!mrf) throw new Error("Manpower Request not found");
 

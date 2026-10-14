@@ -14,6 +14,11 @@ import {
 } from "../../lib/hr-constants";
 import { TA_COPY } from "../../lib/ta-copy";
 import { getManilaToday } from "../../lib/field-limits";
+import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
+import {
+  validateStandardText,
+  validateProseText,
+} from "../../lib/statutory-validation";
 import {
   getMRFPresetById,
   getPresetsByIndustry,
@@ -53,6 +58,7 @@ export const MRFCreatePage: React.FC = () => {
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
     queryFn: taApi.listClients,
+    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
 
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -218,6 +224,44 @@ export const MRFCreatePage: React.FC = () => {
     if (!title.trim()) {
       setValidationError("Please enter a request title before submitting.");
       return;
+    }
+
+    const titleErr = validateStandardText(title, "Request title", { maxLength: 200 });
+    if (titleErr) {
+      setValidationError(titleErr);
+      return;
+    }
+
+    if (location.trim()) {
+      const locErr = validateStandardText(location, "Location", { maxLength: 200 });
+      if (locErr) {
+        setValidationError(locErr);
+        return;
+      }
+    }
+
+    if (requiredSkills.trim()) {
+      const skillsErr = validateProseText(requiredSkills, "Required skills", { maxLength: 2000 });
+      if (skillsErr) {
+        setValidationError(skillsErr);
+        return;
+      }
+    }
+
+    if (description.trim()) {
+      const descErr = validateProseText(description, "Job description", { maxLength: 10000 });
+      if (descErr) {
+        setValidationError(descErr);
+        return;
+      }
+    }
+
+    if (requiredCertifications.trim()) {
+      const certErr = validateProseText(requiredCertifications, "Required certifications", { maxLength: 2000 });
+      if (certErr) {
+        setValidationError(certErr);
+        return;
+      }
     }
 
     const parsedHeadcount = Number(headcount);

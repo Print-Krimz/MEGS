@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import prisma from '../../utils/prisma.js';
 import { uploadFileToSupabase } from '../../middleware/upload.middleware.js';
 import { logAudit } from '../../utils/audit.js';
@@ -11,7 +12,7 @@ import {
   applyExtractedProfileService,
 } from './applicant.service.js';
 
-export const fetchOpenJobs = async (filters?: { search?: string; location?: string }) => {
+export const fetchOpenJobs = async (filters?: { search?: string; location?: string; page?: number; limit?: number }) => {
   const where: any = { status: "OPEN" };
 
   if (filters?.location && filters.location.trim()) {
@@ -28,9 +29,14 @@ export const fetchOpenJobs = async (filters?: { search?: string; location?: stri
     ];
   }
 
-  return await prisma.jobPosting.findMany({
+  const paginationRequested = filters?.page !== undefined || filters?.limit !== undefined;
+  const page = filters?.page ?? 1;
+  const limit = filters?.limit ?? 25;
+  const [jobs, total] = await Promise.all([
+    prisma.jobPosting.findMany({
     where,
     orderBy: { createdAt: "desc" },
+    ...(paginationRequested ? { skip: (page - 1) * limit, take: limit } : {}),
     select: {
       id: true,
       title: true,
@@ -60,7 +66,38 @@ export const fetchOpenJobs = async (filters?: { search?: string; location?: stri
         },
       },
     },
-  });
+    }),
+    paginationRequested ? prisma.jobPosting.count({ where }) : Promise.resolve(0),
+  ]);
+
+  if (!paginationRequested) return jobs;
+  return { items: jobs, total, page, pageSize: limit, totalPages: Math.ceil(total / limit) };
+};
+
+export const fetchOpenEmployerSummary = async () => {
+  const employers = await prisma.$queryRaw<Array<{ name: string; industry: string | null; jobCount: number }>>`
+    WITH ranked_open_jobs AS (
+      SELECT
+        client."name",
+        client."industry",
+        job."createdAt",
+        COUNT(job."id") OVER (PARTITION BY client."name")::int AS "jobCount",
+        MAX(job."createdAt") OVER (PARTITION BY client."name") AS "newestJobAt",
+        ROW_NUMBER() OVER (
+          PARTITION BY client."name"
+          ORDER BY job."createdAt" DESC, job."id" DESC
+        ) AS newest_for_employer
+      FROM "JobPosting" AS job
+      JOIN "ManpowerRequest" AS mrf ON mrf."id" = job."mrfId"
+      JOIN "Client" AS client ON client."id" = mrf."clientId"
+      WHERE job."status" = 'OPEN'
+    )
+    SELECT "name", "industry", "jobCount"
+    FROM ranked_open_jobs
+    WHERE newest_for_employer = 1
+    ORDER BY "newestJobAt" DESC, "name" ASC
+  `;
+  return { employers };
 };
 
 export interface ActiveDeploymentStatus {
@@ -71,66 +108,19 @@ export interface ActiveDeploymentStatus {
 }
 
 export const getActiveDeploymentStatus = async (userId: string): Promise<ActiveDeploymentStatus> => {
-  const deployedApplication = await prisma.application.findFirst({
-    where: {
-      userId,
-      status: "DEPLOYED",
-      isArchived: false,
-      deployments: {
-        some: {
-          status: { in: ["ACTIVE", "READY_FOR_DEPLOYMENT", "READY", "DISPATCHED"] },
-        },
-      },
-    },
-    include: {
-      jobPosting: {
-        include: {
-          mrf: {
-            include: {
-              client: { select: { name: true } },
-            },
-          },
-        },
-      },
-      deployments: {
-        where: {
-          status: { in: ["ACTIVE", "READY_FOR_DEPLOYMENT", "READY", "DISPATCHED"] },
-        },
-        include: {
-          client: { select: { name: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-      },
-    },
+  const deployment = await prisma.deployment.findFirst({
+    where: { employee: { userId }, status: { notIn: ["ENDED", "CANCELLED"] } },
+    include: { client: { select: { name: true } }, application: { select: { jobPosting: { select: { title: true } } } }, mrf: { select: { title: true } } },
+    orderBy: { createdAt: "desc" },
   });
-
-  if (!deployedApplication) {
-    return { isCurrentlyDeployed: false };
-  }
-
-  const employee = await prisma.employee.findUnique({
-    where: { userId },
-    select: { status: true },
-  });
-
-  if (employee?.status === "AVAILABLE_FOR_REDEPLOYMENT" || employee?.status === "SEPARATED") {
-    return { isCurrentlyDeployed: false };
-  }
-
-  const clientName =
-    deployedApplication.deployments[0]?.client?.name ||
-    deployedApplication.jobPosting?.mrf?.client?.name ||
-    "Client Partner";
-
+  if (!deployment) return { isCurrentlyDeployed: false };
   return {
     isCurrentlyDeployed: true,
-    clientName,
-    positionTitle: deployedApplication.jobPosting?.title,
-    deploymentId: deployedApplication.deployments[0]?.id,
+    clientName: deployment.client.name,
+    positionTitle: deployment.application?.jobPosting.title || deployment.mrf?.title,
+    deploymentId: deployment.id,
   };
 };
-
 export const fetchJobDetails = async (jobId: number, userId: string) => {
   const job = await prisma.jobPosting.findUnique({
     where: { id: jobId },
@@ -155,7 +145,14 @@ export const fetchJobDetails = async (jobId: number, userId: string) => {
   if (job.status !== "OPEN") throw new Error("This job posting is no longer accepting applications");
 
   const existingApplication = await prisma.application.findFirst({
-    where: { userId, jobPostingId: jobId },
+    where: {
+      userId, jobPostingId: jobId, isArchived: false,
+      OR: [
+        { status: { notIn: ["BACKOUT", "ARCHIVED", "DEPLOYED"] } },
+        { deployments: { some: { status: { notIn: ["ENDED", "CANCELLED"] } } } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
   });
   const activeDeployment = await getActiveDeploymentStatus(userId);
 
@@ -179,14 +176,19 @@ export const fetchJobDetails = async (jobId: number, userId: string) => {
 
 // Submits job application using uploaded resume or falls back to profile default resume
 export const submitApplicationService = async (jobId: number, userId: string, file?: Express.Multer.File) => {
-  const job = await prisma.jobPosting.findUnique({ where: { id: jobId } });
+  const job = await prisma.jobPosting.findUnique({ where: { id: jobId }, include: { mrf: { select: { clientId: true } } } });
   if (!job) throw new Error("Job not found");
   if (job.status !== "OPEN") throw new Error("This job is no longer accepting applications");
 
-  const existingApplication = await prisma.application.findFirst({
+  const priorApplications = await prisma.application.findMany({
     where: { userId, jobPostingId: jobId },
+    select: { id: true, attemptNumber: true, status: true, isArchived: true },
+    orderBy: { attemptNumber: "desc" },
   });
-  if (existingApplication) throw new Error("You have already applied for this job");
+  const unfinishedApplication = priorApplications.find((previous) =>
+    !previous.isArchived && !["BACKOUT", "ARCHIVED", "DEPLOYED"].includes(previous.status)
+  );
+  if (unfinishedApplication) throw new Error("You already have an active application for this job");
 
   const deployment = await getActiveDeploymentStatus(userId);
   if (deployment.isCurrentlyDeployed) {
@@ -194,6 +196,24 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
       `You are currently deployed on an active assignment with ${deployment.clientName || "your client"}. Applications for new positions are restricted until your assignment concludes or you are cleared for redeployment.`
     );
   }
+
+  const sameClientDeployments = job.mrf?.clientId
+    ? await prisma.deployment.findMany({
+        where: {
+          clientId: job.mrf.clientId,
+          employee: { userId },
+          status: { in: ["ACTIVE", "ENDED"] },
+          OR: [
+            { actualStart: { not: null } },
+            { statusHistory: { some: { toStatus: "ACTIVE" } } },
+            { status: "ENDED", contractStart: { not: null } },
+          ],
+        },
+        select: { id: true, applicationId: true },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
+  const sameClientDeployment = sameClientDeployments.length > 0;
 
   let resolvedResumeUrl: string | null = null;
 
@@ -262,16 +282,25 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     resolvedResumeUrl = profile.resumeUrl;
   }
 
+  const attemptNumber = (priorApplications[0]?.attemptNumber ?? 0) + 1;
   const application = await prisma.application.create({
     data: {
       userId,
       jobPostingId: jobId,
+      attemptNumber,
       resumeUrl: resolvedResumeUrl,
-      status: "SUBMITTED",
+      status: sameClientDeployment ? "COMPLIANCE" : "SUBMITTED",
     },
   });
 
-  enqueueResumeAnalysis(application.id);
+  if (sameClientDeployment) {
+    const { generateComplianceRequirementsFromMRF, reuseValidSameClientDocuments } = await import("../ta/ta.compliance.service.js");
+    await generateComplianceRequirementsFromMRF(application.id);
+    const priorApplicationIds = [...new Set(sameClientDeployments.map((item) => item.applicationId).filter((id): id is number => id !== null))];
+    await reuseValidSameClientDocuments(application.id, priorApplicationIds);
+  } else {
+    enqueueResumeAnalysis(application.id);
+  }
   void revalidateApplication(application.id, jobId).catch((error) => console.error("[Scoring] failed to queue application revalidation", error));
 
   logAudit(userId, "APPLICATION_SUBMITTED", "Application", application.id, {
@@ -316,7 +345,53 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
   };
 };
 
-export const fetchMyApplications = async (userId: string) => {
+export const fetchMyApplications = async (
+  userId: string,
+  options: { summary?: boolean; page?: number; limit?: number } = {},
+) => {
+  if (options.summary) {
+    const where = { userId };
+    const page = options.page ?? 1;
+    const limit = options.limit ?? 25;
+    const paginationRequested = options.page !== undefined || options.limit !== undefined;
+    const [applications, total, statuses] = await Promise.all([
+      prisma.application.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        ...(paginationRequested ? { skip: (page - 1) * limit, take: limit } : {}),
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          jobPostingId: true,
+          isArchived: true,
+          aiScore: true,
+          candidateScores: {
+            orderBy: { calculatedAt: "desc" },
+            take: 1,
+            select: { id: true },
+          },
+          jobPosting: { select: { id: true, title: true, location: true } },
+        },
+      }),
+      prisma.application.count({ where }),
+      prisma.application.groupBy({ by: ["status"], where, _count: { _all: true } }),
+    ]);
+    const statusTotals = Object.fromEntries(statuses.map((row) => [row.status, row._count._all]));
+    const items = applications.map(({ aiScore, candidateScores, ...application }) => ({
+      ...application,
+      resumeAnalysisPending: application.status === "PARSING" || (
+        application.status === "SUBMITTED" && aiScore == null && candidateScores.length === 0
+      ),
+    }));
+    return {
+      items,
+      total,
+      statusTotals,
+      ...(paginationRequested ? { page, pageSize: limit, totalPages: Math.ceil(total / limit) } : {}),
+    };
+  }
+
   return await prisma.application.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
@@ -360,6 +435,12 @@ export const fetchMyApplications = async (userId: string) => {
           reviewNotes: true,
           reviewedAt: true,
           expiresAt: true,
+          issuedAt: true,
+          validityStatus: true,
+          updateRequestedAt: true,
+          updateRequestReason: true,
+          updateRequestDeadline: true,
+          updateRequestCompletedAt: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -368,9 +449,20 @@ export const fetchMyApplications = async (userId: string) => {
   });
 };
 
+// The contract is a TA-only record: applicants must not see its terms, rate or scan reference.
+const APPLICANT_HIDDEN_CONTRACT_FIELDS = {
+  contractSigned: true,
+  contractSignedAt: true,
+  contractNotes: true,
+  contractStartDate: true,
+  contractSignedById: true,
+  contractDocumentId: true,
+} as const;
+
 export const fetchApplicationDetails = async (applicationId: number, userId: string) => {
   const application = await prisma.application.findFirst({
     where: { id: applicationId, userId },
+    omit: APPLICANT_HIDDEN_CONTRACT_FIELDS,
     include: {
       jobPosting: {
         select: {
@@ -411,6 +503,12 @@ export const fetchApplicationDetails = async (applicationId: number, userId: str
           reviewNotes: true,
           reviewedAt: true,
           expiresAt: true,
+          issuedAt: true,
+          validityStatus: true,
+          updateRequestedAt: true,
+          updateRequestReason: true,
+          updateRequestDeadline: true,
+          updateRequestCompletedAt: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -425,7 +523,173 @@ export const fetchApplicationDetails = async (applicationId: number, userId: str
   return application;
 };
 
+export const fetchMyDocuments = async (userId: string) => {
+  const requirements = await prisma.complianceRequirement.findMany({
+    where: { application: { userId } },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true, applicationId: true, documentLabel: true, documentId: true, reviewStatus: true,
+      deadline: true, reviewNotes: true, issuedAt: true, expiresAt: true, validityStatus: true,
+      updateRequestedAt: true, updateRequestReason: true, updateRequestDeadline: true, updateRequestCompletedAt: true,
+      application: { select: { jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } } } },
+      documentVersions: { orderBy: { uploadedAt: "desc" }, select: { id: true, documentId: true, reviewStatus: true, issuedAt: true, expiresAt: true, validityStatus: true, uploadedAt: true, isCurrent: true } },
+    },
+  });
+  return requirements.map(({ application, ...requirement }) => ({ ...requirement, jobTitle: application.jobPosting.title, clientName: application.jobPosting.mrf?.client.name ?? null }));
+};
+
 import { uploadAndStoreDocument } from '../document/document.service.js';
+
+/**
+ * Makes `documentId` the current submission for a requirement (status SUBMITTED, validity reset so TA
+ * reviews it explicitly). Older versions are kept in the version history.
+ */
+const linkDocumentToRequirement = async (requirementId: number, documentId: number) =>
+  prisma.$transaction(async (tx) => {
+    const current = await tx.complianceRequirement.findUnique({ where: { id: requirementId } });
+    if (!current) throw new Error("Compliance requirement not found");
+    if (current.documentId && current.documentId !== documentId) {
+      const existingVersion = await tx.complianceDocumentVersion.findUnique({
+        where: { requirementId_documentId: { requirementId, documentId: current.documentId } },
+      });
+      if (!existingVersion) {
+        await tx.complianceDocumentVersion.create({
+          data: {
+            requirementId,
+            documentId: current.documentId,
+            issuedAt: current.issuedAt,
+            expiresAt: current.expiresAt,
+            validityStatus: current.validityStatus,
+            reviewStatus: current.reviewStatus,
+            reviewNotes: current.reviewNotes,
+            reviewedById: current.reviewedById,
+            reviewedAt: current.reviewedAt,
+            isCurrent: false,
+          },
+        });
+      }
+    }
+    await tx.complianceDocumentVersion.updateMany({ where: { requirementId, isCurrent: true }, data: { isCurrent: false } });
+    await tx.complianceDocumentVersion.upsert({
+      where: { requirementId_documentId: { requirementId, documentId } },
+      create: { requirementId, documentId, validityStatus: "UNKNOWN", reviewStatus: "SUBMITTED", isCurrent: true },
+      update: { validityStatus: "UNKNOWN", reviewStatus: "SUBMITTED", issuedAt: null, expiresAt: null, reviewNotes: null, reviewedById: null, reviewedAt: null, isCurrent: true, uploadedAt: new Date() },
+    });
+    return tx.complianceRequirement.update({
+      where: { id: requirementId },
+      data: { documentId, reviewStatus: "SUBMITTED", issuedAt: null, expiresAt: null, validityStatus: "UNKNOWN" },
+    });
+  });
+
+const normalizeDocumentLabel = (label: string) => label.trim().toLowerCase().replace(/\s+/g, " ");
+
+/**
+ * Reusable document library: the latest copy of each document type the applicant has submitted
+ * across all of their applications, with its verification status and expiry.
+ */
+export const fetchMyDocumentLibrary = async (userId: string) => {
+  const requirements = await prisma.complianceRequirement.findMany({
+    where: { application: { userId }, documentId: { not: null } },
+    select: {
+      id: true, applicationId: true, documentLabel: true, documentId: true, reviewStatus: true,
+      issuedAt: true, expiresAt: true, validityStatus: true, updatedAt: true,
+      application: { select: { jobPosting: { select: { title: true } } } },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const documentIds = [...new Set(requirements.map((r) => r.documentId as number))];
+  const documents = documentIds.length
+    ? await prisma.storedDocument.findMany({
+        where: { id: { in: documentIds }, ownerId: userId, deletedAt: null },
+        select: { id: true, originalName: true, mimeType: true, uploadedAt: true },
+      })
+    : [];
+  const byId = new Map(documents.map((d) => [d.id, d]));
+  const now = Date.now();
+  const soon = now + 30 * 24 * 60 * 60 * 1000;
+
+  const latestByType = new Map<string, any>();
+  for (const req of requirements) {
+    const doc = byId.get(req.documentId as number);
+    if (!doc) continue;
+    const key = normalizeDocumentLabel(req.documentLabel);
+    if (latestByType.has(key)) continue; // requirements are ordered newest first
+    const expiresMs = req.expiresAt ? new Date(req.expiresAt).getTime() : null;
+    latestByType.set(key, {
+      label: req.documentLabel,
+      documentId: doc.id,
+      originalName: doc.originalName,
+      mimeType: doc.mimeType,
+      uploadedAt: doc.uploadedAt,
+      requirementId: req.id,
+      applicationId: req.applicationId,
+      jobTitle: req.application.jobPosting.title,
+      reviewStatus: req.reviewStatus,
+      validityStatus: req.validityStatus,
+      issuedAt: req.issuedAt,
+      expiresAt: req.expiresAt,
+      isExpired: expiresMs !== null && expiresMs < now,
+      isExpiringSoon: expiresMs !== null && expiresMs >= now && expiresMs <= soon,
+    });
+  }
+  return [...latestByType.values()];
+};
+
+/**
+ * Attaches a document the applicant already stored to another requirement. The file is not copied,
+ * and the requirement goes back to SUBMITTED so TA still reviews it explicitly.
+ */
+export const reuseDocumentForRequirement = async (userId: string, requirementId: number, documentId: number) => {
+  const requirement = await prisma.complianceRequirement.findUnique({
+    where: { id: requirementId },
+    include: { application: { select: { userId: true, jobPosting: { select: { postedById: true, title: true } } } } },
+  });
+  if (!requirement) throw new Error("Compliance requirement not found");
+  if (requirement.application.userId !== userId) {
+    throw new Error("Unauthorized to submit a document for this compliance requirement");
+  }
+  if (requirement.reviewStatus === "APPROVED" && !(requirement.updateRequestedAt && !requirement.updateRequestCompletedAt)) {
+    throw new Error("This requirement is already approved. Ask your recruiter if it needs to be replaced.");
+  }
+  if (requirement.documentId === documentId && requirement.reviewStatus === "SUBMITTED") {
+    throw new Error("This document is already submitted for this requirement.");
+  }
+
+  const document = await prisma.storedDocument.findUnique({ where: { id: documentId } });
+  if (!document || document.deletedAt) throw new Error("Document not found");
+  if (document.ownerId !== userId) {
+    throw new Error("Unauthorized to use this document");
+  }
+
+  const source = await prisma.complianceRequirement.findFirst({
+    where: { documentId, application: { userId } },
+    orderBy: { updatedAt: "desc" },
+    select: { expiresAt: true, reviewStatus: true },
+  });
+  if (source?.expiresAt && new Date(source.expiresAt).getTime() < Date.now()) {
+    throw new Error("This document has expired. Upload a current copy instead.");
+  }
+  if (source?.reviewStatus === "REJECTED") {
+    throw new Error("This document was rejected by a recruiter. Upload a corrected copy instead.");
+  }
+
+  const updated = await linkDocumentToRequirement(requirementId, documentId);
+
+  void logAudit(userId, "COMPLIANCE_DOCUMENT_REUSED", "Application", requirement.applicationId, {
+    requirementId,
+    documentLabel: requirement.documentLabel,
+    documentId,
+  });
+  const jobOwnerId = requirement.application.jobPosting?.postedById;
+  const message = `An applicant re-used an existing document for '${requirement.documentLabel}' on "${requirement.application.jobPosting?.title ?? "Requisition"}".`;
+  if (jobOwnerId) {
+    void sendNotification(jobOwnerId, "Compliance Document Submitted", message, "INFO", `/ta/applications/${requirement.applicationId}`);
+  } else {
+    void sendRoleNotification("TALENT_ACQUISITION", "Compliance Document Submitted", message, "INFO", `/ta/applications/${requirement.applicationId}`, userId);
+  }
+  return updated;
+};
 
 export const uploadApplicantComplianceDocument = async (
   userId: string,
@@ -470,27 +734,19 @@ export const uploadApplicantComplianceDocument = async (
 
   const wasRejected = requirement.reviewStatus === "REJECTED";
 
-  // Upload to secure documents bucket with category VAULT_201
-  await uploadAndStoreDocument(
-    userId,
-    "VAULT_201",
-    file,
-    requirement.applicationId
-  );
-
-  // Retrieve newly created StoredDocument ID
-  const latestDoc = await prisma.storedDocument.findFirst({
-    where: { ownerId: userId, applicationId: requirement.applicationId },
+  // Re-use an identical file the applicant already stored instead of uploading it again.
+  const sha256 = crypto.createHash("sha256").update(file.buffer).digest("hex");
+  const existingDocument = await prisma.storedDocument.findFirst({
+    where: { ownerId: userId, category: "VAULT_201", sha256, deletedAt: null },
     orderBy: { uploadedAt: "desc" },
   });
 
-  const updated = await prisma.complianceRequirement.update({
-    where: { id: requirementId },
-    data: {
-      documentId: latestDoc?.id || null,
-      reviewStatus: "SUBMITTED",
-    },
-  });
+  // Otherwise upload to the secure documents bucket with category VAULT_201
+  const storedDocument =
+    existingDocument ??
+    (await uploadAndStoreDocument(userId, "VAULT_201", file, requirement.applicationId));
+
+  const updated = await linkDocumentToRequirement(requirementId, storedDocument.id);
 
   sendNotification(
     userId,

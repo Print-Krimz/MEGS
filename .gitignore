@@ -59,7 +59,7 @@ setup.ts
 setupTests.ts
 playwright/.cache/
 
-# 6. Audit Suites, Dev Scripts & Screenshots
+# 6. Audit Suites, Dev Scripts, Backups & Screenshots
 frontend-audit/
 screenshots/
 audit_screenshots/
@@ -69,19 +69,30 @@ audit_output/
 backend/scripts/
 backend/src/scripts/
 backend/src/automation/
+frontend/scripts/
 src/pages/dev/
 frontend/src/pages/dev/
 scratch/
+backups/
+backend/backups/
+backup-*/
+*.backup
+*.dump
+--commit
+backend/--commit
 
 # 7. Internal AI Agents, Superpowers & Sprint Documentation
 .agents/
 .superpowers/
 .docs/
+.impeccable/
+frontend/.impeccable/
 agent/
 AGENTS.md
 docs/
 DATABASE_SCHEMA_EXPORTER.html
 database_diagrams.html
+FIELD_VALIDATION_INVENTORY.md
 
 # 8. IDE, Editor & OS Artifacts
 .vscode/

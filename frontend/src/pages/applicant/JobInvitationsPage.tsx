@@ -11,6 +11,7 @@ import {
 import { Button, Dialog, Select, Textarea } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { notify } from "../../lib/feedback";
+import { INVITATION_POLL_MS } from "../../lib/query-policies";
 import { ApplicantJobInvitation } from "../../lib/types/applicant.types";
 import {
   Mail,
@@ -38,7 +39,8 @@ export const JobInvitationsPage: React.FC = () => {
 
   const invitationsQuery = useQuery({
     queryKey: ["applicant", "invitations"],
-    queryFn: applicantJobsApi.getMyInvitations,
+    queryFn: ({ signal }) => applicantJobsApi.getMyInvitations({ signal }),
+    refetchInterval: INVITATION_POLL_MS,
   });
 
   const respondMutation = useMutation({

@@ -73,8 +73,9 @@ export const getStatusBadgeTheme = (statusStr: string): { bg: string; text: stri
 
 export function getReportMetadata(opts: ReportMetadataOptions): ReportMetadata {
   const now = opts.fixedDate || new Date();
-  const yyyymmdd = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const dateHyphenated = now.toISOString().slice(0, 10);
+  // Manila calendar date, so a report generated at 7am on the 14th is not stamped the 13th.
+  const dateHyphenated = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(now);
+  const yyyymmdd = dateHyphenated.replace(/-/g, "");
   const rand = opts.serialSeed || Math.random().toString(36).substring(2, 6).toUpperCase();
 
   let codePrefix = "MEGS";
@@ -128,8 +129,8 @@ export function getReportMetadata(opts: ReportMetadataOptions): ReportMetadata {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    timeZone: "UTC",
-  }).format(now) + " UTC";
+    timeZone: "Asia/Manila",
+  }).format(now) + " PHT";
 
   return {
     reportType: opts.reportType,

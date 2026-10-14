@@ -1,17 +1,15 @@
 import { Request, Response } from "express";
 import { sendSuccess, sendError } from "../../utils/response.js";
+import { manilaDateString } from "../../schemas/field-limits.js";
 import {
   getPipelineStats,
-  getTimeToFillStats,
-  getDeploymentStats,
   getComplianceOverview,
-  getTAOverviewStats,
-  getRecruitmentActivityTrend,
-  getAdminFunnelAnalytics,
   getTAPendingActions,
+  countTAPendingActions,
   getAnalyticsFilterOptions,
   AnalyticsFilterDto,
 } from "../../services/analytics/analytics.service.js";
+import { getTADelivery } from "../../services/analytics/delivery.service.js";
 import {
   generatePipelineReportPDF,
   generatePipelineReportXLSX,
@@ -28,46 +26,9 @@ export function extractTAFilters(query: any): AnalyticsFilterDto {
     mrfId: query.mrfId ? parseInt(query.mrfId as string, 10) : undefined,
     jobPostingId: query.jobPostingId ? parseInt(query.jobPostingId as string, 10) : undefined,
     stage: query.stage as string,
-    recruiterId: (query.recruiterId as string) || undefined,
-    mineOnly: query.mineOnly === "true" || query.mineOnly === true,
+    // No recruiterId or mineOnly: a TA's numbers are always their own, enforced by the services.
   };
 }
-
-export const getTAOverviewHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const filters = extractTAFilters(req.query);
-    const stats = await getTAOverviewStats(req.user!.id, filters);
-    sendSuccess(res, "TA overview metrics retrieved", stats);
-  } catch (error: any) {
-    sendError(res, error.message, 500);
-  }
-};
-
-export const getTAActivityTrendHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const filters = extractTAFilters(req.query);
-    const trend = await getRecruitmentActivityTrend(filters, {
-      role: req.user!.role,
-      userId: req.user!.id,
-    });
-    sendSuccess(res, "TA recruitment activity trend retrieved", trend);
-  } catch (error: any) {
-    sendError(res, error.message, 500);
-  }
-};
-
-export const getTAPipelineFunnelHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const filters = extractTAFilters(req.query);
-    const funnel = await getAdminFunnelAnalytics({
-      ...filters,
-      recruiterId: filters.mineOnly ? req.user!.id : (filters.recruiterId || undefined),
-    });
-    sendSuccess(res, "TA pipeline funnel analytics retrieved", funnel);
-  } catch (error: any) {
-    sendError(res, error.message, 500);
-  }
-};
 
 export const getTAPendingActionsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -91,54 +52,24 @@ export const getTAFilterOptionsHandler = async (req: Request, res: Response): Pr
 export const getTADashboardSummaryHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const filters = extractTAFilters(req.query);
-    const userId = req.user!.id;
-    const [overview, activity, funnel, pendingActions, filterOptions] = await Promise.all([
-      getTAOverviewStats(userId, filters),
-      getRecruitmentActivityTrend(filters, { role: req.user!.role, userId }),
-      getAdminFunnelAnalytics({
-        ...filters,
-        recruiterId: filters.mineOnly ? userId : (filters.recruiterId || undefined),
-      }),
-      getTAPendingActions(userId, filters),
-      getAnalyticsFilterOptions("TALENT_ACQUISITION", userId),
+    const scope = { role: req.user!.role, userId: req.user!.id };
+    const [delivery, pendingActions, pendingActionsTotal, filterOptions] = await Promise.all([
+      getTADelivery(filters, scope),
+      getTAPendingActions(req.user!.id, filters),
+      countTAPendingActions(req.user!.id, filters),
+      getAnalyticsFilterOptions("TALENT_ACQUISITION", req.user!.id),
     ]);
 
-    sendSuccess(res, "TA unified analytics dashboard retrieved", {
-      overview,
-      activity,
-      funnel,
-      pendingActions,
-      filterOptions,
-    });
+    sendSuccess(res, "TA analytics dashboard retrieved", { ...delivery, pendingActions, pendingActionsTotal, filterOptions });
   } catch (error: any) {
     sendError(res, error.message, 500);
   }
 };
 
-export const getPipelineStatsHandler = async (_req: Request, res: Response): Promise<void> => {
+export const getPipelineStatsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    const stats = await getPipelineStats();
+    const stats = await getPipelineStats(req.user);
     sendSuccess(res, "Pipeline statistics retrieved", stats);
-  } catch (error: any) {
-    sendError(res, error.message, 500);
-  }
-};
-
-export const getTimeToFillStatsHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const mrfId = req.query.mrfId ? parseInt(req.query.mrfId as string, 10) : undefined;
-    const stats = await getTimeToFillStats(mrfId);
-    sendSuccess(res, "Time-to-fill statistics retrieved", stats);
-  } catch (error: any) {
-    sendError(res, error.message, 500);
-  }
-};
-
-export const getDeploymentStatsHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
-    const stats = await getDeploymentStats(clientId);
-    sendSuccess(res, "Deployment statistics retrieved", stats);
   } catch (error: any) {
     sendError(res, error.message, 500);
   }
@@ -147,7 +78,7 @@ export const getDeploymentStatsHandler = async (req: Request, res: Response): Pr
 export const getComplianceOverviewHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const stage = req.query.stage as string | undefined;
-    const stats = await getComplianceOverview(stage ? [stage] : undefined);
+    const stats = await getComplianceOverview(stage ? [stage] : undefined, req.user);
     sendSuccess(res, "Compliance overview retrieved", stats);
   } catch (error: any) {
     sendError(res, error.message, 500);
@@ -159,7 +90,7 @@ export const exportPipelineReportHandler = async (req: Request, res: Response): 
     const format = (req.query.format as string || "pdf").toLowerCase();
     const filters = extractTAFilters(req.query);
     const user = req.user!;
-    const dateStr = new Date().toISOString().slice(0, 10);
+    const dateStr = manilaDateString();
 
     if (format === "xlsx") {
       const buffer = await generatePipelineReportXLSX(user, filters, "TALENT_ACQUISITION");
@@ -188,7 +119,7 @@ export const exportDeploymentReportHandler = async (req: Request, res: Response)
     const format = (req.query.format as string || "pdf").toLowerCase();
     const filters = extractTAFilters(req.query);
     const user = req.user!;
-    const dateStr = new Date().toISOString().slice(0, 10);
+    const dateStr = manilaDateString();
 
     if (format === "xlsx") {
       const buffer = await generateDeploymentReportXLSX(user, filters, "TALENT_ACQUISITION");

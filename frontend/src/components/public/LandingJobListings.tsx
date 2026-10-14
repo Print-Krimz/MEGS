@@ -1,11 +1,13 @@
 import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
 import { formatDate, formatSalaryRange } from "../../lib/utils";
 import { Briefcase, MapPin, Building, Calendar, ArrowRight, AlertCircle, RefreshCw } from "lucide-react";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
 
 export interface LandingJobListingsProps {
   searchQuery: string;
@@ -20,21 +22,27 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
 }) => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
+  const search = normalizeServerSearch(useDebouncedValue(searchQuery, SERVER_SEARCH_DEBOUNCE_MS));
+  const location = normalizeServerSearch(useDebouncedValue(locationQuery, SERVER_SEARCH_DEBOUNCE_MS));
+  const pageSize = 6;
 
   const jobsQuery = useQuery({
-    queryKey: ["public-open-jobs", searchQuery, locationQuery],
-    queryFn: () =>
-      applicantJobsApi.getJobs({
-        search: searchQuery || undefined,
-        location: locationQuery || undefined,
-      }),
+    queryKey: ["public-open-jobs", { search, location, page: 1, pageSize }],
+    queryFn: ({ signal }) => applicantJobsApi.getJobsPage({
+      search: search || undefined,
+      location: location || undefined,
+      page: 1,
+      limit: pageSize,
+    }, { signal }),
+    placeholderData: keepPreviousData,
   });
 
-  const jobs = jobsQuery.data || [];
+  const jobs = jobsQuery.data?.items ?? [];
+  const totalJobs = jobsQuery.data?.total ?? 0;
   const hasActiveFilter = Boolean(searchQuery || locationQuery);
-  const MAX_VISIBLE_JOBS = 6;
+  const MAX_VISIBLE_JOBS = pageSize;
   const visibleJobs = jobs.slice(0, MAX_VISIBLE_JOBS);
-  const remainingCount = jobs.length - visibleJobs.length;
+  const remainingCount = Math.max(0, totalJobs - visibleJobs.length);
 
   const handleApplyClick = (jobId: number) => {
     if (isAuthenticated && user?.role === Role.APPLICANT) {
@@ -87,7 +95,7 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
           {hasActiveFilter && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-600">
-                Filtered results {jobs.length > 0 && `(${jobs.length} found)`}
+                Filtered results {totalJobs > 0 && `(${totalJobs} found)`}
               </span>
               <button
                 type="button"
@@ -141,7 +149,7 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
           </div>
         )}
 
-        {!jobsQuery.isLoading && !jobsQuery.isError && jobs.length === 0 && (
+        {!jobsQuery.isLoading && !jobsQuery.isError && totalJobs === 0 && (
           <div className="mt-8 p-10 bg-white border border-slate-200 rounded-xl text-center max-w-lg mx-auto space-y-4">
             <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
               <Briefcase className="w-6 h-6" />
@@ -166,7 +174,7 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
           </div>
         )}
 
-        {!jobsQuery.isLoading && !jobsQuery.isError && jobs.length > 0 && (
+        {!jobsQuery.isLoading && !jobsQuery.isError && totalJobs > 0 && (
           <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-8">
             {visibleJobs.map((job) => {
@@ -246,8 +254,8 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 pt-6">
             <p className="text-xs text-slate-500" role="status">
               {hasActiveFilter
-                ? `Showing ${visibleJobs.length} of ${jobs.length} matching ${jobs.length === 1 ? "role" : "roles"}`
-                : `Showing ${visibleJobs.length} of ${jobs.length} open ${jobs.length === 1 ? "role" : "roles"}`}
+                ? `Showing ${visibleJobs.length} of ${totalJobs} matching ${totalJobs === 1 ? "role" : "roles"}`
+                : `Showing ${visibleJobs.length} of ${totalJobs} open ${totalJobs === 1 ? "role" : "roles"}`}
             </p>
             {remainingCount > 0 && (
               <button
@@ -255,7 +263,7 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
                 onClick={handleViewAllJobs}
                 className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 text-sm font-bold text-white bg-[#0f294a] hover:bg-[#163b66] rounded-lg transition-colors cursor-pointer min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] focus-visible:ring-offset-2"
               >
-                <span>View all {jobs.length} jobs</span>
+                <span>View all {totalJobs} jobs</span>
                 <ArrowRight className="w-4 h-4" aria-hidden="true" />
               </button>
             )}

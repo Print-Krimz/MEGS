@@ -1,14 +1,11 @@
 import { Request, Response } from "express";
 import { sendSuccess, sendError } from "../../utils/response.js";
+import { manilaDateString } from "../../schemas/field-limits.js";
 import {
-  getAdminOverviewStats,
-  getRecruitmentActivityTrend,
-  getAdminFunnelAnalytics,
-  getAdminBottlenecks,
-  getApplicationsByJobAndMRF,
   getAnalyticsFilterOptions,
   AnalyticsFilterDto,
 } from "../../services/analytics/analytics.service.js";
+import { getAdminDelivery } from "../../services/analytics/delivery.service.js";
 import {
   generatePipelineReportPDF,
   generatePipelineReportXLSX,
@@ -29,56 +26,6 @@ function extractFilters(query: any): AnalyticsFilterDto {
   };
 }
 
-export const getAdminOverviewHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const filters = extractFilters(req.query);
-    const stats = await getAdminOverviewStats(filters);
-    sendSuccess(res, "Admin overview analytics retrieved", stats);
-  } catch (error: any) {
-    sendError(res, error.message, 500);
-  }
-};
-
-export const getAdminActivityTrendHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const filters = extractFilters(req.query);
-    const trend = await getRecruitmentActivityTrend(filters);
-    sendSuccess(res, "Recruitment activity trend retrieved", trend);
-  } catch (error: any) {
-    sendError(res, error.message, 500);
-  }
-};
-
-export const getAdminFunnelHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const filters = extractFilters(req.query);
-    const funnel = await getAdminFunnelAnalytics(filters);
-    sendSuccess(res, "Recruitment funnel analytics retrieved", funnel);
-  } catch (error: any) {
-    sendError(res, error.message, 500);
-  }
-};
-
-export const getAdminBottlenecksHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const filters = extractFilters(req.query);
-    const bottlenecks = await getAdminBottlenecks(filters);
-    sendSuccess(res, "Recruitment bottlenecks retrieved", bottlenecks);
-  } catch (error: any) {
-    sendError(res, error.message, 500);
-  }
-};
-
-export const getAdminJobDemandsHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const filters = extractFilters(req.query);
-    const jobDemands = await getApplicationsByJobAndMRF(filters);
-    sendSuccess(res, "Applications by job and MRF retrieved", jobDemands);
-  } catch (error: any) {
-    sendError(res, error.message, 500);
-  }
-};
-
 export const getAdminFilterOptionsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const options = await getAnalyticsFilterOptions("ADMINISTRATOR", req.user?.id);
@@ -91,34 +38,22 @@ export const getAdminFilterOptionsHandler = async (req: Request, res: Response):
 export const getAdminDashboardSummaryHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const filters = extractFilters(req.query);
-    const [overview, activity, funnel, bottlenecks, jobDemands, filterOptions] = await Promise.all([
-      getAdminOverviewStats(filters),
-      getRecruitmentActivityTrend(filters),
-      getAdminFunnelAnalytics(filters),
-      getAdminBottlenecks(filters),
-      getApplicationsByJobAndMRF(filters),
+    const [delivery, filterOptions] = await Promise.all([
+      getAdminDelivery(filters),
       getAnalyticsFilterOptions("ADMINISTRATOR", req.user?.id),
     ]);
 
-    sendSuccess(res, "Admin unified analytics dashboard retrieved", {
-      overview,
-      activity,
-      funnel,
-      bottlenecks,
-      jobDemands,
-      filterOptions,
-    });
+    sendSuccess(res, "Admin analytics dashboard retrieved", { ...delivery, filterOptions });
   } catch (error: any) {
     sendError(res, error.message, 500);
   }
 };
-
 export const exportAdminPipelineReportHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const format = ((req.query.format as string) || "pdf").toLowerCase();
     const filters = extractFilters(req.query);
     const user = req.user!;
-    const dateStr = new Date().toISOString().slice(0, 10);
+    const dateStr = manilaDateString();
 
     if (format === "xlsx") {
       const buffer = await generatePipelineReportXLSX(user, filters, "ADMINISTRATOR");
@@ -147,7 +82,7 @@ export const exportAdminDeploymentReportHandler = async (req: Request, res: Resp
     const format = ((req.query.format as string) || "pdf").toLowerCase();
     const filters = extractFilters(req.query);
     const user = req.user!;
-    const dateStr = new Date().toISOString().slice(0, 10);
+    const dateStr = manilaDateString();
 
     if (format === "xlsx") {
       const buffer = await generateDeploymentReportXLSX(user, filters, "ADMINISTRATOR");

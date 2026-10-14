@@ -375,8 +375,51 @@ export const fetchAuditLogs = async (filters: {
   });
 };
 
-export const fetchAllUsers = async () => {
-  const users = await prisma.user.findMany({
+export const buildAdminUserSearchFilter = (search: string) => {
+  const searchTerms: any[] = [
+    { email: { contains: search, mode: "insensitive" } },
+    { applicantProfile: { firstName: { contains: search, mode: "insensitive" } } },
+    { applicantProfile: { lastName: { contains: search, mode: "insensitive" } } },
+  ];
+
+  // The existing Users page searched the rendered "firstName lastName" string.
+  // Match substrings that cross that single field boundary without broadening to token-AND semantics.
+  let splitAt = search.indexOf(" ");
+  while (splitAt >= 0) {
+    const firstNameSuffix = search.slice(0, splitAt);
+    const lastNamePrefix = search.slice(splitAt + 1);
+    if (firstNameSuffix && lastNamePrefix) {
+      searchTerms.push({
+        AND: [
+          { applicantProfile: { firstName: { endsWith: firstNameSuffix, mode: "insensitive" } } },
+          { applicantProfile: { lastName: { startsWith: lastNamePrefix, mode: "insensitive" } } },
+        ],
+      });
+    }
+    splitAt = search.indexOf(" ", splitAt + 1);
+  }
+
+  return { OR: searchTerms };
+};
+
+export const fetchAllUsers = async (filters: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  role?: "APPLICANT" | "TALENT_ACQUISITION" | "ADMINISTRATOR";
+} = {}) => {
+  const paginated = filters.page !== undefined || filters.limit !== undefined || Boolean(filters.search) || Boolean(filters.role);
+  const page = filters.page ?? 1;
+  const limit = filters.limit ?? 25;
+  const search = filters.search?.trim();
+  const where: any = {
+    ...(filters.role ? { role: filters.role } : {}),
+    ...(search ? buildAdminUserSearchFilter(search) : {}),
+  };
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({
+    where: paginated ? where : undefined,
+    ...(paginated ? { skip: (page - 1) * limit, take: limit } : {}),
     select: {
       id: true,
       email: true,
@@ -401,9 +444,11 @@ export const fetchAllUsers = async () => {
       },
     },
     orderBy: { createdAt: "desc" },
-  });
+    }),
+    paginated ? prisma.user.count({ where }) : Promise.resolve(0),
+  ]);
 
-  return users.map((u: any) => {
+  const rows = users.map((u: any) => {
     const latestInvite = u.invitations?.[0];
     let computedStatus = u.accountStatus;
     if (u.accountStatus === "PENDING" || u.accountStatus === "INVITED") {
@@ -428,6 +473,18 @@ export const fetchAllUsers = async () => {
       applicantProfile: u.applicantProfile,
     };
   });
+  if (!paginated) return rows;
+  return { items: rows, total, page, pageSize: limit, totalPages: Math.ceil(total / limit) };
+};
+
+export const getAdminUserSummary = async () => {
+  const counts = await prisma.user.groupBy({ by: ["role"], _count: { _all: true } });
+  const countsByRole = new Map(counts.map((row) => [row.role, row._count._all]));
+  return {
+    totalUsers: counts.reduce((sum, row) => sum + row._count._all, 0),
+    recruiters: countsByRole.get("TALENT_ACQUISITION") ?? 0,
+    administrators: countsByRole.get("ADMINISTRATOR") ?? 0,
+  };
 };
 
 export const changeUserRole = async (targetUserId: string, adminId: string, role: any) => {

@@ -5,7 +5,6 @@ import {
   FileText,
   Download,
   AlertCircle,
-  CheckCircle2,
   XCircle,
   ExternalLink,
   Loader2,
@@ -25,7 +24,6 @@ export interface DocumentPreviewModalProps {
   title?: string;
   applicantName?: string;
   requirementStatus?: string;
-  onApprove?: () => Promise<void> | void;
   onReject?: (notes: string) => Promise<void> | void;
   isActionLoading?: boolean;
 }
@@ -38,7 +36,6 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   title = "Document Preview",
   applicantName,
   requirementStatus,
-  onApprove,
   onReject,
   isActionLoading = false,
 }) => {
@@ -329,9 +326,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="text-[11px] sm:text-xs text-slate-500 font-mono">
                 {documentId
-                  ? onApprove
-                    ? "Verify document authenticity before approving."
-                    : "Previewing submitted document."
+                  ? "Previewing only. Viewing a document never changes its review status."
                   : "No action available."}
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
@@ -348,17 +343,6 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                     disabled={isActionLoading}
                   >
                     Reject
-                  </Button>
-                )}
-                {onApprove && documentId && (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
-                    loading={isActionLoading}
-                    onClick={() => onApprove()}
-                  >
-                    Approve Document
                   </Button>
                 )}
               </div>

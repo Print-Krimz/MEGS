@@ -13,8 +13,7 @@ dist-ssr
 *.local
 
 # Editor directories and files
-.vscode/*
-!.vscode/extensions.json
+.vscode
 .idea
 .DS_Store
 *.suo
@@ -43,3 +42,6 @@ setupTests.ts
 vitest.config.ts
 playwright.config.ts
 
+# Scripts & temporary tools
+scripts/
+.impeccable/

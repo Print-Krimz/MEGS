@@ -17,6 +17,10 @@ import { notify } from "../../lib/feedback";
 import { ApplicationStatus } from "../../lib/types/enums";
 import { ApplicantJobInvitation } from "../../lib/types/applicant.types";
 import {
+  getApplicationRefetchInterval,
+  INVITATION_POLL_MS,
+} from "../../lib/query-policies";
+import {
   Briefcase,
   Calendar,
   FileText,
@@ -60,15 +64,15 @@ export const MyApplicationsPage: React.FC = () => {
 
   const applicationsQuery = useQuery({
     queryKey: ["applicant", "my-applications"],
-    queryFn: applicantJobsApi.getMyApplications,
-    refetchInterval: 5000,
+    queryFn: ({ signal }) => applicantJobsApi.getMyApplicationSummaries({ summary: true }, { signal }),
+    refetchInterval: (query) => getApplicationRefetchInterval(query.state.data),
     refetchOnWindowFocus: true,
   });
 
   const invitationsQuery = useQuery({
     queryKey: ["applicant", "invitations"],
-    queryFn: applicantJobsApi.getMyInvitations,
-    refetchInterval: 10000,
+    queryFn: ({ signal }) => applicantJobsApi.getMyInvitations({ signal }),
+    refetchInterval: INVITATION_POLL_MS,
   });
 
   const respondMutation = useMutation({
@@ -107,7 +111,8 @@ export const MyApplicationsPage: React.FC = () => {
     },
   });
 
-  const allApplications = applicationsQuery.data || [];
+  const applicationData = applicationsQuery.data;
+  const allApplications = Array.isArray(applicationData) ? applicationData : applicationData?.items ?? [];
   const allInvitations = invitationsQuery.data || [];
   const pendingInvitations = allInvitations.filter((inv) => inv.status === "PENDING");
 
@@ -131,7 +136,7 @@ export const MyApplicationsPage: React.FC = () => {
     if (statusFilter === "COMPLIANCE") {
       return (
         app.status === ApplicationStatus.COMPLIANCE ||
-        app.status === ApplicationStatus.CONTRACT_AND_ORIENTATION
+        app.status === ApplicationStatus.CONTRACT_SIGNING
       );
     }
     if (statusFilter === "DEPLOYED") {
@@ -182,7 +187,7 @@ export const MyApplicationsPage: React.FC = () => {
       count: allApplications.filter(
         (a) =>
           a.status === ApplicationStatus.COMPLIANCE ||
-          a.status === ApplicationStatus.CONTRACT_AND_ORIENTATION
+          a.status === ApplicationStatus.CONTRACT_SIGNING
       ).length,
     },
     {
@@ -520,16 +525,16 @@ export const MyApplicationsPage: React.FC = () => {
                       </h3>
                       <StatusBadge status={app.status} audience="applicant" />
                     </div>
-                    <div className="text-sm text-slate-500 font-mono flex items-center gap-4">
-                      <span>App #{app.id}</span>
-                      <span>•</span>
-                      <span>Applied on {formatDate(app.createdAt)}</span>
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs sm:text-sm text-slate-500 font-mono">
+                      <span className="whitespace-nowrap font-medium text-slate-700">App #{app.id}</span>
+                      <span className="text-slate-300 select-none" aria-hidden="true">•</span>
+                      <span className="whitespace-nowrap">Applied {formatDate(app.createdAt)}</span>
                       {app.jobPosting?.location && (
                         <>
-                          <span>•</span>
-                          <span className="flex items-center gap-1 font-sans">
+                          <span className="text-slate-300 select-none" aria-hidden="true">•</span>
+                          <span className="inline-flex items-center gap-1 font-sans text-slate-600 truncate max-w-full">
                             <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            {app.jobPosting.location}
+                            <span className="truncate">{app.jobPosting.location}</span>
                           </span>
                         </>
                       )}

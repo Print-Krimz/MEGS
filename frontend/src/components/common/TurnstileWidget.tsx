@@ -84,6 +84,8 @@ export function loadTurnstileScript(): Promise<void> {
       if (resolved) return;
       if (isReady()) {
         resolved = true;
+        clearInterval(checkInterval);
+        scriptLoadingPromise = null;
         resolve();
       }
     };

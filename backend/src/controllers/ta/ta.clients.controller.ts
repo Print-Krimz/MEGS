@@ -10,7 +10,7 @@ import {
 export const listClientsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const isActive = req.query.isActive !== undefined ? req.query.isActive === "true" : undefined;
-    const clients = await listClients(isActive);
+    const clients = await listClients(isActive, req.user);
     sendSuccess(res, "Clients retrieved successfully", clients);
   } catch (error: any) {
     sendError(res, error.message, 500);
@@ -25,7 +25,7 @@ export const createClientHandler = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const client = await createClient(req.body);
+    const client = await createClient(req.body, req.user);
     sendSuccess(res, "Client created successfully", client, 201);
   } catch (error: any) {
     sendError(res, error.message, 400);

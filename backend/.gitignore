@@ -12,8 +12,11 @@ __tests__/
 *.spec.ts
 tests/
 
-# Prisma generated client
-# (it gets regenerated via `npx prisma generate`)
+# Backups and dumps
+backups/
+*.backup
+*.dump
+--commit
 
 # OS files
 .DS_Store

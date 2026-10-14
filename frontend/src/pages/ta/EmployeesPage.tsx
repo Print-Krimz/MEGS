@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { employeesApi } from "../../lib/api/employees.api";
 import {
   PageHeader,
@@ -19,21 +19,28 @@ import {
   Users,
   FileCheck2,
 } from "lucide-react";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
 
 export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
 
   const employeesQuery = useQuery({
-    queryKey: ["ta", "employees", { search, filterValues }],
-    queryFn: () =>
-      employeesApi.listEmployees({
-        search: search || undefined,
+    queryKey: ["ta", "employees", {
+      search: debouncedSearch,
+      status: filterValues.status || "",
+      department: filterValues.department || "",
+    }],
+    queryFn: ({ signal }) => employeesApi.listEmployees({
+        search: debouncedSearch || undefined,
         status: (filterValues.status as EmploymentStatus) || undefined,
         department: filterValues.department || undefined,
-      }),
+      }, { signal }),
+    placeholderData: keepPreviousData,
   });
 
   const allEmployees = employeesQuery.data || [];

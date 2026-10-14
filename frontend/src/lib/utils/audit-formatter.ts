@@ -825,7 +825,7 @@ export function getAuditExplanation(log: AuditLog): {
           to === "Compliance"
             ? "Ensure candidate uploads mandatory requirements documents before deployment."
             : to === "Hired"
-            ? "Proceed with orientation scheduling and contract signing."
+            ? "Proceed with contract signing."
             : "Review candidate evaluation records before scheduling next steps.",
       };
     }
@@ -856,7 +856,7 @@ export function getAuditExplanation(log: AuditLog): {
       affectedModule: "Client Deployments & Workforce",
       contextSummary: `Deployment record updated for '${details.clientName || "Client"}'.`,
       whyItMatters: "Directly affects client site fulfillment, active rosters, and billing periods.",
-      recommendedAction: "Ensure site orientation and employment contract are signed.",
+      recommendedAction: "Ensure the employment contract is signed and the start date is confirmed.",
     };
   }
 

@@ -1,0 +1,6986 @@
+{
+  "psgc_code": "1300000000",
+  "name": "National Capital Region (NCR)",
+  "provinces": [],
+  "localities": [
+    {
+      "psgc_code": "1380100000",
+      "name": "City of Caloocan",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1380100001",
+          "name": "Barangay 1"
+        },
+        {
+          "psgc_code": "1380100002",
+          "name": "Barangay 2"
+        },
+        {
+          "psgc_code": "1380100003",
+          "name": "Barangay 3"
+        },
+        {
+          "psgc_code": "1380100004",
+          "name": "Barangay 4"
+        },
+        {
+          "psgc_code": "1380100005",
+          "name": "Barangay 5"
+        },
+        {
+          "psgc_code": "1380100006",
+          "name": "Barangay 6"
+        },
+        {
+          "psgc_code": "1380100007",
+          "name": "Barangay 7"
+        },
+        {
+          "psgc_code": "1380100008",
+          "name": "Barangay 8"
+        },
+        {
+          "psgc_code": "1380100009",
+          "name": "Barangay 9"
+        },
+        {
+          "psgc_code": "1380100010",
+          "name": "Barangay 10"
+        },
+        {
+          "psgc_code": "1380100011",
+          "name": "Barangay 11"
+        },
+        {
+          "psgc_code": "1380100012",
+          "name": "Barangay 12"
+        },
+        {
+          "psgc_code": "1380100013",
+          "name": "Barangay 13"
+        },
+        {
+          "psgc_code": "1380100014",
+          "name": "Barangay 14"
+        },
+        {
+          "psgc_code": "1380100015",
+          "name": "Barangay 15"
+        },
+        {
+          "psgc_code": "1380100016",
+          "name": "Barangay 16"
+        },
+        {
+          "psgc_code": "1380100017",
+          "name": "Barangay 17"
+        },
+        {
+          "psgc_code": "1380100018",
+          "name": "Barangay 18"
+        },
+        {
+          "psgc_code": "1380100019",
+          "name": "Barangay 19"
+        },
+        {
+          "psgc_code": "1380100020",
+          "name": "Barangay 20"
+        },
+        {
+          "psgc_code": "1380100021",
+          "name": "Barangay 21"
+        },
+        {
+          "psgc_code": "1380100022",
+          "name": "Barangay 22"
+        },
+        {
+          "psgc_code": "1380100023",
+          "name": "Barangay 23"
+        },
+        {
+          "psgc_code": "1380100024",
+          "name": "Barangay 24"
+        },
+        {
+          "psgc_code": "1380100025",
+          "name": "Barangay 25"
+        },
+        {
+          "psgc_code": "1380100026",
+          "name": "Barangay 26"
+        },
+        {
+          "psgc_code": "1380100027",
+          "name": "Barangay 27"
+        },
+        {
+          "psgc_code": "1380100028",
+          "name": "Barangay 28"
+        },
+        {
+          "psgc_code": "1380100029",
+          "name": "Barangay 29"
+        },
+        {
+          "psgc_code": "1380100030",
+          "name": "Barangay 30"
+        },
+        {
+          "psgc_code": "1380100031",
+          "name": "Barangay 31"
+        },
+        {
+          "psgc_code": "1380100032",
+          "name": "Barangay 32"
+        },
+        {
+          "psgc_code": "1380100033",
+          "name": "Barangay 33"
+        },
+        {
+          "psgc_code": "1380100034",
+          "name": "Barangay 34"
+        },
+        {
+          "psgc_code": "1380100035",
+          "name": "Barangay 35"
+        },
+        {
+          "psgc_code": "1380100036",
+          "name": "Barangay 36"
+        },
+        {
+          "psgc_code": "1380100037",
+          "name": "Barangay 37"
+        },
+        {
+          "psgc_code": "1380100038",
+          "name": "Barangay 38"
+        },
+        {
+          "psgc_code": "1380100039",
+          "name": "Barangay 39"
+        },
+        {
+          "psgc_code": "1380100040",
+          "name": "Barangay 40"
+        },
+        {
+          "psgc_code": "1380100041",
+          "name": "Barangay 41"
+        },
+        {
+          "psgc_code": "1380100042",
+          "name": "Barangay 42"
+        },
+        {
+          "psgc_code": "1380100043",
+          "name": "Barangay 43"
+        },
+        {
+          "psgc_code": "1380100044",
+          "name": "Barangay 44"
+        },
+        {
+          "psgc_code": "1380100045",
+          "name": "Barangay 45"
+        },
+        {
+          "psgc_code": "1380100046",
+          "name": "Barangay 46"
+        },
+        {
+          "psgc_code": "1380100047",
+          "name": "Barangay 47"
+        },
+        {
+          "psgc_code": "1380100048",
+          "name": "Barangay 48"
+        },
+        {
+          "psgc_code": "1380100049",
+          "name": "Barangay 49"
+        },
+        {
+          "psgc_code": "1380100050",
+          "name": "Barangay 50"
+        },
+        {
+          "psgc_code": "1380100051",
+          "name": "Barangay 51"
+        },
+        {
+          "psgc_code": "1380100052",
+          "name": "Barangay 52"
+        },
+        {
+          "psgc_code": "1380100053",
+          "name": "Barangay 53"
+        },
+        {
+          "psgc_code": "1380100054",
+          "name": "Barangay 54"
+        },
+        {
+          "psgc_code": "1380100055",
+          "name": "Barangay 55"
+        },
+        {
+          "psgc_code": "1380100056",
+          "name": "Barangay 56"
+        },
+        {
+          "psgc_code": "1380100057",
+          "name": "Barangay 57"
+        },
+        {
+          "psgc_code": "1380100058",
+          "name": "Barangay 58"
+        },
+        {
+          "psgc_code": "1380100059",
+          "name": "Barangay 59"
+        },
+        {
+          "psgc_code": "1380100060",
+          "name": "Barangay 60"
+        },
+        {
+          "psgc_code": "1380100061",
+          "name": "Barangay 61"
+        },
+        {
+          "psgc_code": "1380100062",
+          "name": "Barangay 62"
+        },
+        {
+          "psgc_code": "1380100063",
+          "name": "Barangay 63"
+        },
+        {
+          "psgc_code": "1380100064",
+          "name": "Barangay 64"
+        },
+        {
+          "psgc_code": "1380100065",
+          "name": "Barangay 65"
+        },
+        {
+          "psgc_code": "1380100066",
+          "name": "Barangay 66"
+        },
+        {
+          "psgc_code": "1380100067",
+          "name": "Barangay 67"
+        },
+        {
+          "psgc_code": "1380100068",
+          "name": "Barangay 68"
+        },
+        {
+          "psgc_code": "1380100069",
+          "name": "Barangay 69"
+        },
+        {
+          "psgc_code": "1380100070",
+          "name": "Barangay 70"
+        },
+        {
+          "psgc_code": "1380100071",
+          "name": "Barangay 71"
+        },
+        {
+          "psgc_code": "1380100072",
+          "name": "Barangay 72"
+        },
+        {
+          "psgc_code": "1380100073",
+          "name": "Barangay 73"
+        },
+        {
+          "psgc_code": "1380100074",
+          "name": "Barangay 74"
+        },
+        {
+          "psgc_code": "1380100075",
+          "name": "Barangay 75"
+        },
+        {
+          "psgc_code": "1380100076",
+          "name": "Barangay 76"
+        },
+        {
+          "psgc_code": "1380100077",
+          "name": "Barangay 77"
+        },
+        {
+          "psgc_code": "1380100078",
+          "name": "Barangay 78"
+        },
+        {
+          "psgc_code": "1380100079",
+          "name": "Barangay 79"
+        },
+        {
+          "psgc_code": "1380100080",
+          "name": "Barangay 80"
+        },
+        {
+          "psgc_code": "1380100081",
+          "name": "Barangay 81"
+        },
+        {
+          "psgc_code": "1380100082",
+          "name": "Barangay 82"
+        },
+        {
+          "psgc_code": "1380100083",
+          "name": "Barangay 83"
+        },
+        {
+          "psgc_code": "1380100084",
+          "name": "Barangay 84"
+        },
+        {
+          "psgc_code": "1380100085",
+          "name": "Barangay 85"
+        },
+        {
+          "psgc_code": "1380100086",
+          "name": "Barangay 86"
+        },
+        {
+          "psgc_code": "1380100087",
+          "name": "Barangay 87"
+        },
+        {
+          "psgc_code": "1380100088",
+          "name": "Barangay 88"
+        },
+        {
+          "psgc_code": "1380100089",
+          "name": "Barangay 89"
+        },
+        {
+          "psgc_code": "1380100090",
+          "name": "Barangay 90"
+        },
+        {
+          "psgc_code": "1380100091",
+          "name": "Barangay 91"
+        },
+        {
+          "psgc_code": "1380100092",
+          "name": "Barangay 92"
+        },
+        {
+          "psgc_code": "1380100093",
+          "name": "Barangay 93"
+        },
+        {
+          "psgc_code": "1380100094",
+          "name": "Barangay 94"
+        },
+        {
+          "psgc_code": "1380100095",
+          "name": "Barangay 95"
+        },
+        {
+          "psgc_code": "1380100096",
+          "name": "Barangay 96"
+        },
+        {
+          "psgc_code": "1380100097",
+          "name": "Barangay 97"
+        },
+        {
+          "psgc_code": "1380100098",
+          "name": "Barangay 98"
+        },
+        {
+          "psgc_code": "1380100099",
+          "name": "Barangay 99"
+        },
+        {
+          "psgc_code": "1380100100",
+          "name": "Barangay 100"
+        },
+        {
+          "psgc_code": "1380100101",
+          "name": "Barangay 101"
+        },
+        {
+          "psgc_code": "1380100102",
+          "name": "Barangay 102"
+        },
+        {
+          "psgc_code": "1380100103",
+          "name": "Barangay 103"
+        },
+        {
+          "psgc_code": "1380100104",
+          "name": "Barangay 104"
+        },
+        {
+          "psgc_code": "1380100105",
+          "name": "Barangay 105"
+        },
+        {
+          "psgc_code": "1380100106",
+          "name": "Barangay 106"
+        },
+        {
+          "psgc_code": "1380100107",
+          "name": "Barangay 107"
+        },
+        {
+          "psgc_code": "1380100108",
+          "name": "Barangay 108"
+        },
+        {
+          "psgc_code": "1380100109",
+          "name": "Barangay 109"
+        },
+        {
+          "psgc_code": "1380100110",
+          "name": "Barangay 110"
+        },
+        {
+          "psgc_code": "1380100111",
+          "name": "Barangay 111"
+        },
+        {
+          "psgc_code": "1380100112",
+          "name": "Barangay 112"
+        },
+        {
+          "psgc_code": "1380100113",
+          "name": "Barangay 113"
+        },
+        {
+          "psgc_code": "1380100114",
+          "name": "Barangay 114"
+        },
+        {
+          "psgc_code": "1380100115",
+          "name": "Barangay 115"
+        },
+        {
+          "psgc_code": "1380100116",
+          "name": "Barangay 116"
+        },
+        {
+          "psgc_code": "1380100117",
+          "name": "Barangay 117"
+        },
+        {
+          "psgc_code": "1380100118",
+          "name": "Barangay 118"
+        },
+        {
+          "psgc_code": "1380100119",
+          "name": "Barangay 119"
+        },
+        {
+          "psgc_code": "1380100120",
+          "name": "Barangay 120"
+        },
+        {
+          "psgc_code": "1380100121",
+          "name": "Barangay 121"
+        },
+        {
+          "psgc_code": "1380100122",
+          "name": "Barangay 122"
+        },
+        {
+          "psgc_code": "1380100123",
+          "name": "Barangay 123"
+        },
+        {
+          "psgc_code": "1380100124",
+          "name": "Barangay 124"
+        },
+        {
+          "psgc_code": "1380100125",
+          "name": "Barangay 125"
+        },
+        {
+          "psgc_code": "1380100126",
+          "name": "Barangay 126"
+        },
+        {
+          "psgc_code": "1380100127",
+          "name": "Barangay 127"
+        },
+        {
+          "psgc_code": "1380100128",
+          "name": "Barangay 128"
+        },
+        {
+          "psgc_code": "1380100129",
+          "name": "Barangay 129"
+        },
+        {
+          "psgc_code": "1380100130",
+          "name": "Barangay 130"
+        },
+        {
+          "psgc_code": "1380100131",
+          "name": "Barangay 131"
+        },
+        {
+          "psgc_code": "1380100132",
+          "name": "Barangay 132"
+        },
+        {
+          "psgc_code": "1380100133",
+          "name": "Barangay 133"
+        },
+        {
+          "psgc_code": "1380100134",
+          "name": "Barangay 134"
+        },
+        {
+          "psgc_code": "1380100135",
+          "name": "Barangay 135"
+        },
+        {
+          "psgc_code": "1380100136",
+          "name": "Barangay 136"
+        },
+        {
+          "psgc_code": "1380100137",
+          "name": "Barangay 137"
+        },
+        {
+          "psgc_code": "1380100138",
+          "name": "Barangay 138"
+        },
+        {
+          "psgc_code": "1380100139",
+          "name": "Barangay 139"
+        },
+        {
+          "psgc_code": "1380100140",
+          "name": "Barangay 140"
+        },
+        {
+          "psgc_code": "1380100141",
+          "name": "Barangay 141"
+        },
+        {
+          "psgc_code": "1380100142",
+          "name": "Barangay 142"
+        },
+        {
+          "psgc_code": "1380100143",
+          "name": "Barangay 143"
+        },
+        {
+          "psgc_code": "1380100144",
+          "name": "Barangay 144"
+        },
+        {
+          "psgc_code": "1380100145",
+          "name": "Barangay 145"
+        },
+        {
+          "psgc_code": "1380100146",
+          "name": "Barangay 146"
+        },
+        {
+          "psgc_code": "1380100147",
+          "name": "Barangay 147"
+        },
+        {
+          "psgc_code": "1380100148",
+          "name": "Barangay 148"
+        },
+        {
+          "psgc_code": "1380100149",
+          "name": "Barangay 149"
+        },
+        {
+          "psgc_code": "1380100150",
+          "name": "Barangay 150"
+        },
+        {
+          "psgc_code": "1380100151",
+          "name": "Barangay 151"
+        },
+        {
+          "psgc_code": "1380100152",
+          "name": "Barangay 152"
+        },
+        {
+          "psgc_code": "1380100153",
+          "name": "Barangay 153"
+        },
+        {
+          "psgc_code": "1380100154",
+          "name": "Barangay 154"
+        },
+        {
+          "psgc_code": "1380100155",
+          "name": "Barangay 155"
+        },
+        {
+          "psgc_code": "1380100156",
+          "name": "Barangay 156"
+        },
+        {
+          "psgc_code": "1380100157",
+          "name": "Barangay 157"
+        },
+        {
+          "psgc_code": "1380100158",
+          "name": "Barangay 158"
+        },
+        {
+          "psgc_code": "1380100159",
+          "name": "Barangay 159"
+        },
+        {
+          "psgc_code": "1380100160",
+          "name": "Barangay 160"
+        },
+        {
+          "psgc_code": "1380100161",
+          "name": "Barangay 161"
+        },
+        {
+          "psgc_code": "1380100162",
+          "name": "Barangay 162"
+        },
+        {
+          "psgc_code": "1380100163",
+          "name": "Barangay 163"
+        },
+        {
+          "psgc_code": "1380100164",
+          "name": "Barangay 164"
+        },
+        {
+          "psgc_code": "1380100165",
+          "name": "Barangay 165"
+        },
+        {
+          "psgc_code": "1380100166",
+          "name": "Barangay 166"
+        },
+        {
+          "psgc_code": "1380100167",
+          "name": "Barangay 167"
+        },
+        {
+          "psgc_code": "1380100168",
+          "name": "Barangay 168"
+        },
+        {
+          "psgc_code": "1380100169",
+          "name": "Barangay 169"
+        },
+        {
+          "psgc_code": "1380100170",
+          "name": "Barangay 170"
+        },
+        {
+          "psgc_code": "1380100171",
+          "name": "Barangay 171"
+        },
+        {
+          "psgc_code": "1380100172",
+          "name": "Barangay 172"
+        },
+        {
+          "psgc_code": "1380100173",
+          "name": "Barangay 173"
+        },
+        {
+          "psgc_code": "1380100174",
+          "name": "Barangay 174"
+        },
+        {
+          "psgc_code": "1380100175",
+          "name": "Barangay 175"
+        },
+        {
+          "psgc_code": "1380100177",
+          "name": "Barangay 177"
+        },
+        {
+          "psgc_code": "1380100178",
+          "name": "Barangay 178"
+        },
+        {
+          "psgc_code": "1380100179",
+          "name": "Barangay 179"
+        },
+        {
+          "psgc_code": "1380100180",
+          "name": "Barangay 180"
+        },
+        {
+          "psgc_code": "1380100181",
+          "name": "Barangay 181"
+        },
+        {
+          "psgc_code": "1380100182",
+          "name": "Barangay 182"
+        },
+        {
+          "psgc_code": "1380100183",
+          "name": "Barangay 183"
+        },
+        {
+          "psgc_code": "1380100184",
+          "name": "Barangay 184"
+        },
+        {
+          "psgc_code": "1380100185",
+          "name": "Barangay 185"
+        },
+        {
+          "psgc_code": "1380100186",
+          "name": "Barangay 186"
+        },
+        {
+          "psgc_code": "1380100187",
+          "name": "Barangay 187"
+        },
+        {
+          "psgc_code": "1380100188",
+          "name": "Barangay 188"
+        },
+        {
+          "psgc_code": "1380100189",
+          "name": "Barangay 176-A"
+        },
+        {
+          "psgc_code": "1380100190",
+          "name": "Barangay 176-B"
+        },
+        {
+          "psgc_code": "1380100191",
+          "name": "Barangay 176-C"
+        },
+        {
+          "psgc_code": "1380100192",
+          "name": "Barangay 176-D"
+        },
+        {
+          "psgc_code": "1380100193",
+          "name": "Barangay 176-E"
+        },
+        {
+          "psgc_code": "1380100194",
+          "name": "Barangay 176-F"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380200000",
+      "name": "City of Las Piñas",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1380200001",
+          "name": "Almanza Uno"
+        },
+        {
+          "psgc_code": "1380200002",
+          "name": "Daniel Fajardo"
+        },
+        {
+          "psgc_code": "1380200003",
+          "name": "Elias Aldana"
+        },
+        {
+          "psgc_code": "1380200004",
+          "name": "Ilaya"
+        },
+        {
+          "psgc_code": "1380200005",
+          "name": "Manuyo Uno"
+        },
+        {
+          "psgc_code": "1380200006",
+          "name": "Pamplona Uno"
+        },
+        {
+          "psgc_code": "1380200007",
+          "name": "Pulang Lupa Uno"
+        },
+        {
+          "psgc_code": "1380200008",
+          "name": "Talon Uno"
+        },
+        {
+          "psgc_code": "1380200009",
+          "name": "Zapote"
+        },
+        {
+          "psgc_code": "1380200010",
+          "name": "Almanza Dos"
+        },
+        {
+          "psgc_code": "1380200011",
+          "name": "B. F. International Village"
+        },
+        {
+          "psgc_code": "1380200012",
+          "name": "Manuyo Dos"
+        },
+        {
+          "psgc_code": "1380200013",
+          "name": "Pamplona Dos"
+        },
+        {
+          "psgc_code": "1380200014",
+          "name": "Pamplona Tres"
+        },
+        {
+          "psgc_code": "1380200015",
+          "name": "Pilar"
+        },
+        {
+          "psgc_code": "1380200016",
+          "name": "Pulang Lupa Dos"
+        },
+        {
+          "psgc_code": "1380200017",
+          "name": "Talon Dos"
+        },
+        {
+          "psgc_code": "1380200018",
+          "name": "Talon Tres"
+        },
+        {
+          "psgc_code": "1380200019",
+          "name": "Talon Kuatro"
+        },
+        {
+          "psgc_code": "1380200020",
+          "name": "Talon Singko"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380300000",
+      "name": "City of Makati",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1380300001",
+          "name": "Bangkal"
+        },
+        {
+          "psgc_code": "1380300002",
+          "name": "Bel-Air"
+        },
+        {
+          "psgc_code": "1380300005",
+          "name": "Carmona"
+        },
+        {
+          "psgc_code": "1380300006",
+          "name": "Dasmariñas"
+        },
+        {
+          "psgc_code": "1380300008",
+          "name": "Forbes Park"
+        },
+        {
+          "psgc_code": "1380300009",
+          "name": "Guadalupe Nuevo"
+        },
+        {
+          "psgc_code": "1380300010",
+          "name": "Guadalupe Viejo"
+        },
+        {
+          "psgc_code": "1380300011",
+          "name": "Kasilawan"
+        },
+        {
+          "psgc_code": "1380300012",
+          "name": "La Paz"
+        },
+        {
+          "psgc_code": "1380300013",
+          "name": "Magallanes"
+        },
+        {
+          "psgc_code": "1380300014",
+          "name": "Olympia"
+        },
+        {
+          "psgc_code": "1380300015",
+          "name": "Palanan"
+        },
+        {
+          "psgc_code": "1380300017",
+          "name": "Pinagkaisahan"
+        },
+        {
+          "psgc_code": "1380300018",
+          "name": "Pio Del Pilar"
+        },
+        {
+          "psgc_code": "1380300020",
+          "name": "Poblacion"
+        },
+        {
+          "psgc_code": "1380300023",
+          "name": "San Antonio"
+        },
+        {
+          "psgc_code": "1380300024",
+          "name": "San Isidro"
+        },
+        {
+          "psgc_code": "1380300025",
+          "name": "San Lorenzo"
+        },
+        {
+          "psgc_code": "1380300026",
+          "name": "Santa Cruz"
+        },
+        {
+          "psgc_code": "1380300027",
+          "name": "Singkamas"
+        },
+        {
+          "psgc_code": "1380300029",
+          "name": "Tejeros"
+        },
+        {
+          "psgc_code": "1380300030",
+          "name": "Urdaneta"
+        },
+        {
+          "psgc_code": "1380300031",
+          "name": "Valenzuela"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380400000",
+      "name": "City of Malabon",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1380400001",
+          "name": "Acacia"
+        },
+        {
+          "psgc_code": "1380400002",
+          "name": "Baritan"
+        },
+        {
+          "psgc_code": "1380400003",
+          "name": "Bayan-bayanan"
+        },
+        {
+          "psgc_code": "1380400004",
+          "name": "Catmon"
+        },
+        {
+          "psgc_code": "1380400005",
+          "name": "Concepcion"
+        },
+        {
+          "psgc_code": "1380400006",
+          "name": "Dampalit"
+        },
+        {
+          "psgc_code": "1380400007",
+          "name": "Flores"
+        },
+        {
+          "psgc_code": "1380400008",
+          "name": "Hulong Duhat"
+        },
+        {
+          "psgc_code": "1380400009",
+          "name": "Ibaba"
+        },
+        {
+          "psgc_code": "1380400010",
+          "name": "Longos"
+        },
+        {
+          "psgc_code": "1380400011",
+          "name": "Maysilo"
+        },
+        {
+          "psgc_code": "1380400012",
+          "name": "Muzon"
+        },
+        {
+          "psgc_code": "1380400013",
+          "name": "Niugan"
+        },
+        {
+          "psgc_code": "1380400014",
+          "name": "Panghulo"
+        },
+        {
+          "psgc_code": "1380400015",
+          "name": "Potrero"
+        },
+        {
+          "psgc_code": "1380400016",
+          "name": "San Agustin"
+        },
+        {
+          "psgc_code": "1380400017",
+          "name": "Santolan"
+        },
+        {
+          "psgc_code": "1380400018",
+          "name": "Tañong"
+        },
+        {
+          "psgc_code": "1380400019",
+          "name": "Tinajeros"
+        },
+        {
+          "psgc_code": "1380400020",
+          "name": "Tonsuya"
+        },
+        {
+          "psgc_code": "1380400021",
+          "name": "Tugatog"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380500000",
+      "name": "City of Mandaluyong",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1380500001",
+          "name": "Addition Hills"
+        },
+        {
+          "psgc_code": "1380500002",
+          "name": "Bagong Silang"
+        },
+        {
+          "psgc_code": "1380500003",
+          "name": "Barangka Drive"
+        },
+        {
+          "psgc_code": "1380500004",
+          "name": "Barangka Ibaba"
+        },
+        {
+          "psgc_code": "1380500005",
+          "name": "Barangka Ilaya"
+        },
+        {
+          "psgc_code": "1380500006",
+          "name": "Barangka Itaas"
+        },
+        {
+          "psgc_code": "1380500007",
+          "name": "Burol"
+        },
+        {
+          "psgc_code": "1380500008",
+          "name": "Buayang Bato"
+        },
+        {
+          "psgc_code": "1380500009",
+          "name": "Daang Bakal"
+        },
+        {
+          "psgc_code": "1380500010",
+          "name": "Hagdang Bato Itaas"
+        },
+        {
+          "psgc_code": "1380500011",
+          "name": "Hagdang Bato Libis"
+        },
+        {
+          "psgc_code": "1380500012",
+          "name": "Harapin Ang Bukas"
+        },
+        {
+          "psgc_code": "1380500013",
+          "name": "Highway Hills"
+        },
+        {
+          "psgc_code": "1380500014",
+          "name": "Hulo"
+        },
+        {
+          "psgc_code": "1380500015",
+          "name": "Mabini-J. Rizal"
+        },
+        {
+          "psgc_code": "1380500016",
+          "name": "Malamig"
+        },
+        {
+          "psgc_code": "1380500017",
+          "name": "Mauway"
+        },
+        {
+          "psgc_code": "1380500018",
+          "name": "Namayan"
+        },
+        {
+          "psgc_code": "1380500019",
+          "name": "New Zañiga"
+        },
+        {
+          "psgc_code": "1380500020",
+          "name": "Old Zañiga"
+        },
+        {
+          "psgc_code": "1380500021",
+          "name": "Pag-asa"
+        },
+        {
+          "psgc_code": "1380500022",
+          "name": "Plainview"
+        },
+        {
+          "psgc_code": "1380500023",
+          "name": "Pleasant Hills"
+        },
+        {
+          "psgc_code": "1380500024",
+          "name": "Poblacion"
+        },
+        {
+          "psgc_code": "1380500025",
+          "name": "San Jose"
+        },
+        {
+          "psgc_code": "1380500026",
+          "name": "Vergara"
+        },
+        {
+          "psgc_code": "1380500027",
+          "name": "Wack-wack Greenhills"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380600000",
+      "name": "City of Manila",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1380601001",
+          "name": "Barangay 1"
+        },
+        {
+          "psgc_code": "1380601002",
+          "name": "Barangay 2"
+        },
+        {
+          "psgc_code": "1380601003",
+          "name": "Barangay 3"
+        },
+        {
+          "psgc_code": "1380601004",
+          "name": "Barangay 4"
+        },
+        {
+          "psgc_code": "1380601005",
+          "name": "Barangay 5"
+        },
+        {
+          "psgc_code": "1380601006",
+          "name": "Barangay 6"
+        },
+        {
+          "psgc_code": "1380601007",
+          "name": "Barangay 7"
+        },
+        {
+          "psgc_code": "1380601008",
+          "name": "Barangay 8"
+        },
+        {
+          "psgc_code": "1380601009",
+          "name": "Barangay 9"
+        },
+        {
+          "psgc_code": "1380601010",
+          "name": "Barangay 10"
+        },
+        {
+          "psgc_code": "1380601011",
+          "name": "Barangay 11"
+        },
+        {
+          "psgc_code": "1380601012",
+          "name": "Barangay 12"
+        },
+        {
+          "psgc_code": "1380601013",
+          "name": "Barangay 13"
+        },
+        {
+          "psgc_code": "1380601014",
+          "name": "Barangay 14"
+        },
+        {
+          "psgc_code": "1380601015",
+          "name": "Barangay 15"
+        },
+        {
+          "psgc_code": "1380601016",
+          "name": "Barangay 16"
+        },
+        {
+          "psgc_code": "1380601017",
+          "name": "Barangay 17"
+        },
+        {
+          "psgc_code": "1380601018",
+          "name": "Barangay 18"
+        },
+        {
+          "psgc_code": "1380601019",
+          "name": "Barangay 19"
+        },
+        {
+          "psgc_code": "1380601020",
+          "name": "Barangay 20"
+        },
+        {
+          "psgc_code": "1380601025",
+          "name": "Barangay 25"
+        },
+        {
+          "psgc_code": "1380601026",
+          "name": "Barangay 26"
+        },
+        {
+          "psgc_code": "1380601028",
+          "name": "Barangay 28"
+        },
+        {
+          "psgc_code": "1380601029",
+          "name": "Barangay 29"
+        },
+        {
+          "psgc_code": "1380601030",
+          "name": "Barangay 30"
+        },
+        {
+          "psgc_code": "1380601031",
+          "name": "Barangay 31"
+        },
+        {
+          "psgc_code": "1380601032",
+          "name": "Barangay 32"
+        },
+        {
+          "psgc_code": "1380601033",
+          "name": "Barangay 33"
+        },
+        {
+          "psgc_code": "1380601034",
+          "name": "Barangay 34"
+        },
+        {
+          "psgc_code": "1380601035",
+          "name": "Barangay 35"
+        },
+        {
+          "psgc_code": "1380601036",
+          "name": "Barangay 36"
+        },
+        {
+          "psgc_code": "1380601037",
+          "name": "Barangay 37"
+        },
+        {
+          "psgc_code": "1380601038",
+          "name": "Barangay 38"
+        },
+        {
+          "psgc_code": "1380601039",
+          "name": "Barangay 39"
+        },
+        {
+          "psgc_code": "1380601041",
+          "name": "Barangay 41"
+        },
+        {
+          "psgc_code": "1380601042",
+          "name": "Barangay 42"
+        },
+        {
+          "psgc_code": "1380601043",
+          "name": "Barangay 43"
+        },
+        {
+          "psgc_code": "1380601044",
+          "name": "Barangay 44"
+        },
+        {
+          "psgc_code": "1380601045",
+          "name": "Barangay 45"
+        },
+        {
+          "psgc_code": "1380601046",
+          "name": "Barangay 46"
+        },
+        {
+          "psgc_code": "1380601047",
+          "name": "Barangay 47"
+        },
+        {
+          "psgc_code": "1380601048",
+          "name": "Barangay 48"
+        },
+        {
+          "psgc_code": "1380601049",
+          "name": "Barangay 49"
+        },
+        {
+          "psgc_code": "1380601050",
+          "name": "Barangay 50"
+        },
+        {
+          "psgc_code": "1380601051",
+          "name": "Barangay 51"
+        },
+        {
+          "psgc_code": "1380601052",
+          "name": "Barangay 52"
+        },
+        {
+          "psgc_code": "1380601053",
+          "name": "Barangay 53"
+        },
+        {
+          "psgc_code": "1380601054",
+          "name": "Barangay 54"
+        },
+        {
+          "psgc_code": "1380601055",
+          "name": "Barangay 55"
+        },
+        {
+          "psgc_code": "1380601056",
+          "name": "Barangay 56"
+        },
+        {
+          "psgc_code": "1380601057",
+          "name": "Barangay 57"
+        },
+        {
+          "psgc_code": "1380601058",
+          "name": "Barangay 58"
+        },
+        {
+          "psgc_code": "1380601059",
+          "name": "Barangay 59"
+        },
+        {
+          "psgc_code": "1380601060",
+          "name": "Barangay 60"
+        },
+        {
+          "psgc_code": "1380601061",
+          "name": "Barangay 61"
+        },
+        {
+          "psgc_code": "1380601062",
+          "name": "Barangay 62"
+        },
+        {
+          "psgc_code": "1380601063",
+          "name": "Barangay 63"
+        },
+        {
+          "psgc_code": "1380601064",
+          "name": "Barangay 64"
+        },
+        {
+          "psgc_code": "1380601065",
+          "name": "Barangay 65"
+        },
+        {
+          "psgc_code": "1380601066",
+          "name": "Barangay 66"
+        },
+        {
+          "psgc_code": "1380601067",
+          "name": "Barangay 67"
+        },
+        {
+          "psgc_code": "1380601068",
+          "name": "Barangay 68"
+        },
+        {
+          "psgc_code": "1380601069",
+          "name": "Barangay 69"
+        },
+        {
+          "psgc_code": "1380601070",
+          "name": "Barangay 70"
+        },
+        {
+          "psgc_code": "1380601071",
+          "name": "Barangay 71"
+        },
+        {
+          "psgc_code": "1380601072",
+          "name": "Barangay 72"
+        },
+        {
+          "psgc_code": "1380601073",
+          "name": "Barangay 73"
+        },
+        {
+          "psgc_code": "1380601074",
+          "name": "Barangay 74"
+        },
+        {
+          "psgc_code": "1380601075",
+          "name": "Barangay 75"
+        },
+        {
+          "psgc_code": "1380601076",
+          "name": "Barangay 76"
+        },
+        {
+          "psgc_code": "1380601077",
+          "name": "Barangay 77"
+        },
+        {
+          "psgc_code": "1380601078",
+          "name": "Barangay 78"
+        },
+        {
+          "psgc_code": "1380601079",
+          "name": "Barangay 79"
+        },
+        {
+          "psgc_code": "1380601080",
+          "name": "Barangay 80"
+        },
+        {
+          "psgc_code": "1380601081",
+          "name": "Barangay 81"
+        },
+        {
+          "psgc_code": "1380601082",
+          "name": "Barangay 82"
+        },
+        {
+          "psgc_code": "1380601083",
+          "name": "Barangay 83"
+        },
+        {
+          "psgc_code": "1380601084",
+          "name": "Barangay 84"
+        },
+        {
+          "psgc_code": "1380601085",
+          "name": "Barangay 85"
+        },
+        {
+          "psgc_code": "1380601086",
+          "name": "Barangay 86"
+        },
+        {
+          "psgc_code": "1380601087",
+          "name": "Barangay 87"
+        },
+        {
+          "psgc_code": "1380601088",
+          "name": "Barangay 88"
+        },
+        {
+          "psgc_code": "1380601089",
+          "name": "Barangay 89"
+        },
+        {
+          "psgc_code": "1380601090",
+          "name": "Barangay 90"
+        },
+        {
+          "psgc_code": "1380601091",
+          "name": "Barangay 91"
+        },
+        {
+          "psgc_code": "1380601092",
+          "name": "Barangay 92"
+        },
+        {
+          "psgc_code": "1380601093",
+          "name": "Barangay 93"
+        },
+        {
+          "psgc_code": "1380601094",
+          "name": "Barangay 94"
+        },
+        {
+          "psgc_code": "1380601095",
+          "name": "Barangay 95"
+        },
+        {
+          "psgc_code": "1380601096",
+          "name": "Barangay 96"
+        },
+        {
+          "psgc_code": "1380601097",
+          "name": "Barangay 97"
+        },
+        {
+          "psgc_code": "1380601098",
+          "name": "Barangay 98"
+        },
+        {
+          "psgc_code": "1380601099",
+          "name": "Barangay 99"
+        },
+        {
+          "psgc_code": "1380601100",
+          "name": "Barangay 100"
+        },
+        {
+          "psgc_code": "1380601101",
+          "name": "Barangay 101"
+        },
+        {
+          "psgc_code": "1380601102",
+          "name": "Barangay 102"
+        },
+        {
+          "psgc_code": "1380601103",
+          "name": "Barangay 103"
+        },
+        {
+          "psgc_code": "1380601104",
+          "name": "Barangay 104"
+        },
+        {
+          "psgc_code": "1380601105",
+          "name": "Barangay 105"
+        },
+        {
+          "psgc_code": "1380601106",
+          "name": "Barangay 106"
+        },
+        {
+          "psgc_code": "1380601107",
+          "name": "Barangay 107"
+        },
+        {
+          "psgc_code": "1380601108",
+          "name": "Barangay 108"
+        },
+        {
+          "psgc_code": "1380601109",
+          "name": "Barangay 109"
+        },
+        {
+          "psgc_code": "1380601110",
+          "name": "Barangay 110"
+        },
+        {
+          "psgc_code": "1380601111",
+          "name": "Barangay 111"
+        },
+        {
+          "psgc_code": "1380601112",
+          "name": "Barangay 112"
+        },
+        {
+          "psgc_code": "1380601116",
+          "name": "Barangay 116"
+        },
+        {
+          "psgc_code": "1380601117",
+          "name": "Barangay 117"
+        },
+        {
+          "psgc_code": "1380601118",
+          "name": "Barangay 118"
+        },
+        {
+          "psgc_code": "1380601119",
+          "name": "Barangay 119"
+        },
+        {
+          "psgc_code": "1380601120",
+          "name": "Barangay 120"
+        },
+        {
+          "psgc_code": "1380601121",
+          "name": "Barangay 121"
+        },
+        {
+          "psgc_code": "1380601122",
+          "name": "Barangay 122"
+        },
+        {
+          "psgc_code": "1380601123",
+          "name": "Barangay 123"
+        },
+        {
+          "psgc_code": "1380601124",
+          "name": "Barangay 124"
+        },
+        {
+          "psgc_code": "1380601125",
+          "name": "Barangay 125"
+        },
+        {
+          "psgc_code": "1380601126",
+          "name": "Barangay 126"
+        },
+        {
+          "psgc_code": "1380601127",
+          "name": "Barangay 127"
+        },
+        {
+          "psgc_code": "1380601128",
+          "name": "Barangay 128"
+        },
+        {
+          "psgc_code": "1380601129",
+          "name": "Barangay 129"
+        },
+        {
+          "psgc_code": "1380601130",
+          "name": "Barangay 130"
+        },
+        {
+          "psgc_code": "1380601131",
+          "name": "Barangay 131"
+        },
+        {
+          "psgc_code": "1380601132",
+          "name": "Barangay 132"
+        },
+        {
+          "psgc_code": "1380601133",
+          "name": "Barangay 133"
+        },
+        {
+          "psgc_code": "1380601134",
+          "name": "Barangay 134"
+        },
+        {
+          "psgc_code": "1380601135",
+          "name": "Barangay 135"
+        },
+        {
+          "psgc_code": "1380601136",
+          "name": "Barangay 136"
+        },
+        {
+          "psgc_code": "1380601137",
+          "name": "Barangay 137"
+        },
+        {
+          "psgc_code": "1380601138",
+          "name": "Barangay 138"
+        },
+        {
+          "psgc_code": "1380601139",
+          "name": "Barangay 139"
+        },
+        {
+          "psgc_code": "1380601140",
+          "name": "Barangay 140"
+        },
+        {
+          "psgc_code": "1380601141",
+          "name": "Barangay 141"
+        },
+        {
+          "psgc_code": "1380601142",
+          "name": "Barangay 142"
+        },
+        {
+          "psgc_code": "1380601143",
+          "name": "Barangay 143"
+        },
+        {
+          "psgc_code": "1380601144",
+          "name": "Barangay 144"
+        },
+        {
+          "psgc_code": "1380601145",
+          "name": "Barangay 145"
+        },
+        {
+          "psgc_code": "1380601146",
+          "name": "Barangay 146"
+        },
+        {
+          "psgc_code": "1380601147",
+          "name": "Barangay 147"
+        },
+        {
+          "psgc_code": "1380601148",
+          "name": "Barangay 148"
+        },
+        {
+          "psgc_code": "1380601149",
+          "name": "Barangay 149"
+        },
+        {
+          "psgc_code": "1380601150",
+          "name": "Barangay 150"
+        },
+        {
+          "psgc_code": "1380601151",
+          "name": "Barangay 151"
+        },
+        {
+          "psgc_code": "1380601152",
+          "name": "Barangay 152"
+        },
+        {
+          "psgc_code": "1380601153",
+          "name": "Barangay 153"
+        },
+        {
+          "psgc_code": "1380601154",
+          "name": "Barangay 154"
+        },
+        {
+          "psgc_code": "1380601155",
+          "name": "Barangay 155"
+        },
+        {
+          "psgc_code": "1380601156",
+          "name": "Barangay 156"
+        },
+        {
+          "psgc_code": "1380601157",
+          "name": "Barangay 157"
+        },
+        {
+          "psgc_code": "1380601158",
+          "name": "Barangay 158"
+        },
+        {
+          "psgc_code": "1380601159",
+          "name": "Barangay 159"
+        },
+        {
+          "psgc_code": "1380601160",
+          "name": "Barangay 160"
+        },
+        {
+          "psgc_code": "1380601161",
+          "name": "Barangay 161"
+        },
+        {
+          "psgc_code": "1380601162",
+          "name": "Barangay 162"
+        },
+        {
+          "psgc_code": "1380601163",
+          "name": "Barangay 163"
+        },
+        {
+          "psgc_code": "1380601164",
+          "name": "Barangay 164"
+        },
+        {
+          "psgc_code": "1380601165",
+          "name": "Barangay 165"
+        },
+        {
+          "psgc_code": "1380601166",
+          "name": "Barangay 166"
+        },
+        {
+          "psgc_code": "1380601167",
+          "name": "Barangay 167"
+        },
+        {
+          "psgc_code": "1380601168",
+          "name": "Barangay 168"
+        },
+        {
+          "psgc_code": "1380601169",
+          "name": "Barangay 169"
+        },
+        {
+          "psgc_code": "1380601170",
+          "name": "Barangay 170"
+        },
+        {
+          "psgc_code": "1380601171",
+          "name": "Barangay 171"
+        },
+        {
+          "psgc_code": "1380601172",
+          "name": "Barangay 172"
+        },
+        {
+          "psgc_code": "1380601173",
+          "name": "Barangay 173"
+        },
+        {
+          "psgc_code": "1380601174",
+          "name": "Barangay 174"
+        },
+        {
+          "psgc_code": "1380601175",
+          "name": "Barangay 175"
+        },
+        {
+          "psgc_code": "1380601176",
+          "name": "Barangay 176"
+        },
+        {
+          "psgc_code": "1380601177",
+          "name": "Barangay 177"
+        },
+        {
+          "psgc_code": "1380601178",
+          "name": "Barangay 178"
+        },
+        {
+          "psgc_code": "1380601179",
+          "name": "Barangay 179"
+        },
+        {
+          "psgc_code": "1380601180",
+          "name": "Barangay 180"
+        },
+        {
+          "psgc_code": "1380601181",
+          "name": "Barangay 181"
+        },
+        {
+          "psgc_code": "1380601182",
+          "name": "Barangay 182"
+        },
+        {
+          "psgc_code": "1380601183",
+          "name": "Barangay 183"
+        },
+        {
+          "psgc_code": "1380601184",
+          "name": "Barangay 184"
+        },
+        {
+          "psgc_code": "1380601185",
+          "name": "Barangay 185"
+        },
+        {
+          "psgc_code": "1380601186",
+          "name": "Barangay 186"
+        },
+        {
+          "psgc_code": "1380601187",
+          "name": "Barangay 187"
+        },
+        {
+          "psgc_code": "1380601188",
+          "name": "Barangay 188"
+        },
+        {
+          "psgc_code": "1380601189",
+          "name": "Barangay 189"
+        },
+        {
+          "psgc_code": "1380601190",
+          "name": "Barangay 190"
+        },
+        {
+          "psgc_code": "1380601191",
+          "name": "Barangay 191"
+        },
+        {
+          "psgc_code": "1380601192",
+          "name": "Barangay 192"
+        },
+        {
+          "psgc_code": "1380601193",
+          "name": "Barangay 193"
+        },
+        {
+          "psgc_code": "1380601194",
+          "name": "Barangay 194"
+        },
+        {
+          "psgc_code": "1380601195",
+          "name": "Barangay 195"
+        },
+        {
+          "psgc_code": "1380601196",
+          "name": "Barangay 196"
+        },
+        {
+          "psgc_code": "1380601197",
+          "name": "Barangay 197"
+        },
+        {
+          "psgc_code": "1380601198",
+          "name": "Barangay 198"
+        },
+        {
+          "psgc_code": "1380601199",
+          "name": "Barangay 199"
+        },
+        {
+          "psgc_code": "1380601200",
+          "name": "Barangay 200"
+        },
+        {
+          "psgc_code": "1380601201",
+          "name": "Barangay 201"
+        },
+        {
+          "psgc_code": "1380601202",
+          "name": "Barangay 202"
+        },
+        {
+          "psgc_code": "1380601203",
+          "name": "Barangay 202-A"
+        },
+        {
+          "psgc_code": "1380601204",
+          "name": "Barangay 203"
+        },
+        {
+          "psgc_code": "1380601205",
+          "name": "Barangay 204"
+        },
+        {
+          "psgc_code": "1380601206",
+          "name": "Barangay 205"
+        },
+        {
+          "psgc_code": "1380601207",
+          "name": "Barangay 206"
+        },
+        {
+          "psgc_code": "1380601208",
+          "name": "Barangay 207"
+        },
+        {
+          "psgc_code": "1380601209",
+          "name": "Barangay 208"
+        },
+        {
+          "psgc_code": "1380601210",
+          "name": "Barangay 209"
+        },
+        {
+          "psgc_code": "1380601211",
+          "name": "Barangay 210"
+        },
+        {
+          "psgc_code": "1380601212",
+          "name": "Barangay 211"
+        },
+        {
+          "psgc_code": "1380601213",
+          "name": "Barangay 212"
+        },
+        {
+          "psgc_code": "1380601214",
+          "name": "Barangay 213"
+        },
+        {
+          "psgc_code": "1380601215",
+          "name": "Barangay 214"
+        },
+        {
+          "psgc_code": "1380601216",
+          "name": "Barangay 215"
+        },
+        {
+          "psgc_code": "1380601217",
+          "name": "Barangay 216"
+        },
+        {
+          "psgc_code": "1380601218",
+          "name": "Barangay 217"
+        },
+        {
+          "psgc_code": "1380601219",
+          "name": "Barangay 218"
+        },
+        {
+          "psgc_code": "1380601220",
+          "name": "Barangay 219"
+        },
+        {
+          "psgc_code": "1380601221",
+          "name": "Barangay 220"
+        },
+        {
+          "psgc_code": "1380601222",
+          "name": "Barangay 221"
+        },
+        {
+          "psgc_code": "1380601223",
+          "name": "Barangay 222"
+        },
+        {
+          "psgc_code": "1380601224",
+          "name": "Barangay 223"
+        },
+        {
+          "psgc_code": "1380601225",
+          "name": "Barangay 224"
+        },
+        {
+          "psgc_code": "1380601226",
+          "name": "Barangay 225"
+        },
+        {
+          "psgc_code": "1380601227",
+          "name": "Barangay 226"
+        },
+        {
+          "psgc_code": "1380601228",
+          "name": "Barangay 227"
+        },
+        {
+          "psgc_code": "1380601229",
+          "name": "Barangay 228"
+        },
+        {
+          "psgc_code": "1380601230",
+          "name": "Barangay 229"
+        },
+        {
+          "psgc_code": "1380601231",
+          "name": "Barangay 230"
+        },
+        {
+          "psgc_code": "1380601232",
+          "name": "Barangay 231"
+        },
+        {
+          "psgc_code": "1380601233",
+          "name": "Barangay 232"
+        },
+        {
+          "psgc_code": "1380601234",
+          "name": "Barangay 233"
+        },
+        {
+          "psgc_code": "1380601235",
+          "name": "Barangay 234"
+        },
+        {
+          "psgc_code": "1380601236",
+          "name": "Barangay 235"
+        },
+        {
+          "psgc_code": "1380601237",
+          "name": "Barangay 236"
+        },
+        {
+          "psgc_code": "1380601238",
+          "name": "Barangay 237"
+        },
+        {
+          "psgc_code": "1380601239",
+          "name": "Barangay 238"
+        },
+        {
+          "psgc_code": "1380601240",
+          "name": "Barangay 239"
+        },
+        {
+          "psgc_code": "1380601241",
+          "name": "Barangay 240"
+        },
+        {
+          "psgc_code": "1380601242",
+          "name": "Barangay 241"
+        },
+        {
+          "psgc_code": "1380601243",
+          "name": "Barangay 242"
+        },
+        {
+          "psgc_code": "1380601244",
+          "name": "Barangay 243"
+        },
+        {
+          "psgc_code": "1380601245",
+          "name": "Barangay 244"
+        },
+        {
+          "psgc_code": "1380601246",
+          "name": "Barangay 245"
+        },
+        {
+          "psgc_code": "1380601247",
+          "name": "Barangay 246"
+        },
+        {
+          "psgc_code": "1380601248",
+          "name": "Barangay 247"
+        },
+        {
+          "psgc_code": "1380601249",
+          "name": "Barangay 248"
+        },
+        {
+          "psgc_code": "1380601250",
+          "name": "Barangay 249"
+        },
+        {
+          "psgc_code": "1380601251",
+          "name": "Barangay 250"
+        },
+        {
+          "psgc_code": "1380601252",
+          "name": "Barangay 251"
+        },
+        {
+          "psgc_code": "1380601253",
+          "name": "Barangay 252"
+        },
+        {
+          "psgc_code": "1380601254",
+          "name": "Barangay 253"
+        },
+        {
+          "psgc_code": "1380601255",
+          "name": "Barangay 254"
+        },
+        {
+          "psgc_code": "1380601256",
+          "name": "Barangay 255"
+        },
+        {
+          "psgc_code": "1380601257",
+          "name": "Barangay 256"
+        },
+        {
+          "psgc_code": "1380601258",
+          "name": "Barangay 257"
+        },
+        {
+          "psgc_code": "1380601259",
+          "name": "Barangay 258"
+        },
+        {
+          "psgc_code": "1380601260",
+          "name": "Barangay 259"
+        },
+        {
+          "psgc_code": "1380601261",
+          "name": "Barangay 260"
+        },
+        {
+          "psgc_code": "1380601262",
+          "name": "Barangay 261"
+        },
+        {
+          "psgc_code": "1380601263",
+          "name": "Barangay 262"
+        },
+        {
+          "psgc_code": "1380601264",
+          "name": "Barangay 263"
+        },
+        {
+          "psgc_code": "1380601265",
+          "name": "Barangay 264"
+        },
+        {
+          "psgc_code": "1380601266",
+          "name": "Barangay 265"
+        },
+        {
+          "psgc_code": "1380601267",
+          "name": "Barangay 266"
+        },
+        {
+          "psgc_code": "1380601268",
+          "name": "Barangay 267"
+        },
+        {
+          "psgc_code": "1380602001",
+          "name": "Barangay 287"
+        },
+        {
+          "psgc_code": "1380602002",
+          "name": "Barangay 288"
+        },
+        {
+          "psgc_code": "1380602003",
+          "name": "Barangay 289"
+        },
+        {
+          "psgc_code": "1380602004",
+          "name": "Barangay 290"
+        },
+        {
+          "psgc_code": "1380602005",
+          "name": "Barangay 291"
+        },
+        {
+          "psgc_code": "1380602006",
+          "name": "Barangay 292"
+        },
+        {
+          "psgc_code": "1380602007",
+          "name": "Barangay 293"
+        },
+        {
+          "psgc_code": "1380602008",
+          "name": "Barangay 294"
+        },
+        {
+          "psgc_code": "1380602009",
+          "name": "Barangay 295"
+        },
+        {
+          "psgc_code": "1380602010",
+          "name": "Barangay 296"
+        },
+        {
+          "psgc_code": "1380603003",
+          "name": "Barangay 383"
+        },
+        {
+          "psgc_code": "1380603004",
+          "name": "Barangay 384"
+        },
+        {
+          "psgc_code": "1380603005",
+          "name": "Barangay 385"
+        },
+        {
+          "psgc_code": "1380603006",
+          "name": "Barangay 386"
+        },
+        {
+          "psgc_code": "1380603007",
+          "name": "Barangay 387"
+        },
+        {
+          "psgc_code": "1380603008",
+          "name": "Barangay 388"
+        },
+        {
+          "psgc_code": "1380603009",
+          "name": "Barangay 389"
+        },
+        {
+          "psgc_code": "1380603010",
+          "name": "Barangay 390"
+        },
+        {
+          "psgc_code": "1380603011",
+          "name": "Barangay 391"
+        },
+        {
+          "psgc_code": "1380603012",
+          "name": "Barangay 392"
+        },
+        {
+          "psgc_code": "1380603013",
+          "name": "Barangay 393"
+        },
+        {
+          "psgc_code": "1380603014",
+          "name": "Barangay 394"
+        },
+        {
+          "psgc_code": "1380603015",
+          "name": "Barangay 306"
+        },
+        {
+          "psgc_code": "1380603016",
+          "name": "Barangay 307"
+        },
+        {
+          "psgc_code": "1380603017",
+          "name": "Barangay 308"
+        },
+        {
+          "psgc_code": "1380603018",
+          "name": "Barangay 309"
+        },
+        {
+          "psgc_code": "1380604001",
+          "name": "Barangay 268"
+        },
+        {
+          "psgc_code": "1380604002",
+          "name": "Barangay 269"
+        },
+        {
+          "psgc_code": "1380604003",
+          "name": "Barangay 270"
+        },
+        {
+          "psgc_code": "1380604004",
+          "name": "Barangay 271"
+        },
+        {
+          "psgc_code": "1380604005",
+          "name": "Barangay 272"
+        },
+        {
+          "psgc_code": "1380604006",
+          "name": "Barangay 273"
+        },
+        {
+          "psgc_code": "1380604007",
+          "name": "Barangay 274"
+        },
+        {
+          "psgc_code": "1380604008",
+          "name": "Barangay 275"
+        },
+        {
+          "psgc_code": "1380604009",
+          "name": "Barangay 276"
+        },
+        {
+          "psgc_code": "1380604014",
+          "name": "Barangay 281"
+        },
+        {
+          "psgc_code": "1380604015",
+          "name": "Barangay 282"
+        },
+        {
+          "psgc_code": "1380604016",
+          "name": "Barangay 283"
+        },
+        {
+          "psgc_code": "1380604017",
+          "name": "Barangay 284"
+        },
+        {
+          "psgc_code": "1380604018",
+          "name": "Barangay 285"
+        },
+        {
+          "psgc_code": "1380604019",
+          "name": "Barangay 286"
+        },
+        {
+          "psgc_code": "1380605001",
+          "name": "Barangay 297"
+        },
+        {
+          "psgc_code": "1380605002",
+          "name": "Barangay 298"
+        },
+        {
+          "psgc_code": "1380605003",
+          "name": "Barangay 299"
+        },
+        {
+          "psgc_code": "1380605004",
+          "name": "Barangay 300"
+        },
+        {
+          "psgc_code": "1380605005",
+          "name": "Barangay 301"
+        },
+        {
+          "psgc_code": "1380605006",
+          "name": "Barangay 302"
+        },
+        {
+          "psgc_code": "1380605007",
+          "name": "Barangay 303"
+        },
+        {
+          "psgc_code": "1380605008",
+          "name": "Barangay 304"
+        },
+        {
+          "psgc_code": "1380605009",
+          "name": "Barangay 305"
+        },
+        {
+          "psgc_code": "1380605012",
+          "name": "Barangay 310"
+        },
+        {
+          "psgc_code": "1380605013",
+          "name": "Barangay 311"
+        },
+        {
+          "psgc_code": "1380605014",
+          "name": "Barangay 312"
+        },
+        {
+          "psgc_code": "1380605015",
+          "name": "Barangay 313"
+        },
+        {
+          "psgc_code": "1380605016",
+          "name": "Barangay 314"
+        },
+        {
+          "psgc_code": "1380605017",
+          "name": "Barangay 315"
+        },
+        {
+          "psgc_code": "1380605018",
+          "name": "Barangay 316"
+        },
+        {
+          "psgc_code": "1380605019",
+          "name": "Barangay 317"
+        },
+        {
+          "psgc_code": "1380605020",
+          "name": "Barangay 318"
+        },
+        {
+          "psgc_code": "1380605021",
+          "name": "Barangay 319"
+        },
+        {
+          "psgc_code": "1380605022",
+          "name": "Barangay 320"
+        },
+        {
+          "psgc_code": "1380605023",
+          "name": "Barangay 321"
+        },
+        {
+          "psgc_code": "1380605024",
+          "name": "Barangay 322"
+        },
+        {
+          "psgc_code": "1380605025",
+          "name": "Barangay 323"
+        },
+        {
+          "psgc_code": "1380605026",
+          "name": "Barangay 324"
+        },
+        {
+          "psgc_code": "1380605027",
+          "name": "Barangay 325"
+        },
+        {
+          "psgc_code": "1380605028",
+          "name": "Barangay 326"
+        },
+        {
+          "psgc_code": "1380605029",
+          "name": "Barangay 327"
+        },
+        {
+          "psgc_code": "1380605030",
+          "name": "Barangay 328"
+        },
+        {
+          "psgc_code": "1380605031",
+          "name": "Barangay 329"
+        },
+        {
+          "psgc_code": "1380605032",
+          "name": "Barangay 330"
+        },
+        {
+          "psgc_code": "1380605033",
+          "name": "Barangay 331"
+        },
+        {
+          "psgc_code": "1380605034",
+          "name": "Barangay 332"
+        },
+        {
+          "psgc_code": "1380605035",
+          "name": "Barangay 333"
+        },
+        {
+          "psgc_code": "1380605036",
+          "name": "Barangay 334"
+        },
+        {
+          "psgc_code": "1380605037",
+          "name": "Barangay 335"
+        },
+        {
+          "psgc_code": "1380605038",
+          "name": "Barangay 336"
+        },
+        {
+          "psgc_code": "1380605039",
+          "name": "Barangay 337"
+        },
+        {
+          "psgc_code": "1380605040",
+          "name": "Barangay 338"
+        },
+        {
+          "psgc_code": "1380605041",
+          "name": "Barangay 339"
+        },
+        {
+          "psgc_code": "1380605042",
+          "name": "Barangay 340"
+        },
+        {
+          "psgc_code": "1380605043",
+          "name": "Barangay 341"
+        },
+        {
+          "psgc_code": "1380605044",
+          "name": "Barangay 342"
+        },
+        {
+          "psgc_code": "1380605045",
+          "name": "Barangay 343"
+        },
+        {
+          "psgc_code": "1380605046",
+          "name": "Barangay 344"
+        },
+        {
+          "psgc_code": "1380605047",
+          "name": "Barangay 345"
+        },
+        {
+          "psgc_code": "1380605048",
+          "name": "Barangay 346"
+        },
+        {
+          "psgc_code": "1380605049",
+          "name": "Barangay 347"
+        },
+        {
+          "psgc_code": "1380605050",
+          "name": "Barangay 348"
+        },
+        {
+          "psgc_code": "1380605051",
+          "name": "Barangay 349"
+        },
+        {
+          "psgc_code": "1380605052",
+          "name": "Barangay 350"
+        },
+        {
+          "psgc_code": "1380605053",
+          "name": "Barangay 351"
+        },
+        {
+          "psgc_code": "1380605054",
+          "name": "Barangay 352"
+        },
+        {
+          "psgc_code": "1380605055",
+          "name": "Barangay 353"
+        },
+        {
+          "psgc_code": "1380605056",
+          "name": "Barangay 354"
+        },
+        {
+          "psgc_code": "1380605057",
+          "name": "Barangay 355"
+        },
+        {
+          "psgc_code": "1380605058",
+          "name": "Barangay 356"
+        },
+        {
+          "psgc_code": "1380605059",
+          "name": "Barangay 357"
+        },
+        {
+          "psgc_code": "1380605060",
+          "name": "Barangay 358"
+        },
+        {
+          "psgc_code": "1380605061",
+          "name": "Barangay 359"
+        },
+        {
+          "psgc_code": "1380605062",
+          "name": "Barangay 360"
+        },
+        {
+          "psgc_code": "1380605063",
+          "name": "Barangay 361"
+        },
+        {
+          "psgc_code": "1380605064",
+          "name": "Barangay 362"
+        },
+        {
+          "psgc_code": "1380605065",
+          "name": "Barangay 363"
+        },
+        {
+          "psgc_code": "1380605066",
+          "name": "Barangay 364"
+        },
+        {
+          "psgc_code": "1380605067",
+          "name": "Barangay 365"
+        },
+        {
+          "psgc_code": "1380605069",
+          "name": "Barangay 366"
+        },
+        {
+          "psgc_code": "1380605070",
+          "name": "Barangay 367"
+        },
+        {
+          "psgc_code": "1380605071",
+          "name": "Barangay 368"
+        },
+        {
+          "psgc_code": "1380605072",
+          "name": "Barangay 369"
+        },
+        {
+          "psgc_code": "1380605073",
+          "name": "Barangay 370"
+        },
+        {
+          "psgc_code": "1380605074",
+          "name": "Barangay 371"
+        },
+        {
+          "psgc_code": "1380605075",
+          "name": "Barangay 372"
+        },
+        {
+          "psgc_code": "1380605076",
+          "name": "Barangay 373"
+        },
+        {
+          "psgc_code": "1380605077",
+          "name": "Barangay 374"
+        },
+        {
+          "psgc_code": "1380605078",
+          "name": "Barangay 375"
+        },
+        {
+          "psgc_code": "1380605079",
+          "name": "Barangay 376"
+        },
+        {
+          "psgc_code": "1380605080",
+          "name": "Barangay 377"
+        },
+        {
+          "psgc_code": "1380605081",
+          "name": "Barangay 378"
+        },
+        {
+          "psgc_code": "1380605082",
+          "name": "Barangay 379"
+        },
+        {
+          "psgc_code": "1380605083",
+          "name": "Barangay 380"
+        },
+        {
+          "psgc_code": "1380605084",
+          "name": "Barangay 381"
+        },
+        {
+          "psgc_code": "1380605085",
+          "name": "Barangay 382"
+        },
+        {
+          "psgc_code": "1380606001",
+          "name": "Barangay 395"
+        },
+        {
+          "psgc_code": "1380606002",
+          "name": "Barangay 396"
+        },
+        {
+          "psgc_code": "1380606003",
+          "name": "Barangay 397"
+        },
+        {
+          "psgc_code": "1380606004",
+          "name": "Barangay 398"
+        },
+        {
+          "psgc_code": "1380606005",
+          "name": "Barangay 399"
+        },
+        {
+          "psgc_code": "1380606006",
+          "name": "Barangay 400"
+        },
+        {
+          "psgc_code": "1380606007",
+          "name": "Barangay 401"
+        },
+        {
+          "psgc_code": "1380606008",
+          "name": "Barangay 402"
+        },
+        {
+          "psgc_code": "1380606009",
+          "name": "Barangay 403"
+        },
+        {
+          "psgc_code": "1380606010",
+          "name": "Barangay 404"
+        },
+        {
+          "psgc_code": "1380606011",
+          "name": "Barangay 405"
+        },
+        {
+          "psgc_code": "1380606012",
+          "name": "Barangay 406"
+        },
+        {
+          "psgc_code": "1380606013",
+          "name": "Barangay 407"
+        },
+        {
+          "psgc_code": "1380606014",
+          "name": "Barangay 408"
+        },
+        {
+          "psgc_code": "1380606015",
+          "name": "Barangay 409"
+        },
+        {
+          "psgc_code": "1380606016",
+          "name": "Barangay 410"
+        },
+        {
+          "psgc_code": "1380606017",
+          "name": "Barangay 411"
+        },
+        {
+          "psgc_code": "1380606018",
+          "name": "Barangay 412"
+        },
+        {
+          "psgc_code": "1380606019",
+          "name": "Barangay 413"
+        },
+        {
+          "psgc_code": "1380606020",
+          "name": "Barangay 414"
+        },
+        {
+          "psgc_code": "1380606021",
+          "name": "Barangay 415"
+        },
+        {
+          "psgc_code": "1380606022",
+          "name": "Barangay 416"
+        },
+        {
+          "psgc_code": "1380606023",
+          "name": "Barangay 417"
+        },
+        {
+          "psgc_code": "1380606024",
+          "name": "Barangay 418"
+        },
+        {
+          "psgc_code": "1380606025",
+          "name": "Barangay 419"
+        },
+        {
+          "psgc_code": "1380606026",
+          "name": "Barangay 420"
+        },
+        {
+          "psgc_code": "1380606027",
+          "name": "Barangay 421"
+        },
+        {
+          "psgc_code": "1380606028",
+          "name": "Barangay 422"
+        },
+        {
+          "psgc_code": "1380606029",
+          "name": "Barangay 423"
+        },
+        {
+          "psgc_code": "1380606030",
+          "name": "Barangay 424"
+        },
+        {
+          "psgc_code": "1380606031",
+          "name": "Barangay 425"
+        },
+        {
+          "psgc_code": "1380606032",
+          "name": "Barangay 426"
+        },
+        {
+          "psgc_code": "1380606033",
+          "name": "Barangay 427"
+        },
+        {
+          "psgc_code": "1380606034",
+          "name": "Barangay 428"
+        },
+        {
+          "psgc_code": "1380606035",
+          "name": "Barangay 429"
+        },
+        {
+          "psgc_code": "1380606036",
+          "name": "Barangay 430"
+        },
+        {
+          "psgc_code": "1380606037",
+          "name": "Barangay 431"
+        },
+        {
+          "psgc_code": "1380606038",
+          "name": "Barangay 432"
+        },
+        {
+          "psgc_code": "1380606039",
+          "name": "Barangay 433"
+        },
+        {
+          "psgc_code": "1380606040",
+          "name": "Barangay 434"
+        },
+        {
+          "psgc_code": "1380606041",
+          "name": "Barangay 435"
+        },
+        {
+          "psgc_code": "1380606042",
+          "name": "Barangay 436"
+        },
+        {
+          "psgc_code": "1380606043",
+          "name": "Barangay 437"
+        },
+        {
+          "psgc_code": "1380606044",
+          "name": "Barangay 438"
+        },
+        {
+          "psgc_code": "1380606045",
+          "name": "Barangay 439"
+        },
+        {
+          "psgc_code": "1380606046",
+          "name": "Barangay 440"
+        },
+        {
+          "psgc_code": "1380606047",
+          "name": "Barangay 441"
+        },
+        {
+          "psgc_code": "1380606048",
+          "name": "Barangay 442"
+        },
+        {
+          "psgc_code": "1380606049",
+          "name": "Barangay 443"
+        },
+        {
+          "psgc_code": "1380606050",
+          "name": "Barangay 444"
+        },
+        {
+          "psgc_code": "1380606051",
+          "name": "Barangay 445"
+        },
+        {
+          "psgc_code": "1380606052",
+          "name": "Barangay 446"
+        },
+        {
+          "psgc_code": "1380606053",
+          "name": "Barangay 447"
+        },
+        {
+          "psgc_code": "1380606054",
+          "name": "Barangay 448"
+        },
+        {
+          "psgc_code": "1380606055",
+          "name": "Barangay 449"
+        },
+        {
+          "psgc_code": "1380606056",
+          "name": "Barangay 450"
+        },
+        {
+          "psgc_code": "1380606057",
+          "name": "Barangay 451"
+        },
+        {
+          "psgc_code": "1380606058",
+          "name": "Barangay 452"
+        },
+        {
+          "psgc_code": "1380606059",
+          "name": "Barangay 453"
+        },
+        {
+          "psgc_code": "1380606060",
+          "name": "Barangay 454"
+        },
+        {
+          "psgc_code": "1380606061",
+          "name": "Barangay 455"
+        },
+        {
+          "psgc_code": "1380606062",
+          "name": "Barangay 456"
+        },
+        {
+          "psgc_code": "1380606063",
+          "name": "Barangay 457"
+        },
+        {
+          "psgc_code": "1380606064",
+          "name": "Barangay 458"
+        },
+        {
+          "psgc_code": "1380606065",
+          "name": "Barangay 459"
+        },
+        {
+          "psgc_code": "1380606066",
+          "name": "Barangay 460"
+        },
+        {
+          "psgc_code": "1380606067",
+          "name": "Barangay 461"
+        },
+        {
+          "psgc_code": "1380606068",
+          "name": "Barangay 462"
+        },
+        {
+          "psgc_code": "1380606069",
+          "name": "Barangay 463"
+        },
+        {
+          "psgc_code": "1380606070",
+          "name": "Barangay 464"
+        },
+        {
+          "psgc_code": "1380606071",
+          "name": "Barangay 465"
+        },
+        {
+          "psgc_code": "1380606072",
+          "name": "Barangay 466"
+        },
+        {
+          "psgc_code": "1380606073",
+          "name": "Barangay 467"
+        },
+        {
+          "psgc_code": "1380606074",
+          "name": "Barangay 468"
+        },
+        {
+          "psgc_code": "1380606075",
+          "name": "Barangay 469"
+        },
+        {
+          "psgc_code": "1380606076",
+          "name": "Barangay 470"
+        },
+        {
+          "psgc_code": "1380606077",
+          "name": "Barangay 471"
+        },
+        {
+          "psgc_code": "1380606078",
+          "name": "Barangay 472"
+        },
+        {
+          "psgc_code": "1380606079",
+          "name": "Barangay 473"
+        },
+        {
+          "psgc_code": "1380606080",
+          "name": "Barangay 474"
+        },
+        {
+          "psgc_code": "1380606081",
+          "name": "Barangay 475"
+        },
+        {
+          "psgc_code": "1380606082",
+          "name": "Barangay 476"
+        },
+        {
+          "psgc_code": "1380606083",
+          "name": "Barangay 477"
+        },
+        {
+          "psgc_code": "1380606084",
+          "name": "Barangay 478"
+        },
+        {
+          "psgc_code": "1380606085",
+          "name": "Barangay 479"
+        },
+        {
+          "psgc_code": "1380606086",
+          "name": "Barangay 480"
+        },
+        {
+          "psgc_code": "1380606087",
+          "name": "Barangay 481"
+        },
+        {
+          "psgc_code": "1380606088",
+          "name": "Barangay 482"
+        },
+        {
+          "psgc_code": "1380606089",
+          "name": "Barangay 483"
+        },
+        {
+          "psgc_code": "1380606090",
+          "name": "Barangay 484"
+        },
+        {
+          "psgc_code": "1380606091",
+          "name": "Barangay 485"
+        },
+        {
+          "psgc_code": "1380606092",
+          "name": "Barangay 486"
+        },
+        {
+          "psgc_code": "1380606093",
+          "name": "Barangay 487"
+        },
+        {
+          "psgc_code": "1380606094",
+          "name": "Barangay 488"
+        },
+        {
+          "psgc_code": "1380606095",
+          "name": "Barangay 489"
+        },
+        {
+          "psgc_code": "1380606096",
+          "name": "Barangay 490"
+        },
+        {
+          "psgc_code": "1380606097",
+          "name": "Barangay 491"
+        },
+        {
+          "psgc_code": "1380606098",
+          "name": "Barangay 492"
+        },
+        {
+          "psgc_code": "1380606099",
+          "name": "Barangay 493"
+        },
+        {
+          "psgc_code": "1380606100",
+          "name": "Barangay 494"
+        },
+        {
+          "psgc_code": "1380606101",
+          "name": "Barangay 495"
+        },
+        {
+          "psgc_code": "1380606102",
+          "name": "Barangay 496"
+        },
+        {
+          "psgc_code": "1380606103",
+          "name": "Barangay 497"
+        },
+        {
+          "psgc_code": "1380606104",
+          "name": "Barangay 498"
+        },
+        {
+          "psgc_code": "1380606105",
+          "name": "Barangay 499"
+        },
+        {
+          "psgc_code": "1380606106",
+          "name": "Barangay 500"
+        },
+        {
+          "psgc_code": "1380606107",
+          "name": "Barangay 501"
+        },
+        {
+          "psgc_code": "1380606108",
+          "name": "Barangay 502"
+        },
+        {
+          "psgc_code": "1380606109",
+          "name": "Barangay 503"
+        },
+        {
+          "psgc_code": "1380606110",
+          "name": "Barangay 504"
+        },
+        {
+          "psgc_code": "1380606111",
+          "name": "Barangay 505"
+        },
+        {
+          "psgc_code": "1380606112",
+          "name": "Barangay 506"
+        },
+        {
+          "psgc_code": "1380606113",
+          "name": "Barangay 507"
+        },
+        {
+          "psgc_code": "1380606114",
+          "name": "Barangay 508"
+        },
+        {
+          "psgc_code": "1380606115",
+          "name": "Barangay 509"
+        },
+        {
+          "psgc_code": "1380606116",
+          "name": "Barangay 510"
+        },
+        {
+          "psgc_code": "1380606117",
+          "name": "Barangay 511"
+        },
+        {
+          "psgc_code": "1380606118",
+          "name": "Barangay 512"
+        },
+        {
+          "psgc_code": "1380606119",
+          "name": "Barangay 513"
+        },
+        {
+          "psgc_code": "1380606120",
+          "name": "Barangay 514"
+        },
+        {
+          "psgc_code": "1380606121",
+          "name": "Barangay 515"
+        },
+        {
+          "psgc_code": "1380606122",
+          "name": "Barangay 516"
+        },
+        {
+          "psgc_code": "1380606123",
+          "name": "Barangay 517"
+        },
+        {
+          "psgc_code": "1380606124",
+          "name": "Barangay 518"
+        },
+        {
+          "psgc_code": "1380606125",
+          "name": "Barangay 519"
+        },
+        {
+          "psgc_code": "1380606126",
+          "name": "Barangay 520"
+        },
+        {
+          "psgc_code": "1380606127",
+          "name": "Barangay 521"
+        },
+        {
+          "psgc_code": "1380606128",
+          "name": "Barangay 522"
+        },
+        {
+          "psgc_code": "1380606129",
+          "name": "Barangay 523"
+        },
+        {
+          "psgc_code": "1380606130",
+          "name": "Barangay 524"
+        },
+        {
+          "psgc_code": "1380606131",
+          "name": "Barangay 525"
+        },
+        {
+          "psgc_code": "1380606132",
+          "name": "Barangay 526"
+        },
+        {
+          "psgc_code": "1380606133",
+          "name": "Barangay 527"
+        },
+        {
+          "psgc_code": "1380606134",
+          "name": "Barangay 528"
+        },
+        {
+          "psgc_code": "1380606135",
+          "name": "Barangay 529"
+        },
+        {
+          "psgc_code": "1380606136",
+          "name": "Barangay 530"
+        },
+        {
+          "psgc_code": "1380606137",
+          "name": "Barangay 531"
+        },
+        {
+          "psgc_code": "1380606138",
+          "name": "Barangay 532"
+        },
+        {
+          "psgc_code": "1380606139",
+          "name": "Barangay 533"
+        },
+        {
+          "psgc_code": "1380606140",
+          "name": "Barangay 534"
+        },
+        {
+          "psgc_code": "1380606141",
+          "name": "Barangay 535"
+        },
+        {
+          "psgc_code": "1380606142",
+          "name": "Barangay 536"
+        },
+        {
+          "psgc_code": "1380606143",
+          "name": "Barangay 537"
+        },
+        {
+          "psgc_code": "1380606144",
+          "name": "Barangay 538"
+        },
+        {
+          "psgc_code": "1380606145",
+          "name": "Barangay 539"
+        },
+        {
+          "psgc_code": "1380606146",
+          "name": "Barangay 540"
+        },
+        {
+          "psgc_code": "1380606147",
+          "name": "Barangay 541"
+        },
+        {
+          "psgc_code": "1380606148",
+          "name": "Barangay 542"
+        },
+        {
+          "psgc_code": "1380606149",
+          "name": "Barangay 543"
+        },
+        {
+          "psgc_code": "1380606150",
+          "name": "Barangay 544"
+        },
+        {
+          "psgc_code": "1380606151",
+          "name": "Barangay 545"
+        },
+        {
+          "psgc_code": "1380606152",
+          "name": "Barangay 546"
+        },
+        {
+          "psgc_code": "1380606153",
+          "name": "Barangay 547"
+        },
+        {
+          "psgc_code": "1380606154",
+          "name": "Barangay 548"
+        },
+        {
+          "psgc_code": "1380606155",
+          "name": "Barangay 549"
+        },
+        {
+          "psgc_code": "1380606156",
+          "name": "Barangay 550"
+        },
+        {
+          "psgc_code": "1380606157",
+          "name": "Barangay 551"
+        },
+        {
+          "psgc_code": "1380606158",
+          "name": "Barangay 552"
+        },
+        {
+          "psgc_code": "1380606159",
+          "name": "Barangay 553"
+        },
+        {
+          "psgc_code": "1380606160",
+          "name": "Barangay 554"
+        },
+        {
+          "psgc_code": "1380606161",
+          "name": "Barangay 555"
+        },
+        {
+          "psgc_code": "1380606162",
+          "name": "Barangay 556"
+        },
+        {
+          "psgc_code": "1380606163",
+          "name": "Barangay 557"
+        },
+        {
+          "psgc_code": "1380606164",
+          "name": "Barangay 558"
+        },
+        {
+          "psgc_code": "1380606165",
+          "name": "Barangay 559"
+        },
+        {
+          "psgc_code": "1380606166",
+          "name": "Barangay 560"
+        },
+        {
+          "psgc_code": "1380606167",
+          "name": "Barangay 561"
+        },
+        {
+          "psgc_code": "1380606168",
+          "name": "Barangay 562"
+        },
+        {
+          "psgc_code": "1380606169",
+          "name": "Barangay 563"
+        },
+        {
+          "psgc_code": "1380606170",
+          "name": "Barangay 564"
+        },
+        {
+          "psgc_code": "1380606171",
+          "name": "Barangay 565"
+        },
+        {
+          "psgc_code": "1380606172",
+          "name": "Barangay 566"
+        },
+        {
+          "psgc_code": "1380606173",
+          "name": "Barangay 567"
+        },
+        {
+          "psgc_code": "1380606174",
+          "name": "Barangay 568"
+        },
+        {
+          "psgc_code": "1380606175",
+          "name": "Barangay 569"
+        },
+        {
+          "psgc_code": "1380606176",
+          "name": "Barangay 570"
+        },
+        {
+          "psgc_code": "1380606177",
+          "name": "Barangay 571"
+        },
+        {
+          "psgc_code": "1380606178",
+          "name": "Barangay 572"
+        },
+        {
+          "psgc_code": "1380606179",
+          "name": "Barangay 573"
+        },
+        {
+          "psgc_code": "1380606180",
+          "name": "Barangay 574"
+        },
+        {
+          "psgc_code": "1380606181",
+          "name": "Barangay 575"
+        },
+        {
+          "psgc_code": "1380606182",
+          "name": "Barangay 576"
+        },
+        {
+          "psgc_code": "1380606183",
+          "name": "Barangay 577"
+        },
+        {
+          "psgc_code": "1380606184",
+          "name": "Barangay 578"
+        },
+        {
+          "psgc_code": "1380606185",
+          "name": "Barangay 579"
+        },
+        {
+          "psgc_code": "1380606186",
+          "name": "Barangay 580"
+        },
+        {
+          "psgc_code": "1380606187",
+          "name": "Barangay 581"
+        },
+        {
+          "psgc_code": "1380606188",
+          "name": "Barangay 582"
+        },
+        {
+          "psgc_code": "1380606189",
+          "name": "Barangay 583"
+        },
+        {
+          "psgc_code": "1380606190",
+          "name": "Barangay 584"
+        },
+        {
+          "psgc_code": "1380606191",
+          "name": "Barangay 585"
+        },
+        {
+          "psgc_code": "1380606192",
+          "name": "Barangay 586"
+        },
+        {
+          "psgc_code": "1380606193",
+          "name": "Barangay 587"
+        },
+        {
+          "psgc_code": "1380606194",
+          "name": "Barangay 587-A"
+        },
+        {
+          "psgc_code": "1380606195",
+          "name": "Barangay 588"
+        },
+        {
+          "psgc_code": "1380606196",
+          "name": "Barangay 589"
+        },
+        {
+          "psgc_code": "1380606197",
+          "name": "Barangay 590"
+        },
+        {
+          "psgc_code": "1380606198",
+          "name": "Barangay 591"
+        },
+        {
+          "psgc_code": "1380606199",
+          "name": "Barangay 592"
+        },
+        {
+          "psgc_code": "1380606200",
+          "name": "Barangay 593"
+        },
+        {
+          "psgc_code": "1380606201",
+          "name": "Barangay 594"
+        },
+        {
+          "psgc_code": "1380606202",
+          "name": "Barangay 595"
+        },
+        {
+          "psgc_code": "1380606203",
+          "name": "Barangay 596"
+        },
+        {
+          "psgc_code": "1380606204",
+          "name": "Barangay 597"
+        },
+        {
+          "psgc_code": "1380606205",
+          "name": "Barangay 598"
+        },
+        {
+          "psgc_code": "1380606206",
+          "name": "Barangay 599"
+        },
+        {
+          "psgc_code": "1380606207",
+          "name": "Barangay 600"
+        },
+        {
+          "psgc_code": "1380606208",
+          "name": "Barangay 601"
+        },
+        {
+          "psgc_code": "1380606209",
+          "name": "Barangay 602"
+        },
+        {
+          "psgc_code": "1380606210",
+          "name": "Barangay 603"
+        },
+        {
+          "psgc_code": "1380606211",
+          "name": "Barangay 604"
+        },
+        {
+          "psgc_code": "1380606212",
+          "name": "Barangay 605"
+        },
+        {
+          "psgc_code": "1380606213",
+          "name": "Barangay 606"
+        },
+        {
+          "psgc_code": "1380606214",
+          "name": "Barangay 607"
+        },
+        {
+          "psgc_code": "1380606215",
+          "name": "Barangay 608"
+        },
+        {
+          "psgc_code": "1380606216",
+          "name": "Barangay 609"
+        },
+        {
+          "psgc_code": "1380606217",
+          "name": "Barangay 610"
+        },
+        {
+          "psgc_code": "1380606218",
+          "name": "Barangay 611"
+        },
+        {
+          "psgc_code": "1380606219",
+          "name": "Barangay 612"
+        },
+        {
+          "psgc_code": "1380606220",
+          "name": "Barangay 613"
+        },
+        {
+          "psgc_code": "1380606221",
+          "name": "Barangay 614"
+        },
+        {
+          "psgc_code": "1380606222",
+          "name": "Barangay 615"
+        },
+        {
+          "psgc_code": "1380606223",
+          "name": "Barangay 616"
+        },
+        {
+          "psgc_code": "1380606224",
+          "name": "Barangay 617"
+        },
+        {
+          "psgc_code": "1380606225",
+          "name": "Barangay 618"
+        },
+        {
+          "psgc_code": "1380606226",
+          "name": "Barangay 619"
+        },
+        {
+          "psgc_code": "1380606227",
+          "name": "Barangay 620"
+        },
+        {
+          "psgc_code": "1380606228",
+          "name": "Barangay 621"
+        },
+        {
+          "psgc_code": "1380606229",
+          "name": "Barangay 622"
+        },
+        {
+          "psgc_code": "1380606230",
+          "name": "Barangay 623"
+        },
+        {
+          "psgc_code": "1380606231",
+          "name": "Barangay 624"
+        },
+        {
+          "psgc_code": "1380606232",
+          "name": "Barangay 625"
+        },
+        {
+          "psgc_code": "1380606233",
+          "name": "Barangay 626"
+        },
+        {
+          "psgc_code": "1380606234",
+          "name": "Barangay 627"
+        },
+        {
+          "psgc_code": "1380606235",
+          "name": "Barangay 628"
+        },
+        {
+          "psgc_code": "1380606236",
+          "name": "Barangay 629"
+        },
+        {
+          "psgc_code": "1380606237",
+          "name": "Barangay 630"
+        },
+        {
+          "psgc_code": "1380606238",
+          "name": "Barangay 631"
+        },
+        {
+          "psgc_code": "1380606239",
+          "name": "Barangay 632"
+        },
+        {
+          "psgc_code": "1380606240",
+          "name": "Barangay 633"
+        },
+        {
+          "psgc_code": "1380606241",
+          "name": "Barangay 634"
+        },
+        {
+          "psgc_code": "1380606242",
+          "name": "Barangay 635"
+        },
+        {
+          "psgc_code": "1380606243",
+          "name": "Barangay 636"
+        },
+        {
+          "psgc_code": "1380607001",
+          "name": "Barangay 637"
+        },
+        {
+          "psgc_code": "1380607002",
+          "name": "Barangay 638"
+        },
+        {
+          "psgc_code": "1380607003",
+          "name": "Barangay 639"
+        },
+        {
+          "psgc_code": "1380607004",
+          "name": "Barangay 640"
+        },
+        {
+          "psgc_code": "1380607005",
+          "name": "Barangay 641"
+        },
+        {
+          "psgc_code": "1380607006",
+          "name": "Barangay 642"
+        },
+        {
+          "psgc_code": "1380607007",
+          "name": "Barangay 643"
+        },
+        {
+          "psgc_code": "1380607008",
+          "name": "Barangay 644"
+        },
+        {
+          "psgc_code": "1380607009",
+          "name": "Barangay 645"
+        },
+        {
+          "psgc_code": "1380607010",
+          "name": "Barangay 646"
+        },
+        {
+          "psgc_code": "1380607011",
+          "name": "Barangay 647"
+        },
+        {
+          "psgc_code": "1380607012",
+          "name": "Barangay 648"
+        },
+        {
+          "psgc_code": "1380608001",
+          "name": "Barangay 659"
+        },
+        {
+          "psgc_code": "1380608002",
+          "name": "Barangay 659-A"
+        },
+        {
+          "psgc_code": "1380608003",
+          "name": "Barangay 660"
+        },
+        {
+          "psgc_code": "1380608004",
+          "name": "Barangay 660-A"
+        },
+        {
+          "psgc_code": "1380608005",
+          "name": "Barangay 661"
+        },
+        {
+          "psgc_code": "1380608008",
+          "name": "Barangay 666"
+        },
+        {
+          "psgc_code": "1380608009",
+          "name": "Barangay 667"
+        },
+        {
+          "psgc_code": "1380608010",
+          "name": "Barangay 668"
+        },
+        {
+          "psgc_code": "1380608011",
+          "name": "Barangay 669"
+        },
+        {
+          "psgc_code": "1380608012",
+          "name": "Barangay 670"
+        },
+        {
+          "psgc_code": "1380608013",
+          "name": "Barangay 663"
+        },
+        {
+          "psgc_code": "1380608014",
+          "name": "Barangay 663-A"
+        },
+        {
+          "psgc_code": "1380608015",
+          "name": "Barangay 664"
+        },
+        {
+          "psgc_code": "1380609001",
+          "name": "Barangay 654"
+        },
+        {
+          "psgc_code": "1380609002",
+          "name": "Barangay 655"
+        },
+        {
+          "psgc_code": "1380609003",
+          "name": "Barangay 656"
+        },
+        {
+          "psgc_code": "1380609004",
+          "name": "Barangay 657"
+        },
+        {
+          "psgc_code": "1380609005",
+          "name": "Barangay 658"
+        },
+        {
+          "psgc_code": "1380610004",
+          "name": "Barangay 689"
+        },
+        {
+          "psgc_code": "1380610005",
+          "name": "Barangay 690"
+        },
+        {
+          "psgc_code": "1380610006",
+          "name": "Barangay 691"
+        },
+        {
+          "psgc_code": "1380610007",
+          "name": "Barangay 692"
+        },
+        {
+          "psgc_code": "1380610008",
+          "name": "Barangay 693"
+        },
+        {
+          "psgc_code": "1380610009",
+          "name": "Barangay 694"
+        },
+        {
+          "psgc_code": "1380610010",
+          "name": "Barangay 695"
+        },
+        {
+          "psgc_code": "1380610011",
+          "name": "Barangay 696"
+        },
+        {
+          "psgc_code": "1380610012",
+          "name": "Barangay 697"
+        },
+        {
+          "psgc_code": "1380610013",
+          "name": "Barangay 698"
+        },
+        {
+          "psgc_code": "1380610014",
+          "name": "Barangay 699"
+        },
+        {
+          "psgc_code": "1380610015",
+          "name": "Barangay 700"
+        },
+        {
+          "psgc_code": "1380610016",
+          "name": "Barangay 701"
+        },
+        {
+          "psgc_code": "1380610017",
+          "name": "Barangay 702"
+        },
+        {
+          "psgc_code": "1380610018",
+          "name": "Barangay 703"
+        },
+        {
+          "psgc_code": "1380610019",
+          "name": "Barangay 704"
+        },
+        {
+          "psgc_code": "1380610020",
+          "name": "Barangay 705"
+        },
+        {
+          "psgc_code": "1380610021",
+          "name": "Barangay 706"
+        },
+        {
+          "psgc_code": "1380610022",
+          "name": "Barangay 707"
+        },
+        {
+          "psgc_code": "1380610023",
+          "name": "Barangay 708"
+        },
+        {
+          "psgc_code": "1380610024",
+          "name": "Barangay 709"
+        },
+        {
+          "psgc_code": "1380610025",
+          "name": "Barangay 710"
+        },
+        {
+          "psgc_code": "1380610026",
+          "name": "Barangay 711"
+        },
+        {
+          "psgc_code": "1380610027",
+          "name": "Barangay 712"
+        },
+        {
+          "psgc_code": "1380610028",
+          "name": "Barangay 713"
+        },
+        {
+          "psgc_code": "1380610029",
+          "name": "Barangay 714"
+        },
+        {
+          "psgc_code": "1380610030",
+          "name": "Barangay 715"
+        },
+        {
+          "psgc_code": "1380610031",
+          "name": "Barangay 716"
+        },
+        {
+          "psgc_code": "1380610032",
+          "name": "Barangay 717"
+        },
+        {
+          "psgc_code": "1380610033",
+          "name": "Barangay 718"
+        },
+        {
+          "psgc_code": "1380610034",
+          "name": "Barangay 719"
+        },
+        {
+          "psgc_code": "1380610035",
+          "name": "Barangay 720"
+        },
+        {
+          "psgc_code": "1380610036",
+          "name": "Barangay 721"
+        },
+        {
+          "psgc_code": "1380610037",
+          "name": "Barangay 722"
+        },
+        {
+          "psgc_code": "1380610038",
+          "name": "Barangay 723"
+        },
+        {
+          "psgc_code": "1380610039",
+          "name": "Barangay 724"
+        },
+        {
+          "psgc_code": "1380610040",
+          "name": "Barangay 725"
+        },
+        {
+          "psgc_code": "1380610041",
+          "name": "Barangay 726"
+        },
+        {
+          "psgc_code": "1380610042",
+          "name": "Barangay 727"
+        },
+        {
+          "psgc_code": "1380610043",
+          "name": "Barangay 728"
+        },
+        {
+          "psgc_code": "1380610044",
+          "name": "Barangay 729"
+        },
+        {
+          "psgc_code": "1380610045",
+          "name": "Barangay 730"
+        },
+        {
+          "psgc_code": "1380610046",
+          "name": "Barangay 731"
+        },
+        {
+          "psgc_code": "1380610047",
+          "name": "Barangay 732"
+        },
+        {
+          "psgc_code": "1380610048",
+          "name": "Barangay 733"
+        },
+        {
+          "psgc_code": "1380610052",
+          "name": "Barangay 738"
+        },
+        {
+          "psgc_code": "1380610053",
+          "name": "Barangay 739"
+        },
+        {
+          "psgc_code": "1380610054",
+          "name": "Barangay 740"
+        },
+        {
+          "psgc_code": "1380610055",
+          "name": "Barangay 741"
+        },
+        {
+          "psgc_code": "1380610056",
+          "name": "Barangay 742"
+        },
+        {
+          "psgc_code": "1380610057",
+          "name": "Barangay 743"
+        },
+        {
+          "psgc_code": "1380610058",
+          "name": "Barangay 744"
+        },
+        {
+          "psgc_code": "1380610059",
+          "name": "Barangay 688"
+        },
+        {
+          "psgc_code": "1380610060",
+          "name": "Barangay 735"
+        },
+        {
+          "psgc_code": "1380610061",
+          "name": "Barangay 736"
+        },
+        {
+          "psgc_code": "1380610062",
+          "name": "Barangay 737"
+        },
+        {
+          "psgc_code": "1380610063",
+          "name": "Barangay 734"
+        },
+        {
+          "psgc_code": "1380611001",
+          "name": "Barangay 662"
+        },
+        {
+          "psgc_code": "1380611004",
+          "name": "Barangay 664-A"
+        },
+        {
+          "psgc_code": "1380611005",
+          "name": "Barangay 671"
+        },
+        {
+          "psgc_code": "1380611006",
+          "name": "Barangay 672"
+        },
+        {
+          "psgc_code": "1380611007",
+          "name": "Barangay 673"
+        },
+        {
+          "psgc_code": "1380611008",
+          "name": "Barangay 674"
+        },
+        {
+          "psgc_code": "1380611009",
+          "name": "Barangay 675"
+        },
+        {
+          "psgc_code": "1380611010",
+          "name": "Barangay 676"
+        },
+        {
+          "psgc_code": "1380611011",
+          "name": "Barangay 677"
+        },
+        {
+          "psgc_code": "1380611012",
+          "name": "Barangay 678"
+        },
+        {
+          "psgc_code": "1380611013",
+          "name": "Barangay 679"
+        },
+        {
+          "psgc_code": "1380611014",
+          "name": "Barangay 680"
+        },
+        {
+          "psgc_code": "1380611015",
+          "name": "Barangay 681"
+        },
+        {
+          "psgc_code": "1380611016",
+          "name": "Barangay 682"
+        },
+        {
+          "psgc_code": "1380611017",
+          "name": "Barangay 683"
+        },
+        {
+          "psgc_code": "1380611018",
+          "name": "Barangay 684"
+        },
+        {
+          "psgc_code": "1380611019",
+          "name": "Barangay 685"
+        },
+        {
+          "psgc_code": "1380611023",
+          "name": "Barangay 809"
+        },
+        {
+          "psgc_code": "1380611024",
+          "name": "Barangay 810"
+        },
+        {
+          "psgc_code": "1380611025",
+          "name": "Barangay 811"
+        },
+        {
+          "psgc_code": "1380611026",
+          "name": "Barangay 812"
+        },
+        {
+          "psgc_code": "1380611027",
+          "name": "Barangay 813"
+        },
+        {
+          "psgc_code": "1380611028",
+          "name": "Barangay 814"
+        },
+        {
+          "psgc_code": "1380611029",
+          "name": "Barangay 815"
+        },
+        {
+          "psgc_code": "1380611030",
+          "name": "Barangay 816"
+        },
+        {
+          "psgc_code": "1380611031",
+          "name": "Barangay 817"
+        },
+        {
+          "psgc_code": "1380611032",
+          "name": "Barangay 818"
+        },
+        {
+          "psgc_code": "1380611034",
+          "name": "Barangay 819"
+        },
+        {
+          "psgc_code": "1380611035",
+          "name": "Barangay 820"
+        },
+        {
+          "psgc_code": "1380611036",
+          "name": "Barangay 821"
+        },
+        {
+          "psgc_code": "1380611037",
+          "name": "Barangay 822"
+        },
+        {
+          "psgc_code": "1380611038",
+          "name": "Barangay 823"
+        },
+        {
+          "psgc_code": "1380611039",
+          "name": "Barangay 824"
+        },
+        {
+          "psgc_code": "1380611040",
+          "name": "Barangay 825"
+        },
+        {
+          "psgc_code": "1380611041",
+          "name": "Barangay 826"
+        },
+        {
+          "psgc_code": "1380611042",
+          "name": "Barangay 827"
+        },
+        {
+          "psgc_code": "1380611043",
+          "name": "Barangay 828"
+        },
+        {
+          "psgc_code": "1380611044",
+          "name": "Barangay 829"
+        },
+        {
+          "psgc_code": "1380611045",
+          "name": "Barangay 830"
+        },
+        {
+          "psgc_code": "1380611046",
+          "name": "Barangay 831"
+        },
+        {
+          "psgc_code": "1380611047",
+          "name": "Barangay 832"
+        },
+        {
+          "psgc_code": "1380611048",
+          "name": "Barangay 686"
+        },
+        {
+          "psgc_code": "1380611049",
+          "name": "Barangay 687"
+        },
+        {
+          "psgc_code": "1380612001",
+          "name": "Barangay 833"
+        },
+        {
+          "psgc_code": "1380612002",
+          "name": "Barangay 834"
+        },
+        {
+          "psgc_code": "1380612003",
+          "name": "Barangay 835"
+        },
+        {
+          "psgc_code": "1380612004",
+          "name": "Barangay 836"
+        },
+        {
+          "psgc_code": "1380612005",
+          "name": "Barangay 837"
+        },
+        {
+          "psgc_code": "1380612006",
+          "name": "Barangay 838"
+        },
+        {
+          "psgc_code": "1380612007",
+          "name": "Barangay 839"
+        },
+        {
+          "psgc_code": "1380612008",
+          "name": "Barangay 840"
+        },
+        {
+          "psgc_code": "1380612009",
+          "name": "Barangay 841"
+        },
+        {
+          "psgc_code": "1380612010",
+          "name": "Barangay 842"
+        },
+        {
+          "psgc_code": "1380612011",
+          "name": "Barangay 843"
+        },
+        {
+          "psgc_code": "1380612012",
+          "name": "Barangay 844"
+        },
+        {
+          "psgc_code": "1380612013",
+          "name": "Barangay 845"
+        },
+        {
+          "psgc_code": "1380612014",
+          "name": "Barangay 846"
+        },
+        {
+          "psgc_code": "1380612015",
+          "name": "Barangay 847"
+        },
+        {
+          "psgc_code": "1380612016",
+          "name": "Barangay 848"
+        },
+        {
+          "psgc_code": "1380612017",
+          "name": "Barangay 849"
+        },
+        {
+          "psgc_code": "1380612018",
+          "name": "Barangay 850"
+        },
+        {
+          "psgc_code": "1380612019",
+          "name": "Barangay 851"
+        },
+        {
+          "psgc_code": "1380612020",
+          "name": "Barangay 852"
+        },
+        {
+          "psgc_code": "1380612021",
+          "name": "Barangay 853"
+        },
+        {
+          "psgc_code": "1380612023",
+          "name": "Barangay 855"
+        },
+        {
+          "psgc_code": "1380612024",
+          "name": "Barangay 856"
+        },
+        {
+          "psgc_code": "1380612025",
+          "name": "Barangay 857"
+        },
+        {
+          "psgc_code": "1380612026",
+          "name": "Barangay 858"
+        },
+        {
+          "psgc_code": "1380612027",
+          "name": "Barangay 859"
+        },
+        {
+          "psgc_code": "1380612028",
+          "name": "Barangay 860"
+        },
+        {
+          "psgc_code": "1380612029",
+          "name": "Barangay 861"
+        },
+        {
+          "psgc_code": "1380612030",
+          "name": "Barangay 862"
+        },
+        {
+          "psgc_code": "1380612031",
+          "name": "Barangay 863"
+        },
+        {
+          "psgc_code": "1380612032",
+          "name": "Barangay 864"
+        },
+        {
+          "psgc_code": "1380612033",
+          "name": "Barangay 865"
+        },
+        {
+          "psgc_code": "1380612034",
+          "name": "Barangay 867"
+        },
+        {
+          "psgc_code": "1380612035",
+          "name": "Barangay 868"
+        },
+        {
+          "psgc_code": "1380612036",
+          "name": "Barangay 870"
+        },
+        {
+          "psgc_code": "1380612037",
+          "name": "Barangay 871"
+        },
+        {
+          "psgc_code": "1380612038",
+          "name": "Barangay 872"
+        },
+        {
+          "psgc_code": "1380612039",
+          "name": "Barangay 869"
+        },
+        {
+          "psgc_code": "1380613001",
+          "name": "Barangay 649"
+        },
+        {
+          "psgc_code": "1380613002",
+          "name": "Barangay 650"
+        },
+        {
+          "psgc_code": "1380613003",
+          "name": "Barangay 651"
+        },
+        {
+          "psgc_code": "1380613004",
+          "name": "Barangay 652"
+        },
+        {
+          "psgc_code": "1380613005",
+          "name": "Barangay 653"
+        },
+        {
+          "psgc_code": "1380614002",
+          "name": "Barangay 745"
+        },
+        {
+          "psgc_code": "1380614003",
+          "name": "Barangay 746"
+        },
+        {
+          "psgc_code": "1380614004",
+          "name": "Barangay 747"
+        },
+        {
+          "psgc_code": "1380614005",
+          "name": "Barangay 748"
+        },
+        {
+          "psgc_code": "1380614006",
+          "name": "Barangay 749"
+        },
+        {
+          "psgc_code": "1380614007",
+          "name": "Barangay 750"
+        },
+        {
+          "psgc_code": "1380614008",
+          "name": "Barangay 751"
+        },
+        {
+          "psgc_code": "1380614009",
+          "name": "Barangay 752"
+        },
+        {
+          "psgc_code": "1380614010",
+          "name": "Barangay 753"
+        },
+        {
+          "psgc_code": "1380614011",
+          "name": "Barangay 755"
+        },
+        {
+          "psgc_code": "1380614012",
+          "name": "Barangay 756"
+        },
+        {
+          "psgc_code": "1380614013",
+          "name": "Barangay 757"
+        },
+        {
+          "psgc_code": "1380614014",
+          "name": "Barangay 758"
+        },
+        {
+          "psgc_code": "1380614015",
+          "name": "Barangay 759"
+        },
+        {
+          "psgc_code": "1380614016",
+          "name": "Barangay 760"
+        },
+        {
+          "psgc_code": "1380614017",
+          "name": "Barangay 761"
+        },
+        {
+          "psgc_code": "1380614018",
+          "name": "Barangay 762"
+        },
+        {
+          "psgc_code": "1380614019",
+          "name": "Barangay 763"
+        },
+        {
+          "psgc_code": "1380614020",
+          "name": "Barangay 764"
+        },
+        {
+          "psgc_code": "1380614021",
+          "name": "Barangay 765"
+        },
+        {
+          "psgc_code": "1380614022",
+          "name": "Barangay 766"
+        },
+        {
+          "psgc_code": "1380614023",
+          "name": "Barangay 767"
+        },
+        {
+          "psgc_code": "1380614024",
+          "name": "Barangay 768"
+        },
+        {
+          "psgc_code": "1380614025",
+          "name": "Barangay 769"
+        },
+        {
+          "psgc_code": "1380614026",
+          "name": "Barangay 770"
+        },
+        {
+          "psgc_code": "1380614027",
+          "name": "Barangay 771"
+        },
+        {
+          "psgc_code": "1380614028",
+          "name": "Barangay 772"
+        },
+        {
+          "psgc_code": "1380614029",
+          "name": "Barangay 773"
+        },
+        {
+          "psgc_code": "1380614030",
+          "name": "Barangay 774"
+        },
+        {
+          "psgc_code": "1380614031",
+          "name": "Barangay 775"
+        },
+        {
+          "psgc_code": "1380614032",
+          "name": "Barangay 776"
+        },
+        {
+          "psgc_code": "1380614033",
+          "name": "Barangay 777"
+        },
+        {
+          "psgc_code": "1380614034",
+          "name": "Barangay 778"
+        },
+        {
+          "psgc_code": "1380614035",
+          "name": "Barangay 779"
+        },
+        {
+          "psgc_code": "1380614036",
+          "name": "Barangay 780"
+        },
+        {
+          "psgc_code": "1380614037",
+          "name": "Barangay 781"
+        },
+        {
+          "psgc_code": "1380614038",
+          "name": "Barangay 782"
+        },
+        {
+          "psgc_code": "1380614039",
+          "name": "Barangay 783"
+        },
+        {
+          "psgc_code": "1380614040",
+          "name": "Barangay 784"
+        },
+        {
+          "psgc_code": "1380614041",
+          "name": "Barangay 785"
+        },
+        {
+          "psgc_code": "1380614042",
+          "name": "Barangay 786"
+        },
+        {
+          "psgc_code": "1380614043",
+          "name": "Barangay 787"
+        },
+        {
+          "psgc_code": "1380614044",
+          "name": "Barangay 788"
+        },
+        {
+          "psgc_code": "1380614045",
+          "name": "Barangay 789"
+        },
+        {
+          "psgc_code": "1380614046",
+          "name": "Barangay 790"
+        },
+        {
+          "psgc_code": "1380614047",
+          "name": "Barangay 791"
+        },
+        {
+          "psgc_code": "1380614048",
+          "name": "Barangay 792"
+        },
+        {
+          "psgc_code": "1380614049",
+          "name": "Barangay 793"
+        },
+        {
+          "psgc_code": "1380614050",
+          "name": "Barangay 794"
+        },
+        {
+          "psgc_code": "1380614051",
+          "name": "Barangay 795"
+        },
+        {
+          "psgc_code": "1380614052",
+          "name": "Barangay 796"
+        },
+        {
+          "psgc_code": "1380614053",
+          "name": "Barangay 797"
+        },
+        {
+          "psgc_code": "1380614054",
+          "name": "Barangay 798"
+        },
+        {
+          "psgc_code": "1380614055",
+          "name": "Barangay 799"
+        },
+        {
+          "psgc_code": "1380614056",
+          "name": "Barangay 800"
+        },
+        {
+          "psgc_code": "1380614057",
+          "name": "Barangay 801"
+        },
+        {
+          "psgc_code": "1380614058",
+          "name": "Barangay 802"
+        },
+        {
+          "psgc_code": "1380614059",
+          "name": "Barangay 803"
+        },
+        {
+          "psgc_code": "1380614060",
+          "name": "Barangay 804"
+        },
+        {
+          "psgc_code": "1380614061",
+          "name": "Barangay 805"
+        },
+        {
+          "psgc_code": "1380614062",
+          "name": "Barangay 806"
+        },
+        {
+          "psgc_code": "1380614063",
+          "name": "Barangay 807"
+        },
+        {
+          "psgc_code": "1380614064",
+          "name": "Barangay 866"
+        },
+        {
+          "psgc_code": "1380614066",
+          "name": "Barangay 873"
+        },
+        {
+          "psgc_code": "1380614067",
+          "name": "Barangay 874"
+        },
+        {
+          "psgc_code": "1380614068",
+          "name": "Barangay 875"
+        },
+        {
+          "psgc_code": "1380614069",
+          "name": "Barangay 876"
+        },
+        {
+          "psgc_code": "1380614070",
+          "name": "Barangay 877"
+        },
+        {
+          "psgc_code": "1380614071",
+          "name": "Barangay 878"
+        },
+        {
+          "psgc_code": "1380614072",
+          "name": "Barangay 879"
+        },
+        {
+          "psgc_code": "1380614073",
+          "name": "Barangay 880"
+        },
+        {
+          "psgc_code": "1380614074",
+          "name": "Barangay 881"
+        },
+        {
+          "psgc_code": "1380614075",
+          "name": "Barangay 882"
+        },
+        {
+          "psgc_code": "1380614076",
+          "name": "Barangay 883"
+        },
+        {
+          "psgc_code": "1380614077",
+          "name": "Barangay 884"
+        },
+        {
+          "psgc_code": "1380614078",
+          "name": "Barangay 885"
+        },
+        {
+          "psgc_code": "1380614079",
+          "name": "Barangay 886"
+        },
+        {
+          "psgc_code": "1380614080",
+          "name": "Barangay 887"
+        },
+        {
+          "psgc_code": "1380614081",
+          "name": "Barangay 888"
+        },
+        {
+          "psgc_code": "1380614082",
+          "name": "Barangay 889"
+        },
+        {
+          "psgc_code": "1380614083",
+          "name": "Barangay 890"
+        },
+        {
+          "psgc_code": "1380614084",
+          "name": "Barangay 891"
+        },
+        {
+          "psgc_code": "1380614085",
+          "name": "Barangay 892"
+        },
+        {
+          "psgc_code": "1380614086",
+          "name": "Barangay 893"
+        },
+        {
+          "psgc_code": "1380614087",
+          "name": "Barangay 894"
+        },
+        {
+          "psgc_code": "1380614088",
+          "name": "Barangay 895"
+        },
+        {
+          "psgc_code": "1380614089",
+          "name": "Barangay 896"
+        },
+        {
+          "psgc_code": "1380614090",
+          "name": "Barangay 897"
+        },
+        {
+          "psgc_code": "1380614091",
+          "name": "Barangay 898"
+        },
+        {
+          "psgc_code": "1380614092",
+          "name": "Barangay 899"
+        },
+        {
+          "psgc_code": "1380614093",
+          "name": "Barangay 900"
+        },
+        {
+          "psgc_code": "1380614094",
+          "name": "Barangay 901"
+        },
+        {
+          "psgc_code": "1380614095",
+          "name": "Barangay 902"
+        },
+        {
+          "psgc_code": "1380614096",
+          "name": "Barangay 903"
+        },
+        {
+          "psgc_code": "1380614097",
+          "name": "Barangay 904"
+        },
+        {
+          "psgc_code": "1380614098",
+          "name": "Barangay 905"
+        },
+        {
+          "psgc_code": "1380614099",
+          "name": "Barangay 754"
+        },
+        {
+          "psgc_code": "1380614100",
+          "name": "Barangay 808"
+        },
+        {
+          "psgc_code": "1380614101",
+          "name": "Barangay 818-A"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380700000",
+      "name": "City of Marikina",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1380700001",
+          "name": "Barangka"
+        },
+        {
+          "psgc_code": "1380700002",
+          "name": "Calumpang"
+        },
+        {
+          "psgc_code": "1380700003",
+          "name": "Concepcion Uno"
+        },
+        {
+          "psgc_code": "1380700004",
+          "name": "Jesus De La Peña"
+        },
+        {
+          "psgc_code": "1380700005",
+          "name": "Malanday"
+        },
+        {
+          "psgc_code": "1380700006",
+          "name": "Nangka"
+        },
+        {
+          "psgc_code": "1380700007",
+          "name": "Parang"
+        },
+        {
+          "psgc_code": "1380700008",
+          "name": "San Roque"
+        },
+        {
+          "psgc_code": "1380700009",
+          "name": "Santa Elena"
+        },
+        {
+          "psgc_code": "1380700010",
+          "name": "Santo Niño"
+        },
+        {
+          "psgc_code": "1380700011",
+          "name": "Tañong"
+        },
+        {
+          "psgc_code": "1380700012",
+          "name": "Concepcion Dos"
+        },
+        {
+          "psgc_code": "1380700013",
+          "name": "Marikina Heights"
+        },
+        {
+          "psgc_code": "1380700014",
+          "name": "Industrial Valley"
+        },
+        {
+          "psgc_code": "1380700015",
+          "name": "Fortune"
+        },
+        {
+          "psgc_code": "1380700016",
+          "name": "Tumana"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380800000",
+      "name": "City of Muntinlupa",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1380800001",
+          "name": "Alabang"
+        },
+        {
+          "psgc_code": "1380800002",
+          "name": "Bayanan"
+        },
+        {
+          "psgc_code": "1380800003",
+          "name": "Buli"
+        },
+        {
+          "psgc_code": "1380800004",
+          "name": "Cupang"
+        },
+        {
+          "psgc_code": "1380800005",
+          "name": "Poblacion"
+        },
+        {
+          "psgc_code": "1380800006",
+          "name": "Putatan"
+        },
+        {
+          "psgc_code": "1380800007",
+          "name": "Sucat"
+        },
+        {
+          "psgc_code": "1380800008",
+          "name": "Tunasan"
+        },
+        {
+          "psgc_code": "1380800009",
+          "name": "New Alabang Village"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1380900000",
+      "name": "City of Navotas",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1380900001",
+          "name": "Sipac-Almacen"
+        },
+        {
+          "psgc_code": "1380900002",
+          "name": "Bagumbayan North"
+        },
+        {
+          "psgc_code": "1380900003",
+          "name": "Bagumbayan South"
+        },
+        {
+          "psgc_code": "1380900004",
+          "name": "Bangculasi"
+        },
+        {
+          "psgc_code": "1380900005",
+          "name": "Daanghari"
+        },
+        {
+          "psgc_code": "1380900006",
+          "name": "Navotas East"
+        },
+        {
+          "psgc_code": "1380900007",
+          "name": "Navotas West"
+        },
+        {
+          "psgc_code": "1380900008",
+          "name": "North Bay Boulevard North"
+        },
+        {
+          "psgc_code": "1380900009",
+          "name": "NBBS Kaunlaran"
+        },
+        {
+          "psgc_code": "1380900010",
+          "name": "San Jose"
+        },
+        {
+          "psgc_code": "1380900011",
+          "name": "San Rafael Village"
+        },
+        {
+          "psgc_code": "1380900012",
+          "name": "San Roque"
+        },
+        {
+          "psgc_code": "1380900013",
+          "name": "Tangos South"
+        },
+        {
+          "psgc_code": "1380900014",
+          "name": "Tanza 1"
+        },
+        {
+          "psgc_code": "1380900015",
+          "name": "NBBS Dagat-dagatan"
+        },
+        {
+          "psgc_code": "1380900016",
+          "name": "NBBS Proper"
+        },
+        {
+          "psgc_code": "1380900017",
+          "name": "Tangos North"
+        },
+        {
+          "psgc_code": "1380900018",
+          "name": "Tanza 2"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381000000",
+      "name": "City of Parañaque",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1381000001",
+          "name": "Baclaran"
+        },
+        {
+          "psgc_code": "1381000002",
+          "name": "Don Galo"
+        },
+        {
+          "psgc_code": "1381000003",
+          "name": "La Huerta"
+        },
+        {
+          "psgc_code": "1381000004",
+          "name": "San Dionisio"
+        },
+        {
+          "psgc_code": "1381000005",
+          "name": "Santo Niño"
+        },
+        {
+          "psgc_code": "1381000006",
+          "name": "Tambo"
+        },
+        {
+          "psgc_code": "1381000007",
+          "name": "B. F. Homes"
+        },
+        {
+          "psgc_code": "1381000008",
+          "name": "Don Bosco"
+        },
+        {
+          "psgc_code": "1381000009",
+          "name": "Marcelo Green Village"
+        },
+        {
+          "psgc_code": "1381000010",
+          "name": "Merville"
+        },
+        {
+          "psgc_code": "1381000011",
+          "name": "Moonwalk"
+        },
+        {
+          "psgc_code": "1381000012",
+          "name": "San Antonio"
+        },
+        {
+          "psgc_code": "1381000013",
+          "name": "San Isidro"
+        },
+        {
+          "psgc_code": "1381000014",
+          "name": "San Martin De Porres"
+        },
+        {
+          "psgc_code": "1381000015",
+          "name": "Sun Valley"
+        },
+        {
+          "psgc_code": "1381000016",
+          "name": "Vitalez"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381100000",
+      "name": "Pasay City",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1381100001",
+          "name": "Barangay 1"
+        },
+        {
+          "psgc_code": "1381100002",
+          "name": "Barangay 2"
+        },
+        {
+          "psgc_code": "1381100003",
+          "name": "Barangay 3"
+        },
+        {
+          "psgc_code": "1381100004",
+          "name": "Barangay 4"
+        },
+        {
+          "psgc_code": "1381100005",
+          "name": "Barangay 5"
+        },
+        {
+          "psgc_code": "1381100006",
+          "name": "Barangay 6"
+        },
+        {
+          "psgc_code": "1381100007",
+          "name": "Barangay 7"
+        },
+        {
+          "psgc_code": "1381100008",
+          "name": "Barangay 8"
+        },
+        {
+          "psgc_code": "1381100009",
+          "name": "Barangay 9"
+        },
+        {
+          "psgc_code": "1381100010",
+          "name": "Barangay 10"
+        },
+        {
+          "psgc_code": "1381100011",
+          "name": "Barangay 11"
+        },
+        {
+          "psgc_code": "1381100012",
+          "name": "Barangay 12"
+        },
+        {
+          "psgc_code": "1381100013",
+          "name": "Barangay 13"
+        },
+        {
+          "psgc_code": "1381100014",
+          "name": "Barangay 14"
+        },
+        {
+          "psgc_code": "1381100015",
+          "name": "Barangay 15"
+        },
+        {
+          "psgc_code": "1381100016",
+          "name": "Barangay 16"
+        },
+        {
+          "psgc_code": "1381100017",
+          "name": "Barangay 17"
+        },
+        {
+          "psgc_code": "1381100018",
+          "name": "Barangay 18"
+        },
+        {
+          "psgc_code": "1381100019",
+          "name": "Barangay 19"
+        },
+        {
+          "psgc_code": "1381100020",
+          "name": "Barangay 20"
+        },
+        {
+          "psgc_code": "1381100021",
+          "name": "Barangay 21"
+        },
+        {
+          "psgc_code": "1381100022",
+          "name": "Barangay 22"
+        },
+        {
+          "psgc_code": "1381100023",
+          "name": "Barangay 23"
+        },
+        {
+          "psgc_code": "1381100024",
+          "name": "Barangay 24"
+        },
+        {
+          "psgc_code": "1381100025",
+          "name": "Barangay 25"
+        },
+        {
+          "psgc_code": "1381100026",
+          "name": "Barangay 26"
+        },
+        {
+          "psgc_code": "1381100027",
+          "name": "Barangay 27"
+        },
+        {
+          "psgc_code": "1381100028",
+          "name": "Barangay 28"
+        },
+        {
+          "psgc_code": "1381100029",
+          "name": "Barangay 29"
+        },
+        {
+          "psgc_code": "1381100030",
+          "name": "Barangay 30"
+        },
+        {
+          "psgc_code": "1381100031",
+          "name": "Barangay 31"
+        },
+        {
+          "psgc_code": "1381100032",
+          "name": "Barangay 32"
+        },
+        {
+          "psgc_code": "1381100033",
+          "name": "Barangay 33"
+        },
+        {
+          "psgc_code": "1381100034",
+          "name": "Barangay 34"
+        },
+        {
+          "psgc_code": "1381100035",
+          "name": "Barangay 35"
+        },
+        {
+          "psgc_code": "1381100036",
+          "name": "Barangay 36"
+        },
+        {
+          "psgc_code": "1381100037",
+          "name": "Barangay 37"
+        },
+        {
+          "psgc_code": "1381100038",
+          "name": "Barangay 38"
+        },
+        {
+          "psgc_code": "1381100039",
+          "name": "Barangay 39"
+        },
+        {
+          "psgc_code": "1381100040",
+          "name": "Barangay 40"
+        },
+        {
+          "psgc_code": "1381100041",
+          "name": "Barangay 41"
+        },
+        {
+          "psgc_code": "1381100042",
+          "name": "Barangay 42"
+        },
+        {
+          "psgc_code": "1381100043",
+          "name": "Barangay 43"
+        },
+        {
+          "psgc_code": "1381100044",
+          "name": "Barangay 44"
+        },
+        {
+          "psgc_code": "1381100045",
+          "name": "Barangay 45"
+        },
+        {
+          "psgc_code": "1381100046",
+          "name": "Barangay 46"
+        },
+        {
+          "psgc_code": "1381100047",
+          "name": "Barangay 47"
+        },
+        {
+          "psgc_code": "1381100048",
+          "name": "Barangay 48"
+        },
+        {
+          "psgc_code": "1381100049",
+          "name": "Barangay 49"
+        },
+        {
+          "psgc_code": "1381100050",
+          "name": "Barangay 50"
+        },
+        {
+          "psgc_code": "1381100051",
+          "name": "Barangay 51"
+        },
+        {
+          "psgc_code": "1381100052",
+          "name": "Barangay 52"
+        },
+        {
+          "psgc_code": "1381100053",
+          "name": "Barangay 53"
+        },
+        {
+          "psgc_code": "1381100054",
+          "name": "Barangay 54"
+        },
+        {
+          "psgc_code": "1381100055",
+          "name": "Barangay 55"
+        },
+        {
+          "psgc_code": "1381100056",
+          "name": "Barangay 56"
+        },
+        {
+          "psgc_code": "1381100057",
+          "name": "Barangay 57"
+        },
+        {
+          "psgc_code": "1381100058",
+          "name": "Barangay 58"
+        },
+        {
+          "psgc_code": "1381100059",
+          "name": "Barangay 59"
+        },
+        {
+          "psgc_code": "1381100060",
+          "name": "Barangay 60"
+        },
+        {
+          "psgc_code": "1381100061",
+          "name": "Barangay 61"
+        },
+        {
+          "psgc_code": "1381100062",
+          "name": "Barangay 62"
+        },
+        {
+          "psgc_code": "1381100063",
+          "name": "Barangay 63"
+        },
+        {
+          "psgc_code": "1381100064",
+          "name": "Barangay 64"
+        },
+        {
+          "psgc_code": "1381100065",
+          "name": "Barangay 65"
+        },
+        {
+          "psgc_code": "1381100066",
+          "name": "Barangay 66"
+        },
+        {
+          "psgc_code": "1381100067",
+          "name": "Barangay 67"
+        },
+        {
+          "psgc_code": "1381100068",
+          "name": "Barangay 68"
+        },
+        {
+          "psgc_code": "1381100069",
+          "name": "Barangay 69"
+        },
+        {
+          "psgc_code": "1381100070",
+          "name": "Barangay 70"
+        },
+        {
+          "psgc_code": "1381100071",
+          "name": "Barangay 71"
+        },
+        {
+          "psgc_code": "1381100072",
+          "name": "Barangay 72"
+        },
+        {
+          "psgc_code": "1381100073",
+          "name": "Barangay 73"
+        },
+        {
+          "psgc_code": "1381100074",
+          "name": "Barangay 74"
+        },
+        {
+          "psgc_code": "1381100075",
+          "name": "Barangay 75"
+        },
+        {
+          "psgc_code": "1381100076",
+          "name": "Barangay 76"
+        },
+        {
+          "psgc_code": "1381100077",
+          "name": "Barangay 77"
+        },
+        {
+          "psgc_code": "1381100078",
+          "name": "Barangay 78"
+        },
+        {
+          "psgc_code": "1381100079",
+          "name": "Barangay 79"
+        },
+        {
+          "psgc_code": "1381100080",
+          "name": "Barangay 80"
+        },
+        {
+          "psgc_code": "1381100081",
+          "name": "Barangay 81"
+        },
+        {
+          "psgc_code": "1381100082",
+          "name": "Barangay 82"
+        },
+        {
+          "psgc_code": "1381100083",
+          "name": "Barangay 83"
+        },
+        {
+          "psgc_code": "1381100084",
+          "name": "Barangay 84"
+        },
+        {
+          "psgc_code": "1381100085",
+          "name": "Barangay 85"
+        },
+        {
+          "psgc_code": "1381100086",
+          "name": "Barangay 86"
+        },
+        {
+          "psgc_code": "1381100087",
+          "name": "Barangay 87"
+        },
+        {
+          "psgc_code": "1381100088",
+          "name": "Barangay 88"
+        },
+        {
+          "psgc_code": "1381100089",
+          "name": "Barangay 89"
+        },
+        {
+          "psgc_code": "1381100090",
+          "name": "Barangay 90"
+        },
+        {
+          "psgc_code": "1381100091",
+          "name": "Barangay 91"
+        },
+        {
+          "psgc_code": "1381100092",
+          "name": "Barangay 92"
+        },
+        {
+          "psgc_code": "1381100093",
+          "name": "Barangay 93"
+        },
+        {
+          "psgc_code": "1381100094",
+          "name": "Barangay 94"
+        },
+        {
+          "psgc_code": "1381100095",
+          "name": "Barangay 95"
+        },
+        {
+          "psgc_code": "1381100096",
+          "name": "Barangay 96"
+        },
+        {
+          "psgc_code": "1381100097",
+          "name": "Barangay 97"
+        },
+        {
+          "psgc_code": "1381100098",
+          "name": "Barangay 98"
+        },
+        {
+          "psgc_code": "1381100099",
+          "name": "Barangay 99"
+        },
+        {
+          "psgc_code": "1381100100",
+          "name": "Barangay 100"
+        },
+        {
+          "psgc_code": "1381100101",
+          "name": "Barangay 101"
+        },
+        {
+          "psgc_code": "1381100102",
+          "name": "Barangay 102"
+        },
+        {
+          "psgc_code": "1381100103",
+          "name": "Barangay 103"
+        },
+        {
+          "psgc_code": "1381100104",
+          "name": "Barangay 104"
+        },
+        {
+          "psgc_code": "1381100105",
+          "name": "Barangay 105"
+        },
+        {
+          "psgc_code": "1381100106",
+          "name": "Barangay 106"
+        },
+        {
+          "psgc_code": "1381100107",
+          "name": "Barangay 107"
+        },
+        {
+          "psgc_code": "1381100108",
+          "name": "Barangay 108"
+        },
+        {
+          "psgc_code": "1381100109",
+          "name": "Barangay 109"
+        },
+        {
+          "psgc_code": "1381100110",
+          "name": "Barangay 110"
+        },
+        {
+          "psgc_code": "1381100111",
+          "name": "Barangay 111"
+        },
+        {
+          "psgc_code": "1381100112",
+          "name": "Barangay 112"
+        },
+        {
+          "psgc_code": "1381100113",
+          "name": "Barangay 113"
+        },
+        {
+          "psgc_code": "1381100114",
+          "name": "Barangay 114"
+        },
+        {
+          "psgc_code": "1381100115",
+          "name": "Barangay 115"
+        },
+        {
+          "psgc_code": "1381100116",
+          "name": "Barangay 116"
+        },
+        {
+          "psgc_code": "1381100117",
+          "name": "Barangay 117"
+        },
+        {
+          "psgc_code": "1381100118",
+          "name": "Barangay 118"
+        },
+        {
+          "psgc_code": "1381100119",
+          "name": "Barangay 119"
+        },
+        {
+          "psgc_code": "1381100120",
+          "name": "Barangay 120"
+        },
+        {
+          "psgc_code": "1381100121",
+          "name": "Barangay 121"
+        },
+        {
+          "psgc_code": "1381100122",
+          "name": "Barangay 122"
+        },
+        {
+          "psgc_code": "1381100123",
+          "name": "Barangay 123"
+        },
+        {
+          "psgc_code": "1381100124",
+          "name": "Barangay 124"
+        },
+        {
+          "psgc_code": "1381100125",
+          "name": "Barangay 125"
+        },
+        {
+          "psgc_code": "1381100126",
+          "name": "Barangay 126"
+        },
+        {
+          "psgc_code": "1381100127",
+          "name": "Barangay 127"
+        },
+        {
+          "psgc_code": "1381100128",
+          "name": "Barangay 128"
+        },
+        {
+          "psgc_code": "1381100129",
+          "name": "Barangay 129"
+        },
+        {
+          "psgc_code": "1381100130",
+          "name": "Barangay 130"
+        },
+        {
+          "psgc_code": "1381100131",
+          "name": "Barangay 131"
+        },
+        {
+          "psgc_code": "1381100132",
+          "name": "Barangay 132"
+        },
+        {
+          "psgc_code": "1381100133",
+          "name": "Barangay 133"
+        },
+        {
+          "psgc_code": "1381100134",
+          "name": "Barangay 134"
+        },
+        {
+          "psgc_code": "1381100135",
+          "name": "Barangay 135"
+        },
+        {
+          "psgc_code": "1381100136",
+          "name": "Barangay 136"
+        },
+        {
+          "psgc_code": "1381100137",
+          "name": "Barangay 137"
+        },
+        {
+          "psgc_code": "1381100138",
+          "name": "Barangay 138"
+        },
+        {
+          "psgc_code": "1381100139",
+          "name": "Barangay 139"
+        },
+        {
+          "psgc_code": "1381100140",
+          "name": "Barangay 140"
+        },
+        {
+          "psgc_code": "1381100141",
+          "name": "Barangay 141"
+        },
+        {
+          "psgc_code": "1381100142",
+          "name": "Barangay 142"
+        },
+        {
+          "psgc_code": "1381100143",
+          "name": "Barangay 143"
+        },
+        {
+          "psgc_code": "1381100144",
+          "name": "Barangay 144"
+        },
+        {
+          "psgc_code": "1381100145",
+          "name": "Barangay 145"
+        },
+        {
+          "psgc_code": "1381100146",
+          "name": "Barangay 146"
+        },
+        {
+          "psgc_code": "1381100147",
+          "name": "Barangay 147"
+        },
+        {
+          "psgc_code": "1381100148",
+          "name": "Barangay 148"
+        },
+        {
+          "psgc_code": "1381100149",
+          "name": "Barangay 149"
+        },
+        {
+          "psgc_code": "1381100150",
+          "name": "Barangay 150"
+        },
+        {
+          "psgc_code": "1381100151",
+          "name": "Barangay 151"
+        },
+        {
+          "psgc_code": "1381100152",
+          "name": "Barangay 152"
+        },
+        {
+          "psgc_code": "1381100153",
+          "name": "Barangay 153"
+        },
+        {
+          "psgc_code": "1381100154",
+          "name": "Barangay 154"
+        },
+        {
+          "psgc_code": "1381100155",
+          "name": "Barangay 155"
+        },
+        {
+          "psgc_code": "1381100156",
+          "name": "Barangay 156"
+        },
+        {
+          "psgc_code": "1381100157",
+          "name": "Barangay 157"
+        },
+        {
+          "psgc_code": "1381100158",
+          "name": "Barangay 158"
+        },
+        {
+          "psgc_code": "1381100159",
+          "name": "Barangay 159"
+        },
+        {
+          "psgc_code": "1381100160",
+          "name": "Barangay 160"
+        },
+        {
+          "psgc_code": "1381100161",
+          "name": "Barangay 161"
+        },
+        {
+          "psgc_code": "1381100162",
+          "name": "Barangay 162"
+        },
+        {
+          "psgc_code": "1381100163",
+          "name": "Barangay 163"
+        },
+        {
+          "psgc_code": "1381100164",
+          "name": "Barangay 164"
+        },
+        {
+          "psgc_code": "1381100165",
+          "name": "Barangay 165"
+        },
+        {
+          "psgc_code": "1381100166",
+          "name": "Barangay 166"
+        },
+        {
+          "psgc_code": "1381100167",
+          "name": "Barangay 167"
+        },
+        {
+          "psgc_code": "1381100168",
+          "name": "Barangay 168"
+        },
+        {
+          "psgc_code": "1381100169",
+          "name": "Barangay 169"
+        },
+        {
+          "psgc_code": "1381100170",
+          "name": "Barangay 170"
+        },
+        {
+          "psgc_code": "1381100171",
+          "name": "Barangay 171"
+        },
+        {
+          "psgc_code": "1381100172",
+          "name": "Barangay 172"
+        },
+        {
+          "psgc_code": "1381100173",
+          "name": "Barangay 173"
+        },
+        {
+          "psgc_code": "1381100174",
+          "name": "Barangay 174"
+        },
+        {
+          "psgc_code": "1381100175",
+          "name": "Barangay 175"
+        },
+        {
+          "psgc_code": "1381100176",
+          "name": "Barangay 176"
+        },
+        {
+          "psgc_code": "1381100177",
+          "name": "Barangay 177"
+        },
+        {
+          "psgc_code": "1381100178",
+          "name": "Barangay 178"
+        },
+        {
+          "psgc_code": "1381100179",
+          "name": "Barangay 179"
+        },
+        {
+          "psgc_code": "1381100180",
+          "name": "Barangay 180"
+        },
+        {
+          "psgc_code": "1381100181",
+          "name": "Barangay 181"
+        },
+        {
+          "psgc_code": "1381100182",
+          "name": "Barangay 182"
+        },
+        {
+          "psgc_code": "1381100183",
+          "name": "Barangay 183"
+        },
+        {
+          "psgc_code": "1381100184",
+          "name": "Barangay 184"
+        },
+        {
+          "psgc_code": "1381100185",
+          "name": "Barangay 185"
+        },
+        {
+          "psgc_code": "1381100186",
+          "name": "Barangay 186"
+        },
+        {
+          "psgc_code": "1381100187",
+          "name": "Barangay 187"
+        },
+        {
+          "psgc_code": "1381100188",
+          "name": "Barangay 188"
+        },
+        {
+          "psgc_code": "1381100189",
+          "name": "Barangay 189"
+        },
+        {
+          "psgc_code": "1381100190",
+          "name": "Barangay 190"
+        },
+        {
+          "psgc_code": "1381100191",
+          "name": "Barangay 191"
+        },
+        {
+          "psgc_code": "1381100192",
+          "name": "Barangay 192"
+        },
+        {
+          "psgc_code": "1381100193",
+          "name": "Barangay 193"
+        },
+        {
+          "psgc_code": "1381100194",
+          "name": "Barangay 194"
+        },
+        {
+          "psgc_code": "1381100195",
+          "name": "Barangay 195"
+        },
+        {
+          "psgc_code": "1381100196",
+          "name": "Barangay 196"
+        },
+        {
+          "psgc_code": "1381100197",
+          "name": "Barangay 197"
+        },
+        {
+          "psgc_code": "1381100198",
+          "name": "Barangay 198"
+        },
+        {
+          "psgc_code": "1381100199",
+          "name": "Barangay 199"
+        },
+        {
+          "psgc_code": "1381100200",
+          "name": "Barangay 200"
+        },
+        {
+          "psgc_code": "1381100201",
+          "name": "Barangay 201"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381200000",
+      "name": "City of Pasig",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1381200001",
+          "name": "Bagong Ilog"
+        },
+        {
+          "psgc_code": "1381200002",
+          "name": "Bagong Katipunan"
+        },
+        {
+          "psgc_code": "1381200003",
+          "name": "Bambang"
+        },
+        {
+          "psgc_code": "1381200004",
+          "name": "Buting"
+        },
+        {
+          "psgc_code": "1381200005",
+          "name": "Caniogan"
+        },
+        {
+          "psgc_code": "1381200006",
+          "name": "Dela Paz"
+        },
+        {
+          "psgc_code": "1381200007",
+          "name": "Kalawaan"
+        },
+        {
+          "psgc_code": "1381200008",
+          "name": "Kapasigan"
+        },
+        {
+          "psgc_code": "1381200009",
+          "name": "Kapitolyo"
+        },
+        {
+          "psgc_code": "1381200010",
+          "name": "Malinao"
+        },
+        {
+          "psgc_code": "1381200011",
+          "name": "Manggahan"
+        },
+        {
+          "psgc_code": "1381200012",
+          "name": "Maybunga"
+        },
+        {
+          "psgc_code": "1381200013",
+          "name": "Oranbo"
+        },
+        {
+          "psgc_code": "1381200014",
+          "name": "Palatiw"
+        },
+        {
+          "psgc_code": "1381200015",
+          "name": "Pinagbuhatan"
+        },
+        {
+          "psgc_code": "1381200016",
+          "name": "Pineda"
+        },
+        {
+          "psgc_code": "1381200017",
+          "name": "Rosario"
+        },
+        {
+          "psgc_code": "1381200018",
+          "name": "Sagad"
+        },
+        {
+          "psgc_code": "1381200019",
+          "name": "San Antonio"
+        },
+        {
+          "psgc_code": "1381200020",
+          "name": "San Joaquin"
+        },
+        {
+          "psgc_code": "1381200021",
+          "name": "San Jose"
+        },
+        {
+          "psgc_code": "1381200022",
+          "name": "San Miguel"
+        },
+        {
+          "psgc_code": "1381200023",
+          "name": "San Nicolas"
+        },
+        {
+          "psgc_code": "1381200024",
+          "name": "Santa Cruz"
+        },
+        {
+          "psgc_code": "1381200025",
+          "name": "Santa Rosa"
+        },
+        {
+          "psgc_code": "1381200026",
+          "name": "Santo Tomas"
+        },
+        {
+          "psgc_code": "1381200027",
+          "name": "Santolan"
+        },
+        {
+          "psgc_code": "1381200028",
+          "name": "Sumilang"
+        },
+        {
+          "psgc_code": "1381200029",
+          "name": "Ugong"
+        },
+        {
+          "psgc_code": "1381200030",
+          "name": "Santa Lucia"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381300000",
+      "name": "Quezon City",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1381300001",
+          "name": "Alicia"
+        },
+        {
+          "psgc_code": "1381300002",
+          "name": "Amihan"
+        },
+        {
+          "psgc_code": "1381300003",
+          "name": "Apolonio Samson"
+        },
+        {
+          "psgc_code": "1381300004",
+          "name": "Aurora"
+        },
+        {
+          "psgc_code": "1381300005",
+          "name": "Baesa"
+        },
+        {
+          "psgc_code": "1381300006",
+          "name": "Bagbag"
+        },
+        {
+          "psgc_code": "1381300007",
+          "name": "Bagumbuhay"
+        },
+        {
+          "psgc_code": "1381300008",
+          "name": "Bagong Lipunan Ng Crame"
+        },
+        {
+          "psgc_code": "1381300009",
+          "name": "Bagong Pag-asa"
+        },
+        {
+          "psgc_code": "1381300010",
+          "name": "Bagong Silangan"
+        },
+        {
+          "psgc_code": "1381300011",
+          "name": "Bagumbayan"
+        },
+        {
+          "psgc_code": "1381300012",
+          "name": "Bahay Toro"
+        },
+        {
+          "psgc_code": "1381300013",
+          "name": "Balingasa"
+        },
+        {
+          "psgc_code": "1381300014",
+          "name": "Bayanihan"
+        },
+        {
+          "psgc_code": "1381300015",
+          "name": "Blue Ridge A"
+        },
+        {
+          "psgc_code": "1381300016",
+          "name": "Blue Ridge B"
+        },
+        {
+          "psgc_code": "1381300017",
+          "name": "Botocan"
+        },
+        {
+          "psgc_code": "1381300018",
+          "name": "Bungad"
+        },
+        {
+          "psgc_code": "1381300019",
+          "name": "Camp Aguinaldo"
+        },
+        {
+          "psgc_code": "1381300020",
+          "name": "Central"
+        },
+        {
+          "psgc_code": "1381300021",
+          "name": "Claro"
+        },
+        {
+          "psgc_code": "1381300022",
+          "name": "Commonwealth"
+        },
+        {
+          "psgc_code": "1381300023",
+          "name": "New Era"
+        },
+        {
+          "psgc_code": "1381300024",
+          "name": "Kristong Hari"
+        },
+        {
+          "psgc_code": "1381300025",
+          "name": "Culiat"
+        },
+        {
+          "psgc_code": "1381300026",
+          "name": "Damar"
+        },
+        {
+          "psgc_code": "1381300027",
+          "name": "Damayan"
+        },
+        {
+          "psgc_code": "1381300028",
+          "name": "Damayang Lagi"
+        },
+        {
+          "psgc_code": "1381300029",
+          "name": "Del Monte"
+        },
+        {
+          "psgc_code": "1381300030",
+          "name": "Dioquino Zobel"
+        },
+        {
+          "psgc_code": "1381300031",
+          "name": "Doña Imelda"
+        },
+        {
+          "psgc_code": "1381300032",
+          "name": "Doña Josefa"
+        },
+        {
+          "psgc_code": "1381300033",
+          "name": "Don Manuel"
+        },
+        {
+          "psgc_code": "1381300034",
+          "name": "Duyan-duyan"
+        },
+        {
+          "psgc_code": "1381300035",
+          "name": "E. Rodriguez"
+        },
+        {
+          "psgc_code": "1381300036",
+          "name": "East Kamias"
+        },
+        {
+          "psgc_code": "1381300037",
+          "name": "Escopa I"
+        },
+        {
+          "psgc_code": "1381300038",
+          "name": "Escopa II"
+        },
+        {
+          "psgc_code": "1381300039",
+          "name": "Escopa III"
+        },
+        {
+          "psgc_code": "1381300040",
+          "name": "Escopa IV"
+        },
+        {
+          "psgc_code": "1381300041",
+          "name": "Fairview"
+        },
+        {
+          "psgc_code": "1381300042",
+          "name": "N.S. Amoranto"
+        },
+        {
+          "psgc_code": "1381300043",
+          "name": "Gulod"
+        },
+        {
+          "psgc_code": "1381300044",
+          "name": "Horseshoe"
+        },
+        {
+          "psgc_code": "1381300045",
+          "name": "Immaculate Concepcion"
+        },
+        {
+          "psgc_code": "1381300046",
+          "name": "Kaligayahan"
+        },
+        {
+          "psgc_code": "1381300047",
+          "name": "Kalusugan"
+        },
+        {
+          "psgc_code": "1381300048",
+          "name": "Kamuning"
+        },
+        {
+          "psgc_code": "1381300049",
+          "name": "Katipunan"
+        },
+        {
+          "psgc_code": "1381300050",
+          "name": "Kaunlaran"
+        },
+        {
+          "psgc_code": "1381300051",
+          "name": "Krus Na Ligas"
+        },
+        {
+          "psgc_code": "1381300052",
+          "name": "Laging Handa"
+        },
+        {
+          "psgc_code": "1381300053",
+          "name": "Libis"
+        },
+        {
+          "psgc_code": "1381300054",
+          "name": "Lourdes"
+        },
+        {
+          "psgc_code": "1381300055",
+          "name": "Loyola Heights"
+        },
+        {
+          "psgc_code": "1381300056",
+          "name": "Maharlika"
+        },
+        {
+          "psgc_code": "1381300057",
+          "name": "Malaya"
+        },
+        {
+          "psgc_code": "1381300058",
+          "name": "Manresa"
+        },
+        {
+          "psgc_code": "1381300059",
+          "name": "Mangga"
+        },
+        {
+          "psgc_code": "1381300060",
+          "name": "Mariana"
+        },
+        {
+          "psgc_code": "1381300061",
+          "name": "Mariblo"
+        },
+        {
+          "psgc_code": "1381300062",
+          "name": "Marilag"
+        },
+        {
+          "psgc_code": "1381300063",
+          "name": "Masagana"
+        },
+        {
+          "psgc_code": "1381300064",
+          "name": "Masambong"
+        },
+        {
+          "psgc_code": "1381300065",
+          "name": "Santo Domingo"
+        },
+        {
+          "psgc_code": "1381300066",
+          "name": "Matandang Balara"
+        },
+        {
+          "psgc_code": "1381300067",
+          "name": "Milagrosa"
+        },
+        {
+          "psgc_code": "1381300068",
+          "name": "Nagkaisang Nayon"
+        },
+        {
+          "psgc_code": "1381300069",
+          "name": "Nayong Kanluran"
+        },
+        {
+          "psgc_code": "1381300070",
+          "name": "Novaliches Proper"
+        },
+        {
+          "psgc_code": "1381300071",
+          "name": "Obrero"
+        },
+        {
+          "psgc_code": "1381300072",
+          "name": "Old Capitol Site"
+        },
+        {
+          "psgc_code": "1381300073",
+          "name": "Paang Bundok"
+        },
+        {
+          "psgc_code": "1381300074",
+          "name": "Pag-ibig Sa Nayon"
+        },
+        {
+          "psgc_code": "1381300075",
+          "name": "Paligsahan"
+        },
+        {
+          "psgc_code": "1381300076",
+          "name": "Paltok"
+        },
+        {
+          "psgc_code": "1381300077",
+          "name": "Pansol"
+        },
+        {
+          "psgc_code": "1381300078",
+          "name": "Paraiso"
+        },
+        {
+          "psgc_code": "1381300079",
+          "name": "Pasong Putik Proper"
+        },
+        {
+          "psgc_code": "1381300080",
+          "name": "Pasong Tamo"
+        },
+        {
+          "psgc_code": "1381300081",
+          "name": "Phil-Am"
+        },
+        {
+          "psgc_code": "1381300082",
+          "name": "Pinyahan"
+        },
+        {
+          "psgc_code": "1381300083",
+          "name": "Pinagkaisahan"
+        },
+        {
+          "psgc_code": "1381300084",
+          "name": "Project 6"
+        },
+        {
+          "psgc_code": "1381300085",
+          "name": "Quirino 2-A"
+        },
+        {
+          "psgc_code": "1381300086",
+          "name": "Quirino 2-B"
+        },
+        {
+          "psgc_code": "1381300087",
+          "name": "Quirino 2-C"
+        },
+        {
+          "psgc_code": "1381300088",
+          "name": "Quirino 3-A"
+        },
+        {
+          "psgc_code": "1381300089",
+          "name": "Ramon Magsaysay"
+        },
+        {
+          "psgc_code": "1381300090",
+          "name": "Roxas"
+        },
+        {
+          "psgc_code": "1381300091",
+          "name": "Sacred Heart"
+        },
+        {
+          "psgc_code": "1381300092",
+          "name": "Saint Ignatius"
+        },
+        {
+          "psgc_code": "1381300093",
+          "name": "Saint Peter"
+        },
+        {
+          "psgc_code": "1381300094",
+          "name": "Salvacion"
+        },
+        {
+          "psgc_code": "1381300095",
+          "name": "San Agustin"
+        },
+        {
+          "psgc_code": "1381300096",
+          "name": "San Antonio"
+        },
+        {
+          "psgc_code": "1381300097",
+          "name": "San Bartolome"
+        },
+        {
+          "psgc_code": "1381300098",
+          "name": "San Isidro"
+        },
+        {
+          "psgc_code": "1381300099",
+          "name": "San Isidro Labrador"
+        },
+        {
+          "psgc_code": "1381300100",
+          "name": "San Jose"
+        },
+        {
+          "psgc_code": "1381300101",
+          "name": "San Martin De Porres"
+        },
+        {
+          "psgc_code": "1381300102",
+          "name": "San Roque"
+        },
+        {
+          "psgc_code": "1381300103",
+          "name": "San Vicente"
+        },
+        {
+          "psgc_code": "1381300104",
+          "name": "Santa Cruz"
+        },
+        {
+          "psgc_code": "1381300105",
+          "name": "Santa Lucia"
+        },
+        {
+          "psgc_code": "1381300106",
+          "name": "Santa Monica"
+        },
+        {
+          "psgc_code": "1381300107",
+          "name": "Santa Teresita"
+        },
+        {
+          "psgc_code": "1381300108",
+          "name": "Santo Cristo"
+        },
+        {
+          "psgc_code": "1381300109",
+          "name": "Santo Niño"
+        },
+        {
+          "psgc_code": "1381300110",
+          "name": "Santol"
+        },
+        {
+          "psgc_code": "1381300111",
+          "name": "Sauyo"
+        },
+        {
+          "psgc_code": "1381300112",
+          "name": "Sienna"
+        },
+        {
+          "psgc_code": "1381300113",
+          "name": "Sikatuna Village"
+        },
+        {
+          "psgc_code": "1381300114",
+          "name": "Silangan"
+        },
+        {
+          "psgc_code": "1381300115",
+          "name": "Socorro"
+        },
+        {
+          "psgc_code": "1381300116",
+          "name": "South Triangle"
+        },
+        {
+          "psgc_code": "1381300117",
+          "name": "Tagumpay"
+        },
+        {
+          "psgc_code": "1381300118",
+          "name": "Talayan"
+        },
+        {
+          "psgc_code": "1381300119",
+          "name": "Talipapa"
+        },
+        {
+          "psgc_code": "1381300120",
+          "name": "Tandang Sora"
+        },
+        {
+          "psgc_code": "1381300121",
+          "name": "Tatalon"
+        },
+        {
+          "psgc_code": "1381300122",
+          "name": "Teachers Village East"
+        },
+        {
+          "psgc_code": "1381300123",
+          "name": "Teachers Village West"
+        },
+        {
+          "psgc_code": "1381300124",
+          "name": "U.P. Campus"
+        },
+        {
+          "psgc_code": "1381300125",
+          "name": "U.P. Village"
+        },
+        {
+          "psgc_code": "1381300126",
+          "name": "Ugong Norte"
+        },
+        {
+          "psgc_code": "1381300127",
+          "name": "Unang Sigaw"
+        },
+        {
+          "psgc_code": "1381300128",
+          "name": "Valencia"
+        },
+        {
+          "psgc_code": "1381300129",
+          "name": "Vasra"
+        },
+        {
+          "psgc_code": "1381300130",
+          "name": "Veterans Village"
+        },
+        {
+          "psgc_code": "1381300131",
+          "name": "Villa Maria Clara"
+        },
+        {
+          "psgc_code": "1381300132",
+          "name": "West Kamias"
+        },
+        {
+          "psgc_code": "1381300133",
+          "name": "West Triangle"
+        },
+        {
+          "psgc_code": "1381300134",
+          "name": "White Plains"
+        },
+        {
+          "psgc_code": "1381300135",
+          "name": "Balong Bato"
+        },
+        {
+          "psgc_code": "1381300136",
+          "name": "Capri"
+        },
+        {
+          "psgc_code": "1381300137",
+          "name": "Sangandaan"
+        },
+        {
+          "psgc_code": "1381300138",
+          "name": "Payatas"
+        },
+        {
+          "psgc_code": "1381300139",
+          "name": "Batasan Hills"
+        },
+        {
+          "psgc_code": "1381300140",
+          "name": "Holy Spirit"
+        },
+        {
+          "psgc_code": "1381300141",
+          "name": "Greater Lagro"
+        },
+        {
+          "psgc_code": "1381300142",
+          "name": "North Fairview"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381400000",
+      "name": "City of San Juan",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1381400001",
+          "name": "Addition Hills"
+        },
+        {
+          "psgc_code": "1381400002",
+          "name": "Balong-Bato"
+        },
+        {
+          "psgc_code": "1381400003",
+          "name": "Batis"
+        },
+        {
+          "psgc_code": "1381400004",
+          "name": "Corazon De Jesus"
+        },
+        {
+          "psgc_code": "1381400005",
+          "name": "Ermitaño"
+        },
+        {
+          "psgc_code": "1381400006",
+          "name": "Halo-halo"
+        },
+        {
+          "psgc_code": "1381400007",
+          "name": "Isabelita"
+        },
+        {
+          "psgc_code": "1381400008",
+          "name": "Kabayanan"
+        },
+        {
+          "psgc_code": "1381400009",
+          "name": "Little Baguio"
+        },
+        {
+          "psgc_code": "1381400010",
+          "name": "Maytunas"
+        },
+        {
+          "psgc_code": "1381400011",
+          "name": "Onse"
+        },
+        {
+          "psgc_code": "1381400012",
+          "name": "Pasadeña"
+        },
+        {
+          "psgc_code": "1381400013",
+          "name": "Pedro Cruz"
+        },
+        {
+          "psgc_code": "1381400014",
+          "name": "Progreso"
+        },
+        {
+          "psgc_code": "1381400015",
+          "name": "Rivera"
+        },
+        {
+          "psgc_code": "1381400016",
+          "name": "Salapan"
+        },
+        {
+          "psgc_code": "1381400017",
+          "name": "San Perfecto"
+        },
+        {
+          "psgc_code": "1381400018",
+          "name": "Santa Lucia"
+        },
+        {
+          "psgc_code": "1381400019",
+          "name": "Tibagan"
+        },
+        {
+          "psgc_code": "1381400020",
+          "name": "West Crame"
+        },
+        {
+          "psgc_code": "1381400021",
+          "name": "Greenhills"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381500000",
+      "name": "City of Taguig",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1381500001",
+          "name": "Tanyag"
+        },
+        {
+          "psgc_code": "1381500002",
+          "name": "Bagumbayan"
+        },
+        {
+          "psgc_code": "1381500003",
+          "name": "Bambang"
+        },
+        {
+          "psgc_code": "1381500004",
+          "name": "Calzada"
+        },
+        {
+          "psgc_code": "1381500005",
+          "name": "Hagonoy"
+        },
+        {
+          "psgc_code": "1381500006",
+          "name": "Ibayo-Tipas"
+        },
+        {
+          "psgc_code": "1381500007",
+          "name": "Ligid-Tipas"
+        },
+        {
+          "psgc_code": "1381500008",
+          "name": "Lower Bicutan"
+        },
+        {
+          "psgc_code": "1381500009",
+          "name": "Maharlika Village"
+        },
+        {
+          "psgc_code": "1381500010",
+          "name": "Napindan"
+        },
+        {
+          "psgc_code": "1381500011",
+          "name": "Palingon"
+        },
+        {
+          "psgc_code": "1381500012",
+          "name": "Santa Ana"
+        },
+        {
+          "psgc_code": "1381500013",
+          "name": "Central Signal Village"
+        },
+        {
+          "psgc_code": "1381500014",
+          "name": "Tuktukan"
+        },
+        {
+          "psgc_code": "1381500015",
+          "name": "Upper Bicutan"
+        },
+        {
+          "psgc_code": "1381500016",
+          "name": "Ususan"
+        },
+        {
+          "psgc_code": "1381500017",
+          "name": "Wawa"
+        },
+        {
+          "psgc_code": "1381500018",
+          "name": "Western Bicutan"
+        },
+        {
+          "psgc_code": "1381500019",
+          "name": "Central Bicutan"
+        },
+        {
+          "psgc_code": "1381500020",
+          "name": "Fort Bonifacio"
+        },
+        {
+          "psgc_code": "1381500021",
+          "name": "Katuparan"
+        },
+        {
+          "psgc_code": "1381500022",
+          "name": "New Lower Bicutan"
+        },
+        {
+          "psgc_code": "1381500023",
+          "name": "North Daang Hari"
+        },
+        {
+          "psgc_code": "1381500024",
+          "name": "North Signal Village"
+        },
+        {
+          "psgc_code": "1381500025",
+          "name": "Pinagsama"
+        },
+        {
+          "psgc_code": "1381500026",
+          "name": "San Miguel"
+        },
+        {
+          "psgc_code": "1381500027",
+          "name": "South Daang Hari"
+        },
+        {
+          "psgc_code": "1381500028",
+          "name": "South Signal Village"
+        },
+        {
+          "psgc_code": "1381500029",
+          "name": "Cembo"
+        },
+        {
+          "psgc_code": "1381500030",
+          "name": "Comembo"
+        },
+        {
+          "psgc_code": "1381500031",
+          "name": "East Rembo"
+        },
+        {
+          "psgc_code": "1381500032",
+          "name": "Pembo"
+        },
+        {
+          "psgc_code": "1381500033",
+          "name": "Pitogo"
+        },
+        {
+          "psgc_code": "1381500034",
+          "name": "Post Proper Northside"
+        },
+        {
+          "psgc_code": "1381500035",
+          "name": "Post Proper Southside"
+        },
+        {
+          "psgc_code": "1381500036",
+          "name": "Rizal"
+        },
+        {
+          "psgc_code": "1381500037",
+          "name": "South Cembo"
+        },
+        {
+          "psgc_code": "1381500038",
+          "name": "West Rembo"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381600000",
+      "name": "City of Valenzuela",
+      "type": "city",
+      "barangays": [
+        {
+          "psgc_code": "1381600001",
+          "name": "Arkong Bato"
+        },
+        {
+          "psgc_code": "1381600002",
+          "name": "Bagbaguin"
+        },
+        {
+          "psgc_code": "1381600003",
+          "name": "Balangkas"
+        },
+        {
+          "psgc_code": "1381600004",
+          "name": "Parada"
+        },
+        {
+          "psgc_code": "1381600005",
+          "name": "Bignay"
+        },
+        {
+          "psgc_code": "1381600006",
+          "name": "Bisig"
+        },
+        {
+          "psgc_code": "1381600007",
+          "name": "Canumay West"
+        },
+        {
+          "psgc_code": "1381600008",
+          "name": "Karuhatan"
+        },
+        {
+          "psgc_code": "1381600009",
+          "name": "Coloong"
+        },
+        {
+          "psgc_code": "1381600010",
+          "name": "Dalandanan"
+        },
+        {
+          "psgc_code": "1381600011",
+          "name": "Gen. T. De Leon"
+        },
+        {
+          "psgc_code": "1381600012",
+          "name": "Isla"
+        },
+        {
+          "psgc_code": "1381600013",
+          "name": "Lawang Bato"
+        },
+        {
+          "psgc_code": "1381600014",
+          "name": "Lingunan"
+        },
+        {
+          "psgc_code": "1381600015",
+          "name": "Mabolo"
+        },
+        {
+          "psgc_code": "1381600016",
+          "name": "Malanday"
+        },
+        {
+          "psgc_code": "1381600017",
+          "name": "Malinta"
+        },
+        {
+          "psgc_code": "1381600018",
+          "name": "Mapulang Lupa"
+        },
+        {
+          "psgc_code": "1381600019",
+          "name": "Marulas"
+        },
+        {
+          "psgc_code": "1381600020",
+          "name": "Maysan"
+        },
+        {
+          "psgc_code": "1381600021",
+          "name": "Palasan"
+        },
+        {
+          "psgc_code": "1381600022",
+          "name": "Pariancillo Villa"
+        },
+        {
+          "psgc_code": "1381600023",
+          "name": "Paso De Blas"
+        },
+        {
+          "psgc_code": "1381600024",
+          "name": "Pasolo"
+        },
+        {
+          "psgc_code": "1381600025",
+          "name": "Poblacion"
+        },
+        {
+          "psgc_code": "1381600026",
+          "name": "Pulo"
+        },
+        {
+          "psgc_code": "1381600027",
+          "name": "Punturin"
+        },
+        {
+          "psgc_code": "1381600028",
+          "name": "Rincon"
+        },
+        {
+          "psgc_code": "1381600029",
+          "name": "Tagalag"
+        },
+        {
+          "psgc_code": "1381600030",
+          "name": "Ugong"
+        },
+        {
+          "psgc_code": "1381600031",
+          "name": "Viente Reales"
+        },
+        {
+          "psgc_code": "1381600032",
+          "name": "Wawang Pulo"
+        },
+        {
+          "psgc_code": "1381600033",
+          "name": "Canumay East"
+        }
+      ]
+    },
+    {
+      "psgc_code": "1381701000",
+      "name": "Pateros",
+      "type": "municipality",
+      "barangays": [
+        {
+          "psgc_code": "1381701001",
+          "name": "Aguho"
+        },
+        {
+          "psgc_code": "1381701002",
+          "name": "Magtanggol"
+        },
+        {
+          "psgc_code": "1381701003",
+          "name": "Martires Del 96"
+        },
+        {
+          "psgc_code": "1381701004",
+          "name": "Poblacion"
+        },
+        {
+          "psgc_code": "1381701005",
+          "name": "San Pedro"
+        },
+        {
+          "psgc_code": "1381701006",
+          "name": "San Roque"
+        },
+        {
+          "psgc_code": "1381701007",
+          "name": "Santa Ana"
+        },
+        {
+          "psgc_code": "1381701008",
+          "name": "Santo Rosario-Kanluran"
+        },
+        {
+          "psgc_code": "1381701009",
+          "name": "Santo Rosario-Silangan"
+        },
+        {
+          "psgc_code": "1381701010",
+          "name": "Tabacalera"
+        }
+      ]
+    }
+  ]
+}

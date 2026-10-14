@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ApiError } from "../lib/api/client";
+import { OPERATIONAL_QUERY_STALE_TIME_MS } from "../lib/query-policies";
 
 interface QueryProviderProps {
   children: React.ReactNode;
@@ -30,7 +31,7 @@ export const QueryProvider: React.FC<QueryProviderProps> = ({ children }) => {
         }),
         defaultOptions: {
           queries: {
-            staleTime: 1000 * 5, // 5 seconds stale time allows real-time updates across multiple tabs/users
+            staleTime: OPERATIONAL_QUERY_STALE_TIME_MS,
             gcTime: 1000 * 60 * 30, // 30 minutes garbage collection
             refetchOnWindowFocus: true, // Automatically refetch latest server data when candidate/recruiter focuses the tab
             refetchOnReconnect: true,

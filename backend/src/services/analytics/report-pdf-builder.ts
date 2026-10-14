@@ -119,9 +119,10 @@ export function renderSummaryKPIs(doc: PDFKit.PDFDocument, kpis: KPIItem[]): voi
   const margin = doc.page.margins.left;
   const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const startY = doc.y;
-  const cardHeight = 34;
+  const hasDetail = kpis.some((k) => k.subtext);
+  const cardHeight = hasDetail ? 44 : 34;
   const cardGap = 8;
-  const count = Math.min(kpis.length, 5);
+  const count = Math.min(kpis.length, 7);
   const cardWidth = (contentWidth - (count - 1) * cardGap) / count;
 
   kpis.slice(0, count).forEach((kpi, idx) => {
@@ -140,9 +141,28 @@ export function renderSummaryKPIs(doc: PDFKit.PDFDocument, kpis: KPIItem[]): voi
       width: cardWidth - 16,
       ellipsis: true,
     });
+
+    if (kpi.subtext) {
+      doc.font("Helvetica").fontSize(6.5).fillColor(HR_THEME.colors.textMuted);
+      doc.text(kpi.subtext, cardX + 8, startY + 32, { width: cardWidth - 16, ellipsis: true, lineBreak: false });
+    }
   });
 
   doc.y = startY + cardHeight + 12;
+}
+
+/** Section heading with an optional one-line note. Starts a new page when little room is left for a table. */
+export function renderSectionTitle(doc: PDFKit.PDFDocument, title: string, note?: string): void {
+  if (doc.y > doc.page.height - doc.page.margins.bottom - 110) doc.addPage();
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(HR_THEME.colors.primaryNavy);
+  doc.text(title, doc.page.margins.left, doc.y, { lineBreak: false });
+  doc.y += 14;
+  if (note) {
+    doc.font("Helvetica").fontSize(7.5).fillColor(HR_THEME.colors.textMuted);
+    doc.text(note, doc.page.margins.left, doc.y, { width: doc.page.width - doc.page.margins.left - doc.page.margins.right });
+    doc.y += 4;
+  }
+  doc.y += 2;
 }
 
 /**

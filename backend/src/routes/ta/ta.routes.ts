@@ -1,11 +1,13 @@
 import { Router } from "express";
+import { requestDocumentUpdateHandler } from "../../controllers/ta/ta.compliance.controller.js";
 import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
-import { upload } from '../../middleware/upload.middleware.js';
+import { upload, uploadContractScan } from '../../middleware/upload.middleware.js';
 import { validate, validateDateRangeQuery } from '../../middleware/validate.middleware.js';
 import { taSchema } from '../../schemas/ta.schema.js';
 import { analyticsSchema } from '../../schemas/analytics.schema.js';
 import { candidateScoringRouteSchema } from '../../schemas/candidate-scoring.schema.js';
 import { talentPoolInvitationRouteSchema } from '../../schemas/talent-pool-invitation.schema.js';
+import { getTADashboardCountsHandler } from '../../controllers/ta/ta.dashboard.controller.js';
 
 import {
   listJobs,
@@ -19,11 +21,12 @@ import {
   listApplications,
   getApplication,
   updateApplicationStatus,
+  recordBackoutHandler,
   archiveApplication,
   restoreApplication,
   getRecruiterDecisionsHandler,
-  signContractHandler,
-  completeOrientationHandler,
+  downloadContractPdfHandler,
+  uploadSignedContractHandler,
   updateCandidateProfileHandler,
 } from '../../controllers/ta/ta.applications.controller.js';
 
@@ -55,7 +58,6 @@ import {
   batchSendInvitationsHandler,
   listInvitationsHandler,
   cancelInvitationHandler,
-  expireOverdueInvitationsHandler,
 } from '../../controllers/ta/talent-pool-invitation.ta.controller.js';
 
 import {
@@ -100,23 +102,20 @@ import {
   getDeploymentDetailsHandler,
   signDeploymentContractHandler,
   updateDeploymentContractHandler,
+  recordDeploymentReviewHandler,
   fastTrackRedeploymentHandler,
 } from '../../controllers/ta/ta.deployments.controller.js';
 
 import {
   getPipelineStatsHandler,
-  getTimeToFillStatsHandler,
-  getDeploymentStatsHandler,
   getComplianceOverviewHandler,
   exportPipelineReportHandler,
   exportDeploymentReportHandler,
-  getTAOverviewHandler,
-  getTAActivityTrendHandler,
-  getTAPipelineFunnelHandler,
   getTAPendingActionsHandler,
   getTAFilterOptionsHandler,
   getTADashboardSummaryHandler,
 } from '../../controllers/ta/ta.analytics.controller.js';
+import { requireOwned, requireOwnedBody } from "../../services/ta/ownership.js";
 
 const router = Router();
 
@@ -124,103 +123,102 @@ router.use(authenticateJWT);
 router.use(requireRole("TALENT_ACQUISITION"));
 router.use(validateDateRangeQuery);
 
+router.get("/dashboard-counts", getTADashboardCountsHandler);
+
 // Client & MRF Management
 router.get("/clients", validate(taSchema.listClients), listClientsHandler);
 router.post("/clients", validate(taSchema.createClient), createClientHandler);
-router.get("/clients/:id", validate(taSchema.idParams), getClientDetailsHandler);
-router.patch("/clients/:id", validate(taSchema.updateClient), updateClientHandler);
+router.get("/clients/:id", validate(taSchema.idParams), requireOwned("client"), getClientDetailsHandler);
+router.patch("/clients/:id", validate(taSchema.updateClient), requireOwned("client"), updateClientHandler);
 
 router.get("/mrfs", validate(taSchema.listMRFs), listMRFsHandler);
 router.post("/mrfs", validate(taSchema.createMRF), createMRFHandler);
-router.get("/mrfs/:id", validate(taSchema.idParams), getMRFDetailsHandler);
-router.patch("/mrfs/:id", validate(taSchema.updateMRF), updateMRFHandler);
-router.post("/mrfs/:id/link-job", validate(taSchema.linkJobToMRF), linkJobToMRFHandler);
-router.post("/mrfs/:id/compliance-templates/bulk", validate(taSchema.createComplianceTemplatesBulk), addMRFComplianceTemplatesBulkHandler);
-router.post("/mrfs/:id/compliance-templates", validate(taSchema.createComplianceTemplate), addMRFComplianceTemplateHandler);
-router.get("/mrfs/:id/compliance-templates", validate(taSchema.idParams), listMRFComplianceTemplatesHandler);
-router.delete("/mrfs/compliance-templates/:templateId", validate(taSchema.deleteMrfComplianceTemplate), removeMRFComplianceTemplateHandler);
+router.get("/mrfs/:id", validate(taSchema.idParams), requireOwned("mrf"), getMRFDetailsHandler);
+router.patch("/mrfs/:id", validate(taSchema.updateMRF), requireOwned("mrf"), updateMRFHandler);
+router.post("/mrfs/:id/link-job", validate(taSchema.linkJobToMRF), requireOwned("mrf"), linkJobToMRFHandler);
+router.post("/mrfs/:id/compliance-templates/bulk", validate(taSchema.createComplianceTemplatesBulk), requireOwned("mrf"), addMRFComplianceTemplatesBulkHandler);
+router.post("/mrfs/:id/compliance-templates", validate(taSchema.createComplianceTemplate), requireOwned("mrf"), addMRFComplianceTemplateHandler);
+router.get("/mrfs/:id/compliance-templates", validate(taSchema.idParams), requireOwned("mrf"), listMRFComplianceTemplatesHandler);
+router.delete("/mrfs/compliance-templates/:templateId", validate(taSchema.deleteMrfComplianceTemplate), requireOwned("template", "templateId"), removeMRFComplianceTemplateHandler);
 
 // Job Postings & Candidate Scoring
 router.get("/jobs", validate(taSchema.listJobs), listJobs);
 router.post("/jobs", validate(taSchema.createJob), createJob);
-router.get("/jobs/:id", validate(taSchema.idParams), getJob);
-router.patch("/jobs/:id", validate(taSchema.updateJob), updateJob);
-router.patch("/jobs/:id/status", validate(taSchema.updateStatus), updateJobStatus);
-router.post("/jobs/:jobId/rank-candidates", validate(candidateScoringRouteSchema.rankJob), rankCandidates);
-router.get("/jobs/:jobId/ranked-candidates", validate(candidateScoringRouteSchema.rankedCandidates), getRankedCandidates);
-router.get("/jobs/:jobId/talent-pool", validate(candidateScoringRouteSchema.talentPool), getTalentPool);
+router.get("/jobs/:id", validate(taSchema.idParams), requireOwned("job"), getJob);
+router.patch("/jobs/:id", validate(taSchema.updateJob), requireOwned("job"), updateJob);
+router.patch("/jobs/:id/status", validate(taSchema.updateStatus), requireOwned("job"), updateJobStatus);
+router.post("/jobs/:jobId/rank-candidates", validate(candidateScoringRouteSchema.rankJob), requireOwned("job", "jobId"), rankCandidates);
+router.get("/jobs/:jobId/ranked-candidates", validate(candidateScoringRouteSchema.rankedCandidates), requireOwned("job", "jobId"), getRankedCandidates);
+router.get("/jobs/:jobId/talent-pool", validate(candidateScoringRouteSchema.talentPool), requireOwned("job", "jobId"), getTalentPool);
 router.get("/candidates/:candidateId/similar", validate(candidateScoringRouteSchema.similarCandidates), getSimilarCandidates);
-router.patch("/candidates/:id", validate(taSchema.updateCandidateProfile), updateCandidateProfileHandler);
-router.post("/talent-pool/search", validate(candidateScoringRouteSchema.searchTalentPool), searchTalentPool);
+router.patch("/candidates/:id", validate(taSchema.updateCandidateProfile), requireOwned("candidate"), updateCandidateProfileHandler);
+router.post("/talent-pool/search", validate(candidateScoringRouteSchema.searchTalentPool), requireOwnedBody("job", "jobId"), searchTalentPool);
 router.post("/talent-pool/members", validate(candidateScoringRouteSchema.addCandidate), addCandidateToPool);
-router.post("/talent-pool/contacts", validate(candidateScoringRouteSchema.recordContact), recordContact);
-router.post("/talent-pool/consider", validate(candidateScoringRouteSchema.considerCandidate), considerCandidateForJob);
-router.post("/talent-pool/invitations", validate(talentPoolInvitationRouteSchema.send), sendInvitationHandler);
-router.post("/talent-pool/invitations/batch", validate(talentPoolInvitationRouteSchema.batchSend), batchSendInvitationsHandler);
+router.post("/talent-pool/contacts", validate(candidateScoringRouteSchema.recordContact), requireOwnedBody("job", "jobPostingId"), recordContact);
+router.post("/talent-pool/consider", validate(candidateScoringRouteSchema.considerCandidate), requireOwnedBody("job", "targetJobId"), considerCandidateForJob);
+router.post("/talent-pool/invitations", validate(talentPoolInvitationRouteSchema.send), requireOwnedBody("job", "targetJobId"), sendInvitationHandler);
+router.post("/talent-pool/invitations/batch", validate(talentPoolInvitationRouteSchema.batchSend), requireOwnedBody("job", "targetJobId"), batchSendInvitationsHandler);
 router.get("/talent-pool/invitations", validate(talentPoolInvitationRouteSchema.list), listInvitationsHandler);
 router.delete("/talent-pool/invitations/:id", validate(talentPoolInvitationRouteSchema.cancel), cancelInvitationHandler);
-router.post("/talent-pool/invitations/expire-overdue", expireOverdueInvitationsHandler);
 
 // Application Pipeline & Recruiter Decisions
 router.get("/applications", validate(taSchema.listApplications), listApplications);
-router.get("/applications/:id", validate(taSchema.idParams), getApplication);
-router.patch("/applications/:id/status", validate(taSchema.updateStatus), updateApplicationStatus);
-router.patch("/applications/:id/archive", validate(taSchema.archiveRestore), archiveApplication);
-router.patch("/applications/:id/restore", validate(taSchema.archiveRestore), restoreApplication);
-router.get("/applications/:id/decisions", validate(taSchema.idParams), getRecruiterDecisionsHandler);
-router.post("/applications/:id/contract/sign", validate(taSchema.signContract), signContractHandler);
-router.post("/applications/:id/orientation/complete", validate(taSchema.completeOrientation), completeOrientationHandler);
+router.get("/applications/:id", validate(taSchema.idParams), requireOwned("application"), getApplication);
+router.patch("/applications/:id/status", validate(taSchema.updateApplicationStatus), requireOwned("application"), updateApplicationStatus);
+router.post("/applications/:id/backout", validate(taSchema.recordBackout), requireOwned("application"), recordBackoutHandler);
+router.patch("/applications/:id/archive", validate(taSchema.archiveRestore), requireOwned("application"), archiveApplication);
+router.patch("/applications/:id/restore", validate(taSchema.archiveRestore), requireOwned("application"), restoreApplication);
+router.get("/applications/:id/decisions", validate(taSchema.idParams), requireOwned("application"), getRecruiterDecisionsHandler);
+router.get("/applications/:id/contract/pdf", validate(taSchema.downloadContractPdf), requireOwned("application"), downloadContractPdfHandler);
+router.post("/applications/:id/contract/signed", uploadContractScan.single("file"), validate(taSchema.uploadSignedContract), requireOwned("application"), uploadSignedContractHandler);
 
 // Client Endorsement
-router.post("/applications/:id/endorse", validate(taSchema.endorseCandidate), recordEndorsementHandler);
-router.get("/applications/:id/endorsements", validate(taSchema.idParams), listEndorsementsHandler);
-router.patch("/applications/:id/endorsements/:endorsementId", validate(taSchema.updateEndorsement), updateEndorsementHandler);
+router.post("/applications/:id/endorse", validate(taSchema.endorseCandidate), requireOwned("application"), recordEndorsementHandler);
+router.get("/applications/:id/endorsements", validate(taSchema.idParams), requireOwned("application"), listEndorsementsHandler);
+router.patch("/applications/:id/endorsements/:endorsementId", validate(taSchema.updateEndorsement), requireOwned("application"), requireOwned("endorsement", "endorsementId"), updateEndorsementHandler);
 
 // AI Resume Scoring
-router.post("/applications/:id/analyze", validate(taSchema.idParams), analyzeApplication);
+router.post("/applications/:id/analyze", validate(taSchema.idParams), requireOwned("application"), analyzeApplication);
 
 // Interview Scheduling & Compliance
 router.get("/compliance/interviews", checkInterviewCompliance);
-router.get("/applications/:id/interviews", validate(taSchema.idParams), listInterviews);
-router.post("/applications/:id/interviews", validate(taSchema.scheduleInterview), scheduleInterview);
-router.post("/applications/:id/interviews/record", validate(taSchema.recordInterview), recordInterviewDirectly);
-router.patch("/applications/:id/interviews/:interviewId/status", validate(taSchema.updateInterviewStatus), updateInterviewStatus);
+router.get("/applications/:id/interviews", validate(taSchema.idParams), requireOwned("application"), listInterviews);
+router.post("/applications/:id/interviews", validate(taSchema.scheduleInterview), requireOwned("application"), scheduleInterview);
+router.post("/applications/:id/interviews/record", validate(taSchema.recordInterview), requireOwned("application"), recordInterviewDirectly);
+router.patch("/applications/:id/interviews/:interviewId/status", validate(taSchema.updateInterviewStatus), requireOwned("application"), requireOwned("interview", "interviewId"), updateInterviewStatus);
 
 // Compliance Checklist
 router.get("/compliance/queue", validate(taSchema.complianceQueueQuery), getScopedApplicationsHandler);
-router.post("/applications/:id/compliance", validate(taSchema.createComplianceRequirement), createRequirementHandler);
-router.get("/applications/:id/compliance", validate(taSchema.idParams), listRequirementsHandler);
-router.post("/compliance/:requirementId/submit", validate(taSchema.submitComplianceDocument), submitDocumentHandler);
-router.patch("/compliance/:requirementId/review", validate(taSchema.reviewComplianceRequirement), reviewRequirementHandler);
-router.patch("/compliance/:requirementId/deadline", validate(taSchema.updateComplianceDeadline), updateRequirementDeadlineHandler);
-router.delete("/compliance/:requirementId", validate(taSchema.deleteComplianceRequirement), deleteRequirementHandler);
+router.post("/applications/:id/compliance", validate(taSchema.createComplianceRequirement), requireOwned("application"), createRequirementHandler);
+router.get("/applications/:id/compliance", validate(taSchema.idParams), requireOwned("application"), listRequirementsHandler);
+router.post("/compliance/:requirementId/submit", validate(taSchema.submitComplianceDocument), requireOwned("requirement", "requirementId"), submitDocumentHandler);
+router.patch("/compliance/:requirementId/review", validate(taSchema.reviewComplianceRequirement), requireOwned("requirement", "requirementId"), reviewRequirementHandler);
+router.post("/compliance/:requirementId/update-request", validate(taSchema.requestDocumentUpdate), requireOwned("requirement", "requirementId"), requestDocumentUpdateHandler);
+router.patch("/compliance/:requirementId/deadline", validate(taSchema.updateComplianceDeadline), requireOwned("requirement", "requirementId"), updateRequirementDeadlineHandler);
+router.delete("/compliance/:requirementId", validate(taSchema.deleteComplianceRequirement), requireOwned("requirement", "requirementId"), deleteRequirementHandler);
 
 // Deployment Lifecycle
-router.post("/applications/:id/deploy", validate(taSchema.createDeployment), createDeploymentHandler);
-router.post("/applications/:id/fast-track-redeployment", validate(taSchema.fastTrackRedeployment), fastTrackRedeploymentHandler);
-router.patch("/deployments/:id/status", validate(taSchema.updateDeploymentStatus), updateDeploymentStatusHandler);
-router.post("/deployments/:id/sign-contract", validate(taSchema.signDeploymentContract), signDeploymentContractHandler);
-router.patch("/deployments/:id/contract", validate(taSchema.updateDeploymentContract), updateDeploymentContractHandler);
+router.post("/applications/:id/deploy", validate(taSchema.createDeployment), requireOwned("application"), createDeploymentHandler);
+router.post("/applications/:id/fast-track-redeployment", validate(taSchema.fastTrackRedeployment), requireOwned("application"), fastTrackRedeploymentHandler);
+router.patch("/deployments/:id/status", validate(taSchema.updateDeploymentStatus), requireOwned("deployment"), updateDeploymentStatusHandler);
+router.post("/deployments/:id/sign-contract", validate(taSchema.signDeploymentContract), requireOwned("deployment"), signDeploymentContractHandler);
+router.patch("/deployments/:id/contract", validate(taSchema.updateDeploymentContract), requireOwned("deployment"), updateDeploymentContractHandler);
+router.post("/deployments/:id/reviews", validate(taSchema.recordDeploymentReview), requireOwned("deployment"), recordDeploymentReviewHandler);
 router.get("/deployments", validate(taSchema.listDeployments), listDeploymentsHandler);
-router.get("/deployments/:id", validate(taSchema.idParams), getDeploymentDetailsHandler);
+router.get("/deployments/:id", validate(taSchema.idParams), requireOwned("deployment"), getDeploymentDetailsHandler);
 
 // Analytics & Reports
 router.get("/analytics/dashboard", validate(analyticsSchema.filters), getTADashboardSummaryHandler);
-router.get("/analytics/overview", validate(analyticsSchema.filters), getTAOverviewHandler);
-router.get("/analytics/activity", validate(analyticsSchema.filters), getTAActivityTrendHandler);
-router.get("/analytics/pipeline-funnel", validate(analyticsSchema.filters), getTAPipelineFunnelHandler);
 router.get("/analytics/pending-actions", validate(analyticsSchema.filters), getTAPendingActionsHandler);
 router.get("/analytics/filters", validate(analyticsSchema.filters), getTAFilterOptionsHandler);
 
 // Legacy Analytics endpoints (preserved)
 router.get("/analytics/pipeline", validate(analyticsSchema.filters), getPipelineStatsHandler);
-router.get("/analytics/time-to-fill", validate(analyticsSchema.filters), getTimeToFillStatsHandler);
-router.get("/analytics/deployments", validate(analyticsSchema.filters), getDeploymentStatsHandler);
 router.get("/analytics/compliance", validate(analyticsSchema.filters), getComplianceOverviewHandler);
 router.get("/reports/pipeline", validate(analyticsSchema.report), exportPipelineReportHandler);
 router.get("/reports/deployments", validate(analyticsSchema.report), exportDeploymentReportHandler);
 
 // Post-Hire & Vault 201
-router.post("/applications/:id/documents", upload.single("file"), validate(taSchema.uploadPostHireDocument), uploadPostHireDocument);
+router.post("/applications/:id/documents", upload.single("file"), validate(taSchema.uploadPostHireDocument), requireOwned("application"), uploadPostHireDocument);
 
 export default router;

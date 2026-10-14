@@ -28,6 +28,12 @@ import {
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
+import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
+import {
+  validatePersonName,
+  validateStandardText,
+  validatePhilippineContactPhone,
+} from "../../lib/statutory-validation";
 
 const EMPTY_LIST: any[] = [];
 
@@ -37,7 +43,6 @@ export const ClientsPage: React.FC = () => {
 
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
-  const [mineOnly, setMineOnly] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 6;
 
@@ -58,11 +63,7 @@ export const ClientsPage: React.FC = () => {
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
     queryFn: taApi.listClients,
-  });
-
-  const myJobsQuery = useQuery({
-    queryKey: ["ta", "jobs", "dropdown", { mineOnly: true }],
-    queryFn: () => taApi.listJobs({ mineOnly: true }),
+    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
 
   const createClientMutation = useMutation({
@@ -91,16 +92,6 @@ export const ClientsPage: React.FC = () => {
   });
 
   const clients = clientsQuery.data ?? EMPTY_LIST;
-  const myJobs = myJobsQuery.data ?? EMPTY_LIST;
-
-  const myClientIds = React.useMemo(() => {
-    const ids = new Set<number>();
-    myJobs.forEach((j: any) => {
-      if (j.mrf?.clientId) ids.add(j.mrf.clientId);
-      if (j.mrf?.client?.id) ids.add(j.mrf.client.id);
-    });
-    return ids;
-  }, [myJobs]);
 
   const availableIndustries = React.useMemo(() => {
     const indSet = new Set<string>();
@@ -114,9 +105,6 @@ export const ClientsPage: React.FC = () => {
 
   const filteredClients = React.useMemo(() => {
     return clients.filter((c) => {
-      if (mineOnly && !myClientIds.has(c.id)) {
-        return false;
-      }
       if (filterValues.status === "ACTIVE" && !c.isActive) return false;
       if (filterValues.status === "INACTIVE" && c.isActive) return false;
       if (filterValues.industry && c.industry !== filterValues.industry) return false;
@@ -137,7 +125,7 @@ export const ClientsPage: React.FC = () => {
 
       return true;
     });
-  }, [clients, mineOnly, myClientIds, filterValues, search]);
+  }, [clients, filterValues, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredClients.length / pageSize));
   const paginatedClients = filteredClients.slice((page - 1) * pageSize, page * pageSize);
@@ -212,38 +200,6 @@ export const ClientsPage: React.FC = () => {
               ]
             : []),
         ]}
-        actions={
-          <div className="flex items-center border border-slate-300 bg-slate-100 p-0.5 rounded text-xs font-mono">
-            <button
-              type="button"
-              onClick={() => {
-                setMineOnly(false);
-                setPage(1);
-              }}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                !mineOnly
-                  ? "bg-white text-slate-900 shadow-xs border border-slate-200 font-semibold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              All clients
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMineOnly(true);
-                setPage(1);
-              }}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                mineOnly
-                  ? "bg-white text-slate-900 shadow-xs border border-slate-200 font-semibold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              My clients
-            </button>
-          </div>
-        }
       />
 
       {clientsQuery.isLoading ? (
@@ -273,11 +229,7 @@ export const ClientsPage: React.FC = () => {
           <EmptyState
             icon={<Building2 className="w-6 h-6" />}
             title="No matching clients"
-            description={
-              mineOnly
-                ? "You do not have any openings or placements tied to clients matching your search."
-                : "No clients matched your search and filters. Try clearing the filters."
-            }
+            description="No clients matched your search and filters. Try clearing the filters."
             action={
               <Button variant="outline" size="sm" onClick={handleReset}>
                 Reset filters
@@ -407,6 +359,45 @@ export const ClientsPage: React.FC = () => {
           onSubmit={(e) => {
             e.preventDefault();
             if (!name.trim()) return;
+
+            const nameErr = validateStandardText(name, "Legal company name", { maxLength: 200 });
+            if (nameErr) {
+              notify.error("Invalid Company Name", nameErr);
+              return;
+            }
+
+            if (tradeName.trim()) {
+              const tradeErr = validateStandardText(tradeName, "Brand name", { maxLength: 200 });
+              if (tradeErr) {
+                notify.error("Invalid Brand Name", tradeErr);
+                return;
+              }
+            }
+
+            if (contactFirstName.trim()) {
+              const fnErr = validatePersonName(contactFirstName, "Contact first name");
+              if (fnErr) {
+                notify.error("Invalid Contact Name", fnErr);
+                return;
+              }
+            }
+
+            if (contactLastName.trim()) {
+              const lnErr = validatePersonName(contactLastName, "Contact last name");
+              if (lnErr) {
+                notify.error("Invalid Contact Name", lnErr);
+                return;
+              }
+            }
+
+            if (contactPhone.trim()) {
+              const phoneErr = validatePhilippineContactPhone(contactPhone, { label: "Contact phone" });
+              if (phoneErr) {
+                notify.error("Invalid Contact Phone", phoneErr);
+                return;
+              }
+            }
+
             if (contactEmail.trim() && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(contactEmail.trim())) {
               setEmailError("Official contact email must be a valid @gmail.com address");
               return;
@@ -462,6 +453,7 @@ export const ClientsPage: React.FC = () => {
             <Input
               label="Contact first name"
               maxLength={100}
+              nameInput
               placeholder="e.g. Roberto"
               value={contactFirstName}
               onChange={(e) => setContactFirstName(e.target.value)}
@@ -469,6 +461,7 @@ export const ClientsPage: React.FC = () => {
             <Input
               label="Contact last name"
               maxLength={100}
+              nameInput
               placeholder="e.g. Tan"
               value={contactLastName}
               onChange={(e) => setContactLastName(e.target.value)}

@@ -1,11 +1,26 @@
 import { z } from "zod";
-import { boundedIdText, boundedText, boundedPageSize, dateOnly, finiteNumber, FIELD_LIMITS, requiredText } from "./field-limits.js";
+import { boundedIdText, boundedText, boundedPageSize, dateOnly, finiteNumber, FIELD_LIMITS, requiredText, optionalPersonNameSchema } from "./field-limits.js";
 
 const userId = z.string().trim().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/, "Invalid user ID");
 const backupId = z.string().trim().min(1).max(255).regex(/^[A-Za-z0-9._-]+$/, "Invalid backup ID").refine((value) => !value.includes(".."), "Invalid backup ID");
 
 export const adminSchema = {
-  listUsers: z.object({ query: z.object({}).strict() }),
+  correctInterviewResult: z.object({
+    params: z.object({ interviewId: boundedIdText }).strict(),
+    body: z.object({
+      result: z.enum(["PASS", "PASSED", "FAIL", "FAILED", "NO_SHOW"]),
+      reason: z.string().trim().min(10, "A reason of at least 10 characters is required").max(FIELD_LIMITS.notes),
+      notes: boundedText(FIELD_LIMITS.notes).optional(),
+    }).strict(),
+  }),
+  listUsers: z.object({
+    query: z.object({
+      page: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional(),
+      limit: boundedPageSize.optional(),
+      search: boundedText(FIELD_LIMITS.search).optional(),
+      role: z.enum(["APPLICANT", "TALENT_ACQUISITION", "ADMINISTRATOR"]).optional(),
+    }).strict(),
+  }),
   userParams: z.object({ params: z.object({ id: userId }).strict() }),
   backupList: z.object({ query: z.object({ limit: finiteNumber({ min: 1, max: FIELD_LIMITS.pageSize, integer: true }).optional() }).strict() }),
   backupIdParams: z.object({ params: z.object({ id: backupId }).strict() }),
@@ -16,6 +31,15 @@ export const adminSchema = {
   }),
   restoreUploadedBackup: z.object({ body: z.object({}).strict().optional() }),
   mrfIdParams: z.object({ params: z.object({ id: boundedIdText }).strict() }),
+  idParams: z.object({ params: z.object({ id: boundedIdText }).strict() }),
+  assignment: z.object({
+    params: z.object({ id: boundedIdText }).strict(),
+    body: z.object({ assignedTaId: userId.nullable() }).strict(),
+  }),
+  reassignRecords: z.object({
+    params: z.object({ id: userId }).strict(),
+    body: z.object({ toTaId: userId }).strict(),
+  }),
   auditLogs: z.object({
     query: z.object({
       action: boundedText(FIELD_LIMITS.shortText).optional(),
@@ -63,8 +87,8 @@ export const adminSchema = {
   inviteTA: z.object({
     body: z.object({
       email: z.string().email("Invalid email format").max(FIELD_LIMITS.email),
-      firstName: z.string().trim().min(1, "First name is required").max(FIELD_LIMITS.name).optional(),
-      lastName: z.string().trim().min(1, "Last name is required").max(FIELD_LIMITS.name).optional(),
+      firstName: optionalPersonNameSchema("First name"),
+      lastName: optionalPersonNameSchema("Last name"),
     }).strict(),
   }),
 };

@@ -4,6 +4,7 @@ import { revalidateJobScoring } from "../scoring/scoring-configuration.service.j
 import { logAudit } from "../../utils/audit.js";
 import { discoverTalentPoolForJob } from "../scoring/talent-pool-knn.service.js";
 import { sendNotification } from "../../utils/notification.js";
+import { assertOwns, ownedWhere, type Actor } from "./ownership.js";
 
 export interface ListTAJobsOptions {
   status?: string;
@@ -12,13 +13,17 @@ export interface ListTAJobsOptions {
   mineOnly?: boolean;
   currentUserId?: string;
   postedById?: string;
+  actor?: Actor;
+  page?: number;
+  limit?: number;
 }
 
 export const listTAJobs = async (statusOrOptions?: string | ListTAJobsOptions) => {
   const options: ListTAJobsOptions = typeof statusOrOptions === "string" ? { status: statusOrOptions } : statusOrOptions || {};
-  const { status, search, clientId, mineOnly, currentUserId, postedById } = options;
+  const { status, search, clientId, mineOnly, currentUserId, postedById, actor, page, limit } = options;
 
   const andConditions: any[] = [];
+  if (actor) andConditions.push(ownedWhere.job(actor));
 
   if (status) {
     andConditions.push({ status: status as JobStatus });
@@ -50,9 +55,14 @@ export const listTAJobs = async (statusOrOptions?: string | ListTAJobsOptions) =
 
   const where = andConditions.length > 0 ? { AND: andConditions } : undefined;
 
-  return await prisma.jobPosting.findMany({
+  const paginationRequested = page !== undefined || limit !== undefined;
+  const resolvedPage = page ?? 1;
+  const resolvedLimit = limit ?? 25;
+  const [jobs, total] = await Promise.all([
+    prisma.jobPosting.findMany({
     where,
     orderBy: { createdAt: "desc" },
+    ...(paginationRequested ? { skip: (resolvedPage - 1) * resolvedLimit, take: resolvedLimit } : {}),
     select: {
       id: true,
       title: true,
@@ -78,7 +88,12 @@ export const listTAJobs = async (statusOrOptions?: string | ListTAJobsOptions) =
       postedBy: { select: { id: true, email: true } },
       _count: { select: { applications: true } },
     },
-  });
+    }),
+    paginationRequested ? prisma.jobPosting.count({ where }) : Promise.resolve(0),
+  ]);
+
+  if (!paginationRequested) return jobs;
+  return { items: jobs, total, page: resolvedPage, pageSize: resolvedLimit, totalPages: Math.ceil(total / resolvedLimit) };
 };
 
 export const triggerTalentPoolAutoDiscovery = async (jobId: number, postedById: string) => {
@@ -112,8 +127,14 @@ export const triggerTalentPoolAutoDiscovery = async (jobId: number, postedById: 
   }
 };
 
-export const createTAJob = async (postedById: string, data: any) => {
+export const createTAJob = async (postedById: string, data: any, actor?: Actor) => {
   const { title, description, requirements, location, imageUrl, mrfId, status, isEvergreen } = data;
+
+  // Client -> MRF -> job posting: a TA posts openings only under a requisition they own.
+  if (actor) {
+    if (!mrfId) throw new Error("Select a manpower request for this job posting");
+    await assertOwns("mrf", Number(mrfId), actor);
+  }
 
   if (!title || !description || !requirements) {
     throw new Error("title, description, and requirements are required");
@@ -212,7 +233,7 @@ export const getTAJob = async (jobId: number) => {
   };
 };
 
-export const updateTAJob = async (jobId: number, data: any) => {
+export const updateTAJob = async (jobId: number, data: any, actor?: Actor) => {
   const existing = await prisma.jobPosting.findUnique({ where: { id: jobId } });
   if (!existing) throw new Error("Job posting not found");
 
@@ -221,6 +242,10 @@ export const updateTAJob = async (jobId: number, data: any) => {
   }
 
   const { title, description, requirements, location, imageUrl, mrfId, isEvergreen } = data;
+  if (actor && mrfId !== undefined) {
+    if (!mrfId) throw new Error("A job posting must stay linked to a manpower request");
+    await assertOwns("mrf", Number(mrfId), actor);
+  }
 
   const updated = await prisma.jobPosting.update({
     where: { id: jobId },

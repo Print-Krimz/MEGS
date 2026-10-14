@@ -10,7 +10,9 @@ import {
   ErrorState,
   DocumentPreviewModal,
 } from "../../components/common";
-import { Button } from "../../components/ui";
+import { Button, Dialog } from "../../components/ui";
+import { BackoutDialog } from "../../components/ta/BackoutDialog";
+import { canApplicantWithdraw } from "../../lib/backout";
 import { formatDate, formatDateTime } from "../../lib/utils";
 import {
   Briefcase,
@@ -26,9 +28,26 @@ import {
   Check,
   X,
   FileText,
+  Library,
 } from "lucide-react";
 import { ApplicationStatus } from "../../lib/types/enums";
+import type { ComplianceRequirement } from "../../lib/types/application.types";
 import { notify } from "../../lib/feedback";
+import { getApplicationRefetchInterval } from "../../lib/query-policies";
+import { addManilaCalendarDays, getManilaToday } from "../../lib/field-limits";
+
+const normalizeDocumentLabel = (value: string) => value.trim().toLowerCase();
+
+type RequirementRef = Pick<ComplianceRequirement, "id" | "documentId" | "documentLabel" | "reviewStatus">;
+
+const libraryStatusLabel: Record<string, string> = {
+  APPROVED: "Verified",
+  SUBMITTED: "Pending review",
+  REJECTED: "Rejected",
+  EXPIRED: "Expired",
+  PENDING: "Not submitted",
+  TO_FOLLOW: "To follow",
+};
 
 export const ApplicationDetailPage: React.FC = () => {
   const { applicationId } = useParams({ strict: false }) as { applicationId: string };
@@ -42,13 +61,25 @@ export const ApplicationDetailPage: React.FC = () => {
     title?: string;
     requirementStatus?: string;
   } | null>(null);
+  const [reuseTarget, setReuseTarget] = useState<RequirementRef | null>(null);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   const applicationQuery = useQuery({
     queryKey: ["applicant", "application", applicationId],
-    queryFn: () => applicantJobsApi.getApplicationDetail(applicationId),
+    queryFn: ({ signal }) => applicantJobsApi.getApplicationDetail(applicationId, { signal }),
     enabled: Boolean(applicationId),
-    refetchInterval: 5000,
+    refetchInterval: (query) => getApplicationRefetchInterval(query.state.data),
     refetchOnWindowFocus: true,
+  });
+
+  // The library is only needed while this application still has requirements that are not approved.
+  const hasOpenRequirements = (applicationQuery.data?.complianceRequirements || []).some(
+    (req) => req.reviewStatus !== "APPROVED",
+  );
+  const libraryQuery = useQuery({
+    queryKey: ["applicant", "my-document-library"],
+    queryFn: () => applicantJobsApi.getMyDocumentLibrary(),
+    enabled: hasOpenRequirements,
   });
 
   const uploadMutation = useMutation({
@@ -74,6 +105,37 @@ export const ApplicationDetailPage: React.FC = () => {
     },
   });
 
+  const withdrawMutation = useMutation({
+    mutationFn: (data: { reason: string; notes?: string }) => applicantJobsApi.withdrawApplication(applicationId, data),
+    onSuccess: () => {
+      setWithdrawOpen(false);
+      notify.success("Application withdrawn");
+      queryClient.invalidateQueries({ queryKey: ["applicant", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["applicant", "applications"] });
+    },
+    onError: (err) => notify.error("Unable to withdraw application", err),
+  });
+
+  const reuseMutation = useMutation({
+    mutationFn: ({ requirementId, documentId }: { requirementId: number; documentId: number }) =>
+      applicantJobsApi.reuseComplianceDocument(requirementId, documentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["applicant"] });
+      const successMsg = "Document added to this requirement and submitted for recruiter verification.";
+      setFeedback({ type: "success", message: successMsg });
+      notify.success("Document Reused", successMsg);
+      setReuseTarget(null);
+    },
+    onError: (err: any) => {
+      setFeedback({
+        type: "error",
+        message: "Failed to use document: " + (err?.message || "An error occurred"),
+      });
+      notify.error("Unable to Use Document", err);
+      setReuseTarget(null);
+    },
+  });
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && activeUploadReqId) {
@@ -86,6 +148,34 @@ export const ApplicationDetailPage: React.FC = () => {
     }
     // reset input
     if (e.target) e.target.value = "";
+  };
+
+  // Library entries for the same document type, from a different requirement, that have not expired.
+  const libraryMatchesFor = (req: RequirementRef) => {
+    const key = normalizeDocumentLabel(req.documentLabel);
+    return (libraryQuery.data || []).filter(
+      (entry) =>
+        !entry.isExpired &&
+        entry.reviewStatus !== "REJECTED" &&
+        entry.requirementId !== req.id &&
+        entry.documentId !== req.documentId &&
+        normalizeDocumentLabel(entry.label) === key,
+    );
+  };
+
+  const renderLibraryAction = (req: RequirementRef) => {
+    if (req.reviewStatus === "APPROVED" || libraryMatchesFor(req).length === 0) return null;
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={uploadMutation.isPending || reuseMutation.isPending}
+        leftIcon={<Library className="w-3.5 h-3.5" />}
+        onClick={() => setReuseTarget(req)}
+      >
+        Use a document from my library
+      </Button>
+    );
   };
 
   if (applicationQuery.isLoading) {
@@ -151,9 +241,16 @@ export const ApplicationDetailPage: React.FC = () => {
           { label: job?.title || "Application Details" },
         ]}
         actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {application && !application.isArchived && canApplicantWithdraw(application.status) && (
+              <Button variant="outline" size="sm" onClick={() => setWithdrawOpen(true)}>
+                Withdraw application
+              </Button>
+            )}
           <Link to="/app/applications" className="inline-flex min-h-10 items-center rounded-md border border-[#D9E2EC] bg-white px-4 text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors">
             Back to applications
           </Link>
+          </div>
         }
       />
 
@@ -206,40 +303,12 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
         )}
 
-        {(application.status === ApplicationStatus.CONTRACT_AND_ORIENTATION || application.status === ApplicationStatus.ONBOARDING) && (
-          <div className="p-4 bg-[#F8FAFC] border-l-4 border-[#6D4FD3] border border-[#D9E2EC] rounded-lg space-y-3">
-            <div className="space-y-1">
-              <h4 className="text-sm font-semibold text-[#102A43]">
-                {application.contractSigned && application.orientationCompleted
-                  ? "Contract signed and orientation completed"
-                  : "Pre-employment documents approved"}
-              </h4>
-              <p className="text-xs sm:text-sm text-[#627D98] leading-relaxed">
-                {application.contractSigned && application.orientationCompleted
-                  ? "Talent Acquisition is finalizing your deployment date and site reporting details."
-                  : "We are preparing your employment contract and orientation schedule. Check your email for updates."}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span
-                className={`inline-flex items-center px-2.5 py-1 rounded border font-medium ${
-                  application.contractSigned
-                    ? "bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]"
-                    : "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]"
-                }`}
-              >
-                {application.contractSigned ? "Contract: Signed" : "Contract: Pending"}
-              </span>
-              <span
-                className={`inline-flex items-center px-2.5 py-1 rounded border font-medium ${
-                  application.orientationCompleted
-                    ? "bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]"
-                    : "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]"
-                }`}
-              >
-                {application.orientationCompleted ? "Orientation: Completed" : "Orientation: Pending"}
-              </span>
-            </div>
+        {(application.status === ApplicationStatus.CONTRACT_SIGNING || application.status === ApplicationStatus.ONBOARDING) && (
+          <div className="p-4 bg-[#F8FAFC] border-l-4 border-[#6D4FD3] border border-[#D9E2EC] rounded-lg space-y-1">
+            <h4 className="text-sm font-semibold text-[#102A43]">Pre-employment documents approved</h4>
+            <p className="text-xs sm:text-sm text-[#627D98] leading-relaxed">
+              Your TA will contact you to sign your employment contract. Check your email for updates.
+            </p>
           </div>
         )}
 
@@ -392,7 +461,7 @@ export const ApplicationDetailPage: React.FC = () => {
                       const isRejected = req.reviewStatus === "REJECTED";
                       const isSubmitted = req.reviewStatus === "SUBMITTED";
                       const isToFollow = req.reviewStatus === "TO_FOLLOW";
-                      const targetDate = req.toFollowExpectedAt || req.deadline;
+                      const targetDate = req.updateRequestDeadline || req.toFollowExpectedAt || req.deadline;
 
                       return (
                         <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
@@ -456,6 +525,8 @@ export const ApplicationDetailPage: React.FC = () => {
                               >
                                 {req.documentId ? "Replace File" : "Upload File"}
                               </Button>
+
+                              {renderLibraryAction(req)}
                             </div>
                           </div>
 
@@ -504,7 +575,7 @@ export const ApplicationDetailPage: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
                             <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-3 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> Approved
                             </span>
@@ -527,8 +598,29 @@ export const ApplicationDetailPage: React.FC = () => {
                               <ExternalLink className="w-3 h-3" />
                               View
                             </button>
+                            {req.expiresAt && req.expiresAt.slice(0, 10) <= addManilaCalendarDays(getManilaToday(), 30) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={uploadMutation.isPending}
+                                loading={uploadMutation.isPending && activeUploadReqId === req.id}
+                                leftIcon={<Upload className="w-3.5 h-3.5" />}
+                                onClick={() => {
+                                  setActiveUploadReqId(req.id);
+                                  fileInputRef.current?.click();
+                                }}
+                              >
+                                Upload updated copy
+                              </Button>
+                            )}
                           </div>
                         </div>
+
+                        {req.expiresAt && (
+                          <div className={`text-[11px] font-mono ${req.expiresAt.slice(0, 10) < getManilaToday() ? "text-rose-700" : "text-amber-700"}`}>
+                            {req.expiresAt.slice(0, 10) < getManilaToday() ? "Expired" : "Expiring soon"} · Expires {formatDate(req.expiresAt)}
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-1 text-[10px] text-[#047857] font-mono">
                           <CheckCircle2 className="w-3 h-3" /> Verified by recruitment team
@@ -555,8 +647,8 @@ export const ApplicationDetailPage: React.FC = () => {
 
               {compliance.length === 0 ? (
                 <div className="p-6 text-center text-xs font-mono text-[#627D98]">
-                  {(application.status === ApplicationStatus.CONTRACT_AND_ORIENTATION || application.status === ApplicationStatus.ONBOARDING)
-                    ? "No additional requirements are pending. Contract and orientation are the next steps."
+                  {(application.status === ApplicationStatus.CONTRACT_SIGNING || application.status === ApplicationStatus.ONBOARDING)
+                    ? "No additional requirements are pending. Contract signing is the next step."
                     : "No active document requirements are assigned yet. We’ll show them here when they are ready."}
                 </div>
               ) : (
@@ -634,6 +726,8 @@ export const ApplicationDetailPage: React.FC = () => {
                                 {req.documentId ? "Replace File" : "Upload File"}
                               </Button>
                             )}
+
+                            {renderLibraryAction(req)}
                           </div>
                         </div>
 
@@ -703,6 +797,69 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <BackoutDialog
+        open={withdrawOpen}
+        onClose={() => setWithdrawOpen(false)}
+        onSubmit={({ reason, notes }) => withdrawMutation.mutate({ reason, notes })}
+        loading={withdrawMutation.isPending}
+        status={application.status}
+        mode="applicant"
+      />
+
+      {/* Reuse a document from the applicant's library */}
+      <Dialog
+        open={Boolean(reuseTarget)}
+        onClose={() => {
+          if (!reuseMutation.isPending) setReuseTarget(null);
+        }}
+        title="Use a document from your library"
+        size="md"
+      >
+        <div className="space-y-4">
+          {reuseTarget && (
+            <p className="text-sm font-semibold text-[#102A43]">For {reuseTarget.documentLabel}</p>
+          )}
+          <p className="text-sm text-[#627D98]">Your recruiter will still review this document for this application.</p>
+          <ul className="divide-y divide-[#D9E2EC] rounded-md border border-[#D9E2EC]">
+            {(reuseTarget ? libraryMatchesFor(reuseTarget) : []).map((entry) => (
+              <li key={entry.documentId} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                <div className="min-w-0 space-y-0.5">
+                  <p className="truncate text-sm font-semibold text-[#102A43]" title={entry.originalName}>
+                    {entry.originalName}
+                  </p>
+                  <p className="text-xs text-[#627D98]">
+                    {libraryStatusLabel[entry.reviewStatus] ?? entry.reviewStatus}
+                    {" · "}
+                    {entry.expiresAt
+                      ? `Expires ${formatDate(entry.expiresAt)}${entry.isExpiringSoon ? " (expiring soon)" : ""}`
+                      : entry.validityStatus === "NO_EXPIRY"
+                      ? "No expiry"
+                      : "Expiry not recorded"}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  disabled={reuseMutation.isPending}
+                  loading={reuseMutation.isPending && reuseMutation.variables?.documentId === entry.documentId}
+                  onClick={() => {
+                    if (reuseTarget) {
+                      reuseMutation.mutate({ requirementId: reuseTarget.id, documentId: entry.documentId });
+                    }
+                  }}
+                >
+                  Use this document
+                </Button>
+              </li>
+            ))}
+          </ul>
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" disabled={reuseMutation.isPending} onClick={() => setReuseTarget(null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Dialog>
 
       {/* Document Preview Modal */}
       <DocumentPreviewModal

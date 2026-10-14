@@ -102,6 +102,9 @@ export async function apiRequest<T>(
     if (error instanceof DOMException && error.name === "TimeoutError") {
       throw new ApiError(408, "Request timed out. Please check your connection and try again.");
     }
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error;
+    }
     if (error instanceof ApiError || error instanceof TypeError) {
       throw error;
     }
@@ -154,6 +157,9 @@ export async function apiRequestBlob(
 
     return await res.blob();
   } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error;
+    }
     if (error instanceof ApiError || error instanceof TypeError) {
       throw error;
     }

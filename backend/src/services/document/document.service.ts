@@ -1,4 +1,5 @@
 import prisma from "../../utils/prisma.js";
+import { ownedWhere, owns } from "../ta/ownership.js";
 import supabase from "../../utils/supabase.js";
 import { ensureBucketExists } from "../../middleware/upload.middleware.js";
 import { v4 as uuidv4 } from "uuid";
@@ -6,7 +7,7 @@ import crypto from "crypto";
 
 export const uploadAndStoreDocument = async (
   userId: string,
-  category: "RESUME" | "PHOTO" | "ASSET" | "POST_HIRE" | "VAULT_201",
+  category: "RESUME" | "PHOTO" | "ASSET" | "POST_HIRE" | "VAULT_201" | "CONTRACT",
   file: Express.Multer.File,
   applicationId?: number,
   profileId?: number
@@ -46,8 +47,38 @@ export const uploadAndStoreDocument = async (
     },
   });
 
-  return `/api/documents/${doc.id}/download`;
+  return doc;
 };
+
+// Owner and Admin always pass. A TA reads application documents of owned applications, and profile documents
+// (resume, photo) of applicants who applied to an owned job or sit in the shared talent / redeployment pools.
+// Signed contracts are staff-only: the applicant and employee never read them, even though the uploading TA owns the row.
+async function mayRead(
+  doc: { ownerId: string; applicationId: number | null; category?: string },
+  requesterId: string,
+  role: string
+) {
+  if (role === "ADMINISTRATOR") return true;
+  if (doc.category === "CONTRACT") {
+    if (role !== "TALENT_ACQUISITION" || !doc.applicationId) return false;
+    return owns("application", doc.applicationId, { id: requesterId, role });
+  }
+  if (doc.ownerId === requesterId) return true;
+  if (role !== "TALENT_ACQUISITION") return false;
+  const actor = { id: requesterId, role };
+  if (doc.applicationId) return owns("application", doc.applicationId, actor);
+  const visible = await prisma.user.count({
+    where: {
+      id: doc.ownerId,
+      OR: [
+        { applications: { some: ownedWhere.application(actor) } },
+        { employee: { is: ownedWhere.employeePool(actor) } },
+        { applicantProfile: { is: { talentPoolMembership: { isNot: null } } } },
+      ],
+    } as any,
+  });
+  return visible > 0;
+}
 
 // Generates short-lived (60s) signed URL for document owner or TA/Admin staff.
 export const getDocumentDownloadUrl = async (documentId: number, requesterId: string, requesterRole: string) => {
@@ -59,7 +90,7 @@ export const getDocumentDownloadUrl = async (documentId: number, requesterId: st
     throw new Error("Document not found");
   }
 
-  if (doc.ownerId !== requesterId && requesterRole !== "TALENT_ACQUISITION" && requesterRole !== "ADMINISTRATOR") {
+  if (!(await mayRead(doc, requesterId, requesterRole))) {
     throw new Error("Unauthorized to access this document");
   }
 
@@ -98,7 +129,7 @@ export const getDocumentPreview = async (documentId: number, requesterId: string
     throw new Error("Document not found");
   }
 
-  if (doc.ownerId !== requesterId && requesterRole !== "TALENT_ACQUISITION" && requesterRole !== "ADMINISTRATOR") {
+  if (!(await mayRead(doc, requesterId, requesterRole))) {
     throw new Error("Unauthorized to access this document");
   }
 
@@ -146,7 +177,7 @@ export const resolveDocumentSignedUrl = async (
       : await prisma.storedDocument.findFirst({ where: { storagePath: urlOrPath } });
 
     if (!doc) return urlOrPath;
-    if (doc.ownerId !== requesterId && requesterRole !== "TALENT_ACQUISITION" && requesterRole !== "ADMINISTRATOR") {
+    if (!(await mayRead(doc, requesterId, requesterRole))) {
       return urlOrPath;
     }
     const { data, error } = await supabase.storage

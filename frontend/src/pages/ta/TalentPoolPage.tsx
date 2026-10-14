@@ -22,6 +22,7 @@ import { TA_COPY } from "../../lib/ta-copy";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
 import { SendInvitationModal } from "../../components/ta/SendInvitationModal";
 import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTrackerDrawer";
+import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
 
 export const TalentPoolPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -47,7 +48,8 @@ export const TalentPoolPage: React.FC = () => {
 
   const jobsQuery = useQuery({
     queryKey: ["ta", "jobs", "dropdown"],
-    queryFn: () => taApi.listJobs(),
+    queryFn: ({ signal }) => taApi.listJobs(undefined, { signal }),
+    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
 
   const searchMutation = useMutation({

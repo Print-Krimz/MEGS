@@ -35,26 +35,20 @@ export const TADashboard: React.FC = () => {
   });
 
   const recentAppsQuery = useQuery({
-    queryKey: ["ta", "applications", "recent"],
-    queryFn: () => taApi.listApplications({ limit: 6, isArchived: false }),
+    queryKey: ["ta", "applications", "recent", { page: 1, pageSize: 6, isArchived: false }],
+    queryFn: ({ signal }) => taApi.listApplicationsPage({ page: 1, limit: 6, isArchived: false }, { signal }),
   });
 
-  const openJobsQuery = useQuery({
-    queryKey: ["ta", "jobs", "open"],
-    queryFn: () => taApi.listJobs({ status: "OPEN" }),
-  });
-
-  const deploymentsQuery = useQuery({
-    queryKey: ["ta", "deployments", "active"],
-    queryFn: () => taApi.listDeployments({ status: "ACTIVE" }),
+  const dashboardCountsQuery = useQuery({
+    queryKey: ["ta", "jobs", "dashboard-counts"],
+    queryFn: ({ signal }) => taApi.getDashboardCounts({ signal }),
   });
 
   const isLoading =
     pipelineStatsQuery.isLoading ||
     interviewSlaQuery.isLoading ||
     recentAppsQuery.isLoading ||
-    openJobsQuery.isLoading ||
-    deploymentsQuery.isLoading;
+    dashboardCountsQuery.isLoading;
 
   if (isLoading) {
     return (
@@ -73,8 +67,7 @@ export const TADashboard: React.FC = () => {
     pipelineStatsQuery.isError ||
     interviewSlaQuery.isError ||
     recentAppsQuery.isError ||
-    openJobsQuery.isError ||
-    deploymentsQuery.isError;
+    dashboardCountsQuery.isError;
 
   if (isError) {
     return (
@@ -87,12 +80,14 @@ export const TADashboard: React.FC = () => {
           error={
             pipelineStatsQuery.error ||
             interviewSlaQuery.error ||
-            recentAppsQuery.error
+            recentAppsQuery.error ||
+            dashboardCountsQuery.error
           }
           onRetry={() => {
             pipelineStatsQuery.refetch();
             interviewSlaQuery.refetch();
             recentAppsQuery.refetch();
+            dashboardCountsQuery.refetch();
           }}
         />
       </div>
@@ -101,12 +96,9 @@ export const TADashboard: React.FC = () => {
 
   const pipeline = pipelineStatsQuery.data;
   const slaData = interviewSlaQuery.data;
-  const rawRecent = recentAppsQuery.data;
-  const recentApps: any[] = Array.isArray(rawRecent) ? rawRecent : (rawRecent as any)?.data || [];
-  const openJobs = openJobsQuery.data || [];
-  const activeDeployments = deploymentsQuery.data || [];
+  const recentApps = recentAppsQuery.data?.items ?? [];
 
-  const totalActive = pipeline?.totalApplications || 0;
+  const totalActive = pipeline?.activeApplications || 0;
   const slaBreached = slaData?.summary?.breached || 0;
   const slaWarning = slaData?.summary?.warning || 0;
 
@@ -174,7 +166,7 @@ export const TADashboard: React.FC = () => {
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
             <Users className="w-3 h-3 text-slate-400 shrink-0" />
-            <span>Across all recruitment stages</span>
+            <span>Still moving through the pipeline</span>
           </div>
         </div>
 
@@ -183,7 +175,7 @@ export const TADashboard: React.FC = () => {
             Active Job Openings
           </div>
           <div className="text-2xl font-sans font-bold text-teal-950 mt-0.5 tabular-nums">
-            {openJobs.length}
+            {dashboardCountsQuery.data?.openJobs ?? 0}
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
             <Briefcase className="w-3 h-3 text-teal-700 shrink-0" />
@@ -210,7 +202,7 @@ export const TADashboard: React.FC = () => {
             Active Deployments
           </div>
           <div className="text-2xl font-sans font-bold text-emerald-950 mt-0.5 tabular-nums">
-            {activeDeployments.length}
+            {dashboardCountsQuery.data?.activeDeployments ?? 0}
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
             <Truck className="w-3 h-3 text-emerald-700 shrink-0" />
@@ -300,7 +292,7 @@ export const TADashboard: React.FC = () => {
               const candidateName = profile
                 ? `${profile.firstName} ${profile.lastName}`
                 : app.user?.email || "Candidate";
-              const score = app.candidateFitScore ?? app.candidateScores?.[0]?.finalFitScore ?? app.aiScore;
+              const score = app.candidateFitScore ?? app.aiScore;
               return (
                 <article key={app.id} className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -348,7 +340,7 @@ export const TADashboard: React.FC = () => {
                   const candidateName = profile
                     ? `${profile.firstName} ${profile.lastName}`
                     : app.user?.email || "Candidate";
-                  const score = app.candidateFitScore ?? app.candidateScores?.[0]?.finalFitScore ?? app.aiScore;
+                  const score = app.candidateFitScore ?? app.aiScore;
 
                   return (
                     <tr key={app.id} className="hover:bg-slate-100/70 transition-colors">

@@ -166,7 +166,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
   // Quick review modal state
   const [quickReviewApp, setQuickReviewApp] = useState<Application | null>(null);
   const [selectedReqId, setSelectedReqId] = useState<number | null>(null);
-  const [reviewStatus, setReviewStatus] = useState<"APPROVED" | "REJECTED" | "TO_FOLLOW">("APPROVED");
+  const [reviewStatus, setReviewStatus] = useState<"" | "APPROVED" | "REJECTED" | "TO_FOLLOW">("");
   const [toFollowExpectedAt, setToFollowExpectedAt] = useState("");
   const [documentIssuedAt, setDocumentIssuedAt] = useState("");
   const [documentValidity, setDocumentValidity] = useState<"UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY">("UNKNOWN");
@@ -273,6 +273,13 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
         };
       });
 
+      if (vars.data.reviewStatus === "APPROVED") {
+        const next = quickReviewApp?.complianceRequirements?.find(
+          (r) => r.id !== vars.id && r.reviewStatus !== "APPROVED"
+        );
+        setSelectedReqId(next ? next.id : null);
+      }
+
       const msg =
         vars.data.reviewStatus === "APPROVED"
           ? "Requirement approved."
@@ -298,7 +305,9 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
         ? "TO_FOLLOW"
         : defaultReq?.reviewStatus === "REJECTED"
         ? "REJECTED"
-        : "APPROVED"
+        : defaultReq?.reviewStatus === "APPROVED"
+        ? "APPROVED"
+        : ""
     );
     setToFollowExpectedAt(
       defaultReq?.toFollowExpectedAt
@@ -416,6 +425,10 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
     );
   }
 
+  // Only open follow-ups are listed; a document disappears from the list once it is approved.
+  const openFollowUpReqs = (quickReviewApp?.complianceRequirements || []).filter(
+    (r) => r.reviewStatus !== "APPROVED"
+  );
   const selectedReq = quickReviewApp?.complianceRequirements?.find(
     (r) => r.id === selectedReqId
   );
@@ -854,16 +867,15 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
             {/* Requirements List */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-slate-700 block">
-                Follow-up Documents ({quickReviewApp.complianceRequirements?.length || 0})
+                Follow-up Documents ({openFollowUpReqs.length})
               </label>
-              {!quickReviewApp.complianceRequirements ||
-              quickReviewApp.complianceRequirements.length === 0 ? (
+              {openFollowUpReqs.length === 0 ? (
                 <p className="text-xs text-slate-500 italic py-2">
-                  No compliance requirements found for this worker.
+                  No open follow-up documents for this worker.
                 </p>
               ) : (
                 <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
-                  {quickReviewApp.complianceRequirements.map((req) => {
+                  {openFollowUpReqs.map((req) => {
                     const isSelected = req.id === selectedReqId;
                     const urgency = calculateUrgencyStatus(req.toFollowExpectedAt);
                     return (
@@ -877,7 +889,9 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                               ? "TO_FOLLOW"
                               : req.reviewStatus === "REJECTED"
                               ? "REJECTED"
-                              : "APPROVED"
+                              : req.reviewStatus === "APPROVED"
+                              ? "APPROVED"
+                              : ""
                           );
                           setToFollowExpectedAt(
                             req.toFollowExpectedAt
@@ -945,9 +959,10 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                   label="Review decision"
                   value={reviewStatus}
                   onChange={(e) =>
-                    setReviewStatus(e.target.value as "APPROVED" | "REJECTED" | "TO_FOLLOW")
+                    setReviewStatus(e.target.value as "" | "APPROVED" | "REJECTED" | "TO_FOLLOW")
                   }
                   options={[
+                    { value: "", label: "Select a decision…" },
                     { value: "APPROVED", label: "Approve: document verified" },
                     { value: "TO_FOLLOW", label: "To follow up: update target date" },
                     { value: "REJECTED", label: "Reject: document requires correction" },
@@ -1025,13 +1040,14 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                     size="sm"
                     loading={reviewMutation.isPending}
                     disabled={
-                      reviewStatus === "APPROVED" &&
+                      reviewStatus === "" ||
+                      (reviewStatus === "APPROVED" &&
                       (documentValidity === "UNKNOWN" ||
                         (documentValidity === "HAS_EXPIRY" && !documentExpiresAt) ||
-                        (/medical|fit\s+to\s+work|health/i.test(selectedReq.documentLabel) && !documentIssuedAt))
+                        (/medical|fit\s+to\s+work|health/i.test(selectedReq.documentLabel) && !documentIssuedAt)))
                     }
                     onClick={() => {
-                      if (selectedReqId) {
+                      if (selectedReqId && reviewStatus) {
                         reviewMutation.mutate({
                           id: selectedReqId,
                           data: {

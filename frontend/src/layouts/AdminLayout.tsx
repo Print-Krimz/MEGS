@@ -25,6 +25,7 @@ import {
   ChangePasswordModal,
 } from "../components/common";
 import { getInitials } from "../lib/utils";
+import "./admin.css";
 
 interface NavSection {
   label: string;
@@ -185,7 +186,8 @@ export const AdminLayout: React.FC = () => {
   }, [accountMenuOpen]);
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col lg:flex-row overflow-x-hidden">
+    <div className="admin-portal min-h-screen bg-page flex flex-col lg:flex-row">
+      <a href="#admin-main-content" className="admin-skip-link">Skip to content</a>
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
 
       {/* Mobile Slide-Over Navigation Drawer */}
@@ -234,12 +236,13 @@ export const AdminLayout: React.FC = () => {
                         <Link
                           key={item.to}
                           to={item.to}
+                          aria-label={item.label}
                           onClick={() => setMobileMenuOpen(false)}
                           activeOptions={{ exact: true }}
                           activeProps={{
-                            className: "bg-amber-600/90 text-white font-medium border-l-2 border-amber-300",
+                            className: "bg-primary text-white font-semibold rounded-md",
                           }}
-                          className="flex min-h-11 items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:text-white hover:bg-slate-900 transition-colors"
+                          className="flex min-h-11 items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:text-white hover:bg-slate-900 rounded-md transition-colors"
                         >
                           <Icon className="w-4 h-4 shrink-0" />
                           <span className="truncate">{item.label}</span>
@@ -302,11 +305,12 @@ export const AdminLayout: React.FC = () => {
                     <Link
                       key={item.to}
                       to={item.to}
+                      aria-label={item.label}
                       activeOptions={{ exact: true }}
                       activeProps={{
-                        className: "bg-amber-600/90 text-white font-medium border-l-2 border-amber-300",
+                        className: "bg-primary text-white font-semibold rounded-md",
                       }}
-                      className="flex min-h-9 items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:text-white hover:bg-slate-900 transition-colors"
+                      className="flex min-h-9 items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:text-white hover:bg-slate-900 rounded-md transition-colors"
                       title={collapsed ? item.label : undefined}
                     >
                       <Icon className="w-4 h-4 shrink-0" />
@@ -362,13 +366,13 @@ export const AdminLayout: React.FC = () => {
                 id="admin-account-button"
                 type="button"
                 onClick={() => setAccountMenuOpen((prev) => !prev)}
-                className="group min-h-11 flex items-center gap-2 sm:gap-2.5 p-1 sm:px-2 sm:py-1 rounded-md text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-1 cursor-pointer"
+                className="group min-h-11 flex items-center gap-2 sm:gap-2.5 p-1 sm:px-2 sm:py-1 rounded-md text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 cursor-pointer"
                 aria-label={`Account menu for ${fullName}`}
                 aria-haspopup="menu"
                 aria-expanded={accountMenuOpen}
                 aria-controls="admin-account-menu"
               >
-                <div className="w-7 h-7 bg-amber-950 text-amber-300 border border-amber-800 text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 bg-primary text-white rounded-md text-xs font-mono font-bold flex items-center justify-center shrink-0">
                   {initials}
                 </div>
                 <div className="hidden sm:block text-left leading-tight">
@@ -397,7 +401,7 @@ export const AdminLayout: React.FC = () => {
                   {/* User Identity Context Card */}
                   <div className="p-3 bg-slate-50 border-b border-slate-200">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 bg-amber-950 text-amber-300 border border-amber-800 text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                      <div className="w-8 h-8 bg-primary text-white rounded-md text-xs font-mono font-bold flex items-center justify-center shrink-0">
                         {initials}
                       </div>
                       <div className="overflow-hidden min-w-0">
@@ -435,7 +439,7 @@ export const AdminLayout: React.FC = () => {
                         setAccountMenuOpen(false);
                         setShowChangePasswordModal(true);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-600 text-left cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary text-left cursor-pointer"
                     >
                       <Shield className="w-4 h-4 text-slate-500 shrink-0" />
                       <span className="text-slate-900 font-medium">Account Security</span>
@@ -453,7 +457,7 @@ export const AdminLayout: React.FC = () => {
                         setAccountMenuOpen(false);
                         setShowSignOutConfirm(true);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 transition-colors focus-visible:outline-none focus-visible:bg-rose-50 focus-visible:text-rose-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-600 text-left cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 transition-colors focus-visible:outline-none focus-visible:bg-rose-50 focus-visible:text-rose-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary text-left cursor-pointer"
                     >
                       <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
                       <span className="text-rose-900 font-medium">Sign Out</span>
@@ -472,7 +476,7 @@ export const AdminLayout: React.FC = () => {
         />
 
         {/* Content Container */}
-        <main className="flex-1 p-3 sm:p-5 lg:p-6 max-w-[1600px] w-full mx-auto min-w-0">
+        <main id="admin-main-content" tabIndex={-1} className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto min-w-0">
           <Outlet />
         </main>
       </div>

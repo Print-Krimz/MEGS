@@ -210,7 +210,7 @@ export const ScoringConfigPage: React.FC = () => {
           { label: "Matching settings" },
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -242,7 +242,7 @@ export const ScoringConfigPage: React.FC = () => {
               : "bg-rose-50 border-rose-700 text-rose-950"
           }`}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {feedback.type === "success" ? (
               <CheckCircle2 className="w-4 h-4 text-teal-700" />
             ) : (
@@ -261,7 +261,7 @@ export const ScoringConfigPage: React.FC = () => {
       )}
 
       {/* Revision Meta Snapshot */}
-      <div className="bg-white border border-slate-300 p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+      <div className="admin-panel p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm font-sans">
         <div>
           <span className="text-slate-500 font-semibold">Current settings: </span>
           <span className="font-bold text-slate-950">
@@ -313,10 +313,10 @@ export const ScoringConfigPage: React.FC = () => {
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-5">
+      <form onSubmit={handleSave} className="space-y-5 admin-matching-form">
         {/* 5 Dimension Sliders */}
-        <div className="bg-white border border-slate-300">
-          <div className="p-3 border-b border-slate-300 flex items-center gap-2 bg-slate-100">
+        <div className="admin-panel">
+          <div className="p-3 border-b border-slate-300 flex flex-wrap items-center gap-2 bg-slate-100">
             <Sliders className="w-4 h-4 text-teal-700" />
               <h3 className="text-sm font-semibold text-slate-900">
               Scoring priorities
@@ -326,9 +326,9 @@ export const ScoringConfigPage: React.FC = () => {
           <div className="p-4 space-y-4">
             {/* 1. Skills Match */}
             <div className="space-y-1.5">
-              <div className="flex justify-between text-xs">
+              <div className="flex justify-between text-sm">
                 <label htmlFor="skills-weight" className="font-semibold text-slate-950">Skills</label>
-                <span className="font-mono font-bold text-teal-900 tabular-nums">{skillsWeight}%</span>
+                <span className="font-sans font-bold text-teal-900 tabular-nums">{skillsWeight}%</span>
               </div>
               <input
                 type="range"
@@ -341,16 +341,16 @@ export const ScoringConfigPage: React.FC = () => {
                 onChange={(e) => setSkillsWeight(Number(e.target.value))}
                  className="w-full h-11 accent-teal-700 cursor-pointer"
               />
-              <p className="text-[11px] text-slate-500 font-sans">
+              <p className="text-xs text-slate-500 font-sans">
                 How closely a candidate's skills match the job.
               </p>
             </div>
 
             {/* 2. Experience Fit */}
             <div className="space-y-1.5 pt-3 border-t border-slate-200">
-              <div className="flex justify-between text-xs">
+              <div className="flex justify-between text-sm">
                 <label htmlFor="experience-weight" className="font-semibold text-slate-950">Relevant experience</label>
-                <span className="font-mono font-bold text-teal-900 tabular-nums">{experienceWeight}%</span>
+                <span className="font-sans font-bold text-teal-900 tabular-nums">{experienceWeight}%</span>
               </div>
               <input
                 type="range"
@@ -363,16 +363,16 @@ export const ScoringConfigPage: React.FC = () => {
                 onChange={(e) => setExperienceWeight(Number(e.target.value))}
                  className="w-full h-11 accent-teal-700 cursor-pointer"
               />
-              <p className="text-[11px] text-slate-500 font-sans">
+              <p className="text-xs text-slate-500 font-sans">
                 Similar roles, seniority, and industry experience.
               </p>
             </div>
 
             {/* 3. Location Proximity */}
             <div className="space-y-1.5 pt-3 border-t border-slate-200">
-              <div className="flex justify-between text-xs">
+              <div className="flex justify-between text-sm">
                 <label htmlFor="location-weight" className="font-semibold text-slate-950">Location</label>
-                <span className="font-mono font-bold text-teal-900 tabular-nums">{locationWeight}%</span>
+                <span className="font-sans font-bold text-teal-900 tabular-nums">{locationWeight}%</span>
               </div>
               <input
                 type="range"
@@ -385,16 +385,16 @@ export const ScoringConfigPage: React.FC = () => {
                 onChange={(e) => setLocationWeight(Number(e.target.value))}
                  className="w-full h-11 accent-teal-700 cursor-pointer"
               />
-              <p className="text-[11px] text-slate-500 font-sans">
+              <p className="text-xs text-slate-500 font-sans">
                 How close the candidate is to the work location.
               </p>
             </div>
 
             {/* 4. Requirements */}
             <div className="space-y-1.5 pt-3 border-t border-slate-200">
-              <div className="flex justify-between text-xs">
+              <div className="flex justify-between text-sm">
                 <label htmlFor="compliance-weight" className="font-semibold text-slate-950">Requirements</label>
-                <span className="font-mono font-bold text-teal-900 tabular-nums">{complianceWeight}%</span>
+                <span className="font-sans font-bold text-teal-900 tabular-nums">{complianceWeight}%</span>
               </div>
               <input
                 type="range"
@@ -407,16 +407,16 @@ export const ScoringConfigPage: React.FC = () => {
                 onChange={(e) => setComplianceWeight(Number(e.target.value))}
                  className="w-full h-11 accent-teal-700 cursor-pointer"
               />
-              <p className="text-[11px] text-slate-500 font-sans">
+              <p className="text-xs text-slate-500 font-sans">
                 Readiness to provide required documents.
               </p>
             </div>
 
             {/* 5. Education & Certifications */}
             <div className="space-y-1.5 pt-3 border-t border-slate-200">
-              <div className="flex justify-between text-xs">
+              <div className="flex justify-between text-sm">
                 <label htmlFor="education-weight" className="font-semibold text-slate-950">Education and certifications</label>
-                <span className="font-mono font-bold text-teal-900 tabular-nums">{educationWeight}%</span>
+                <span className="font-sans font-bold text-teal-900 tabular-nums">{educationWeight}%</span>
               </div>
               <input
                 type="range"
@@ -429,7 +429,7 @@ export const ScoringConfigPage: React.FC = () => {
                 onChange={(e) => setEducationWeight(Number(e.target.value))}
                  className="w-full h-11 accent-teal-700 cursor-pointer"
               />
-              <p className="text-[11px] text-slate-500 font-sans">
+              <p className="text-xs text-slate-500 font-sans">
                 Education, training, and required certifications.
               </p>
             </div>
@@ -437,26 +437,27 @@ export const ScoringConfigPage: React.FC = () => {
         </div>
 
         {/* Candidate AI Match Threshold */}
-        <div className="bg-white border border-slate-300">
+        <div className="admin-panel">
           <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-teal-700" />
               <h3 className="text-sm font-semibold text-slate-900">
                  Recommended match score
               </h3>
             </div>
-            <span className="font-mono font-bold text-xs text-teal-900 bg-teal-50 px-2 py-0.5 border border-teal-200">
+            <span className="font-sans font-bold text-sm text-teal-900 bg-teal-50 px-2 py-0.5 border border-teal-200">
                Recommend at: {matchThreshold} / 100
             </span>
           </div>
 
           <div className="p-4 space-y-3">
             <div className="space-y-1.5">
-              <div className="flex justify-between items-center text-xs">
+              <div className="flex justify-between items-center text-sm">
                  <span className="font-semibold text-slate-950 text-sm">
                    Score for automatic recommendation
                 </span>
                 <div className="flex items-center gap-2">
+                  <div className="w-24 shrink-0">
                   <Input
                     type="number"
                     min={0}
@@ -468,7 +469,8 @@ export const ScoringConfigPage: React.FC = () => {
                     aria-label="Recommended match score"
                     className="w-16 px-2 py-1 text-right"
                   />
-                  <span className="font-mono text-slate-500">/ 100</span>
+                  </div>
+                  <span className="font-sans text-slate-500">/ 100</span>
                 </div>
               </div>
               <input
@@ -482,7 +484,7 @@ export const ScoringConfigPage: React.FC = () => {
                 onChange={(e) => setMatchThreshold(Number(e.target.value))}
                  className="w-full h-11 accent-teal-700 cursor-pointer"
               />
-              <p className="text-[11px] text-slate-500 font-sans">
+              <p className="text-xs text-slate-500 font-sans">
                 Candidates scoring {matchThreshold} or higher are recommended automatically. Lower scores stay available for recruiter review.
               </p>
             </div>
@@ -490,8 +492,8 @@ export const ScoringConfigPage: React.FC = () => {
         </div>
 
         {/* Talent Discovery & Match Parameters */}
-        <div className="bg-white border border-slate-300">
-          <div className="p-3 border-b border-slate-300 flex items-center gap-2 bg-slate-100">
+        <div className="admin-panel">
+          <div className="p-3 border-b border-slate-300 flex flex-wrap items-center gap-2 bg-slate-100">
             <Sliders className="w-4 h-4 text-teal-700" />
               <h3 className="text-sm font-semibold text-slate-900">
               Who to include in matching
@@ -500,7 +502,7 @@ export const ScoringConfigPage: React.FC = () => {
 
           <div className="p-4 space-y-4">
             <div>
-              <label className="flex items-center gap-2 text-xs text-slate-800 cursor-pointer">
+              <label className="flex items-start gap-2 text-sm text-slate-800 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={excludeCurrentlyHired}
@@ -512,7 +514,7 @@ export const ScoringConfigPage: React.FC = () => {
             </div>
 
             <details className="group border border-slate-200 rounded-md p-3">
-              <summary className="text-xs font-semibold text-slate-700 cursor-pointer flex items-center justify-between">
+              <summary className="text-sm font-semibold text-slate-700 cursor-pointer flex items-center justify-between">
                  Advanced matching options
               </summary>
               <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -553,15 +555,15 @@ export const ScoringConfigPage: React.FC = () => {
         </div>
 
         {/* Save Bar */}
-        <div className="flex items-center justify-between p-3.5 bg-white border border-slate-300">
-          <div className="text-xs font-mono">
-            {isWeightValid ? (
+        <div className="flex items-center justify-between p-3.5 admin-panel">
+          <div className="text-sm font-sans">
+            {isWeightValid && isKnnValid && Number.isInteger(matchThreshold) && matchThreshold >= 0 && matchThreshold <= 100 ? (
               <span className="text-emerald-800 font-bold flex items-center gap-1.5" role="status">
                  <CheckCircle2 className="w-4 h-4 text-emerald-700" /> Ready to save
               </span>
             ) : (
               <span className="text-rose-800 font-bold flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-rose-700" /> Match factors total {totalWeight}% (must equal 100%)
+                <AlertTriangle className="w-4 h-4 text-rose-700" /> {isWeightValid ? "Review the threshold and advanced matching options." : `Match factors total ${totalWeight}% (must equal 100%)`}
               </span>
             )}
           </div>
@@ -570,7 +572,7 @@ export const ScoringConfigPage: React.FC = () => {
             variant="primary"
             size="md"
             type="submit"
-            disabled={!isWeightValid}
+            disabled={!isWeightValid || !isKnnValid || !Number.isInteger(matchThreshold) || matchThreshold < 0 || matchThreshold > 100}
             loading={updateConfigMutation.isPending}
             leftIcon={<Save className="w-4 h-4" />}
           >
@@ -589,21 +591,23 @@ export const ScoringConfigPage: React.FC = () => {
         <div className="space-y-4 max-h-96 overflow-y-auto pr-1">
           {historyQuery.isLoading ? (
             <LoadingState variant="table" rows={3} />
+          ) : historyQuery.isError ? (
+            <ErrorState error={historyQuery.error} onRetry={() => historyQuery.refetch()} />
           ) : historyItems.length === 0 ? (
             <p className="text-sm text-slate-500 py-4 text-center">No earlier settings have been saved.</p>
           ) : (
             <div className="divide-y divide-slate-100">
               {historyItems.map((h) => (
-                <div key={h.id} className="py-3 text-xs space-y-1">
+                <div key={h.id} className="py-3 text-sm space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-900 font-mono">
+                    <span className="font-bold text-slate-900 font-sans">
                        Saved settings {h.revision} ({h.status})
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
+                    <span className="text-xs text-slate-400 font-sans">
                       {formatDateTime(h.activatedAt)}
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-500 font-mono">
+                  <div className="text-xs text-slate-500 font-sans">
                      Saved by: {h.activatedBy?.email || "Administrator"}
                   </div>
                 </div>

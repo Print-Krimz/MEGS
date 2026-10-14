@@ -76,16 +76,13 @@ model Application {
   isArchived Boolean   @default(false)
   archivedAt DateTime?
 
-  // Contract Signing & Orientation
+  // Contract signing (paper contract, signed scan kept by the TA only)
   contractSigned         Boolean   @default(false)
   contractSignedAt       DateTime?
-  contractDocumentUrl    String?
   contractNotes          String?
-
-  orientationCompleted   Boolean   @default(false)
-  orientationCompletedAt DateTime?
-  orientationDate        DateTime?
-  orientationNotes       String?
+  contractStartDate      DateTime?
+  contractSignedById     String?
+  contractDocumentId     Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -101,6 +98,7 @@ model Application {
   complianceRequirements ComplianceRequirement[]
   deployments Deployment[]
   clientEndorsements ClientEndorsement[]
+  backout ApplicationBackout?
   talentPoolMembershipsSourced TalentPoolMembership[] @relation("SourceApplication")
 
   @@unique([userId, jobPostingId, attemptNumber])
@@ -192,6 +190,9 @@ model RecruiterDecision {
   fromStatus    String
   toStatus      String
   reason        String?
+  transitionType String   @default("NORMAL") // NORMAL | SKIP | FAST_TRACK
+  skippedStages String[]  @default([])
+  reasonCode    String?   // Structured rejection reason (e.g. QUALIFICATIONS_MISMATCH)
   isReverted    Boolean   @default(false)
   revertedAt    DateTime?
   createdAt     DateTime    @default(now())
@@ -233,3 +234,51 @@ model ComplianceRequirement {
   @@index([applicationId, reviewStatus])
 }
 
+
+// ─────────────────────────────────────────────
+// APPLICATION BACKOUT
+// Structured record of an applicant leaving the pipeline voluntarily or
+// because the client/agency pulled out, before the deployment starts.
+// Rejections stay on RecruiterDecision; post-start exits stay on Deployment.
+// ─────────────────────────────────────────────
+
+enum BackoutParty {
+  APPLICANT
+  CLIENT
+  AGENCY
+}
+
+enum BackoutReason {
+  NO_SHOW
+  ACCEPTED_OTHER_OFFER
+  SALARY_OR_BENEFITS
+  LOCATION_OR_COMMUTE
+  FAMILY_OR_PERSONAL
+  HEALTH
+  UNREACHABLE
+  INCOMPLETE_REQUIREMENTS
+  CLIENT_CANCELLED_REQUEST
+  CLIENT_WITHDREW_SELECTION
+  POSITION_FILLED
+  AGENCY_PROCESSING_DELAY
+  OTHER
+}
+
+model ApplicationBackout {
+  id            Int               @id @default(autoincrement())
+  applicationId Int               @unique
+  application   Application       @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  deploymentId  Int?
+  stage         ApplicationStatus // Stage the application was in when the backout happened
+  party         BackoutParty
+  reason        BackoutReason
+  notes         String?
+  occurredAt    DateTime          // When it happened (may predate recordedAt)
+  recordedById  String
+  recordedBy    User              @relation("BackoutRecordedBy", fields: [recordedById], references: [id])
+  createdAt     DateTime          @default(now())
+
+  @@index([occurredAt])
+  @@index([stage])
+  @@index([party])
+}

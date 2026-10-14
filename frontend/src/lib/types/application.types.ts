@@ -1,3 +1,4 @@
+import type { ApplicationBackoutRecord } from "../backout";
 import type {
   ApplicationStatus,
   InterviewType,
@@ -87,6 +88,22 @@ export interface ComplianceRequirement {
   reviewNotes?: string | null;
   reviewedAt?: string | null;
   expiresAt?: string | null;
+  issuedAt?: string | null;
+  validityStatus?: "UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY";
+  updateRequestedAt?: string | null;
+  updateRequestReason?: string | null;
+  updateRequestDeadline?: string | null;
+  updateRequestCompletedAt?: string | null;
+  documentVersions?: Array<{
+    id: number;
+    documentId: number;
+    issuedAt?: string | null;
+    expiresAt?: string | null;
+    validityStatus: "UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY";
+    reviewStatus: string;
+    uploadedAt: string;
+    isCurrent: boolean;
+  }>;
   createdAt: string;
   updatedAt: string;
   reviewedBy?: {
@@ -102,6 +119,8 @@ export interface RecruiterDecision {
   fromStatus: string;
   toStatus: string;
   reason?: string | null;
+  transitionType?: "NORMAL" | "SKIP" | "FAST_TRACK";
+  skippedStages?: string[];
   createdAt: string;
   actor?: {
     id: string;
@@ -159,12 +178,10 @@ export interface Application {
   candidateFitScoreCalculatedAt?: string | null;
   contractSigned?: boolean;
   contractSignedAt?: string | null;
-  contractDocumentUrl?: string | null;
   contractNotes?: string | null;
-  orientationCompleted?: boolean;
-  orientationCompletedAt?: string | null;
-  orientationDate?: string | null;
-  orientationNotes?: string | null;
+  contractStartDate?: string | null;
+  contractSignedById?: string | null;
+  contractDocumentId?: number | null;
   isArchived: boolean;
   archivedAt?: string | null;
   createdAt: string;
@@ -189,6 +206,7 @@ export interface Application {
   postHireDocuments?: PostHireDocument[];
   recruiterDecisions?: RecruiterDecision[];
   deployments?: Deployment[];
+  backout?: ApplicationBackoutRecord | null;
   hiredEmployee?: {
     id: number;
     employeeNumber: string;
@@ -196,5 +214,52 @@ export interface Application {
     department?: string | null;
     position?: string | null;
     hireDate?: string | null;
+  } | null;
+}
+
+export interface ApplicantApplicationSummary {
+  id: number;
+  jobPostingId: number;
+  status: ApplicationStatus;
+  isArchived: boolean;
+  createdAt: string;
+  resumeAnalysisPending: boolean;
+  jobPosting?: {
+    id: number;
+    title: string;
+    location?: string | null;
+  } | null;
+}
+
+export interface TAApplicationSummary {
+  id: number;
+  status: ApplicationStatus;
+  isArchived: boolean;
+  createdAt: string;
+  aiScore?: number | null;
+  candidateFitScore?: number | null;
+  candidateFitScoreCalculatedAt?: string | null;
+  candidateScoringConfigurationVersion?: number | null;
+  interviewCount: number;
+  recruiterDecisionCount: number;
+  user?: {
+    id: string;
+    email: string;
+    applicantProfile?: {
+      firstName?: string | null;
+      lastName?: string | null;
+      mobileNumber?: string | null;
+    } | null;
+  } | null;
+  jobPosting?: {
+    id: number;
+    title: string;
+    location?: string | null;
+    mrf?: {
+      id: number;
+      title: string;
+      clientId: number;
+      client?: { id: number; name: string } | null;
+    } | null;
   } | null;
 }

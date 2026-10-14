@@ -45,7 +45,7 @@ export const CloneMRFModal: React.FC<CloneMRFModalProps> = ({
 
   const mrfsQuery = useQuery({
     queryKey: ["ta", "mrfs", "clone-list"],
-    queryFn: () => taApi.listMRFs({ sortBy: "createdAt" }),
+    queryFn: () => taApi.listMRFs({ sortBy: "created_desc" }),
     enabled: open,
   });
 

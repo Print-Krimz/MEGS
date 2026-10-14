@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { sendSuccess, sendError } from '../../utils/response.js';
 import {
   fetchAllUsers,
+  getAdminUserSummary,
   changeUserRole,
   changeUserStatus,
   inviteTA,
@@ -13,8 +14,22 @@ import { resetUserMfa } from '../../services/core/mfa.service.js';
 // GET /api/admin/users - List users and applicant profiles
 export const listUsers = async (req: Request, res: Response): Promise<void> => {
   try {
-    const users = await fetchAllUsers();
+    const users = await fetchAllUsers({
+      page: req.query.page as number | undefined,
+      limit: req.query.limit as number | undefined,
+      search: req.query.search as string | undefined,
+      role: req.query.role as "APPLICANT" | "TALENT_ACQUISITION" | "ADMINISTRATOR" | undefined,
+    });
     sendSuccess(res, "Users retrieved successfully", users);
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+export const getAdminUserSummaryHandler = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const summary = await getAdminUserSummary();
+    sendSuccess(res, "User summary retrieved successfully", summary);
   } catch (error: any) {
     sendError(res, error.message, 500);
   }

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
   PageHeader,
@@ -28,6 +28,16 @@ import {
 
 import { notify } from "../../lib/feedback";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
+import {
+  validateStandardText,
+  validateProseText,
+} from "../../lib/statutory-validation";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import {
+  normalizeServerSearch,
+  REFERENCE_QUERY_STALE_TIME_MS,
+  SERVER_SEARCH_DEBOUNCE_MS,
+} from "../../lib/query-policies";
 
 const JOB_TEMPLATE_DESCRIPTION = `### About the Role
 We are seeking a dedicated and qualified professional to join our operations team. In this position, you will collaborate with cross-functional team members and client stakeholders to deliver exceptional outcomes and maintain operational standards.
@@ -57,9 +67,9 @@ export const JobPostingsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
-  const [mineOnly, setMineOnly] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 8;
+  const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createModalTab, setCreateModalTab] = useState<"edit" | "preview">("edit");
 
@@ -72,40 +82,38 @@ export const JobPostingsPage: React.FC = () => {
   const [formIsEvergreen, setFormIsEvergreen] = useState(false);
 
   const clientsQuery = useQuery({
-    queryKey: ["ta", "clients", "dropdown"],
+    queryKey: ["ta", "clients"],
     queryFn: () => taApi.listClients(),
+    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
 
   const clients = clientsQuery.data ?? EMPTY_LIST;
 
   const jobsQuery = useQuery({
-    queryKey: ["ta", "jobs", { search, filterValues, mineOnly }],
-    queryFn: () =>
-      taApi.listJobs({
-        search: search || undefined,
+    queryKey: ["ta", "jobs", {
+      search: debouncedSearch,
+      status: filterValues.status || "",
+      clientId: filterValues.clientId || "",
+      page,
+      pageSize,
+    }],
+    queryFn: ({ signal }) =>
+      taApi.listJobsPage({
+        search: debouncedSearch || undefined,
         status: filterValues.status || undefined,
         clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
-        mineOnly: mineOnly ? true : undefined,
-      }),
+        page,
+        limit: pageSize,
+      }, { signal }),
+    placeholderData: keepPreviousData,
   });
 
-  const jobs = jobsQuery.data ?? EMPTY_LIST;
+  const jobData = jobsQuery.data;
+  const jobs = jobData?.items ?? EMPTY_LIST;
 
   // Dynamically derive client options for current TA scope (deduplicated)
   const availableClients = React.useMemo(() => {
     const seen = new Set<number>();
-    if (mineOnly) {
-      const list: Array<{ id: number; name: string; industry?: string | null; address?: string | null }> = [];
-      jobs.forEach((j: any) => {
-        const client = j.mrf?.client;
-        if (client && !seen.has(client.id)) {
-          seen.add(client.id);
-          list.push(client);
-        }
-      });
-      return list;
-    }
-
     const list: typeof clients = [];
     clients.forEach((c) => {
       if (!seen.has(c.id)) {
@@ -114,12 +122,13 @@ export const JobPostingsPage: React.FC = () => {
       }
     });
     return list;
-  }, [mineOnly, jobs, clients]);
+  }, [clients]);
 
   const mrfsQuery = useQuery({
-    queryKey: ["ta", "mrfs"],
-    queryFn: () => taApi.listMRFs(),
+    queryKey: ["ta", "mrfs", "link-picker"],
+    queryFn: () => taApi.listMRFs({ sortBy: "created_desc" }),
     enabled: createModalOpen,
+    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
 
   const mrfs = mrfsQuery.data || [];
@@ -187,8 +196,9 @@ export const JobPostingsPage: React.FC = () => {
     notify.info("Template loaded", "Job posting outline inserted into description and requirements.");
   };
 
-  const totalPages = Math.max(1, Math.ceil(jobs.length / pageSize));
-  const paginatedJobs = jobs.slice((page - 1) * pageSize, page * pageSize);
+  const totalItems = jobData?.total ?? 0;
+  const totalPages = jobData?.totalPages ?? 1;
+  const paginatedJobs = jobs;
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -252,7 +262,7 @@ export const JobPostingsPage: React.FC = () => {
           {
             key: "clientId",
             label: "Client",
-            placeholder: mineOnly ? "My clients" : "All clients",
+            placeholder: "All clients",
             searchable: true,
             options: availableClients.map((c) => ({
               value: String(c.id),
@@ -261,43 +271,6 @@ export const JobPostingsPage: React.FC = () => {
             })),
           },
         ]}
-        actions={
-          <div className="flex items-center border border-slate-300 bg-slate-100 p-0.5 rounded text-xs font-mono">
-            <button
-              type="button"
-              onClick={() => {
-                setMineOnly(false);
-                setPage(1);
-              }}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                !mineOnly
-                  ? "bg-white text-slate-900 shadow-xs border border-slate-200 font-semibold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              All openings
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMineOnly(true);
-                setFilterValues((prev) => {
-                  const next = { ...prev };
-                  delete next.clientId;
-                  return next;
-                });
-                setPage(1);
-              }}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                mineOnly
-                  ? "bg-white text-slate-900 shadow-xs border border-slate-200 font-semibold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              My openings
-            </button>
-          </div>
-        }
       />
 
       {/* Jobs Grid / Table */}
@@ -443,7 +416,7 @@ export const JobPostingsPage: React.FC = () => {
             <Pagination
               currentPage={page}
               totalPages={totalPages}
-              totalItems={jobs.length}
+              totalItems={totalItems}
               pageSize={pageSize}
               onPageChange={setPage}
               itemLabel="job openings"
@@ -463,12 +436,48 @@ export const JobPostingsPage: React.FC = () => {
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (!formTitle.trim()) return;
+            if (!selectedMrfId) {
+              notify.error("Choose a manpower request", "A job opening is posted under one of your manpower requests.");
+              return;
+            }
+
+            const titleErr = validateStandardText(formTitle, "Job opening title", { maxLength: 200 });
+            if (titleErr) {
+              notify.error("Invalid Title", titleErr);
+              return;
+            }
+
+            if (formLocation.trim()) {
+              const locErr = validateStandardText(formLocation, "Work site", { maxLength: 200 });
+              if (locErr) {
+                notify.error("Invalid Location", locErr);
+                return;
+              }
+            }
+
+            if (formDescription.trim()) {
+              const descErr = validateProseText(formDescription, "Description and responsibilities", { maxLength: 10000 });
+              if (descErr) {
+                notify.error("Invalid Description", descErr);
+                return;
+              }
+            }
+
+            if (formRequirements.trim()) {
+              const reqErr = validateProseText(formRequirements, "Required skills and qualifications", { maxLength: 10000 });
+              if (reqErr) {
+                notify.error("Invalid Requirements", reqErr);
+                return;
+              }
+            }
+
             createJobMutation.mutate({
-              title: formTitle,
-              location: formLocation || undefined,
-              imageUrl: formImageUrl || undefined,
-              description: formDescription,
-              requirements: formRequirements,
+              title: formTitle.trim(),
+              location: formLocation.trim() || undefined,
+              imageUrl: formImageUrl.trim() || undefined,
+              description: formDescription.trim(),
+              requirements: formRequirements.trim(),
               mrfId: selectedMrfId || undefined,
               isEvergreen: formIsEvergreen,
               status: JobStatus.OPEN,
@@ -523,7 +532,7 @@ export const JobPostingsPage: React.FC = () => {
             <div className="space-y-4">
               {/* Optional MRF Auto-Population Selector */}
               <ComboBox
-                label="Link to a manpower request (optional)"
+                label="Manpower request"
                 placeholder="Search requests to fill this opening automatically..."
                 leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-slate-400" />}
                 value={selectedMrfId ? String(selectedMrfId) : ""}
@@ -534,7 +543,8 @@ export const JobPostingsPage: React.FC = () => {
                   subtitle: `Client: ${m.client?.name || "Client"} • ${m.location || "Nationwide"} • ${m.headcount} positions`,
                   badge: m.status,
                 }))}
-                helperText="Selecting a request fills the title, location, description, and skills."
+                helperText="The opening is posted under this request. Selecting one fills the title, location, description, and skills."
+                required
                 emptyText="No open manpower requests found"
               />
 

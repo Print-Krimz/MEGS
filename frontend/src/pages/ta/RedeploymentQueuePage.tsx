@@ -7,6 +7,7 @@ import { employeesApi, type RedeploymentQueueResponse } from "../../lib/api/empl
 import { taApi } from "../../lib/api/ta.api";
 import { formatDate, getApplicationStatusMeta } from "../../lib/utils";
 import { notify } from "../../lib/feedback";
+import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
 
 type Row = RedeploymentQueueResponse["items"][number];
 
@@ -26,7 +27,7 @@ export const RedeploymentQueuePage: React.FC = () => {
   const openJobsQuery = useQuery({
     queryKey: ["ta", "redeployment-open-jobs"],
     queryFn: () => taApi.listJobs({ status: "OPEN" }),
-    enabled: Boolean(assignmentTarget),
+    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
 
   const assignRole = useMutation({
@@ -166,6 +167,7 @@ export const RedeploymentQueuePage: React.FC = () => {
         onClose={() => setAssignmentTarget(null)}
         title="Assign to open role"
         description={`Select an open job requisition to invite or assign ${assignmentTarget?.name}.`}
+        overflowVisible
       >
         <div className="space-y-4">
           {!assignmentTarget?.applicantProfileId && (
@@ -176,6 +178,8 @@ export const RedeploymentQueuePage: React.FC = () => {
           <ComboBox
             label="Open Job Requisition"
             placeholder="Select an open job..."
+            loading={openJobsQuery.isLoading}
+            loadingText="Loading open jobs..."
             value={targetJobId}
             onChange={(val) => setTargetJobId(val)}
             options={(openJobsQuery.data || []).map((job) => ({
@@ -183,7 +187,8 @@ export const RedeploymentQueuePage: React.FC = () => {
               label: job.title,
               subtitle: `${job.mrf?.client?.name || "General Client"} • ${job.location || "On-site"}`,
             }))}
-            disabled={openJobsQuery.isLoading}
+            disabled={openJobsQuery.isError}
+            error={openJobsQuery.isError ? "Failed to load open jobs. Please try again." : undefined}
           />
           <Textarea
             label="Invitation Message (Optional)"

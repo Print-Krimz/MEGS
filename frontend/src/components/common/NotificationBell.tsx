@@ -106,7 +106,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       </button>
 
       {open && (
-        <div id={dropdownId} className="absolute right-0 mt-1 w-[min(24rem,calc(100vw-1.5rem))] bg-white shadow-modal border border-slate-300 z-50 overflow-hidden">
+        <div
+          id={dropdownId}
+          className="fixed sm:absolute top-14 sm:top-full left-2 right-2 sm:left-auto sm:right-0 sm:mt-1.5 sm:w-96 max-w-[calc(100vw-1rem)] bg-white shadow-modal border border-slate-300 z-50 overflow-hidden rounded-md sm:rounded-none"
+        >
           {/* Header */}
           <div className="p-3 bg-slate-100 border-b border-slate-300 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">

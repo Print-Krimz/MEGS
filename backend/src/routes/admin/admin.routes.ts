@@ -7,6 +7,7 @@ import { taSchema } from '../../schemas/ta.schema.js';
 
 import {
   listUsers,
+  getAdminUserSummaryHandler,
   updateUserRole,
   updateUserStatus,
   inviteTAHandler,
@@ -15,6 +16,14 @@ import {
   resetUserMfaHandler,
 } from '../../controllers/admin/admin.users.controller.js';
 
+import {
+  assignClientHandler,
+  assignMrfHandler,
+  getAdminApplicationHandler,
+  reassignTaRecordsHandler,
+} from '../../controllers/admin/admin.assignments.controller.js';
+import { expireOverdueInvitationsHandler } from '../../controllers/ta/talent-pool-invitation.ta.controller.js';
+import { correctInterviewResultHandler } from '../../controllers/admin/admin.interviews.controller.js';
 import {
   listAuditLogs,
   exportAuditReportHandler,
@@ -26,6 +35,8 @@ import {
   downloadBackupHandler,
   restoreDatabaseBackupHandler,
   restoreUploadedBackupHandler,
+  listRestoresHandler,
+  cancelMaintenanceHandler,
 } from '../../controllers/admin/admin.maintenance.controller.js';
 import {
   getConfiguration,
@@ -37,11 +48,6 @@ import {
 } from '../../controllers/admin/candidate-scoring.admin.controller.js';
 
 import {
-  getAdminOverviewHandler,
-  getAdminActivityTrendHandler,
-  getAdminFunnelHandler,
-  getAdminBottlenecksHandler,
-  getAdminJobDemandsHandler,
   getAdminFilterOptionsHandler,
   getAdminDashboardSummaryHandler,
   exportAdminPipelineReportHandler,
@@ -61,12 +67,16 @@ router.use(validateDateRangeQuery);
 
 // User & Role Management
 router.get("/users", validate(adminSchema.listUsers), listUsers);
+router.get("/users/summary", getAdminUserSummaryHandler);
 router.post("/invite-ta", validate(adminSchema.inviteTA), inviteTAHandler);
 router.post("/users/:id/resend-invite", validate(adminSchema.userParams), resendTAInvitationHandler);
 router.post("/users/:id/cancel-invite", validate(adminSchema.userParams), cancelTAInvitationHandler);
 router.patch("/users/:id/role", validate(adminSchema.updateUserRole), updateUserRole);
 router.patch("/users/:id/status", validate(adminSchema.updateUserStatus), updateUserStatus);
 router.post("/users/:id/reset-mfa", validate(adminSchema.userParams), resetUserMfaHandler);
+
+// Interview result corrections (finalized results are read-only for TA)
+router.patch("/interviews/:interviewId/result", validate(adminSchema.correctInterviewResult), correctInterviewResultHandler);
 
 // Dynamic Scoring Config
 router.get("/candidate-scoring/configuration", getConfiguration);
@@ -93,20 +103,28 @@ router.post("/maintenance/backup", validate(adminSchema.triggerBackup), triggerB
 router.patch("/maintenance/backups/:id/rename", validate(adminSchema.renameBackup), renameBackupHandler);
 router.get("/maintenance/backups/:id/download", validate(adminSchema.backupIdParams), downloadBackupHandler);
 router.post("/maintenance/backups/:id/restore", validate(adminSchema.backupIdParams), restoreDatabaseBackupHandler);
+router.get("/maintenance/restores", validate(adminSchema.backupList), listRestoresHandler);
 router.post("/maintenance/backups/restore-upload", backupUpload.single("file"), validate(adminSchema.restoreUploadedBackup), restoreUploadedBackupHandler);
+router.post("/maintenance/cancel", cancelMaintenanceHandler);
 
 // Recruitment Analytics
 router.get("/analytics/dashboard", validate(analyticsSchema.filters), getAdminDashboardSummaryHandler);
-router.get("/analytics/overview", validate(analyticsSchema.filters), getAdminOverviewHandler);
-router.get("/analytics/activity", validate(analyticsSchema.filters), getAdminActivityTrendHandler);
-router.get("/analytics/funnel", validate(analyticsSchema.filters), getAdminFunnelHandler);
-router.get("/analytics/bottlenecks", validate(analyticsSchema.filters), getAdminBottlenecksHandler);
-router.get("/analytics/jobs", validate(analyticsSchema.filters), getAdminJobDemandsHandler);
 router.get("/analytics/filters", validate(analyticsSchema.filters), getAdminFilterOptionsHandler);
+
+// Global worker: expires overdue talent pool invitations
+router.post("/talent-pool/invitations/expire-overdue", expireOverdueInvitationsHandler);
 
 // Manpower Requests Oversight (Read-Only)
 router.get("/mrfs", validate(taSchema.listMRFs), listMRFsHandler);
 router.get("/mrfs/:id", validate(adminSchema.mrfIdParams), getMRFDetailsHandler);
+
+// Ownership: Admin reassigns requisitions, clients and a departing TA's records
+router.patch("/mrfs/:id/assignment", validate(adminSchema.assignment), assignMrfHandler);
+router.patch("/clients/:id/assignment", validate(adminSchema.assignment), assignClientHandler);
+router.post("/users/:id/reassign-records", validate(adminSchema.reassignRecords), reassignTaRecordsHandler);
+
+// Application detail for oversight links (read-only)
+router.get("/applications/:id", validate(adminSchema.idParams), getAdminApplicationHandler);
 
 // Analytics Reports Export
 router.get("/reports/pipeline", validate(analyticsSchema.report), exportAdminPipelineReportHandler);

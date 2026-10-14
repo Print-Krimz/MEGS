@@ -8,14 +8,14 @@ export interface NotificationQueryParams {
 }
 
 export const notificationApi = {
-  getNotifications: async (params?: NotificationQueryParams): Promise<PaginatedNotifications> => {
+  getNotifications: async (params?: NotificationQueryParams, options?: RequestInit): Promise<PaginatedNotifications> => {
     const searchParams = new URLSearchParams();
     if (params?.isRead !== undefined) searchParams.append("isRead", String(params.isRead));
     if (params?.page) searchParams.append("page", String(params.page));
     if (params?.limit) searchParams.append("limit", String(params.limit));
 
     const qs = searchParams.toString();
-    const res = await api.get<any>(`/api/notifications${qs ? `?${qs}` : ""}`);
+    const res = await api.get<any>(`/api/notifications${qs ? `?${qs}` : ""}`, options);
     // Normalize response if backend returns envelope or array
     if (res && Array.isArray(res.items)) {
       return {
@@ -40,8 +40,8 @@ export const notificationApi = {
     return { items: [], total: 0, unreadCount: 0, page: 1, pageSize: 10, totalPages: 1 };
   },
 
-  getUnreadCount: () =>
-    api.get<{ count: number }>("/api/notifications/unread-count"),
+  getUnreadCount: (options?: RequestInit) =>
+    api.get<{ count: number }>("/api/notifications/unread-count", options),
 
   markAsRead: (id: number) =>
     api.patch<Notification>(`/api/notifications/${id}/read`),

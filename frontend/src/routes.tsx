@@ -45,6 +45,7 @@ const NotificationsPage = lazyRouteComponent(() => import("./pages/applicant/Not
 
 const AdminDashboard = lazyRouteComponent(() => import("./pages/admin/AdminDashboard"), "AdminDashboard");
 const AdminAnalyticsPage = lazyRouteComponent(() => import("./pages/admin/AdminAnalyticsPage"), "AdminAnalyticsPage");
+const AdminApplicationPage = lazyRouteComponent(() => import("./pages/admin/AdminApplicationPage"), "AdminApplicationPage");
 const UsersPage = lazyRouteComponent(() => import("./pages/admin/UsersPage"), "UsersPage");
 const ScoringConfigPage = lazyRouteComponent(() => import("./pages/admin/ScoringConfigPage"), "ScoringConfigPage");
 const ScoringQualityPage = lazyRouteComponent(() => import("./pages/admin/ScoringQualityPage"), "ScoringQualityPage");
@@ -305,7 +306,6 @@ export interface TAApplicationSearch {
   stage?: ApplicationStatus;
   clientId?: number;
   jobId?: number;
-  mine?: boolean;
   archived?: boolean;
   page?: number;
   tab?: string;
@@ -334,7 +334,6 @@ const parseTAApplicationSearch = (
     stage,
     clientId: parsePositiveNumber(search.clientId),
     jobId: parsePositiveNumber(search.jobId),
-    mine: parseBoolean(search.mine),
     archived: parseBoolean(search.archived),
     page: parsePositiveNumber(search.page),
     tab: includeTab && typeof search.tab === "string" ? search.tab : undefined,
@@ -554,6 +553,12 @@ export const adminNotificationsRoute = createRoute({
   component: NotificationsPage,
 });
 
+export const adminApplicationDetailRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/admin/applications/$applicationId",
+  component: AdminApplicationPage,
+});
+
 export const adminMrfDetailRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/admin/mrfs/$mrfId",
@@ -617,6 +622,7 @@ const routeTree = rootRoute.addChildren([
     adminAuditRoute,
     adminNotificationsRoute,
     adminMrfDetailRoute,
+    adminApplicationDetailRoute,
   ]),
 ]);
 

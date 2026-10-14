@@ -19,7 +19,7 @@ export const getPipelineStageIndex = (status: string): number => {
     case ApplicationStatus.COMPLIANCE:
       return 4;
     case ApplicationStatus.ONBOARDING:
-    case ApplicationStatus.CONTRACT_AND_ORIENTATION:
+    case ApplicationStatus.CONTRACT_SIGNING:
       return 5;
     case ApplicationStatus.DEPLOYED:
       return 6;

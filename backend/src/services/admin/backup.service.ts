@@ -1,6 +1,8 @@
+import { BACKUP_TABLES, collectBackupTables, restoreBackupTables, type BackupProgress } from "./backup-tables.js";
 import crypto from "crypto";
 import zlib from "zlib";
 import { Readable } from "stream";
+import { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
 import supabase from "../../utils/supabase.js";
 import { logAudit } from "../../utils/audit.js";
@@ -11,6 +13,22 @@ import {
 
 const BACKUP_BUCKET = "system-backups";
 const verifiedBuckets = new Set<string>();
+
+const gzipAsync = (buffer: Buffer): Promise<Buffer> =>
+  new Promise((resolve, reject) => {
+    zlib.gzip(buffer, { level: 9 }, (error, compressed) => {
+      if (error) reject(error);
+      else resolve(compressed);
+    });
+  });
+
+const gunzipAsync = (buffer: Buffer): Promise<Buffer> =>
+  new Promise((resolve, reject) => {
+    zlib.gunzip(buffer, (error, decompressed) => {
+      if (error) reject(error);
+      else resolve(decompressed);
+    });
+  });
 
 export const ensureBackupBucketExists = async (): Promise<void> => {
   if (verifiedBuckets.has(BACKUP_BUCKET)) return;
@@ -51,12 +69,109 @@ export interface BackupDownloadResult {
   sizeBytes: number;
 }
 
+// Runs report progress as they go; one that has been silent this long belongs
+// to a crashed or restarted server.
+const STALE_JOB_MS = 3 * 60 * 1000;
+const PROGRESS_WRITE_INTERVAL_MS = 5000;
+
+export class MaintenanceBusyError extends Error {
+  statusCode = 409;
+  constructor() { super("A backup or restore is already running. Please wait for it to finish."); }
+}
+
+// Throttled progress writer; the write also bumps updatedAt, which is the heartbeat.
+const progressReporter = (write: (progress: BackupProgress) => Promise<unknown>) => {
+  let lastWrite = 0;
+  return async (progress: BackupProgress) => {
+    if (Date.now() - lastWrite < PROGRESS_WRITE_INTERVAL_MS) return;
+    lastWrite = Date.now();
+    await write(progress).catch(() => null);
+  };
+};
+
+export const sweepStaleJobs = async () => {
+  const where = { status: "IN_PROGRESS" as const, updatedAt: { lt: new Date(Date.now() - STALE_JOB_MS) } };
+  const data = {
+    status: "FAILED" as const,
+    errorMessage: "Stopped responding. The server may have restarted or lost its database connection.",
+    completedAt: new Date(),
+    progress: Prisma.DbNull,
+  };
+  await prisma.databaseBackupRecord.updateMany({ where, data });
+  await prisma.databaseRestoreRecord.updateMany({ where, data });
+};
+
+export const cancelMaintenance = async (actorId?: string) => {
+  const now = new Date();
+  const data = {
+    status: "FAILED" as const,
+    errorMessage: "Cancelled by administrator",
+    completedAt: now,
+    progress: Prisma.DbNull,
+  };
+  const [backups, restores] = await Promise.all([
+    prisma.databaseBackupRecord.updateMany({ where: { status: "IN_PROGRESS" }, data }),
+    prisma.databaseRestoreRecord.updateMany({ where: { status: "IN_PROGRESS" }, data }),
+  ]);
+
+  if (actorId && (backups.count > 0 || restores.count > 0)) {
+    await logAudit(
+      actorId,
+      "DATABASE_MAINTENANCE_CANCELLED",
+      "DatabaseMaintenance",
+      null,
+      {
+        cancelledBackups: backups.count,
+        cancelledRestores: restores.count,
+      }
+    ).catch(() => null);
+  }
+
+  return {
+    cancelledBackups: backups.count,
+    cancelledRestores: restores.count,
+  };
+};
+
+const assertNothingRunning = async () => {
+  await sweepStaleJobs();
+  const [backups, restores] = await Promise.all([
+    prisma.databaseBackupRecord.count({ where: { status: "IN_PROGRESS" } }),
+    prisma.databaseRestoreRecord.count({ where: { status: "IN_PROGRESS" } }),
+  ]);
+  if (backups || restores) throw new MaintenanceBusyError();
+};
+
+type BackupType = "MANUAL" | "SCHEDULED_ROUTINE";
+
 export const triggerDatabaseBackupRoutine = async (
   initiatedById?: string,
-  backupType: "MANUAL" | "SCHEDULED_ROUTINE" = "MANUAL",
+  backupType: BackupType = "MANUAL",
   customName?: string
 ) => {
-  const startTime = Date.now();
+  const backupRecord = await createBackupRecord(initiatedById, backupType, customName);
+  return runDatabaseBackup(backupRecord, initiatedById, backupType);
+};
+
+// Starts the backup without waiting for it; callers poll the backup list for the result.
+export const startDatabaseBackupInBackground = async (
+  initiatedById?: string,
+  backupType: BackupType = "MANUAL",
+  customName?: string
+) => {
+  await assertNothingRunning();
+  const backupRecord = await createBackupRecord(initiatedById, backupType, customName);
+  runDatabaseBackup(backupRecord, initiatedById, backupType).catch((err) => {
+    console.error(`[Backup] ${backupRecord.filename} failed:`, err?.message || err);
+  });
+  return backupRecord;
+};
+
+const createBackupRecord = async (
+  initiatedById: string | undefined,
+  backupType: BackupType,
+  customName?: string
+) => {
   const timestamp = new Date()
     .toISOString()
     .replace(/[:.]/g, "-")
@@ -71,8 +186,7 @@ export const triggerDatabaseBackupRoutine = async (
     filename = `megs_backup_${timestamp}.enc.gz`;
   }
 
-  // Step 1: Create initial in-progress record
-  const backupRecord = await prisma.databaseBackupRecord.create({
+  return prisma.databaseBackupRecord.create({
     data: {
       filename,
       status: "IN_PROGRESS",
@@ -82,124 +196,39 @@ export const triggerDatabaseBackupRoutine = async (
       tablesIncluded: [],
     },
   });
+};
+
+const runDatabaseBackup = async (
+  backupRecord: { id: string; filename: string },
+  initiatedById: string | undefined,
+  backupType: BackupType
+) => {
+  const startTime = Date.now();
+  const { filename } = backupRecord;
 
   try {
     await ensureBackupBucketExists();
 
-    // Step 2: Query Application Tables concurrently
-    const [
-      users,
-      applicantProfiles,
-      applicantSkills,
-      workExperiences,
-      storedDocuments,
-      jobPostings,
-      applications,
-      interviews,
-      recruiterDecisions,
-      clientEndorsements,
-      complianceRequirements,
-      deployments,
-      manpowerRequests,
-      candidateScores,
-      scoringConfigurations,
-      auditLogs,
-      notifications,
-    ] = await Promise.all([
-      prisma.user.findMany({ take: 500 }).catch(() => []),
-      prisma.applicantProfile.findMany({ take: 500 }).catch(() => []),
-      prisma.applicantSkill.findMany({ take: 500 }).catch(() => []),
-      prisma.workExperience.findMany({ take: 500 }).catch(() => []),
-      prisma.storedDocument.findMany({ take: 500 }).catch(() => []),
-      prisma.jobPosting.findMany({ take: 500 }).catch(() => []),
-      prisma.application.findMany({ take: 500 }).catch(() => []),
-      prisma.interview.findMany({ take: 500 }).catch(() => []),
-      prisma.recruiterDecision.findMany({ take: 500 }).catch(() => []),
-      prisma.clientEndorsement.findMany({ take: 500 }).catch(() => []),
-      prisma.complianceRequirement.findMany({ take: 500 }).catch(() => []),
-      prisma.deployment.findMany({ take: 500 }).catch(() => []),
-      prisma.manpowerRequest.findMany({ take: 500 }).catch(() => []),
-      prisma.candidateScore.findMany({ take: 500 }).catch(() => []),
-      prisma.candidateScoringConfiguration.findMany({ take: 50 }).catch(() => []),
-      prisma.auditLog.findMany({ take: 500, orderBy: { createdAt: "desc" } }).catch(() => []),
-      prisma.notification.findMany({ take: 500, orderBy: { createdAt: "desc" } }).catch(() => []),
-    ]);
-
-    const tablesIncluded = [
-      "User",
-      "ApplicantProfile",
-      "ApplicantSkill",
-      "WorkExperience",
-      "StoredDocument",
-      "JobPosting",
-      "Application",
-      "Interview",
-      "RecruiterDecision",
-      "ClientEndorsement",
-      "ComplianceRequirement",
-      "Deployment",
-      "ManpowerRequest",
-      "CandidateScore",
-      "CandidateScoringConfiguration",
-      "AuditLog",
-      "Notification",
-    ];
-
+    // Read a complete, consistent snapshot. Failed reads fail the backup.
+    const reportProgress = progressReporter((progress) =>
+      prisma.databaseBackupRecord.update({ where: { id: backupRecord.id }, data: { progress } })
+    );
+    const data = await collectBackupTables(prisma, reportProgress);
+    const tablesIncluded = BACKUP_TABLES.map(([, model]) => model);
     const snapshotPayload = {
       meta: {
-        version: "1.0.0",
-        system: "MEGS Recruitment Management System",
-        exportedAt: new Date().toISOString(),
-        backupType,
+        version: "1.1.0", system: "MEGS Recruitment Management System",
+        exportedAt: new Date().toISOString(), backupType,
         tablesCount: tablesIncluded.length,
-        recordCounts: {
-          User: users.length,
-          ApplicantProfile: applicantProfiles.length,
-          ApplicantSkill: applicantSkills.length,
-          WorkExperience: workExperiences.length,
-          StoredDocument: storedDocuments.length,
-          JobPosting: jobPostings.length,
-          Application: applications.length,
-          Interview: interviews.length,
-          RecruiterDecision: recruiterDecisions.length,
-          ClientEndorsement: clientEndorsements.length,
-          ComplianceRequirement: complianceRequirements.length,
-          Deployment: deployments.length,
-          ManpowerRequest: manpowerRequests.length,
-          CandidateScore: candidateScores.length,
-          CandidateScoringConfiguration: scoringConfigurations.length,
-          AuditLog: auditLogs.length,
-          Notification: notifications.length,
-        },
+        recordCounts: Object.fromEntries(BACKUP_TABLES.map(([key, model]) => [model, data[key].length])),
       },
-      data: {
-        users,
-        applicantProfiles,
-        applicantSkills,
-        workExperiences,
-        storedDocuments,
-        jobPostings,
-        applications,
-        interviews,
-        recruiterDecisions,
-        clientEndorsements,
-        complianceRequirements,
-        deployments,
-        manpowerRequests,
-        candidateScores,
-        scoringConfigurations,
-        auditLogs,
-        notifications,
-      },
+      data,
     };
-
     // Step 3: Serialize and Gzip Compress
     const jsonString = JSON.stringify(snapshotPayload, (_key, value) =>
       typeof value === "bigint" ? value.toString() : value
     );
-    const compressedBuffer = zlib.gzipSync(Buffer.from(jsonString, "utf-8"), {
-      level: 9,
-    });
+    const compressedBuffer = await gzipAsync(Buffer.from(jsonString, "utf-8"));
 
     // Step 4: AES-256-GCM Encryption
     const finalEncryptedFileBuffer = encryptBackupPayload(compressedBuffer);
@@ -258,6 +287,7 @@ export const triggerDatabaseBackupRoutine = async (
         storagePath,
         tablesIncluded,
         durationMs,
+        progress: Prisma.DbNull,
         completedAt: new Date(),
       },
     });
@@ -311,16 +341,7 @@ export const triggerDatabaseBackupRoutine = async (
 };
 
 export const listDatabaseBackups = async (limit = 50) => {
-  const cutoff = new Date(Date.now() - 15 * 60 * 1000);
-  await prisma.databaseBackupRecord.updateMany({
-    where: {
-      status: "IN_PROGRESS",
-      createdAt: { lt: cutoff },
-    },
-    data: {
-      status: "FAILED",
-    },
-  });
+  await sweepStaleJobs();
 
   const records = await prisma.databaseBackupRecord.findMany({
     take: limit,
@@ -472,12 +493,7 @@ export interface RestoreResult {
   restoredAt: string;
 }
 
-export const restoreDatabaseBackupFromBuffer = async (
-  buffer: Buffer,
-  initiatedById?: string
-): Promise<RestoreResult> => {
-  const startTime = Date.now();
-
+const decodeBackupBuffer = async (buffer: Buffer): Promise<Record<string, unknown>> => {
   if (!buffer || buffer.length < 29) {
     throw new Error("Invalid backup file: file is empty, corrupted, or too small.");
   }
@@ -486,7 +502,7 @@ export const restoreDatabaseBackupFromBuffer = async (
 
   try {
     const decrypted = decryptBackupPayload(buffer);
-    decompressed = zlib.gunzipSync(decrypted);
+    decompressed = await gunzipAsync(decrypted);
   } catch (err: any) {
     throw new Error("Failed to decrypt or decompress backup. Invalid key, corrupted file, or tampered data.");
   }
@@ -502,338 +518,16 @@ export const restoreDatabaseBackupFromBuffer = async (
     throw new Error("Invalid backup structure: missing metadata or data section.");
   }
 
-  const { data } = snapshot;
-  const recordsRestored: Record<string, number> = {};
-  let totalRecords = 0;
+  return snapshot.data;
+};
 
-  const runInBatches = async <T>(
-    items: T[],
-    batchSize: number,
-    fn: (item: T) => Promise<any>
-  ) => {
-    for (let i = 0; i < items.length; i += batchSize) {
-      const batch = items.slice(i, i + batchSize);
-      await Promise.all(batch.map(fn));
-    }
-  };
-
-  // 1. Users (Bulk insert missing + safe upsert)
-  if (Array.isArray(data.users) && data.users.length > 0) {
-    const formattedUsers = data.users.map((u: any) => ({
-      id: u.id,
-      email: u.email,
-      password: u.password,
-      role: u.role,
-      accountStatus: u.accountStatus,
-      isActive: u.isActive ?? true,
-      createdAt: u.createdAt ? new Date(u.createdAt) : new Date(),
-      updatedAt: u.updatedAt ? new Date(u.updatedAt) : new Date(),
-      invitedAt: u.invitedAt ? new Date(u.invitedAt) : null,
-      lastLoginAt: u.lastLoginAt ? new Date(u.lastLoginAt) : null,
-    }));
-    await prisma.user.createMany({
-      data: formattedUsers,
-      skipDuplicates: true,
-    }).catch(() => null);
-    recordsRestored.User = data.users.length;
-    totalRecords += data.users.length;
-  }
-
-  // 2. Scoring Configurations
-  if (Array.isArray(data.scoringConfigurations) && data.scoringConfigurations.length > 0) {
-    const formattedConfigs = data.scoringConfigurations.map((sc: any) => ({
-      id: sc.id,
-      scope: sc.scope,
-      version: sc.version,
-      revision: sc.revision,
-      status: sc.status,
-      weights: sc.weights,
-      knnSettings: sc.knnSettings,
-      matchThreshold: sc.matchThreshold,
-      changeReason: sc.changeReason,
-      activatedById: sc.activatedById,
-      createdAt: sc.createdAt ? new Date(sc.createdAt) : new Date(),
-      updatedAt: sc.updatedAt ? new Date(sc.updatedAt) : new Date(),
-      activatedAt: sc.activatedAt ? new Date(sc.activatedAt) : null,
-    }));
-    await prisma.candidateScoringConfiguration.createMany({
-      data: formattedConfigs,
-      skipDuplicates: true,
-    }).catch(() => null);
-
-    // Update active scoring configuration status
-    await runInBatches(formattedConfigs, 20, async (sc: any) => {
-      return prisma.candidateScoringConfiguration.update({
-        where: { id: sc.id },
-        data: {
-          status: sc.status,
-          weights: sc.weights,
-          knnSettings: sc.knnSettings,
-          matchThreshold: sc.matchThreshold,
-        },
-      }).catch(() => null);
-    });
-    recordsRestored.CandidateScoringConfiguration = data.scoringConfigurations.length;
-    totalRecords += data.scoringConfigurations.length;
-  }
-
-  // 3. Job Postings
-  if (Array.isArray(data.jobPostings) && data.jobPostings.length > 0) {
-    const formattedJobs = data.jobPostings.map((j: any) => ({
-      id: j.id,
-      postedById: j.postedById,
-      title: j.title,
-      description: j.description,
-      requirements: j.requirements,
-      location: j.location,
-      status: j.status,
-      mrfId: j.mrfId,
-      createdAt: j.createdAt ? new Date(j.createdAt) : new Date(),
-      updatedAt: j.updatedAt ? new Date(j.updatedAt) : new Date(),
-    }));
-    await prisma.jobPosting.createMany({
-      data: formattedJobs,
-      skipDuplicates: true,
-    }).catch(() => null);
-    recordsRestored.JobPosting = data.jobPostings.length;
-    totalRecords += data.jobPostings.length;
-  }
-
-  // 4. Applicant Profiles
-  if (Array.isArray(data.applicantProfiles) && data.applicantProfiles.length > 0) {
-    const formattedProfiles = data.applicantProfiles.map((ap: any) => ({
-      id: ap.id,
-      userId: ap.userId,
-      firstName: ap.firstName,
-      lastName: ap.lastName,
-      middleName: ap.middleName,
-      phone: ap.phone,
-      currentAddress: ap.currentAddress,
-      region: ap.region,
-      dateOfBirth: ap.dateOfBirth ? new Date(ap.dateOfBirth) : null,
-      highestEducation: ap.highestEducation,
-      preferredRole: ap.preferredRole,
-      expectedSalary: ap.expectedSalary,
-      currentSalary: ap.currentSalary,
-      yearsOfExperience: ap.yearsOfExperience,
-      talentPoolStatus: ap.talentPoolStatus,
-      createdAt: ap.createdAt ? new Date(ap.createdAt) : new Date(),
-      updatedAt: ap.updatedAt ? new Date(ap.updatedAt) : new Date(),
-    }));
-    await prisma.applicantProfile.createMany({
-      data: formattedProfiles,
-      skipDuplicates: true,
-    }).catch(() => null);
-
-    // Synchronize talent pool status on applicant profiles
-    await runInBatches(formattedProfiles, 50, async (ap: any) => {
-      return prisma.applicantProfile.update({
-        where: { id: ap.id },
-        data: {
-          talentPoolStatus: ap.talentPoolStatus,
-          firstName: ap.firstName,
-          lastName: ap.lastName,
-          phone: ap.phone,
-        },
-      }).catch(() => null);
-    });
-
-    recordsRestored.ApplicantProfile = data.applicantProfiles.length;
-    totalRecords += data.applicantProfiles.length;
-  }
-
-  // 5. Applications (Restores exact stage, status, contract, and orientation data)
-  if (Array.isArray(data.applications) && data.applications.length > 0) {
-    const formattedApps = data.applications.map((a: any) => ({
-      id: a.id,
-      userId: a.userId,
-      jobPostingId: a.jobPostingId,
-      status: a.status,
-      resumeUrl: a.resumeUrl,
-      aiScore: a.aiScore,
-      aiSummary: a.aiSummary,
-      isArchived: a.isArchived ?? false,
-      archivedAt: a.archivedAt ? new Date(a.archivedAt) : null,
-      contractSigned: a.contractSigned ?? false,
-      contractSignedAt: a.contractSignedAt ? new Date(a.contractSignedAt) : null,
-      contractDocumentUrl: a.contractDocumentUrl,
-      contractNotes: a.contractNotes,
-      orientationCompleted: a.orientationCompleted ?? false,
-      orientationCompletedAt: a.orientationCompletedAt ? new Date(a.orientationCompletedAt) : null,
-      orientationDate: a.orientationDate ? new Date(a.orientationDate) : null,
-      orientationNotes: a.orientationNotes,
-      createdAt: a.createdAt ? new Date(a.createdAt) : new Date(),
-      updatedAt: a.updatedAt ? new Date(a.updatedAt) : new Date(),
-    }));
-
-    // Step A: Insert any missing applications
-    await prisma.application.createMany({
-      data: formattedApps,
-      skipDuplicates: true,
-    }).catch(() => null);
-
-    // Step B: Synchronize status and fields for all applications in snapshot
-    await runInBatches(formattedApps, 50, async (a: any) => {
-      return prisma.application.update({
-        where: { id: a.id },
-        data: {
-          status: a.status,
-          resumeUrl: a.resumeUrl,
-          aiScore: a.aiScore,
-          aiSummary: a.aiSummary,
-          isArchived: a.isArchived,
-          archivedAt: a.archivedAt,
-          contractSigned: a.contractSigned,
-          contractSignedAt: a.contractSignedAt,
-          contractDocumentUrl: a.contractDocumentUrl,
-          contractNotes: a.contractNotes,
-          orientationCompleted: a.orientationCompleted,
-          orientationCompletedAt: a.orientationCompletedAt,
-          orientationDate: a.orientationDate,
-          orientationNotes: a.orientationNotes,
-        },
-      }).catch(() => null);
-    });
-
-    recordsRestored.Application = data.applications.length;
-    totalRecords += data.applications.length;
-  }
-
-  // 6. Interviews
-  if (Array.isArray(data.interviews) && data.interviews.length > 0) {
-    const formattedInterviews = data.interviews.map((iv: any) => ({
-      id: iv.id,
-      applicationId: iv.applicationId,
-      type: iv.type,
-      scheduledAt: iv.scheduledAt ? new Date(iv.scheduledAt) : null,
-      conductedAt: iv.conductedAt ? new Date(iv.conductedAt) : null,
-      result: iv.result,
-      notes: iv.notes,
-      complianceDeadline: iv.complianceDeadline ? new Date(iv.complianceDeadline) : null,
-      isCompliant: iv.isCompliant,
-      isActive: iv.isActive ?? true,
-      createdAt: iv.createdAt ? new Date(iv.createdAt) : new Date(),
-      updatedAt: iv.updatedAt ? new Date(iv.updatedAt) : new Date(),
-    }));
-
-    await prisma.interview.createMany({
-      data: formattedInterviews,
-      skipDuplicates: true,
-    }).catch(() => null);
-
-    await runInBatches(formattedInterviews, 50, async (iv: any) => {
-      return prisma.interview.update({
-        where: { id: iv.id },
-        data: {
-          scheduledAt: iv.scheduledAt,
-          conductedAt: iv.conductedAt,
-          result: iv.result,
-          notes: iv.notes,
-          isCompliant: iv.isCompliant,
-          isActive: iv.isActive,
-        },
-      }).catch(() => null);
-    });
-
-    recordsRestored.Interview = data.interviews.length;
-    totalRecords += data.interviews.length;
-  }
-
-  // 7. Recruiter Decisions
-  if (Array.isArray(data.recruiterDecisions) && data.recruiterDecisions.length > 0) {
-    const formattedDecisions = data.recruiterDecisions.map((rd: any) => ({
-      id: rd.id,
-      applicationId: rd.applicationId,
-      actorId: rd.actorId,
-      fromStatus: rd.fromStatus,
-      toStatus: rd.toStatus,
-      reason: rd.reason,
-      createdAt: rd.createdAt ? new Date(rd.createdAt) : new Date(),
-    }));
-
-    await prisma.recruiterDecision.createMany({
-      data: formattedDecisions,
-      skipDuplicates: true,
-    }).catch(() => null);
-
-    recordsRestored.RecruiterDecision = data.recruiterDecisions.length;
-    totalRecords += data.recruiterDecisions.length;
-  }
-
-  // 8. Compliance Requirements
-  if (Array.isArray(data.complianceRequirements) && data.complianceRequirements.length > 0) {
-    const formattedReqs = data.complianceRequirements.map((cr: any) => ({
-      id: cr.id,
-      applicationId: cr.applicationId,
-      documentLabel: cr.documentLabel,
-      isRequired: cr.isRequired ?? true,
-      deadline: cr.deadline ? new Date(cr.deadline) : null,
-      documentId: cr.documentId,
-      reviewStatus: cr.reviewStatus,
-      reviewedById: cr.reviewedById,
-      reviewNotes: cr.reviewNotes,
-      reviewedAt: cr.reviewedAt ? new Date(cr.reviewedAt) : null,
-      expiresAt: cr.expiresAt ? new Date(cr.expiresAt) : null,
-      createdAt: cr.createdAt ? new Date(cr.createdAt) : new Date(),
-      updatedAt: cr.updatedAt ? new Date(cr.updatedAt) : new Date(),
-    }));
-
-    await prisma.complianceRequirement.createMany({
-      data: formattedReqs,
-      skipDuplicates: true,
-    }).catch(() => null);
-
-    await runInBatches(formattedReqs, 50, async (cr: any) => {
-      return prisma.complianceRequirement.update({
-        where: { id: cr.id },
-        data: {
-          reviewStatus: cr.reviewStatus,
-          reviewNotes: cr.reviewNotes,
-          reviewedAt: cr.reviewedAt,
-          expiresAt: cr.expiresAt,
-        },
-      }).catch(() => null);
-    });
-
-    recordsRestored.ComplianceRequirement = data.complianceRequirements.length;
-    totalRecords += data.complianceRequirements.length;
-  }
-
-  // 9. Deployments
-  if (Array.isArray(data.deployments) && data.deployments.length > 0) {
-    const formattedDeployments = data.deployments.map((d: any) => ({
-      id: d.id,
-      applicationId: d.applicationId,
-      employeeId: d.employeeId,
-      clientId: d.clientId,
-      deploymentDate: d.deploymentDate ? new Date(d.deploymentDate) : null,
-      startDate: d.startDate ? new Date(d.startDate) : null,
-      endDate: d.endDate ? new Date(d.endDate) : null,
-      status: d.status,
-      remarks: d.remarks,
-      createdAt: d.createdAt ? new Date(d.createdAt) : new Date(),
-      updatedAt: d.updatedAt ? new Date(d.updatedAt) : new Date(),
-    }));
-
-    await prisma.deployment.createMany({
-      data: formattedDeployments,
-      skipDuplicates: true,
-    }).catch(() => null);
-
-    await runInBatches(formattedDeployments, 50, async (d: any) => {
-      return prisma.deployment.update({
-        where: { id: d.id },
-        data: {
-          status: d.status,
-          deploymentDate: d.deploymentDate,
-          remarks: d.remarks,
-        },
-      }).catch(() => null);
-    });
-
-    recordsRestored.Deployment = data.deployments.length;
-    totalRecords += data.deployments.length;
-  }
+const restoreSnapshotData = async (
+  data: Record<string, unknown>,
+  initiatedById?: string,
+  onProgress?: (progress: BackupProgress) => Promise<void>
+): Promise<RestoreResult> => {
+  const startTime = Date.now();
+  const { recordsRestored, totalRecords } = await restoreBackupTables(prisma, data, onProgress);
 
   const durationMs = Date.now() - startTime;
 
@@ -858,6 +552,24 @@ export const restoreDatabaseBackupFromBuffer = async (
   };
 };
 
+export const restoreDatabaseBackupFromBuffer = async (
+  buffer: Buffer,
+  initiatedById?: string,
+  onProgress?: (progress: BackupProgress) => Promise<void>
+): Promise<RestoreResult> => restoreSnapshotData(await decodeBackupBuffer(buffer), initiatedById, onProgress);
+
+const downloadBackupFile = async (storagePath: string) => {
+  const { data, error } = await supabase.storage
+    .from(BACKUP_BUCKET)
+    .download(storagePath);
+
+  if (error || !data) {
+    throw new Error(`Backup snapshot could not be retrieved from Supabase Storage: ${error?.message || "File not found"}`);
+  }
+
+  return Buffer.from(await data.arrayBuffer());
+};
+
 export const restoreDatabaseBackupById = async (
   backupId: string,
   initiatedById: string
@@ -870,15 +582,85 @@ export const restoreDatabaseBackupById = async (
     throw new Error("Database backup record not found.");
   }
 
-  const { data, error } = await supabase.storage
-    .from(BACKUP_BUCKET)
-    .download(record.storagePath);
+  return await restoreDatabaseBackupFromBuffer(await downloadBackupFile(record.storagePath), initiatedById);
+};
 
-  if (error || !data) {
-    throw new Error(`Backup snapshot could not be retrieved from Supabase Storage: ${error?.message || "File not found"}`);
+export type RestoreSource = { backupId: string } | { buffer: Buffer; filename: string };
+
+// Validates the request, records the restore and runs it without waiting;
+// callers poll the restore list for progress and the result.
+export const startRestoreInBackground = async (source: RestoreSource, initiatedById: string) => {
+  let filename: string;
+  let load: () => Promise<Record<string, unknown>>;
+
+  if ("backupId" in source) {
+    const backup = await prisma.databaseBackupRecord.findUnique({ where: { id: source.backupId } });
+    if (!backup || backup.status !== "SUCCESS" || !backup.storagePath) {
+      throw new Error("Database backup record not found.");
+    }
+    const storagePath = backup.storagePath;
+    filename = backup.filename;
+    load = async () => decodeBackupBuffer(await downloadBackupFile(storagePath));
+  } else {
+    // Reject unreadable uploads before anything is recorded.
+    const data = await decodeBackupBuffer(source.buffer);
+    filename = source.filename;
+    load = async () => data;
   }
 
-  const arrayBuffer = await data.arrayBuffer();
-  const fileBuffer = Buffer.from(arrayBuffer);
-  return await restoreDatabaseBackupFromBuffer(fileBuffer, initiatedById);
+  await assertNothingRunning();
+  const restoreRecord = await prisma.databaseRestoreRecord.create({
+    data: {
+      status: "IN_PROGRESS",
+      source: "backupId" in source ? "BACKUP" : "UPLOAD",
+      backupId: "backupId" in source ? source.backupId : null,
+      filename,
+      initiatedById,
+    },
+  });
+
+  const startTime = Date.now();
+  const reportProgress = progressReporter((progress) =>
+    prisma.databaseRestoreRecord.update({ where: { id: restoreRecord.id }, data: { progress } })
+  );
+
+  (async () => {
+    try {
+      const result = await restoreSnapshotData(await load(), initiatedById, reportProgress);
+      await prisma.databaseRestoreRecord.update({
+        where: { id: restoreRecord.id },
+        data: {
+          status: "SUCCESS",
+          totalRecords: result.totalRecords,
+          durationMs: result.durationMs,
+          progress: Prisma.DbNull,
+          completedAt: new Date(),
+        },
+      });
+    } catch (err: any) {
+      const errorMessage = err?.message || "Failed to restore database backup.";
+      const durationMs = Date.now() - startTime;
+      console.error(`[Restore] ${filename} failed:`, errorMessage);
+      await prisma.databaseRestoreRecord.update({
+        where: { id: restoreRecord.id },
+        data: { status: "FAILED", errorMessage, durationMs, completedAt: new Date() },
+      }).catch(() => null);
+      await logAudit(initiatedById, "DATABASE_RESTORE_FAILURE", "DatabaseRestoreRecord", restoreRecord.id, {
+        filename,
+        error: errorMessage,
+        durationMs,
+      }).catch(() => null);
+    }
+  })();
+
+  return restoreRecord;
+};
+
+export const listDatabaseRestores = async (limit = 20) => {
+  await sweepStaleJobs();
+  return prisma.databaseRestoreRecord.findMany({
+    take: limit,
+    orderBy: { createdAt: "desc" },
+    include: { initiatedBy: { select: { id: true, email: true } } },
+  });
 };

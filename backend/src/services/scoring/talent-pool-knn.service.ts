@@ -4,7 +4,7 @@ import { calculateAndPersistCandidateScore } from "./candidate-scoring.service.j
 import { getActiveScoringConfiguration } from "./scoring-configuration.service.js";
 import { CandidateFeatureInput } from "./scoring.types.js";
 import { normalizeComplianceDocumentType } from "./scoring.dimensions.js";
-import { generateEmbedding } from "./embedding.service.js";
+import { generateEmbedding, generateJobEmbedding } from "./embedding.service.js";
 
 export const FEATURE_SCHEMA_VERSION = "candidate-feature-v1";
 const VOCABULARY_VERSION = "gemini-embedding-001-v1";
@@ -170,6 +170,30 @@ const publicCandidateFromProfile = (profile: {
   };
 };
 
+const hydrateRankedCandidates = async (rawResults: Array<{ applicantProfileId: number; similarity: number }>) => {
+  if (rawResults.length === 0) return [];
+  const profileIds = [...new Set(rawResults.map((result) => result.applicantProfileId))];
+  const profiles = await prisma.applicantProfile.findMany({
+    where: { id: { in: profileIds } },
+    include: {
+      user: { select: { id: true, email: true } },
+      skills: { include: { skill: true } },
+      workExperiences: { orderBy: { startDate: "desc" } },
+      talentPoolMembership: true,
+    },
+  });
+  const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+  return rawResults.flatMap((result, index) => {
+    const profile = profilesById.get(result.applicantProfileId);
+    if (!profile) return [];
+    return [{
+      candidate: publicCandidateFromProfile(profile as any),
+      similarity: Number(result.similarity),
+      knnRank: index + 1,
+    }];
+  });
+};
+
 /**
  * Discovers eligible talent pool candidates for a target Job/MRF.
  * Uses authoritative requirements from JobPosting and MRF.
@@ -197,7 +221,7 @@ export const discoverTalentPoolForJob = async (jobPostingId: number, requested: 
     job.mrf?.requiredCertifications,
   ].filter(Boolean).join(" ");
 
-  const jobEmbedding = await generateEmbedding(jobText, { taskType: "RETRIEVAL_QUERY" });
+  const jobEmbedding = await generateJobEmbedding(jobText);
   const vectorStr = `[${jobEmbedding.join(",")}]`;
 
   let rawResults: Array<{ applicantProfileId: number; similarity: number }> = [];
@@ -270,29 +294,7 @@ export const discoverTalentPoolForJob = async (jobPostingId: number, requested: 
     rawResults = members.map((m) => ({ applicantProfileId: m.applicantProfileId, similarity: 0.85 }));
   }
 
-  const items = (
-    await Promise.all(
-      rawResults.map(async (result, index) => {
-        const similarity = Number(result.similarity);
-        const applicantProfile = await prisma.applicantProfile.findUnique({
-          where: { id: result.applicantProfileId },
-          include: {
-            user: { select: { id: true, email: true } },
-            skills: { include: { skill: true } },
-            workExperiences: { orderBy: { startDate: "desc" } },
-            talentPoolMembership: true,
-          },
-        });
-        if (!applicantProfile) return null;
-
-        return {
-          candidate: publicCandidateFromProfile(applicantProfile as any),
-          similarity,
-          knnRank: index + 1,
-        };
-      })
-    )
-  ).filter((item): item is NonNullable<typeof item> => item !== null);
+  const items = await hydrateRankedCandidates(rawResults);
 
   return { items };
 };
@@ -394,28 +396,7 @@ export const findSimilarCandidates = async (sourceApplicationOrProfileId: number
     rawResults = members.map((m) => ({ applicantProfileId: m.applicantProfileId, similarity: 0.85 }));
   }
 
-  const items = (
-    await Promise.all(
-      rawResults.map(async (result, index) => {
-        const candidateProfile = await prisma.applicantProfile.findUnique({
-          where: { id: result.applicantProfileId },
-          include: {
-            user: { select: { id: true, email: true } },
-            skills: { include: { skill: true } },
-            workExperiences: { orderBy: { startDate: "desc" } },
-            talentPoolMembership: true,
-          },
-        });
-        if (!candidateProfile) return null;
-
-        return {
-          candidate: publicCandidateFromProfile(candidateProfile as any),
-          similarity: Number(result.similarity),
-          knnRank: index + 1,
-        };
-      })
-    )
-  ).filter((item): item is NonNullable<typeof item> => item !== null);
+  const items = await hydrateRankedCandidates(rawResults);
 
   return { items };
 };
@@ -477,28 +458,7 @@ export const searchTalentPoolByText = async (text: string, requested: TalentPool
     rawResults = members.map((m) => ({ applicantProfileId: m.applicantProfileId, similarity: 0.85 }));
   }
 
-  const items = (
-    await Promise.all(
-      rawResults.map(async (result, index) => {
-        const applicantProfile = await prisma.applicantProfile.findUnique({
-          where: { id: result.applicantProfileId },
-          include: {
-            user: { select: { id: true, email: true } },
-            skills: { include: { skill: true } },
-            workExperiences: { orderBy: { startDate: "desc" } },
-            talentPoolMembership: true,
-          },
-        });
-        if (!applicantProfile) return null;
-
-        return {
-          candidate: publicCandidateFromProfile(applicantProfile as any),
-          similarity: Number(result.similarity),
-          knnRank: index + 1,
-        };
-      })
-    )
-  ).filter((item): item is NonNullable<typeof item> => item !== null);
+  const items = await hydrateRankedCandidates(rawResults);
 
   return { items, retrievalOnly: true };
 };

@@ -11,6 +11,7 @@ import {
   EmptyState,
   Pagination,
   ActionMenu,
+  ActionMenuItem,
 } from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
 import { formatDate, getDeploymentStatusMeta } from "../../lib/utils";
@@ -167,43 +168,118 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
     dep: (typeof paginatedDeployments)[0],
     employeeName: string
   ) => {
-    if (dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT) {
-      return (
-        <div className="flex items-center justify-end gap-1.5 w-36 ml-auto">
+    const isReady = dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT;
+    const isActive = dep.status === DeploymentStatus.ACTIVE;
+    const isRedeployable =
+      dep.status === DeploymentStatus.ENDED &&
+      dep.employee?.status === "AVAILABLE_FOR_REDEPLOYMENT";
+    const empId = dep.employee?.id;
+    const clientId = dep.client?.id;
+
+    const menuItems: ActionMenuItem[] = [];
+
+    // For Scheduled: primary button is "Confirm start", so "View details" belongs in menu
+    if (isReady) {
+      menuItems.push({
+        label: "View details",
+        onSelect: () =>
+          navigate({
+            to: "/ta/deployments/$deploymentId",
+            params: { deploymentId: String(dep.id) },
+          }),
+      });
+    }
+
+    // For Active: check-in and end assignment
+    if (isActive) {
+      menuItems.push(
+        {
+          label: "Record check-in",
+          onSelect: () => {
+            setReviewModalDeployment({ id: dep.id, employeeName });
+            setNextReviewAt("");
+            setReviewNotes("");
+          },
+        },
+        {
+          label: "End assignment",
+          tone: "danger",
+          onSelect: () => {
+            setEndModalDeployment({ id: dep.id, employeeName });
+            setActualEnd(getManilaToday());
+            setEndReason("");
+            setEndDisposition("NOT_CONFIRMED");
+          },
+        }
+      );
+    }
+
+    // Redeployment shortcut for workers ready for their next assignment
+    if (isRedeployable) {
+      menuItems.push({
+        label: "View in redeployment queue",
+        onSelect: () =>
+          navigate({
+            to: "/ta/workforce",
+            search: { tab: "redeployment" },
+          }),
+      });
+    }
+
+    // Quick links to 201 personnel record and client account
+    if (empId) {
+      menuItems.push({
+        label: "View employee record",
+        onSelect: () =>
+          navigate({
+            to: "/ta/employees/$employeeId",
+            params: { employeeId: String(empId) },
+          }),
+      });
+    }
+
+    if (clientId) {
+      menuItems.push({
+        label: "View client account",
+        onSelect: () =>
+          navigate({
+            to: "/ta/clients/$clientId",
+            params: { clientId: String(clientId) },
+          }),
+      });
+    }
+
+    // Safety fallback so the menu is never empty even with partial data
+    if (!isReady && menuItems.length === 0) {
+      menuItems.push({
+        label: "View details",
+        onSelect: () =>
+          navigate({
+            to: "/ta/deployments/$deploymentId",
+            params: { deploymentId: String(dep.id) },
+          }),
+      });
+    }
+
+    return (
+      <div className="flex items-center justify-end gap-1.5 min-w-[170px] ml-auto">
+        {isReady ? (
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
               setStatusModalDeployment({ id: dep.id, currentStatus: dep.status });
               setNewStatus(DeploymentStatus.ACTIVE);
-              const defaultStart = dep.contractStart && dep.contractStart.slice(0, 10) >= getManilaToday()
-                ? dep.contractStart.slice(0, 10)
-                : getManilaToday();
+              const defaultStart =
+                dep.contractStart && dep.contractStart.slice(0, 10) >= getManilaToday()
+                  ? dep.contractStart.slice(0, 10)
+                  : getManilaToday();
               setActualStart(defaultStart);
             }}
           >
             Confirm start
           </Button>
-          <ActionMenu
-            label={`Actions for ${employeeName}`}
-            items={[
-              {
-                label: "View details",
-                onSelect: () =>
-                  navigate({
-                    to: "/ta/deployments/$deploymentId",
-                    params: { deploymentId: String(dep.id) },
-                  }),
-              },
-            ]}
-          />
-        </div>
-      );
-    }
-
-    if (dep.status === DeploymentStatus.ACTIVE) {
-      return (
-        <div className="flex items-center justify-end gap-1.5 w-36 ml-auto">
+        ) : (
           <Link
             to="/ta/deployments/$deploymentId"
             params={{ deploymentId: String(dep.id) }}
@@ -212,44 +288,11 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
               View details
             </Button>
           </Link>
-          <ActionMenu
-            label={`Actions for ${employeeName}`}
-            items={[
-              {
-                label: "Record check-in",
-                onSelect: () => {
-                  setReviewModalDeployment({ id: dep.id, employeeName });
-                  setNextReviewAt("");
-                  setReviewNotes("");
-                },
-              },
-              {
-                label: "End assignment",
-                tone: "danger",
-                onSelect: () => {
-                  setEndModalDeployment({ id: dep.id, employeeName });
-                  setActualEnd(getManilaToday());
-                  setEndReason("");
-                  setEndDisposition("NOT_CONFIRMED");
-                },
-              },
-            ]}
-          />
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex items-center justify-end gap-1.5 w-36 ml-auto">
-        <Link
-          to="/ta/deployments/$deploymentId"
-          params={{ deploymentId: String(dep.id) }}
-        >
-          <Button variant="outline" size="sm">
-            View details
-          </Button>
-        </Link>
-        <div className="w-8 shrink-0" aria-hidden="true" />
+        )}
+        <ActionMenu
+          label={`Actions for ${employeeName}`}
+          items={menuItems}
+        />
       </div>
     );
   };

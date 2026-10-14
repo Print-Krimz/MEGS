@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
+import { documentsApi } from "../../lib/api/documents.api";
 import {
   PageHeader,
   StatusBadge,
@@ -12,18 +13,30 @@ import {
   DocumentPreviewModal,
   Tabs,
   ConfirmDialog,
-  PhilippineAddressFields,
 } from "../../components/common";
+import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
 import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
 import { InlineResumeViewer } from "../../components/ta/InlineResumeViewer";
+import { BackoutDialog } from "../../components/ta/BackoutDialog";
+import { BACKOUT_PARTY_LABELS, BACKOUT_REASON_LABELS, REJECTION_REASON_CODE_BY_PRESET, canRecordBackout } from "../../lib/backout";
 import { Button, Dialog, Input, Select, Textarea, ComboBox, PhoneInput, DateTimePicker, dateTimeLocalToManilaIso, manilaIsoToDateTimeLocal } from "../../components/ui";
 import {
   formatSSSNumber,
   formatPhilHealthNumber,
   formatPagIbigNumber,
   formatTINNumber,
-} from "../applicant/ProfilePage";
+  validateSSSNumber,
+  validatePhilHealthNumber,
+  validatePagIbigNumber,
+  validateTINNumber,
+  validateDateOfBirth,
+  validatePhilippineContactPhone,
+  validateEmergencyPhone,
+  validatePersonName,
+  validateAddressText,
+} from "../../lib/statutory-validation";
 import { formatDate, formatDateTime, getApplicationStatusMeta, extractDocumentId } from "../../lib/utils";
+import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
 import { COMPLIANCE_201_PRESETS } from "../../lib/hr-constants";
 import {
   ApplicationStatus,
@@ -39,6 +52,7 @@ import {
   Calendar,
   Building2,
   ShieldCheck,
+  Lock,
   Trash2,
   History,
   Truck,
@@ -103,7 +117,6 @@ export const ApplicationDetailPage: React.FC = () => {
       stage: (params.get("stage") as TAApplicationSearch["stage"]) || undefined,
       clientId: number(params.get("clientId")),
       jobId: number(params.get("jobId")),
-      mine: params.get("mine") === "true" || params.get("mine") === "1" ? true : undefined,
       archived: params.get("archived") === "true" || params.get("archived") === "1" ? true : undefined,
       page: number(params.get("page")),
     };
@@ -113,7 +126,6 @@ export const ApplicationDetailPage: React.FC = () => {
     stage: routeSearch.stage,
     clientId: routeSearch.clientId,
     jobId: routeSearch.jobId,
-    mine: routeSearch.mine,
     archived: routeSearch.archived,
     page: routeSearch.page,
   };
@@ -144,6 +156,7 @@ export const ApplicationDetailPage: React.FC = () => {
   };
 
   // Modals state
+  const [backoutModalOpen, setBackoutModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("Qualifications Mismatch");
   const [rejectNotes, setRejectNotes] = useState("");
@@ -180,9 +193,12 @@ export const ApplicationDetailPage: React.FC = () => {
   const [editDeadlineDate, setEditDeadlineDate] = useState("");
 
   const [reviewReqId, setReviewReqId] = useState<number | null>(null);
-  const [reviewReqStatus, setReviewReqStatus] = useState<"APPROVED" | "REJECTED" | "TO_FOLLOW">("APPROVED");
+  const [reviewReqStatus, setReviewReqStatus] = useState<"" | "APPROVED" | "REJECTED" | "TO_FOLLOW">("");
   const [toFollowDate, setToFollowDate] = useState("");
   const [reviewReqNotes, setReviewReqNotes] = useState("");
+  const [reviewIssuedAt, setReviewIssuedAt] = useState("");
+  const [reviewExpiresAt, setReviewExpiresAt] = useState("");
+  const [reviewValidity, setReviewValidity] = useState<"UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY">("UNKNOWN");
 
   const [previewDocState, setPreviewDocState] = useState<{
     open: boolean;
@@ -221,20 +237,17 @@ export const ApplicationDetailPage: React.FC = () => {
   const [deployNotes, setDeployNotes] = useState("");
 
   const [contractModalOpen, setContractModalOpen] = useState(false);
-  const [contractNotes, setContractNotes] = useState("");
-  const [contractDocumentUrl, setContractDocumentUrl] = useState("");
-
-  const [orientationModalOpen, setOrientationModalOpen] = useState(false);
-  const [orientationDate, setOrientationDate] = useState("");
-  const [orientationNotes, setOrientationNotes] = useState("");
+  const [contractStartDate, setContractStartDate] = useState("");
+  const [signedContractFile, setSignedContractFile] = useState<File | null>(null);
+  const signedContractInputRef = useRef<HTMLInputElement>(null);
   const [isEducationExpanded, setIsEducationExpanded] = useState(true);
   const [isSkillsExpanded, setIsSkillsExpanded] = useState(false);
   const [manualRequirementsToggle, setManualRequirementsToggle] = useState<boolean | null>(null);
   const [endorsementsExpanded, setEndorsementsExpanded] = useState(false);
   const [isInterviewHistoryExpanded, setIsInterviewHistoryExpanded] = useState(false);
+  const [skipToFinalInterviewConfirmOpen, setSkipToFinalInterviewConfirmOpen] = useState(false);
   const [fastTrackModalOpen, setFastTrackModalOpen] = useState(false);
   const [fastTrackTargetStage, setFastTrackTargetStage] = useState<"FINAL_INTERVIEW" | "COMPLIANCE">("COMPLIANCE");
-  const [skipToFinalInterviewConfirmOpen, setSkipToFinalInterviewConfirmOpen] = useState(false);
 
   // Queries
   const applicationQuery = useQuery({
@@ -251,8 +264,8 @@ export const ApplicationDetailPage: React.FC = () => {
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
-    queryFn: taApi.listClients,
-    staleTime: 5 * 60 * 1000,
+    queryFn: ({ signal }) => taApi.listClients({ signal }),
+    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
 
   // Temporarily hidden - legacy talent pool implementation
@@ -314,8 +327,21 @@ export const ApplicationDetailPage: React.FC = () => {
     },
   });
 
+  const backoutMutation = useMutation({
+    mutationFn: (data: { party: string; reason: string; notes?: string; occurredOn?: string }) =>
+      taApi.recordBackout(applicationId, data),
+    onSuccess: () => {
+      setBackoutModalOpen(false);
+      notify.success("Backout recorded");
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
+    },
+    onError: (err) => notify.error("Unable to record backout", err),
+  });
+
   const rejectMutation = useMutation({
-    mutationFn: (data: { status: ApplicationStatus; reason: string }) =>
+    mutationFn: (data: { status: ApplicationStatus; reason: string; reasonCode?: string }) =>
       taApi.updateApplicationStatus(applicationId, data),
     onSuccess: (_, vars) => {
       queryClient.setQueryData<any>(["ta", "application", applicationId], (old: any) =>
@@ -371,93 +397,53 @@ export const ApplicationDetailPage: React.FC = () => {
     },
   });
 
-  const fastTrackRedeploymentMutation = useMutation({
-    mutationFn: (data?: { targetStage?: "FINAL_INTERVIEW" | "COMPLIANCE" }) =>
-      taApi.fastTrackRedeployment(applicationId, data),
-    onSuccess: (res) => {
-      setFastTrackModalOpen(false);
-      const carriedCount = res?.carriedOverDocuments?.length ?? 0;
-      const targetLabel = fastTrackTargetStage === "FINAL_INTERVIEW" ? "Final Interview" : "Compliance";
-      notify.success(
-        "Redeployment Fast-Tracked",
-        `Candidate advanced to ${targetLabel} and ${carriedCount} valid clearance document${carriedCount === 1 ? "" : "s"} carried over.`
-      );
-      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
+  const refreshApplicationQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+    queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+    queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
+    queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
+  };
+
+  // Optional printable copy with the name, position and start date filled in; the rate is written by hand.
+  const downloadContractMutation = useMutation({
+    mutationFn: (startDate: string) => taApi.downloadContractPdf(applicationId, startDate),
+    onSuccess: (blob: Blob) => {
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `MEGS-Contract-${candidateName.replace(/\s+/g, "-")}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
     },
     onError: (err: any) => {
-      notify.error("Fast-Track Failed", formatErrorMessage(err));
+      setFeedback({ type: "error", message: "Unable to prepare the printable contract. " + formatErrorMessage(err) });
+      notify.error("Unable to prepare contract", err);
     },
   });
 
-  const signContractMutation = useMutation({
-    mutationFn: (data: { contractNotes?: string; contractDocumentUrl?: string }) =>
-      taApi.signContract(applicationId, data),
-    onSuccess: (updatedApp: any, vars) => {
-      queryClient.setQueryData<any>(["ta", "application", applicationId], (old: any) =>
-        old
-          ? {
-              ...old,
-              contractSigned: true,
-              contractNotes: vars.contractNotes || old.contractNotes,
-              contractDocumentUrl: vars.contractDocumentUrl || old.contractDocumentUrl,
-              ...(updatedApp?.status ? { status: updatedApp.status } : {}),
-            }
-          : old
-      );
-      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
+  // Uploading the signed scan records the contract and deploys the candidate.
+  const uploadSignedContractMutation = useMutation({
+    mutationFn: (data: { file: File; startDate: string }) => {
+      const formData = new FormData();
+      formData.append("file", data.file);
+      formData.append("startDate", data.startDate);
+      return taApi.uploadSignedContract(applicationId, formData);
+    },
+    onSuccess: () => {
+      refreshApplicationQueries();
       setContractModalOpen(false);
+      setSignedContractFile(null);
       setFeedback({
         type: "success",
-        message: "The employment contract was recorded as signed.",
+        message: "The signed contract was saved and the candidate is deployed. Confirm the first day on the deployment record.",
       });
-      notify.success("Contract recorded", "The employment contract was recorded as signed.");
+      notify.success("Contract saved", "The signed contract was saved and the candidate is deployed.");
     },
     onError: (err: any) => {
-      const errMsg = formatErrorMessage(err);
-      setFeedback({
-        type: "error",
-        message: "Unable to record the contract. " + errMsg,
-      });
-      notify.error("Unable to record contract", err);
-    },
-  });
-
-  const completeOrientationMutation = useMutation({
-    mutationFn: (data: { orientationDate?: string; orientationNotes?: string }) =>
-      taApi.completeOrientation(applicationId, data),
-    onSuccess: (updatedApp: any, vars) => {
-      queryClient.setQueryData<any>(["ta", "application", applicationId], (old: any) =>
-        old
-          ? {
-              ...old,
-              orientationCompleted: true,
-              orientationDate: vars.orientationDate || old.orientationDate,
-              orientationNotes: vars.orientationNotes || old.orientationNotes,
-              ...(updatedApp?.status ? { status: updatedApp.status } : {}),
-            }
-          : old
-      );
-      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
-      setOrientationModalOpen(false);
-      setFeedback({
-        type: "success",
-        message: "The candidate’s orientation was marked complete.",
-      });
-      notify.success("Orientation recorded", "The candidate’s orientation was marked complete.");
-    },
-    onError: (err: any) => {
-      const errMsg = formatErrorMessage(err);
-      setFeedback({
-        type: "error",
-        message: "Unable to record orientation. " + errMsg,
-      });
-      notify.error("Unable to record orientation", err);
+      setFeedback({ type: "error", message: "Unable to save the signed contract. " + formatErrorMessage(err) });
+      notify.error("Unable to save signed contract", err);
     },
   });
 
@@ -494,8 +480,6 @@ export const ApplicationDetailPage: React.FC = () => {
         const newStatus =
           vars.result === "NO_SHOW"
             ? ApplicationStatus.ARCHIVED
-            : vars.type === InterviewType.FINAL_INTERVIEW && vars.result === "PASS"
-            ? ApplicationStatus.COMPLIANCE
             : old.status;
         const existingInterviews = old.interviews || [];
         const updatedInterviews = vars.interviewId
@@ -519,8 +503,6 @@ export const ApplicationDetailPage: React.FC = () => {
         const newStatus =
           vars.result === "NO_SHOW"
             ? ApplicationStatus.ARCHIVED
-            : vars.type === InterviewType.FINAL_INTERVIEW && vars.result === "PASS"
-            ? ApplicationStatus.COMPLIANCE
             : undefined;
         if (!newStatus) return old;
         if (Array.isArray(old)) {
@@ -576,7 +558,7 @@ export const ApplicationDetailPage: React.FC = () => {
       notify.success("Candidate assessment updated", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to refresh the candidate assessment. Please try again." });
+      setFeedback({ type: "error", message: `Unable to refresh the candidate assessment. ${formatErrorMessage(err)}` });
       notify.error("Unable to refresh assessment", err);
     },
   });
@@ -598,7 +580,7 @@ export const ApplicationDetailPage: React.FC = () => {
       notify.success("Interview scheduled", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to schedule the interview. Please try again." });
+      setFeedback({ type: "error", message: `Unable to schedule the interview. ${formatErrorMessage(err)}` });
       notify.error("Unable to schedule interview", err);
     },
   });
@@ -714,7 +696,7 @@ export const ApplicationDetailPage: React.FC = () => {
       notify.success("Requirement added", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to add the requirement. Please try again." });
+      setFeedback({ type: "error", message: `Unable to add the requirement. ${formatErrorMessage(err)}` });
       notify.error("Unable to add requirement", err);
     },
   });
@@ -732,7 +714,7 @@ export const ApplicationDetailPage: React.FC = () => {
       notify.success("Review saved", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to save the requirement review. Please try again." });
+      setFeedback({ type: "error", message: `Unable to save the requirement review. ${formatErrorMessage(err)}` });
       notify.error("Unable to save review", err);
     },
   });
@@ -766,8 +748,28 @@ export const ApplicationDetailPage: React.FC = () => {
       notify.success("Deadline updated", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to update the deadline. Please try again." });
+      setFeedback({ type: "error", message: `Unable to update the deadline. ${formatErrorMessage(err)}` });
       notify.error("Unable to update deadline", err);
+    },
+  });
+
+  const fastTrackRedeploymentMutation = useMutation({
+    mutationFn: (data?: { targetStage?: "FINAL_INTERVIEW" | "COMPLIANCE" }) =>
+      taApi.fastTrackRedeployment(applicationId, data),
+    onSuccess: (res: any) => {
+      setFastTrackModalOpen(false);
+      const carriedCount = res?.carriedOverDocuments?.length ?? 0;
+      const targetLabel = fastTrackTargetStage === "FINAL_INTERVIEW" ? "Final interview" : "Requirements";
+      const msg = `Candidate advanced to ${targetLabel}; ${carriedCount} valid clearance document${carriedCount === 1 ? "" : "s"} carried over.`;
+      setFeedback({ type: "success", message: msg });
+      notify.success("Redeployment fast-tracked", msg);
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: `Unable to fast-track this redeployment. ${formatErrorMessage(err)}` });
+      notify.error("Fast-track failed", err);
     },
   });
 
@@ -784,24 +786,10 @@ export const ApplicationDetailPage: React.FC = () => {
         old
           ? {
               ...old,
-              status: ApplicationStatus.DEPLOYED,
               deployments: createdDeployment ? [createdDeployment, ...(old.deployments || [])] : old.deployments,
             }
           : old
       );
-      queryClient.setQueriesData<any>({ queryKey: ["ta", "applications"] }, (old: any) => {
-        if (!old) return old;
-        if (Array.isArray(old)) {
-          return old.map((item) => (String(item.id) === String(applicationId) ? { ...item, status: ApplicationStatus.DEPLOYED } : item));
-        }
-        if (Array.isArray(old.data)) {
-          return {
-            ...old,
-            data: old.data.map((item: any) => (String(item.id) === String(applicationId) ? { ...item, status: ApplicationStatus.DEPLOYED } : item)),
-          };
-        }
-        return old;
-      });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
@@ -815,7 +803,7 @@ export const ApplicationDetailPage: React.FC = () => {
       notify.success("Deployment activated", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to activate this deployment. Please try again." });
+      setFeedback({ type: "error", message: `Unable to activate this deployment. ${formatErrorMessage(err)}` });
       notify.error("Unable to activate deployment", err);
     },
   });
@@ -863,6 +851,7 @@ export const ApplicationDetailPage: React.FC = () => {
     emergencyContactName: "",
     emergencyContactPhone: "",
   });
+  const [profileFormErrors, setProfileFormErrors] = useState<Record<string, string>>({});
 
   const updateCandidateMutation = useMutation({
     mutationFn: (data: UpdateCandidateProfileDto) => {
@@ -907,6 +896,7 @@ export const ApplicationDetailPage: React.FC = () => {
 
   const startEditingProfile = () => {
     if (!profile) return;
+    setProfileFormErrors({});
     setProfileForm({
       firstName: profile.firstName || "",
       lastName: profile.lastName || "",
@@ -937,14 +927,64 @@ export const ApplicationDetailPage: React.FC = () => {
 
   const handleSaveCandidateProfile = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!profileForm.firstName.trim()) {
-      notify.error("Validation Error", "First name is required.");
-      return;
+    const errors: Record<string, string> = {};
+
+    const firstErr = validatePersonName(profileForm.firstName, "First Name", { required: true });
+    if (firstErr) errors.firstName = firstErr;
+
+    if (profileForm.middleName.trim()) {
+      const midErr = validatePersonName(profileForm.middleName, "Middle Name");
+      if (midErr) errors.middleName = midErr;
     }
-    if (!profileForm.lastName.trim()) {
-      notify.error("Validation Error", "Last name is required.");
-      return;
+
+    const lastErr = validatePersonName(profileForm.lastName, "Last Name", { required: true });
+    if (lastErr) errors.lastName = lastErr;
+
+    if (profileForm.address.trim()) {
+      const addrErr = validateAddressText(profileForm.address, "Residential Address");
+      if (addrErr) errors.address = addrErr;
     }
+
+    if (profileForm.emergencyContactName.trim()) {
+      const emergNameErr = validatePersonName(profileForm.emergencyContactName, "Emergency Contact Name");
+      if (emergNameErr) errors.emergencyContactName = emergNameErr;
+    }
+
+    if (profileForm.mobileNumber.trim()) {
+      const phoneErr = validatePhilippineContactPhone(profileForm.mobileNumber);
+      if (phoneErr) errors.mobileNumber = phoneErr;
+    }
+
+    if (profileForm.dateOfBirth) {
+      const dobErr = validateDateOfBirth(profileForm.dateOfBirth, { minAge: 18, maxAge: 100 });
+      if (dobErr) errors.dateOfBirth = dobErr;
+    }
+
+    if (profileForm.sss.trim()) {
+      const sssErr = validateSSSNumber(profileForm.sss);
+      if (sssErr) errors.sss = sssErr;
+    }
+
+    if (profileForm.philhealth.trim()) {
+      const phErr = validatePhilHealthNumber(profileForm.philhealth);
+      if (phErr) errors.philhealth = phErr;
+    }
+
+    if (profileForm.pagibig.trim()) {
+      const pagibigErr = validatePagIbigNumber(profileForm.pagibig);
+      if (pagibigErr) errors.pagibig = pagibigErr;
+    }
+
+    if (profileForm.tin.trim()) {
+      const tinErr = validateTINNumber(profileForm.tin);
+      if (tinErr) errors.tin = tinErr;
+    }
+
+    if (profileForm.emergencyContactPhone.trim()) {
+      const emergPhoneErr = validateEmergencyPhone(profileForm.emergencyContactPhone);
+      if (emergPhoneErr) errors.emergencyContactPhone = emergPhoneErr;
+    }
+
     const addressChanged = ["address", "city", "province", "barangay", "postalCode"].some((field) => {
       const key = field as keyof typeof profileForm;
       const original = profile?.[key as keyof typeof profile];
@@ -952,9 +992,17 @@ export const ApplicationDetailPage: React.FC = () => {
     });
     const hasAddress = [profileForm.address, profileForm.city, profileForm.province, profileForm.barangay, profileForm.postalCode].some((value) => value.trim());
     if (addressChanged && hasAddress && (!profileForm.city.trim() || !profileForm.province.trim() || !profileForm.barangay.trim() || !profileForm.postalCode.trim())) {
-      notify.error("Address is incomplete", "Enter the province, city, barangay, and postal code.");
+      errors.address = "Enter the province, city, barangay, and postal code.";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setProfileFormErrors(errors);
+      const firstError = Object.values(errors)[0];
+      notify.error("Validation Error", firstError || "Please correct the highlighted fields before saving.");
       return;
     }
+
+    setProfileFormErrors({});
 
     let cleanedPhone = profileForm.mobileNumber.trim();
     if (cleanedPhone) {
@@ -1054,6 +1102,9 @@ export const ApplicationDetailPage: React.FC = () => {
     app.status === ApplicationStatus.BACKOUT ||
     app.status === ApplicationStatus.DEPLOYED;
   const canReject = !isTerminal;
+  const canBackout =
+    !app.isArchived &&
+    canRecordBackout(app.status, (app.deployments || []).map((d) => d.status));
 
   // Stage-bound contextual action booleans
   const isPreScreeningOrScreening = (
@@ -1066,16 +1117,6 @@ export const ApplicationDetailPage: React.FC = () => {
       ApplicationStatus.INITIAL_SCREENING,
     ] as ApplicationStatus[]
   ).includes(app.status);
-
-  const isCandidateEligibleForRedeployment = Boolean(
-    app.isRedeploymentEligible ||
-    app.user?.employee?.status === "AVAILABLE_FOR_REDEPLOYMENT" ||
-    (app.user?.employee?.deployments && app.user.employee.deployments.length > 0) ||
-    (app.deployments && app.deployments.length > 0)
-  );
-
-  const canFastTrackRedeployment =
-    isPreScreeningOrScreening && isCandidateEligibleForRedeployment && !isTerminal;
 
   const canScheduleInitialInterview =
     isPreScreeningOrScreening && !hasPassedScreening && !pendingScreeningInterview && !isTerminal;
@@ -1095,24 +1136,44 @@ export const ApplicationDetailPage: React.FC = () => {
     isFinalInterviewStage && !hasPassedFinalInterview && Boolean(pendingFinalInterview) && !isTerminal;
   const canAdvanceToCompliance =
     isFinalInterviewStage && hasPassedFinalInterview && !isTerminal;
+  // A passed interview completes its stage: no further interview of that type can be scheduled.
+  const canScheduleFinalFromClientReview =
+    isClientEndorsementStage && hasPassedScreening && !hasPassedFinalInterview && !pendingFinalInterview && !isClientDeclined && !isTerminal;
+  // Redeployment Fast Track: returning workers (employee record with past deployments, or flagged available)
+  // can skip straight to Requirements/Final interview with valid clearances carried over (backend re-validates).
+  const isCandidateEligibleForRedeployment = Boolean(
+    app.isRedeploymentEligible ||
+      app.user?.employee?.status === "AVAILABLE_FOR_REDEPLOYMENT" ||
+      (app.user?.employee?.deployments && app.user.employee.deployments.length > 0)
+  );
+  const canFastTrackRedeployment = isPreScreeningOrScreening && isCandidateEligibleForRedeployment && !isTerminal;
+
+  const nextSchedulableInterview: InterviewType | null = canScheduleInitialInterview
+    ? InterviewType.INITIAL_SCREENING
+    : canScheduleFinalInterview || canScheduleFinalFromClientReview
+    ? InterviewType.FINAL_INTERVIEW
+    : null;
 
   const isComplianceStage = app.status === ApplicationStatus.COMPLIANCE;
-  const canAdvanceToContractAndOrientation =
+  const canAdvanceToContractSigning =
     isComplianceStage && !hasUnapprovedMandatoryCompliance && !isTerminal;
 
-  const isContractAndOrientationStage =
-    app.status === ApplicationStatus.CONTRACT_AND_ORIENTATION ||
+  const isContractSigningStage =
+    app.status === ApplicationStatus.CONTRACT_SIGNING ||
     app.status === ApplicationStatus.ONBOARDING ||
     (app.status as string) === "ONBOARDING" ||
     (app.status as string) === "HIRED";
   const isContractSigned = Boolean(app.contractSigned || app.contractSignedAt);
-  const isOrientationCompleted = Boolean(app.orientationCompleted || app.orientationCompletedAt);
   const isReadyForDeployment =
     !isTerminal &&
     !hasUnapprovedMandatoryCompliance &&
-    isContractSigned &&
-    isOrientationCompleted;
-  const canDeployCandidate = isReadyForDeployment;
+    isContractSigned;
+  // Any scheduled/active deployment for this worker (from this or another application) blocks a new one.
+  const openDeployment =
+    [...(app.deployments || []), ...(app.user?.employee?.deployments || [])].find(
+      (deployment) => !["ENDED", "CANCELLED"].includes(String(deployment.status))
+    ) ?? null;
+  const canDeployCandidate = isReadyForDeployment && !openDeployment;
 
   const totalCompReqs = app.complianceRequirements?.length || 0;
   const approvedCompReqs = (app.complianceRequirements || []).filter((r) => r.reviewStatus === "APPROVED").length;
@@ -1209,6 +1270,17 @@ export const ApplicationDetailPage: React.FC = () => {
             >
               Refresh assessment
             </Button>
+            {canBackout && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-rose-700 border-rose-300 hover:bg-rose-50"
+                leftIcon={<UserX className="w-3.5 h-3.5 text-rose-600" />}
+                onClick={() => setBackoutModalOpen(true)}
+              >
+                Record backout
+              </Button>
+            )}
             {canReject && (
               <Button
                 variant="outline"
@@ -1228,6 +1300,19 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
         }
       />
+
+      {app.backout && (
+        <div role="status" className="p-3 rounded-lg border border-rose-200 bg-rose-50 text-xs text-rose-900 space-y-0.5">
+          <p className="font-semibold">
+            Backout recorded: {BACKOUT_PARTY_LABELS[app.backout.party]} ·{" "}
+            {BACKOUT_REASON_LABELS[app.backout.reason] ?? app.backout.reason}
+          </p>
+          <p>
+            At {formatTaStatus(app.backout.stage)} on {formatDate(app.backout.occurredAt)}
+            {app.backout.notes ? ` — ${app.backout.notes}` : ""}
+          </p>
+        </div>
+      )}
 
       {feedback && (
         <div
@@ -1283,20 +1368,6 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {canFastTrackRedeployment && (
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<RefreshCw className="w-3.5 h-3.5 text-teal-600" />}
-                className="border-teal-300 text-teal-700 hover:bg-teal-50"
-                onClick={() => {
-                  setFastTrackTargetStage("COMPLIANCE");
-                  setFastTrackModalOpen(true);
-                }}
-              >
-                Fast-Track Redeployment
-              </Button>
-            )}
             {/* INITIAL_SCREENING Actions */}
             {canScheduleInitialInterview && (
               <Button
@@ -1367,6 +1438,20 @@ export const ApplicationDetailPage: React.FC = () => {
                   Skip to final interview
                 </Button>
               </>
+            )}
+
+            {canFastTrackRedeployment && (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<RefreshCw className="w-3.5 h-3.5 text-teal-600" />}
+                onClick={() => {
+                  setFastTrackTargetStage("COMPLIANCE");
+                  setFastTrackModalOpen(true);
+                }}
+              >
+                Fast-track redeployment
+              </Button>
             )}
 
             {/* STAGE 2: CLIENT_ENDORSEMENT Stage Actions */}
@@ -1504,7 +1589,7 @@ export const ApplicationDetailPage: React.FC = () => {
             {/* STAGE 5: COMPLIANCE Actions */}
             {isComplianceStage && (
               <>
-                {canAdvanceToContractAndOrientation ? (
+                {canAdvanceToContractSigning ? (
                   <Button
                     variant="primary"
                     size="sm"
@@ -1512,12 +1597,12 @@ export const ApplicationDetailPage: React.FC = () => {
                     loading={updateStatusMutation.isPending}
                     onClick={() => {
                       updateStatusMutation.mutate({
-                        status: ApplicationStatus.CONTRACT_AND_ORIENTATION,
+                        status: ApplicationStatus.CONTRACT_SIGNING,
                         reason: "All mandatory clearances verified and approved.",
                       });
                     }}
                   >
-                    Move to contract and orientation
+                    Move to contract signing
                   </Button>
                 ) : (
                   <span className="text-[11px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded">
@@ -1527,10 +1612,10 @@ export const ApplicationDetailPage: React.FC = () => {
               </>
             )}
 
-            {/* STAGE 6: CONTRACT_AND_ORIENTATION Actions */}
-            {isContractAndOrientationStage && (
+            {/* STAGE 6: CONTRACT_SIGNING Actions */}
+            {isContractSigningStage && (
               <div className="flex flex-wrap items-center gap-2">
-                {isReadyForDeployment && activeTab !== "compliance" && (
+                {canDeployCandidate && activeTab !== "compliance" && (
                   <Button
                     variant="primary"
                     size="sm"
@@ -1553,7 +1638,7 @@ export const ApplicationDetailPage: React.FC = () => {
                     size="sm"
                     onClick={() => handleTabChange("compliance")}
                   >
-                    Manage contract and orientation
+                    Manage contract signing
                   </Button>
                 )}
               </div>
@@ -1563,7 +1648,19 @@ export const ApplicationDetailPage: React.FC = () => {
 
         {/* Pipeline Stepper Visualizer */}
         <div className="pt-2">
-          <PipelineIndicator currentStatus={app.status} />
+          <PipelineIndicator
+            currentStatus={app.status}
+            skippedStages={((decisionsQuery.data as any[]) || [])
+              .filter((d) => d.transitionType === "SKIP" && Array.isArray(d.skippedStages))
+              .flatMap((d) =>
+                (d.skippedStages as string[]).map((stage) => ({
+                  stage,
+                  reason: d.reason,
+                  actorEmail: d.actor?.email,
+                  at: d.createdAt,
+                }))
+              )}
+          />
         </div>
       </div>
 
@@ -1805,18 +1902,28 @@ export const ApplicationDetailPage: React.FC = () => {
                               <div className="grid grid-cols-2 gap-2">
                                 <Input
                                   label="First Name"
+                                  nameInput
                                   maxLength={100}
                                   required
                                   value={profileForm.firstName}
-                                  onChange={(e) => setProfileForm((f) => ({ ...f, firstName: e.target.value }))}
+                                  error={profileFormErrors.firstName}
+                                  onChange={(e) => {
+                                    setProfileForm((f) => ({ ...f, firstName: e.target.value }));
+                                    if (profileFormErrors.firstName) setProfileFormErrors((prev) => ({ ...prev, firstName: "" }));
+                                  }}
                                   placeholder="First name"
                                 />
                                 <Input
                                   label="Last Name"
+                                  nameInput
                                   maxLength={100}
                                   required
                                   value={profileForm.lastName}
-                                  onChange={(e) => setProfileForm((f) => ({ ...f, lastName: e.target.value }))}
+                                  error={profileFormErrors.lastName}
+                                  onChange={(e) => {
+                                    setProfileForm((f) => ({ ...f, lastName: e.target.value }));
+                                    if (profileFormErrors.lastName) setProfileFormErrors((prev) => ({ ...prev, lastName: "" }));
+                                  }}
                                   placeholder="Last name"
                                 />
                               </div>
@@ -1824,6 +1931,7 @@ export const ApplicationDetailPage: React.FC = () => {
                               <div className="grid grid-cols-2 gap-2">
                                 <Input
                                   label="Middle Name"
+                                  nameInput
                                   maxLength={100}
                                   value={profileForm.middleName}
                                   onChange={(e) => setProfileForm((f) => ({ ...f, middleName: e.target.value }))}
@@ -1833,7 +1941,11 @@ export const ApplicationDetailPage: React.FC = () => {
                                   label="Contact Phone"
                                   value={profileForm.mobileNumber}
                                   mobileOnly
-                                  onChange={(val) => setProfileForm((f) => ({ ...f, mobileNumber: val }))}
+                                  error={profileFormErrors.mobileNumber}
+                                  onChange={(val) => {
+                                    setProfileForm((f) => ({ ...f, mobileNumber: val }));
+                                    if (profileFormErrors.mobileNumber) setProfileFormErrors((prev) => ({ ...prev, mobileNumber: "" }));
+                                  }}
                                   placeholder="0917 123 4567"
                                   helperText="Format: 09XX-XXX-XXXX"
                                 />
@@ -1844,9 +1956,14 @@ export const ApplicationDetailPage: React.FC = () => {
                                   label="Date of Birth"
                                   type="date"
                                   value={profileForm.dateOfBirth}
-                                  min={profileForm.dateOfBirth && profileForm.dateOfBirth < "1900-01-01" ? profileForm.dateOfBirth : "1900-01-01"}
-                                  max={profileForm.dateOfBirth && profileForm.dateOfBirth > getManilaToday() ? profileForm.dateOfBirth : getManilaToday()}
-                                  onChange={(e) => setProfileForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
+                                  min="1900-01-01"
+                                  max={getManilaToday()}
+                                  error={profileFormErrors.dateOfBirth}
+                                  helperText={profileFormErrors.dateOfBirth ? undefined : "Candidate must be at least 18 years old"}
+                                  onChange={(e) => {
+                                    setProfileForm((f) => ({ ...f, dateOfBirth: e.target.value }));
+                                    if (profileFormErrors.dateOfBirth) setProfileFormErrors((prev) => ({ ...prev, dateOfBirth: "" }));
+                                  }}
                                 />
                                 <Select
                                   label="Gender"
@@ -1896,28 +2013,60 @@ export const ApplicationDetailPage: React.FC = () => {
                                   <Input
                                     label="SSS Number"
                                     value={profileForm.sss}
-                                    onChange={(e) => setProfileForm((f) => ({ ...f, sss: formatSSSNumber(e.target.value) }))}
-                                    placeholder="00-0000000-0"
+                                    maxLength={12}
+                                    inputMode="numeric"
+                                    error={profileFormErrors.sss}
+                                    helperText="e.g. 01-2345678-9 (10 digits)"
+                                    onChange={(e) => {
+                                      const val = formatSSSNumber(e.target.value);
+                                      setProfileForm((f) => ({ ...f, sss: val }));
+                                      if (profileFormErrors.sss) setProfileFormErrors((prev) => ({ ...prev, sss: "" }));
+                                    }}
+                                    placeholder="01-2345678-9"
                                   />
                                   <Input
                                     label="PhilHealth PIN"
                                     value={profileForm.philhealth}
-                                    onChange={(e) => setProfileForm((f) => ({ ...f, philhealth: formatPhilHealthNumber(e.target.value) }))}
-                                    placeholder="00-000000000-0"
+                                    maxLength={14}
+                                    inputMode="numeric"
+                                    error={profileFormErrors.philhealth}
+                                    helperText="e.g. 01-234567890-1 (12 digits)"
+                                    onChange={(e) => {
+                                      const val = formatPhilHealthNumber(e.target.value);
+                                      setProfileForm((f) => ({ ...f, philhealth: val }));
+                                      if (profileFormErrors.philhealth) setProfileFormErrors((prev) => ({ ...prev, philhealth: "" }));
+                                    }}
+                                    placeholder="01-234567890-1"
                                   />
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 mt-2">
                                   <Input
                                     label="Pag-IBIG MID"
                                     value={profileForm.pagibig}
-                                    onChange={(e) => setProfileForm((f) => ({ ...f, pagibig: formatPagIbigNumber(e.target.value) }))}
-                                    placeholder="0000-0000-0000"
+                                    maxLength={14}
+                                    inputMode="numeric"
+                                    error={profileFormErrors.pagibig}
+                                    helperText="e.g. 1234-5678-9012 (12 digits)"
+                                    onChange={(e) => {
+                                      const val = formatPagIbigNumber(e.target.value);
+                                      setProfileForm((f) => ({ ...f, pagibig: val }));
+                                      if (profileFormErrors.pagibig) setProfileFormErrors((prev) => ({ ...prev, pagibig: "" }));
+                                    }}
+                                    placeholder="1234-5678-9012"
                                   />
                                   <Input
                                     label="TIN Number"
                                     value={profileForm.tin}
-                                    onChange={(e) => setProfileForm((f) => ({ ...f, tin: formatTINNumber(e.target.value) }))}
-                                    placeholder="000-000-000-000"
+                                    maxLength={15}
+                                    inputMode="numeric"
+                                    error={profileFormErrors.tin}
+                                    helperText="e.g. 123-456-789-000 (9 or 12 digits)"
+                                    onChange={(e) => {
+                                      const val = formatTINNumber(e.target.value);
+                                      setProfileForm((f) => ({ ...f, tin: val }));
+                                      if (profileFormErrors.tin) setProfileFormErrors((prev) => ({ ...prev, tin: "" }));
+                                    }}
+                                    placeholder="123-456-789-000"
                                   />
                                 </div>
                               </div>
@@ -1927,6 +2076,7 @@ export const ApplicationDetailPage: React.FC = () => {
                                 <div className="grid grid-cols-2 gap-2">
                                   <Input
                                     label="Emergency Contact Name"
+                                    nameInput
                                     value={profileForm.emergencyContactName}
                                     onChange={(e) => setProfileForm((f) => ({ ...f, emergencyContactName: e.target.value }))}
                                     placeholder="Full name"
@@ -1934,9 +2084,14 @@ export const ApplicationDetailPage: React.FC = () => {
                                   <PhoneInput
                                     label="Emergency Contact Phone"
                                     value={profileForm.emergencyContactPhone}
-                                    onChange={(val) => setProfileForm((f) => ({ ...f, emergencyContactPhone: val }))}
-                                    placeholder="0917 123 4567"
-                                    helperText="Format: 09XX-XXX-XXXX"
+                                    mobileOnly
+                                    error={profileFormErrors.emergencyContactPhone}
+                                    onChange={(val) => {
+                                      setProfileForm((f) => ({ ...f, emergencyContactPhone: val }));
+                                      if (profileFormErrors.emergencyContactPhone) setProfileFormErrors((prev) => ({ ...prev, emergencyContactPhone: "" }));
+                                    }}
+                                    placeholder="0917-123-4567"
+                                    helperText="e.g. 0917-123-4567"
                                   />
                                 </div>
                               </div>
@@ -2302,19 +2457,21 @@ export const ApplicationDetailPage: React.FC = () => {
                         {isInterviewHistoryExpanded ? "Show Recent (2)" : `View All (${app.interviews.length})`}
                       </Button>
                     )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Plus className="w-3.5 h-3.5 text-teal-600" />}
-                      onClick={() => {
-                        setInterviewType(isFinalInterviewStage ? InterviewType.FINAL_INTERVIEW : InterviewType.INITIAL_SCREENING);
-                        setInterviewDate("");
-                        setInterviewNotes("");
-                        setInterviewModalOpen(true);
-                      }}
-                    >
-                      {isFinalInterviewStage ? "Schedule Final Interview" : "Schedule Interview"}
-                    </Button>
+                    {nextSchedulableInterview && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={<Plus className="w-3.5 h-3.5 text-teal-600" />}
+                        onClick={() => {
+                          setInterviewType(nextSchedulableInterview);
+                          setInterviewDate("");
+                          setInterviewNotes("");
+                          setInterviewModalOpen(true);
+                        }}
+                      >
+                        {nextSchedulableInterview === InterviewType.FINAL_INTERVIEW ? "Schedule Final Interview" : "Schedule Interview"}
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -2395,6 +2552,14 @@ export const ApplicationDetailPage: React.FC = () => {
                                 Mark as Passed
                               </Button>
                             )}
+                            {(isPassed || isFailed || isNoShow) ? (
+                              <span
+                                className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded"
+                                title="Finalized results are read-only. An administrator can correct them with a recorded reason."
+                              >
+                                <Lock className="w-3 h-3" /> Result finalized
+                              </span>
+                            ) : (
                             <Button
                               variant="outline"
                               size="sm"
@@ -2409,6 +2574,7 @@ export const ApplicationDetailPage: React.FC = () => {
                             >
                               {isPending ? "Record Result" : "Update Result"}
                             </Button>
+                            )}
                           </div>
                         </div>
                       );
@@ -2975,31 +3141,16 @@ export const ApplicationDetailPage: React.FC = () => {
                                       size="sm"
                                       onClick={() => {
                                         setReviewReqId(req.id);
-                                        setReviewReqStatus(req.reviewStatus === "TO_FOLLOW" ? "TO_FOLLOW" : req.reviewStatus === "REJECTED" ? "REJECTED" : "APPROVED");
+                                        setReviewReqStatus(req.reviewStatus === "TO_FOLLOW" ? "TO_FOLLOW" : req.reviewStatus === "REJECTED" ? "REJECTED" : req.reviewStatus === "APPROVED" ? "APPROVED" : "");
                                         setReviewReqNotes(req.reviewNotes || "");
                                         setToFollowDate(req.toFollowExpectedAt ? new Date(req.toFollowExpectedAt).toISOString().split('T')[0] : "");
+                                        setReviewIssuedAt(req.issuedAt?.slice(0, 10) || "");
+                                        setReviewExpiresAt(req.expiresAt?.slice(0, 10) || "");
+                                        setReviewValidity(req.validityStatus || "UNKNOWN");
                                       }}
                                     >
                                       Review
                                     </Button>
-                                    {!isApproved && (
-                                      <Button
-                                        variant="primary"
-                                        size="sm"
-                                        leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
-                                        loading={reviewComplianceMutation.isPending && reviewReqId === req.id && reviewReqStatus === "APPROVED"}
-                                        onClick={() => {
-                                          setReviewReqId(req.id);
-                                          setReviewReqStatus("APPROVED");
-                                          reviewComplianceMutation.mutate({
-                                            id: req.id,
-                                            data: { reviewStatus: "APPROVED" },
-                                          });
-                                        }}
-                                      >
-                                        Approve
-                                      </Button>
-                                    )}
                                     {!isRejected && (
                                       <Button
                                         variant="outline"
@@ -3011,6 +3162,9 @@ export const ApplicationDetailPage: React.FC = () => {
                                           setReviewReqStatus("REJECTED");
                                           setReviewReqNotes(req.reviewNotes || "");
                                           setToFollowDate(req.toFollowExpectedAt ? new Date(req.toFollowExpectedAt).toISOString().split('T')[0] : "");
+                                        setReviewIssuedAt(req.issuedAt?.slice(0, 10) || "");
+                                        setReviewExpiresAt(req.expiresAt?.slice(0, 10) || "");
+                                        setReviewValidity(req.validityStatus || "UNKNOWN");
                                         }}
                                       >
                                         Reject
@@ -3023,7 +3177,7 @@ export const ApplicationDetailPage: React.FC = () => {
                                     size="sm"
                                     onClick={() => {
                                       setReviewReqId(req.id);
-                                      setReviewReqStatus(req.reviewStatus === "TO_FOLLOW" ? "TO_FOLLOW" : req.reviewStatus === "REJECTED" ? "REJECTED" : "APPROVED");
+                                      setReviewReqStatus(req.reviewStatus === "TO_FOLLOW" ? "TO_FOLLOW" : req.reviewStatus === "REJECTED" ? "REJECTED" : req.reviewStatus === "APPROVED" ? "APPROVED" : "");
                                       setReviewReqNotes(req.reviewNotes || "");
                                       setToFollowDate(req.toFollowExpectedAt ? new Date(req.toFollowExpectedAt).toISOString().split('T')[0] : "");
                                     }}
@@ -3051,16 +3205,16 @@ export const ApplicationDetailPage: React.FC = () => {
               </div>
 
               {/* ========================================================================= */}
-              {/* SECTION 3: Contract Signing & Orientation Completion + Final Workforce Deployment */}
+              {/* SECTION 3: Contract Signing + Final Workforce Deployment */}
               {/* ========================================================================= */}
               <div id="compliance-onboarding-section" className="pt-6 border-t border-slate-200 space-y-4">
                 <div className="border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
                     <Truck className="w-4 h-4 text-teal-600" />
-                    <h3 className="text-sm font-bold text-slate-900">Contract, Orientation & Workforce Deployment</h3>
+                    <h3 className="text-sm font-bold text-slate-900">Contract Signing & Workforce Deployment</h3>
                   </div>
                   <p className="text-xs text-slate-500">
-                    Monitor employment contract completion, schedule orientation, and execute final roster deployment
+                    Prepare the MEGS contract, upload the signed copy, and confirm the employee&apos;s first day on site
                   </p>
                 </div>
 
@@ -3070,36 +3224,31 @@ export const ApplicationDetailPage: React.FC = () => {
                   approvedCompReqs={approvedCompReqs}
                   hasUnapprovedMandatoryCompliance={hasUnapprovedMandatoryCompliance}
                   isComplianceStage={isComplianceStage}
-                  canAdvanceToContractAndOrientation={canAdvanceToContractAndOrientation}
-                  isAdvancingToContractAndOrientation={updateStatusMutation.isPending}
-                  isContractAndOrientationStage={isContractAndOrientationStage}
+                  canAdvanceToContractSigning={canAdvanceToContractSigning}
+                  isAdvancingToContractSigning={updateStatusMutation.isPending}
+                  isContractSigningStage={isContractSigningStage}
                   isContractSigned={isContractSigned}
-                  isOrientationCompleted={isOrientationCompleted}
                   isReadyForDeployment={isReadyForDeployment}
                   canDeployCandidate={canDeployCandidate}
+                  openDeployment={openDeployment}
                   linkedClientName={linkedClientName}
                   onOpenComplianceTab={() => {
                     document.getElementById("compliance-checklist-section")?.scrollIntoView({ behavior: "smooth" });
                   }}
-                  onAdvanceToContractAndOrientation={() => {
+                  onAdvanceToContractSigning={() => {
                     updateStatusMutation.mutate({
-                      status: ApplicationStatus.CONTRACT_AND_ORIENTATION,
-                      reason: "All mandatory clearances approved. Moving to contract signing and orientation.",
+                      status: ApplicationStatus.CONTRACT_SIGNING,
+                      reason: "All mandatory clearances approved. Moving to contract signing.",
                     });
                   }}
                   onRecordContract={() => {
-                    setContractNotes(app.contractNotes || "");
-                    setContractDocumentUrl(app.contractDocumentUrl || "");
-                    setContractModalOpen(true);
-                  }}
-                  onRecordOrientation={() => {
-                    setOrientationDate(
-                      app.orientationDate
-                        ? new Date(app.orientationDate).toISOString().split("T")[0]
-                        : new Date().toISOString().split("T")[0]
+                    setContractStartDate(
+                      app.contractStartDate
+                        ? String(app.contractStartDate).slice(0, 10)
+                        : addManilaCalendarDays(getManilaToday(), 1)
                     );
-                    setOrientationNotes(app.orientationNotes || "");
-                    setOrientationModalOpen(true);
+                    setSignedContractFile(null);
+                    setContractModalOpen(true);
                   }}
                   onDeployCandidate={() => {
                     setDeployClientId(linkedClientId || latestEndorsement?.clientId || 0);
@@ -3217,6 +3366,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   ]
             }
           />
+
           <Textarea
             label={
               app?.status === ApplicationStatus.FINAL_INTERVIEW
@@ -3740,7 +3890,6 @@ export const ApplicationDetailPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        setReviewReqId(null);
                         setPreviewDocState({
                           open: true,
                           documentId: selectedReq.documentId,
@@ -3769,11 +3918,24 @@ export const ApplicationDetailPage: React.FC = () => {
             value={reviewReqStatus}
             onChange={(e) => setReviewReqStatus(e.target.value as any)}
             options={[
+              { value: "", label: "Select a decision…" },
               { value: "APPROVED", label: "Approve — document is valid" },
               { value: "REJECTED", label: "Reject — document needs correction" },
               { value: "TO_FOLLOW", label: "To Follow (Post-deployment tracking)" },
             ]}
           />
+
+          {reviewReqStatus === "APPROVED" && (
+            <>
+              <Input label="Issue date (if shown)" type="date" value={reviewIssuedAt} max={getManilaToday()} onChange={(event) => setReviewIssuedAt(event.target.value)} />
+              <Select label="Document validity" value={reviewValidity} onChange={(event) => setReviewValidity(event.target.value as typeof reviewValidity)} options={[
+                { value: "UNKNOWN", label: "Not verified" },
+                { value: "HAS_EXPIRY", label: "Has an expiry date" },
+                { value: "NO_EXPIRY", label: "No expiry" },
+              ]} />
+              {reviewValidity === "HAS_EXPIRY" && <Input label="Expiry date" type="date" value={reviewExpiresAt} onChange={(event) => setReviewExpiresAt(event.target.value)} required />}
+            </>
+          )}
 
           {reviewReqStatus === "TO_FOLLOW" && (
             <Input
@@ -3809,13 +3971,17 @@ export const ApplicationDetailPage: React.FC = () => {
               variant={reviewReqStatus === "APPROVED" || reviewReqStatus === "TO_FOLLOW" ? "primary" : "danger"}
               size="sm"
               loading={reviewComplianceMutation.isPending}
+              disabled={reviewReqStatus === "" || reviewReqStatus === "APPROVED" && (reviewValidity === "UNKNOWN" || (reviewValidity === "HAS_EXPIRY" && !reviewExpiresAt) || (/medical|fit\s+to\s+work|health/i.test(app.complianceRequirements?.find((r) => r.id === reviewReqId)?.documentLabel || "") && !reviewIssuedAt))}
               onClick={() => {
-                if (reviewReqId) {
+                if (reviewReqId && reviewReqStatus) {
                   reviewComplianceMutation.mutate({
                     id: reviewReqId,
                     data: {
                       reviewStatus: reviewReqStatus,
                       reviewNotes: reviewReqNotes || undefined,
+                      validityStatus: reviewReqStatus === "APPROVED" ? reviewValidity : undefined,
+                      issuedAt: reviewReqStatus === "APPROVED" ? reviewIssuedAt || null : undefined,
+                      expiresAt: reviewReqStatus === "APPROVED" ? (reviewValidity === "NO_EXPIRY" ? null : reviewExpiresAt || null) : undefined,
                       toFollowExpectedAt: reviewReqStatus === "TO_FOLLOW" && toFollowDate ? toFollowDate : undefined,
                     },
                   });
@@ -3837,15 +4003,6 @@ export const ApplicationDetailPage: React.FC = () => {
         title={previewDocState?.title || "Compliance Document"}
         applicantName={candidateName}
         requirementStatus={previewDocState?.requirementStatus}
-        onApprove={() => {
-          if (previewDocState?.requirementId) {
-            reviewComplianceMutation.mutate({
-              id: previewDocState.requirementId,
-              data: { reviewStatus: "APPROVED" },
-            });
-            setPreviewDocState(null);
-          }
-        }}
         onReject={(notes) => {
           if (previewDocState?.requirementId) {
             reviewComplianceMutation.mutate({
@@ -4016,66 +4173,6 @@ export const ApplicationDetailPage: React.FC = () => {
         </div>
       </Dialog>
 
-      {/* Fast-Track Redeployment Modal */}
-      <Dialog
-        open={fastTrackModalOpen}
-        onClose={() => setFastTrackModalOpen(false)}
-        title="Fast-Track Redeployment"
-        description={`Fast-track ${candidateName} directly to late pipeline stage with automated 12-month clearance carryover.`}
-      >
-        <div className="space-y-4">
-          <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-xs text-teal-900 space-y-1">
-            <p className="font-semibold flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-teal-700" />
-              12-Month Clearance Carryover Policy
-            </p>
-            <p className="text-teal-800">
-              Previously approved government clearances and client-matching documents verified within the last 12 months with valid expiration dates are automatically carried over into this application as Approved.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Advance Directly To
-            </label>
-            <Select
-              value={fastTrackTargetStage}
-              onChange={(e) => setFastTrackTargetStage(e.target.value as "FINAL_INTERVIEW" | "COMPLIANCE")}
-              options={[
-                { value: "COMPLIANCE", label: "Compliance (Recommended — clearance carryover & contract prep)" },
-                { value: "FINAL_INTERVIEW", label: "Final Interview" },
-              ]}
-            />
-            <p className="text-[11px] text-slate-500 mt-1">
-              {fastTrackTargetStage === "COMPLIANCE"
-                ? "Skips initial screening and client endorsement, moving candidate straight to compliance checklist verification."
-                : "Skips initial screening, advancing candidate to the final interview stage."}
-            </p>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFastTrackModalOpen(false)}
-              disabled={fastTrackRedeploymentMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${fastTrackRedeploymentMutation.isPending ? "animate-spin" : ""}`} />}
-              className="bg-teal-600 hover:bg-teal-700 text-white"
-              onClick={() => fastTrackRedeploymentMutation.mutate({ targetStage: fastTrackTargetStage })}
-              disabled={fastTrackRedeploymentMutation.isPending}
-            >
-              Confirm Fast-Track
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-
       {/* Delete Compliance Requirement Confirmation */}
       <ConfirmDialog
         open={Boolean(deleteReqTarget)}
@@ -4116,6 +4213,63 @@ export const ApplicationDetailPage: React.FC = () => {
         loading={updateStatusMutation.isPending}
       />
 
+      {/* Fast-Track Redeployment Modal */}
+      <Dialog
+        open={fastTrackModalOpen}
+        onClose={() => setFastTrackModalOpen(false)}
+        title="Fast-track redeployment"
+        description={`Move ${candidateName} straight to a later stage. Valid clearances approved in the last 12 months are carried over.`}
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-xs text-teal-900 space-y-1">
+            <p className="font-semibold flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-teal-700" />
+              12-month clearance carryover
+            </p>
+            <p className="text-teal-800">
+              Clearances approved within the last 12 months that have not expired are carried into this application as approved. Everything else must still be submitted and reviewed.
+            </p>
+          </div>
+          <Select
+            label="Advance directly to"
+            value={fastTrackTargetStage}
+            onChange={(e) => setFastTrackTargetStage(e.target.value as "FINAL_INTERVIEW" | "COMPLIANCE")}
+            options={[
+              { value: "COMPLIANCE", label: "Requirements (recommended)" },
+              { value: "FINAL_INTERVIEW", label: "Final interview" },
+            ]}
+          />
+          <p className="text-[11px] text-slate-500">
+            {fastTrackTargetStage === "COMPLIANCE"
+              ? "Skips initial review, client review and the final interview. Requirements and contract signing still apply."
+              : "Skips initial review and client review."}
+          </p>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => setFastTrackModalOpen(false)} disabled={fastTrackRedeploymentMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={fastTrackRedeploymentMutation.isPending}
+              onClick={() => fastTrackRedeploymentMutation.mutate({ targetStage: fastTrackTargetStage })}
+            >
+              Confirm fast-track
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <BackoutDialog
+        open={backoutModalOpen}
+        onClose={() => setBackoutModalOpen(false)}
+        onSubmit={(data) => backoutMutation.mutate(data)}
+        loading={backoutMutation.isPending}
+        status={app.status}
+        mode="ta"
+        candidateName={candidateName}
+      />
+
       {/* Reject Candidate Modal */}
       <Dialog
         open={rejectModalOpen}
@@ -4133,7 +4287,6 @@ export const ApplicationDetailPage: React.FC = () => {
               { value: "Failed Screening Interview", label: "Did not pass initial interview" },
               { value: "Client Declined Endorsement", label: "Client declined" },
               { value: "Failed Final Interview", label: "Did not pass final interview" },
-              { value: "Candidate Withdrew / Backout", label: "Candidate withdrew" },
               { value: "Salary Expectation Unmet", label: "Salary expectations did not match" },
               { value: "Failed Compliance Verification", label: "Requirements could not be verified" },
               { value: "Other / Discretionary", label: "Other reason" },
@@ -4167,6 +4320,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 rejectMutation.mutate({
                   status: rejectTargetStatus,
                   reason: rejectNotes.trim() ? `${rejectReason}: ${rejectNotes.trim()}` : rejectReason,
+                  reasonCode: REJECTION_REASON_CODE_BY_PRESET[rejectReason] ?? "OTHER",
                 })
               }
             >
@@ -4176,32 +4330,64 @@ export const ApplicationDetailPage: React.FC = () => {
         </div>
       </Dialog>
 
-      {/* Record Contract Signing Modal */}
+      {/* Employment contract: photograph the signed paper contract */}
       <Dialog
         open={contractModalOpen}
         onClose={() => setContractModalOpen(false)}
-        title="Record signed contract"
-        description={`Save the signed contract for ${candidateName}.`}
+        title="Employment contract"
+        description={`Upload the signed contract of ${candidateName}. Saving it deploys the candidate.`}
       >
-        <div className="space-y-4">
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1 font-mono">
-            <div className="text-slate-600">Candidate: <strong className="text-slate-900">{candidateName}</strong></div>
-            <div className="text-slate-600">Position: <strong className="text-slate-900">{app.jobPosting?.title || "Specialist"}</strong></div>
-            <div className="text-slate-600">Client: <strong className="text-slate-900">{linkedClientName || "Direct / Internal"}</strong></div>
+        <div className="space-y-5">
+          <div className="space-y-3">
+            <p className="text-xs text-slate-600">
+              Take a clear photo or scan of the signed contract (with the employee&apos;s signature and right thumbmark). Only you and the admin can open it.
+            </p>
+            {app.contractDocumentId ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(documentsApi.getDownloadUrl(app.contractDocumentId as number), "_blank")}
+              >
+                View current signed copy
+              </Button>
+            ) : null}
+            <input
+              ref={signedContractInputRef}
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => setSignedContractFile(e.target.files?.[0] ?? null)}
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="outline" size="sm" onClick={() => signedContractInputRef.current?.click()}>
+                {signedContractFile ? "Choose a different file" : "Take photo or choose file"}
+              </Button>
+              <span className="text-xs text-slate-600 break-all">
+                {signedContractFile ? signedContractFile.name : "No file chosen (PDF, JPG, PNG or WEBP, up to 10 MB)"}
+              </span>
+            </div>
           </div>
+
           <Input
-            label="Contract document link (optional)"
-            placeholder="Paste a link to the contract..."
-            value={contractDocumentUrl}
-            onChange={(e) => setContractDocumentUrl(e.target.value)}
+            label="Work assignment effective date"
+            type="date"
+            value={contractStartDate}
+            onChange={(e) => setContractStartDate(e.target.value)}
+            required
           />
-          <Textarea
-            label="Contract notes (optional)"
-            placeholder="Add contract terms or other notes..."
-            value={contractNotes}
-            onChange={(e) => setContractNotes(e.target.value)}
-            rows={3}
-          />
+
+          <div className="pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              className="text-xs text-teal-700 hover:underline disabled:text-slate-400 disabled:no-underline"
+              disabled={!contractStartDate || downloadContractMutation.isPending}
+              onClick={() => downloadContractMutation.mutate(contractStartDate)}
+            >
+              {downloadContractMutation.isPending ? "Preparing…" : "Need a copy to print? Download the contract (rate left blank)"}
+            </button>
+          </div>
+
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setContractModalOpen(false)}>
               Cancel
@@ -4209,63 +4395,14 @@ export const ApplicationDetailPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              loading={signContractMutation.isPending}
+              loading={uploadSignedContractMutation.isPending}
+              disabled={!signedContractFile || !contractStartDate}
               onClick={() =>
-                signContractMutation.mutate({
-                  contractNotes: contractNotes.trim() || undefined,
-                  contractDocumentUrl: contractDocumentUrl.trim() || undefined,
-                })
+                signedContractFile &&
+                uploadSignedContractMutation.mutate({ file: signedContractFile, startDate: contractStartDate })
               }
             >
-              Save signed contract
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-
-      {/* Record Corporate Orientation Modal */}
-      <Dialog
-        open={orientationModalOpen}
-        onClose={() => setOrientationModalOpen(false)}
-        title="Record orientation"
-        description={`Save the orientation details for ${candidateName}.`}
-      >
-        <div className="space-y-4">
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1 font-mono">
-            <div className="text-slate-600">Candidate: <strong className="text-slate-900">{candidateName}</strong></div>
-            <div className="text-slate-600">Site: <strong className="text-slate-900">{app.jobPosting?.location || "Main site"}</strong></div>
-          </div>
-          <Input
-            label="Orientation date"
-            type="date"
-            value={orientationDate}
-            onChange={(e) => setOrientationDate(e.target.value)}
-            max={getManilaToday()}
-            required
-          />
-          <Textarea
-            label="Orientation notes (optional)"
-            placeholder="Add policies, safety topics, dress code, or supervisor notes..."
-            value={orientationNotes}
-            onChange={(e) => setOrientationNotes(e.target.value)}
-            rows={3}
-          />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setOrientationModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              loading={completeOrientationMutation.isPending}
-              onClick={() =>
-                completeOrientationMutation.mutate({
-                  orientationDate: orientationDate || undefined,
-                  orientationNotes: orientationNotes.trim() || undefined,
-                })
-              }
-            >
-              Save orientation
+              Upload &amp; deploy
             </Button>
           </div>
         </div>

@@ -10,6 +10,8 @@ export interface PipelineIndicatorProps {
   audience?: ApplicationStatusAudience;
   className?: string;
   hideTerminalAlert?: boolean;
+  /** Stages bypassed by an authorised skip (never shown as Completed/Passed). */
+  skippedStages?: { stage: string; reason?: string | null; actorEmail?: string | null; at?: string | null }[];
 }
 
 const CANONICAL_STAGES = [
@@ -18,7 +20,7 @@ const CANONICAL_STAGES = [
   { id: ApplicationStatus.CLIENT_ENDORSEMENT, label: "Client review" },
   { id: ApplicationStatus.FINAL_INTERVIEW, label: "Final interview" },
   { id: ApplicationStatus.COMPLIANCE, label: TA_COPY.pipeline.requirements },
-  { id: ApplicationStatus.CONTRACT_AND_ORIENTATION, label: TA_COPY.pipeline.contractAndOrientation },
+  { id: ApplicationStatus.CONTRACT_SIGNING, label: TA_COPY.pipeline.contractSigning },
   { id: ApplicationStatus.DEPLOYED, label: TA_COPY.pipeline.deployed },
 ];
 
@@ -33,6 +35,7 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
   audience = "staff",
   className,
   hideTerminalAlert = false,
+  skippedStages = [],
 }) => {
   const isTerminal = TERMINAL_STATUSES.includes(currentStatus);
 
@@ -44,17 +47,23 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
       <div className="w-full pt-1">
         <div className="flex items-start w-full">
           {CANONICAL_STAGES.map((stage, idx) => {
-            const isCompleted = activeIndex > idx;
+            const skipped = skippedStages.find((entry) => entry.stage === stage.id);
+            const isSkipped = Boolean(skipped) && activeIndex > idx;
+            const isCompleted = activeIndex > idx && !isSkipped;
             const isFinalDeployed = stage.id === ApplicationStatus.DEPLOYED && activeIndex === idx;
             const isCurrent = activeIndex === idx && !isTerminal && !isFinalDeployed;
 
-            const circleClass = isCompleted || isFinalDeployed
+            const circleClass = isSkipped
+              ? "bg-amber-50 border-amber-400 text-amber-700"
+              : isCompleted || isFinalDeployed
               ? "bg-emerald-600 border-emerald-600 text-white shadow-xs"
               : isCurrent
               ? "bg-white border-2 border-slate-900 text-slate-900 ring-2 sm:ring-4 ring-slate-100 font-bold"
               : "bg-white border border-slate-200 text-slate-500";
 
-            const labelClass = isCurrent
+            const labelClass = isSkipped
+              ? "text-amber-700 font-semibold"
+              : isCurrent
               ? "text-slate-900 font-bold"
               : isCompleted || isFinalDeployed
               ? "text-emerald-700 font-semibold"
@@ -82,8 +91,15 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
                     circleClass
                   )}
                   aria-current={isCurrent ? "step" : undefined}
+                  title={
+                    isSkipped
+                      ? `Skipped${skipped?.reason ? `: ${skipped.reason}` : ""}${skipped?.actorEmail ? ` - ${skipped.actorEmail}` : ""}${skipped?.at ? ` (${new Date(skipped.at).toLocaleString()})` : ""}`
+                      : undefined
+                  }
                 >
-                  {isCompleted || isFinalDeployed ? (
+                  {isSkipped ? (
+                    <span aria-hidden="true">-</span>
+                  ) : isCompleted || isFinalDeployed ? (
                     <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
                   ) : (
                     <span>{idx + 1}</span>
@@ -95,6 +111,7 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
                   <span className={cn("text-[9px] leading-[1.1] sm:text-xs sm:leading-tight block font-medium break-words hyphens-auto", labelClass)}>
                     {stage.label}
                   </span>
+                  {isSkipped && <span className="block text-[9px] sm:text-[10px] uppercase tracking-wide text-amber-700">Skipped</span>}
                 </div>
               </div>
             );

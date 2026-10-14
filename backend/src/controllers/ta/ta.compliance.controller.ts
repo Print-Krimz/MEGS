@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { requestComplianceDocumentUpdate } from "../../services/ta/ta.compliance.service.js";
 import { sendSuccess, sendError } from "../../utils/response.js";
 import {
   createComplianceRequirement,
@@ -63,7 +64,7 @@ export const submitDocumentHandler = async (req: Request, res: Response): Promis
 export const reviewRequirementHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const requirementId = parseInt(req.params.requirementId as string, 10);
-    const { reviewStatus, reviewNotes, expiresAt, toFollowExpectedAt } = req.body;
+    const { reviewStatus, reviewNotes, expiresAt, issuedAt, validityStatus, toFollowExpectedAt } = req.body;
 
     const allowedStatuses = ["APPROVED", "REJECTED", "PENDING", "EXPIRED", "TO_FOLLOW", "SUBMITTED"];
     if (isNaN(requirementId) || !allowedStatuses.includes(reviewStatus)) {
@@ -77,12 +78,21 @@ export const reviewRequirementHandler = async (req: Request, res: Response): Pro
       reviewStatus,
       reviewNotes,
       expiresAt,
-      toFollowExpectedAt
+      toFollowExpectedAt,
+      issuedAt,
+      validityStatus
     );
     sendSuccess(res, "Compliance review updated", updated);
   } catch (error: any) {
     sendError(res, error.message, 400);
   }
+};
+
+export const requestDocumentUpdateHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await requestComplianceDocumentUpdate(Number(req.params.requirementId), req.user!.id, req.body.reason, req.body.deadline);
+    sendSuccess(res, "Updated document requested", result);
+  } catch (error: any) { sendError(res, error.message, error.message.includes("not found") ? 404 : 400); }
 };
 
 export const updateRequirementDeadlineHandler = async (req: Request, res: Response): Promise<void> => {
@@ -125,7 +135,7 @@ export const deleteRequirementHandler = async (req: Request, res: Response): Pro
 export const getScopedApplicationsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const scope = (req.query.scope as ComplianceScope) || "ALL";
-    const applications = await getScopedComplianceApplications(scope);
+    const applications = await getScopedComplianceApplications(scope, req.user);
     sendSuccess(res, "Compliance queue retrieved", applications);
   } catch (error: any) {
     sendError(res, error.message || "Failed to fetch compliance applications", 500);

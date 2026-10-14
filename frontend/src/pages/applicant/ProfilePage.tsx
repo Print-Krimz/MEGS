@@ -20,6 +20,9 @@ import {
 } from "../../components/ui";
 import { SkillsSection } from "../../components/applicant/SkillsSection";
 import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
+import { findNcrBarangay, isNcrProvince } from "../../lib/ncr-address";
+import { getNcrBarangayPostal } from "../../lib/ncr-postal-reference";
+import { getCityPostalCodes } from "../../lib/ph-address";
 import { formatDate, extractDocumentId } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
 import {
@@ -38,6 +41,12 @@ import { ProfileSectionNav } from "./components/profile/ProfileSectionNav";
 import type { ProfileSection } from "./components/profile/profile-navigation";
 import { parseProfileSection } from "./components/profile/profile-navigation";
 import { getManilaToday } from "../../lib/field-limits";
+import {
+  RELIGION_OPTIONS,
+  RELIGION_OTHER,
+  joinReligion,
+  splitReligion,
+} from "../../lib/hr-constants";
 import type { ResumeReviewSummary } from "./components/profile/profile-types";
 import {
   Plus,
@@ -225,6 +234,16 @@ export const ProfilePage: React.FC = () => {
   // Skills state
   const [skillsList, setSkillsList] = useState<string[]>([]);
 
+  // Religion "Please specify" text; combined into personalForm.religion via joinReligion
+  const [religionOtherDraft, setReligionOtherDraft] = useState("");
+  const religionParts = splitReligion(personalForm.religion);
+  // Prefer the draft (keeps typed spaces) only while it still matches the stored value;
+  // otherwise show the stored text, e.g. after profile load or resume autofill.
+  const religionOtherText =
+    joinReligion(RELIGION_OTHER, religionOtherDraft) === personalForm.religion
+      ? religionOtherDraft
+      : religionParts.other;
+
   // Auto-Fill & Extraction State
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
   const [resumeReview, setResumeReview] = useState<ResumeReviewSummary | null>(null);
@@ -232,36 +251,56 @@ export const ProfilePage: React.FC = () => {
   // Update local form when data arrives
   React.useEffect(() => {
     if (profile) {
-      setPersonalForm((prev) => ({
-        firstName: normalizeTitleCase(profile.firstName || prev.firstName) || profile.firstName || prev.firstName || "",
-        lastName: normalizeTitleCase(profile.lastName || prev.lastName) || profile.lastName || prev.lastName || "",
-        middleName: profile.middleName ? (normalizeTitleCase(profile.middleName) || profile.middleName) : prev.middleName || "",
-        dateOfBirth: profile.dateOfBirth ? profile.dateOfBirth.substring(0, 10) : prev.dateOfBirth || "",
-        mobileNumber: profile.mobileNumber || prev.mobileNumber || "",
-        gender: normalizeTitleCase(profile.gender || prev.gender) || profile.gender || prev.gender || "",
-        civilStatus: normalizeTitleCase(profile.civilStatus || prev.civilStatus) || profile.civilStatus || prev.civilStatus || "",
-        nationality: normalizeTitleCase(profile.nationality || prev.nationality) || profile.nationality || prev.nationality || "",
-        birthPlace: normalizeTitleCase(profile.birthPlace || prev.birthPlace) || profile.birthPlace || prev.birthPlace || "",
-        religion: normalizeTitleCase(profile.religion || prev.religion) || profile.religion || prev.religion || "",
-        height: profile.height !== null && profile.height !== undefined ? String(profile.height) : prev.height || "",
-        weight: profile.weight !== null && profile.weight !== undefined ? String(profile.weight) : prev.weight || "",
-        address: normalizeTitleCase(profile.address || prev.address) || profile.address || prev.address || "",
-        province: normalizeTitleCase(profile.province || prev.province) || profile.province || prev.province || "",
-        city: normalizeTitleCase(profile.city || prev.city) || profile.city || prev.city || "",
-        barangay: profile.barangay || prev.barangay || "",
-        postalCode: profile.postalCode || prev.postalCode || "",
-        preferredWorkLocations: normalizeTitleCase(profile.preferredWorkLocations || prev.preferredWorkLocations) || profile.preferredWorkLocations || prev.preferredWorkLocations || "",
-        professionalSummary: normalizeSentenceCase(profile.professionalSummary || prev.professionalSummary) || profile.professionalSummary || prev.professionalSummary || "",
-        sss: profile.sss ? formatSSSNumber(profile.sss) : prev.sss || "",
-        philhealth: profile.philhealth ? formatPhilHealthNumber(profile.philhealth) : prev.philhealth || "",
-        pagibig: profile.pagibig ? formatPagIbigNumber(profile.pagibig) : prev.pagibig || "",
-        tin: profile.tin ? formatTINNumber(profile.tin) : prev.tin || "",
-        emergencyContactName: profile.emergencyContactName || prev.emergencyContactName || "",
-        emergencyContactPhone: profile.emergencyContactPhone || prev.emergencyContactPhone || "",
-        emergencyContactRelationship: profile.emergencyContactRelationship || prev.emergencyContactRelationship || "",
-        emergencyContactAddress: profile.emergencyContactAddress || prev.emergencyContactAddress || "",
-        additionalNotes: profile.additionalNotes || prev.additionalNotes || "",
-      }));
+      setPersonalForm((prev) => {
+        const loadedProvince = normalizeTitleCase(profile.province || prev.province) || profile.province || prev.province || "";
+        const loadedCity = normalizeTitleCase(profile.city || prev.city) || profile.city || prev.city || "";
+        let loadedBarangay = profile.barangay || prev.barangay || "";
+        let loadedPostalCode = profile.postalCode || prev.postalCode || "";
+        if (loadedBarangay) {
+          if (isNcrProvince(loadedProvince) && loadedCity) {
+            const match = findNcrBarangay(loadedCity, loadedBarangay);
+            if (match) loadedBarangay = match.name;
+            if (!loadedPostalCode) {
+              loadedPostalCode = getNcrBarangayPostal(loadedCity, loadedBarangay)?.codes[0] || "";
+            }
+          } else if (!loadedPostalCode && loadedProvince && loadedCity) {
+            const codes = getCityPostalCodes(loadedProvince, loadedCity);
+            if (codes.length === 1) loadedPostalCode = codes[0];
+          }
+        }
+
+        return {
+          ...prev,
+          firstName: normalizeTitleCase(profile.firstName || prev.firstName) || profile.firstName || prev.firstName || "",
+          lastName: normalizeTitleCase(profile.lastName || prev.lastName) || profile.lastName || prev.lastName || "",
+          middleName: profile.middleName ? (normalizeTitleCase(profile.middleName) || profile.middleName) : prev.middleName || "",
+          dateOfBirth: profile.dateOfBirth ? profile.dateOfBirth.substring(0, 10) : prev.dateOfBirth || "",
+          mobileNumber: profile.mobileNumber || prev.mobileNumber || "",
+          gender: normalizeTitleCase(profile.gender || prev.gender) || profile.gender || prev.gender || "",
+          civilStatus: normalizeTitleCase(profile.civilStatus || prev.civilStatus) || profile.civilStatus || prev.civilStatus || "",
+          nationality: normalizeTitleCase(profile.nationality || prev.nationality) || profile.nationality || prev.nationality || "",
+          birthPlace: normalizeTitleCase(profile.birthPlace || prev.birthPlace) || profile.birthPlace || prev.birthPlace || "",
+          religion: normalizeTitleCase(profile.religion || prev.religion) || profile.religion || prev.religion || "",
+          height: profile.height !== null && profile.height !== undefined ? String(profile.height) : prev.height || "",
+          weight: profile.weight !== null && profile.weight !== undefined ? String(profile.weight) : prev.weight || "",
+          address: normalizeTitleCase(profile.address || prev.address) || profile.address || prev.address || "",
+          province: loadedProvince,
+          city: loadedCity,
+          barangay: loadedBarangay,
+          postalCode: loadedPostalCode,
+          preferredWorkLocations: normalizeTitleCase(profile.preferredWorkLocations || prev.preferredWorkLocations) || profile.preferredWorkLocations || prev.preferredWorkLocations || "",
+          professionalSummary: normalizeSentenceCase(profile.professionalSummary || prev.professionalSummary) || profile.professionalSummary || prev.professionalSummary || "",
+          sss: profile.sss ? formatSSSNumber(profile.sss) : prev.sss || "",
+          philhealth: profile.philhealth ? formatPhilHealthNumber(profile.philhealth) : prev.philhealth || "",
+          pagibig: profile.pagibig ? formatPagIbigNumber(profile.pagibig) : prev.pagibig || "",
+          tin: profile.tin ? formatTINNumber(profile.tin) : prev.tin || "",
+          emergencyContactName: profile.emergencyContactName || prev.emergencyContactName || "",
+          emergencyContactPhone: profile.emergencyContactPhone || prev.emergencyContactPhone || "",
+          emergencyContactRelationship: profile.emergencyContactRelationship || prev.emergencyContactRelationship || "",
+          emergencyContactAddress: profile.emergencyContactAddress || prev.emergencyContactAddress || "",
+          additionalNotes: profile.additionalNotes || prev.additionalNotes || "",
+        };
+      });
 
       if (profile.skills && profile.skills.length > 0) {
         const parsed = profile.skills.map((s: any) =>
@@ -368,8 +407,20 @@ export const ProfilePage: React.FC = () => {
         const rawAddress = ext.address || p.address || "";
         const rawProvince = ext.province || p.province || "";
         const rawCity = ext.city || p.city || "";
-        const rawBarangay = ext.barangay || p.barangay || "";
-        const rawPostalCode = ext.postalCode || p.postalCode || "";
+        let rawBarangay = ext.barangay || p.barangay || "";
+        let rawPostalCode = ext.postalCode || p.postalCode || "";
+        if (rawBarangay) {
+          if (isNcrProvince(rawProvince) && rawCity) {
+            const match = findNcrBarangay(rawCity, rawBarangay);
+            if (match) rawBarangay = match.name;
+            if (!rawPostalCode) {
+              rawPostalCode = getNcrBarangayPostal(rawCity, rawBarangay)?.codes[0] || "";
+            }
+          } else if (!rawPostalCode && rawProvince && rawCity) {
+            const codes = getCityPostalCodes(rawProvince, rawCity);
+            if (codes.length === 1) rawPostalCode = codes[0];
+          }
+        }
         const rawLocations = ext.preferredWorkLocations || p.preferredWorkLocations || "";
         const rawSummary = ext.professionalSummary || p.professionalSummary || "";
 
@@ -1051,16 +1102,32 @@ export const ProfilePage: React.FC = () => {
                       }}
                       helperText={autoFilledFields.has("nationality") ? "✓ Extracted from resume" : undefined}
                     />
-                    <Input
+                    <ComboBox
                       label="Religion"
-                      placeholder="e.g. Roman Catholic"
-                      value={personalForm.religion}
+                      placeholder="Search religion or select Other..."
+                      allowCustom={false}
+                      options={RELIGION_OPTIONS}
+                      value={religionParts.selected}
                       helperText={autoFilledFields.has("religion") ? "✓ Extracted from resume" : undefined}
-                      onChange={(e) => {
-                        setPersonalForm((prev) => ({ ...prev, religion: e.target.value }));
+                      onChange={(val) => {
+                        setReligionOtherDraft("");
+                        setPersonalForm((prev) => ({ ...prev, religion: joinReligion(val, "") }));
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("religion"); return n; });
                       }}
                     />
+                    {religionParts.selected === RELIGION_OTHER && (
+                      <Input
+                        label="Please specify"
+                        placeholder="e.g. Shinto"
+                        maxLength={100}
+                        value={religionOtherText}
+                        onChange={(e) => {
+                          setReligionOtherDraft(e.target.value);
+                          setPersonalForm((prev) => ({ ...prev, religion: joinReligion(RELIGION_OTHER, e.target.value) }));
+                          setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("religion"); return n; });
+                        }}
+                      />
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1210,38 +1277,38 @@ export const ProfilePage: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Input
                       label="SSS Number"
-                      placeholder="00-0000000-0"
+                      placeholder="01-2345678-9"
                       value={personalForm.sss}
-                      maxLength={64}
+                      maxLength={12}
                       inputMode="numeric"
-                      helperText="Format: 00-0000000-0 (10 digits)"
+                      helperText="e.g. 01-2345678-9 (10 digits)"
                       onChange={(e) => setPersonalForm((prev) => ({ ...prev, sss: formatSSSNumber(e.target.value) }))}
                     />
                     <Input
                       label="PhilHealth Number"
-                      placeholder="00-000000000-0"
+                      placeholder="01-234567890-1"
                       value={personalForm.philhealth}
-                      maxLength={64}
+                      maxLength={14}
                       inputMode="numeric"
-                      helperText="Format: 00-000000000-0 (12 digits)"
+                      helperText="e.g. 01-234567890-1 (12 digits)"
                       onChange={(e) => setPersonalForm((prev) => ({ ...prev, philhealth: formatPhilHealthNumber(e.target.value) }))}
                     />
                     <Input
                       label="Pag-IBIG / HDMF Number"
-                      placeholder="0000-0000-0000"
+                      placeholder="1234-5678-9012"
                       value={personalForm.pagibig}
-                      maxLength={64}
+                      maxLength={14}
                       inputMode="numeric"
-                      helperText="Format: 0000-0000-0000 (12 digits)"
+                      helperText="e.g. 1234-5678-9012 (12 digits)"
                       onChange={(e) => setPersonalForm((prev) => ({ ...prev, pagibig: formatPagIbigNumber(e.target.value) }))}
                     />
                     <Input
                       label="TIN Number"
-                      placeholder="000-000-000-000"
+                      placeholder="123-456-789-000"
                       value={personalForm.tin}
-                      maxLength={64}
+                      maxLength={15}
                       inputMode="numeric"
-                      helperText="Format: 000-000-000-000 (9 or 12 digits)"
+                      helperText="e.g. 123-456-789-000 (9 or 12 digits)"
                       onChange={(e) => setPersonalForm((prev) => ({ ...prev, tin: formatTINNumber(e.target.value) }))}
                     />
                   </div>
@@ -1263,6 +1330,7 @@ export const ProfilePage: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Input
                       label="Contact Full Name"
+                      nameInput
                       placeholder="Full Name"
                       value={personalForm.emergencyContactName}
                       onChange={(e) => setPersonalForm((prev) => ({ ...prev, emergencyContactName: e.target.value }))}

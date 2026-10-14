@@ -11,7 +11,7 @@ import {
   Pagination,
   DocumentPreviewModal,
 } from "../../components/common";
-import { Button, Dialog, Select, Textarea } from "../../components/ui";
+import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
 import type { Application, ComplianceRequirement } from "../../lib/types";
@@ -185,9 +185,12 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   // Quick review modal state
   const [quickReviewCandidate, setQuickReviewCandidate] = useState<Application | null>(null);
   const [selectedReqId, setSelectedReqId] = useState<number | null>(null);
-  const [reviewStatus, setReviewStatus] = useState<"APPROVED" | "REJECTED" | "TO_FOLLOW">("APPROVED");
+  const [reviewStatus, setReviewStatus] = useState<"" | "APPROVED" | "REJECTED" | "TO_FOLLOW">("");
   const [toFollowExpectedAt, setToFollowExpectedAt] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
+  const [documentIssuedAt, setDocumentIssuedAt] = useState("");
+  const [documentExpiresAt, setDocumentExpiresAt] = useState("");
+  const [documentValidity, setDocumentValidity] = useState<"UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY">("UNKNOWN");
   const [previewDocState, setPreviewDocState] = useState<{
     open: boolean;
     documentId?: number | null;
@@ -361,14 +364,17 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     const defaultReq =
       reqs.find((r) => r.reviewStatus === "SUBMITTED") ||
       reqs.find((r) => r.reviewStatus === "PENDING") ||
-      reqs[0];
+      reqs.find((r) => r.reviewStatus !== "APPROVED") ||
+      null;
     setSelectedReqId(defaultReq ? defaultReq.id : null);
     setReviewStatus(
       defaultReq?.reviewStatus === "TO_FOLLOW"
         ? "TO_FOLLOW"
         : defaultReq?.reviewStatus === "REJECTED"
         ? "REJECTED"
-        : "APPROVED"
+        : defaultReq?.reviewStatus === "APPROVED"
+        ? "APPROVED"
+        : ""
     );
     setToFollowExpectedAt(
       defaultReq?.toFollowExpectedAt
@@ -376,6 +382,9 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
         : ""
     );
     setReviewNotes(defaultReq?.reviewNotes || "");
+    setDocumentIssuedAt(defaultReq?.issuedAt?.slice(0, 10) || "");
+    setDocumentExpiresAt(defaultReq?.expiresAt?.slice(0, 10) || "");
+    setDocumentValidity(defaultReq?.validityStatus || "UNKNOWN");
   };
 
   const reviewComplianceMutation = useMutation({
@@ -388,6 +397,9 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
         reviewStatus: "APPROVED" | "REJECTED" | "TO_FOLLOW";
         reviewNotes?: string;
         toFollowExpectedAt?: string | null;
+        validityStatus?: "UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY";
+        issuedAt?: string | null;
+        expiresAt?: string | null;
       };
     }) => taApi.reviewComplianceRequirement(id, data),
     onSuccess: (_, vars) => {
@@ -412,6 +424,13 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           ),
         };
       });
+
+      if (vars.data.reviewStatus === "APPROVED") {
+        const next = quickReviewCandidate?.complianceRequirements?.find(
+          (r) => r.id !== vars.id && r.reviewStatus !== "APPROVED"
+        );
+        setSelectedReqId(next ? next.id : null);
+      }
 
       const msg =
         vars.data.reviewStatus === "APPROVED"
@@ -583,6 +602,11 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   const selectedReq = quickReviewCandidate?.complianceRequirements?.find(
     (r) => r.id === selectedReqId
   );
+  // Approved documents are complete; the quick review only lists documents that still need action.
+  const openReviewReqs = (quickReviewCandidate?.complianceRequirements || []).filter(
+    (r) => r.reviewStatus !== "APPROVED"
+  );
+  const approvedReviewReqCount = (quickReviewCandidate?.complianceRequirements?.length || 0) - openReviewReqs.length;
 
   return (
     <div className="space-y-6">
@@ -715,7 +739,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
             {candidateMetrics.fullyApproved}
           </div>
           <div className="text-[11px] text-emerald-700 mt-1 font-mono">
-            Ready for contract & orientation
+            Ready for contract signing
           </div>
         </button>
       </div>
@@ -936,16 +960,20 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
             {/* Requirements List */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-slate-700 block">
-                Required Documents ({quickReviewCandidate.complianceRequirements?.length || 0})
+                Documents to review ({openReviewReqs.length})
+                {approvedReviewReqCount > 0 && (
+                  <span className="ml-1 font-normal text-slate-500">· {approvedReviewReqCount} approved</span>
+                )}
               </label>
-              {!quickReviewCandidate.complianceRequirements ||
-              quickReviewCandidate.complianceRequirements.length === 0 ? (
+              {openReviewReqs.length === 0 ? (
                 <p className="text-xs text-slate-500 italic py-2">
-                  No requirements configured for this application.
+                  {quickReviewCandidate.complianceRequirements?.length
+                    ? "All required documents are approved."
+                    : "No requirements configured for this application."}
                 </p>
               ) : (
                 <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
-                  {quickReviewCandidate.complianceRequirements.map((req) => {
+                  {openReviewReqs.map((req) => {
                     const isSelected = req.id === selectedReqId;
                     return (
                       <button
@@ -958,7 +986,9 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                               ? "TO_FOLLOW"
                               : req.reviewStatus === "REJECTED"
                               ? "REJECTED"
-                              : "APPROVED"
+                              : req.reviewStatus === "APPROVED"
+                              ? "APPROVED"
+                              : ""
                           );
                           setToFollowExpectedAt(
                             req.toFollowExpectedAt
@@ -966,6 +996,9 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                               : ""
                           );
                           setReviewNotes(req.reviewNotes || "");
+                          setDocumentIssuedAt(req.issuedAt?.slice(0, 10) || "");
+                          setDocumentExpiresAt(req.expiresAt?.slice(0, 10) || "");
+                          setDocumentValidity(req.validityStatus || "UNKNOWN");
                         }}
                         className={`w-full p-2.5 text-left flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer ${
                           isSelected
@@ -1021,14 +1054,27 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                   label="Review decision"
                   value={reviewStatus}
                   onChange={(e) =>
-                    setReviewStatus(e.target.value as "APPROVED" | "REJECTED" | "TO_FOLLOW")
+                    setReviewStatus(e.target.value as "" | "APPROVED" | "REJECTED" | "TO_FOLLOW")
                   }
                   options={[
+                    { value: "", label: "Select a decision…" },
                     { value: "APPROVED", label: "Approve — document is valid" },
                     { value: "TO_FOLLOW", label: "To follow up — allow deployment, follow up later" },
                     { value: "REJECTED", label: "Reject — document needs correction" },
                   ]}
                 />
+
+                {reviewStatus === "APPROVED" && (
+                  <>
+                    <Input label="Issue date (if shown)" type="date" value={documentIssuedAt} max={getManilaToday()} onChange={(event) => setDocumentIssuedAt(event.target.value)} />
+                    <Select label="Document validity" value={documentValidity} onChange={(event) => setDocumentValidity(event.target.value as typeof documentValidity)} options={[
+                      { value: "UNKNOWN", label: "Not verified" },
+                      { value: "HAS_EXPIRY", label: "Has an expiry date" },
+                      { value: "NO_EXPIRY", label: "No expiry" },
+                    ]} />
+                    {documentValidity === "HAS_EXPIRY" && <Input label="Expiry date" type="date" value={documentExpiresAt} onChange={(event) => setDocumentExpiresAt(event.target.value)} required />}
+                  </>
+                )}
 
                 {reviewStatus === "TO_FOLLOW" && (
                   <div>
@@ -1069,13 +1115,17 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                     variant={reviewStatus === "REJECTED" ? "danger" : "primary"}
                     size="sm"
                     loading={reviewComplianceMutation.isPending}
+                    disabled={reviewStatus === "" || reviewStatus === "APPROVED" && (documentValidity === "UNKNOWN" || (documentValidity === "HAS_EXPIRY" && !documentExpiresAt) || (/medical|fit\s+to\s+work|health/i.test(selectedReq.documentLabel) && !documentIssuedAt))}
                     onClick={() => {
-                      if (selectedReqId) {
+                      if (selectedReqId && reviewStatus) {
                         reviewComplianceMutation.mutate({
                           id: selectedReqId,
                           data: {
                             reviewStatus,
                             reviewNotes: reviewNotes.trim() || undefined,
+                            validityStatus: reviewStatus === "APPROVED" ? documentValidity : undefined,
+                            issuedAt: reviewStatus === "APPROVED" ? documentIssuedAt || null : undefined,
+                            expiresAt: reviewStatus === "APPROVED" ? (documentValidity === "NO_EXPIRY" ? null : documentExpiresAt || null) : undefined,
                             toFollowExpectedAt:
                               reviewStatus === "TO_FOLLOW" && toFollowExpectedAt
                                 ? toFollowExpectedAt

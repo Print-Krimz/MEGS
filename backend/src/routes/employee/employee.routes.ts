@@ -1,9 +1,12 @@
 import { Router } from "express";
+import { listRedeploymentQueueHandler, updateRedeploymentFollowUpHandler } from "../../controllers/employee/employee.controller.js";
 import { authenticateJWT, requireRole } from "../../middleware/auth.middleware.js";
 import { validate } from "../../middleware/validate.middleware.js";
+import { requireOwned, requireOwnedBody } from "../../services/ta/ownership.js";
 import { employeeSchema } from "../../schemas/employee.schema.js";
 import {
   listEmployeesHandler,
+  listEmployeeCredentialAlertsHandler,
   getEmployeeHandler,
   getDigital201Handler,
   getMyDigital201Handler,
@@ -27,10 +30,15 @@ router.post(
   "/deployments/:id/end",
   requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"),
   validate(employeeSchema.endDeployment),
+  requireOwned("deployment"),
   endEmployeeDeploymentHandler
 );
 
 // Employee list & filtering (Redeployment Pool vs Active)
+router.get("/credential-alerts", requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"), listEmployeeCredentialAlertsHandler);
+router.get("/redeployment-queue", requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"), listRedeploymentQueueHandler);
+router.patch("/:id/redeployment", requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"), validate(employeeSchema.updateRedeployment), requireOwned("employeePool"), updateRedeploymentFollowUpHandler);
+
 router.get(
   "/",
   requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"),
@@ -39,15 +47,16 @@ router.get(
 );
 
 // Individual employee routes with internal ownership & role authorization
-router.get("/:id", validate(employeeSchema.idParams), getEmployeeHandler);
-router.get("/:id/digital-201", validate(employeeSchema.idParams), getDigital201Handler);
-router.get("/:id/employment-history", validate(employeeSchema.idParams), getEmployeeEmploymentHistoryHandler);
+router.get("/:id", validate(employeeSchema.idParams), requireOwned("employeePool"), getEmployeeHandler);
+router.get("/:id/digital-201", validate(employeeSchema.idParams), requireOwned("employee"), getDigital201Handler);
+router.get("/:id/employment-history", validate(employeeSchema.idParams), requireOwned("employeePool"), getEmployeeEmploymentHistoryHandler);
 
 // Admin / TA Mutations
 router.patch(
   "/:id/status",
   requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"),
   validate(employeeSchema.updateStatus),
+  requireOwned("employee"),
   updateEmployeeStatusHandler
 );
 
@@ -55,6 +64,7 @@ router.patch(
   "/:id/details",
   requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"),
   validate(employeeSchema.updateDetails),
+  requireOwned("employee"),
   updateEmployeeDetailsHandler
 );
 
@@ -62,6 +72,9 @@ router.post(
   "/:id/deployments",
   requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"),
   validate(employeeSchema.createDeployment),
+  requireOwned("employeePool"),
+  requireOwnedBody("mrf", "mrfId"),
+  requireOwnedBody("client", "clientId"),
   createEmployeeDeploymentHandler
 );
 

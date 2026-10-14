@@ -1,4 +1,5 @@
 import prisma from "../../utils/prisma.js";
+import { ownedWhere, owns, type Actor } from "../ta/ownership.js";
 import { rethrowPlacementConflict } from "./placement-conflict.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 import { validateStructuredAddress } from "../../utils/address-validation.js";
@@ -246,6 +247,51 @@ export const getDigital201ByEmployeeId = async (employeeId: number): Promise<Dig
 /**
  * Aggregates complete Digital 201 personnel record for an Employee by userId.
  */
+const CONTRACT_APPLICATION_FIELDS = [
+  "contractSigned",
+  "contractSignedAt",
+  "contractNotes",
+  "contractStartDate",
+  "contractSignedById",
+  "contractDocumentId",
+];
+const CONTRACT_DEPLOYMENT_FIELDS = [
+  "contractDocumentUrl",
+  "contractTerms",
+  "contractStatus",
+  "workerSigned",
+  "workerSignedAt",
+  "clientSigned",
+  "clientSignedAt",
+];
+
+const omitKeys = (record: any, keys: string[]) => {
+  if (!record || typeof record !== "object") return record;
+  const copy = { ...record };
+  for (const key of keys) delete copy[key];
+  return copy;
+};
+
+// Employees read their own Digital 201, but the contract is a TA-only record.
+const stripContractFields = (aggregate: Digital201Aggregate): Digital201Aggregate => {
+  const agg: any = aggregate;
+  if (agg.originatingApplication) {
+    agg.originatingApplication = omitKeys(agg.originatingApplication, CONTRACT_APPLICATION_FIELDS);
+  }
+  if (agg.employee?.originatingApplication) {
+    agg.employee.originatingApplication = omitKeys(agg.employee.originatingApplication, CONTRACT_APPLICATION_FIELDS);
+  }
+  if (Array.isArray(agg.employee?.user?.applications)) {
+    agg.employee.user.applications = agg.employee.user.applications.map((a: any) =>
+      omitKeys(a, CONTRACT_APPLICATION_FIELDS)
+    );
+  }
+  if (Array.isArray(agg.deployments)) {
+    agg.deployments = agg.deployments.map((d: any) => omitKeys(d, CONTRACT_DEPLOYMENT_FIELDS));
+  }
+  return agg;
+};
+
 export const getDigital201ByUserId = async (userId: string): Promise<Digital201Aggregate> => {
   const employee = await prisma.employee.findUnique({
     where: { userId },
@@ -256,7 +302,7 @@ export const getDigital201ByUserId = async (userId: string): Promise<Digital201A
     throw new Error("Employee record not found for this user");
   }
 
-  return await getDigital201ByEmployeeId(employee.id);
+  return stripContractFields(await getDigital201ByEmployeeId(employee.id));
 };
 
 /**
@@ -268,7 +314,7 @@ export const listEmployees = async (filters: {
   search?: string;
   limit?: number;
   offset?: number;
-}) => {
+}, actor?: Actor) => {
   const where: any = {};
 
   if (filters.status) {
@@ -305,10 +351,11 @@ export const listEmployees = async (filters: {
     }
   }
 
+  const scoped: any = actor ? { AND: [where, ownedWhere.employeePool(actor)] } : where;
   const [total, items] = await Promise.all([
-    prisma.employee.count({ where }),
+    prisma.employee.count({ where: scoped }),
     prisma.employee.findMany({
-      where,
+      where: scoped,
       include: {
         user: {
           select: {
@@ -368,7 +415,7 @@ export const listEmployees = async (filters: {
   return resolvedItems;
 };
 
-export const listEmployeeCredentialAlerts = async () => {
+export const listEmployeeCredentialAlerts = async (actor?: Actor) => {
   const today = manilaDateString();
   const [year, month, day] = today.split("-").map(Number);
   const horizonDay = new Date(Date.UTC(year, month - 1, day + 30)).toISOString().slice(0, 10);
@@ -380,6 +427,7 @@ export const listEmployeeCredentialAlerts = async () => {
       application: {
         isArchived: false,
         user: { employee: { is: { status: { not: "SEPARATED" } } } },
+        ...(actor ? ownedWhere.application(actor) : {}),
       },
       OR: [
         { reviewStatus: { in: ["SUBMITTED", "REJECTED", "PENDING"] } },
@@ -445,7 +493,7 @@ export const listEmployeeCredentialAlerts = async () => {
   });
 };
 
-export const listRedeploymentQueue = async () => {
+export const listRedeploymentQueue = async (actor?: Actor) => {
   const [employees, staff] = await Promise.all([
     prisma.employee.findMany({
       where: { status: "AVAILABLE_FOR_REDEPLOYMENT", deployments: { none: { status: { notIn: ["ENDED", "CANCELLED"] } } } },
@@ -455,7 +503,7 @@ export const listRedeploymentQueue = async () => {
         deployments: { where: { status: "ENDED" }, orderBy: { actualEnd: "desc" }, take: 1, include: { client: { select: { name: true } }, mrf: { select: { title: true } }, application: { select: { jobPosting: { select: { title: true } } } } } },
         user: { select: {
           applicantProfile: { select: { id: true, firstName: true, lastName: true, invitations: { where: { status: "PENDING" }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true, jobPosting: { select: { title: true } } } } } },
-          applications: { where: { isArchived: false, status: { notIn: ["BACKOUT", "ARCHIVED", "DEPLOYED"] } }, orderBy: { createdAt: "desc" }, select: { id: true, status: true, jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } } } },
+          applications: { where: { isArchived: false, status: { notIn: ["BACKOUT", "ARCHIVED", "DEPLOYED"] }, ...(actor ? ownedWhere.application(actor) : {}) }, orderBy: { createdAt: "desc" }, select: { id: true, status: true, jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } } } },
         } },
       },
     }),
@@ -480,9 +528,13 @@ export const listRedeploymentQueue = async () => {
   }) };
 };
 
-export const updateRedeploymentFollowUp = async (id: number, actorId: string, data: { ownerId?: string | null; followUpAt?: string | null; notes?: string }) => {
+export const updateRedeploymentFollowUp = async (id: number, actorId: string, data: { ownerId?: string | null; followUpAt?: string | null; notes?: string }, actor?: Actor) => {
   const employee = await prisma.employee.findUnique({ where: { id } });
   if (!employee || employee.status !== "AVAILABLE_FOR_REDEPLOYMENT") throw new Error("Employee must be available for redeployment.");
+  // The follow-up label is a claim: once a TA holds it, only that TA (or an Admin) can change it.
+  if (actor?.role === "TALENT_ACQUISITION" && employee.redeploymentOwnerId && employee.redeploymentOwnerId !== actor.id) {
+    throw new Error("Only the current follow-up owner or an Admin can change this follow-up.");
+  }
   if (data.followUpAt && data.followUpAt < manilaDateString()) throw new Error("Follow-up date must be today or in the future.");
   if (data.ownerId) {
     const owner = await prisma.user.findFirst({ where: { id: data.ownerId, isActive: true, role: { in: ["TALENT_ACQUISITION", "ADMINISTRATOR"] } }, select: { id: true } });
@@ -500,7 +552,7 @@ export const updateRedeploymentFollowUp = async (id: number, actorId: string, da
 /**
  * Get basic employee details by ID.
  */
-export const getEmployeeById = async (id: number) => {
+export const getEmployeeById = async (id: number, actor?: Actor) => {
   const employee = await prisma.employee.findUnique({
     where: { id },
     include: {
@@ -526,6 +578,17 @@ export const getEmployeeById = async (id: number) => {
   });
 
   if (!employee) throw new Error("Employee not found");
+
+  // Pool view: a TA who does not own this worker sees work history and skills, not identity numbers or private contacts.
+  if (actor && !(await owns("employee", id, actor))) {
+    const { pagibig, philhealth, sss, tin, dateOfBirth, birthPlace, emergencyContactName, emergencyContactRelationship, emergencyContactPhone, emergencyContactAddress, ...publicProfile } =
+      (employee.user?.applicantProfile ?? {}) as any;
+    return {
+      ...employee,
+      user: employee.user ? { ...employee.user, applicantProfile: employee.user.applicantProfile ? publicProfile : null } : employee.user,
+      deployments: employee.deployments.map(({ id: deploymentId, client, mrf, actualStart, actualEnd, status, createdAt }: any) => ({ id: deploymentId, client, mrf, actualStart, actualEnd, status, createdAt })),
+    } as typeof employee;
+  }
 
   return employee;
 };

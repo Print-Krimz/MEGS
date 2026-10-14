@@ -60,7 +60,8 @@ export const batchSendInvitationsHandler = async (req: Request, res: Response) =
 export const listInvitationsHandler = async (req: Request, res: Response) => {
   try {
     const query = talentPoolInvitationSchema.listQuery.parse(req.query);
-    const result = await listOutgoingInvitations(query);
+    // A TA sees only the invitations they sent.
+    const result = await listOutgoingInvitations({ ...query, recruiterId: req.user!.id });
     return sendSuccess(res, "Invitations retrieved", result);
   } catch (error) {
     handle(res, error);

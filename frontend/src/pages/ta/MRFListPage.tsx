@@ -20,11 +20,12 @@ import {
   Building2,
 } from "lucide-react";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
+import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
 
 export const MRFListPage: React.FC = () => {
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
-  const [sortBy, setSortBy] = useState<string>("priority");
+  const [sortBy, setSortBy] = useState<string>("created_desc");
   const [page, setPage] = useState(1);
   const pageSize = 8;
 
@@ -42,6 +43,7 @@ export const MRFListPage: React.FC = () => {
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
     queryFn: taApi.listClients,
+    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
 
   const allMrfs = mrfsQuery.data || [];
@@ -71,7 +73,7 @@ export const MRFListPage: React.FC = () => {
   const handleReset = () => {
     setSearch("");
     setFilterValues({});
-    setSortBy("priority");
+    setSortBy("created_desc");
     setPage(1);
   };
 

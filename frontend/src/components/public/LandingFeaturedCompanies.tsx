@@ -13,32 +13,11 @@ const PAGE_SIZE = 6;
 export const LandingFeaturedCompanies: React.FC<LandingFeaturedCompaniesProps> = ({ onSelectCompany }) => {
   const [currentPage, setCurrentPage] = useState(1);
 
-  const { data: jobs = [] } = useQuery({
-    queryKey: ["public-open-jobs-companies"],
-    queryFn: () => applicantJobsApi.getJobs(),
+  const { data: employerSummary } = useQuery({
+    queryKey: ["public-open-job-employers"],
+    queryFn: ({ signal }) => applicantJobsApi.getOpenEmployerSummary({ signal }),
   });
-
-  // Extract unique companies from real job postings that have client records
-  const companyMap = new Map<string, { name: string; industry?: string; jobCount: number }>();
-
-  // Update counts from real active jobs only — never invent placeholder employers
-  jobs.forEach((job) => {
-    const client = (job as any).mrf?.client;
-    if (client?.name) {
-      const existing = companyMap.get(client.name);
-      if (existing) {
-        existing.jobCount += 1;
-      } else {
-        companyMap.set(client.name, {
-          name: client.name,
-          industry: client.industry,
-          jobCount: 1,
-        });
-      }
-    }
-  });
-
-  const companies = Array.from(companyMap.values());
+  const companies = employerSummary?.employers ?? [];
   const totalPages = Math.ceil(companies.length / PAGE_SIZE) || 1;
 
   useEffect(() => {
@@ -91,9 +70,7 @@ export const LandingFeaturedCompanies: React.FC<LandingFeaturedCompaniesProps> =
 
                 <div>
                   <h3 className="text-base font-bold text-slate-900">{comp.name}</h3>
-                  {comp.industry && (
-                    <p className="text-xs text-slate-500 mt-0.5">{comp.industry}</p>
-                  )}
+                  {comp.industry && <p className="text-xs text-slate-500 mt-0.5">{comp.industry}</p>}
                 </div>
               </div>
 

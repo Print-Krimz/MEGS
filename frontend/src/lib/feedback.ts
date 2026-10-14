@@ -40,6 +40,18 @@ export function formatErrorMessage(error: unknown): string {
       return "You do not have permission to perform this action.";
     }
 
+    if (error.details) {
+      const errPayload = error.details as any;
+      const issues = Array.isArray(errPayload)
+        ? errPayload
+        : Array.isArray(errPayload?.errors)
+        ? errPayload.errors
+        : null;
+      if (issues && issues.length > 0 && issues[0]?.message) {
+        return cleanTechnicalPhrases(issues[0].message);
+      }
+    }
+
     if (error.message) {
       return cleanTechnicalPhrases(error.message);
     }

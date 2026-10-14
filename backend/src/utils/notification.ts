@@ -2,6 +2,8 @@ import prisma from "./prisma.js";
 import { EventEmitter } from "events";
 import * as mailer from "./mailer.js";
 
+const ROLE_BROADCAST_CONCURRENCY = 8;
+
 // Event bus for streaming notifications to SSE clients.
 export const notificationEmitter = new EventEmitter();
 notificationEmitter.setMaxListeners(0);
@@ -91,9 +93,16 @@ export const sendRoleNotification = async (
       select: { id: true },
     });
 
-    await Promise.all(
-      users.map((u) => sendNotification(u.id, title, message, type, link))
-    );
+    let nextUserIndex = 0;
+    const workerCount = Math.min(ROLE_BROADCAST_CONCURRENCY, users.length);
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (nextUserIndex < users.length) {
+        const user = users[nextUserIndex++];
+        await sendNotification(user.id, title, message, type, link);
+      }
+    });
+
+    await Promise.all(workers);
   } catch (error) {
     console.error("[ROLE NOTIFICATION FAILED]", error, { role, title });
   }

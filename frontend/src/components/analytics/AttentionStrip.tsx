@@ -1,0 +1,55 @@
+import React from "react";
+
+export interface AttentionItem {
+  id: string;
+  label: string;
+  /** Wording for a count of exactly one, when it is not just the plural minus an s. */
+  singular?: string;
+  count: number;
+  /** Section id to scroll to. */
+  target: string;
+  tone: "alert" | "warn";
+  /** Runs before scrolling, e.g. to open a tab and apply a filter. */
+  onSelect?: () => void;
+}
+
+interface AttentionStripProps {
+  items: AttentionItem[];
+}
+
+const TONE = {
+  alert: "border-rose-300 bg-rose-50 text-rose-900 hover:bg-rose-100",
+  warn: "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100",
+} as const;
+
+/** The few things a team leader should look at first. Each one scrolls to the section that lists the records. */
+export const AttentionStrip: React.FC<AttentionStripProps> = ({ items }) => {
+  const shown = items.filter((i) => i.count > 0);
+  return (
+    <section aria-label="Needs attention" className="border border-slate-300 bg-white px-3.5 py-2.5">
+      {shown.length === 0 ? (
+        <p className="text-xs text-slate-600 font-sans">Nothing needs attention right now: no critical waits, late requests or unassigned applicants.</p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-600">Needs attention</span>
+          {shown.map((item) => (
+            <a
+              key={item.id}
+              href={`#${item.target}`}
+              onClick={(event) => {
+                event.preventDefault();
+                item.onSelect?.();
+                // Let a newly opened tab render before scrolling to it.
+                setTimeout(() => document.getElementById(item.target)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+              }}
+              className={`min-h-9 inline-flex items-center gap-1.5 border px-2.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] ${TONE[item.tone]}`}
+            >
+              <span className="tabular-nums text-sm">{item.count}</span>
+              {item.count === 1 ? item.singular ?? item.label : item.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};

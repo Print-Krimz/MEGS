@@ -4,13 +4,15 @@ import { Link } from "@tanstack/react-router";
 import { applicantJobsApi } from "../../../../lib/api/applicant-jobs.api";
 import { EmptyState, ErrorState, LoadingState, StatusBadge } from "../../../../components/common";
 import { formatDate } from "../../../../lib/utils";
-import type { Application } from "../../../../lib/types/application.types";
+import type { ApplicantApplicationSummary } from "../../../../lib/types/application.types";
 
 export const ProfileApplications: React.FC = () => {
   const applicationsQuery = useQuery({
     queryKey: ["applicant", "my-applications"],
-    queryFn: applicantJobsApi.getMyApplications,
+    queryFn: ({ signal }) => applicantJobsApi.getMyApplicationSummaries({ summary: true }, { signal }),
   });
+  const applicationData = applicationsQuery.data;
+  const applications = Array.isArray(applicationData) ? applicationData : applicationData?.items ?? [];
 
   return (
     <section aria-labelledby="profile-applications-heading" className="space-y-5">
@@ -34,9 +36,9 @@ export const ProfileApplications: React.FC = () => {
           message="We couldn't load your applications. Try again."
           onRetry={() => void applicationsQuery.refetch()}
         />
-      ) : applicationsQuery.data && applicationsQuery.data.length > 0 ? (
+      ) : applications.length > 0 ? (
         <ul role="list" className="divide-y divide-[#D9E2EC] border-y border-[#D9E2EC]">
-          {applicationsQuery.data.slice(0, 5).map((application: Application) => {
+          {applications.slice(0, 5).map((application: ApplicantApplicationSummary) => {
             const jobTitle = application.jobPosting?.title || `Application #${application.id}`;
             return (
               <li key={application.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">

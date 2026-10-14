@@ -1,6 +1,8 @@
 import prisma from "../../utils/prisma.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly } from "../../schemas/field-limits.js";
 import { ApplicationStatus } from "@prisma/client";
+import { ACTIVE_PIPELINE_STATUSES } from "./metric-definitions.js";
+import { ownedWhere } from "../ta/ownership.js";
 
 export interface AnalyticsFilterDto {
   range?: "7d" | "30d" | "90d" | "custom";
@@ -19,98 +21,9 @@ export interface UserScope {
   userId: string;
 }
 
-export interface DailyActivityPoint {
-  date: string;
-  label: string;
-  applicationsReceived: number;
-  initialInterviewsCompleted: number;
-  clientEndorsements: number;
-  finalInterviewsCompleted: number;
-  candidatesMovedToCompliance: number;
-  candidatesDeployed: number;
-}
-
-export interface RecruitmentActivityTrendResult {
-  dateRange: {
-    startDate: string;
-    endDate: string;
-    days: number;
-  };
-  series: DailyActivityPoint[];
-  totals: {
-    applicationsReceived: number;
-    initialInterviewsCompleted: number;
-    clientEndorsements: number;
-    finalInterviewsCompleted: number;
-    candidatesMovedToCompliance: number;
-    candidatesDeployed: number;
-  };
-}
-
-export interface AdminOverviewStatsResult {
-  totalApplications: number;
-  activeCandidates: number;
-  talentPoolCandidates: number;
-  clientEndorsements: number;
-  candidatesInCompliance: number;
-  totalDeployments: number;
-}
-
-export interface FunnelStage {
-  stage: string;
-  label: string;
-  count: number;
-  conversionRate: number; // % from previous stage
-  dropoffRate: number;    // % lost from previous stage
-  overallConversion: number; // % from total initial applications
-  dropoutCount?: number;
-  backoutCount?: number;
-  dropoutRate?: number;
-}
-
-export interface FunnelAnalyticsResult {
-  totalApplications: number;
-  stages: FunnelStage[];
-}
-
-export interface BottleneckItem {
-  stageKey: string;
-  stageLabel: string;
-  candidateCount: number;
-  averageAgingDays: number;
-  slaThresholdDays: number;
-  overdueCount: number;
-  severity: "HEALTHY" | "WARNING" | "CRITICAL";
-  description: string;
-}
-
-export interface JobDemandItem {
-  jobId: number;
-  jobTitle: string;
-  location: string;
-  status: string;
-  mrfId?: number | null;
-  mrfTitle?: string | null;
-  clientId?: number | null;
-  clientName?: string | null;
-  targetHeadcount: number;
-  totalApplications: number;
-  activeCandidates: number;
-  deployedCount: number;
-}
-
-export interface TAOverviewStatsResult {
-  myActiveApplications: number;
-  initialInterviewsPending: number;
-  readyForEndorsement: number;
-  pendingClientDecisions: number;
-  finalInterviewsPending: number;
-  awaitingCompliance: number;
-}
-
 export interface TAPendingActionItem {
   id: string;
-  type: "INITIAL_INTERVIEW" | "CLIENT_ENDORSEMENT" | "FINAL_INTERVIEW" | "COMPLIANCE_REVIEW";
+  type: "INITIAL_INTERVIEW" | "CLIENT_ENDORSEMENT" | "FINAL_INTERVIEW" | "COMPLIANCE_REVIEW" | "START_CONFIRMATION" | "CONTRACT_SIGNING";
   title: string;
   candidateName: string;
   candidateEmail?: string;
@@ -168,909 +81,169 @@ export function parseDateRange(filters: AnalyticsFilterDto): { start: Date; end:
 }
 
 // ─────────────────────────────────────────────
-// 1. RECRUITMENT ACTIVITY TREND (LINE GRAPH)
+// 7. TA PENDING ACTION ITEMS (ACTION QUEUE)
 // ─────────────────────────────────────────────
-export const getRecruitmentActivityTrend = async (
-  filters: AnalyticsFilterDto = {},
-  userScope?: UserScope
-): Promise<RecruitmentActivityTrendResult> => {
-  const { start, end, days, dateKeys } = parseDateRange(filters);
-
-  const shouldScopeToUser = filters.mineOnly !== undefined
-    ? filters.mineOnly && userScope?.role === "TALENT_ACQUISITION"
-    : userScope?.role === "TALENT_ACQUISITION" && !filters.recruiterId;
-
-  // Build reusable jobPosting filter clause
-  const jobClause: any = {};
-  if (shouldScopeToUser) {
-    jobClause.postedById = userScope!.userId;
-  } else if (filters.recruiterId) {
-    jobClause.postedById = filters.recruiterId;
-  }
-  if (filters.mrfId) {
-    jobClause.mrfId = filters.mrfId;
-  }
-  if (filters.clientId) {
-    jobClause.mrf = { clientId: filters.clientId };
-  }
-
-  // Common application filter clause
-  const appWhere: any = {
-    createdAt: { gte: start, lte: end },
-  };
-  if (Object.keys(jobClause).length > 0) {
-    appWhere.jobPosting = jobClause;
-  }
-  if (filters.jobPostingId) {
-    appWhere.jobPostingId = filters.jobPostingId;
-  }
-  if (filters.stage) {
-    appWhere.status = filters.stage as ApplicationStatus;
-  }
-
-  // 2. Initial & Final Interviews Filter
-  const interviewWhere: any = {
-    OR: [
-      { conductedAt: { gte: start, lte: end } },
-      { conductedAt: null, createdAt: { gte: start, lte: end }, result: { in: ["PASS", "FAIL", "PASSED", "FAILED"] } },
-    ],
-  };
-  if (Object.keys(jobClause).length > 0) {
-    interviewWhere.application = { jobPosting: jobClause };
-  }
-  if (filters.jobPostingId) {
-    interviewWhere.application = { ...(interviewWhere.application || {}), jobPostingId: filters.jobPostingId };
-  }
-
-  // 3. Client Endorsements Filter
-  const endorsementWhere: any = {
-    createdAt: { gte: start, lte: end },
-  };
-  if (shouldScopeToUser) {
-    endorsementWhere.OR = [
-      { endorsedById: userScope!.userId },
-      { application: Object.keys(jobClause).length > 0 ? { jobPosting: jobClause } : undefined },
-    ];
-  } else if (filters.recruiterId) {
-    endorsementWhere.OR = [
-      { endorsedById: filters.recruiterId },
-      { application: Object.keys(jobClause).length > 0 ? { jobPosting: jobClause } : undefined },
-    ];
-  } else if (Object.keys(jobClause).length > 0) {
-    endorsementWhere.application = { jobPosting: jobClause };
-  }
-  if (filters.clientId) {
-    endorsementWhere.clientId = filters.clientId;
-  }
-  if (filters.jobPostingId) {
-    endorsementWhere.application = { ...(endorsementWhere.application || {}), jobPostingId: filters.jobPostingId };
-  }
-  if (filters.stage) {
-    endorsementWhere.application = { ...(endorsementWhere.application || {}), status: filters.stage };
-  }
-
-  // 4. Candidates Moved to Compliance Filter
-  const decisionWhere: any = {
-    createdAt: { gte: start, lte: end },
-    toStatus: { in: ["COMPLIANCE"] },
-  };
-  if (Object.keys(jobClause).length > 0) {
-    decisionWhere.application = { jobPosting: jobClause };
-  }
-  if (filters.jobPostingId) {
-    decisionWhere.application = { ...(decisionWhere.application || {}), jobPostingId: filters.jobPostingId };
-  }
-  if (filters.stage) {
-    decisionWhere.application = { ...(decisionWhere.application || {}), status: filters.stage };
-  }
-
-  // 5. Candidates Deployed Filter
-  const deploymentWhere: any = {
-    createdAt: { gte: start, lte: end },
-  };
-  if (shouldScopeToUser) {
-    deploymentWhere.OR = [
-      { createdById: userScope!.userId },
-      { application: Object.keys(jobClause).length > 0 ? { jobPosting: jobClause } : undefined },
-    ];
-  } else if (filters.recruiterId) {
-    deploymentWhere.OR = [
-      { createdById: filters.recruiterId },
-      { application: Object.keys(jobClause).length > 0 ? { jobPosting: jobClause } : undefined },
-    ];
-  } else if (Object.keys(jobClause).length > 0) {
-    deploymentWhere.application = { jobPosting: jobClause };
-  }
-  if (filters.clientId) {
-    deploymentWhere.clientId = filters.clientId;
-  }
-  if (filters.mrfId) {
-    deploymentWhere.mrfId = filters.mrfId;
-  }
-  if (filters.jobPostingId) {
-    deploymentWhere.application = { ...(deploymentWhere.application || {}), jobPostingId: filters.jobPostingId };
-  }
-  if (filters.stage) {
-    deploymentWhere.application = { ...(deploymentWhere.application || {}), status: filters.stage };
-  }
-
-  // Parallelize the 5 independent trend queries across categories
-  const [applications, interviews, endorsements, complianceDecisions, deployments] = await Promise.all([
-    prisma.application.findMany({
-      where: appWhere,
-      select: { id: true, createdAt: true },
-    }),
-    prisma.interview.findMany({
-      where: interviewWhere,
-      select: { id: true, type: true, conductedAt: true, createdAt: true, result: true },
-    }),
-    prisma.clientEndorsement.findMany({
-      where: endorsementWhere,
-      select: { id: true, createdAt: true },
-    }),
-    prisma.recruiterDecision.findMany({
-      where: decisionWhere,
-      select: { id: true, createdAt: true },
-    }),
-    prisma.deployment.findMany({
-      where: deploymentWhere,
-      select: { id: true, createdAt: true },
-    }),
-  ]);
-
-  // Aggregate into contiguous date map
-  const dailyMap: Record<string, DailyActivityPoint> = {};
-  for (const dateKey of dateKeys) {
-    const d = new Date(dateKey + "T00:00:00Z");
-    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    dailyMap[dateKey] = {
-      date: dateKey,
-      label,
-      applicationsReceived: 0,
-      initialInterviewsCompleted: 0,
-      clientEndorsements: 0,
-      finalInterviewsCompleted: 0,
-      candidatesMovedToCompliance: 0,
-      candidatesDeployed: 0,
-    };
-  }
-
-  // Populate applications
-  for (const app of applications) {
-    const k = app.createdAt.toISOString().split("T")[0];
-    if (dailyMap[k]) dailyMap[k].applicationsReceived++;
-  }
-
-  // Populate interviews
-  for (const iv of interviews) {
-    const targetDate = iv.conductedAt || iv.createdAt;
-    const k = targetDate.toISOString().split("T")[0];
-    if (dailyMap[k]) {
-      if (iv.type === "INITIAL_SCREENING") {
-        dailyMap[k].initialInterviewsCompleted++;
-      } else if (iv.type === "FINAL_INTERVIEW") {
-        dailyMap[k].finalInterviewsCompleted++;
-      }
-    }
-  }
-
-  // Populate endorsements
-  for (const endo of endorsements) {
-    const k = endo.createdAt.toISOString().split("T")[0];
-    if (dailyMap[k]) dailyMap[k].clientEndorsements++;
-  }
-
-  // Populate compliance decisions
-  for (const cd of complianceDecisions) {
-    const k = cd.createdAt.toISOString().split("T")[0];
-    if (dailyMap[k]) dailyMap[k].candidatesMovedToCompliance++;
-  }
-
-  // Populate deployments
-  for (const dep of deployments) {
-    const k = dep.createdAt.toISOString().split("T")[0];
-    if (dailyMap[k]) dailyMap[k].candidatesDeployed++;
-  }
-
-  const series = dateKeys.map((k) => dailyMap[k]);
-
-  const totals = {
-    applicationsReceived: applications.length,
-    initialInterviewsCompleted: interviews.filter((i) => i.type === "INITIAL_SCREENING").length,
-    clientEndorsements: endorsements.length,
-    finalInterviewsCompleted: interviews.filter((i) => i.type === "FINAL_INTERVIEW").length,
-    candidatesMovedToCompliance: complianceDecisions.length,
-    candidatesDeployed: deployments.length,
-  };
-
-  return {
-    dateRange: {
-      startDate: start.toISOString().split("T")[0],
-      endDate: end.toISOString().split("T")[0],
-      days,
-    },
-    series,
-    totals,
-  };
-};
-
-// ─────────────────────────────────────────────
-// 2. ADMIN OVERVIEW KPI STATS
-// ─────────────────────────────────────────────
-export const getAdminOverviewStats = async (filters: AnalyticsFilterDto = {}): Promise<AdminOverviewStatsResult> => {
-  const baseWhere: any = {};
-  if (filters.clientId) {
-    baseWhere.jobPosting = { mrf: { clientId: filters.clientId } };
-  }
-  if (filters.mrfId) {
-    baseWhere.jobPosting = { ...(baseWhere.jobPosting || {}), mrfId: filters.mrfId };
-  }
-  if (filters.jobPostingId) {
-    baseWhere.jobPostingId = filters.jobPostingId;
-  }
-  if (filters.recruiterId) {
-    baseWhere.jobPosting = { ...(baseWhere.jobPosting || {}), postedById: filters.recruiterId };
-  }
-  if (filters.stage) {
-    baseWhere.status = filters.stage as ApplicationStatus;
-  }
-
-  // Construct filter clauses
-  const endoWhere: any = {};
-  if (filters.clientId) endoWhere.clientId = filters.clientId;
-  if (filters.jobPostingId) {
-    endoWhere.application = { ...(endoWhere.application || {}), jobPostingId: filters.jobPostingId };
-  }
-  if (filters.mrfId) {
-    endoWhere.application = {
-      ...(endoWhere.application || {}),
-      jobPosting: { ...(endoWhere.application?.jobPosting || {}), mrfId: filters.mrfId },
-    };
-  }
-  if (filters.stage) {
-    endoWhere.application = { ...(endoWhere.application || {}), status: filters.stage };
-  }
-
-  const depWhere: any = {};
-  if (filters.clientId) depWhere.clientId = filters.clientId;
-  if (filters.mrfId) depWhere.mrfId = filters.mrfId;
-  if (filters.jobPostingId) {
-    depWhere.application = { ...(depWhere.application || {}), jobPostingId: filters.jobPostingId };
-  }
-  if (filters.stage) {
-    depWhere.application = { ...(depWhere.application || {}), status: filters.stage };
-  }
-
-  // Parallelize all 6 KPI count queries concurrently
-  const [
-    totalApplications,
-    activeCandidates,
-    talentPoolCandidates,
-    clientEndorsements,
-    candidatesInCompliance,
-    totalDeployments,
-  ] = await Promise.all([
-    // Total Applications
-    prisma.application.count({ where: baseWhere }),
-
-    // Active Candidates (non-archived, non-terminal)
-    prisma.application.count({
-      where: {
-        ...baseWhere,
-        isArchived: false,
-        status: filters.stage ? (filters.stage as ApplicationStatus) : { notIn: [ApplicationStatus.BACKOUT, ApplicationStatus.ARCHIVED, ApplicationStatus.DEPLOYED] },
-      },
-    }),
-
-    // Talent Pool Candidates
-    prisma.talentPoolMembership.count({
-      where: { status: "ACTIVE" },
-    }),
-
-    // Client Endorsements
-    prisma.clientEndorsement.count({ where: endoWhere }),
-
-    // Candidates in Compliance
-    prisma.application.count({
-      where: {
-        ...baseWhere,
-        isArchived: false,
-        status: "COMPLIANCE",
-      },
-    }),
-
-    // Total Deployments
-    prisma.deployment.count({ where: depWhere }),
-  ]);
-
-  return {
-    totalApplications,
-    activeCandidates,
-    talentPoolCandidates,
-    clientEndorsements,
-    candidatesInCompliance,
-    totalDeployments,
-  };
-};
-
-// Helper to normalize status into canonical funnel stage
-export function normalizeFunnelStage(status?: string | null): string {
-  if (!status) return "APPLICATIONS";
-  const s = status.toUpperCase();
-
-  switch (s) {
-    case "INITIAL_SCREENING":
-      return "INITIAL_SCREENING";
-    case "CLIENT_ENDORSEMENT":
-    case "CLIENT_REVIEW":
-      return "CLIENT_ENDORSEMENT";
-    case "FINAL_INTERVIEW":
-      return "FINAL_INTERVIEW";
-    case "COMPLIANCE":
-    case "HIRED":
-      return "COMPLIANCE";
-    case "CONTRACT_AND_ORIENTATION":
-    case "ONBOARDING":
-      return "CONTRACT_AND_ORIENTATION";
-    case "DEPLOYED":
-    case "DEPLOYMENT":
-    case "SITE_DEPLOYMENT":
-      return "DEPLOYED";
-    case "TALENT_POOL":
-      return "TALENT_POOL";
-    case "SUBMITTED":
-    case "PARSING":
-    case "REVIEW":
-    case "MATCHED":
-    case "NEEDS_ATTENTION":
-    case "APPLICATIONS":
-    default:
-      return "APPLICATIONS";
-  }
-}
-
-// Helper to determine candidate exit stage and backout status
-export function determineExitStage(app: {
-  status: string;
-  isArchived?: boolean;
-  recruiterDecisions?: Array<{ toStatus?: string | null; fromStatus?: string | null; createdAt?: Date | string | null }>;
-}): { isDropout: boolean; isBackout: boolean; exitStageKey?: string } {
-  const currentStatus = (app.status || "").toUpperCase();
-  const decisions = app.recruiterDecisions || [];
-
-  const exitStatuses = ["BACKOUT", "ARCHIVED", "REJECTED", "DECLINED"];
-  const isBackout = currentStatus === "BACKOUT" || decisions.some((d) => d.toStatus?.toUpperCase() === "BACKOUT");
-  const hasExitDecision = decisions.some((d) => d.toStatus && exitStatuses.includes(d.toStatus.toUpperCase()));
-  const isDropout = isBackout || currentStatus === "ARCHIVED" || app.isArchived === true || hasExitDecision;
-
-  if (!isDropout) {
-    return { isDropout: false, isBackout: false };
-  }
-
-  // Find latest exit decision (inspecting chronologically last decision to exit status)
-  const exitDecisions = decisions.filter((d) => d.toStatus && exitStatuses.includes(d.toStatus.toUpperCase()));
-  const latestExitDecision = exitDecisions[exitDecisions.length - 1];
-
-  let rawStage: string | undefined;
-  if (latestExitDecision?.fromStatus && !exitStatuses.includes(latestExitDecision.fromStatus.toUpperCase())) {
-    rawStage = latestExitDecision.fromStatus;
-  } else {
-    // Check previous decisions for the last active stage
-    const activeDecisionStatuses = decisions
-      .flatMap((d) => [d.fromStatus, d.toStatus])
-      .filter((s): s is string => typeof s === "string" && s.length > 0 && !exitStatuses.includes(s.toUpperCase()));
-
-    if (activeDecisionStatuses.length > 0) {
-      rawStage = activeDecisionStatuses[activeDecisionStatuses.length - 1];
-    } else if (!exitStatuses.includes(currentStatus)) {
-      rawStage = currentStatus;
-    } else {
-      rawStage = "APPLICATIONS";
-    }
-  }
-
-  const exitStageKey = normalizeFunnelStage(rawStage);
-  return { isDropout: true, isBackout, exitStageKey };
-}
-
-// ─────────────────────────────────────────────
-// 3. ADMIN RECRUITMENT FUNNEL
-// ─────────────────────────────────────────────
-export const getAdminFunnelAnalytics = async (filters: AnalyticsFilterDto = {}): Promise<FunnelAnalyticsResult> => {
-  const where: any = {};
-  if (filters.clientId) {
-    where.jobPosting = { mrf: { clientId: filters.clientId } };
-  }
-  if (filters.mrfId) {
-    where.jobPosting = { ...(where.jobPosting || {}), mrfId: filters.mrfId };
-  }
-  if (filters.jobPostingId) {
-    where.jobPostingId = filters.jobPostingId;
-  }
-  if (filters.recruiterId) {
-    where.jobPosting = { ...(where.jobPosting || {}), postedById: filters.recruiterId };
-  }
-  if (filters.stage) {
-    where.status = filters.stage as ApplicationStatus;
-  }
-
-  const applications = await prisma.application.findMany({
-    where,
-    select: {
-      id: true,
-      status: true,
-      isArchived: true,
-      recruiterDecisions: {
-        select: { toStatus: true, fromStatus: true, createdAt: true },
-        orderBy: { createdAt: "asc" },
-      },
-      talentPoolMembershipsSourced: {
-        select: { id: true },
-      },
-    },
-  });
-
-  const total = applications.length;
-
-  const stageOrder = [
-    { key: "APPLICATIONS", label: "Applications Received" },
-    { key: "INITIAL_SCREENING", label: "Initial Screening" },
-    { key: "CLIENT_ENDORSEMENT", label: "Client Endorsement" },
-    { key: "FINAL_INTERVIEW", label: "Final Interview" },
-    { key: "COMPLIANCE", label: "201 Compliance" },
-    { key: "CONTRACT_AND_ORIENTATION", label: "Contract & Orientation" },
-    { key: "DEPLOYED", label: "Site Deployment" },
-    { key: "TALENT_POOL", label: "Talent Pool" },
-  ];
-
-  // Helper to check if candidate reached or passed a stage
-  const reachedStage = (app: (typeof applications)[0], stageKey: string): boolean => {
-    if (stageKey === "APPLICATIONS") return true;
-
-    if (stageKey === "TALENT_POOL") {
-      return (
-        app.status === "TALENT_POOL" ||
-        (app.recruiterDecisions || []).some(
-          (d) => d.toStatus === "TALENT_POOL" || d.fromStatus === "TALENT_POOL"
-        ) ||
-        Boolean(app.talentPoolMembershipsSourced && app.talentPoolMembershipsSourced.length > 0)
-      );
-    }
-
-    const currentStatus = app.status;
-    const historyStatuses = (app.recruiterDecisions || []).flatMap((d) => [d.toStatus, d.fromStatus]).filter(Boolean);
-    const allKnown = [currentStatus, ...historyStatuses];
-
-    const hierarchy: Record<string, string[]> = {
-      INITIAL_SCREENING: ["INITIAL_SCREENING", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "HIRED", "ONBOARDING", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
-      CLIENT_ENDORSEMENT: ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "HIRED", "ONBOARDING", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
-      FINAL_INTERVIEW: ["FINAL_INTERVIEW", "HIRED", "ONBOARDING", "COMPLIANCE", "CONTRACT_AND_ORIENTATION", "DEPLOYED"],
-      COMPLIANCE: ["COMPLIANCE", "CONTRACT_AND_ORIENTATION", "ONBOARDING", "DEPLOYED"],
-      CONTRACT_AND_ORIENTATION: ["CONTRACT_AND_ORIENTATION", "ONBOARDING", "DEPLOYED"],
-      DEPLOYED: ["DEPLOYED"],
-    };
-
-    const targetList = hierarchy[stageKey] || [stageKey];
-    return allKnown.some((s) => targetList.includes(s));
-  };
-
-  const stageCounts: Record<string, number> = {};
-  for (const s of stageOrder) {
-    stageCounts[s.key] = applications.filter((app) => reachedStage(app, s.key)).length;
-  }
-
-  // Aggregate dropouts and backouts per stage
-  const dropoutsByStage: Record<string, number> = {};
-  const backoutsByStage: Record<string, number> = {};
-  for (const s of stageOrder) {
-    dropoutsByStage[s.key] = 0;
-    backoutsByStage[s.key] = 0;
-  }
-
-  for (const app of applications) {
-    const exitInfo = determineExitStage(app);
-    if (exitInfo.isDropout && exitInfo.exitStageKey) {
-      dropoutsByStage[exitInfo.exitStageKey] = (dropoutsByStage[exitInfo.exitStageKey] || 0) + 1;
-      if (exitInfo.isBackout) {
-        backoutsByStage[exitInfo.exitStageKey] = (backoutsByStage[exitInfo.exitStageKey] || 0) + 1;
-      }
-    }
-  }
-
-  const stages: FunnelStage[] = stageOrder.map((s, idx) => {
-    const count = stageCounts[s.key];
-    const dropoutCount = dropoutsByStage[s.key] || 0;
-    const backoutCount = backoutsByStage[s.key] || 0;
-    const dropoutRate = count > 0 ? Number(((dropoutCount / count) * 100).toFixed(1)) : 0;
-
-    let conversionRate: number;
-    let dropoffRate: number;
-    let overallConversion: number;
-
-    if (s.key === "TALENT_POOL") {
-      conversionRate = total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0;
-      dropoffRate = Number((100 - conversionRate).toFixed(1));
-      overallConversion = conversionRate;
-    } else {
-      const prevCount = idx === 0 ? count : stageCounts[stageOrder[idx - 1].key];
-      conversionRate = prevCount > 0 ? Number(((count / prevCount) * 100).toFixed(1)) : 0;
-      dropoffRate = Number((100 - conversionRate).toFixed(1));
-      overallConversion = total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0;
-    }
-
-    return {
-      stage: s.key,
-      label: s.label,
-      count,
-      conversionRate,
-      dropoffRate,
-      overallConversion,
-      dropoutCount,
-      backoutCount,
-      dropoutRate,
-    };
-  });
-
-  return {
-    totalApplications: total,
-    stages,
-  };
-};
-
-// ─────────────────────────────────────────────
-// 4. ADMIN RECRUITMENT BOTTLENECKS & AGING
-// ─────────────────────────────────────────────
-export const getAdminBottlenecks = async (filters: AnalyticsFilterDto = {}): Promise<BottleneckItem[]> => {
-  const now = new Date();
-  const where: any = { isArchived: false };
-
-  if (filters.clientId) {
-    where.jobPosting = { mrf: { clientId: filters.clientId } };
-  }
-  if (filters.mrfId) {
-    where.jobPosting = { ...(where.jobPosting || {}), mrfId: filters.mrfId };
-  }
-  if (filters.jobPostingId) {
-    where.jobPostingId = filters.jobPostingId;
-  }
-  if (filters.recruiterId) {
-    where.jobPosting = { ...(where.jobPosting || {}), postedById: filters.recruiterId };
-  }
-  if (filters.stage) {
-    where.status = filters.stage as ApplicationStatus;
-  }
-
-  const activeApps = await prisma.application.findMany({
-    where: {
-      ...where,
-      status: filters.stage ? (filters.stage as ApplicationStatus) : { in: ["SUBMITTED", "INITIAL_SCREENING", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "CONTRACT_AND_ORIENTATION"] },
-    },
-    include: {
-      interviews: { where: { isActive: true } },
-      clientEndorsements: { orderBy: { createdAt: "desc" }, take: 1 },
-      complianceRequirements: true,
-    },
-  });
-
-  // 1. Initial Screening SLA (7-day SLA)
-  const screeningApps = activeApps.filter((a) => a.status === "SUBMITTED" || a.status === "INITIAL_SCREENING");
-  let screeningTotalDays = 0;
-  let screeningOverdue = 0;
-  for (const app of screeningApps) {
-    const ageDays = Math.max(0, Math.round((now.getTime() - app.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
-    screeningTotalDays += ageDays;
-    if (ageDays > 7) screeningOverdue++;
-  }
-  const screeningAvg = screeningApps.length > 0 ? Number((screeningTotalDays / screeningApps.length).toFixed(1)) : 0;
-
-  // 2. Client Decisions Pending
-  const endorsementApps = activeApps.filter((a) => a.status === "CLIENT_ENDORSEMENT");
-  let endorsementTotalDays = 0;
-  let endorsementOverdue = 0;
-  for (const app of endorsementApps) {
-    const endoDate = app.clientEndorsements?.[0]?.createdAt || app.updatedAt;
-    const ageDays = Math.max(0, Math.round((now.getTime() - endoDate.getTime()) / (1000 * 60 * 60 * 24)));
-    endorsementTotalDays += ageDays;
-    if (ageDays > 3) endorsementOverdue++;
-  }
-  const endorsementAvg = endorsementApps.length > 0 ? Number((endorsementTotalDays / endorsementApps.length).toFixed(1)) : 0;
-
-  // 3. Final Interviews Pending
-  const finalInterviewApps = activeApps.filter((a) => a.status === "FINAL_INTERVIEW");
-  let finalTotalDays = 0;
-  let finalOverdue = 0;
-  for (const app of finalInterviewApps) {
-    const ageDays = Math.max(0, Math.round((now.getTime() - app.updatedAt.getTime()) / (1000 * 60 * 60 * 24)));
-    finalTotalDays += ageDays;
-    if (ageDays > 5) finalOverdue++;
-  }
-  const finalAvg = finalInterviewApps.length > 0 ? Number((finalTotalDays / finalInterviewApps.length).toFixed(1)) : 0;
-
-  // 4. Compliance Document Clearances
-  const complianceApps = activeApps.filter((a) => a.status === "COMPLIANCE");
-  let complianceTotalDays = 0;
-  let complianceOverdue = 0;
-  for (const app of complianceApps) {
-    const ageDays = Math.max(0, Math.round((now.getTime() - app.updatedAt.getTime()) / (1000 * 60 * 60 * 24)));
-    complianceTotalDays += ageDays;
-    const hasPendingOrExpired = app.complianceRequirements?.some(
-      (r) => r.reviewStatus === "PENDING" || r.reviewStatus === "SUBMITTED" || (r.deadline && r.deadline < now)
-    );
-    if (ageDays > 7 || hasPendingOrExpired) complianceOverdue++;
-  }
-  const complianceAvg = complianceApps.length > 0 ? Number((complianceTotalDays / complianceApps.length).toFixed(1)) : 0;
-
-  const getSeverity = (count: number, overdue: number, avgDays: number, threshold: number): "HEALTHY" | "WARNING" | "CRITICAL" => {
-    if (overdue > 3 || avgDays > threshold * 1.5) return "CRITICAL";
-    if (overdue > 0 || avgDays > threshold) return "WARNING";
-    return "HEALTHY";
-  };
-
-  const allBottlenecks: BottleneckItem[] = [
-    {
-      stageKey: "INITIAL_SCREENING",
-      stageLabel: "Initial Screening & Scheduling",
-      candidateCount: screeningApps.length,
-      averageAgingDays: screeningAvg,
-      slaThresholdDays: 7,
-      overdueCount: screeningOverdue,
-      severity: getSeverity(screeningApps.length, screeningOverdue, screeningAvg, 7),
-      description: "Candidates awaiting recruiter evaluation and initial interview completion.",
-    },
-    {
-      stageKey: "CLIENT_ENDORSEMENT",
-      stageLabel: "Pending Client Decision",
-      candidateCount: endorsementApps.length,
-      averageAgingDays: endorsementAvg,
-      slaThresholdDays: 3,
-      overdueCount: endorsementOverdue,
-      severity: getSeverity(endorsementApps.length, endorsementOverdue, endorsementAvg, 3),
-      description: "Endorsed candidate profiles awaiting client hiring manager evaluation feedback.",
-    },
-    {
-      stageKey: "FINAL_INTERVIEW",
-      stageLabel: "Final Interview Scheduling",
-      candidateCount: finalInterviewApps.length,
-      averageAgingDays: finalAvg,
-      slaThresholdDays: 5,
-      overdueCount: finalOverdue,
-      severity: getSeverity(finalInterviewApps.length, finalOverdue, finalAvg, 5),
-      description: "Candidates shortlisted for final technical/client panel interview.",
-    },
-    {
-      stageKey: "COMPLIANCE",
-      stageLabel: "Pre-Employment Clearances",
-      candidateCount: complianceApps.length,
-      averageAgingDays: complianceAvg,
-      slaThresholdDays: 7,
-      overdueCount: complianceOverdue,
-      severity: getSeverity(complianceApps.length, complianceOverdue, complianceAvg, 7),
-      description: "Candidates submitting pre-employment clearances (NBI, Medical, SSS, PhilHealth, TIN).",
-    },
-  ];
-
-  if (filters.stage) {
-    const stageMap: Record<string, string> = {
-      SUBMITTED: "INITIAL_SCREENING",
-      INITIAL_SCREENING: "INITIAL_SCREENING",
-      CLIENT_ENDORSEMENT: "CLIENT_ENDORSEMENT",
-      FINAL_INTERVIEW: "FINAL_INTERVIEW",
-      COMPLIANCE: "COMPLIANCE",
-    };
-    const targetKey = stageMap[filters.stage] || filters.stage;
-    const matched = allBottlenecks.filter((b) => b.stageKey === targetKey);
-    return matched.length > 0 ? matched : allBottlenecks;
-  }
-
-  return allBottlenecks;
-};
-
-// ─────────────────────────────────────────────
-// 5. APPLICATIONS BY MRF / JOB POSTING
-// ─────────────────────────────────────────────
-export const getApplicationsByJobAndMRF = async (filters: AnalyticsFilterDto = {}): Promise<JobDemandItem[]> => {
-  const where: any = {};
-  if (filters.clientId) {
-    where.mrf = { clientId: filters.clientId };
-  }
-  if (filters.mrfId) {
-    where.mrfId = filters.mrfId;
-  }
-  if (filters.jobPostingId) {
-    where.id = filters.jobPostingId;
-  }
-  if (filters.recruiterId) {
-    where.postedById = filters.recruiterId;
-  }
-
-  const appWhere: any = {};
-  if (filters.stage) {
-    appWhere.status = filters.stage as ApplicationStatus;
-  }
-
-  const jobs = await prisma.jobPosting.findMany({
-    where,
-    include: {
-      mrf: {
-        include: { client: { select: { id: true, name: true } } },
-      },
-      applications: {
-        where: Object.keys(appWhere).length > 0 ? appWhere : undefined,
-        select: { id: true, status: true, isArchived: true },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return jobs.map((j) => {
-    const totalApps = j.applications.length;
-    const activeApps = j.applications.filter(
-      (a) => !a.isArchived && !([ApplicationStatus.BACKOUT, ApplicationStatus.ARCHIVED, ApplicationStatus.DEPLOYED] as ApplicationStatus[]).includes(a.status)
-    ).length;
-    const deployed = j.applications.filter((a) => a.status === "DEPLOYED").length;
-
-    return {
-      jobId: j.id,
-      jobTitle: j.title,
-      location: j.location || "Philippines",
-      status: j.status,
-      mrfId: j.mrfId,
-      mrfTitle: j.mrf?.title || null,
-      clientId: j.mrf?.clientId || null,
-      clientName: j.mrf?.client?.name || "Direct Requisition",
-      targetHeadcount: j.mrf?.headcount || 1,
-      totalApplications: totalApps,
-      activeCandidates: activeApps,
-      deployedCount: deployed,
-    };
-  });
-};
-
-// ─────────────────────────────────────────────
-// 6. TA OVERVIEW STATS (SCOPED TO LOGGED-IN TA)
-// ─────────────────────────────────────────────
-export const getTAOverviewStats = async (
-  taUserId: string,
-  filters: AnalyticsFilterDto = {}
-): Promise<TAOverviewStatsResult> => {
-  const jobScope: any = {};
-  if (filters.mineOnly) {
-    jobScope.postedById = taUserId;
-  } else if (filters.recruiterId) {
-    jobScope.postedById = filters.recruiterId;
-  }
+/** The three pending-work queries share one set of conditions so the list and its true count never drift apart. */
+const pendingActionScope = (taUserId: string, filters: AnalyticsFilterDto) => {
+  // Always the signed-in TA's own work. Finished applications never need action, so they are left out.
+  const jobScope: any = { ...ownedWhere.job({ id: taUserId, role: "TALENT_ACQUISITION" }) };
   if (filters.mrfId) jobScope.mrfId = filters.mrfId;
   if (filters.jobPostingId) jobScope.id = filters.jobPostingId;
   if (filters.clientId) jobScope.mrf = { clientId: filters.clientId };
+  const application = { jobPosting: jobScope, isArchived: false, status: { notIn: ["BACKOUT", "ARCHIVED", "TALENT_POOL", "HIRED"] } };
 
-  const hasJobScope = Object.keys(jobScope).length > 0;
-  const stageFilter = filters.stage ? (filters.stage as ApplicationStatus) : undefined;
+  // A placement waiting for its start to be confirmed: the same deployment ownership rule as everywhere else.
+  const deployment: any = { status: "READY_FOR_DEPLOYMENT", ...ownedWhere.deployment({ id: taUserId, role: "TALENT_ACQUISITION" }) };
+  if (filters.mrfId) deployment.mrfId = filters.mrfId;
+  if (filters.clientId) deployment.clientId = filters.clientId;
+  if (filters.jobPostingId) deployment.application = { jobPostingId: filters.jobPostingId };
 
-  // Parallelize all 6 TA KPI counts concurrently
-  const [
-    myActiveApplications,
-    initialInterviewsPending,
-    readyForEndorsement,
-    pendingClientDecisions,
-    finalInterviewsPending,
-    awaitingCompliance,
-  ] = await Promise.all([
-    // My Active Applications
-    prisma.application.count({
-      where: {
-        ...(hasJobScope ? { jobPosting: jobScope } : {}),
-        isArchived: false,
-        status: stageFilter || { notIn: [ApplicationStatus.BACKOUT, ApplicationStatus.ARCHIVED, ApplicationStatus.DEPLOYED] },
-      },
-    }),
-
-    // Initial Interviews Pending
-    prisma.application.count({
-      where: {
-        ...(hasJobScope ? { jobPosting: jobScope } : {}),
-        isArchived: false,
-        status: stageFilter || { in: ["SUBMITTED", "INITIAL_SCREENING"] },
-      },
-    }),
-
-    // Ready for Client Endorsement
-    prisma.application.count({
-      where: {
-        ...(hasJobScope ? { jobPosting: jobScope } : {}),
-        isArchived: false,
-        status: stageFilter || "INITIAL_SCREENING",
-        interviews: {
-          some: { type: "INITIAL_SCREENING", result: { in: ["PASS", "PASSED"] }, isActive: true },
-        },
-      },
-    }),
-
-    // Pending Client Decisions
-    prisma.clientEndorsement.count({
-      where: {
-        outcome: "PENDING",
-        ...(filters.mineOnly
-          ? {
-              OR: [
-                { endorsedById: taUserId },
-                { application: { ...(hasJobScope ? { jobPosting: jobScope } : {}), ...(stageFilter ? { status: stageFilter } : {}) } },
-              ],
-            }
-          : hasJobScope
-          ? { application: { jobPosting: jobScope, ...(stageFilter ? { status: stageFilter } : {}) } }
-          : stageFilter
-          ? { application: { status: stageFilter } }
-          : {}),
-      },
-    }),
-
-    // Final Interviews Pending
-    prisma.application.count({
-      where: {
-        ...(hasJobScope ? { jobPosting: jobScope } : {}),
-        isArchived: false,
-        status: stageFilter || "FINAL_INTERVIEW",
-      },
-    }),
-
-    // Awaiting Compliance
-    prisma.application.count({
-      where: {
-        ...(hasJobScope ? { jobPosting: jobScope } : {}),
-        isArchived: false,
-        status: stageFilter || "COMPLIANCE",
-      },
-    }),
-  ]);
-
+  const stage = filters.stage;
   return {
-    myActiveApplications,
-    initialInterviewsPending,
-    readyForEndorsement,
-    pendingClientDecisions,
-    finalInterviewsPending,
-    awaitingCompliance,
+    includeInterviews: !stage || stage === "SUBMITTED" || stage === "INITIAL_SCREENING",
+    includeFinalInterviews: !stage || stage === "FINAL_INTERVIEW",
+    includeEndorsements: !stage || stage === "CLIENT_ENDORSEMENT",
+    includeCompliance: !stage || stage === "COMPLIANCE",
+    includeContract: !stage || stage === "CONTRACT_SIGNING",
+    includeStart: !stage || stage === "DEPLOYED",
+    finalWhere: {
+      type: "FINAL_INTERVIEW",
+      isActive: true,
+      OR: [{ result: "PENDING" }, { result: null }],
+      application,
+    } as any,
+    contractWhere: { ...application, status: "CONTRACT_SIGNING" } as any,
+    startWhere: deployment,
+    interviewWhere: {
+      type: "INITIAL_SCREENING",
+      isActive: true,
+      OR: [{ result: "PENDING" }, { result: null }],
+      application,
+    } as any,
+    endorsementWhere: { outcome: "PENDING", application } as any,
+    complianceWhere: { reviewStatus: "SUBMITTED", application } as any,
   };
 };
 
-// ─────────────────────────────────────────────
-// 7. TA PENDING ACTION ITEMS (ACTION QUEUE)
-// ─────────────────────────────────────────────
+/** Every pending item, not just the ones shown (the list is capped per category). */
+export const countTAPendingActions = async (taUserId: string, filters: AnalyticsFilterDto = {}): Promise<number> => {
+  const scope = pendingActionScope(taUserId, filters);
+  const counts = await Promise.all([
+    scope.includeInterviews ? prisma.interview.count({ where: scope.interviewWhere }) : 0,
+    scope.includeFinalInterviews ? prisma.interview.count({ where: scope.finalWhere }) : 0,
+    scope.includeEndorsements ? prisma.clientEndorsement.count({ where: scope.endorsementWhere }) : 0,
+    scope.includeCompliance ? prisma.complianceRequirement.count({ where: scope.complianceWhere }) : 0,
+    scope.includeContract ? prisma.application.count({ where: scope.contractWhere }) : 0,
+    scope.includeStart ? prisma.deployment.count({ where: scope.startWhere }) : 0,
+  ]);
+  return counts.reduce((a, b) => a + b, 0);
+};
+
 export const getTAPendingActions = async (
   taUserId: string,
   filters: AnalyticsFilterDto = {},
   now: Date = new Date()
 ): Promise<TAPendingActionItem[]> => {
   const actions: TAPendingActionItem[] = [];
+  const scope = pendingActionScope(taUserId, filters);
+  const { includeInterviews, includeEndorsements, includeCompliance, interviewWhere, endorsementWhere, complianceWhere } = scope;
+  const person = { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } as const;
+  const nameOf = (u?: { email: string; applicantProfile?: { firstName: string | null; lastName: string | null } | null } | null) => {
+    const full = `${u?.applicantProfile?.firstName ?? ""} ${u?.applicantProfile?.lastName ?? ""}`.trim();
+    return full || u?.email || "Candidate";
+  };
+  const ageOf = (date: Date) => Math.max(0, Math.floor((now.getTime() - date.getTime()) / 86_400_000));
 
-  const jobScope: any = {};
-  if (filters.mineOnly) {
-    jobScope.postedById = taUserId;
-  } else if (filters.recruiterId) {
-    jobScope.postedById = filters.recruiterId;
+  const [finalInterviews, contractWaits, startWaits] = await Promise.all([
+    scope.includeFinalInterviews
+      ? prisma.interview.findMany({
+          where: scope.finalWhere,
+          include: { application: { include: { jobPosting: { select: { title: true } }, user: person } } },
+          take: 10,
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([]),
+    scope.includeContract
+      ? prisma.application.findMany({
+          where: scope.contractWhere,
+          select: { id: true, updatedAt: true, jobPosting: { select: { title: true } }, user: person },
+          take: 10,
+          orderBy: { updatedAt: "asc" },
+        })
+      : Promise.resolve([]),
+    scope.includeStart
+      ? prisma.deployment.findMany({
+          where: scope.startWhere,
+          select: {
+            id: true,
+            contractStart: true,
+            createdAt: true,
+            client: { select: { name: true } },
+            mrf: { select: { title: true } },
+            employee: { select: { user: person } },
+          },
+          take: 10,
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  for (const iv of finalInterviews) {
+    const late = Boolean((iv.scheduledAt && iv.scheduledAt < now) || (iv.complianceDeadline && iv.complianceDeadline < now));
+    actions.push({
+      id: `final-interview-${iv.id}`,
+      type: "FINAL_INTERVIEW",
+      title: late ? "Final interview result overdue" : "Record final interview result",
+      candidateName: nameOf(iv.application?.user),
+      candidateEmail: iv.application?.user?.email,
+      jobTitle: iv.application?.jobPosting?.title || "Requisition",
+      applicationId: iv.application?.id || 0,
+      urgency: late ? "HIGH" : "MEDIUM",
+      agingDays: iv.scheduledAt ? ageOf(iv.scheduledAt) : undefined,
+      deadline: iv.complianceDeadline ? iv.complianceDeadline.toISOString() : null,
+      targetUrl: `/ta/applications/${iv.application?.id}`,
+      createdAt: iv.scheduledAt?.toISOString() || iv.createdAt.toISOString(),
+    });
   }
-  if (filters.mrfId) jobScope.mrfId = filters.mrfId;
-  if (filters.jobPostingId) jobScope.id = filters.jobPostingId;
-  if (filters.clientId) jobScope.mrf = { clientId: filters.clientId };
-
-  const hasJobScope = Object.keys(jobScope).length > 0;
-
-  const stage = filters.stage;
-  const includeInterviews = !stage || stage === "SUBMITTED" || stage === "INITIAL_SCREENING";
-  const includeEndorsements = !stage || stage === "CLIENT_ENDORSEMENT";
-  const includeCompliance = !stage || stage === "COMPLIANCE";
+  for (const app of contractWaits) {
+    actions.push({
+      id: `contract-${app.id}`,
+      type: "CONTRACT_SIGNING",
+      title: "Complete contract signing",
+      candidateName: nameOf(app.user),
+      candidateEmail: app.user?.email,
+      jobTitle: app.jobPosting?.title || "Requisition",
+      applicationId: app.id,
+      urgency: "MEDIUM",
+      agingDays: ageOf(app.updatedAt),
+      targetUrl: `/ta/applications/${app.id}`,
+      createdAt: app.updatedAt.toISOString(),
+    });
+  }
+  for (const d of startWaits) {
+    const due = Boolean(d.contractStart && d.contractStart < now);
+    actions.push({
+      id: `start-${d.id}`,
+      type: "START_CONFIRMATION",
+      title: due ? `Confirm start: contract date passed (${d.client?.name ?? "client"})` : `Confirm start (${d.client?.name ?? "client"})`,
+      candidateName: nameOf(d.employee?.user),
+      candidateEmail: d.employee?.user?.email,
+      jobTitle: d.mrf?.title || "Placement",
+      applicationId: 0,
+      urgency: due ? "HIGH" : "NORMAL",
+      agingDays: d.contractStart ? ageOf(d.contractStart) : undefined,
+      deadline: d.contractStart ? d.contractStart.toISOString() : null,
+      targetUrl: `/ta/deployments/${d.id}`,
+      createdAt: d.createdAt.toISOString(),
+    });
+  }
 
   // Parallelize the 3 pending action categories concurrently
   const [pendingInterviews, pendingEndorsements, pendingCompliance] = await Promise.all([
     // 1. Initial Interviews requiring action or overdue
     includeInterviews
       ? prisma.interview.findMany({
-          where: {
-            type: "INITIAL_SCREENING",
-            isActive: true,
-            OR: [{ result: "PENDING" }, { result: null }],
-            application: { ...(hasJobScope ? { jobPosting: jobScope } : {}), isArchived: false },
-          },
+          where: interviewWhere,
           include: {
             application: {
               include: {
@@ -1087,22 +260,7 @@ export const getTAPendingActions = async (
     // 2. Client Endorsements pending feedback
     includeEndorsements
       ? prisma.clientEndorsement.findMany({
-          where: {
-            outcome: "PENDING",
-            ...(filters.mineOnly
-              ? {
-                  OR: [
-                    { endorsedById: taUserId, application: { isArchived: false } },
-                    { application: { isArchived: false, ...(hasJobScope ? { jobPosting: jobScope } : {}) } },
-                  ],
-                }
-              : {
-                  application: {
-                    isArchived: false,
-                    ...(hasJobScope ? { jobPosting: jobScope } : {}),
-                  },
-                }),
-          },
+          where: endorsementWhere,
           include: {
             client: { select: { name: true, reviewThresholdDays: true } },
             application: {
@@ -1120,10 +278,7 @@ export const getTAPendingActions = async (
     // 3. Compliance requirements submitted requiring review
     includeCompliance
       ? prisma.complianceRequirement.findMany({
-          where: {
-            reviewStatus: "SUBMITTED",
-            application: { ...(hasJobScope ? { jobPosting: jobScope } : {}), isArchived: false },
-          },
+          where: complianceWhere,
           include: {
             application: {
               include: {
@@ -1153,7 +308,7 @@ export const getTAPendingActions = async (
         applicationId: iv.application?.id || 0,
         urgency: isOverdue ? "HIGH" : "MEDIUM",
         deadline: iv.complianceDeadline ? iv.complianceDeadline.toISOString() : null,
-        targetUrl: `/ta/interviews`,
+        targetUrl: `/ta/applications/${iv.application?.id}`,
         createdAt: iv.scheduledAt?.toISOString() || iv.createdAt.toISOString(),
       });
     }
@@ -1203,13 +358,15 @@ export const getTAPendingActions = async (
         applicationId: comp.application?.id || 0,
         urgency: "MEDIUM",
         deadline: comp.deadline ? comp.deadline.toISOString() : null,
-        targetUrl: `/ta/compliance`,
+        targetUrl: `/ta/applications/${comp.application?.id}`,
         createdAt: comp.updatedAt?.toISOString() || comp.createdAt?.toISOString() || new Date().toISOString(),
       });
     }
   }
 
-  return actions;
+  // Urgent first, then the item that has been waiting longest.
+  const rank = { HIGH: 0, MEDIUM: 1, NORMAL: 2 } as const;
+  return actions.sort((x, y) => rank[x.urgency] - rank[y.urgency] || x.createdAt.localeCompare(y.createdAt));
 };
 
 // ─────────────────────────────────────────────
@@ -1219,23 +376,26 @@ export const getAnalyticsFilterOptions = async (
   userRole: string,
   userId?: string
 ): Promise<AnalyticsFilterOptionsResult> => {
-  // Parallelize the 4 filter options queries concurrently
+  // A TA only sees their own clients, requisitions and openings, and no list of other recruiters.
+  const me = userRole === "TALENT_ACQUISITION" && userId ? { id: userId, role: userRole } : null;
   const [clients, mrfs, jobPostings, recruiters] = await Promise.all([
     prisma.client.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...(me ? ownedWhere.client(me) : {}) },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
     prisma.manpowerRequest.findMany({
+      where: me ? ownedWhere.mrf(me) : undefined,
       select: { id: true, title: true, clientId: true },
       orderBy: { title: "asc" },
     }),
     prisma.jobPosting.findMany({
+      where: me ? ownedWhere.job(me) : undefined,
       select: { id: true, title: true, mrfId: true, postedById: true },
       orderBy: { title: "asc" },
     }),
     prisma.user.findMany({
-      where: { role: "TALENT_ACQUISITION", isActive: true },
+      where: { role: "TALENT_ACQUISITION", isActive: true, ...(me ? { id: me.id } : {}) },
       select: {
         id: true,
         email: true,
@@ -1257,7 +417,7 @@ export const getAnalyticsFilterOptions = async (
     { key: "CLIENT_ENDORSEMENT", label: "Client Endorsement" },
     { key: "FINAL_INTERVIEW", label: "Final Interview" },
     { key: "COMPLIANCE", label: "201 Compliance" },
-    { key: "CONTRACT_AND_ORIENTATION", label: "Contract & Orientation" },
+    { key: "CONTRACT_SIGNING", label: "Contract Signing" },
     { key: "DEPLOYED", label: "Deployed" },
   ];
 
@@ -1273,97 +433,34 @@ export const getAnalyticsFilterOptions = async (
 // ─────────────────────────────────────────────
 // 9. LEGACY ANALYTICS HELPERS (PRESERVED)
 // ─────────────────────────────────────────────
-export const getPipelineStats = async () => {
+export const getPipelineStats = async (actor?: { id: string; role: string }) => {
   const counts = await prisma.application.groupBy({
     by: ["status"],
+    where: { isArchived: false, ...(actor ? (ownedWhere.application(actor) as any) : {}) },
     _count: { _all: true },
-  });
-
-  const total = await prisma.application.count();
-  const archived = await prisma.application.count({ where: { isArchived: true } });
-
-  const statusBreakdown: Record<string, number> = {};
-  for (const c of counts) {
-    statusBreakdown[c.status] = c._count._all;
-  }
-
-  return {
-    totalApplications: total,
-    archivedApplications: archived,
-    statusBreakdown,
-  };
-};
-
-export const getTimeToFillStats = async (mrfId?: number) => {
-  const deployments = await prisma.deployment.findMany({
-    where: {
-      ...(mrfId ? { mrfId } : {}),
-      status: { in: ["ACTIVE", "READY_FOR_DEPLOYMENT"] },
-    },
-    include: {
-      mrf: { select: { id: true, title: true, createdAt: true } },
-      application: { select: { id: true, createdAt: true } },
-    },
-  });
-
-  let totalDays = 0;
-  let count = 0;
-
-  const records = deployments.map((d) => {
-    const startDate = d.mrf?.createdAt || d.application?.createdAt || d.createdAt;
-    const endDate = d.createdAt;
-    const diffMs = endDate.getTime() - startDate.getTime();
-    const days = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
-    totalDays += days;
-    count++;
-    return {
-      deploymentId: d.id,
-      mrfTitle: d.mrf?.title || "Direct Job",
-      daysToFill: days,
-      createdDate: startDate,
-      deployedDate: endDate,
-    };
-  });
-
-  const averageDaysToFill = count > 0 ? Number((totalDays / count).toFixed(1)) : 0;
-
-  return {
-    averageDaysToFill,
-    totalFilledDeployments: count,
-    details: records,
-  };
-};
-
-export const getDeploymentStats = async (clientId?: number) => {
-  const counts = await prisma.deployment.groupBy({
-    by: ["status"],
-    where: clientId ? { clientId } : undefined,
-    _count: { _all: true },
-  });
-
-  const total = await prisma.deployment.count({
-    where: clientId ? { clientId } : undefined,
   });
 
   const statusBreakdown: Record<string, number> = {};
   for (const c of counts) {
     statusBreakdown[c.status] = c._count._all;
   }
+  const activeApplications = ACTIVE_PIPELINE_STATUSES.reduce((sum, status) => sum + (statusBreakdown[status] ?? 0), 0);
 
   return {
-    totalDeployments: total,
+    activeApplications,
     statusBreakdown,
   };
 };
 
-export const getComplianceOverview = async (scopeStatuses?: string[]) => {
+export const getComplianceOverview = async (scopeStatuses?: string[], actor?: { id: string; role: string }) => {
   const allowedStatuses = scopeStatuses && scopeStatuses.length > 0
     ? scopeStatuses
-    : ["COMPLIANCE", "CONTRACT_AND_ORIENTATION"];
+    : ["COMPLIANCE", "CONTRACT_SIGNING"];
 
   const where = {
     application: {
       status: { in: allowedStatuses as any },
+      ...(actor ? (ownedWhere.application(actor) as any) : {}),
     },
   };
 

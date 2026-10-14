@@ -60,7 +60,7 @@ export function getTaStatusTone(status?: string | null): TAStatusTone {
 
   if ([
     "FILLED",
-    "CONTRACT_AND_ORIENTATION",
+    "CONTRACT_SIGNING",
     "TALENT_POOL",
     "ASSIGNMENT_COMPLETED",
     "AVAILABLE_FOR_REDEPLOYMENT",
@@ -112,7 +112,7 @@ export const TA_COPY = {
     clientEndorsement: "Client review",
     finalInterview: "Final interview",
     requirements: "Requirements",
-    contractAndOrientation: "Contract & orientation",
+    contractSigning: "Contract signing",
     deployed: "Deployed",
   },
 } as const;
@@ -131,8 +131,8 @@ export function formatTaStatus(status?: string | null): string {
     [ApplicationStatus.FINAL_INTERVIEW]: TA_COPY.pipeline.finalInterview,
     [ApplicationStatus.HIRED]: "Selected",
     [ApplicationStatus.COMPLIANCE]: TA_COPY.pipeline.requirements,
-    [ApplicationStatus.ONBOARDING]: TA_COPY.pipeline.contractAndOrientation,
-    [ApplicationStatus.CONTRACT_AND_ORIENTATION]: TA_COPY.pipeline.contractAndOrientation,
+    [ApplicationStatus.ONBOARDING]: TA_COPY.pipeline.contractSigning,
+    [ApplicationStatus.CONTRACT_SIGNING]: TA_COPY.pipeline.contractSigning,
     [ApplicationStatus.DEPLOYED]: TA_COPY.pipeline.deployed,
     [ApplicationStatus.BACKOUT]: "Withdrawn",
     [ApplicationStatus.ARCHIVED]: "Archived",

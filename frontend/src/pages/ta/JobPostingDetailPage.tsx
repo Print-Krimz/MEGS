@@ -28,7 +28,7 @@ const ACTIVE_STAGES: string[] = [
   ApplicationStatus.CLIENT_ENDORSEMENT,
   ApplicationStatus.FINAL_INTERVIEW,
   ApplicationStatus.COMPLIANCE,
-  ApplicationStatus.CONTRACT_AND_ORIENTATION,
+  ApplicationStatus.CONTRACT_SIGNING,
 ];
 
 const DEPLOYED_STAGES: string[] = [
@@ -53,12 +53,20 @@ import { TalentPoolCandidate } from "../../lib/types/ta.types";
 import { SendInvitationModal } from "../../components/ta/SendInvitationModal";
 import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTrackerDrawer";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
+import { useJobCandidateQueries } from "../../hooks/useJobCandidateQueries";
+import {
+  validateStandardText,
+  validateProseText,
+} from "../../lib/statutory-validation";
+import { getInitialJobCandidateView } from "../../lib/job-candidate-query-policy";
 
 export const JobPostingDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { jobId } = useParams({ strict: false }) as { jobId: string };
 
-  const [activeTab, setActiveTab] = useState<"applicants" | "talentPool">("applicants");
+  const [activeTab, setActiveTab] = useState<"applicants" | "talentPool">(() =>
+    getInitialJobCandidateView(typeof window === "undefined" ? "" : window.location.search)
+  );
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -75,34 +83,17 @@ export const JobPostingDetailPage: React.FC = () => {
   const [trackerDrawerOpen, setTrackerDrawerOpen] = useState(false);
   const [candidateToInvite, setCandidateToInvite] = useState<TalentPoolCandidate | null>(null);
 
-  React.useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    if (searchParams.get("tab") === "talentPool") {
-      setActiveTab("talentPool");
-    }
-  }, []);
-
   const [candidatePage, setCandidatePage] = useState(1);
   const candidatePageSize = 10;
   const [applicantFilter, setApplicantFilter] = useState<"active" | "deployed" | "all">("active");
 
   const jobQuery = useQuery({
     queryKey: ["ta", "job", jobId],
-    queryFn: () => taApi.getJob(jobId),
+    queryFn: ({ signal }) => taApi.getJob(jobId, { signal }),
     enabled: Boolean(jobId),
   });
 
-  const rankedCandidatesQuery = useQuery({
-    queryKey: ["ta", "job", jobId, "ranked"],
-    queryFn: () => taApi.getRankedCandidates(jobId),
-    enabled: Boolean(jobId),
-  });
-
-  const talentPoolQuery = useQuery({
-    queryKey: ["ta", "job", jobId, "talent-pool"],
-    queryFn: () => taApi.getJobTalentPool(jobId),
-    enabled: Boolean(jobId),
-  });
+  const { rankedCandidatesQuery, talentPoolQuery } = useJobCandidateQueries(jobId, activeTab);
 
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -176,6 +167,7 @@ export const JobPostingDetailPage: React.FC = () => {
     () => rankedCandidatesQuery.data || [],
     [rankedCandidatesQuery.data]
   );
+  const applicantCount = rankedCandidatesQuery.data?.length ?? job?.applications?.length ?? 0;
   const talentPoolMatches = React.useMemo(
     () => talentPoolQuery.data || [],
     [talentPoolQuery.data]
@@ -471,7 +463,7 @@ export const JobPostingDetailPage: React.FC = () => {
             onChange={(tab) => setActiveTab(tab as "applicants" | "talentPool")}
             ariaLabel="Job opening candidate views"
             items={[
-              { id: "applicants", label: `Applicants (${rankedScores.length})`, icon: Users, panelId: "job-applicants" },
+              { id: "applicants", label: `Applicants (${applicantCount})`, icon: Users, panelId: "job-applicants" },
               { id: "talentPool", label: `Candidate pool matches (${talentPoolMatches.length})`, icon: Users, panelId: "job-talent-pool" },
             ]}
             className="border-b-0 flex-1"
@@ -785,7 +777,12 @@ export const JobPostingDetailPage: React.FC = () => {
                             (r: any) =>
                               (Boolean(r.candidate?.id) && Boolean(c.id) && r.candidate?.id === c.id) ||
                               (Boolean(r.candidate?.email) && Boolean(c.email) && r.candidate?.email?.toLowerCase() === c.email?.toLowerCase())
-                          );
+                          ) || Boolean(job?.applications?.some((application) =>
+                            !application.isArchived &&
+                            application.status !== ApplicationStatus.ARCHIVED &&
+                            application.status !== ApplicationStatus.BACKOUT &&
+                            (application.user?.id === c.id || application.user?.email?.toLowerCase() === c.email?.toLowerCase())
+                          ));
 
                           if (isAlreadyInPipeline) {
                             return (
@@ -830,12 +827,44 @@ export const JobPostingDetailPage: React.FC = () => {
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (!editTitle.trim()) return;
+
+            const titleErr = validateStandardText(editTitle, "Title", { maxLength: 200 });
+            if (titleErr) {
+              notify.error("Invalid Title", titleErr);
+              return;
+            }
+
+            if (editLocation.trim()) {
+              const locErr = validateStandardText(editLocation, "Location", { maxLength: 200 });
+              if (locErr) {
+                notify.error("Invalid Location", locErr);
+                return;
+              }
+            }
+
+            if (editDescription.trim()) {
+              const descErr = validateProseText(editDescription, "Description", { maxLength: 10000 });
+              if (descErr) {
+                notify.error("Invalid Description", descErr);
+                return;
+              }
+            }
+
+            if (editRequirements.trim()) {
+              const reqErr = validateProseText(editRequirements, "Requirements", { maxLength: 10000 });
+              if (reqErr) {
+                notify.error("Invalid Requirements", reqErr);
+                return;
+              }
+            }
+
             updateJobMutation.mutate({
-              title: editTitle,
-              location: editLocation || undefined,
-              imageUrl: editImageUrl || undefined,
-              description: editDescription,
-              requirements: editRequirements,
+              title: editTitle.trim(),
+              location: editLocation.trim() || undefined,
+              imageUrl: editImageUrl.trim() || undefined,
+              description: editDescription.trim(),
+              requirements: editRequirements.trim(),
               status: editStatus,
               isEvergreen: editIsEvergreen,
             });

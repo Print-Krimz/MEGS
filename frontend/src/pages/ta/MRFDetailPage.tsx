@@ -14,6 +14,7 @@ import {
 } from "../../components/common";
 import { Button, Dialog, Select, ComboBox, Input, Textarea } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
+import { AssignmentPanel } from "../../components/ta/AssignmentPanel";
 import { formatAdminPipelineStage } from "../../lib/admin-copy";
 import {
   COMPLIANCE_201_PRESETS,
@@ -39,6 +40,10 @@ import {
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
+import {
+  validateStandardText,
+  validateProseText,
+} from "../../lib/statutory-validation";
 
 type MRFDetailTab = "deployments" | "jobs" | "specifications";
 
@@ -203,6 +208,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     mutationFn: (jobId: number) => taApi.linkJobToMRF(mrfId, jobId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "mrf", mrfId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
       setLinkJobModalOpen(false);
       setSelectedJobId(0);
       notify.success("Job opening linked", "The job opening is now connected to this manpower request.");
@@ -217,6 +223,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       taApi.addMRFComplianceTemplatesBulk(mrfId, data),
     onSuccess: (res: any, variables: any) => {
       queryClient.invalidateQueries({ queryKey: [readOnly ? "admin" : "ta", "mrf", mrfId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
       setTemplateModalOpen(false);
       setSelectedReqs([]);
       setCustomReqText("");
@@ -235,6 +242,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     mutationFn: (templateId: number) => taApi.removeMRFComplianceTemplate(templateId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "mrf", mrfId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
       setDeleteTemplateTarget(null);
       notify.success("Requirement removed", "The document requirement was removed from this request.");
     },
@@ -247,6 +255,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     mutationFn: (data: any) => taApi.updateMRF(mrfId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [readOnly ? "admin" : "ta", "mrf", mrfId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
       setEditStatusModalOpen(false);
       setEditDetailsModalOpen(false);
       notify.success("Manpower request updated", "The request details have been saved.");
@@ -284,6 +293,44 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     if (!editTitle.trim()) {
       notify.error("Validation error", "Request title is required.");
       return;
+    }
+
+    const titleErr = validateStandardText(editTitle, "Request title", { maxLength: 200 });
+    if (titleErr) {
+      notify.error("Invalid Title", titleErr);
+      return;
+    }
+
+    if (editLocation.trim()) {
+      const locErr = validateStandardText(editLocation, "Location", { maxLength: 200 });
+      if (locErr) {
+        notify.error("Invalid Location", locErr);
+        return;
+      }
+    }
+
+    if (editSkills.trim()) {
+      const skillsErr = validateProseText(editSkills, "Required skills", { maxLength: 2000 });
+      if (skillsErr) {
+        notify.error("Invalid Skills", skillsErr);
+        return;
+      }
+    }
+
+    if (editDescription.trim()) {
+      const descErr = validateProseText(editDescription, "Job description", { maxLength: 10000 });
+      if (descErr) {
+        notify.error("Invalid Description", descErr);
+        return;
+      }
+    }
+
+    if (editCertifications.trim()) {
+      const certErr = validateProseText(editCertifications, "Required certifications", { maxLength: 2000 });
+      if (certErr) {
+        notify.error("Invalid Certifications", certErr);
+        return;
+      }
     }
 
     const parsedHeadcount = Number(editHeadcount);
@@ -563,6 +610,16 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           </div>
         }
       />
+
+      {readOnly && (
+        <AssignmentPanel
+          mrfId={mrf.id}
+          mrfOwnerId={mrf.assignedTaId ?? null}
+          clientId={mrf.client?.id ?? mrf.clientId}
+          clientName={mrf.client?.name || "Client"}
+          clientOwnerId={mrf.client?.assignedTaId ?? null}
+        />
+      )}
 
       {/* Fulfillment Callout Banner */}
       {isFulfilled && (

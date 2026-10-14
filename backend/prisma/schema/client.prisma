@@ -19,8 +19,13 @@ model Client {
   isActive     Boolean  @default(true)
   reviewThresholdDays   Int      @default(5)
   medicalValidityMonths Int      @default(6)
+  // Default owner for new requisitions. Null means no TA owns the client yet (Admin assigns).
+  assignedTaId String?
+  assignedTa   User?    @relation("ClientAssignedTa", fields: [assignedTaId], references: [id])
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@index([assignedTaId])
 
   manpowerRequests    ManpowerRequest[]
   deployments         Deployment[]
@@ -54,8 +59,13 @@ model ManpowerRequest {
   status                 String    @default("OPEN") // OPEN, FILLED, CANCELLED
   createdById            String
   createdBy              User      @relation("MRFCreatedBy", fields: [createdById], references: [id])
+  // The TA who owns this requisition, its job postings, applicants and deployments. Null = not owned by a TA.
+  assignedTaId           String?
+  assignedTa             User?     @relation("MRFAssignedTa", fields: [assignedTaId], references: [id])
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
+
+  @@index([assignedTaId])
 
   jobPostings         JobPosting[]
   deployments         Deployment[]

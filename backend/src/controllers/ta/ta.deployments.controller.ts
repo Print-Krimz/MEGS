@@ -8,6 +8,7 @@ import {
   getDeploymentDetails,
   signDeploymentContract,
   updateDeploymentContract,
+  recordDeploymentReview,
   fastTrackRedeployment,
 } from "../../services/ta/ta.deployments.service.js";
 
@@ -70,7 +71,7 @@ export const createDeploymentHandler = async (req: Request, res: Response): Prom
       contractStart,
       contractEnd: contractEnd || undefined,
       notes,
-    });
+    }, req.user);
 
     sendSuccess(res, "Deployment created successfully", deployment, 201);
   } catch (error: any) {
@@ -82,14 +83,14 @@ export const createDeploymentHandler = async (req: Request, res: Response): Prom
 export const updateDeploymentStatusHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
-    const { status, notes } = req.body;
+    const { status, notes, actualStart } = req.body;
 
     if (isNaN(id) || !status) {
       sendError(res, "deployment ID and status are required", 400);
       return;
     }
 
-    const updated = await updateDeploymentStatus(id, status, notes);
+    const updated = await updateDeploymentStatus(id, status, notes, req.user?.id, actualStart);
     sendSuccess(res, "Deployment status updated successfully", updated);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;
@@ -102,7 +103,7 @@ export const listDeploymentsHandler = async (req: Request, res: Response): Promi
     const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
     const status = req.query.status as string | undefined;
 
-    const deployments = await listDeployments(clientId, status);
+    const deployments = await listDeployments(clientId, status, req.user);
     sendSuccess(res, "Deployments retrieved successfully", deployments);
   } catch (error: any) {
     sendError(res, error.message, 500);
@@ -156,6 +157,20 @@ export const updateDeploymentContractHandler = async (req: Request, res: Respons
   } catch (error: any) {
     const status = error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, status);
+  }
+};
+
+export const recordDeploymentReviewHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) {
+      sendError(res, "Invalid deployment ID", 400);
+      return;
+    }
+    const review = await recordDeploymentReview(id, req.user!.id, req.body.nextReviewAt, req.body.notes);
+    sendSuccess(res, "Assignment check-in recorded", review);
+  } catch (error: any) {
+    sendError(res, error.message, error.message.includes("not found") ? 404 : 400);
   }
 };
 

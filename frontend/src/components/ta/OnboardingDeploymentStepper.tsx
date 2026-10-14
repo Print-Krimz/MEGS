@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 import {
   ShieldCheck,
   FileSignature,
-  GraduationCap,
   Truck,
   CheckCircle2,
   Lock,
@@ -24,18 +23,18 @@ export interface OnboardingDeploymentStepperProps {
   approvedCompReqs: number;
   hasUnapprovedMandatoryCompliance: boolean;
   isComplianceStage: boolean;
-  canAdvanceToContractAndOrientation: boolean;
-  isAdvancingToContractAndOrientation?: boolean;
-  isContractAndOrientationStage: boolean;
+  canAdvanceToContractSigning: boolean;
+  isAdvancingToContractSigning?: boolean;
+  isContractSigningStage: boolean;
   isContractSigned: boolean;
-  isOrientationCompleted: boolean;
   isReadyForDeployment: boolean;
   canDeployCandidate: boolean;
+  /** A deployment for this worker that is not ENDED/CANCELLED (scheduled or active). */
+  openDeployment?: { id: number; status: string; applicationId?: number | null } | null;
   linkedClientName?: string;
   onOpenComplianceTab: () => void;
-  onAdvanceToContractAndOrientation: () => void;
+  onAdvanceToContractSigning: () => void;
   onRecordContract: () => void;
-  onRecordOrientation: () => void;
   onDeployCandidate: () => void;
 }
 
@@ -45,17 +44,16 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
   approvedCompReqs,
   hasUnapprovedMandatoryCompliance,
   isComplianceStage,
-  canAdvanceToContractAndOrientation: _canAdvanceToContractAndOrientation,
-  isAdvancingToContractAndOrientation: _isAdvancingToContractAndOrientation = false,
-  isContractAndOrientationStage,
+  canAdvanceToContractSigning: _canAdvanceToContractSigning,
+  isAdvancingToContractSigning: _isAdvancingToContractSigning = false,
+  isContractSigningStage,
   isContractSigned,
-  isOrientationCompleted,
   canDeployCandidate,
+  openDeployment = null,
   linkedClientName,
   onOpenComplianceTab,
-  onAdvanceToContractAndOrientation: _onAdvanceToContractAndOrientation,
+  onAdvanceToContractSigning: _onAdvanceToContractSigning,
   onRecordContract,
-  onRecordOrientation,
   onDeployCandidate,
 }) => {
   const isDeployed = app.status === ApplicationStatus.DEPLOYED;
@@ -63,16 +61,19 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
   // Single Source of Truth for Milestone Completion
   const isStep1Complete =
     !hasUnapprovedMandatoryCompliance &&
-    (totalCompReqs > 0 || isContractAndOrientationStage || isDeployed);
+    (totalCompReqs > 0 || isContractSigningStage || isDeployed);
 
   const isStep2Complete = Boolean(isContractSigned || app.contractSigned || app.contractSignedAt);
-  const isStep3Complete = Boolean(isOrientationCompleted || app.orientationCompleted || app.orientationCompletedAt);
 
-  const isStep4Ready = !isDeployed && isStep1Complete && isStep2Complete && isStep3Complete;
+  // A worker with an open (scheduled or active) deployment cannot be deployed again.
+  const hasOpenDeployment = Boolean(openDeployment) && !isDeployed;
+  const isOpenDeploymentForThisApplication =
+    hasOpenDeployment && (!openDeployment?.applicationId || openDeployment.applicationId === app.id);
+  const isStep4Ready = !isDeployed && !hasOpenDeployment && isStep1Complete && isStep2Complete;
   const effectiveCanDeploy = canDeployCandidate || isStep4Ready;
 
   // Derive workflow sequencing & blocker info
-  let blockingStepNumber: 1 | 2 | 3 | null = null;
+  let blockingStepNumber: 1 | 2 | null = null;
   let blockingStepLabel = "";
   let blockerExplanation = "";
   let nextActionLabel = "";
@@ -92,33 +93,30 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
     blockingStepNumber = 1;
     blockingStepLabel = "01 · Requirements";
     blockerExplanation =
-      "All required documents are approved. Move the candidate to contract and orientation.";
-    nextActionLabel = "Move to contract and orientation";
+      "All required documents are approved. Move the candidate to contract signing.";
+    nextActionLabel = "Move to contract signing";
   } else if (!isStep2Complete) {
     blockingStepNumber = 2;
     blockingStepLabel = "02 · Employment contract";
     blockerExplanation =
-      "The employment contract still needs to be signed before orientation can be scheduled.";
-    nextActionLabel = "Record signed contract";
-  } else if (!isStep3Complete) {
-    blockingStepNumber = 3;
-    blockingStepLabel = "03 · Orientation";
-    blockerExplanation =
-      "Orientation must be completed before the employee can start at the site.";
-    nextActionLabel = "Record orientation";
+      "Upload a photo of the signed contract. Saving it deploys the candidate.";
+    nextActionLabel = "Upload signed contract";
+  } else if (hasOpenDeployment) {
+    nextActionLabel = isOpenDeploymentForThisApplication
+      ? "Confirm the start date on the deployment record"
+      : "Close the worker's other open deployment first";
   } else {
     nextActionLabel = "Activate deployment";
   }
 
-  // Completed steps calculation (out of 4 milestones)
+  // Completed steps calculation (out of 3 milestones)
   const completedMilestonesCount =
     (isStep1Complete ? 1 : 0) +
     (isStep2Complete ? 1 : 0) +
-    (isStep3Complete ? 1 : 0) +
     (isDeployed ? 1 : 0);
 
-  const progressPercent = Math.round((completedMilestonesCount / 4) * 100);
-  const remainingActionsCount = Math.max(0, 4 - completedMilestonesCount);
+  const progressPercent = Math.round((completedMilestonesCount / 3) * 100);
+  const remainingActionsCount = Math.max(0, 3 - completedMilestonesCount);
 
   const formatDate = (dateString?: string | null) => {
     if (!dateString) return "N/A";
@@ -232,11 +230,6 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span>Contract signed ({formatDate(app.contractSignedAt)})</span>
               </div>
-              <span className="text-slate-300">•</span>
-              <div className="flex items-center gap-1 text-emerald-800 font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>Orientation complete ({formatDate(app.orientationDate)})</span>
-              </div>
             </div>
           </div>
 
@@ -295,7 +288,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
         {/* Compact Horizontal Progress Bar (Point 15) */}
         <div className="w-full sm:w-56 space-y-1.5 bg-slate-50 border border-slate-200 p-2.5 rounded-lg shrink-0">
           <div className="flex items-center justify-between text-xs font-mono">
-            <span className="font-bold text-slate-900">{completedMilestonesCount} of 4 steps complete</span>
+            <span className="font-bold text-slate-900">{completedMilestonesCount} of 3 steps complete</span>
             <span className="font-semibold text-slate-700">{progressPercent}%</span>
           </div>
           <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
@@ -343,13 +336,13 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               Ready to deploy
             </span>
             <p className="text-slate-800 leading-normal text-xs mt-1">
-              Requirements, contract, and orientation are complete. The employee can be assigned to a site.
+              Requirements and the signed contract are complete. The employee can be assigned to a site.
             </p>
           </div>
         </div>
       )}
 
-      {/* 4-Step Single-Column Linear Rows (Point 12 Standardized Structure) */}
+      {/* 3-Step Single-Column Linear Rows (Point 12 Standardized Structure) */}
       <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
         {/* MILESTONE 1: Pre-Employment Clearances */}
         <div
@@ -465,9 +458,9 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                 ) : !isStep1Complete ? (
                   <span className="text-slate-500">Available after requirements are approved</span>
                 ) : isComplianceStage ? (
-                  <span className="text-slate-500">Available after the candidate moves to contract and orientation</span>
+                  <span className="text-slate-500">Available after the candidate moves to contract signing</span>
                 ) : (
-                  <span className="text-amber-800">Waiting for signed contract</span>
+                  <span className="text-amber-800">Waiting for the signed copy</span>
                 )}
               </div>
             </div>
@@ -499,14 +492,14 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               >
                 Update contract
               </Button>
-            ) : isContractAndOrientationStage && isStep1Complete ? (
+            ) : isContractSigningStage && isStep1Complete ? (
               <Button
                 variant="primary"
                 size="sm"
                 leftIcon={<FileSignature className="w-3.5 h-3.5" />}
                 onClick={onRecordContract}
               >
-                Record contract
+                Upload signed contract
               </Button>
             ) : (
               <span className="text-xs font-mono text-slate-500 px-2 py-1">
@@ -516,85 +509,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
           </div>
         </div>
 
-        {/* MILESTONE 3: Corporate Orientation */}
-        <div
-          className={`p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-            blockingStepNumber === 3
-              ? "bg-amber-50/50 ring-1 ring-inset ring-amber-200"
-              : isStep3Complete
-              ? "bg-white"
-              : "bg-slate-50/50"
-          }`}
-        >
-          <div className="flex items-start gap-3 min-w-0">
-            <div
-              className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 font-mono font-bold text-xs mt-0.5 ${
-                isStep3Complete
-                  ? "bg-emerald-600 text-white"
-                  : blockingStepNumber === 3
-                  ? "bg-amber-600 text-white"
-                  : "bg-slate-200 text-slate-600"
-              }`}
-            >
-              {isStep3Complete ? <CheckCircle2 className="w-4 h-4" /> : !isStep2Complete ? <Lock className="w-3.5 h-3.5" /> : "3"}
-            </div>
-            <div className="space-y-0.5 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-xs font-mono uppercase text-slate-900">
-                  03 · Orientation
-                </span>
-              </div>
-              <div className="text-xs font-mono text-slate-600">
-                {isStep3Complete ? (
-                  <span>Complete {app.orientationDate && `• ${formatDate(app.orientationDate)}`}</span>
-                ) : !isStep2Complete ? (
-                  <span className="text-slate-500">Available after the contract is signed</span>
-                ) : (
-                  <span className="text-amber-800">Required before site deployment</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 self-end md:self-auto shrink-0">
-            <span
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md uppercase tracking-wide border ${
-                isStep3Complete
-                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                  : blockingStepNumber === 3
-                  ? "bg-amber-50 text-amber-900 border-amber-300"
-                  : !isStep2Complete
-                  ? "bg-slate-100 text-slate-500 border-slate-200"
-                  : "bg-slate-100 text-slate-700 border-slate-200"
-              }`}
-            >
-              {isStep3Complete
-                ? "Complete"
-                : blockingStepNumber === 3
-                ? "Action needed"
-                : !isStep2Complete
-                ? "Locked"
-                : "Pending"}
-            </span>
-
-            {isStep2Complete ? (
-              <Button
-                variant={isStep3Complete ? "outline" : "primary"}
-                size="sm"
-                leftIcon={<GraduationCap className="w-3.5 h-3.5" />}
-                onClick={onRecordOrientation}
-              >
-                {isStep3Complete ? "Update orientation" : "Record orientation"}
-              </Button>
-            ) : (
-              <span className="text-xs font-mono text-slate-500 px-2 py-1">
-                Not available yet
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* MILESTONE 4: Site deployment and employee record */}
+        {/* MILESTONE 3: Site deployment and employee record */}
         <div
           className={`p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
             isStep4Ready
@@ -615,7 +530,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
             <div className="space-y-0.5 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-xs font-mono uppercase text-slate-900">
-                  04 · Site deployment
+                  03 · Site deployment
                 </span>
               </div>
               <div className="text-xs font-mono text-slate-600">
@@ -623,13 +538,19 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                   <span className="text-emerald-800 font-semibold">
                     Employee active at the client site
                   </span>
+                ) : hasOpenDeployment ? (
+                  <span className="text-amber-800 font-semibold">
+                    {isOpenDeploymentForThisApplication
+                      ? `Deployment #${openDeployment!.id} is ${openDeployment!.status.replace(/_/g, " ").toLowerCase()}. Confirm the worker's start on the deployment record.`
+                      : `This worker already has open deployment #${openDeployment!.id} (${openDeployment!.status.replace(/_/g, " ").toLowerCase()}). End or cancel it before deploying again.`}
+                  </span>
                 ) : isStep4Ready ? (
                   <span className="text-emerald-800 font-semibold">
-                    Requirements, contract, and orientation are complete.
+                    Requirements and the signed contract are complete.
                   </span>
                 ) : (
                   <span className="text-slate-500">
-                    Waiting for {!isStep1Complete ? "requirements" : !isStep2Complete ? "contract signing" : "orientation"} before deployment activation
+                    Waiting for {!isStep1Complete ? "requirements" : "the signed contract"} before deployment activation
                   </span>
                 )}
               </div>
@@ -646,10 +567,19 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                   : "bg-slate-100 text-slate-500 border-slate-200"
               }`}
             >
-              {isDeployed ? "Deployed" : isStep4Ready ? "Ready to deploy" : "Locked"}
+              {isDeployed ? "Deployed" : hasOpenDeployment ? "Scheduled" : isStep4Ready ? "Ready to deploy" : "Locked"}
             </span>
 
-            {isStep4Ready ? (
+            {hasOpenDeployment ? (
+              <Link
+                to="/ta/deployments/$deploymentId"
+                params={{ deploymentId: String(openDeployment!.id) }}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                <Truck className="w-3.5 h-3.5" />
+                View deployment
+              </Link>
+            ) : isStep4Ready ? (
               <Button
                 variant="primary"
                 size="sm"
@@ -660,7 +590,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               </Button>
             ) : (
               <span className="text-xs font-mono text-slate-500 px-2 py-1">
-                Available after steps 1–3 are complete
+                Available after steps 1–2 are complete
               </span>
             )}
           </div>

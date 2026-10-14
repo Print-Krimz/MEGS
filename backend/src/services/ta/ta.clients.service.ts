@@ -1,9 +1,11 @@
 import prisma from "../../utils/prisma.js";
 import { validateStructuredAddress } from "../../utils/address-validation.js";
+import { ownedWhere, type Actor } from "./ownership.js";
 
-export const listClients = async (isActive?: boolean) => {
+export const listClients = async (isActive?: boolean, actor?: Actor) => {
+  const where = { ...(isActive !== undefined ? { isActive } : {}), ...(actor ? ownedWhere.client(actor) : {}) };
   return await prisma.client.findMany({
-    where: isActive !== undefined ? { isActive } : undefined,
+    where: Object.keys(where).length ? where : undefined,
     include: {
       _count: {
         select: {
@@ -31,7 +33,7 @@ export const createClient = async (data: {
   postalCode?: string;
   reviewThresholdDays?: number;
   medicalValidityMonths?: number;
-}) => {
+}, actor?: Actor) => {
   validateStructuredAddress(data);
   // Construct composite address if individual fields are provided and composite is not
   let compositeAddress: string | null | undefined = data.address;
@@ -55,6 +57,7 @@ export const createClient = async (data: {
       city: data.city,
       province: data.province,
       postalCode: data.postalCode,
+      ...(actor?.role === "TALENT_ACQUISITION" ? { assignedTaId: actor.id } : {}),
       ...(data.reviewThresholdDays !== undefined ? { reviewThresholdDays: Number(data.reviewThresholdDays) } : {}),
       ...(data.medicalValidityMonths !== undefined ? { medicalValidityMonths: Number(data.medicalValidityMonths) } : {}),
     },

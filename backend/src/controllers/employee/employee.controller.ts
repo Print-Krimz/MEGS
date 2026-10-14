@@ -1,10 +1,12 @@
 import { Request, Response } from "express";
+import { listRedeploymentQueue, updateRedeploymentFollowUp } from "../../services/employee/employee.service.js";
 import { sendSuccess, sendError } from "../../utils/response.js";
 import { logAudit } from "../../utils/audit.js";
 import {
   getDigital201ByEmployeeId,
   getDigital201ByUserId,
   listEmployees,
+  listEmployeeCredentialAlerts,
   getEmployeeById,
   updateEmployeeStatus,
   createEmployeeDeployment,
@@ -16,6 +18,16 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 // EMPLOYEE & DIGITAL 201 CONTROLLER
 // ─────────────────────────────────────────────────────────────────────────────
+
+export const listRedeploymentQueueHandler = async (req: Request, res: Response): Promise<void> => {
+  try { sendSuccess(res, "Redeployment queue retrieved", await listRedeploymentQueue(req.user)); }
+  catch (error: any) { sendError(res, error.message, 500); }
+};
+
+export const updateRedeploymentFollowUpHandler = async (req: Request, res: Response): Promise<void> => {
+  try { sendSuccess(res, "Redeployment follow-up saved", await updateRedeploymentFollowUp(Number(req.params.id), req.user!.id, req.body, req.user)); }
+  catch (error: any) { sendError(res, error.message, 400); }
+};
 
 /**
  * GET /api/employees - List employees (e.g. Redeployment Pool or Active directory)
@@ -29,9 +41,18 @@ export const listEmployeesHandler = async (req: Request, res: Response): Promise
       search: search as string,
       limit: limit ? parseInt(limit as string) : undefined,
       offset: offset ? parseInt(offset as string) : undefined,
-    });
+    }, req.user);
 
     sendSuccess(res, "Employees retrieved successfully", employees);
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+export const listEmployeeCredentialAlertsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const alerts = await listEmployeeCredentialAlerts(req.user);
+    sendSuccess(res, "Employee document alerts retrieved successfully", alerts);
   } catch (error: any) {
     sendError(res, error.message, 500);
   }
@@ -48,7 +69,7 @@ export const getEmployeeHandler = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const employee = await getEmployeeById(employeeId);
+    const employee = await getEmployeeById(employeeId, req.user);
 
     // Authorization: TA, Admin, or own record
     if (
@@ -178,15 +199,17 @@ export const endEmployeeDeploymentHandler = async (req: Request, res: Response):
       return;
     }
 
-    const { reason, makeAvailableForRedeployment } = req.body;
+    const { reason, actualEnd, disposition } = req.body;
     const ended = await endEmployeeDeployment(deploymentId, req.user!.id, {
       reason,
-      makeAvailableForRedeployment: makeAvailableForRedeployment !== false,
+      actualEnd,
+      disposition,
     });
 
     logAudit(req.user!.id, "DEPLOYMENT_ENDED", "Deployment", deploymentId, {
       reason,
-      makeAvailableForRedeployment,
+      actualEnd,
+      disposition,
     });
 
     sendSuccess(res, "Deployment ended successfully", ended);

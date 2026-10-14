@@ -104,6 +104,30 @@ export interface DatabaseBackupRecord {
   errorMessage: string | null;
   durationMs: number | null;
   initiatedBy: { id: string; email: string } | null;
+  progress: MaintenanceProgress | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface MaintenanceProgress {
+  table: string;
+  tableIndex: number;
+  tableCount: number;
+  rowsDone: number;
+  rowsTotal?: number;
+}
+
+export interface DatabaseRestoreRecord {
+  id: string;
+  status: BackupStatus;
+  source: "BACKUP" | "UPLOAD";
+  backupId: string | null;
+  filename: string;
+  progress: MaintenanceProgress | null;
+  totalRecords: number | null;
+  errorMessage: string | null;
+  durationMs: number | null;
+  initiatedBy?: { id: string; email: string } | null;
   createdAt: string;
   completedAt: string | null;
 }

@@ -8,6 +8,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   error?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  nameInput?: boolean;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
@@ -19,6 +20,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
       error,
       id,
       type = "text",
+      nameInput = false,
       maxLength,
       min,
       max,
@@ -119,15 +121,33 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {...props}
             value={isNumber ? numericDraft ?? props.value : props.value}
             onChange={(event) => {
-              if (!isNumber) {
+              if (isNumber) {
+                const raw = event.target.value;
+                setNumericDraft(raw);
+                if (raw === "" || /^-?(?:\d+)?(?:\.\d*)?$/.test(raw)) {
+                  if (raw === "" || /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(raw)) props.onChange?.(event);
+                }
+                return;
+              }
+
+              if (nameInput) {
+                const raw = event.target.value;
+                const cleaned = raw.replace(/[^a-zA-ZÀ-ÖØ-öø-ÿĀ-žÑñ\s.'’\-]/g, "").replace(/[\r\n\t]+/g, " ");
+                if (cleaned !== raw) {
+                  event.target.value = cleaned;
+                }
                 props.onChange?.(event);
                 return;
               }
-              const raw = event.target.value;
-              setNumericDraft(raw);
-              if (raw === "" || /^-?(?:\d+)?(?:\.\d*)?$/.test(raw)) {
-                if (raw === "" || /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(raw)) props.onChange?.(event);
+
+              if (type === "text" || !type) {
+                const raw = event.target.value;
+                if (/[\r\n\t]/.test(raw)) {
+                  event.target.value = raw.replace(/[\r\n\t]+/g, " ");
+                }
               }
+
+              props.onChange?.(event);
             }}
           />
 

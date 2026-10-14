@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Link, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
+import { applicantJobsApi, type JobPosting } from "../../lib/api/applicant-jobs.api";
+import type { PaginatedListResponse } from "../../lib/types/api.types";
 import {
   PageHeader,
   SearchFilters,
@@ -20,6 +21,8 @@ import {
 } from "../../lib/utils";
 import { Briefcase, MapPin, ArrowRight, Bookmark } from "lucide-react";
 import { notify } from "../../lib/feedback";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
 
 export const JobsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -31,24 +34,43 @@ export const JobsPage: React.FC = () => {
   );
   const [page, setPage] = useState(1);
   const pageSize = 8;
+  const debouncedSearch = normalizeServerSearch(useDebouncedValue(searchValue, SERVER_SEARCH_DEBOUNCE_MS));
+  const locationFilter = (filterValues.location || "").trim();
 
   // Pick up search filters carried over from the landing page (e.g. /app/jobs?q=forklift).
   useEffect(() => {
-    if (routeSearch.q !== undefined) setSearchValue(routeSearch.q);
-    if (routeSearch.location !== undefined) {
-      setFilterValues((prev) => ({ ...prev, location: routeSearch.location as string }));
-    }
+    setSearchValue(routeSearch.q ?? "");
+    setFilterValues(routeSearch.location ? { location: routeSearch.location } : {});
     setPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeSearch.q, routeSearch.location]);
 
-  const jobsQuery = useQuery({
-    queryKey: ["applicant", "jobs", searchValue, filterValues],
-    queryFn: () =>
-      applicantJobsApi.getJobs({
-        search: searchValue || undefined,
-        location: filterValues.location || undefined,
-      }),
+  const [allOpeningsCount, setAllOpeningsCount] = useState<number>(0);
+
+  const jobsQuery = useQuery<PaginatedListResponse<JobPosting>>({
+    queryKey: [
+      "applicant",
+      "jobs",
+      scope,
+      { search: debouncedSearch, location: locationFilter, page },
+    ],
+    queryFn: ({ signal }) => {
+      const filterParams = {
+        search: debouncedSearch || undefined,
+        location: locationFilter || undefined,
+        page,
+        limit: pageSize,
+      };
+
+      return scope === "all"
+        ? applicantJobsApi.getJobsPage(filterParams, { signal })
+        : applicantJobsApi.getSavedJobsPage(filterParams, { signal });
+    },
+    placeholderData: (previousData, previousQuery) => {
+      const previousScope = previousQuery?.queryKey?.[2];
+      if (previousScope !== scope) return undefined;
+      return previousData;
+    },
   });
 
   const savedJobIdsQuery = useQuery({
@@ -68,6 +90,7 @@ export const JobsPage: React.FC = () => {
   const saveMutation = useMutation({
     mutationFn: (jobId: number) => applicantJobsApi.saveJob(jobId),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["applicant", "jobs"] });
       queryClient.invalidateQueries({ queryKey: ["applicant", "saved-jobs"] });
       notify.success("Job Saved", "Position added to your saved jobs.");
     },
@@ -77,6 +100,7 @@ export const JobsPage: React.FC = () => {
   const unsaveMutation = useMutation({
     mutationFn: (jobId: number) => applicantJobsApi.unsaveJob(jobId),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["applicant", "jobs"] });
       queryClient.invalidateQueries({ queryKey: ["applicant", "saved-jobs"] });
       notify.success("Job Removed", "Position removed from your saved jobs.");
     },
@@ -91,13 +115,34 @@ export const JobsPage: React.FC = () => {
     }
   };
 
-  const rawJobs = jobsQuery.data || [];
-  const displayedJobs = scope === "saved"
-    ? rawJobs.filter((job) => savedJobIds.has(job.id))
-    : rawJobs;
+  const jobData = jobsQuery.data;
+  const isServerPaginated = Boolean(jobData && !Array.isArray(jobData));
+  const rawJobs = Array.isArray(jobData) ? jobData : jobData?.items ?? [];
 
-  const totalPages = Math.max(1, Math.ceil(displayedJobs.length / pageSize));
-  const paginatedJobs = displayedJobs.slice((page - 1) * pageSize, page * pageSize);
+  const paginatedJobs = isServerPaginated
+    ? (jobData?.items ?? [])
+    : (scope === "saved" ? rawJobs.filter((job) => savedJobIds.has(job.id)) : rawJobs).slice(
+        (page - 1) * pageSize,
+        page * pageSize,
+      );
+
+  const totalItems = isServerPaginated
+    ? (jobData?.total ?? 0)
+    : (scope === "saved" ? rawJobs.filter((job) => savedJobIds.has(job.id)).length : rawJobs.length);
+
+  const totalPages = isServerPaginated
+    ? Math.max(1, jobData?.totalPages ?? 1)
+    : Math.max(1, Math.ceil(totalItems / pageSize));
+
+  const displayedJobs = paginatedJobs;
+
+  useEffect(() => {
+    if (scope === "all" && isServerPaginated && jobData?.total !== undefined) {
+      setAllOpeningsCount(jobData.total);
+    } else if (scope === "all" && Array.isArray(jobData)) {
+      setAllOpeningsCount(jobData.length);
+    }
+  }, [scope, isServerPaginated, jobData]);
 
   const handleSearchChange = (val: string) => {
     setSearchValue(val);
@@ -143,7 +188,7 @@ export const JobsPage: React.FC = () => {
               }`}
             >
               <Briefcase className="w-3.5 h-3.5" />
-              <span>All Openings ({rawJobs.length})</span>
+              <span>All Openings ({scope === "all" ? (totalItems || allOpeningsCount) : allOpeningsCount})</span>
             </button>
             <button
               type="button"
@@ -336,9 +381,12 @@ export const JobsPage: React.FC = () => {
             <Pagination
               currentPage={page}
               totalPages={totalPages}
-              totalItems={displayedJobs.length}
+              totalItems={totalItems}
               pageSize={pageSize}
-              onPageChange={setPage}
+              onPageChange={(nextPage) => {
+                setPage(nextPage);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
               itemLabel="jobs"
             />
           </div>

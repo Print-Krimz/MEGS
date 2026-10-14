@@ -2,6 +2,7 @@ import "./src/utils/env.js";
 
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import authRoutes from "./src/routes/core/auth.routes.js";
 import { authenticateJWT } from "./src/middleware/auth.middleware.js";
 import { sendSuccess } from "./src/utils/response.js";
@@ -27,6 +28,18 @@ app.use(
     ],
   })
 );
+
+app.use(
+  compression({
+    filter: (req, res) => {
+      if (req.headers.accept?.includes("text/event-stream")) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+  })
+);
+
 app.use(express.json());
 
 // Public health check & browser auth forwarder
@@ -63,6 +76,13 @@ app.get("/reset-password", (_req, res) => {
     <p>Redirecting to Set Password... <a href="${frontendUrl}/reset-password">Click here if not redirected.</a></p>
   </body>
 </html>`);
+});
+
+// Security cache headers for all API routes (prevent proxy/browser caching of private data)
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "private, no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  next();
 });
 
 app.use("/api/auth", authRoutes);
@@ -112,9 +132,17 @@ app.use((err: any, _req: express.Request, res: express.Response, next: express.N
 
 const PORT = process.env.PORT ?? 3000;
 
-app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log(`✅ Server running on http://localhost:${PORT}`);
+    // Clean up any stale maintenance jobs that were interrupted by previous server restart
+    import("./src/services/admin/backup.service.js")
+      .then(({ sweepStaleJobs }) => sweepStaleJobs())
+      .catch((err) => {
+        console.warn("⚠️ [Maintenance] Stale job sweep warning on startup:", err?.message || err);
+      });
+  });
+}
 
 process.on("unhandledRejection", (reason) => {
   console.error("⚠️ [Unhandled Rejection at Promise]", reason);
@@ -123,6 +151,9 @@ process.on("unhandledRejection", (reason) => {
 process.on("uncaughtException", (error) => {
   console.error("⚠️ [Uncaught Exception]", error);
 });
+
+export { app };
+export default app;
 
 // Email worker polling loop decommissioned to prevent empty database queries
 // startEmailWorker();

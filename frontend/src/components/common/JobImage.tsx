@@ -8,6 +8,9 @@ interface JobImageProps {
   className?: string;
   fallbackIcon?: "building" | "none";
   size?: "sm" | "md" | "lg" | "xl";
+  loading?: "eager" | "lazy";
+  decoding?: "async" | "auto" | "sync";
+  fetchPriority?: "high" | "low" | "auto";
 }
 
 export const JobImage: React.FC<JobImageProps> = ({
@@ -17,8 +20,18 @@ export const JobImage: React.FC<JobImageProps> = ({
   className = "",
   fallbackIcon = "none",
   size = "md",
+  loading = "lazy",
+  decoding = "async",
+  fetchPriority,
 }) => {
   const [hasError, setHasError] = useState(false);
+
+  const dimensions = {
+    sm: 32,
+    md: 48,
+    lg: 64,
+    xl: 80,
+  }[size];
 
   const sizeClasses = {
     sm: "w-8 h-8",
@@ -39,6 +52,11 @@ export const JobImage: React.FC<JobImageProps> = ({
       <img
         src={src}
         alt={alt}
+        width={dimensions}
+        height={dimensions}
+        loading={loading}
+        decoding={decoding}
+        fetchPriority={fetchPriority}
         onError={() => setHasError(true)}
         className={`object-cover rounded border border-slate-200 shrink-0 bg-slate-50 ${sizeClasses} ${className}`}
       />

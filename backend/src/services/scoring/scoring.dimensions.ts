@@ -85,7 +85,7 @@ const preEmploymentClearanceTerms = new Set([
 
 const COMPLIANCE_AND_LATER_STAGES = new Set([
   "COMPLIANCE",
-  "CONTRACT_AND_ORIENTATION",
+  "CONTRACT_SIGNING",
   "DEPLOYED",
   "HIRED",
   "ONBOARDING",

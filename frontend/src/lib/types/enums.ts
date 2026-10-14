@@ -18,7 +18,7 @@ export const ApplicationStatus = {
   HIRED: "HIRED",
   ONBOARDING: "ONBOARDING", // Preserved for legacy schema compatibility
   COMPLIANCE: "COMPLIANCE",
-  CONTRACT_AND_ORIENTATION: "CONTRACT_AND_ORIENTATION",
+  CONTRACT_SIGNING: "CONTRACT_SIGNING",
   DEPLOYED: "DEPLOYED",
   BACKOUT: "BACKOUT",
   ARCHIVED: "ARCHIVED",
@@ -40,7 +40,7 @@ export const PIPELINE_FILTER_STAGES: ApplicationStatus[] = [
   ApplicationStatus.CLIENT_ENDORSEMENT,
   ApplicationStatus.FINAL_INTERVIEW,
   ApplicationStatus.COMPLIANCE,
-  ApplicationStatus.CONTRACT_AND_ORIENTATION,
+  ApplicationStatus.CONTRACT_SIGNING,
   ApplicationStatus.DEPLOYED,
   ApplicationStatus.BACKOUT,
   ApplicationStatus.ARCHIVED,
@@ -54,6 +54,7 @@ export const ALLOWED_STAGE_TRANSITIONS: Record<string, ApplicationStatus[]> = {
     ApplicationStatus.PARSING,
     ApplicationStatus.REVIEW,
     ApplicationStatus.MATCHED,
+    ApplicationStatus.INITIAL_SCREENING,
     ApplicationStatus.NEEDS_ATTENTION,
     ApplicationStatus.BACKOUT,
     ApplicationStatus.ARCHIVED,
@@ -61,7 +62,9 @@ export const ALLOWED_STAGE_TRANSITIONS: Record<string, ApplicationStatus[]> = {
   PARSING: [
     ApplicationStatus.REVIEW,
     ApplicationStatus.MATCHED,
+    ApplicationStatus.INITIAL_SCREENING,
     ApplicationStatus.NEEDS_ATTENTION,
+    ApplicationStatus.BACKOUT,
     ApplicationStatus.ARCHIVED,
   ],
   REVIEW: [
@@ -75,6 +78,7 @@ export const ALLOWED_STAGE_TRANSITIONS: Record<string, ApplicationStatus[]> = {
     ApplicationStatus.PARSING,
     ApplicationStatus.REVIEW,
     ApplicationStatus.MATCHED,
+    ApplicationStatus.INITIAL_SCREENING,
     ApplicationStatus.TALENT_POOL,
     ApplicationStatus.BACKOUT,
     ApplicationStatus.ARCHIVED,
@@ -83,6 +87,7 @@ export const ALLOWED_STAGE_TRANSITIONS: Record<string, ApplicationStatus[]> = {
     ApplicationStatus.INITIAL_SCREENING,
     ApplicationStatus.REVIEW,
     ApplicationStatus.TALENT_POOL,
+    ApplicationStatus.BACKOUT,
     ApplicationStatus.ARCHIVED,
   ],
   TALENT_POOL: [
@@ -90,6 +95,7 @@ export const ALLOWED_STAGE_TRANSITIONS: Record<string, ApplicationStatus[]> = {
   ],
   INITIAL_SCREENING: [
     ApplicationStatus.CLIENT_ENDORSEMENT,
+    ApplicationStatus.FINAL_INTERVIEW,
     ApplicationStatus.TALENT_POOL,
     ApplicationStatus.BACKOUT,
     ApplicationStatus.ARCHIVED,
@@ -107,18 +113,19 @@ export const ALLOWED_STAGE_TRANSITIONS: Record<string, ApplicationStatus[]> = {
     ApplicationStatus.ARCHIVED,
   ],
   COMPLIANCE: [
-    ApplicationStatus.CONTRACT_AND_ORIENTATION,
+    ApplicationStatus.CONTRACT_SIGNING,
     ApplicationStatus.TALENT_POOL,
     ApplicationStatus.BACKOUT,
     ApplicationStatus.ARCHIVED,
   ],
-  CONTRACT_AND_ORIENTATION: [
+  CONTRACT_SIGNING: [
     ApplicationStatus.DEPLOYED,
     ApplicationStatus.TALENT_POOL,
     ApplicationStatus.BACKOUT,
     ApplicationStatus.ARCHIVED,
   ],
   DEPLOYED: [
+    ApplicationStatus.BACKOUT,
     ApplicationStatus.ARCHIVED,
   ],
   BACKOUT: [],

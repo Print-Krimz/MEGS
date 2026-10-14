@@ -91,12 +91,15 @@ export const LandingIndustries: React.FC = () => {
                 className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col justify-between hover:border-slate-300 shadow-2xs transition-all duration-200 group"
               >
                 {/* Photo */}
-                <div className="relative h-44 w-full overflow-hidden bg-slate-900">
+                <div className="relative h-44 w-full overflow-hidden bg-slate-900 aspect-16/9 sm:aspect-auto">
                   <img
                     src={ind.image}
                     alt={`${ind.name} workforce`}
                     className="w-full h-full object-cover opacity-95 group-hover:scale-102 transition-transform duration-300"
                     loading="lazy"
+                    decoding="async"
+                    width={400}
+                    height={176}
                   />
                 </div>
 

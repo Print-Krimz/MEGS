@@ -11,6 +11,11 @@ const pool = new pg.Pool({
   keepAlive: true,
 });
 
+// Prevent unhandled errors from terminating the Node process when pooler/PgBouncer closes idle sockets
+pool.on("error", (err) => {
+  console.warn("⚠️ [pg.Pool] Unexpected error on idle database client:", err?.message || err);
+});
+
 const adapter = new PrismaPg(pool);
 
 // Shared Prisma client with PostgreSQL adapter.

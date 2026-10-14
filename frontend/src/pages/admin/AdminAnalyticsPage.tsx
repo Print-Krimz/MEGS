@@ -1,332 +1,216 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
-import {
-  PageHeader,
-  LoadingState,
-  ErrorState,
-} from "../../components/common";
+import { PageHeader, LoadingState, ErrorState } from "../../components/common";
 import {
   AnalyticsFilterBar,
-  RecruitmentActivityChart,
-  RecruitmentFunnel,
-  BottlenecksWidget,
-  ApplicationsByJobChart,
+  AnalyticsKpi,
+  AttentionStrip,
+  BackoutPanel,
+  ExportMenu,
+  KpiRow,
+  OperationsWorkspace,
+  PlacementTrendChart,
+  RequestProgressList,
+  StagePipeline,
+  StuckList,
+  TeamTable,
+  TeamWorkloadChart,
 } from "../../components/analytics";
-import { Button, Select } from "../../components/ui";
+import type { RequestHealthFilter } from "../../components/analytics";
 import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
-import {
-  Users,
-  UserCheck,
-  Building2,
-  FileCheck2,
-  Send,
-  FileSpreadsheet,
-  Download,
-} from "lucide-react";
+import { formatDate } from "../../lib/utils";
+
+const rangeText = (start: string, end: string) => `${formatDate(start)} to ${formatDate(end)}`;
+
+type WorkspaceKey = "waiting" | "requests" | "recruiters";
+type WaitingFocus = { urgency?: "ALL" | "critical"; stage?: string; nonce: number };
+type RequestFocus = { health: RequestHealthFilter; nonce: number };
+
+const scrollToWorkspace = () => setTimeout(() => document.getElementById("operations")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
 
 export const AdminAnalyticsPage: React.FC = () => {
-  const [filters, setFilters] = useState<AnalyticsFilterState>({
-    range: "7d",
-  });
-  const [exportFormat, setExportFormat] = useState<"pdf" | "xlsx">("pdf");
-  const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<AnalyticsFilterState>({ range: "7d" });
+  const [tab, setTab] = useState<WorkspaceKey>("waiting");
+  const [waitingFocus, setWaitingFocus] = useState<WaitingFocus>();
+  const [requestFocus, setRequestFocus] = useState<RequestFocus>();
 
-  // Unified Organization Recruitment Analytics Dashboard Query (Single concurrent HTTP request)
   const dashboardQuery = useQuery({
     queryKey: ["admin", "analytics", "dashboard", filters],
     queryFn: () => adminApi.getDashboardSummary(filters),
     staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 
-  const isLoading = dashboardQuery.isLoading;
-  const isError = dashboardQuery.isError;
+  /** Open the waiting list with a filter applied. */
+  const showWaiting = (focus: Omit<WaitingFocus, "nonce">) => {
+    setWaitingFocus((prev) => ({ ...focus, nonce: (prev?.nonce ?? 0) + 1 }));
+    setTab("waiting");
+  };
+  /** Open the client requests with a status filter applied. */
+  const showRequests = (health: RequestHealthFilter) => {
+    setRequestFocus((prev) => ({ health, nonce: (prev?.nonce ?? 0) + 1 }));
+    setTab("requests");
+  };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Hiring reports"
-          description="Loading hiring reports..."
+  const header = (
+    <PageHeader
+      title="Hiring reports"
+      description="Whether the team is delivering to clients, and who needs help."
+      breadcrumbs={[{ label: "Administration", href: "/admin" }, { label: "Reports" }]}
+      actions={
+        <ExportMenu
+          fileNamePrefix="MEGS_Admin"
+          onExport={(report, format) =>
+            report === "pipeline" ? adminApi.exportPipelineReport(format, filters) : adminApi.exportDeploymentReport(format, filters)
+          }
         />
+      }
+    />
+  );
+
+  if (dashboardQuery.isLoading) {
+    return (
+      <div className="space-y-5">
+        {header}
+        <AnalyticsFilterBar filters={filters} onChange={setFilters} showClientFilter showRecruiterFilter />
         <LoadingState variant="cards" />
         <LoadingState variant="table" rows={4} />
       </div>
     );
   }
 
-  if (isError) {
+  if (dashboardQuery.isError || !dashboardQuery.data) {
     return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Hiring reports"
-          description="Hiring activity and pipeline progress"
-        />
-        <ErrorState
-          error={dashboardQuery.error}
-          onRetry={() => dashboardQuery.refetch()}
-        />
+      <div className="space-y-5">
+        {header}
+        <AnalyticsFilterBar filters={filters} onChange={setFilters} showClientFilter showRecruiterFilter />
+        <ErrorState error={dashboardQuery.error} onRetry={() => dashboardQuery.refetch()} />
       </div>
     );
   }
 
-  const overview = dashboardQuery.data?.overview;
-  const activity = dashboardQuery.data?.activity;
-  const funnel = dashboardQuery.data?.funnel;
-  const bottlenecks = dashboardQuery.data?.bottlenecks || [];
-  const jobDemands = dashboardQuery.data?.jobDemands || [];
-  const options = dashboardQuery.data?.filterOptions;
-
-  const handleExportPipeline = async () => {
-    try {
-      setExportError(null);
-      setDownloadingReport("pipeline");
-      const blob = await adminApi.exportPipelineReport(exportFormat, filters);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `MEGS_Admin_Workforce_Pipeline_Report_${new Date().toISOString().substring(0, 10)}.${exportFormat}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-       setExportError("We couldn't download the candidate pipeline report. Please try again.");
-    } finally {
-      setDownloadingReport(null);
-    }
-  };
-
-  const handleExportDeployments = async () => {
-    try {
-      setExportError(null);
-      setDownloadingReport("deployments");
-      const blob = await adminApi.exportDeploymentReport(exportFormat, filters);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `MEGS_Admin_Deployment_Governance_${new Date().toISOString().substring(0, 10)}.${exportFormat}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-       setExportError("We couldn't download the deployment report. Please try again.");
-    } finally {
-      setDownloadingReport(null);
-    }
-  };
+  const data = dashboardQuery.data;
+  const { kpis } = data;
+  const label = rangeText(data.dateRange.startDate, data.dateRange.endDate);
+  const lateRequests = kpis.requisitions.overdue + kpis.requisitions.atRisk;
+  const noOwner = data.requests.filter((r) => r.ownerId === null && r.health !== "FILLED").length;
+  const noOpening = data.requests.filter((r) => r.attention === "NO_OPENING").length;
+  const selectRecruiter = (recruiterId: string | undefined) => setFilters((f) => ({ ...f, recruiterId }));
+  const staleNote =
+    kpis.staleFilledRequisitions > 0
+      ? `${kpis.staleFilledRequisitions} ${kpis.staleFilledRequisitions === 1 ? "request is" : "requests are"} marked filled but ${kpis.staleFilledRequisitions === 1 ? "has" : "have"} no placement behind ${kpis.staleFilledRequisitions === 1 ? "it" : "them"}. They are left out of the seat counts.`
+      : undefined;
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Hiring reports"
-        description="Hiring progress, activity, stage movement, and review bottlenecks."
-        breadcrumbs={[
-          { label: "Administration", href: "/admin" },
-          { label: "Reports" },
+      {header}
+
+      <AnalyticsFilterBar filters={filters} onChange={setFilters} options={data.filterOptions} showClientFilter showRecruiterFilter />
+
+      <p role="status" aria-live="polite" className={dashboardQuery.isFetching ? "text-xs text-slate-500 font-sans" : "sr-only"}>
+        {dashboardQuery.isFetching ? "Updating the numbers…" : ""}
+      </p>
+
+      <KpiRow columns="md:grid-cols-5">
+        <AnalyticsKpi
+          label="Seats filled"
+          kind="now"
+          value={kpis.requestedSeats === 0 ? "—" : `${kpis.fillRate}%`}
+          detail={`${kpis.filledSeats} of ${kpis.requestedSeats} seats · ${kpis.openSeats} open`}
+          definition="Seats a placement holds, out of seats requested on open requests and requests filled in these dates."
+          anchor="operations"
+          onActivate={() => showRequests("ALL")}
+        />
+        <AnalyticsKpi
+          label="Late requests"
+          kind="now"
+          value={lateRequests}
+          detail={`${kpis.requisitions.overdue} overdue · ${kpis.requisitions.atRisk} at risk`}
+          definition="Overdue: past the target date. At risk: due within 7 days with too few candidates to fill the open seats."
+          tone={kpis.requisitions.overdue > 0 ? "alert" : "default"}
+          anchor="operations"
+          onActivate={() => showRequests("OVERDUE")}
+        />
+        <AnalyticsKpi
+          label="Starts"
+          kind="period"
+          value={kpis.placementsStarted}
+          detail={`${kpis.newStarts} new · ${kpis.redeployStarts} redeployed`}
+          definition="Workers whose actual start date falls in the selected dates. A redeployed worker counts once."
+          anchor="trend"
+        />
+        <AnalyticsKpi
+          label="Days to fill"
+          kind="period"
+          value={kpis.medianDaysToFill === null ? "—" : kpis.medianDaysToFill}
+          detail={kpis.daysToFillSample === 0 ? "No starts with a request" : `Median of ${kpis.daysToFillSample} ${kpis.daysToFillSample === 1 ? "start" : "starts"}`}
+          definition="Calendar days from the request being opened to the worker starting. 0 means the same day."
+        />
+        <AnalyticsKpi
+          label="Backout rate"
+          kind="period"
+          value={kpis.backoutRateBase === 0 ? "—" : `${kpis.backoutRate}%`}
+          detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase}`}
+          definition="Backouts after client review, out of those backouts plus starts that came from an application."
+          tone={kpis.backoutRate >= 20 ? "alert" : "default"}
+          anchor="backouts"
+        />
+      </KpiRow>
+
+      <AttentionStrip
+        items={[
+          { id: "critical", label: "critical waits", singular: "critical wait", count: kpis.criticalCandidates, target: "operations", tone: "alert", onSelect: () => showWaiting({ urgency: "critical" }) },
+          { id: "late", label: "requests past their target date", singular: "request past its target date", count: kpis.requisitions.overdue, target: "operations", tone: "alert", onSelect: () => showRequests("OVERDUE") },
+          { id: "orphaned", label: "open requests with no owner", singular: "open request with no owner", count: noOwner, target: "operations", tone: "alert", onSelect: () => showRequests("UNOWNED") },
+          { id: "no-opening", label: "open requests with no opening", singular: "open request with no opening", count: noOpening, target: "operations", tone: "warn", onSelect: () => showRequests("NONE") },
+          { id: "stale", label: "requests marked filled with no placement", singular: "request marked filled with no placement", count: kpis.staleFilledRequisitions, target: "requests-note", tone: "warn", onSelect: () => showRequests("ALL") },
         ]}
       />
 
-      {exportError && (
-        <div role="alert" aria-live="assertive" className="p-3 border border-rose-300 bg-rose-50 text-rose-900 text-sm flex items-center justify-between">
-          <span>{exportError}</span>
-          <button
-            onClick={() => setExportError(null)}
-            aria-label="Dismiss download error"
-            className="min-h-11 min-w-11 inline-flex items-center justify-center text-slate-400 hover:text-slate-700 font-bold ml-4"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Reusable Relational Filter Ribbon */}
-      <AnalyticsFilterBar
-        filters={filters}
-        onChange={setFilters}
-        options={options}
-        showClientFilter={true}
-        showRecruiterFilter={true}
+      <OperationsWorkspace<WorkspaceKey>
+        active={tab}
+        onChange={setTab}
+        tabs={[
+          {
+            key: "waiting",
+            label: "Critical and waiting candidates",
+            shortLabel: "Waiting",
+            count: data.stuckTotal,
+            content: <StuckList bare rows={data.stuck} total={data.stuckTotal} closedOpenings={kpis.closedOpenings} focus={waitingFocus} />,
+          },
+          {
+            key: "requests",
+            label: "Client requests",
+            shortLabel: "Requests",
+            count: data.requests.length,
+            content: <RequestProgressList bare rows={data.requests} linkTo="/admin/mrfs/$mrfId" note={staleNote} focus={requestFocus} />,
+          },
+          {
+            key: "recruiters",
+            label: "All recruiters",
+            shortLabel: "Recruiters",
+            count: data.team.length,
+            content: <TeamTable bare rows={data.team} rangeLabel={label} selectedRecruiterId={filters.recruiterId} onSelectRecruiter={selectRecruiter} />,
+          },
+        ]}
       />
 
-      {/* Row 1: 6 Core Organization KPI Cards */}
-      <div className="border border-slate-300 bg-white grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 divide-y md:divide-y-0 divide-x divide-slate-300">
-        {/* Total Applications */}
-        <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-            Applications received
-          </div>
-          <div className="text-2xl font-bold font-sans text-slate-950 mt-0.5 tabular-nums">
-            {overview?.totalApplications ?? 0}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
-            <Users className="w-3 h-3 text-slate-400 shrink-0" />
-            <span>New applications in this period</span>
-          </div>
-        </div>
-
-        {/* Active Candidates */}
-        <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-wider">
-            Candidates in progress
-          </div>
-          <div className="text-2xl font-bold font-sans text-teal-950 mt-0.5 tabular-nums">
-            {overview?.activeCandidates ?? 0}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
-            <UserCheck className="w-3 h-3 text-teal-700 shrink-0" />
-            <span>Moving through the hiring process</span>
-          </div>
-        </div>
-
-        {/* Talent Pool Candidates */}
-        <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-purple-800 uppercase tracking-wider">
-            Talent pool
-          </div>
-          <div className="text-2xl font-bold font-sans text-slate-950 mt-0.5 tabular-nums">
-            {overview?.talentPoolCandidates ?? 0}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
-            <Users className="w-3 h-3 text-purple-700 shrink-0" />
-            <span>Available for future openings</span>
-          </div>
-        </div>
-
-        {/* Client Endorsements */}
-        <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-blue-800 uppercase tracking-wider">
-            Client reviews
-          </div>
-          <div className="text-2xl font-bold font-sans text-blue-950 mt-0.5 tabular-nums">
-            {overview?.clientEndorsements ?? 0}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
-            <Building2 className="w-3 h-3 text-blue-700 shrink-0" />
-            <span>Sent to clients for review</span>
-          </div>
-        </div>
-
-        {/* Candidates in Compliance */}
-        <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-amber-800 uppercase tracking-wider">
-            In requirements
-          </div>
-          <div className="text-2xl font-bold font-sans text-amber-950 mt-0.5 tabular-nums">
-            {overview?.candidatesInCompliance ?? 0}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
-            <FileCheck2 className="w-3 h-3 text-amber-700 shrink-0" />
-            <span>Documents being completed</span>
-          </div>
-        </div>
-
-        {/* Total Deployments */}
-        <div className="p-3.5">
-          <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase tracking-wider">
-            Deployed
-          </div>
-          <div className="text-2xl font-bold font-sans text-emerald-950 mt-0.5 tabular-nums">
-            {overview?.totalDeployments ?? 0}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
-            <Send className="w-3 h-3 text-emerald-700 shrink-0" />
-            <span>Placed at client sites</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Row 2: Prominent Daily Recruitment Activity Trend Graph */}
-      <RecruitmentActivityChart
-        data={activity}
-         title="Hiring activity"
-         subtitle="Applications, reviews, interviews, requirements, and placements over time"
+      <StagePipeline
+        rows={data.stageTable}
+        rangeLabel={label}
+        onSelectStage={(stage) => {
+          showWaiting({ stage });
+          scrollToWorkspace();
+        }}
       />
 
-      {/* Row 3: Funnel & Requisition Demand Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <RecruitmentFunnel data={funnel} />
-        <ApplicationsByJobChart data={jobDemands} />
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
+        <TeamWorkloadChart rows={data.team} selectedRecruiterId={filters.recruiterId} onSelectRecruiter={selectRecruiter} />
+        <PlacementTrendChart trend={data.trend} rangeLabel={label} />
       </div>
 
-      {/* Row 4: Bottleneck Aging Analysis */}
-      <BottlenecksWidget bottlenecks={bottlenecks} />
-
-      {/* Row 5: Report Export Center */}
-      <div className="border border-slate-300 bg-white">
-        <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              <FileSpreadsheet className="w-4 h-4 text-slate-700" />
-              <h3 className="text-xs font-semibold font-sans text-slate-900">
-                 Download reports
-              </h3>
-              <span className="px-1.5 py-0.5 text-[10px] font-mono font-medium rounded bg-slate-200 text-slate-700 border border-slate-300">
-                 Administrator
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 font-sans">
-               Download candidate and deployment reports as PDF or Excel files
-            </p>
-          </div>
-
-          <div className="w-48">
-            <Select
-               label="File type"
-              value={exportFormat}
-              onChange={(e) => setExportFormat(e.target.value as "pdf" | "xlsx")}
-              options={[
-                { value: "pdf", label: "PDF Document (.pdf)" },
-                { value: "xlsx", label: "Excel Spreadsheet (.xlsx)" },
-              ]}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-300">
-          <div className="p-4 flex items-center justify-between gap-4">
-            <div>
-              <div className="font-semibold font-sans text-slate-900 text-xs">
-                 Candidate pipeline
-              </div>
-              <div className="text-[11px] text-slate-500 font-sans">
-                 Applications and hiring stages
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<Download className="w-3.5 h-3.5" />}
-              loading={downloadingReport === "pipeline"}
-              onClick={handleExportPipeline}
-            >
-               Download candidate pipeline
-            </Button>
-          </div>
-
-          <div className="p-4 flex items-center justify-between gap-4">
-            <div>
-              <div className="font-semibold font-sans text-slate-900 text-xs">
-                 Deployment report
-              </div>
-              <div className="text-[11px] text-slate-500 font-sans">
-                 Client placements, sites, and contract dates
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<Download className="w-3.5 h-3.5" />}
-              loading={downloadingReport === "deployments"}
-              onClick={handleExportDeployments}
-            >
-               Download deployment report
-            </Button>
-          </div>
-        </div>
-      </div>
+      <BackoutPanel data={data.backouts} clientDecisions={data.clientDecisions} rangeLabel={label} showStageBars compact />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import { api } from "./client";
 import type {
   Application,
+  TAApplicationSummary,
   JobPosting,
   Interview,
   CandidateScore,
@@ -29,8 +30,6 @@ import type {
   BatchSendTalentPoolInvitationsDto,
   TalentPoolInvitationRecord,
   PipelineAnalytics,
-  TimeToFillAnalytics,
-  DeploymentAnalytics,
   ComplianceAnalytics,
   InterviewSLASummary,
   UpdateCandidateProfileDto,
@@ -39,10 +38,9 @@ import type { ApplicantProfile } from "../types/applicant.types";
 import type { Client, CreateClientDto, UpdateClientDto } from "../types/client.types";
 import type { Deployment } from "../types/employee.types";
 import type { ApplicationStatus } from "../types/enums";
+import type { PaginatedListResponse } from "../types/api.types";
 import type {
-  TAOverviewStats,
-  RecruitmentActivityTrend,
-  FunnelAnalytics,
+  TADeliveryDashboard,
   TAPendingActionItem,
   AnalyticsFilterOptions,
   AnalyticsFilterState,
@@ -57,8 +55,6 @@ function buildTAAnalyticsQueryString(filters?: Partial<AnalyticsFilterState>): s
   if (filters.clientId) params.append("clientId", String(filters.clientId));
   if (filters.mrfId) params.append("mrfId", String(filters.mrfId));
   if (filters.jobPostingId) params.append("jobPostingId", String(filters.jobPostingId));
-  if (filters.stage) params.append("stage", filters.stage);
-  if (filters.mineOnly !== undefined) params.append("mineOnly", String(filters.mineOnly));
   const qs = params.toString();
   return qs ? `?${qs}` : "";
 }
@@ -79,26 +75,64 @@ export interface ApplicationQueryFilters {
   isArchived?: boolean;
   page?: number;
   limit?: number;
-  mineOnly?: boolean;
+  summary?: boolean;
+}
+
+export interface TAJobDetail extends JobPosting {
+  applications?: Array<{
+    id: number;
+    status: ApplicationStatus;
+    isArchived: boolean;
+    user?: { id: string; email: string };
+  }>;
+}
+
+export interface TADashboardCounts {
+  openJobs: number;
+  activeDeployments: number;
 }
 
 export const taApi = {
+  getDashboardCounts: (options?: RequestInit) =>
+    api.get<TADashboardCounts>("/api/ta/dashboard-counts", options),
+
   // -------------------------------------------------------------
   // 1. Applications Pipeline & Recruiter Decisions
   // -------------------------------------------------------------
-  listApplications: (filters?: ApplicationQueryFilters) => {
+  listApplications: (filters?: ApplicationQueryFilters, options?: RequestInit) => {
     const params = new URLSearchParams();
     if (filters?.status) params.append("status", filters.status);
     if (filters?.jobId) params.append("jobId", String(filters.jobId));
     if (filters?.clientId) params.append("clientId", String(filters.clientId));
-    if (filters?.search) params.append("search", filters.search);
+    const search = filters?.search?.trim();
+    if (search) params.append("search", search);
     if (filters?.isArchived !== undefined) params.append("isArchived", String(filters.isArchived));
     if (filters?.page) params.append("page", String(filters.page));
     if (filters?.limit) params.append("limit", String(filters.limit));
-    if (filters?.mineOnly !== undefined) params.append("mineOnly", String(filters.mineOnly));
+    if (filters?.summary) params.append("summary", "true");
 
     const qs = params.toString();
-    return api.get<PaginatedResult<Application> | Application[]>(`/api/ta/applications${qs ? `?${qs}` : ""}`);
+    return api.get<PaginatedResult<Application> | Application[]>(
+      `/api/ta/applications${qs ? `?${qs}` : ""}`,
+      options,
+    );
+  },
+
+  listApplicationsPage: (filters: ApplicationQueryFilters & { page: number; limit: number }, options?: RequestInit) => {
+    const params = new URLSearchParams();
+    if (filters.status) params.append("status", filters.status);
+    if (filters.jobId) params.append("jobId", String(filters.jobId));
+    if (filters.clientId) params.append("clientId", String(filters.clientId));
+    const search = filters.search?.trim();
+    if (search) params.append("search", search);
+    if (filters.isArchived !== undefined) params.append("isArchived", String(filters.isArchived));
+    params.append("page", String(filters.page));
+    params.append("limit", String(filters.limit));
+    params.append("summary", "true");
+    return api.get<PaginatedListResponse<TAApplicationSummary>>(
+      `/api/ta/applications?${params.toString()}`,
+      options,
+    );
   },
 
   getApplication: (id: number | string) =>
@@ -106,8 +140,13 @@ export const taApi = {
 
   updateApplicationStatus: (
     id: number | string,
-    data: { status: ApplicationStatus; reason?: string }
+    data: { status: ApplicationStatus; reason?: string; reasonCode?: string }
   ) => api.patch<Application>(`/api/ta/applications/${id}/status`, data),
+
+  recordBackout: (
+    id: number | string,
+    data: { party: string; reason: string; notes?: string; occurredOn?: string }
+  ) => api.post<unknown>(`/api/ta/applications/${id}/backout`, data),
 
   archiveApplication: (id: number | string, data: { reason: string }) =>
     api.patch<Application>(`/api/ta/applications/${id}/archive`, data),
@@ -118,15 +157,11 @@ export const taApi = {
   getRecruiterDecisions: (id: number | string) =>
     api.get<RecruiterDecision[]>(`/api/ta/applications/${id}/decisions`),
 
-  signContract: (
-    id: number | string,
-    data: { contractNotes?: string; contractDocumentUrl?: string }
-  ) => api.post<Application>(`/api/ta/applications/${id}/contract/sign`, data),
+  downloadContractPdf: (id: number | string, startDate: string) =>
+    api.blob(`/api/ta/applications/${id}/contract/pdf?startDate=${encodeURIComponent(startDate)}`),
 
-  completeOrientation: (
-    id: number | string,
-    data: { orientationDate?: string; orientationNotes?: string }
-  ) => api.post<Application>(`/api/ta/applications/${id}/orientation/complete`, data),
+  uploadSignedContract: (id: number | string, formData: FormData) =>
+    api.upload<Application>(`/api/ta/applications/${id}/contract/signed`, formData),
 
   updateCandidateProfile: (id: number | string, data: UpdateCandidateProfileDto) =>
     api.patch<ApplicantProfile>(`/api/ta/candidates/${id}`, data),
@@ -143,21 +178,44 @@ export const taApi = {
   // -------------------------------------------------------------
   // 3. Job Postings & Candidate Match Ranking
   // -------------------------------------------------------------
-  listJobs: (filters?: { status?: string; search?: string; clientId?: number | string; mineOnly?: boolean }) => {
+  listJobs: (filters?: { status?: string; search?: string; clientId?: number | string }, options?: RequestInit) => {
     const params = new URLSearchParams();
     if (filters?.status) params.append("status", filters.status);
-    if (filters?.search) params.append("search", filters.search);
+    const search = filters?.search?.trim();
+    if (search) params.append("search", search);
     if (filters?.clientId) params.append("clientId", String(filters.clientId));
-    if (filters?.mineOnly !== undefined) params.append("mineOnly", String(filters.mineOnly));
     const qs = params.toString();
-    return api.get<JobPosting[]>(`/api/ta/jobs${qs ? `?${qs}` : ""}`);
+    return api.get<JobPosting[]>(
+      `/api/ta/jobs${qs ? `?${qs}` : ""}`,
+      options,
+    );
+  },
+
+  listJobsPage: (filters: {
+    status?: string;
+    search?: string;
+    clientId?: number | string;
+    page: number;
+    limit: number;
+  }, options?: RequestInit) => {
+    const params = new URLSearchParams();
+    if (filters.status) params.append("status", filters.status);
+    const search = filters.search?.trim();
+    if (search) params.append("search", search);
+    if (filters.clientId) params.append("clientId", String(filters.clientId));
+    params.append("page", String(filters.page));
+    params.append("limit", String(filters.limit));
+    return api.get<PaginatedListResponse<JobPosting>>(
+      `/api/ta/jobs?${params.toString()}`,
+      options,
+    );
   },
 
   createJob: (data: CreateJobDto) =>
     api.post<JobPosting>("/api/ta/jobs", data),
 
-  getJob: (id: number | string) =>
-    api.get<JobPosting>(`/api/ta/jobs/${id}`),
+  getJob: (id: number | string, options?: RequestInit) =>
+    api.get<TAJobDetail>(`/api/ta/jobs/${id}`, options),
 
   updateJob: (id: number | string, data: UpdateJobDto) =>
     api.patch<JobPosting>(`/api/ta/jobs/${id}`, data),
@@ -168,9 +226,10 @@ export const taApi = {
   rankCandidates: (jobId: number | string) =>
     api.post<{ rankedCount: number }>(`/api/ta/jobs/${jobId}/rank-candidates`, {}),
 
-  getRankedCandidates: async (jobId: number | string) => {
+  getRankedCandidates: async (jobId: number | string, options?: RequestInit) => {
     const res = await api.get<{ items: CandidateScore[] } | CandidateScore[]>(
-      `/api/ta/jobs/${jobId}/ranked-candidates`
+      `/api/ta/jobs/${jobId}/ranked-candidates`,
+      options,
     );
     if (res && typeof res === "object" && "items" in res && Array.isArray((res as any).items)) {
       return (res as any).items as CandidateScore[];
@@ -178,9 +237,10 @@ export const taApi = {
     return (Array.isArray(res) ? res : []) as CandidateScore[];
   },
 
-  getJobTalentPool: async (jobId: number | string) => {
+  getJobTalentPool: async (jobId: number | string, options?: RequestInit) => {
     const res = await api.get<{ items: TalentPoolMatchResult[] } | TalentPoolMatchResult[]>(
-      `/api/ta/jobs/${jobId}/talent-pool`
+      `/api/ta/jobs/${jobId}/talent-pool`,
+      options,
     );
     if (res && typeof res === "object" && "items" in res && Array.isArray((res as any).items)) {
       return (res as any).items as TalentPoolMatchResult[];
@@ -264,8 +324,8 @@ export const taApi = {
   // -------------------------------------------------------------
   // 5. Clients & MRFs (Manpower Requests)
   // -------------------------------------------------------------
-  listClients: () =>
-    api.get<Client[]>("/api/ta/clients"),
+  listClients: (options?: RequestInit) =>
+    api.get<Client[]>("/api/ta/clients", options),
 
   createClient: (data: CreateClientDto) =>
     api.post<Client>("/api/ta/clients", data),
@@ -281,14 +341,14 @@ export const taApi = {
     status?: string;
     priority?: string;
     sortBy?: string;
-  }) => {
+  }, options?: RequestInit) => {
     const params = new URLSearchParams();
     if (filters?.clientId) params.append("clientId", String(filters.clientId));
     if (filters?.status) params.append("status", filters.status);
     if (filters?.priority) params.append("priority", filters.priority);
     if (filters?.sortBy) params.append("sortBy", filters.sortBy);
     const qs = params.toString();
-    return api.get<ManpowerRequest[]>(`/api/ta/mrfs${qs ? `?${qs}` : ""}`);
+    return api.get<ManpowerRequest[]>(`/api/ta/mrfs${qs ? `?${qs}` : ""}`, options);
   },
 
   createMRF: (data: CreateMRFDto) =>
@@ -388,6 +448,9 @@ export const taApi = {
   reviewComplianceRequirement: (requirementId: number | string, data: ReviewComplianceDto) =>
     api.patch<ComplianceRequirement>(`/api/ta/compliance/${requirementId}/review`, data),
 
+  requestDocumentUpdate: (requirementId: number, data: { reason: string; deadline: string }) =>
+    api.post<ComplianceRequirement>(`/api/ta/compliance/${requirementId}/update-request`, data),
+
   updateComplianceRequirementDeadline: (requirementId: number | string, deadline: string | null) =>
     api.patch<ComplianceRequirement>(`/api/ta/compliance/${requirementId}/deadline`, { deadline }),
 
@@ -431,8 +494,11 @@ export const taApi = {
 
   updateDeploymentContract: (
     id: number | string,
-    data: { contractDocumentUrl?: string; contractTerms?: string; contractStatus?: string }
+    data: { contractDocumentUrl?: string | null; contractTerms?: string | null; contractStatus?: string | null; contractEnd?: string | null }
   ) => api.patch<Deployment>(`/api/ta/deployments/${id}/contract`, data),
+
+  recordDeploymentReview: (id: number | string, data: { nextReviewAt: string; notes?: string }) =>
+    api.post<{ id: number; deploymentId: number; reviewedAt: string; nextReviewAt: string | null }>(`/api/ta/deployments/${id}/reviews`, data),
 
   // -------------------------------------------------------------
   // 10. Post-Hire & Digital 201 Document Upload
@@ -444,22 +510,7 @@ export const taApi = {
   // 11. Analytics & Operations Intelligence
   // -------------------------------------------------------------
   getDashboardSummary: (filters?: Partial<AnalyticsFilterState>) =>
-    api.get<{
-      overview: TAOverviewStats;
-      activity: RecruitmentActivityTrend;
-      funnel: FunnelAnalytics;
-      pendingActions: TAPendingActionItem[];
-      filterOptions: AnalyticsFilterOptions;
-    }>(`/api/ta/analytics/dashboard${buildTAAnalyticsQueryString(filters)}`),
-
-  getOverviewStats: (filters?: Partial<AnalyticsFilterState>) =>
-    api.get<TAOverviewStats>(`/api/ta/analytics/overview${buildTAAnalyticsQueryString(filters)}`),
-
-  getActivityTrend: (filters?: Partial<AnalyticsFilterState>) =>
-    api.get<RecruitmentActivityTrend>(`/api/ta/analytics/activity${buildTAAnalyticsQueryString(filters)}`),
-
-  getPipelineFunnel: (filters?: Partial<AnalyticsFilterState>) =>
-    api.get<FunnelAnalytics>(`/api/ta/analytics/pipeline-funnel${buildTAAnalyticsQueryString(filters)}`),
+    api.get<TADeliveryDashboard>(`/api/ta/analytics/dashboard${buildTAAnalyticsQueryString(filters)}`),
 
   getPendingActions: (filters?: Partial<AnalyticsFilterState>) =>
     api.get<TAPendingActionItem[]>(`/api/ta/analytics/pending-actions${buildTAAnalyticsQueryString(filters)}`),
@@ -470,12 +521,6 @@ export const taApi = {
   // Legacy Analytics & Exports (Preserved)
   getPipelineAnalytics: () =>
     api.get<PipelineAnalytics>("/api/ta/analytics/pipeline"),
-
-  getTimeToFillAnalytics: () =>
-    api.get<TimeToFillAnalytics>("/api/ta/analytics/time-to-fill"),
-
-  getDeploymentAnalytics: () =>
-    api.get<DeploymentAnalytics>("/api/ta/analytics/deployments"),
 
   getComplianceOverview: (params?: { stage?: string }) =>
     api.get<ComplianceAnalytics>(

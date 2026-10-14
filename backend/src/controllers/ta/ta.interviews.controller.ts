@@ -55,7 +55,7 @@ export const updateInterviewStatus = async (req: Request, res: Response): Promis
     const { updatedInterview, applicationUpdateMessage } = await updateInterviewResult(applicationId, interviewId, result, conductedAt, notes, actorId);
     sendSuccess(res, `Interview updated to ${result}.${applicationUpdateMessage}`, updatedInterview);
   } catch (error: any) {
-    const statusCode = error.message.includes("not found") ? 404 : 400;
+    const statusCode = error.message.includes("not found") ? 404 : error.message.includes("finalized") ? 409 : 400;
     sendError(res, error.message, statusCode);
   }
 };
@@ -80,7 +80,7 @@ export const recordInterviewDirectly = async (req: Request, res: Response): Prom
     );
     sendSuccess(res, `Interview result recorded as ${result}.${applicationUpdateMessage}`, updatedInterview);
   } catch (error: any) {
-    const statusCode = error.message.includes("not found") ? 404 : 400;
+    const statusCode = error.message.includes("not found") ? 404 : error.message.includes("finalized") ? 409 : 400;
     sendError(res, error.message, statusCode);
   }
 };
@@ -88,7 +88,7 @@ export const recordInterviewDirectly = async (req: Request, res: Response): Prom
 // GET /api/ta/compliance/interviews - Audit report for candidate interview stage SLA duration
 export const checkInterviewCompliance = async (req: Request, res: Response): Promise<void> => {
   try {
-    const report = await getInterviewComplianceReport();
+    const report = await getInterviewComplianceReport(req.user);
     sendSuccess(res, "Interview compliance report generated", report);
   } catch (error: any) {
     sendError(res, error.message, 500);

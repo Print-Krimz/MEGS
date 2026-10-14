@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, type GenerateContentConfig } from "@google/genai";
 
 let aiInstance: GoogleGenAI | null = null;
 
@@ -29,34 +29,67 @@ export const getCandidateModels = (): string[] => {
 export const generateContentWithFallback = async (
   params: {
     contents: any;
-    config?: any;
+    config?: GenerateContentConfig;
   },
   timeoutMs: number = 10000
 ): Promise<any> => {
   const ai = getGeminiClient();
   const candidateModels = getCandidateModels();
+  const callerSignal = params.config?.abortSignal;
+  if (callerSignal?.aborted) {
+    throw callerSignal.reason ?? new DOMException("The operation was aborted", "AbortError");
+  }
+
   let lastError: any = null;
 
   for (const model of candidateModels) {
+    const requestController = new AbortController();
+    let callerAborted = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let rejectCallerAbort: ((reason: unknown) => void) | undefined;
+    const callerAbortPromise = callerSignal
+      ? new Promise<never>((_resolve, reject) => {
+          rejectCallerAbort = reject;
+        })
+      : undefined;
+    const handleCallerAbort = () => {
+      callerAborted = true;
+      const reason = callerSignal?.reason ?? new DOMException("The operation was aborted", "AbortError");
+      rejectCallerAbort?.(reason);
+      requestController.abort(reason);
+    };
+
+    callerSignal?.addEventListener("abort", handleCallerAbort, { once: true });
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        const timeoutError = new Error(`Model ${model} request timed out after ${timeoutMs}ms`);
+        reject(timeoutError);
+        requestController.abort(timeoutError);
+      }, timeoutMs);
+      if (typeof timer.unref === "function") timer.unref();
+    });
+
     try {
-      const generatePromise = ai.models.generateContent({
+      const requestPromise = ai.models.generateContent({
         model,
         contents: params.contents,
-        config: params.config,
+        config: {
+          ...params.config,
+          abortSignal: requestController.signal,
+        },
       });
-
-      const timeoutPromise = new Promise((_, reject) => {
-        const timer = setTimeout(() => {
-          reject(new Error(`Model ${model} request timed out after ${timeoutMs}ms`));
-        }, timeoutMs);
-        if (typeof timer.unref === "function") timer.unref();
-      });
-
-      const response = (await Promise.race([generatePromise, timeoutPromise])) as any;
+      const pendingRequests = callerAbortPromise
+        ? [requestPromise, timeoutPromise, callerAbortPromise]
+        : [requestPromise, timeoutPromise];
+      const response = await Promise.race(pendingRequests);
       return response;
     } catch (err: any) {
-      console.warn(`[Gemini] Model ${model} failed (${err.message}). Trying next fallback model...`);
+      if (callerAborted) throw err;
+      console.warn(`[Gemini] Model ${model} failed (${err?.message || err}). Trying next fallback model...`);
       lastError = err;
+    } finally {
+      if (timer) clearTimeout(timer);
+      callerSignal?.removeEventListener("abort", handleCallerAbort);
     }
   }
 
@@ -227,8 +260,10 @@ const RESUME_EXTRACTION_SCHEMA = `
   "height": <Height in cm as a number e.g. 170, or null if not found>,
   "weight": <Weight in kg as a number e.g. 65, or null if not found>,
   "address": "<Street / Residential Address or null if not found>",
-  "city": "<City / Municipality e.g. Calamba, Makati, Quezon City or null if not found>",
+  "barangay": "<Barangay / Village / Sub-district or null if not found>",
+  "city": "<City / Municipality e.g. Calamba, Makati, Quezon City, Manila, Caloocan or null if not found>",
   "province": "<Province / Region e.g. Laguna, Metro Manila, Batangas, Cebu or null if not found>",
+  "postalCode": "<4-digit Philippine postal / ZIP code e.g. 1012, 1400 or null if not found>",
   "preferredWorkLocations": "<Preferred work locations or null if not found>",
   "professionalSummary": "<Career objective, executive summary, or professional background statement from resume or null if not found>",
   "skills": ["<Skill 1>", "<Skill 2>"],
