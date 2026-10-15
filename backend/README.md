@@ -19,7 +19,7 @@ backend/
 │   │   ├── talent-pool.prisma
 │   │   ├── employee.prisma
 │   │   └── maintenance.prisma
-│   └── seed.ts           # Authoritative admin & test account bootstrap
+│   └── seed.ts           # Authoritative admin & TA account bootstrap
 ├── src/
 │   ├── controllers/      # Admin, TA, Applicant, Document, and Employee controllers
 │   ├── middleware/       # JWT auth guards, role authorizers, rate-limiters, Zod validators

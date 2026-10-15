@@ -96,15 +96,6 @@ DESIGN.md
 PRODUCT.md
 skills-lock.json
 
-# Keep reviewed security regressions in Git and CI.
-!backend/tests/
-backend/tests/*
-!backend/tests/security/
-!backend/tests/security/**
-!frontend/tests/
-frontend/tests/*
-!frontend/tests/security/
-!frontend/tests/security/**
 DATABASE_SCHEMA_EXPORTER.html
 database_diagrams.html
 FIELD_VALIDATION_INVENTORY.md
@@ -123,3 +114,6 @@ FIELD_VALIDATION_INVENTORY.md
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 9. Unused archived design assets (kept locally only)
+frontend/archive/
