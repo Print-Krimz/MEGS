@@ -544,11 +544,13 @@ export const changeUserStatus = async (targetUserId: string, adminId: string, is
   const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
   if (!targetUser) throw new Error("User not found");
 
-  if (isActive && ["PENDING", "INVITED", "PENDING_VERIFICATION"].includes(targetUser.accountStatus)) {
+  const pendingSetup = ["PENDING", "INVITED", "PENDING_VERIFICATION"].includes(targetUser.accountStatus);
+  if (isActive && pendingSetup) {
     throw new Error("This account hasn't finished setup yet, so it can't be activated manually.");
   }
 
-  const accountStatus = isActive ? "ACTIVE" : "DEACTIVATED";
+  // An account still in setup keeps that status when deactivated, so reactivating it hits the guard above.
+  const accountStatus = isActive ? "ACTIVE" : pendingSetup ? targetUser.accountStatus : "DEACTIVATED";
 
   const updatedUser = await prisma.user.update({
     where: { id: targetUserId },

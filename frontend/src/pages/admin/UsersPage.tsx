@@ -30,8 +30,10 @@ import { formatAdminRole } from "../../lib/admin-copy";
 import { validatePersonName } from "../../lib/statutory-validation";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
+import { z } from "zod";
 
 const EMPTY_USERS: AdminUserListItem[] = [];
+const inviteEmailSchema = z.string().trim().email("Enter a valid email address.");
 
 export const UsersPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -609,8 +611,17 @@ export const UsersPage: React.FC = () => {
         description="We'll email a secure account setup link to this person."
       >
         <form
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
+            if (!inviteEmail.trim()) {
+              setInviteFieldErrors((prev) => ({ ...prev, email: "Email is required." }));
+              return;
+            }
+            if (!inviteEmailSchema.safeParse(inviteEmail).success) {
+              setInviteFieldErrors((prev) => ({ ...prev, email: "Enter a valid email address." }));
+              return;
+            }
             if (inviteFirstName.trim()) {
               const fnErr = validatePersonName(inviteFirstName, "First name");
               if (fnErr) {

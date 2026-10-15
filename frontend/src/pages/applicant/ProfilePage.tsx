@@ -42,9 +42,12 @@ import type { ProfileSection } from "./components/profile/profile-navigation";
 import { parseProfileSection } from "./components/profile/profile-navigation";
 import { FIELD_LIMITS, getManilaToday, isValidDateOnly } from "../../lib/field-limits";
 import { fieldErrorsFrom } from "../../lib/feedback";
+import { validatePhilippineMobile } from "../../lib/phone-utils";
 import {
   validateDateOfBirth,
+  validateEmergencyPhone,
   validatePagIbigNumber,
+  validatePersonName,
   validatePhilHealthNumber,
   validateSSSNumber,
   validateTINNumber,
@@ -171,15 +174,29 @@ const PERSONAL_SECTION_FIELDS: Record<string, string[]> = {
 const personalSectionOf = (field: string): string | undefined =>
   Object.keys(PERSONAL_SECTION_FIELDS).find((section) => PERSONAL_SECTION_FIELDS[section].includes(field));
 
-// Pre-submit checks run before the API call. Empty values pass; messages come from the helpers.
+// Pre-submit checks run before the API call. Empty optional values pass; messages come from the helpers.
 const personalFieldErrorsFor = (form: {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  mobileNumber: string;
   dateOfBirth: string;
   sss: string;
   philhealth: string;
   pagibig: string;
   tin: string;
+  emergencyContactPhone: string;
 }): Record<string, string> => {
   const errors: Record<string, string> = {};
+  const firstName = form.firstName.trim() ? validatePersonName(form.firstName, "First name") : "First name is required.";
+  const middleName = validatePersonName(form.middleName, "Middle name");
+  const lastName = form.lastName.trim() ? validatePersonName(form.lastName, "Last name") : "Last name is required.";
+  if (firstName) errors.firstName = firstName;
+  if (middleName) errors.middleName = middleName;
+  if (lastName) errors.lastName = lastName;
+  const mobile = validatePhilippineMobile(form.mobileNumber);
+  if (!form.mobileNumber.trim()) errors.mobileNumber = "Mobile number is required.";
+  else if (!mobile.isValid && mobile.message) errors.mobileNumber = mobile.message;
   if (validateDateOfBirth(form.dateOfBirth, { minAge: 18, maxAge: 100 })) {
     errors.dateOfBirth = "Applicant must be between 18 and 100 years old.";
   }
@@ -187,10 +204,12 @@ const personalFieldErrorsFor = (form: {
   const philhealth = validatePhilHealthNumber(form.philhealth);
   const pagibig = validatePagIbigNumber(form.pagibig);
   const tin = validateTINNumber(form.tin);
+  const emergencyPhone = validateEmergencyPhone(form.emergencyContactPhone);
   if (sss) errors.sss = sss;
   if (philhealth) errors.philhealth = philhealth;
   if (pagibig) errors.pagibig = pagibig;
   if (tin) errors.tin = tin;
+  if (emergencyPhone) errors.emergencyContactPhone = emergencyPhone;
   return errors;
 };
 

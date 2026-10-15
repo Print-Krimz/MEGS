@@ -13,6 +13,10 @@ interface AnalyticsFilterBarProps {
   showClientFilter?: boolean;
 }
 
+// Days in a custom range counting both ends, worked out the same way the server checks it (validate.middleware.ts).
+const inclusiveRangeDays = (startDate: string, endDate: string): number =>
+  (Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86_400_000 + 1;
+
 export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
   filters,
   onChange,
@@ -77,7 +81,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
     return JSON.stringify(draftFilters) !== JSON.stringify(filters);
   }, [draftFilters, filters]);
 
-  // A custom range needs both dates, in order, before it can be applied.
+  // A custom range needs both dates, in order, and at most 366 days inclusive (the server enforces the same limit).
   const customRangeError =
     draftFilters.range !== "custom"
       ? null
@@ -85,7 +89,9 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
         ? "Choose a start and an end date."
         : draftFilters.startDate > draftFilters.endDate
           ? "The start date must be on or before the end date."
-          : null;
+          : inclusiveRangeDays(draftFilters.startDate, draftFilters.endDate) > 366
+            ? "Choose a date range of 366 days or fewer."
+            : null;
 
   // Check if any filter is active (differs from default clean 7d state)
   const hasActiveFilters = useMemo(() => {

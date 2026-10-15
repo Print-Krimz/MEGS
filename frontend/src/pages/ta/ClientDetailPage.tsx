@@ -56,6 +56,7 @@ export const ClientDetailPage: React.FC = () => {
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editName, setEditName] = useState("");
+  const editNameInputRef = React.useRef<HTMLInputElement>(null);
   const [editTradeName, setEditTradeName] = useState("");
   const [editIndustry, setEditIndustry] = useState("");
   const [editContactFirstName, setEditContactFirstName] = useState("");
@@ -412,9 +413,15 @@ export const ClientDetailPage: React.FC = () => {
         description={`Update details for ${client.name}`}
       >
         <form
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            if (!editName.trim()) return;
+            if (!editName.trim()) {
+              setServerFieldErrors((prev) => ({ ...prev, name: "Enter the company name." }));
+              notify.error("Check the highlighted fields", "Enter the company name.");
+              editNameInputRef.current?.focus();
+              return;
+            }
 
             const nameErr = validateStandardText(editName, "Legal company name", { maxLength: 200 });
             if (nameErr) {
@@ -496,6 +503,7 @@ export const ClientDetailPage: React.FC = () => {
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
+              ref={editNameInputRef}
               label="Legal company name"
               value={editName}
               error={serverFieldErrors.name}

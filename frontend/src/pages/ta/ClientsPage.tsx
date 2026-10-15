@@ -71,6 +71,7 @@ export const ClientsPage: React.FC = () => {
   const [city, setCity] = useState("");
   const [barangay, setBarangay] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const nameInputRef = React.useRef<HTMLInputElement>(null);
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const clearServerFieldError = (field: string) =>
     setServerFieldErrors((prev) => {
@@ -386,9 +387,15 @@ export const ClientsPage: React.FC = () => {
         description="Register the company and its main contact details."
       >
         <form
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            if (!name.trim()) return;
+            if (!name.trim()) {
+              setServerFieldErrors((prev) => ({ ...prev, name: "Enter the company name." }));
+              notify.error("Check the highlighted fields", "Enter the company name.");
+              nameInputRef.current?.focus();
+              return;
+            }
 
             const nameErr = validateStandardText(name, "Legal company name", { maxLength: 200 });
             if (nameErr) {
@@ -462,6 +469,7 @@ export const ClientsPage: React.FC = () => {
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
+              ref={nameInputRef}
               label="Legal company name"
               placeholder="e.g. Acme Industrial Services Corp."
               value={name}
