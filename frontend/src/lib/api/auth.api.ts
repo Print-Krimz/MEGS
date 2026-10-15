@@ -21,7 +21,7 @@ export const authApi = {
   login: (data: LoginRequest, turnstileToken?: string) =>
     api.post<LoginResponse>(
       "/api/auth/login",
-      turnstileToken ? { ...data, turnstileToken } : data,
+      data,
       {
         ...(turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : {}),
         signal: AbortSignal.timeout(25_000),
@@ -31,7 +31,7 @@ export const authApi = {
   register: (data: RegisterRequest, turnstileToken?: string) =>
     api.post<RegisterResponse>(
       "/api/auth/register",
-      turnstileToken ? { ...data, turnstileToken } : data,
+      data,
       turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : undefined
     ),
 
@@ -44,7 +44,7 @@ export const authApi = {
   forgotPassword: (data: ForgotPasswordRequest, turnstileToken?: string) =>
     api.post<{ message: string }>(
       "/api/auth/forgot-password",
-      turnstileToken ? { ...data, turnstileToken } : data,
+      data,
       turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : undefined
     ),
 

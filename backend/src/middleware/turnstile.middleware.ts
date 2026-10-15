@@ -12,15 +12,21 @@ export async function verifyTurnstile(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  // Allow test environments and explicit disable flag to bypass
-  if (process.env.NODE_ENV === "test" || isLocalBypassEnabled("DISABLE_CAPTCHA")) {
-    return next();
-  }
-
   const token =
     (req.headers["x-turnstile-token"] as string) ||
     req.body?.turnstileToken ||
     req.body?.["cf-turnstile-response"];
+  // The token is transport metadata, not part of the request payload: strip it so
+  // strict body schemas downstream do not reject it as an unsupported field.
+  if (req.body && typeof req.body === "object") {
+    delete req.body.turnstileToken;
+    delete req.body["cf-turnstile-response"];
+  }
+
+  // Allow test environments and explicit disable flag to bypass
+  if (process.env.NODE_ENV === "test" || isLocalBypassEnabled("DISABLE_CAPTCHA")) {
+    return next();
+  }
 
   if (!token || typeof token !== "string" || token.length === 0 || token.length > 2048) {
     res.status(403).json({
