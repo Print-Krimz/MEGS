@@ -16,6 +16,7 @@ import type { LoginResponse } from "../../lib/types/auth.types";
 import { AuthError } from "./AuthChrome";
 import { AuthTextField } from "./AuthField";
 import { OtpCodeField } from "./OtpCodeField";
+import { MfaDisabledContinuation } from "./MfaDisabledContinuation";
 
 interface MfaChallengeModalProps {
   open: boolean;
@@ -113,6 +114,8 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
             {`Security verification required for ${email}`}
           </DialogDescription>
         </DialogHeader>
+
+        <MfaDisabledContinuation token={tempToken} open={open} onSuccess={onSuccess} />
 
         <AuthError message={error} />
 

@@ -5,16 +5,22 @@ import cors from "cors";
 import compression from "compression";
 import authRoutes from "./src/routes/core/auth.routes.js";
 import { authenticateJWT } from "./src/middleware/auth.middleware.js";
-import { sendSuccess } from "./src/utils/response.js";
+import { sendSuccess, sendError } from "./src/utils/response.js";
+import { allowedOrigins, proxyTrust, validateRuntimeSecurity } from "./src/security/runtime-config.js";
+import { installSafeErrorLogging, safeLogError } from "./src/security/errors.js";
+import { connectSharedStore, cleanupSecurityState } from "./src/security/shared-store.js";
 import { startEmailWorker } from "./src/workers/email.worker.js";
 
 const app = express();
 
-app.set("trust proxy", 1);
+installSafeErrorLogging();
+validateRuntimeSecurity();
+app.set("trust proxy", proxyTrust());
+const trustedOrigins = allowedOrigins();
 
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => callback(null, !origin || trustedOrigins.has(origin)),
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
@@ -118,38 +124,45 @@ app.use("/api/employees", employeeRoutes);
 // Global Error Handler (Multer file limits, validation, and runtime exceptions)
 app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (!err) return next();
-  if (err.code === "LIMIT_FILE_SIZE" || err.name === "MulterError") {
+  if (err.name === "MulterError") {
     return res.status(400).json({
       success: false,
-      message: "File size exceeds maximum limit of 5 MB. Please select a smaller file.",
+      message: err.code === "LIMIT_FILE_SIZE"
+        ? `File size exceeds the maximum limit of ${_req.path === "/api/admin/maintenance/backups/restore-upload" ? "50" : "5"} MB. Please select a smaller file.`
+        : "The upload has invalid fields or too many files. Please select one supported file.",
     });
   }
-  return res.status(err.status || 400).json({
-    success: false,
-    message: err.message || "An error occurred during request processing.",
-  });
+  safeLogError("Request processing", err);
+  return sendError(res, err.message, err.status || 500);
 });
 
 const PORT = process.env.PORT ?? 3000;
 
 if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => {
-    console.log(`✅ Server running on http://localhost:${PORT}`);
-    // Clean up any stale maintenance jobs that were interrupted by previous server restart
-    import("./src/services/admin/backup.service.js")
-      .then(({ sweepStaleJobs }) => sweepStaleJobs())
-      .catch((err) => {
-        console.warn("⚠️ [Maintenance] Stale job sweep warning on startup:", err?.message || err);
-      });
+  connectSharedStore().then(() => {
+    const cleanup = setInterval(() => { void cleanupSecurityState().catch(error => safeLogError("Security state cleanup", error)); }, 60_000);
+    cleanup.unref();
+    app.listen(PORT, () => {
+      console.log(`✅ Server listening on port ${PORT}`);
+      // Clean up any stale maintenance jobs that were interrupted by previous server restart
+      import("./src/services/admin/backup.service.js")
+        .then(({ sweepStaleJobs }) => sweepStaleJobs())
+        .catch((err) => {
+          console.warn("⚠️ [Maintenance] Stale job sweep warning on startup:", err?.message || err);
+        });
+    });
+  }).catch(error => {
+    safeLogError("Security store startup", error);
+    process.exitCode = 1;
   });
 }
 
 process.on("unhandledRejection", (reason) => {
-  console.error("⚠️ [Unhandled Rejection at Promise]", reason);
+  safeLogError("Unhandled rejection", reason);
 });
 
 process.on("uncaughtException", (error) => {
-  console.error("⚠️ [Uncaught Exception]", error);
+  safeLogError("Uncaught exception", error);
 });
 
 export { app };

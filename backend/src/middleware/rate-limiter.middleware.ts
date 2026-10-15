@@ -1,5 +1,21 @@
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request, Response } from "express";
+import { createHash } from "node:crypto";
+import { PostgresRateLimitStore } from "../security/shared-store.js";
+// Same developer switch as main MEGS. It applies in hosted production/Heroku.
+const skipDisabled = () => process.env.DISABLE_RATE_LIMIT === "true";
+const securityStore = (name: string) => new PostgresRateLimitStore(name);
+// Keep the initial corrective-patch counter namespace. Disabling skips charges;
+// re-enabling resumes existing windows, which persist across dyno restarts.
+const quotaKey = (key: string) => `0:${key}`;
+const hashIdentity = (value: string) => createHash("sha256").update(value).digest("hex");
+const clientIp = (req: Request) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || "127.0.0.1");
+
+const limiter = (name: string, max: number, windowMs: number, keyGenerator: (req: Request) => string) => rateLimit({
+  windowMs, max, keyGenerator: req => quotaKey(keyGenerator(req)), store: securityStore(name),
+  skip: skipDisabled, standardHeaders: true, legacyHeaders: false, passOnStoreError: false,
+  handler: rateLimitHandler("Too many requests. Please retry after the indicated delay.", Math.ceil(windowMs / 1000)),
+});
 
 /**
  * Standard RFC rate-limit response handler following MEGS unified response shape.
@@ -51,8 +67,9 @@ export const authLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => process.env.DISABLE_RATE_LIMIT === "true",
-  keyGenerator: authKeyGenerator,
+  skip: skipDisabled,
+  store: securityStore("auth-pair"),
+  keyGenerator: req => quotaKey(hashIdentity(authKeyGenerator(req))),
   handler: rateLimitHandler("Too many authentication attempts. Please try again after 15 minutes.", 900),
 });
 
@@ -65,7 +82,24 @@ export const forgotPasswordLimiter = rateLimit({
   max: 2,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => process.env.DISABLE_RATE_LIMIT === "true",
-  keyGenerator: emailKeyGenerator,
+  skip: skipDisabled,
+  store: securityStore("mail-account"),
+  keyGenerator: req => quotaKey(hashIdentity(emailKeyGenerator(req))),
   handler: rateLimitHandler("Too many password reset requests. Please wait an hour before requesting again.", 3600),
 });
+
+// Separate budgets prevent changing an email/IP from resetting every counter.
+export const authIpLimiter = limiter("auth-ip", 100, 15 * 60 * 1000, clientIp);
+export const authAccountLimiter = limiter("auth-account", 30, 15 * 60 * 1000,
+  req => hashIdentity(String(req.body?.email || req.user?.id || clientIp(req)).toLowerCase().trim()));
+
+export const operationLimiters = (name: string, perUser: number, global: number, windowMs = 60 * 60 * 1000) => [
+  limiter(`${name}-user`, perUser, windowMs, req => hashIdentity(req.user?.id || clientIp(req))),
+  limiter(`${name}-ip`, perUser * 6, windowMs, clientIp),
+  limiter(`${name}-global`, global, windowMs, () => "budget"),
+];
+export const aiLimiters = operationLimiters("ai", 20, 200);
+export const reportLimiters = operationLimiters("reports", 30, 600);
+export const maintenanceLimiters = operationLimiters("maintenance", 6, 24);
+export const scoringLimiters = operationLimiters("scoring-revalidation", 6, 24);
+export const analyticsLimiters = operationLimiters("analytics", 180, 3000, 15 * 60 * 1000);

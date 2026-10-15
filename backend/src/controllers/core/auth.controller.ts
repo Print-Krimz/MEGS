@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { sendSuccess, sendError } from '../../utils/response.js';
+import { revokeSession } from '../../security/session-revocation.js';
+import { notificationEmitter } from '../../utils/notification.js';
 import {
   registerUser,
   verifyOtp as verifyOtpService,
@@ -70,8 +72,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 export const logout = async (req: Request, res: Response): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
-    const token = authHeader?.split(" ")[1];
+    const token = authHeader?.match(/^Bearer\s+([^\s]+)$/i)?.[1];
+    if (!token || !Number.isFinite(req.user?.tokenExpiresAt)) {
+      sendError(res, "Invalid or expired token", 401);
+      return;
+    }
+    await revokeSession(token, req.user!.tokenExpiresAt!);
     await logoutUser(token, req.user?.id);
+    if (req.user) notificationEmitter.emit(`session:closed:${req.user.id}`);
     sendSuccess(res, "Logged out successfully", null);
   } catch (error: any) {
     sendError(res, error.message, 500);

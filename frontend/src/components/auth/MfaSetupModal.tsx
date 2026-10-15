@@ -17,6 +17,7 @@ import { notify, formatErrorMessage } from "../../lib/feedback";
 import type { LoginResponse, MfaEnrollResponse, VerifyMfaEnrollResponse } from "../../lib/types/auth.types";
 import { AuthError } from "./AuthChrome";
 import { OtpCodeField } from "./OtpCodeField";
+import { MfaDisabledContinuation } from "./MfaDisabledContinuation";
 
 interface MfaSetupModalProps {
   open: boolean;
@@ -187,6 +188,8 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
               : `Each of these ${recoveryCodes.length} codes signs you in once if you lose your authenticator app.`}
           </DialogDescription>
         </DialogHeader>
+
+        <MfaDisabledContinuation token={tempToken} open={open} onSuccess={onSuccess} />
 
         <AuthError message={error} />
 

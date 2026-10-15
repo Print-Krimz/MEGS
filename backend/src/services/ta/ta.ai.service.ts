@@ -26,7 +26,15 @@ export const queueApplicationAnalysis = async (applicationId: number) => {
     await updateTAApplicationStatus(applicationId, "PARSING", undefined, "Queued for AI resume parsing");
   }
 
-  enqueueResumeAnalysis(applicationId);
+  try { await enqueueResumeAnalysis(applicationId); }
+  catch (error) {
+    // If admission itself fails, preserve a retryable prior status.
+    // Capacity exhaustion waits and does not reach this branch.
+    if (transitionToParsingStatuses.includes(application.status)) {
+      await prisma.application.updateMany({ where: { id: applicationId, status: "PARSING" }, data: { status: application.status } });
+    }
+    throw error;
+  }
 
   // Trigger candidate scoring revalidation in background
   if (application.jobPostingId) {

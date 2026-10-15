@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { getSecurityControls } from "./security-controls.js";
 
 export const STAFF_ROLES = new Set(["ADMINISTRATOR", "TALENT_ACQUISITION"]);
 
@@ -19,6 +20,6 @@ export const isStaffMfaExceptionRoute = (
 export const isActiveAccount = (isActive: boolean, accountStatus: string): boolean =>
   isActive && accountStatus === "ACTIVE";
 
-export const isMfaEnforced = (): boolean =>
-  process.env.NODE_ENV === "production" || process.env.DISABLE_MFA !== "true";
+export const isMfaEnforced = async (): Promise<boolean> =>
+  !(await getSecurityControls()).mfaDisabled;
 

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requestDocumentUpdateHandler } from "../../controllers/ta/ta.compliance.controller.js";
+import { aiLimiters, reportLimiters, analyticsLimiters } from '../../middleware/rate-limiter.middleware.js';
 import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
 import { upload, uploadContractScan } from '../../middleware/upload.middleware.js';
 import { validate, validateDateRangeQuery } from '../../middleware/validate.middleware.js';
@@ -122,6 +123,9 @@ const router = Router();
 router.use(authenticateJWT);
 router.use(requireRole("TALENT_ACQUISITION"));
 router.use(validateDateRangeQuery);
+router.use("/analytics", ...analyticsLimiters);
+router.use("/reports", ...reportLimiters);
+router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates"], ...aiLimiters);
 
 router.get("/dashboard-counts", getTADashboardCountsHandler);
 

@@ -152,7 +152,7 @@ export const getDigital201ByEmployeeId = async (employeeId: number): Promise<Dig
       const resolved = await resolveDocumentSignedUrl(photoUrl, employee.user.id, "ADMINISTRATOR");
       if (resolved) photoUrl = resolved;
     } catch {
-      // fallback
+      photoUrl = null;
     }
   }
 
@@ -405,7 +405,8 @@ export const listEmployees = async (filters: {
             };
           }
         } catch {
-          // fallback
+          return { ...item, user: { ...item.user,
+            applicantProfile: item.user.applicantProfile ? { ...item.user.applicantProfile, photoUrl: null } : null } };
         }
       }
       return item;

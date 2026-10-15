@@ -8,20 +8,8 @@ const deriveKey = (secret: string): Buffer =>
   crypto.createHash("sha256").update(secret, "utf8").digest();
 
 const requireStrongSecret = (secret: string | undefined, name: string): string => {
-  if (secret && secret.length >= 32) {
+  if (secret && secret.trim().length >= 32) {
     return secret;
-  }
-  // In automated test environments, strictly fail closed to verify configuration enforcement
-  if (process.env.NODE_ENV === "test" || process.env.VITEST) {
-    throw new Error(`${name} must be configured with at least 32 characters`);
-  }
-  // Production / Runtime fallback: derive a dedicated 64-char HMAC secret from the platform master key
-  const fallbackSource = process.env.SUPABASE_SECRET_KEY || process.env.DATABASE_URL;
-  if (fallbackSource) {
-    return crypto
-      .createHmac("sha256", `megs-${name}-v1`)
-      .update(fallbackSource)
-      .digest("hex");
   }
   throw new Error(`${name} must be configured with at least 32 characters`);
 };
@@ -51,19 +39,26 @@ const currentKey = (): { id: string; secret: string } => {
   };
 };
 
-const legacyKeyMap = (): Record<string, string> => {
+// Decryption-only keys may be weak historical values. Never use them for new writes.
+// Arrays preserve backups written with different secrets under the same old key ID.
+const legacyKeyMap = (): Record<string, string[]> => {
   const raw = process.env.BACKUP_ENCRYPTION_LEGACY_KEYS;
   if (!raw) return {};
   try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    return Object.fromEntries(
-      Object.entries(parsed).filter(
-        (entry): entry is [string, string] =>
-          typeof entry[1] === "string" && entry[1].length >= 32
-      )
-    );
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+    const entries = Object.entries(parsed);
+    if (entries.length > 32) throw new Error();
+    return Object.fromEntries(entries.map(([id, value]) => {
+      const secrets = Array.isArray(value) ? value : [value];
+      if (!/^[A-Za-z0-9._-]{1,64}$/.test(id) || secrets.length < 1 || secrets.length > 8 ||
+          !secrets.every((secret) => typeof secret === "string" && secret.length > 0 && secret.length <= 4096)) {
+        throw new Error();
+      }
+      return [id, [...new Set(secrets as string[])]];
+    }));
   } catch {
-    throw new Error("BACKUP_ENCRYPTION_LEGACY_KEYS must be a JSON object");
+    throw new Error("BACKUP_ENCRYPTION_LEGACY_KEYS must map safe key IDs to a secret or up to 8 secrets (maximum 32 IDs)");
   }
 };
 
@@ -72,7 +67,11 @@ const legacyRawSecrets = (): string[] => {
   if (process.env.BACKUP_ENCRYPTION_LEGACY_SECRETS) {
     values.push(...process.env.BACKUP_ENCRYPTION_LEGACY_SECRETS.split(","));
   }
-  return [...new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))];
+  const secrets = [...new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))];
+  if (secrets.length > 32 || secrets.some((secret) => secret.length > 4096)) {
+    throw new Error("BACKUP_ENCRYPTION_LEGACY_SECRETS exceeds the supported key limits");
+  }
+  return secrets;
 };
 
 export const encryptBackupPayload = (plain: Buffer): Buffer => {
@@ -97,16 +96,21 @@ export const decryptBackupPayload = (buffer: Buffer): Buffer => {
   if (buffer.subarray(0, FORMAT_MAGIC.length).equals(FORMAT_MAGIC)) {
     const keyIdLength = buffer[FORMAT_MAGIC.length];
     const metadataLength = FORMAT_MAGIC.length + 1 + keyIdLength;
-    if (!keyIdLength || buffer.length <= metadataLength + IV_LENGTH + AUTH_TAG_LENGTH) {
+    if (!keyIdLength || keyIdLength > 64 || buffer.length < metadataLength + IV_LENGTH + AUTH_TAG_LENGTH) {
       throw new Error("Invalid versioned backup format");
     }
 
     const keyId = buffer
       .subarray(FORMAT_MAGIC.length + 1, metadataLength)
       .toString("utf8");
-    const configured = currentKey();
-    const secret = keyId === configured.id ? configured.secret : legacyKeyMap()[keyId];
-    if (!secret) throw new Error(`No backup decryption key configured for key ID '${keyId}'`);
+    if (!/^[A-Za-z0-9._-]{1,64}$/.test(keyId)) throw new Error("Invalid versioned backup key ID");
+    const legacyKeys = legacyKeyMap();
+    const secrets = Object.hasOwn(legacyKeys, keyId) ? legacyKeys[keyId] : [];
+    if (process.env.BACKUP_ENCRYPTION_SECRET) {
+      const configured = currentKey();
+      if (keyId === configured.id) secrets.unshift(configured.secret);
+    }
+    if (!secrets.length) throw new Error("No backup decryption key configured for this key ID");
 
     const iv = buffer.subarray(metadataLength, metadataLength + IV_LENGTH);
     const authTag = buffer.subarray(
@@ -114,10 +118,17 @@ export const decryptBackupPayload = (buffer: Buffer): Buffer => {
       metadataLength + IV_LENGTH + AUTH_TAG_LENGTH
     );
     const encrypted = buffer.subarray(metadataLength + IV_LENGTH + AUTH_TAG_LENGTH);
-    return decryptWithSecret(encrypted, iv, authTag, secret);
+    for (const secret of [...new Set(secrets)]) {
+      try {
+        return decryptWithSecret(encrypted, iv, authTag, secret);
+      } catch {
+        // An old deployment may have reused this ID after a master credential change.
+      }
+    }
+    throw new Error("Unable to decrypt versioned backup with configured keys");
   }
 
-  if (buffer.length <= IV_LENGTH + AUTH_TAG_LENGTH) {
+  if (buffer.length < IV_LENGTH + AUTH_TAG_LENGTH) {
     throw new Error("Invalid legacy backup format");
   }
 

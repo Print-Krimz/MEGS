@@ -4,6 +4,8 @@ import supabase from "../../utils/supabase.js";
 import { ensureBucketExists } from "../../middleware/upload.middleware.js";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
+import { validateDocumentBytes, MAX_CONTRACT_SCAN_BYTES } from "../../security/file-validation.js";
+import { validateLegacyResumeUrl } from "../../security/legacy-resume-download.js";
 
 export const uploadAndStoreDocument = async (
   userId: string,
@@ -12,10 +14,11 @@ export const uploadAndStoreDocument = async (
   applicationId?: number,
   profileId?: number
 ) => {
+  const validated = validateDocumentBytes(file.buffer, file.mimetype, category === "CONTRACT" ? MAX_CONTRACT_SCAN_BYTES : undefined);
   const BUCKET = "documents";
   await ensureBucketExists(BUCKET);
 
-  const extension = file.originalname.split(".").pop();
+  const extension = validated.extension;
   const storagePath = `${userId}/${category.toLowerCase()}/${uuidv4()}.${extension}`;
 
   const { error } = await supabase.storage
@@ -93,6 +96,7 @@ export const getDocumentDownloadUrl = async (documentId: number, requesterId: st
   if (!(await mayRead(doc, requesterId, requesterRole))) {
     throw new Error("Unauthorized to access this document");
   }
+  await ensureBucketExists(doc.storageBucket);
 
   const { data, error } = await supabase.storage
     .from(doc.storageBucket)
@@ -132,6 +136,7 @@ export const getDocumentPreview = async (documentId: number, requesterId: string
   if (!(await mayRead(doc, requesterId, requesterRole))) {
     throw new Error("Unauthorized to access this document");
   }
+  await ensureBucketExists(doc.storageBucket);
 
   const { data, error } = await supabase.storage
     .from(doc.storageBucket)
@@ -167,29 +172,27 @@ export const resolveDocumentSignedUrl = async (
 ): Promise<string | null> => {
   if (!urlOrPath) return null;
   if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
-    return urlOrPath;
+    // Approved historic links remain supported; arbitrary URLs never pass through.
+    return validateLegacyResumeUrl(urlOrPath).toString();
   }
-  const match = urlOrPath.match(/\/api\/documents\/(\d+)/);
-  const docId = match ? parseInt(match[1], 10) : parseInt(urlOrPath, 10);
-  try {
-    let doc = !isNaN(docId)
+  const match = urlOrPath.match(/^\/api\/documents\/(\d+)(?:\/download)?$/);
+  const docId = match ? Number(match[1]) : /^\d+$/.test(urlOrPath) ? Number(urlOrPath) : NaN;
+    const doc = Number.isSafeInteger(docId) && docId > 0
       ? await prisma.storedDocument.findUnique({ where: { id: docId } })
       : await prisma.storedDocument.findFirst({ where: { storagePath: urlOrPath } });
 
-    if (!doc) return urlOrPath;
+    if (!doc) throw new Error("Document not found");
     if (!(await mayRead(doc, requesterId, requesterRole))) {
-      return urlOrPath;
+      throw new Error("Unauthorized to access this document");
     }
+    await ensureBucketExists(doc.storageBucket);
     const { data, error } = await supabase.storage
       .from(doc.storageBucket)
-      .createSignedUrl(doc.storagePath, expiresInSeconds);
+      .createSignedUrl(doc.storagePath, Math.min(900, Math.max(1, Math.trunc(expiresInSeconds) || 60)));
     if (!error && data?.signedUrl) {
       return data.signedUrl;
     }
-  } catch {
-    return urlOrPath;
-  }
-  return urlOrPath;
+  throw new Error("Failed to generate download URL");
 };
 
 

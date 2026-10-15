@@ -236,16 +236,19 @@ export const listScoringConfigurationHistory = async (cursor?: number, limit = 2
 
 // ─── REVALIDATION QUEUE & LOGIC ────────────────────────────────────────
 
-import PQueue from "p-queue";
+import { BoundedWorkQueue } from "../../security/bounded-work-queue.js";
+import { safeLogError } from "../../security/errors.js";
 import { calculateAndPersistCandidateScore } from "./candidate-scoring.service.js";
 import { rebuildCandidateFeatureProfile } from "./talent-pool-knn.service.js";
 
-const revalidationQueue = new PQueue({ concurrency: 15 });
+const revalidationQueue = new BoundedWorkQueue(15, 100);
 const activeOperations = new Set<Promise<any>>();
 
 export const trackOperation = (promise: Promise<any>) => {
   activeOperations.add(promise);
-  promise.finally(() => activeOperations.delete(promise));
+  // finally() creates another rejecting Promise; use both fulfillment and
+  // rejection handlers so bookkeeping cannot cause an unhandled rejection.
+  void promise.then(() => activeOperations.delete(promise), () => activeOperations.delete(promise));
 };
 
 export const waitForRevalidationQueueToIdle = async () => {
@@ -266,7 +269,26 @@ const executeRevalidationTask = async (
       configurationId,
     });
   } catch (err: any) {
-    console.warn(`[Scoring] Background score calculation error (app ${applicationId}): ${err?.message}`);
+    safeLogError(`Scoring: calculate application #${applicationId}`, err);
+  }
+};
+
+const queueApplicationPages = async (where: Prisma.ApplicationWhereInput, configurationId: number): Promise<number> => {
+  const last = await prisma.application.findFirst({ where, orderBy: { id: "desc" }, select: { id: true } });
+  if (!last) return 0;
+  let cursor = 0; let total = 0;
+  for (;;) {
+    const page = await prisma.application.findMany({
+      where: { ...where, id: { gt: cursor, lte: last.id } },
+      orderBy: { id: "asc" }, take: 100,
+      select: { id: true, jobPostingId: true },
+    });
+    for (const app of page) {
+      await revalidationQueue.admit(() => executeRevalidationTask(app.id, app.jobPostingId, configurationId));
+    }
+    total += page.length;
+    if (page.length < 100) return total;
+    cursor = page[page.length - 1]!.id;
   }
 };
 
@@ -277,22 +299,10 @@ export const revalidateConfiguration = async (configurationId: number) => {
       select: { id: true, version: true },
     });
 
-    const applications = await prisma.application.findMany({
-      where: {
+    await queueApplicationPages({
         isArchived: false,
         user: { applicantProfile: { isNot: null } },
-      },
-      select: {
-        id: true,
-        jobPostingId: true,
-      },
-    });
-
-    for (const app of applications) {
-      void revalidationQueue.add(() =>
-        executeRevalidationTask(app.id, app.jobPostingId, configuration.id)
-      );
-    }
+      }, configuration.id);
   })();
 
   trackOperation(promise);
@@ -306,25 +316,11 @@ export const revalidateJobScoring = async (jobPostingId: number) => {
       select: { id: true, version: true },
     });
 
-    const applications = await prisma.application.findMany({
-      where: {
+    return queueApplicationPages({
         jobPostingId,
         isArchived: false,
         user: { applicantProfile: { isNot: null } },
-      },
-      select: {
-        id: true,
-        jobPostingId: true,
-      },
-    });
-
-    for (const app of applications) {
-      void revalidationQueue.add(() =>
-        executeRevalidationTask(app.id, app.jobPostingId, configuration.id)
-      );
-    }
-
-    return applications.length;
+      }, configuration.id);
   })();
 
   trackOperation(promise);
@@ -338,7 +334,8 @@ export const revalidateApplication = async (applicationId: number, jobPostingId:
       select: { id: true, version: true },
     });
 
-    await executeRevalidationTask(applicationId, jobPostingId, configuration.id);
+    const { completion } = await revalidationQueue.admit(() => executeRevalidationTask(applicationId, jobPostingId, configuration.id));
+    await completion;
   })();
 
   trackOperation(promise);
@@ -361,23 +358,10 @@ export const revalidateApplicantProfile = async (applicantProfileId: number) => 
         select: {
           id: true,
           userId: true,
-          user: {
-            select: {
-              applications: {
-                where: { isArchived: false },
-                select: { id: true, jobPostingId: true },
-              },
-            },
-          },
         },
       });
-      if (!profile || !profile.user) return;
-
-      for (const app of profile.user.applications) {
-        void revalidationQueue.add(() =>
-          executeRevalidationTask(app.id, app.jobPostingId, configuration.id)
-        );
-      }
+      if (!profile) return;
+      await queueApplicationPages({ userId: profile.userId, isArchived: false }, configuration.id);
     } catch {
       // Ignore background errors if profile or database state changed
     }

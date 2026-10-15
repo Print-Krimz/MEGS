@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
 import supabase from "../../utils/supabase.js";
 import { logAudit } from "../../utils/audit.js";
+import { decompressBackupPayload, validateBackupStructure, MAX_BACKUP_BYTES } from "../../security/backup-limits.js";
 import {
   decryptBackupPayload,
   encryptBackupPayload,
@@ -22,31 +23,19 @@ const gzipAsync = (buffer: Buffer): Promise<Buffer> =>
     });
   });
 
-const gunzipAsync = (buffer: Buffer): Promise<Buffer> =>
-  new Promise((resolve, reject) => {
-    zlib.gunzip(buffer, (error, decompressed) => {
-      if (error) reject(error);
-      else resolve(decompressed);
-    });
-  });
-
 export const ensureBackupBucketExists = async (): Promise<void> => {
   if (verifiedBuckets.has(BACKUP_BUCKET)) return;
-  try {
     const { data: buckets, error: listErr } = await supabase.storage.listBuckets();
-    const exists = (buckets || []).some((b) => (b.id || b.name) === BACKUP_BUCKET);
-    if (!exists) {
+    if (listErr) throw new Error("Unable to verify private backup storage");
+    const existing = (buckets || []).find((b) => (b.id || b.name) === BACKUP_BUCKET);
+    if (existing?.public) throw new Error("Backup storage bucket must be private");
+    if (!existing) {
       const { error: createErr } = await supabase.storage.createBucket(BACKUP_BUCKET, {
         public: false,
       });
-      if (createErr && !createErr.message.toLowerCase().includes("already exists")) {
-        console.warn(`[Storage] createBucket '${BACKUP_BUCKET}' warning:`, createErr.message);
-      }
+      if (createErr) throw new Error("Unable to create private backup storage");
     }
     verifiedBuckets.add(BACKUP_BUCKET);
-  } catch (err: any) {
-    console.warn(`[Storage] Auto-bucket provisioning warning for '${BACKUP_BUCKET}':`, err?.message);
-  }
 };
 
 const sanitizeBackupName = (rawName: string): string => {
@@ -494,7 +483,7 @@ export interface RestoreResult {
 }
 
 const decodeBackupBuffer = async (buffer: Buffer): Promise<Record<string, unknown>> => {
-  if (!buffer || buffer.length < 29) {
+  if (!buffer || buffer.length < 29 || buffer.length > MAX_BACKUP_BYTES) {
     throw new Error("Invalid backup file: file is empty, corrupted, or too small.");
   }
 
@@ -502,7 +491,7 @@ const decodeBackupBuffer = async (buffer: Buffer): Promise<Record<string, unknow
 
   try {
     const decrypted = decryptBackupPayload(buffer);
-    decompressed = await gunzipAsync(decrypted);
+    decompressed = await decompressBackupPayload(decrypted);
   } catch (err: any) {
     throw new Error("Failed to decrypt or decompress backup. Invalid key, corrupted file, or tampered data.");
   }
@@ -514,9 +503,7 @@ const decodeBackupBuffer = async (buffer: Buffer): Promise<Record<string, unknow
     throw new Error("Corrupted backup payload: unable to parse JSON contents.");
   }
 
-  if (!snapshot?.data || !snapshot?.meta) {
-    throw new Error("Invalid backup structure: missing metadata or data section.");
-  }
+  validateBackupStructure(snapshot);
 
   return snapshot.data;
 };
@@ -567,6 +554,7 @@ const downloadBackupFile = async (storagePath: string) => {
     throw new Error(`Backup snapshot could not be retrieved from Supabase Storage: ${error?.message || "File not found"}`);
   }
 
+  if (data.size > MAX_BACKUP_BYTES) throw new Error("Backup exceeds supported size limits");
   return Buffer.from(await data.arrayBuffer());
 };
 
@@ -574,6 +562,7 @@ export const restoreDatabaseBackupById = async (
   backupId: string,
   initiatedById: string
 ): Promise<RestoreResult> => {
+  await ensureBackupBucketExists();
   const record = await prisma.databaseBackupRecord.findUnique({
     where: { id: backupId },
   });

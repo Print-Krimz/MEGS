@@ -1,0 +1,13 @@
+// Shared security state uses the existing PostgreSQL deployment.
+model SecurityCounter {
+  key       String   @id
+  hits      Int
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+
+model SessionRevocation {
+  tokenHash String   @id
+  expiresAt DateTime
+  @@index([expiresAt])
+}

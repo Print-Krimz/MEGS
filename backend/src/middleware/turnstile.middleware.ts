@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { isLocalBypassEnabled } from "../security/runtime-config.js";
 
 /**
  * Cloudflare Turnstile CAPTCHA Verification Middleware
@@ -12,7 +13,7 @@ export async function verifyTurnstile(
   next: NextFunction
 ): Promise<void> {
   // Allow test environments and explicit disable flag to bypass
-  if (process.env.NODE_ENV === "test" || process.env.DISABLE_CAPTCHA === "true") {
+  if (process.env.NODE_ENV === "test" || isLocalBypassEnabled("DISABLE_CAPTCHA")) {
     return next();
   }
 
@@ -82,37 +83,30 @@ export async function verifyTurnstile(
       hostname?: string;
     };
 
-    if (!outcome.success) {
+    if (outcome.success !== true) {
       res.status(403).json({
         success: false,
         message: "Security verification failed. Please try again.",
-        errors: outcome["error-codes"],
       });
       return;
     }
 
-    // If allowed hostnames are configured, enforce matching frontend hostname
-    const rawAllowedHostnames = process.env.TURNSTILE_HOSTNAMES;
-    if (rawAllowedHostnames && outcome.hostname) {
-      const allowedSet = new Set(
-        rawAllowedHostnames
-          .split(",")
-          .map((h) => h.trim().toLowerCase())
-          .filter(Boolean)
-      );
-      if (allowedSet.size > 0 && !allowedSet.has(outcome.hostname.toLowerCase())) {
-        console.warn(`[Turnstile] Hostname mismatch: got '${outcome.hostname}', expected one of ${Array.from(allowedSet).join(", ")}`);
-        res.status(403).json({
-          success: false,
-          message: "Security verification hostname mismatch.",
-        });
-        return;
-      }
+    // Express has already matched this middleware to one of these POST routes.
+    // Do not normalize arbitrary suffixes or derive the expected action from client input.
+    const expectedAction = req.method === "POST" ? ({
+      "/register": "signup", "/login": "login", "/forgot-password": "forgot_password",
+    } as Record<string, string>)[req.path] : undefined;
+    const allowedHostnames = new Set((process.env.TURNSTILE_HOSTNAMES || "")
+      .split(",").map((host) => host.trim().toLowerCase()).filter(Boolean));
+    if (!expectedAction || outcome.action !== expectedAction ||
+      typeof outcome.hostname !== "string" || !allowedHostnames.has(outcome.hostname.toLowerCase())) {
+      res.status(403).json({ success: false, message: "Security verification failed. Please try again." });
+      return;
     }
 
     next();
   } catch (error) {
-    console.error("[Turnstile] Error verifying token with Cloudflare:", error);
+    console.error("[Turnstile] Verification request failed");
     res.status(500).json({
       success: false,
       message: "Unable to verify security challenge. Please try again later.",

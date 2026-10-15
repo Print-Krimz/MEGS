@@ -1,4 +1,5 @@
-import { getGeminiClient } from "../../utils/gemini.js";
+import { getGeminiClient, withGeminiCapacity } from "../../utils/gemini.js";
+import { withProviderRetry } from "../../security/provider-retry.js";
 import { createHash } from "crypto";
 
 export const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001";
@@ -74,11 +75,11 @@ export const generateJobEmbeddings = async (texts: string[]): Promise<number[][]
   const missing = [...new Set(keys.filter((_, index) => !results[index]))];
   for (let start = 0; start < missing.length; start += GEMINI_BATCH_LIMIT) {
     const chunk = missing.slice(start, start + GEMINI_BATCH_LIMIT);
-    const response = await getGeminiClient().models.embedContent({
+    const response = await withGeminiCapacity(() => withProviderRetry(() => getGeminiClient().models.embedContent({
       model,
       contents: chunk.map((key) => cleaned[keys.indexOf(key)]),
       config: { outputDimensionality: EMBEDDING_DIMENSION, taskType },
-    });
+    })));
     chunk.forEach((key, index) => {
       const values = response.embeddings?.[index]?.values;
       if (!Array.isArray(values) || values.length !== EMBEDDING_DIMENSION) {
@@ -119,14 +120,14 @@ export const generateEmbedding = async (
   const model = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
 
   const ai = getGeminiClient();
-  const response = await ai.models.embedContent({
+  const response = await withGeminiCapacity(() => withProviderRetry(() => ai.models.embedContent({
     model,
     contents: cleanText,
     config: {
       outputDimensionality: EMBEDDING_DIMENSION,
       taskType,
     },
-  });
+  })));
 
   const embeddingObj = response.embeddings?.[0];
   if (!embeddingObj || !Array.isArray(embeddingObj.values) || embeddingObj.values.length === 0) {

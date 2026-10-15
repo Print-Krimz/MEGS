@@ -13,6 +13,7 @@ import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/commo
 import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { maskEmail } from "../../lib/utils";
+import { useSecurityControls } from "../../hooks/useSecurityControls";
 
 const emailSchema = z.object({
   email: z.string().trim().min(1, "Email is required").email("Please enter a valid email address"),
@@ -37,6 +38,9 @@ export const ForgotPasswordPage: React.FC = () => {
   const isEmailLocked = Boolean(search?.email?.trim());
   const [email, setEmail] = useState(search?.email || "");
   const [step, setStep] = useState<"EMAIL" | "VERIFY_OTP" | "SET_PASSWORD" | "SUCCESS">("EMAIL");
+  const controls = useSecurityControls();
+  const otpDisabled = controls.data?.otpDisabled === true && !controls.isError;
+  const rateLimitDisabled = controls.data?.rateLimitDisabled === true && !controls.isError;
   const [otpCode, setOtpCode] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [passwordData, setPasswordData] = useState({ password: "", confirmPassword: "" });
@@ -52,6 +56,8 @@ export const ForgotPasswordPage: React.FC = () => {
       setEmail(search.email);
     }
   }, [search?.email]);
+
+  useEffect(() => { if (rateLimitDisabled) setCooldown(0); }, [rateLimitDisabled, cooldown]);
 
   // Cooldown countdown timer for resend
   useEffect(() => {
@@ -332,6 +338,21 @@ export const ForgotPasswordPage: React.FC = () => {
             error={validationErrors.otp}
             hint="The code expires in 10 minutes."
           />
+
+          {otpDisabled && (
+            <div className="flex flex-col gap-3 rounded-lg border border-amber-300/70 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">
+              <p>Email OTP is temporarily disabled for this demo. An unexpired pending challenge is still required.</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="self-start"
+                disabled={verifyOtpMutation.isPending}
+                onClick={() => verifyOtpMutation.mutate({ email: email.trim(), otp: "000000", purpose: "PASSWORD_RESET" })}
+              >
+                Continue without OTP
+              </Button>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3">
             <Button

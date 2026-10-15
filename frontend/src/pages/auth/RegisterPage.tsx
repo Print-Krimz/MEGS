@@ -13,6 +13,7 @@ import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/commo
 import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { maskEmail } from "../../lib/utils";
+import { useSecurityControls } from "../../hooks/useSecurityControls";
 
 const registerSchema = z
   .object({
@@ -36,6 +37,9 @@ export const RegisterPage: React.FC = () => {
     confirmPassword: "",
   });
 
+  const controls = useSecurityControls();
+  const otpDisabled = controls.data?.otpDisabled === true && !controls.isError;
+  const rateLimitDisabled = controls.data?.rateLimitDisabled === true && !controls.isError;
   const [otpCode, setOtpCode] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string>("");
   const turnstileRef = React.useRef<TurnstileWidgetRef>(null);
@@ -43,6 +47,8 @@ export const RegisterPage: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(60);
+
+  useEffect(() => { if (rateLimitDisabled) setCooldown(0); }, [rateLimitDisabled, cooldown]);
 
   // Cooldown countdown timer for resend
   useEffect(() => {
@@ -246,6 +252,21 @@ export const RegisterPage: React.FC = () => {
             error={validationErrors.otp}
             hint="The code expires in 10 minutes."
           />
+
+          {otpDisabled && (
+            <div className="flex flex-col gap-3 rounded-lg border border-amber-300/70 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">
+              <p>Email OTP is temporarily disabled for this demo. An unexpired pending challenge is still required.</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="self-start"
+                disabled={verifyMutation.isPending}
+                onClick={() => verifyMutation.mutate({ email: formData.email.trim(), otp: "000000", purpose: "REGISTRATION" })}
+              >
+                Continue without OTP
+              </Button>
+            </div>
+          )}
 
           <Button type="submit" size="lg" className="w-full" disabled={otpCode.length !== 6 || verifyMutation.isPending}>
             {verifyMutation.isPending && <Spinner data-icon="inline-start" />}

@@ -17,6 +17,7 @@ import type {
 } from "../types/auth.types";
 
 export const authApi = {
+  continueWithoutMfa: (token: string) => api.post<LoginResponse>("/api/auth/mfa/continue", { token }),
   login: (data: LoginRequest, turnstileToken?: string) =>
     api.post<LoginResponse>(
       "/api/auth/login",

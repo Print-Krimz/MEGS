@@ -1,5 +1,8 @@
 import { Router } from "express";
 import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
+import { reportLimiters, maintenanceLimiters, analyticsLimiters, scoringLimiters } from '../../middleware/rate-limiter.middleware.js';
+import { acquireUploadSlot } from '../../middleware/upload.middleware.js';
+import { acquireMaintenanceSlot, finishMaintenance } from '../../middleware/maintenance-limit.middleware.js';
 import { validate, validateDateRangeQuery } from '../../middleware/validate.middleware.js';
 import { adminSchema } from '../../schemas/admin.schema.js';
 import { analyticsSchema } from '../../schemas/analytics.schema.js';
@@ -64,6 +67,8 @@ const router = Router();
 router.use(authenticateJWT);
 router.use(requireRole("ADMINISTRATOR"));
 router.use(validateDateRangeQuery);
+router.use("/analytics", ...analyticsLimiters);
+router.use(["/reports", "/audit-logs/export"], ...reportLimiters);
 
 // User & Role Management
 router.get("/users", validate(adminSchema.listUsers), listUsers);
@@ -81,8 +86,8 @@ router.patch("/interviews/:interviewId/result", validate(adminSchema.correctInte
 // Dynamic Scoring Config
 router.get("/candidate-scoring/configuration", getConfiguration);
 router.post("/candidate-scoring/configuration/validate", validateConfiguration);
-router.put("/candidate-scoring/configuration", updateConfiguration);
-router.post("/candidate-scoring/configuration/restore-defaults", restoreDefaults);
+router.put("/candidate-scoring/configuration", ...scoringLimiters, updateConfiguration);
+router.post("/candidate-scoring/configuration/restore-defaults", ...scoringLimiters, restoreDefaults);
 router.get("/candidate-scoring/configuration/history", getConfigurationHistory);
 router.get("/candidate-scoring/quality-metrics", getQualityMetrics);
 
@@ -94,17 +99,17 @@ import multer from "multer";
 
 const backupUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024, files: 1, fields: 20, fieldSize: 65536, parts: 21 },
 });
 
 // Database Maintenance & Encrypted Backups / Restores
 router.get("/maintenance/backups", validate(adminSchema.backupList), listBackupsHandler);
-router.post("/maintenance/backup", validate(adminSchema.triggerBackup), triggerBackupHandler);
+router.post("/maintenance/backup", ...maintenanceLimiters, validate(adminSchema.triggerBackup), acquireMaintenanceSlot, finishMaintenance(triggerBackupHandler));
 router.patch("/maintenance/backups/:id/rename", validate(adminSchema.renameBackup), renameBackupHandler);
-router.get("/maintenance/backups/:id/download", validate(adminSchema.backupIdParams), downloadBackupHandler);
-router.post("/maintenance/backups/:id/restore", validate(adminSchema.backupIdParams), restoreDatabaseBackupHandler);
+router.get("/maintenance/backups/:id/download", ...reportLimiters, validate(adminSchema.backupIdParams), downloadBackupHandler);
+router.post("/maintenance/backups/:id/restore", ...maintenanceLimiters, validate(adminSchema.backupIdParams), acquireMaintenanceSlot, finishMaintenance(restoreDatabaseBackupHandler));
 router.get("/maintenance/restores", validate(adminSchema.backupList), listRestoresHandler);
-router.post("/maintenance/backups/restore-upload", backupUpload.single("file"), validate(adminSchema.restoreUploadedBackup), restoreUploadedBackupHandler);
+router.post("/maintenance/backups/restore-upload", ...maintenanceLimiters, acquireMaintenanceSlot, acquireUploadSlot, backupUpload.single("file"), validate(adminSchema.restoreUploadedBackup), finishMaintenance(restoreUploadedBackupHandler));
 router.post("/maintenance/cancel", cancelMaintenanceHandler);
 
 // Recruitment Analytics

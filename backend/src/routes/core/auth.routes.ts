@@ -24,10 +24,17 @@ import { authSchema } from '../../schemas/auth.schema.js';
 import {
   authLimiter,
   forgotPasswordLimiter,
+  authIpLimiter,
+  authAccountLimiter,
 } from '../../middleware/rate-limiter.middleware.js';
 import { verifyTurnstile } from '../../middleware/turnstile.middleware.js';
 
+import { continueWithoutMfa } from "../../controllers/core/mfa-continue.controller.js";
 const router = Router();
+router.post("/mfa/continue", authLimiter, continueWithoutMfa);
+// Revocation must remain available even after the authentication budgets are exhausted.
+router.post("/logout", authenticateJWT, logout);
+router.use(authIpLimiter, authAccountLimiter);
 
 // Public Auth Endpoints (Rate Limited & Bot Protected)
 router.post("/register", authLimiter, verifyTurnstile, validate(authSchema.register), register);
@@ -70,7 +77,6 @@ router.post(
   validate(authSchema.changePassword),
   changePassword
 );
-router.post("/logout", authenticateJWT, logout);
 
 export default router;
 
