@@ -48,7 +48,8 @@ __tests__/
 vitest.config.ts
 *.vitest.*
 e2e/
-playwright.config.ts
+playwright*.config.ts
+pw-*.config.ts
 test-results/
 playwright-report/
 blob-report/
@@ -83,6 +84,7 @@ backend/--commit
 
 # 7. Internal AI Agents, Superpowers & Sprint Documentation
 .agents/
+.claude/
 .superpowers/
 .docs/
 .impeccable/
@@ -90,15 +92,9 @@ frontend/.impeccable/
 agent/
 AGENTS.md
 docs/
-!docs/
-docs/*
-!docs/security-review/
-docs/security-review/*
-!docs/security-review/security-findings-inventory.md
-!docs/security-review/security-remaining-findings.md
-!docs/security-review/security-fixes-completed.md
-!docs/security-review/corrective-patch-baseline.md
-!docs/security-review/corrective-patch-report.md
+DESIGN.md
+PRODUCT.md
+skills-lock.json
 
 # Keep reviewed security regressions in Git and CI.
 !backend/tests/
@@ -114,6 +110,8 @@ database_diagrams.html
 FIELD_VALIDATION_INVENTORY.md
 
 # 8. IDE, Editor & OS Artifacts
+*.tmp
+*.tmp.*
 .vscode/
 .idea/
 *.swp
