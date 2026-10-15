@@ -474,6 +474,16 @@ export const getMRFDetails = async (id: number) => {
   };
 };
 
+// Manual status moves. CANCELLED is final for manual edits (no reopening a cancelled request).
+// FILLED stays selectable by hand as before; syncMRFFulfillmentStatus also derives it from deployments and is not checked here.
+const MRF_MANUAL_TRANSITIONS: Record<string, string[]> = {
+  OPEN: ["IN_PROGRESS", "ON_HOLD", "FILLED", "CANCELLED"],
+  IN_PROGRESS: ["OPEN", "ON_HOLD", "FILLED", "CANCELLED"],
+  ON_HOLD: ["OPEN", "IN_PROGRESS", "FILLED", "CANCELLED"],
+  FILLED: ["OPEN", "IN_PROGRESS", "ON_HOLD", "CANCELLED"],
+  CANCELLED: [],
+};
+
 export const updateMRF = async (
   id: number,
   data: {
@@ -500,16 +510,48 @@ export const updateMRF = async (
   },
   actorId?: string
 ) => {
+  // The schema rejects a blank title too; this guards direct callers because title is a required column.
+  if (data.title !== undefined && !(data.title ?? "").trim()) throw new Error("Request title is required.");
   const currentMrf = await prisma.manpowerRequest.findUnique({
     where: { id },
-    select: { targetFillDate: true },
+    select: { targetFillDate: true, headcount: true, salaryRangeMin: true, salaryRangeMax: true, ageMin: true, ageMax: true, status: true },
   });
   if (!currentMrf) throw new Error("Manpower Request not found");
+  if (data.status !== undefined && data.status !== currentMrf.status) {
+    const allowed = MRF_MANUAL_TRANSITIONS[currentMrf.status] ?? [];
+    if (!allowed.includes(data.status)) {
+      throw new Error(`A request that is ${currentMrf.status} can't be moved to ${data.status}.`);
+    }
+  }
   if (data.targetFillDate) {
     const target = String(data.targetFillDate).slice(0, 10);
     const previousTarget = currentMrf.targetFillDate ? toManilaDateOnly(currentMrf.targetFillDate) : undefined;
     if (!isValidDateOnly(target) || (target < manilaDateString() && target !== previousTarget)) {
       throw new Error("Target fill date must be today or a future date.");
+    }
+  }
+  // The schema only sees this body, so compare the effective values (incoming, else stored) against the stored row.
+  // Only checked when the request touches the field, so unrelated edits to legacy rows are not blocked.
+  const effectiveValue = (incoming: unknown, stored: number | null) =>
+    incoming === undefined ? stored : incoming === null || incoming === "" ? null : Number(incoming);
+  if (data.salaryRangeMin !== undefined || data.salaryRangeMax !== undefined) {
+    const minSalary = effectiveValue(data.salaryRangeMin, currentMrf.salaryRangeMin);
+    const maxSalary = effectiveValue(data.salaryRangeMax, currentMrf.salaryRangeMax);
+    if (minSalary != null && maxSalary != null && minSalary > maxSalary) {
+      throw new Error("Minimum salary can't be higher than maximum salary.");
+    }
+  }
+  if (data.ageMin !== undefined || data.ageMax !== undefined) {
+    const minAge = effectiveValue(data.ageMin, currentMrf.ageMin);
+    const maxAge = effectiveValue(data.ageMax, currentMrf.ageMax);
+    if (minAge != null && maxAge != null && minAge > maxAge) {
+      throw new Error("Minimum age can't be higher than maximum age.");
+    }
+  }
+  if (data.headcount !== undefined && Number(data.headcount) !== currentMrf.headcount) {
+    const { deployedCount } = await calculateMRFFulfillment(id);
+    if (Number(data.headcount) < deployedCount) {
+      throw new Error(`Headcount can't be lower than the ${deployedCount} already deployed.`);
     }
   }
   const updateData: any = { ...data };

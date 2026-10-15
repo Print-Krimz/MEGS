@@ -180,10 +180,7 @@ export const recordBackout = async (input: RecordBackoutInput) => {
       userId: application.userId,
       applicationId,
       actorId,
-      notes:
-        party === "APPLICANT"
-          ? "Kept in talent pool by the recruiter after the applicant backed out"
-          : "Returned to talent pool after backout not caused by the candidate",
+      notes: "Kept in talent pool by the recruiter after a backout",
     }).catch(() => {});
   }
 

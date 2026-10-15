@@ -36,6 +36,9 @@ export const validateStructuredAddress = (
   if (!hasText(next.postalCode) || !/^\d{4}$/.test(next.postalCode.trim())) {
     throw new Error("Postal code must be exactly 4 digits.");
   }
+  if (next.postalCode.trim() === "0000") {
+    throw new Error("Enter a valid 4-digit postal code.");
+  }
 
   if (isNcrProvince(next.province)) {
     if (!getNcrLocality(next.city)) {

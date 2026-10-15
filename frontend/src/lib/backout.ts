@@ -1,4 +1,6 @@
 // Frontend mirror of backend/src/services/ta/backout-rules.ts (reasons per responsible party).
+import { ALLOWED_STAGE_TRANSITIONS, ApplicationStatus } from "./types/enums";
+
 export type BackoutParty = "APPLICANT" | "CLIENT" | "AGENCY";
 
 export const BACKOUT_PARTY_LABELS: Record<BackoutParty, string> = {
@@ -66,6 +68,12 @@ export const canRecordBackout = (status: string, deploymentStatuses: string[] = 
 
 export const canApplicantWithdraw = (status: string): boolean =>
   status !== "DEPLOYED" && BACKOUT_ELIGIBLE.includes(status);
+
+/** Talent Pool is offered only from stages that may move to it. Source: ALLOWED_STAGE_TRANSITIONS (mirrors backend pipeline-rules.ts). */
+export const canKeepInTalentPool = (status: string): boolean => {
+  const next: readonly string[] = ALLOWED_STAGE_TRANSITIONS[status] ?? [];
+  return next.includes(ApplicationStatus.TALENT_POOL);
+};
 
 export type ClosureOutcome = "REJECTED" | "BACKED_OUT";
 export type ClosureDisposition = "TALENT_POOL" | "ARCHIVE";

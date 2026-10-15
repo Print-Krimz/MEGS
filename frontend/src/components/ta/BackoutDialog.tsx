@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Button, Dialog, Select, Textarea } from "../ui";
 import { APPLICANT_SELF_REASONS, BACKOUT_REASON_LABELS } from "../../lib/backout";
+import { FIELD_LIMITS } from "../../lib/field-limits";
 
 export interface BackoutSubmission {
   reason: string;
@@ -18,6 +19,9 @@ interface BackoutDialogProps {
 export const BackoutDialog: React.FC<BackoutDialogProps> = ({ open, onClose, onSubmit, loading }) => {
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
+  // "Other" must be explained; the backend refuses it without notes too.
+  const notesRequired = reason === "OTHER";
+  const notesMissing = notesRequired && !notes.trim();
 
   useEffect(() => {
     if (!open) return;
@@ -41,10 +45,13 @@ export const BackoutDialog: React.FC<BackoutDialogProps> = ({ open, onClose, onS
           options={APPLICANT_SELF_REASONS.map((r) => ({ value: r, label: BACKOUT_REASON_LABELS[r] ?? r }))}
         />
         <Textarea
-          label="Notes (optional)"
+          label={notesRequired ? "Notes" : "Notes (optional)"}
+          required={notesRequired}
           placeholder="Add details..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
+          maxLength={FIELD_LIMITS.notes}
+          error={notesMissing ? "Please describe the reason." : undefined}
           rows={3}
         />
         <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
@@ -55,7 +62,7 @@ export const BackoutDialog: React.FC<BackoutDialogProps> = ({ open, onClose, onS
             variant="danger"
             size="sm"
             loading={loading}
-            disabled={!reason}
+            disabled={!reason || notesMissing}
             onClick={() => onSubmit({ reason, notes: notes.trim() || undefined })}
           >
             Withdraw application

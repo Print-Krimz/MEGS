@@ -41,12 +41,18 @@ export const registerUser = async (email: string, password: string) => {
   let dbUserId: string;
 
   if (existingUser && existingUser.accountStatus === "PENDING_VERIFICATION") {
-    // Update existing unverified user password in Supabase
-    const { error: updateError } = await supabase.auth.admin.updateUserById(existingUser.id, {
-      password,
+    // A pending registration keeps its original password and profile. Re-registering only resends the code,
+    // under the same 60-second cooldown that resendOtp applies.
+    const latestOtp = await prisma.authOtp.findFirst({
+      where: { email: emailLower, purpose: "REGISTRATION" },
+      orderBy: { createdAt: "desc" },
     });
-    if (updateError) {
-      throw new Error("Failed to update registration. Please try again later.");
+    if (latestOtp && !(await getSecurityControls()).rateLimitDisabled) {
+      const elapsed = Date.now() - new Date(latestOtp.createdAt).getTime();
+      if (elapsed < 60000) {
+        const remainingSeconds = Math.ceil((60000 - elapsed) / 1000);
+        throw new Error(`Please wait ${remainingSeconds} seconds before requesting another code.`);
+      }
     }
     dbUserId = existingUser.id;
   } else {
@@ -153,7 +159,10 @@ export const verifyOtp = async (
     throw new Error("Verification code has expired. Please request a new one.");
   }
 
-  const isDevMasterOtp = await isOtpTestBypassEnabled();
+  // DISABLE_OTP skips code comparison only for registration, and never in production.
+  const isDevMasterOtp = purpose === "REGISTRATION" &&
+    process.env.NODE_ENV !== "production" &&
+    (await isOtpTestBypassEnabled());
   if (!isDevMasterOtp && activeOtp.attempts >= activeOtp.maxAttempts) {
     await prisma.authOtp.update({
       where: { id: activeOtp.id },

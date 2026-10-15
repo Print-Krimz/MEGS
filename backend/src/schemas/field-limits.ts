@@ -330,3 +330,46 @@ export const isFutureDateTime = (value: string, now = Date.now()): boolean => {
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) && timestamp > now;
 };
+
+const ADULT_MIN_AGE = 18;
+const ADULT_MAX_AGE = 100;
+
+/** Completed years between a YYYY-MM-DD birth date and a YYYY-MM-DD "today" (both calendar dates). */
+const completedYearsOn = (birthDate: string, today: string): number => {
+  const [birthYear, birthMonth, birthDay] = birthDate.split("-").map(Number);
+  const [year, month, day] = today.split("-").map(Number);
+  const hadBirthdayThisYear = month > birthMonth || (month === birthMonth && day >= birthDay);
+  return year - birthYear - (hadBirthdayThisYear ? 0 : 1);
+};
+
+/**
+ * Real YYYY-MM-DD date of birth for an adult applicant or candidate. Completed age must be 18 to 100
+ * inclusive, measured against today's date in Manila time. Callers allow "", null and absent explicitly.
+ */
+export const adultDateOfBirth = (label = "Applicant") =>
+  z.string().superRefine((value, ctx) => {
+    if (!isValidDateOnly(value)) {
+      ctx.addIssue({ code: "custom", message: "Enter a valid date from 1900 through 2100" });
+      return;
+    }
+    const age = completedYearsOn(value, manilaDateString());
+    if (age < ADULT_MIN_AGE || age > ADULT_MAX_AGE) {
+      ctx.addIssue({ code: "custom", message: `${label} must be between ${ADULT_MIN_AGE} and ${ADULT_MAX_AGE} years old.` });
+    }
+  });
+
+/** Exact digit count for a Philippine government ID. Spaces and dashes are formatting only; empty values are allowed. */
+const governmentIdDigits = (allowedLengths: readonly number[], message: string) =>
+  z
+    .string()
+    .optional()
+    .nullable()
+    .refine((value) => {
+      if (!value || value.trim() === "") return true;
+      return /^[\d -]+$/.test(value) && allowedLengths.includes(value.replace(/\D/g, "").length);
+    }, message);
+
+export const sssNumber = governmentIdDigits([10], "SSS number must be 10 digits.");
+export const philhealthNumber = governmentIdDigits([12], "PhilHealth number must be 12 digits.");
+export const pagibigNumber = governmentIdDigits([12], "Pag-IBIG number must be 12 digits.");
+export const tinNumber = governmentIdDigits([9, 12], "TIN must be 9 or 12 digits.");

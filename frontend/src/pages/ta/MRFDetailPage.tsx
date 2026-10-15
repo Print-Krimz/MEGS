@@ -47,6 +47,23 @@ import {
 
 type MRFDetailTab = "deployments" | "jobs" | "specifications";
 
+// Manual status moves for a manpower request. Mirrors MRF_MANUAL_TRANSITIONS in backend/src/services/ta/ta.mrf.service.ts.
+// CANCELLED is final for manual edits.
+const MRF_STATUS_LABELS: Record<string, string> = {
+  OPEN: "Open",
+  IN_PROGRESS: "In progress",
+  FILLED: "Filled",
+  ON_HOLD: "On hold",
+  CANCELLED: "Cancelled",
+};
+const MRF_MANUAL_NEXT_STATUSES: Record<string, string[]> = {
+  OPEN: ["IN_PROGRESS", "ON_HOLD", "FILLED", "CANCELLED"],
+  IN_PROGRESS: ["OPEN", "ON_HOLD", "FILLED", "CANCELLED"],
+  ON_HOLD: ["OPEN", "IN_PROGRESS", "FILLED", "CANCELLED"],
+  FILLED: ["OPEN", "IN_PROGRESS", "ON_HOLD", "CANCELLED"],
+  CANCELLED: [],
+};
+
 const formatAgeRange = (min?: number | null, max?: number | null): string => {
   if (min != null && max != null) {
     return `${min} - ${max} years old`;
@@ -598,6 +615,8 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 <Button
                   variant="outline"
                   size="sm"
+                  disabled={(MRF_MANUAL_NEXT_STATUSES[mrf.status] ?? []).length === 0}
+                  title={(MRF_MANUAL_NEXT_STATUSES[mrf.status] ?? []).length === 0 ? "This request's status is final." : undefined}
                   onClick={() => {
                     setEditStatus(mrf.status);
                     setEditStatusModalOpen(true);
@@ -1708,13 +1727,10 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 label="Request status"
                 value={editStatus}
                 onChange={(e) => setEditStatus(e.target.value)}
-                options={[
-                  { value: "OPEN", label: "Open" },
-                  { value: "IN_PROGRESS", label: "In progress" },
-                  { value: "FILLED", label: "Filled" },
-                  { value: "ON_HOLD", label: "On hold" },
-                  { value: "CANCELLED", label: "Cancelled" },
-                ]}
+                options={[mrf.status, ...(MRF_MANUAL_NEXT_STATUSES[mrf.status] ?? [])].map((value) => ({
+                  value,
+                  label: MRF_STATUS_LABELS[value] ?? value,
+                }))}
               />
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <Button variant="outline" size="sm" onClick={() => setEditStatusModalOpen(false)}>

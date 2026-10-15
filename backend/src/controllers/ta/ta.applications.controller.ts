@@ -166,7 +166,8 @@ export const restoreApplication = async (req: Request, res: Response): Promise<v
       sendError(res, "Invalid application ID", 400);
       return;
     }
-    const updated = await restoreTAApplication(id, req.user?.id);
+    const restoreReason = req.body?.reason ?? req.body?.notes;
+    const updated = await restoreTAApplication(id, req.user!.id, restoreReason);
     sendSuccess(res, "Application restored to pipeline", updated);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;

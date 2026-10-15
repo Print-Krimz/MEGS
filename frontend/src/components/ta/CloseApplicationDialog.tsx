@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Button, Dialog, Input, Select, Textarea } from "../ui";
-import { getManilaToday } from "../../lib/field-limits";
+import { FIELD_LIMITS, getManilaToday } from "../../lib/field-limits";
 import {
   BACKOUT_REASONS_BY_PARTY,
   BACKOUT_REASON_LABELS,
   REJECTION_REASON_OPTIONS,
+  canKeepInTalentPool,
   type ClosureDisposition,
   type ClosureOutcome,
 } from "../../lib/backout";
@@ -27,6 +28,8 @@ interface CloseApplicationDialogProps {
   /** Hiring stage right now; after client review a rejected candidate is kept in the pool by default. */
   stage: string;
   candidateName?: string;
+  /** Day the application was created (YYYY-MM-DD, Manila): the earliest allowed Backed Out date. */
+  applicationCreatedOn?: string;
 }
 
 const KEEP_AFTER_CLIENT_REVIEW = ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW"];
@@ -53,10 +56,13 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
   outcome,
   stage,
   candidateName,
+  applicationCreatedOn,
 }) => {
   const today = getManilaToday();
+  // Talent Pool is offered for a rejection only from a stage that may move to it (the backend enforces this for rejections only).
+  const poolAllowed = outcome === "BACKED_OUT" || canKeepInTalentPool(stage);
   const defaultDisposition: ClosureDisposition =
-    outcome === "REJECTED" && KEEP_AFTER_CLIENT_REVIEW.includes(stage) ? "TALENT_POOL" : "ARCHIVE";
+    poolAllowed && outcome === "REJECTED" && KEEP_AFTER_CLIENT_REVIEW.includes(stage) ? "TALENT_POOL" : "ARCHIVE";
   const [reason, setReason] = useState("");
   const [disposition, setDisposition] = useState<ClosureDisposition>(defaultDisposition);
   const [occurredOn, setOccurredOn] = useState(today);
@@ -68,6 +74,9 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
     : REJECTION_REASON_OPTIONS;
   // A no-show is never added to the talent pool, so the only disposition left is Archive.
   const noShow = isBackout && reason === "NO_SHOW";
+  // An "Other" reason must be explained in the notes.
+  const notesRequired = reason === "OTHER";
+  const notesMissing = notesRequired && !notes.trim();
   const copy = COPY[outcome];
 
   useEffect(() => {
@@ -94,6 +103,7 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
             label="Date it happened"
             type="date"
             value={occurredOn}
+            min={applicationCreatedOn}
             max={today}
             onChange={(e) => setOccurredOn(e.target.value)}
           />
@@ -109,15 +119,18 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
             onChange={(e) => setDisposition(e.target.value as ClosureDisposition)}
             options={[
               { value: "ARCHIVE", label: "Archive (no longer considered for active recruitment)" },
-              { value: "TALENT_POOL", label: "Talent Pool (may qualify for future openings)" },
+              ...(poolAllowed ? [{ value: "TALENT_POOL", label: "Talent Pool (may qualify for future openings)" }] : []),
             ]}
           />
         )}
         <Textarea
-          label="Notes (optional)"
+          label={notesRequired ? "Notes" : "Notes (optional)"}
           placeholder="Add details..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
+          required={notesRequired}
+          maxLength={FIELD_LIMITS.notes}
+          error={notesMissing ? "Please describe the reason." : undefined}
           rows={3}
         />
         <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
@@ -128,12 +141,12 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
             variant="danger"
             size="sm"
             loading={loading}
-            disabled={!reason || (isBackout && !occurredOn)}
+            disabled={!reason || (isBackout && !occurredOn) || notesMissing}
             onClick={() =>
               onSubmit({
                 outcome,
                 reasonCode: reason,
-                disposition: noShow ? "ARCHIVE" : disposition,
+                disposition: noShow || !poolAllowed ? "ARCHIVE" : disposition,
                 notes: notes.trim() || undefined,
                 occurredOn: isBackout ? occurredOn : undefined,
               })

@@ -26,6 +26,17 @@ import {
   validateStandardText,
   validatePhilippineContactPhone,
 } from "../../lib/statutory-validation";
+import { z } from "zod";
+import { FIELD_LIMITS } from "../../lib/field-limits";
+
+// First and last name are joined with a space; capping each part keeps the joined name within the backend limit.
+const CONTACT_NAME_PART_MAX = Math.floor((FIELD_LIMITS.name - 1) / 2);
+const CONTACT_EMAIL_MESSAGE = "Enter a valid email address.";
+const contactEmailSchema = z.string().trim().email(CONTACT_EMAIL_MESSAGE).max(FIELD_LIMITS.email, CONTACT_EMAIL_MESSAGE);
+const contactNameLengthError = (first: string, last: string) =>
+  [first.trim(), last.trim()].filter(Boolean).join(" ").length > FIELD_LIMITS.name
+    ? `Contact name cannot exceed ${FIELD_LIMITS.name} characters.`
+    : undefined;
 
 export const ClientDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -405,6 +416,12 @@ export const ClientDetailPage: React.FC = () => {
               }
             }
 
+            const contactNameErr = contactNameLengthError(editContactFirstName, editContactLastName);
+            if (contactNameErr) {
+              notify.error("Invalid Contact Name", contactNameErr);
+              return;
+            }
+
             if (editContactPhone.trim()) {
               const phoneErr = validatePhilippineContactPhone(editContactPhone, { label: "Contact phone" });
               if (phoneErr) {
@@ -413,8 +430,8 @@ export const ClientDetailPage: React.FC = () => {
               }
             }
 
-            if (editContactEmail.trim() && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(editContactEmail.trim())) {
-              setEditEmailError("Official contact email must be a valid @gmail.com address");
+            if (editContactEmail.trim() && !contactEmailSchema.safeParse(editContactEmail).success) {
+              setEditEmailError(CONTACT_EMAIL_MESSAGE);
               return;
             }
             const hasAddress = [editStreet, editProvince, editCity, editBarangay, editPostalCode].some((value) => value.trim());
@@ -428,18 +445,19 @@ export const ClientDetailPage: React.FC = () => {
               return;
             }
             const combinedName = [editContactFirstName.trim(), editContactLastName.trim()].filter(Boolean).join(" ");
+            // Optional fields send null when emptied so the save clears them; undefined would leave the stored value.
             updateClientMutation.mutate({
               name: editName.trim(),
-              tradeName: editTradeName.trim() || undefined,
-              industry: editIndustry.trim() || undefined,
-              contactName: combinedName || undefined,
-              contactEmail: editContactEmail.trim() || undefined,
-              contactPhone: editContactPhone.trim() || undefined,
-              street: editStreet.trim() || undefined,
-              barangay: editBarangay.trim() || undefined,
-              province: editProvince.trim() || undefined,
-              city: editCity.trim() || undefined,
-              postalCode: editPostalCode.trim() || undefined,
+              tradeName: editTradeName.trim() || null,
+              industry: editIndustry.trim() || null,
+              contactName: combinedName || null,
+              contactEmail: editContactEmail.trim() || null,
+              contactPhone: editContactPhone.trim() || null,
+              street: editStreet.trim() || null,
+              barangay: editBarangay.trim() || null,
+              province: editProvince.trim() || null,
+              city: editCity.trim() || null,
+              postalCode: editPostalCode.trim() || null,
               reviewThresholdDays: reviewThreshold,
               medicalValidityMonths: Number(editMedicalValidityMonths) || 6,
             });
@@ -471,7 +489,7 @@ export const ClientDetailPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Contact first name"
-              maxLength={100}
+              maxLength={CONTACT_NAME_PART_MAX}
               nameInput
               placeholder="e.g. Roberto"
               value={editContactFirstName}
@@ -479,9 +497,10 @@ export const ClientDetailPage: React.FC = () => {
             />
             <Input
               label="Contact last name"
-              maxLength={100}
+              maxLength={CONTACT_NAME_PART_MAX}
               nameInput
               placeholder="e.g. Tan"
+              error={contactNameLengthError(editContactFirstName, editContactLastName)}
               value={editContactLastName}
               onChange={(e) => setEditContactLastName(e.target.value)}
             />
@@ -496,7 +515,7 @@ export const ClientDetailPage: React.FC = () => {
             <Input
               label="Contact email"
               type="email"
-              placeholder="e.g. hr.acmecorp@gmail.com"
+              placeholder="e.g. hr@acmecorp.com"
               value={editContactEmail}
               error={editEmailError || undefined}
               onChange={(e) => {

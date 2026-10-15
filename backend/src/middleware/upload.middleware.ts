@@ -3,7 +3,9 @@ import supabase from "../utils/supabase.js";
 import { v4 as uuidv4 } from "uuid";
 import prisma from "../utils/prisma.js";
 import type { RequestHandler } from "express";
-import { validateDocumentBytes, MAX_DOCUMENT_BYTES, MAX_CONTRACT_SCAN_BYTES } from "../security/file-validation.js";
+import { createHash } from "node:crypto";
+import { publicMessages } from "../security/public-messages.js";
+import { validateDocumentBytes, MAX_DOCUMENT_BYTES, MAX_CONTRACT_SCAN_BYTES, sanitizeUploadFileName } from "../security/file-validation.js";
 
 // In-memory storage allows direct buffer streaming to Supabase Storage. Max 5MB.
 const storage = multer.memoryStorage();
@@ -25,10 +27,20 @@ const documentFileFilter: multer.Options["fileFilter"] = (req, file, cb) => {
   }
 };
 
-const documentUpload = (fileSize: number) => multer({
+const imageMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+const imageFileFilter: multer.Options["fileFilter"] = (req, file, cb) => {
+  if (imageMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(Object.assign(new Error('Invalid file type. Only JPEG, PNG, and WEBP images are allowed.'), { status: 400 }));
+  }
+};
+
+const documentUpload = (fileSize: number, fileFilter: multer.Options["fileFilter"]) => multer({
   storage,
   limits: { fileSize, files: 1, fields: 20, fieldSize: 64 * 1024, parts: 21 },
-  fileFilter: documentFileFilter,
+  fileFilter,
 });
 
 let bufferedUploads = 0;
@@ -48,14 +60,14 @@ export const acquireUploadSlot: RequestHandler = (_req, res, next) => {
 
 // Existing routes all use single(). Validate the completed buffer before any
 // controller/storage side effect, and reserve memory before multer buffers it.
-const guardedUpload = (maxBytes: number) => {
-  const parser = documentUpload(maxBytes);
+const guardedUpload = (maxBytes: number, fileFilter: multer.Options["fileFilter"] = documentFileFilter) => {
+  const parser = documentUpload(maxBytes, fileFilter);
   return {
     single(field: string): RequestHandler {
       const parse = parser.single(field);
       return (req, res, next) => acquireUploadSlot(req, res, () => {
         parse(req, res, (error) => {
-          if (error) { res.status(400).json({ success: false, message: "Upload failed. Check the document type, size and number of files." }); return; }
+          if (error) { const message = error instanceof Error && publicMessages.has(error.message) ? error.message : "Upload failed. Check the document type, size and number of files."; res.status(400).json({ success: false, message }); return; }
           try { if (req.file) validateDocumentBytes(req.file.buffer, req.file.mimetype, maxBytes); }
           catch { res.status(400).json({ success: false, message: "File contents do not match a supported document type or size." }); return; }
           next();
@@ -69,6 +81,9 @@ export const upload = guardedUpload(MAX_DOCUMENT_BYTES);
 
 // Signed contract scans are often phone photos of a full page, so they get a larger limit (10MB).
 export const uploadContractScan = guardedUpload(MAX_CONTRACT_SCAN_BYTES);
+
+// Profile photos accept only JPEG, PNG and WEBP, so a PDF or Word file cannot be stored as a photo.
+export const uploadImage = guardedUpload(MAX_DOCUMENT_BYTES, imageFileFilter);
 
 // Uploads buffer to Supabase bucket and registers a StoredDocument metadata record.
 // Returns internal download proxy route rather than exposing direct bucket URL.
@@ -84,14 +99,7 @@ export const ensureBucketExists = async (bucket: string): Promise<void> => {
         const { error: createError } = await supabase.storage.createBucket(bucket, {
           public: false,
           fileSizeLimit: 10 * 1024 * 1024,
-          allowedMimeTypes: [
-            "application/pdf",
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/msword",
-          ],
+          allowedMimeTypes,
         });
         if (createError) throw new Error("Unable to create private document storage");
       }
@@ -122,6 +130,7 @@ export const uploadFileToSupabase = async (
     await supabase.storage.createBucket(bucket, {
       public: false,
       fileSizeLimit: 10 * 1024 * 1024,
+      allowedMimeTypes,
     });
     verifiedBuckets.add(bucket);
 
@@ -144,10 +153,10 @@ export const uploadFileToSupabase = async (
     data: {
       ownerId: folder,
       category: "ASSET",
-      originalName: file.originalname,
+      originalName: sanitizeUploadFileName(file.originalname),
       mimeType: file.mimetype,
       sizeBytes: file.size,
-      sha256: "",
+      sha256: createHash("sha256").update(file.buffer).digest("hex"),
       storageBucket: bucket,
       storagePath: filename,
     }

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
-import { upload } from '../../middleware/upload.middleware.js';
+import { upload, uploadImage } from '../../middleware/upload.middleware.js';
 import { validate } from '../../middleware/validate.middleware.js';
 import { applicantSchema } from '../../schemas/applicant.schema.js';
 import {
@@ -40,7 +40,7 @@ router.delete("/profile/references/:id", validate(applicantSchema.idParams), del
 
 router.post("/profile/assets", upload.single("file"), validate(applicantSchema.addAsset), addAsset);
 router.delete("/profile/assets/:id", validate(applicantSchema.idParams), deleteAsset);
-router.post("/profile/photo", upload.single("file"), validate(applicantSchema.emptyUploadBody), uploadPhoto);
+router.post("/profile/photo", uploadImage.single("file"), validate(applicantSchema.emptyUploadBody), uploadPhoto);
 router.post("/profile/resume", upload.single("file"), validate(applicantSchema.emptyUploadBody), uploadResume);
 
 export default router;

@@ -34,8 +34,18 @@ import {
   validateStandardText,
   validatePhilippineContactPhone,
 } from "../../lib/statutory-validation";
+import { z } from "zod";
+import { FIELD_LIMITS } from "../../lib/field-limits";
 
 const EMPTY_LIST: any[] = [];
+// First and last name are joined with a space; capping each part keeps the joined name within the backend limit.
+const CONTACT_NAME_PART_MAX = Math.floor((FIELD_LIMITS.name - 1) / 2);
+const CONTACT_EMAIL_MESSAGE = "Enter a valid email address.";
+const contactEmailSchema = z.string().trim().email(CONTACT_EMAIL_MESSAGE).max(FIELD_LIMITS.email, CONTACT_EMAIL_MESSAGE);
+const contactNameLengthError = (first: string, last: string) =>
+  [first.trim(), last.trim()].filter(Boolean).join(" ").length > FIELD_LIMITS.name
+    ? `Contact name cannot exceed ${FIELD_LIMITS.name} characters.`
+    : undefined;
 
 export const ClientsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -390,6 +400,12 @@ export const ClientsPage: React.FC = () => {
               }
             }
 
+            const contactNameErr = contactNameLengthError(contactFirstName, contactLastName);
+            if (contactNameErr) {
+              notify.error("Invalid Contact Name", contactNameErr);
+              return;
+            }
+
             if (contactPhone.trim()) {
               const phoneErr = validatePhilippineContactPhone(contactPhone, { label: "Contact phone" });
               if (phoneErr) {
@@ -398,8 +414,8 @@ export const ClientsPage: React.FC = () => {
               }
             }
 
-            if (contactEmail.trim() && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(contactEmail.trim())) {
-              setEmailError("Official contact email must be a valid @gmail.com address");
+            if (contactEmail.trim() && !contactEmailSchema.safeParse(contactEmail).success) {
+              setEmailError(CONTACT_EMAIL_MESSAGE);
               return;
             }
             const hasAddress = [street, province, city, barangay, postalCode].some((value) => value.trim());
@@ -452,7 +468,7 @@ export const ClientsPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Contact first name"
-              maxLength={100}
+              maxLength={CONTACT_NAME_PART_MAX}
               nameInput
               placeholder="e.g. Roberto"
               value={contactFirstName}
@@ -460,9 +476,10 @@ export const ClientsPage: React.FC = () => {
             />
             <Input
               label="Contact last name"
-              maxLength={100}
+              maxLength={CONTACT_NAME_PART_MAX}
               nameInput
               placeholder="e.g. Tan"
+              error={contactNameLengthError(contactFirstName, contactLastName)}
               value={contactLastName}
               onChange={(e) => setContactLastName(e.target.value)}
             />
@@ -478,7 +495,7 @@ export const ClientsPage: React.FC = () => {
             <Input
               label="Contact email"
               type="email"
-              placeholder="e.g. hr.acmecorp@gmail.com"
+              placeholder="e.g. hr@acmecorp.com"
               value={contactEmail}
               error={emailError || undefined}
               onChange={(e) => {

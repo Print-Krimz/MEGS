@@ -34,10 +34,10 @@ export const candidateScoringSchema = {
     matchThreshold: z.number().finite().int().min(0).max(100).optional(),
   }).strict(),
   restoreDefaults: z.object({ expectedRevision: positiveId }).strict(),
-  cursorQuery: z.object({ cursor: positiveId.optional(), limit: z.union([z.number().finite().int().min(1).max(100), z.string().regex(/^[0-9]{1,3}$/).transform(Number)]).default(25) }).strict(),
+  cursorQuery: z.object({ cursor: positiveId.optional(), limit: z.union([z.number().finite().int().min(1).max(100), z.string().regex(/^[0-9]{1,3}$/).transform(Number).refine((value) => value >= 1 && value <= 100)]).default(25) }).strict(),
   rankJobParams: z.object({ jobId: positiveId }).strict(),
   talentPoolQuery: z.object({
-    k: z.union([z.number().finite().int().min(1).max(100), z.string().regex(/^[0-9]{1,3}$/).transform(Number)]).optional(),
+    k: z.union([z.number().finite().int().min(1).max(100), z.string().regex(/^[0-9]{1,3}$/).transform(Number).refine((value) => value >= 1 && value <= 100)]).optional(),
     includeArchived: queryBoolean.optional(),
   }).strict(),
   talentPoolSearch: z.object({

@@ -23,30 +23,26 @@ export const applicantApi = {
   upsertProfile: (data: UpsertProfileDto) =>
     api.post<ApplicantProfile>("/api/applicants/profile", data),
 
-  // Work Experience (sends both title/roleTitle and description/summary for maximum compatibility)
+  // Work Experience (sends only schema-accepted fields; the service maps title/description to roleTitle/summary)
   addWorkExperience: (data: AddWorkExperienceDto) =>
     api.post<WorkExperience>("/api/applicants/profile/work-experience", {
       company: data.company,
       title: data.roleTitle,
-      roleTitle: data.roleTitle,
       startDate: data.startDate,
       endDate: data.endDate,
       isCurrent: data.isCurrent,
       description: data.summary,
-      summary: data.summary,
     }),
 
   deleteWorkExperience: (id: number | string) =>
     api.delete<null>(`/api/applicants/profile/work-experience/${id}`),
 
-  // Education (sends both field/fieldOfStudy and school/institution for maximum compatibility)
+  // Education (sends only schema-accepted fields; the service maps field to fieldOfStudy)
   addEducation: (data: AddEducationDto) =>
     api.post<Education>("/api/applicants/profile/education", {
       school: data.school,
-      institution: data.school,
       degree: data.degree,
       field: data.fieldOfStudy || "General",
-      fieldOfStudy: data.fieldOfStudy || "General",
       startDate: data.startDate,
       endDate: data.endDate,
       notes: data.notes,
@@ -60,15 +56,29 @@ export const applicantApi = {
     api.post<{ skills: (Skill | string)[] }>("/api/applicants/profile/skills", { skills }),
 
   // Trainings
+  // Sends only schema-accepted fields (previousId is never sent; it only drives the edit flow)
   addTraining: (data: AddTrainingDto) =>
-    api.post<TrainingCertification>("/api/applicants/profile/trainings", data),
+    api.post<TrainingCertification>("/api/applicants/profile/trainings", {
+      title: data.title,
+      provider: data.provider,
+      completionDate: data.completionDate,
+      certificateNo: data.certificateNo,
+      notes: data.notes,
+    }),
 
   deleteTraining: (id: number | string) =>
     api.delete<null>(`/api/applicants/profile/trainings/${id}`),
 
   // References
+  // Sends only schema-accepted fields (previousId is never sent; it only drives the edit flow)
   addReference: (data: AddReferenceDto) =>
-    api.post<CharacterReference>("/api/applicants/profile/references", data),
+    api.post<CharacterReference>("/api/applicants/profile/references", {
+      name: data.name,
+      relationship: data.relationship,
+      phone: data.phone,
+      email: data.email,
+      notes: data.notes,
+    }),
 
   deleteReference: (id: number | string) =>
     api.delete<null>(`/api/applicants/profile/references/${id}`),

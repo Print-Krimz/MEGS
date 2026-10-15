@@ -98,26 +98,37 @@ export const getClientDetails = async (id: number) => {
   return client;
 };
 
+// Optional text the client edit may clear; a blank value is saved as null, never as "".
+const OPTIONAL_CLIENT_TEXT_FIELDS = ["tradeName", "industry", "contactName", "contactEmail", "contactPhone", "address", "street", "barangay", "city", "province", "postalCode"] as const;
+
 export const updateClient = async (
   id: number,
-  data: {
+  input: {
     name?: string;
-    tradeName?: string;
-    industry?: string;
-    contactName?: string;
-    contactEmail?: string;
-    contactPhone?: string;
-    address?: string;
-    street?: string;
-    barangay?: string;
-    city?: string;
-    province?: string;
-    postalCode?: string;
+    tradeName?: string | null;
+    industry?: string | null;
+    contactName?: string | null;
+    contactEmail?: string | null;
+    contactPhone?: string | null;
+    address?: string | null;
+    street?: string | null;
+    barangay?: string | null;
+    city?: string | null;
+    province?: string | null;
+    postalCode?: string | null;
     isActive?: boolean;
     reviewThresholdDays?: number;
     medicalValidityMonths?: number;
   }
 ) => {
+  // The schema rejects a blank name too; this guards direct callers because name is a required column.
+  if (input.name !== undefined && !(input.name ?? "").trim()) throw new Error("Client name is required.");
+  const data = { ...input };
+  for (const field of OPTIONAL_CLIENT_TEXT_FIELDS) {
+    const value = data[field];
+    if (typeof value === "string" && value.trim() === "") data[field] = null;
+  }
+
   const current = await prisma.client.findUnique({ where: { id } });
   if (!current) throw new Error("Client not found");
   validateStructuredAddress(data, current);
@@ -128,12 +139,13 @@ export const updateClient = async (
   );
   let compositeAddress: string | null | undefined = data.address;
   if (compositeAddress === undefined && structuredAddressChanged) {
+    // A cleared field (null) must not fall back to the stored value.
     compositeAddress = [
-      data.street ?? current.street,
-      data.barangay ?? current.barangay,
-      data.city ?? current.city,
-      data.province ?? current.province,
-      data.postalCode ?? current.postalCode,
+      data.street !== undefined ? data.street : current.street,
+      data.barangay !== undefined ? data.barangay : current.barangay,
+      data.city !== undefined ? data.city : current.city,
+      data.province !== undefined ? data.province : current.province,
+      data.postalCode !== undefined ? data.postalCode : current.postalCode,
     ].filter(Boolean).join(", ") || null;
   }
 

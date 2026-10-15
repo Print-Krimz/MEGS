@@ -142,3 +142,18 @@ export function validateDocumentBytes(buffer: Buffer, declaredMime?: string, max
   if (!document || declaredMime && declaredMime.toLowerCase().split(";")[0].trim() !== document.mimeType) throw new Error("File contents do not match a supported document type");
   return document;
 }
+
+// Stored names are display metadata only. NFKC runs before the separator split so fullwidth path
+// characters cannot survive as traversal; control and bidi format characters are dropped, Windows-unsafe
+// symbols become underscores, and the extension is kept while the stem is capped at 255 characters.
+const MAX_STORED_FILE_NAME = 255;
+export function sanitizeUploadFileName(name: unknown): string {
+  const base = (typeof name === "string" ? name.normalize("NFKC") : "").split(/[\\/]/).pop() ?? "";
+  const cleaned = base.replace(/[\p{Cc}\p{Cf}]+/gu, "").replace(/[<>:"|?*]+/g, "_").replace(/\s+/g, " ").trim();
+  const extension = cleaned.match(/\.[A-Za-z0-9]{1,16}$/)?.[0] ?? "";
+  const stem = [...cleaned.slice(0, cleaned.length - extension.length)]
+    .slice(0, MAX_STORED_FILE_NAME - extension.length)
+    .join("")
+    .replace(/^[\s.]+|[\s.]+$/g, "");
+  return `${stem || "file"}${extension}`;
+}

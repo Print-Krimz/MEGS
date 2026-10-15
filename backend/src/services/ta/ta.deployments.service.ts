@@ -516,6 +516,15 @@ export const signDeploymentContract = async (
     },
   });
   if (!deployment) throw new Error("Deployment not found");
+  if (deployment.status === "CANCELLED" || deployment.status === "ENDED") {
+    throw new Error("This deployment is closed, so the contract can't be signed.");
+  }
+  if (deployment.workerSigned && deployment.clientSigned) {
+    throw new Error("This contract has already been fully signed.");
+  }
+  if ((party === "WORKER" && deployment.workerSigned) || (party === "CLIENT" && deployment.clientSigned)) {
+    throw new Error("This party has already signed this contract.");
+  }
 
   const now = new Date();
   const isWorker = party === "WORKER";

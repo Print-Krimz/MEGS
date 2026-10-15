@@ -4,6 +4,7 @@ import { logAudit } from '../../utils/audit.js';
 import { sendMail, sendTAInvitationEmail } from '../../utils/mailer.js';
 import { generateSecureToken, hashToken } from '../../utils/otp.js';
 import { parseManilaDateOnly } from "../../schemas/field-limits.js";
+import { ownedWhere } from "../ta/ownership.js";
 import crypto from "crypto";
 
 export const inviteTA = async (
@@ -499,6 +500,22 @@ export const changeUserRole = async (targetUserId: string, adminId: string, role
   const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
   if (!targetUser) throw new Error("User not found");
 
+  if (targetUser.role === "APPLICANT" && role !== "APPLICANT") {
+    throw new Error("Applicant accounts can't be changed to a staff role.");
+  }
+
+  // A TA who loses staff access must reassign their requests and applications first.
+  if (targetUser.role === "TALENT_ACQUISITION" && role === "APPLICANT") {
+    const actor = { id: targetUserId, role: "TALENT_ACQUISITION" };
+    const [requests, applications] = await Promise.all([
+      prisma.manpowerRequest.count({ where: ownedWhere.mrf(actor) as any }),
+      prisma.application.count({ where: ownedWhere.application(actor) as any }),
+    ]);
+    if (requests + applications > 0) {
+      throw new Error("Reassign this user's records before changing their role.");
+    }
+  }
+
   const updatedUser = await prisma.user.update({
     where: { id: targetUserId },
     data: { role },
@@ -526,6 +543,10 @@ export const changeUserStatus = async (targetUserId: string, adminId: string, is
 
   const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
   if (!targetUser) throw new Error("User not found");
+
+  if (isActive && ["PENDING", "INVITED", "PENDING_VERIFICATION"].includes(targetUser.accountStatus)) {
+    throw new Error("This account hasn't finished setup yet, so it can't be activated manually.");
+  }
 
   const accountStatus = isActive ? "ACTIVE" : "DEACTIVATED";
 

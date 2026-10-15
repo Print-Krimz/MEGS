@@ -49,6 +49,16 @@ const libraryStatusLabel: Record<string, string> = {
   TO_FOLLOW: "To follow",
 };
 
+// Same document types the backend accepts (upload.middleware.ts), so the file picker and the check agree.
+const COMPLIANCE_UPLOAD_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
 export const ApplicationDetailPage: React.FC = () => {
   const { applicationId } = useParams({ strict: false }) as { applicationId: string };
   const queryClient = useQueryClient();
@@ -139,6 +149,11 @@ export const ApplicationDetailPage: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && activeUploadReqId) {
+      if (!COMPLIANCE_UPLOAD_TYPES.includes(file.type)) {
+        notify.error("Unsupported File Type", "Upload a PDF, DOC, DOCX, JPG, PNG, or WEBP file.");
+        if (e.target) e.target.value = "";
+        return;
+      }
       if (file.size > 5 * 1024 * 1024) {
         notify.error("File Too Large", "Maximum upload size is 5 MB. Please select a smaller file.");
         if (e.target) e.target.value = "";
@@ -227,7 +242,7 @@ export const ApplicationDetailPage: React.FC = () => {
       <input
         ref={fileInputRef}
         type="file"
-        accept="application/pdf,image/png,image/jpeg,image/jpg"
+        accept={COMPLIANCE_UPLOAD_TYPES.join(",")}
         className="hidden"
         onChange={handleFileChange}
       />

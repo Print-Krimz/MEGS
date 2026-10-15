@@ -547,6 +547,9 @@ export const fetchMyDocuments = async (userId: string) => {
 
 import { uploadAndStoreDocument } from '../document/document.service.js';
 
+// Closed applications (withdrawn, backed out, rejected or archived) no longer accept compliance documents.
+const CLOSED_APPLICATION_STATUSES: string[] = ["BACKOUT", "ARCHIVED", "REJECTED"];
+
 /**
  * Makes `documentId` the current submission for a requirement (status SUBMITTED, validity reset so TA
  * reviews it explicitly). Older versions are kept in the version history.
@@ -650,11 +653,14 @@ export const fetchMyDocumentLibrary = async (userId: string) => {
 export const reuseDocumentForRequirement = async (userId: string, requirementId: number, documentId: number) => {
   const requirement = await prisma.complianceRequirement.findUnique({
     where: { id: requirementId },
-    include: { application: { select: { userId: true, jobPosting: { select: { postedById: true, title: true } } } } },
+    include: { application: { select: { userId: true, status: true, isArchived: true, jobPosting: { select: { postedById: true, title: true } } } } },
   });
   if (!requirement) throw new Error("Compliance requirement not found");
   if (requirement.application.userId !== userId) {
     throw new Error("Unauthorized to submit a document for this compliance requirement");
+  }
+  if (CLOSED_APPLICATION_STATUSES.includes(requirement.application.status) || requirement.application.isArchived) {
+    throw new Error("This application is closed, so documents can no longer be uploaded.");
   }
   if (requirement.reviewStatus === "APPROVED" && !(requirement.updateRequestedAt && !requirement.updateRequestCompletedAt)) {
     throw new Error("This requirement is already approved. Ask your recruiter if it needs to be replaced.");
@@ -710,6 +716,8 @@ export const uploadApplicantComplianceDocument = async (
         select: {
           id: true,
           userId: true,
+          status: true,
+          isArchived: true,
           user: {
             select: {
               email: true,
@@ -733,6 +741,13 @@ export const uploadApplicantComplianceDocument = async (
 
   if (requirement.application.userId !== userId) {
     throw new Error("Unauthorized to upload document for this compliance requirement");
+  }
+
+  if (CLOSED_APPLICATION_STATUSES.includes(requirement.application.status) || requirement.application.isArchived) {
+    throw new Error("This application is closed, so documents can no longer be uploaded.");
+  }
+  if (requirement.reviewStatus === "APPROVED" && !(requirement.updateRequestedAt && !requirement.updateRequestCompletedAt)) {
+    throw new Error("This document has already been approved and can't be replaced.");
   }
 
   if (!file) {

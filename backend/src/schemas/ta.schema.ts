@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ApplicationStatus } from "@prisma/client";
 import { BACKOUT_REASONS_BY_PARTY, REJECTION_REASON_CODES } from "../services/ta/backout-rules.js";
-import { boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedDigits, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl } from "./field-limits.js";
+import { boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber } from "./field-limits.js";
 
 const phoneField = formattedPhone;
 
@@ -13,6 +13,14 @@ const salary = finiteNumber({ min: 0, max: 1_000_000, decimals: 2 }).optional().
 const age = finiteNumber({ min: 18, max: 65, integer: true }).optional().nullable();
 const BACKOUT_REASON_VALUES = [...new Set(Object.values(BACKOUT_REASONS_BY_PARTY).flat())] as [string, ...string[]];
 const idValue = finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true });
+// Dropdown values match case-insensitively and are stored as the listed spelling; blank means no selection.
+const listedChoice = <T extends string>(options: readonly T[], message: string) =>
+  z.preprocess(
+    (value) => (typeof value === "string" ? options.find((option) => option.toLowerCase() === value.trim().toLowerCase()) ?? (value.trim() === "" ? "" : value) : value),
+    z.enum(["", ...options] as [string, ...string[]], { message }),
+  ).optional().nullable();
+// Update schemas may leave a required field out, but a blank or null value would overwrite it.
+const omittedOrNonBlank = (value: unknown) => value === undefined || (typeof value === "string" && value.length > 0);
 
 export const taSchema = {
   idParams: z.object({ params: z.object({ id: boundedIdText }).strict() }),
@@ -106,6 +114,13 @@ export const taSchema = {
       notes: boundedText(FIELD_LIMITS.notes).optional(),
       occurredOn: dateOnly.optional(), // Manila calendar date; defaults to now
       keepInTalentPool: z.boolean().optional(), // defaults to true unless the applicant pulled out
+    }).superRefine((body, ctx) => {
+      if (!BACKOUT_REASONS_BY_PARTY[body.party].includes(body.reason)) {
+        ctx.addIssue({ code: "custom", path: ["reason"], message: `Reason ${body.reason} is not valid when the responsible party is ${body.party}` });
+      }
+      if (body.reason === "OTHER" && !body.notes) {
+        ctx.addIssue({ code: "custom", path: ["notes"], message: "Please describe the reason." });
+      }
     }),
   }),
   closeApplication: z.object({
@@ -128,6 +143,9 @@ export const taSchema = {
         }
         if (body.outcome === "REJECTED" && body.occurredOn) {
           ctx.addIssue({ code: "custom", path: ["occurredOn"], message: "Date only applies to a backout" });
+        }
+        if (body.reasonCode === "OTHER" && !body.notes) {
+          ctx.addIssue({ code: "custom", path: ["notes"], message: "Please describe the reason." });
         }
       }),
   }),
@@ -238,9 +256,11 @@ export const taSchema = {
   updateDeploymentContract: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({
-      contractDocumentUrl: z.string().max(FIELD_LIMITS.url).optional().nullable(),
+      // Keep .optional() outside optionalSafeUrl: its transform maps an absent value to null, which would clear the stored link.
+      contractDocumentUrl: optionalSafeUrl("Contract document web address", FIELD_LIMITS.url).optional(),
       contractTerms: boundedText(FIELD_LIMITS.longText).optional().nullable(),
-      contractStatus: z.enum(["PENDING_REVIEW", "PENDING_SIGNATURES", "WORKER_SIGNED", "CLIENT_SIGNED", "FULLY_EXECUTED"]).optional().nullable(),
+      // FULLY_EXECUTED is set only by signDeploymentContract once both parties have signed.
+      contractStatus: z.enum(["PENDING_REVIEW", "PENDING_SIGNATURES", "WORKER_SIGNED", "CLIENT_SIGNED"]).optional().nullable(),
       contractEnd: dateOnly.optional().nullable(),
     }).strict(),
   }),
@@ -342,7 +362,7 @@ export const taSchema = {
   updateMRF: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({
-      title: optionalSafeText("MRF title", FIELD_LIMITS.shortText),
+      title: optionalSafeText("MRF title", FIELD_LIMITS.shortText).refine(omittedOrNonBlank, "Request title is required."),
       headcount: finiteNumber({ min: 1, max: 1000, integer: true }).optional(),
       priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
       location: optionalSafeText("Location", FIELD_LIMITS.shortText),
@@ -378,17 +398,10 @@ export const taSchema = {
       contactName: optionalPersonNameSchema("Contact name"),
       contactEmail: z
         .string()
+        .trim()
+        .toLowerCase()
         .email("Invalid email format")
         .max(FIELD_LIMITS.email)
-        .refine(
-          (val) => {
-            if (!val || val.trim() === "") return true;
-            return /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(val.trim());
-          },
-          {
-            message: "Official contact email must be a valid @gmail.com address",
-          }
-        )
         .optional()
         .nullable()
         .or(z.literal("")),
@@ -422,17 +435,17 @@ export const taSchema = {
       lastName: optionalPersonNameSchema("Last Name"),
       middleName: optionalPersonNameSchema("Middle Name"),
       mobileNumber: formattedMobile,
-      dateOfBirth: z.string().max(35).optional().nullable(),
-      gender: optionalSafeText("Gender", FIELD_LIMITS.shortText),
+      dateOfBirth: z.union([adultDateOfBirth("Candidate"), z.literal("")]).optional().nullable(),
+      gender: listedChoice(["Male", "Female", "Non-Binary", "Prefer not to say"], "Select a gender from the list."),
       city: optionalSafeText("City", FIELD_LIMITS.name),
       province: optionalSafeText("Province", FIELD_LIMITS.name),
       barangay: optionalSafeText("Barangay", FIELD_LIMITS.barangay),
       postalCode: z.string().regex(/^\d{4}$/).optional().nullable(),
       tattooStatus: z.enum(["NONE", "NON_VISIBLE", "VISIBLE"]).optional().nullable(),
-      sss: formattedDigits(0, 10),
-      philhealth: formattedDigits(0, 12),
-      pagibig: formattedDigits(0, 12),
-      tin: formattedDigits(9, 12),
+      sss: sssNumber,
+      philhealth: philhealthNumber,
+      pagibig: pagibigNumber,
+      tin: tinNumber,
       address: optionalSafeAddress("Residential Address"),
       emergencyContactName: optionalPersonNameSchema("Emergency Contact Name"),
       emergencyContactPhone: phoneField,
@@ -443,23 +456,16 @@ export const taSchema = {
   updateClient: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({
-      name: optionalSafeText("Company name", FIELD_LIMITS.shortText),
+      name: optionalSafeText("Company name", FIELD_LIMITS.shortText).refine(omittedOrNonBlank, "Client name is required."),
       tradeName: optionalSafeText("Brand name", FIELD_LIMITS.shortText),
       industry: optionalSafeText("Industry", FIELD_LIMITS.shortText),
       contactName: optionalPersonNameSchema("Contact name"),
       contactEmail: z
         .string()
+        .trim()
+        .toLowerCase()
         .email("Invalid email format")
         .max(FIELD_LIMITS.email)
-        .refine(
-          (val) => {
-            if (!val || val.trim() === "") return true;
-            return /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(val.trim());
-          },
-          {
-            message: "Official contact email must be a valid @gmail.com address",
-          }
-        )
         .optional()
         .nullable()
         .or(z.literal("")),

@@ -112,8 +112,8 @@ export const upsertApplicantProfile = async (userId: string, data: any) => {
   const sanitizeDate = (val: any) => (val ? new Date(val) : val === null ? null : undefined);
 
   const updateData: Record<string, any> = {};
-  if (data.firstName !== undefined) updateData.firstName = String(data.firstName).trim();
-  if (data.lastName !== undefined) updateData.lastName = String(data.lastName).trim();
+  if (data.firstName !== undefined && data.firstName !== null) updateData.firstName = String(data.firstName).trim();
+  if (data.lastName !== undefined && data.lastName !== null) updateData.lastName = String(data.lastName).trim();
   if (data.middleName !== undefined) updateData.middleName = sanitizeString(data.middleName);
   if (data.mobileNumber !== undefined) updateData.mobileNumber = sanitizeString(data.mobileNumber);
   if (data.gender !== undefined) updateData.gender = sanitizeString(data.gender);
@@ -211,12 +211,12 @@ export const addWorkExperienceService = async (userId: string, data: any) => {
     data: {
       applicantProfileId: profile.id,
       company: data.company,
-      roleTitle: data.roleTitle,
+      roleTitle: data.title ?? data.roleTitle,
       location: data.location,
       startDate: new Date(data.startDate),
       endDate: data.endDate ? new Date(data.endDate) : null,
       isCurrent: data.isCurrent || false,
-      summary: data.summary,
+      summary: data.description ?? data.summary,
     },
   });
   queueProfileRevalidation(profile.id);
@@ -240,7 +240,7 @@ export const addEducationService = async (userId: string, data: any) => {
       applicantProfileId: profile.id,
       school: data.institution || data.school,
       degree: data.degree,
-      fieldOfStudy: data.fieldOfStudy,
+      fieldOfStudy: data.field ?? data.fieldOfStudy,
       startDate: data.startDate ? new Date(data.startDate) : null,
       endDate: data.endDate ? new Date(data.endDate) : null,
       notes: data.notes,

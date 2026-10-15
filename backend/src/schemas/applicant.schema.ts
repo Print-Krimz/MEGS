@@ -18,6 +18,11 @@ import {
   optionalSafeAddress,
   safeProseSchema,
   optionalSafeProse,
+  adultDateOfBirth,
+  sssNumber,
+  philhealthNumber,
+  pagibigNumber,
+  tinNumber,
 } from "./field-limits.js";
 
 const nonFutureDate = dateOnly.refine((value) => value <= manilaDateString(), "Date cannot be in the future");
@@ -28,6 +33,15 @@ const dateRange = (value: { startDate?: string | null; endDate?: string | null }
   }
 };
 const phoneValidation = formattedPhone;
+// Dropdown values match case-insensitively (resume extraction may return "male"); the stored value is the listed spelling.
+const listedChoice = <T extends string>(options: readonly T[], message: string) =>
+  z.preprocess(
+    (value) => (typeof value === "string" ? options.find((option) => option.toLowerCase() === value.trim().toLowerCase()) ?? (value.trim() === "" ? "" : value) : value),
+    z.enum(["", ...options] as [string, ...string[]], { message }),
+  ).optional().nullable();
+// Absent, null or blank values fail the required check; otherwise the same name rules apply.
+const requiredProfileName = (label: string, message: string) =>
+  z.intersection(z.string({ message }).trim().min(1, message), optionalPersonNameSchema(label));
 
 const heightValidation = z
   .union([z.number().finite(), z.string().max(6)])
@@ -61,92 +75,33 @@ const weightValidation = z
     }
   );
 
-const sssValidation = z
-  .string()
-  .optional()
-  .nullable()
-  .refine(
-    (val) => {
-      if (!val || val.trim() === "") return true;
-      const digits = val.replace(/\D/g, "");
-      return /^[\d -]+$/.test(val) && digits.length > 0 && digits.length <= 10;
-    },
-    {
-      message: "SSS number must not exceed 10 digits",
-    }
-  );
-
-const philhealthValidation = z
-  .string()
-  .optional()
-  .nullable()
-  .refine(
-    (val) => {
-      if (!val || val.trim() === "") return true;
-      const digits = val.replace(/\D/g, "");
-      return /^[\d -]+$/.test(val) && digits.length > 0 && digits.length <= 12;
-    },
-    {
-      message: "PhilHealth number must not exceed 12 digits",
-    }
-  );
-
-const pagibigValidation = z
-  .string()
-  .optional()
-  .nullable()
-  .refine(
-    (val) => {
-      if (!val || val.trim() === "") return true;
-      const digits = val.replace(/\D/g, "");
-      return /^[\d -]+$/.test(val) && digits.length > 0 && digits.length <= 12;
-    },
-    {
-      message: "Pag-IBIG number must not exceed 12 digits",
-    }
-  );
-
-const tinValidation = z
-  .string()
-  .optional()
-  .nullable()
-  .refine(
-    (val) => {
-      if (!val || val.trim() === "") return true;
-      return /^[\d -]+$/.test(val) && val.replace(/\D/g, "").length >= 9 && val.replace(/\D/g, "").length <= 12;
-    },
-    {
-      message: "TIN must be between 9 and 12 digits",
-    }
-  );
-
 export const applicantSchema = {
   idParams: z.object({ params: z.object({ id: boundedIdText }).strict() }),
   emptyUploadBody: z.object({ body: z.object({}).strict().optional() }),
   upsertProfile: z.object({
     body: z.object({
-      firstName: optionalPersonNameSchema("First Name"),
+      firstName: requiredProfileName("First Name", "First name is required."),
       middleName: optionalPersonNameSchema("Middle Name"),
-      lastName: optionalPersonNameSchema("Last Name"),
-      mobileNumber: formattedMobile,
-      gender: optionalSafeText("Gender", FIELD_LIMITS.shortText),
+      lastName: requiredProfileName("Last Name", "Last name is required."),
+      mobileNumber: formattedMobile.refine((value) => Boolean(value?.trim()), "Mobile number is required."),
+      gender: listedChoice(["Male", "Female", "Non-Binary", "Prefer not to say"], "Select a gender from the list."),
       province: optionalSafeText("Province", FIELD_LIMITS.name),
       city: optionalSafeText("City", FIELD_LIMITS.name),
       barangay: optionalSafeText("Barangay", FIELD_LIMITS.barangay),
       postalCode: z.union([z.string().regex(/^\d{4}$/, "Postal code must be exactly 4 digits"), z.literal("")]).optional().nullable(),
-      dateOfBirth: z.union([pastDate, z.literal("")]).optional().nullable(),
+      dateOfBirth: z.union([adultDateOfBirth("Applicant"), z.literal("")]).optional().nullable(),
       birthPlace: optionalSafeText("Birth Place", FIELD_LIMITS.shortText),
       nationality: optionalSafeText("Nationality", FIELD_LIMITS.name),
-      civilStatus: optionalSafeText("Civil Status", FIELD_LIMITS.shortText),
+      civilStatus: listedChoice(["Single", "Married", "Widowed", "Separated", "Divorced"], "Select a civil status from the list."),
       height: heightValidation,
       weight: weightValidation,
       religion: optionalSafeText("Religion", FIELD_LIMITS.shortText),
       address: optionalSafeAddress("Residential Address"),
       preferredWorkLocations: optionalSafeText("Preferred Work Locations", FIELD_LIMITS.notes),
-      pagibig: pagibigValidation,
-      philhealth: philhealthValidation,
-      sss: sssValidation,
-      tin: tinValidation,
+      pagibig: pagibigNumber,
+      philhealth: philhealthNumber,
+      sss: sssNumber,
+      tin: tinNumber,
       emergencyContactName: optionalPersonNameSchema("Emergency Contact Name"),
       emergencyContactRelationship: optionalSafeText("Emergency Contact Relationship", FIELD_LIMITS.name),
       emergencyContactPhone: phoneValidation,

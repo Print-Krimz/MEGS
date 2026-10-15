@@ -2,6 +2,18 @@ import prisma from "../../utils/prisma.js";
 import { sendNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
 import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
+import { PIPELINE_STAGE_ORDER } from "./pipeline-rules.js";
+
+// Client decisions can't be recorded or changed once the candidate is backed out, rejected, archived, or past FINAL_INTERVIEW.
+// FINAL_INTERVIEW stays allowed: an approval moves the candidate there and updateClientEndorsement handles that stage.
+const CLIENT_DECISION_CLOSED_STATUSES = ["BACKOUT", "REJECTED", "ARCHIVED"];
+const assertAtClientEndorsementStage = (status: string) => {
+  const order = PIPELINE_STAGE_ORDER as readonly string[];
+  const pastEndorsement = order.indexOf(status) > order.indexOf("FINAL_INTERVIEW");
+  if (pastEndorsement || CLIENT_DECISION_CLOSED_STATUSES.includes(status)) {
+    throw new Error("This application is no longer at the client endorsement stage.");
+  }
+};
 
 export const recordClientEndorsement = async (
   applicationId: number,
@@ -32,6 +44,7 @@ export const recordClientEndorsement = async (
   if (invalidStages.includes(application.status)) {
     throw new Error(`Cannot record client endorsement for application in ${application.status} stage.`);
   }
+  assertAtClientEndorsementStage(application.status);
 
   // Candidate must have passed Initial Screening
   const screening = await prisma.interview.findFirst({
@@ -208,6 +221,7 @@ export const updateClientEndorsement = async (
   });
   if (!application) throw new Error("Application not found");
   if (application.isArchived) throw new Error("Cannot update endorsement on an archived application");
+  assertAtClientEndorsementStage(application.status);
 
   const existing = await prisma.clientEndorsement.findFirst({
     where: { id: endorsementId, applicationId },

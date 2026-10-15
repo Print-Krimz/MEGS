@@ -77,6 +77,19 @@ import type { TAApplicationSearch } from "../../routes";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 import { addManilaCalendarDays, getManilaToday } from "../../lib/field-limits";
 
+// Contract start dates: back-dated up to 30 days, at most 2 years ahead (Manila calendar days, as the service checks).
+const contractStartBounds = () => {
+  const today = getManilaToday();
+  const [year, month, day] = today.split("-").map(Number);
+  return {
+    min: addManilaCalendarDays(today, -30),
+    max: new Date(Date.UTC(year + 2, month - 1, day)).toISOString().slice(0, 10),
+  };
+};
+// Signed contract scans: the types and size the service accepts.
+const CONTRACT_SCAN_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+const CONTRACT_SCAN_MAX_BYTES = 10 * 1024 * 1024;
+
 type TabKey = "evaluation" | "compliance" | "history";
 
 const normalizeTab = (tab: string | null): TabKey => {
@@ -1137,6 +1150,16 @@ export const ApplicationDetailPage: React.FC = () => {
   const isPastClientReview =
     !isPreScreeningOrScreening &&
     app.status !== ApplicationStatus.CLIENT_ENDORSEMENT;
+  // Client decisions are recorded only at Client Endorsement and Final Interview; the backend refuses them after that.
+  const clientDecisionClosedStatuses: ApplicationStatus[] = [
+    ApplicationStatus.BACKOUT,
+    ApplicationStatus.REJECTED,
+    ApplicationStatus.ARCHIVED,
+    ApplicationStatus.COMPLIANCE,
+    ApplicationStatus.CONTRACT_SIGNING,
+    ApplicationStatus.DEPLOYED,
+  ];
+  const canRecordClientReview = !clientDecisionClosedStatuses.includes(app.status as ApplicationStatus);
 
   // Contextual attention badges for the 3 main tabs
   const evaluationBadge = pendingScreeningInterview || pendingFinalInterview
@@ -2668,19 +2691,21 @@ export const ApplicationDetailPage: React.FC = () => {
                       <span className="font-semibold text-slate-800">Client review:</span>
                       <span className="text-slate-500">None Recorded</span>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Plus className="w-3.5 h-3.5" />}
-                      onClick={() => {
-                        setManualClientId(linkedClientId || null);
-                        setEndorseOutcome("PENDING");
-                        setEndorseNotes("");
-                        setEndorseModalOpen(true);
-                      }}
-                    >
-                      Record client review
-                    </Button>
+                    {canRecordClientReview && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={<Plus className="w-3.5 h-3.5" />}
+                        onClick={() => {
+                          setManualClientId(linkedClientId || null);
+                          setEndorseOutcome("PENDING");
+                          setEndorseNotes("");
+                          setEndorseModalOpen(true);
+                        }}
+                      >
+                        Record client review
+                      </Button>
+                    )}
                   </div>
                 ) : isPastClientReview && !endorsementsExpanded ? (
                   <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs">
@@ -2712,19 +2737,21 @@ export const ApplicationDetailPage: React.FC = () => {
                       >
                         View details ({app.clientEndorsements?.length || 0}) ↓
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        leftIcon={<Plus className="w-3.5 h-3.5" />}
-                        onClick={() => {
-                          setManualClientId(linkedClientId || null);
-                          setEndorseOutcome("PENDING");
-                          setEndorseNotes("");
-                          setEndorseModalOpen(true);
-                        }}
-                      >
-                        Record
-                      </Button>
+                      {canRecordClientReview && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leftIcon={<Plus className="w-3.5 h-3.5" />}
+                          onClick={() => {
+                            setManualClientId(linkedClientId || null);
+                            setEndorseOutcome("PENDING");
+                            setEndorseNotes("");
+                            setEndorseModalOpen(true);
+                          }}
+                        >
+                          Record
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -2752,19 +2779,21 @@ export const ApplicationDetailPage: React.FC = () => {
                             Hide Details ↑
                           </Button>
                         )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          leftIcon={<Plus className="w-3.5 h-3.5" />}
-                          onClick={() => {
-                            setManualClientId(linkedClientId || null);
-                            setEndorseOutcome("PENDING");
-                            setEndorseNotes("");
-                            setEndorseModalOpen(true);
-                          }}
-                        >
-                          Record client review
-                        </Button>
+                        {canRecordClientReview && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            leftIcon={<Plus className="w-3.5 h-3.5" />}
+                            onClick={() => {
+                              setManualClientId(linkedClientId || null);
+                              setEndorseOutcome("PENDING");
+                              setEndorseNotes("");
+                              setEndorseModalOpen(true);
+                            }}
+                          >
+                            Record client review
+                          </Button>
+                        )}
                       </div>
                     </div>
 
@@ -2798,19 +2827,21 @@ export const ApplicationDetailPage: React.FC = () => {
                             </div>
 
                             <div className="flex items-center gap-2 shrink-0">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedEndorsementId(end.id);
-                                  setSelectedEndorsementClientName(end.client?.name || "Client");
-                                  setUpdateEndorsementOutcome(end.outcome as any);
-                                  setUpdateEndorsementNotes(end.notes || "");
-                                  setUpdateEndorsementModalOpen(true);
-                                }}
-                              >
-                                Update Client Acceptance
-                              </Button>
+                              {canRecordClientReview && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedEndorsementId(end.id);
+                                    setSelectedEndorsementClientName(end.client?.name || "Client");
+                                    setUpdateEndorsementOutcome(end.outcome as any);
+                                    setUpdateEndorsementNotes(end.notes || "");
+                                    setUpdateEndorsementModalOpen(true);
+                                  }}
+                                >
+                                  Update Client Acceptance
+                                </Button>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -3128,6 +3159,7 @@ export const ApplicationDetailPage: React.FC = () => {
                                     Review
                                   </Button>
                                 )}
+                                {!["CONTRACT_SIGNING", "DEPLOYED"].includes(String(app.status)) && (
                                 <button
                                   type="button"
                                   onClick={() => setDeleteReqTarget({ id: req.id, label: req.documentLabel })}
@@ -3137,6 +3169,7 @@ export const ApplicationDetailPage: React.FC = () => {
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
+                                )}
                               </div>
                             </div>
                           );
@@ -3876,7 +3909,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 { value: "HAS_EXPIRY", label: "Has an expiry date" },
                 { value: "NO_EXPIRY", label: "No expiry" },
               ]} />
-              {reviewValidity === "HAS_EXPIRY" && <Input label="Expiry date" type="date" value={reviewExpiresAt} onChange={(event) => setReviewExpiresAt(event.target.value)} required />}
+              {reviewValidity === "HAS_EXPIRY" && <Input label="Expiry date" type="date" value={reviewExpiresAt} min={reviewIssuedAt || undefined} onChange={(event) => setReviewExpiresAt(event.target.value)} required />}
             </>
           )}
 
@@ -3897,6 +3930,7 @@ export const ApplicationDetailPage: React.FC = () => {
             placeholder="Explain what was verified, pending, or what needs to be corrected..."
             value={reviewReqNotes}
             onChange={(e) => setReviewReqNotes(e.target.value)}
+            error={reviewReqStatus === "REJECTED" && !reviewReqNotes.trim() ? "Add a note explaining why this was rejected." : undefined}
             rows={2}
           />
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
@@ -3914,7 +3948,8 @@ export const ApplicationDetailPage: React.FC = () => {
               variant={reviewReqStatus === "APPROVED" || reviewReqStatus === "TO_FOLLOW" ? "primary" : "danger"}
               size="sm"
               loading={reviewComplianceMutation.isPending}
-              disabled={reviewReqStatus === "" || reviewReqStatus === "APPROVED" && (reviewValidity === "UNKNOWN" || (reviewValidity === "HAS_EXPIRY" && !reviewExpiresAt) || (/medical|fit\s+to\s+work|health/i.test(app.complianceRequirements?.find((r) => r.id === reviewReqId)?.documentLabel || "") && !reviewIssuedAt))}
+              title={reviewReqStatus === "APPROVED" && !app.complianceRequirements?.find((r) => r.id === reviewReqId)?.documentId ? "The candidate has not uploaded this document yet." : undefined}
+              disabled={reviewReqStatus === "" || reviewReqStatus === "APPROVED" && (reviewValidity === "UNKNOWN" || (reviewValidity === "HAS_EXPIRY" && !reviewExpiresAt) || (/medical|fit\s+to\s+work|health/i.test(app.complianceRequirements?.find((r) => r.id === reviewReqId)?.documentLabel || "") && !reviewIssuedAt) || !app.complianceRequirements?.find((r) => r.id === reviewReqId)?.documentId) || (reviewReqStatus === "REJECTED" && !reviewReqNotes.trim())}
               onClick={() => {
                 if (reviewReqId && reviewReqStatus) {
                   reviewComplianceMutation.mutate({
@@ -3947,6 +3982,10 @@ export const ApplicationDetailPage: React.FC = () => {
         applicantName={candidateName}
         requirementStatus={previewDocState?.requirementStatus}
         onReject={(notes) => {
+          if (!notes.trim()) {
+            notify.error("Rejection note required", "Please add a note explaining why this was rejected.");
+            return;
+          }
           if (previewDocState?.requirementId) {
             reviewComplianceMutation.mutate({
               id: previewDocState.requirementId,
@@ -4211,6 +4250,7 @@ export const ApplicationDetailPage: React.FC = () => {
         outcome={closeOutcome ?? "REJECTED"}
         stage={app.status}
         candidateName={candidateName}
+        applicationCreatedOn={app.createdAt ? getManilaToday(new Date(app.createdAt)) : undefined}
       />
 
       {/* Employment contract: photograph the signed paper contract */}
@@ -4240,7 +4280,16 @@ export const ApplicationDetailPage: React.FC = () => {
               accept="application/pdf,image/jpeg,image/png,image/webp"
               capture="environment"
               className="hidden"
-              onChange={(e) => setSignedContractFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                const picked = e.target.files?.[0] ?? null;
+                if (picked && (!CONTRACT_SCAN_TYPES.includes(picked.type) || picked.size > CONTRACT_SCAN_MAX_BYTES)) {
+                  e.target.value = "";
+                  setSignedContractFile(null);
+                  notify.error("Contract scan not accepted", "Contract scan must be a PDF or image under 10 MB.");
+                  return;
+                }
+                setSignedContractFile(picked);
+              }}
             />
             <div className="flex flex-wrap items-center gap-3">
               <Button variant="outline" size="sm" onClick={() => signedContractInputRef.current?.click()}>
@@ -4254,6 +4303,8 @@ export const ApplicationDetailPage: React.FC = () => {
 
           <Input
             label="Work assignment effective date"
+            min={contractStartBounds().min}
+            max={contractStartBounds().max}
             type="date"
             value={contractStartDate}
             onChange={(e) => setContractStartDate(e.target.value)}

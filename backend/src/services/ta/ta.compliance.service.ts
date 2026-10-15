@@ -4,6 +4,7 @@ import { logAudit } from "../../utils/audit.js";
 import { sendNotification } from "../../utils/notification.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 import { ownedWhere, type Actor } from "./ownership.js";
+import { PIPELINE_STAGE_ORDER } from "./pipeline-rules.js";
 
 const parseInputCalendarDate = (value: string | Date): Date => parseManilaDateOnly(toManilaDateOnly(value));
 
@@ -132,6 +133,14 @@ export const deleteComplianceRequirement = async (
     throw new Error("Compliance requirement not found");
   }
 
+  // Requirements gate Contract Signing; nothing is removed from Contract Signing onward.
+  // (TA-added ad-hoc items are saved as required, so isRequired is not used to block earlier cleanup.)
+  const stageOrder = PIPELINE_STAGE_ORDER as readonly string[];
+  const atOrPastContractSigning = stageOrder.indexOf(requirement.application.status) >= stageOrder.indexOf("CONTRACT_SIGNING");
+  if (atOrPastContractSigning) {
+    throw new Error("This requirement can't be removed at the current stage.");
+  }
+
   await prisma.complianceRequirement.delete({
     where: { id: requirementId },
   });
@@ -232,8 +241,14 @@ export const reviewComplianceRequirement = async (
     },
   });
   if (!requirement) throw new Error("Compliance requirement not found");
+  if (reviewStatus === "REJECTED" && !reviewNotes?.trim()) {
+    throw new Error("Please add a note explaining why this was rejected.");
+  }
 
   const followDay = toFollowExpectedAt ? toManilaDateOnly(toFollowExpectedAt) : undefined;
+  if (reviewStatus === "APPROVED" && !requirement.documentId) {
+    throw new Error("Upload a document before approving this requirement.");
+  }
   if (reviewStatus === "APPROVED" && requirement.updateRequestedAt && !requirement.updateRequestCompletedAt && requirement.reviewStatus !== "SUBMITTED") {
     throw new Error("Wait for the applicant to submit the requested updated copy before approving it.");
   }
@@ -273,6 +288,27 @@ export const reviewComplianceRequirement = async (
       const effectiveExpiry = calculatedExpiresAt !== undefined ? calculatedExpiresAt : requirement.expiresAt;
       if (!effectiveExpiry) throw new Error("Enter the expiry date before approving a document that expires.");
     }
+  }
+
+  const today = manilaDateString();
+  if (issuedAt && toManilaDateOnly(issuedAt) > today) throw new Error("Issue date can't be in the future.");
+  const effectiveIssuedAt = resolvedIssuedAt !== undefined ? resolvedIssuedAt : requirement.issuedAt;
+  const effectiveExpiresAt = calculatedExpiresAt !== undefined ? calculatedExpiresAt : requirement.expiresAt;
+  if (
+    (issuedAt !== undefined || expiresAt !== undefined) &&
+    effectiveIssuedAt && effectiveExpiresAt &&
+    toManilaDateOnly(effectiveExpiresAt) < toManilaDateOnly(effectiveIssuedAt)
+  ) {
+    throw new Error("Expiry date can't be before the issue date.");
+  }
+  // Re-approving an already approved row is only checked when its expiry is being changed, so unrelated edits to old rows still save.
+  const expiryChanged = calculatedExpiresAt !== undefined && calculatedExpiresAt?.getTime() !== requirement.expiresAt?.getTime();
+  if (
+    reviewStatus === "APPROVED" &&
+    effectiveExpiresAt && (requirement.reviewStatus !== "APPROVED" || expiryChanged) &&
+    toManilaDateOnly(effectiveExpiresAt) < today
+  ) {
+    throw new Error("This document has already expired. Ask the applicant for a current copy.");
   }
 
   const updateData: any = {

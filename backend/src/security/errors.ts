@@ -16,7 +16,10 @@ export const publicErrorMessage = (message: unknown, status: number): string => 
   if (typeof message === "string") {
     if (publicMessages.has(message)) return message;
     if (/^Please wait \d{1,5} seconds before requesting another code\.$/.test(message) ||
-        /^Invalid verification code\. \d{1,2} attempts? remaining\.$/.test(message)) return message;
+        /^Invalid verification code\. \d{1,2} attempts? remaining\.$/.test(message) ||
+        /^Headcount can't be lower than the \d{1,6} already deployed\.$/.test(message) ||
+        /^An application in [A-Z_]{3,30} cannot be archived$/.test(message) ||
+        /^A request that is [A-Z_]{3,20} can't be moved to [A-Z_]{3,20}\.$/.test(message)) return message;
   }
   if (status === 401) return "Invalid or expired credentials. Please sign in again.";
   if (status === 403) return "You do not have permission to perform this action.";

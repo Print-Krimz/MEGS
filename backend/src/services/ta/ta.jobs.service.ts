@@ -127,6 +127,15 @@ export const triggerTalentPoolAutoDiscovery = async (jobId: number, postedById: 
   }
 };
 
+// A job can't be created or opened under a manpower request that was cancelled or filled.
+const CLOSED_REQUEST_STATUSES = ["CANCELLED", "FILLED"];
+const assertRequestAcceptsJobs = async (mrfId: number) => {
+  const mrf = await prisma.manpowerRequest.findUnique({ where: { id: mrfId }, select: { status: true } });
+  if (mrf && CLOSED_REQUEST_STATUSES.includes(mrf.status)) {
+    throw new Error("This request is closed, so jobs can't be opened under it.");
+  }
+};
+
 export const createTAJob = async (postedById: string, data: any, actor?: Actor) => {
   const { title, description, requirements, location, imageUrl, mrfId, status, isEvergreen } = data;
 
@@ -142,6 +151,7 @@ export const createTAJob = async (postedById: string, data: any, actor?: Actor) 
 
   const allowedStatuses = ["DRAFT", "OPEN"];
   const resolvedStatus = status && allowedStatuses.includes(status) ? status : "DRAFT";
+  if (mrfId) await assertRequestAcceptsJobs(Number(mrfId));
 
   const job = await prisma.jobPosting.create({
     data: {
@@ -246,6 +256,7 @@ export const updateTAJob = async (jobId: number, data: any, actor?: Actor) => {
     if (!mrfId) throw new Error("A job posting must stay linked to a manpower request");
     await assertOwns("mrf", Number(mrfId), actor);
   }
+  if (mrfId && Number(mrfId) !== existing.mrfId) await assertRequestAcceptsJobs(Number(mrfId));
 
   const updated = await prisma.jobPosting.update({
     where: { id: jobId },
@@ -287,6 +298,9 @@ export const updateTAJobStatus = async (jobId: number, status: any) => {
 
   if (existing.status === "DRAFT" && status === "CLOSED") {
     throw new Error("A DRAFT job must be published (OPEN) before it can be CLOSED.");
+  }
+  if (status === "OPEN" && existing.status !== "OPEN" && existing.mrfId) {
+    await assertRequestAcceptsJobs(existing.mrfId);
   }
 
   const updated = await prisma.jobPosting.update({

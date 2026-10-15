@@ -387,7 +387,7 @@ export const UsersPage: React.FC = () => {
                           : [
                               {
                                 label: "Change access",
-                                disabled: isSelf,
+                                disabled: isSelf || u.role === Role.APPLICANT,
                                 onSelect: () => {
                                   setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
                                   setTargetRole(u.role);
@@ -535,7 +535,7 @@ export const UsersPage: React.FC = () => {
                                : [
                                    {
                                      label: "Change access",
-                                     disabled: isSelf,
+                                     disabled: isSelf || u.role === Role.APPLICANT,
                                      onSelect: () => {
                                        setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
                                        setTargetRole(u.role);

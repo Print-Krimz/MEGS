@@ -34,6 +34,11 @@ export const BACKOUT_REASONS_BY_PARTY: Record<BackoutPartyValue, readonly string
   AGENCY: ["AGENCY_PROCESSING_DELAY", "POSITION_FILLED", "OTHER"],
 };
 
+/** Reasons an applicant may give when withdrawing themselves. No-show and unreachable are recorded by the recruiter only. Mirrors APPLICANT_SELF_REASONS in frontend/src/lib/backout.ts. */
+export const APPLICANT_SELF_WITHDRAW_REASONS: readonly string[] = BACKOUT_REASONS_BY_PARTY.APPLICANT.filter(
+  (reason) => reason !== "NO_SHOW" && reason !== "UNREACHABLE",
+);
+
 /** Statuses a backout can be recorded from. DEPLOYED is allowed only before the deployment starts. */
 export const BACKOUT_ELIGIBLE_STATUSES = [
   "SUBMITTED",

@@ -4,7 +4,7 @@ import supabase from "../../utils/supabase.js";
 import { ensureBucketExists } from "../../middleware/upload.middleware.js";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
-import { validateDocumentBytes, MAX_CONTRACT_SCAN_BYTES } from "../../security/file-validation.js";
+import { validateDocumentBytes, MAX_CONTRACT_SCAN_BYTES, sanitizeUploadFileName } from "../../security/file-validation.js";
 import { validateLegacyResumeUrl } from "../../security/legacy-resume-download.js";
 
 export const uploadAndStoreDocument = async (
@@ -39,7 +39,7 @@ export const uploadAndStoreDocument = async (
     data: {
       ownerId: userId,
       category,
-      originalName: file.originalname,
+      originalName: sanitizeUploadFileName(file.originalname),
       mimeType: file.mimetype,
       sizeBytes: file.size,
       sha256,

@@ -1063,6 +1063,15 @@ export const getContractPdf = async (applicationId: number, startDateInput?: str
   return { buffer, fileName: `MEGS-Contract-${applicationId}.pdf` };
 };
 
+// A contract start may be back-dated by up to 30 days (a candidate who already began) and set at most 2 years ahead.
+const CONTRACT_START_BACKDATE_DAYS = 30;
+const CONTRACT_START_MAX_YEARS_AHEAD = 2;
+// Calendar-day arithmetic on YYYY-MM-DD dates in the Manila calendar.
+const shiftManilaDay = (day: string, shift: { days?: number; years?: number }): string => {
+  const [year, month, dayOfMonth] = day.split("-").map(Number);
+  return new Date(Date.UTC(year + (shift.years ?? 0), month - 1, dayOfMonth + (shift.days ?? 0))).toISOString().slice(0, 10);
+};
+
 // The TA photographs or scans the signed paper contract. Saving it records the start date and deploys the candidate.
 export const recordSignedContract = async (
   applicationId: number,
@@ -1072,42 +1081,93 @@ export const recordSignedContract = async (
 ) => {
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { id: true, status: true, contractDocumentId: true },
+    select: {
+      id: true,
+      status: true,
+      isArchived: true,
+      contractSigned: true,
+      contractSignedAt: true,
+      contractSignedById: true,
+      contractStartDate: true,
+      contractDocumentId: true,
+    },
   });
   if (!application) throw new Error("Application not found");
   if (application.status !== "CONTRACT_SIGNING") {
     throw new Error("The signed contract can only be uploaded while the application is in the Contract Signing stage.");
   }
+  if (application.isArchived) {
+    throw new Error("Cannot change status of an archived application. Restore it first.");
+  }
   if (!CONTRACT_SCAN_MIME_TYPES.includes(file.mimetype)) {
     throw new Error("The signed contract must be a PDF or an image (JPEG, PNG, WEBP).");
   }
   const contractStartDate = parseContractStartDate(data.startDate);
-
-  const stored = await uploadAndStoreDocument(actorId, "CONTRACT", file, applicationId);
-  if (application.contractDocumentId) {
-    await prisma.storedDocument
-      .update({ where: { id: application.contractDocumentId }, data: { deletedAt: new Date() } })
-      .catch(() => {});
+  const startDay = toManilaDateOnly(contractStartDate);
+  const today = manilaDateString();
+  if (
+    startDay < shiftManilaDay(today, { days: -CONTRACT_START_BACKDATE_DAYS }) ||
+    startDay > shiftManilaDay(today, { years: CONTRACT_START_MAX_YEARS_AHEAD })
+  ) {
+    throw new Error("Start date is outside the allowed range.");
+  }
+  // Deploy prerequisites are checked before anything is stored or written (the DEPLOYED transition enforces the same rules).
+  if (!(await isFullyCompliant(applicationId))) {
+    throw new Error("Cannot deploy candidate. All required compliance documents must be APPROVED and valid.");
   }
 
+  const stored = await uploadAndStoreDocument(actorId, "CONTRACT", file, applicationId);
   const now = new Date();
-  await prisma.application.update({
-    where: { id: applicationId },
-    data: {
-      contractSigned: true,
-      contractSignedAt: now,
-      contractSignedById: actorId,
-      contractDocumentId: stored.id,
-      contractStartDate,
-    },
-  });
+  let updated: Awaited<ReturnType<typeof updateTAApplicationStatus>>;
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (application.contractDocumentId) {
+        await tx.storedDocument.updateMany({ where: { id: application.contractDocumentId }, data: { deletedAt: now } });
+      }
+      await tx.application.update({
+        where: { id: applicationId },
+        data: {
+          contractSigned: true,
+          contractSignedAt: now,
+          contractSignedById: actorId,
+          contractDocumentId: stored.id,
+          contractStartDate,
+        },
+      });
+    });
+    updated = await updateTAApplicationStatus(applicationId, "DEPLOYED", actorId, "Signed employment contract uploaded");
+  } catch (error) {
+    // The candidate was not deployed: put the previous contract record back and retire the new scan.
+    // Skipped once the status has moved on, because the candidate is then deployed with this contract.
+    const current = await prisma.application.findUnique({ where: { id: applicationId }, select: { status: true } }).catch(() => null);
+    if (current?.status === "CONTRACT_SIGNING") {
+      await prisma.$transaction(async (tx) => {
+        if (application.contractDocumentId) {
+          await tx.storedDocument.updateMany({ where: { id: application.contractDocumentId }, data: { deletedAt: null } });
+        }
+        await tx.storedDocument.updateMany({ where: { id: stored.id }, data: { deletedAt: now } });
+        await tx.application.update({
+          where: { id: applicationId },
+          data: {
+            contractSigned: application.contractSigned,
+            contractSignedAt: application.contractSignedAt,
+            contractSignedById: application.contractSignedById,
+            contractDocumentId: application.contractDocumentId,
+            contractStartDate: application.contractStartDate,
+          },
+        });
+      }).catch(() => {});
+    }
+    throw error;
+  }
+
   void logAudit(actorId, "CONTRACT_SIGNED", "Application", applicationId, {
     applicationId,
     contractSignedAt: now,
     documentId: stored.id,
   });
 
-  return updateTAApplicationStatus(applicationId, "DEPLOYED", actorId, "Signed employment contract uploaded");
+  return updated;
 };
 
 export const getRecruiterDecisionsService = async (applicationId: number) => {
@@ -1133,6 +1193,18 @@ export const archiveTAApplication = async (id: number, actorId?: string, reason?
   });
   if (!application) throw new Error("Application not found");
   if (application.isArchived) throw new Error("Application is already archived");
+  // BACKOUT has no table transitions, but a Backed Out application with the Archive disposition
+  // ends as BACKOUT + isArchived (docs/closure-redesign-plan.md), so archiving it stays allowed.
+  const allowed = ALLOWED_TRANSITIONS[application.status] ?? [];
+  // REJECTED rows are likewise archived to clear them from the active list.
+  if (application.status !== "BACKOUT" && application.status !== "REJECTED" && !allowed.includes("ARCHIVED")) {
+    throw new Error(`An application in ${application.status} cannot be archived`);
+  }
+  const activeDeployment = await prisma.deployment.findFirst({
+    where: { applicationId: id, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (activeDeployment) throw new Error("Applications with an active deployment can't be archived.");
 
   const fromStatus = application.status;
   const updated = await prisma.application.update({

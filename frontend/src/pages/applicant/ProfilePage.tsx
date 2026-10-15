@@ -507,10 +507,12 @@ export const ProfilePage: React.FC = () => {
 
   const addExpMutation = useMutation({
     mutationFn: async (payload: { roleTitle: string; company: string; startDate: string; endDate?: string; isCurrent: boolean; summary?: string; previousId?: number | string }) => {
+      // Save the new entry first; remove the one being edited only after that succeeds
+      const saved = await applicantApi.addWorkExperience(payload);
       if (payload.previousId) {
         await applicantApi.deleteWorkExperience(payload.previousId);
       }
-      return applicantApi.addWorkExperience(payload);
+      return saved;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
@@ -537,10 +539,11 @@ export const ProfilePage: React.FC = () => {
 
   const addEduMutation = useMutation({
     mutationFn: async (payload: { school: string; degree: string; fieldOfStudy: string; startDate: string; endDate?: string; notes?: string; previousId?: number | string }) => {
+      const saved = await applicantApi.addEducation(payload);
       if (payload.previousId) {
         await applicantApi.deleteEducation(payload.previousId);
       }
-      return applicantApi.addEducation(payload);
+      return saved;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
@@ -578,10 +581,11 @@ export const ProfilePage: React.FC = () => {
 
   const addTrainingMutation = useMutation({
     mutationFn: async (payload: { title: string; provider: string; completionDate?: string; previousId?: number | string }) => {
+      const saved = await applicantApi.addTraining(payload);
       if (payload.previousId) {
         await applicantApi.deleteTraining(payload.previousId);
       }
-      return applicantApi.addTraining(payload);
+      return saved;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
@@ -608,10 +612,11 @@ export const ProfilePage: React.FC = () => {
 
   const addRefMutation = useMutation({
     mutationFn: async (payload: { name: string; relationship: string; phone: string; email?: string; previousId?: number | string }) => {
+      const saved = await applicantApi.addReference(payload);
       if (payload.previousId) {
         await applicantApi.deleteReference(payload.previousId);
       }
-      return applicantApi.addReference(payload);
+      return saved;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });

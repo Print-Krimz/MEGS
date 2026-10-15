@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { boundedId, boundedText, boundedPageSize, finiteNumber, FIELD_LIMITS } from "./field-limits.js";
-import { BACKOUT_REASONS_BY_PARTY } from "../services/ta/backout-rules.js";
+import { APPLICANT_SELF_WITHDRAW_REASONS } from "../services/ta/backout-rules.js";
 import { talentPoolInvitationSchema } from "./talent-pool-invitation.schema.js";
 
-const APPLICANT_REASONS = BACKOUT_REASONS_BY_PARTY.APPLICANT as unknown as [string, ...string[]];
+const APPLICANT_REASONS = APPLICANT_SELF_WITHDRAW_REASONS as unknown as [string, ...string[]];
 const idParams = z.object({ id: boundedId }).strict();
 
 export const applicantApplicationSchema = {
@@ -31,7 +31,11 @@ export const applicantApplicationSchema = {
     body: z.object({
       reason: z.enum(APPLICANT_REASONS),
       notes: boundedText(FIELD_LIMITS.notes).optional(),
-    }).strict(),
+    }).strict().superRefine((body, ctx) => {
+      if (body.reason === "OTHER" && !body.notes) {
+        ctx.addIssue({ code: "custom", path: ["notes"], message: "Please describe the reason." });
+      }
+    }),
   }),
   respondInvitation: z.object({
     params: z.object({ id: boundedId }).strict(),
