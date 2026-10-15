@@ -61,6 +61,7 @@ setupTests.ts
 playwright/.cache/
 
 # 6. Audit Suites, Dev Scripts, Backups & Screenshots
+scripts/
 frontend-audit/
 screenshots/
 audit_screenshots/
@@ -77,6 +78,8 @@ scratch/
 backups/
 backend/backups/
 backup-*/
+archive/
+frontend/archive/
 *.backup
 *.dump
 --commit
@@ -95,7 +98,6 @@ docs/
 DESIGN.md
 PRODUCT.md
 skills-lock.json
-
 DATABASE_SCHEMA_EXPORTER.html
 database_diagrams.html
 FIELD_VALIDATION_INVENTORY.md
@@ -114,6 +116,3 @@ FIELD_VALIDATION_INVENTORY.md
 .DS_Store
 Thumbs.db
 desktop.ini
-
-# 9. Unused archived design assets (kept locally only)
-frontend/archive/

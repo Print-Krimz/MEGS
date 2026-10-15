@@ -71,6 +71,7 @@ import {
   // ChevronUp,
   Check,
   X,
+  Archive,
 } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import type { TAApplicationSearch } from "../../routes";
@@ -157,6 +158,7 @@ export const ApplicationDetailPage: React.FC = () => {
 
   // Modals state
   const [backoutModalOpen, setBackoutModalOpen] = useState(false);
+  const [closeChooserOpen, setCloseChooserOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("Qualifications Mismatch");
   const [rejectNotes, setRejectNotes] = useState("");
@@ -1270,31 +1272,15 @@ export const ApplicationDetailPage: React.FC = () => {
             >
               Refresh assessment
             </Button>
-            {canBackout && (
+            {(canBackout || canReject) && (
               <Button
                 variant="outline"
                 size="sm"
                 className="text-rose-700 border-rose-300 hover:bg-rose-50"
                 leftIcon={<UserX className="w-3.5 h-3.5 text-rose-600" />}
-                onClick={() => setBackoutModalOpen(true)}
+                onClick={() => setCloseChooserOpen(true)}
               >
-                Record backout
-              </Button>
-            )}
-            {canReject && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-rose-700 border-rose-300 hover:bg-rose-50"
-                leftIcon={<UserX className="w-3.5 h-3.5 text-rose-600" />}
-                onClick={() => {
-                  setRejectReason("Qualifications Mismatch");
-                  setRejectNotes("");
-                  setRejectTargetStatus(ApplicationStatus.ARCHIVED);
-                  setRejectModalOpen(true);
-                }}
-              >
-                Archive candidate
+                Close application
               </Button>
             )}
           </div>
@@ -4257,6 +4243,55 @@ export const ApplicationDetailPage: React.FC = () => {
               Confirm fast-track
             </Button>
           </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={closeChooserOpen}
+        onClose={() => setCloseChooserOpen(false)}
+        title="Close application"
+        description={`What happened with ${candidateName}?`}
+      >
+        <div className="space-y-2">
+          {canBackout && (
+            <button
+              type="button"
+              className="flex w-full items-start gap-3 rounded-lg border border-slate-200 p-3 text-left hover:bg-slate-50"
+              onClick={() => {
+                setCloseChooserOpen(false);
+                setBackoutModalOpen(true);
+              }}
+            >
+              <UserX className="mt-0.5 w-4 h-4 text-rose-600" />
+              <span>
+                <span className="block text-sm font-semibold text-slate-900">The applicant backed out</span>
+                <span className="block text-xs text-slate-500">
+                  The applicant withdrew or dropped out. You can also record a client or agency pull-out here.
+                </span>
+              </span>
+            </button>
+          )}
+          {canReject && (
+            <button
+              type="button"
+              className="flex w-full items-start gap-3 rounded-lg border border-slate-200 p-3 text-left hover:bg-slate-50"
+              onClick={() => {
+                setCloseChooserOpen(false);
+                setRejectReason("Qualifications Mismatch");
+                setRejectNotes("");
+                setRejectTargetStatus(ApplicationStatus.ARCHIVED);
+                setRejectModalOpen(true);
+              }}
+            >
+              <Archive className="mt-0.5 w-4 h-4 text-slate-500" />
+              <span>
+                <span className="block text-sm font-semibold text-slate-900">Archive this candidate</span>
+                <span className="block text-xs text-slate-500">
+                  We're not moving forward. Record why, then archive the application or keep them in the talent pool.
+                </span>
+              </span>
+            </button>
+          )}
         </div>
       </Dialog>
 
