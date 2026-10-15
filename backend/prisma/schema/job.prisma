@@ -99,6 +99,7 @@ model Application {
   deployments Deployment[]
   clientEndorsements ClientEndorsement[]
   backout ApplicationBackout?
+  closures ApplicationClosure[]
   talentPoolMembershipsSourced TalentPoolMembership[] @relation("SourceApplication")
 
   @@unique([userId, jobPostingId, attemptNumber])
@@ -281,4 +282,44 @@ model ApplicationBackout {
   @@index([occurredAt])
   @@index([stage])
   @@index([party])
+}
+
+// ─────────────────────────────────────────────
+// APPLICATION CLOSURE
+// One record per closed application: Rejected or Backed Out, plus the disposition
+// (Talent Pool or Archive). Disposition is a choice, not a hiring stage.
+// The migration also adds a partial unique index on (applicationId) WHERE reopenedAt IS NULL
+// so only one live closure exists per application. Prisma cannot express it here.
+// ─────────────────────────────────────────────
+
+enum ClosureOutcome {
+  REJECTED
+  BACKED_OUT
+}
+
+enum ClosureDisposition {
+  TALENT_POOL
+  ARCHIVE
+}
+
+model ApplicationClosure {
+  id            Int                 @id @default(autoincrement())
+  applicationId Int
+  application   Application         @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  outcome       ClosureOutcome
+  disposition   ClosureDisposition? // null only for legacy rows closed before dispositions existed
+  stage         ApplicationStatus   // hiring stage when it was closed
+  reasonCode    String
+  notes         String?
+  occurredAt    DateTime
+  recordedById  String
+  recordedBy    User                @relation("ClosureRecordedBy", fields: [recordedById], references: [id])
+  createdAt     DateTime            @default(now())
+  reopenedAt    DateTime?
+
+  @@index([applicationId])
+  @@index([outcome])
+  @@index([disposition])
+  @@index([stage])
+  @@index([occurredAt])
 }

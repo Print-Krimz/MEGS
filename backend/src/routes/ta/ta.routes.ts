@@ -23,6 +23,7 @@ import {
   getApplication,
   updateApplicationStatus,
   recordBackoutHandler,
+  closeApplicationHandler,
   archiveApplication,
   restoreApplication,
   getRecruiterDecisionsHandler,
@@ -170,6 +171,7 @@ router.get("/applications", validate(taSchema.listApplications), listApplication
 router.get("/applications/:id", validate(taSchema.idParams), requireOwned("application"), getApplication);
 router.patch("/applications/:id/status", validate(taSchema.updateApplicationStatus), requireOwned("application"), updateApplicationStatus);
 router.post("/applications/:id/backout", validate(taSchema.recordBackout), requireOwned("application"), recordBackoutHandler);
+router.post("/applications/:id/close", validate(taSchema.closeApplication), requireOwned("application"), closeApplicationHandler);
 router.patch("/applications/:id/archive", validate(taSchema.archiveRestore), requireOwned("application"), archiveApplication);
 router.patch("/applications/:id/restore", validate(taSchema.archiveRestore), requireOwned("application"), restoreApplication);
 router.get("/applications/:id/decisions", validate(taSchema.idParams), requireOwned("application"), getRecruiterDecisionsHandler);

@@ -803,8 +803,6 @@ export const ApplicationDetailPage: React.FC = () => {
         onClose={() => setWithdrawOpen(false)}
         onSubmit={({ reason, notes }) => withdrawMutation.mutate({ reason, notes })}
         loading={withdrawMutation.isPending}
-        status={application.status}
-        mode="applicant"
       />
 
       {/* Reuse a document from the applicant's library */}

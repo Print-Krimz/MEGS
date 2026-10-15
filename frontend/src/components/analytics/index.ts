@@ -2,6 +2,7 @@ export * from "./AnalyticsFilterBar";
 export * from "./AnalyticsPanel";
 export * from "./AnalyticsKpi";
 export * from "./BackoutPanel";
+export * from "./ClosurePanel";
 export * from "./DropOffChart";
 export * from "./ExportMenu";
 export * from "./PaginationBar";

@@ -504,7 +504,7 @@ export const listRedeploymentQueue = async (actor?: Actor) => {
         deployments: { where: { status: "ENDED" }, orderBy: { actualEnd: "desc" }, take: 1, include: { client: { select: { name: true } }, mrf: { select: { title: true } }, application: { select: { jobPosting: { select: { title: true } } } }, statusHistory: { where: { toStatus: "ENDED" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } },
         user: { select: {
           applicantProfile: { select: { id: true, firstName: true, lastName: true, invitations: { where: { status: "PENDING" }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true, jobPosting: { select: { title: true } } } } } },
-          applications: { where: { isArchived: false, status: { notIn: ["BACKOUT", "ARCHIVED", "DEPLOYED"] }, ...(actor ? ownedWhere.application(actor) : {}) }, orderBy: { createdAt: "desc" }, select: { id: true, status: true, jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } } } },
+          applications: { where: { isArchived: false, status: { notIn: ["BACKOUT", "ARCHIVED", "REJECTED", "DEPLOYED"] }, ...(actor ? ownedWhere.application(actor) : {}) }, orderBy: { createdAt: "desc" }, select: { id: true, status: true, jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } } } },
         } },
       },
     }),

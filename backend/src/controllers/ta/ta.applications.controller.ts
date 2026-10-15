@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { sendSuccess, sendError } from '../../utils/response.js';
 import prisma from '../../utils/prisma.js';
 import { recordBackout, BackoutConflictError } from '../../services/ta/backout.service.js';
+import { closeApplication } from '../../services/ta/closure.service.js';
 import { logAudit } from '../../utils/audit.js';
 import { validateStructuredAddress } from '../../utils/address-validation.js';
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly } from '../../schemas/field-limits.js';
@@ -82,7 +83,7 @@ export const updateApplicationStatus = async (req: Request, res: Response): Prom
 export const recordBackoutHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const applicationId = parseInt(req.params.id as string, 10);
-    const { party, reason, notes, occurredOn } = req.body;
+    const { party, reason, notes, occurredOn, keepInTalentPool } = req.body;
     const today = manilaDateString();
     const occurredAt = !occurredOn || occurredOn === today ? new Date() : parseManilaDateOnly(occurredOn);
     const backout = await recordBackout({
@@ -91,10 +92,35 @@ export const recordBackoutHandler = async (req: Request, res: Response): Promise
       reason,
       notes,
       occurredAt,
+      keepInTalentPool,
       actorId: req.user!.id,
       actorRole: req.user!.role as "TALENT_ACQUISITION" | "ADMINISTRATOR",
     });
     sendSuccess(res, "Backout recorded", backout, 201);
+  } catch (error: any) {
+    const status = error instanceof BackoutConflictError ? 409 : error.message.includes("not found") ? 404 : 400;
+    sendError(res, error.message, status);
+  }
+};
+
+// POST /api/ta/applications/:id/close - Reject or mark as backed out, with a disposition (Talent Pool or Archive)
+export const closeApplicationHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const applicationId = parseInt(req.params.id as string, 10);
+    const { outcome, reasonCode, disposition, notes, occurredOn } = req.body;
+    const today = manilaDateString();
+    const occurredAt = !occurredOn || occurredOn === today ? new Date() : parseManilaDateOnly(occurredOn);
+    const closure = await closeApplication({
+      applicationId,
+      outcome,
+      reasonCode,
+      disposition,
+      notes,
+      occurredAt,
+      actorId: req.user!.id,
+      actorRole: req.user!.role as "TALENT_ACQUISITION" | "ADMINISTRATOR",
+    });
+    sendSuccess(res, outcome === "REJECTED" ? "Applicant rejected" : "Marked as backed out", closure, 201);
   } catch (error: any) {
     const status = error instanceof BackoutConflictError ? 409 : error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, status);
@@ -140,7 +166,7 @@ export const restoreApplication = async (req: Request, res: Response): Promise<v
       sendError(res, "Invalid application ID", 400);
       return;
     }
-    const updated = await restoreTAApplication(id);
+    const updated = await restoreTAApplication(id, req.user?.id);
     sendSuccess(res, "Application restored to pipeline", updated);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;

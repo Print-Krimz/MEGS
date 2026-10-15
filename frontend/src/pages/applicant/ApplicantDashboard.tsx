@@ -100,6 +100,7 @@ export const ApplicantDashboard: React.FC = () => {
       a.status !== ApplicationStatus.DEPLOYED &&
       a.status !== ApplicationStatus.ARCHIVED &&
       a.status !== ApplicationStatus.BACKOUT &&
+      a.status !== ApplicationStatus.REJECTED &&
       a.status !== ApplicationStatus.TALENT_POOL
   ).length;
   const interviewApps = applications.filter(

@@ -28,7 +28,7 @@ export const recordClientEndorsement = async (
   if (!application) throw new Error("Application not found");
   if (application.isArchived) throw new Error("Cannot endorse an archived application");
 
-  const invalidStages = ["COMPLIANCE", "DEPLOYED", "ARCHIVED", "BACKOUT"];
+  const invalidStages = ["COMPLIANCE", "DEPLOYED", "ARCHIVED", "BACKOUT", "REJECTED"];
   if (invalidStages.includes(application.status)) {
     throw new Error(`Cannot record client endorsement for application in ${application.status} stage.`);
   }

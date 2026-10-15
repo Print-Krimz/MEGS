@@ -27,6 +27,7 @@ const CANONICAL_STAGES = [
 const TERMINAL_STATUSES: string[] = [
   ApplicationStatus.TALENT_POOL,
   ApplicationStatus.BACKOUT,
+  ApplicationStatus.REJECTED,
   ApplicationStatus.ARCHIVED,
 ];
 

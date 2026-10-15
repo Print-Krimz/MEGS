@@ -67,6 +67,43 @@ export const canRecordBackout = (status: string, deploymentStatuses: string[] = 
 export const canApplicantWithdraw = (status: string): boolean =>
   status !== "DEPLOYED" && BACKOUT_ELIGIBLE.includes(status);
 
+export type ClosureOutcome = "REJECTED" | "BACKED_OUT";
+export type ClosureDisposition = "TALENT_POOL" | "ARCHIVE";
+
+/** Reasons for rejecting an applicant. Mirrors REJECTION_REASON_CODES in backend/src/services/ta/backout-rules.ts. */
+export const REJECTION_REASON_OPTIONS: { value: string; label: string }[] = [
+  { value: "QUALIFICATIONS_MISMATCH", label: "Skills or qualifications do not match" },
+  { value: "FAILED_SCREENING_INTERVIEW", label: "Did not pass initial interview" },
+  { value: "CLIENT_DECLINED", label: "Client declined" },
+  { value: "FAILED_FINAL_INTERVIEW", label: "Did not pass final interview" },
+  { value: "SALARY_EXPECTATION_UNMET", label: "Salary expectations did not match" },
+  { value: "FAILED_COMPLIANCE", label: "Requirements could not be verified" },
+  { value: "CLIENT_CANCELLED_REQUEST", label: "Client cancelled the request" },
+  { value: "CLIENT_WITHDREW_SELECTION", label: "Client withdrew the selection" },
+  { value: "POSITION_FILLED", label: "Position was filled" },
+  { value: "OTHER", label: "Other reason" },
+];
+
+export const REJECTION_REASON_LABELS: Record<string, string> = Object.fromEntries(
+  REJECTION_REASON_OPTIONS.map((o) => [o.value, o.label]),
+);
+
+export const CLOSURE_OUTCOME_LABELS: Record<ClosureOutcome, string> = { REJECTED: "Rejected", BACKED_OUT: "Backed out" };
+export const CLOSURE_DISPOSITION_LABELS: Record<ClosureDisposition, string> = { TALENT_POOL: "Talent pool", ARCHIVE: "Archived" };
+
+/** Label for a closure reason, whichever list it came from. */
+export const closureReasonLabel = (code: string): string =>
+  REJECTION_REASON_LABELS[code] ?? BACKOUT_REASON_LABELS[code] ?? code;
+
+export interface ApplicationClosureRecord {
+  outcome: ClosureOutcome;
+  disposition: ClosureDisposition | null;
+  stage: string;
+  reasonCode: string;
+  notes?: string | null;
+  occurredAt: string;
+}
+
 export interface ApplicationBackoutRecord {
   stage: string;
   party: BackoutParty;
@@ -83,5 +120,8 @@ export const REJECTION_REASON_CODE_BY_PRESET: Record<string, string> = {
   "Failed Final Interview": "FAILED_FINAL_INTERVIEW",
   "Salary Expectation Unmet": "SALARY_EXPECTATION_UNMET",
   "Failed Compliance Verification": "FAILED_COMPLIANCE",
+  "Client Cancelled Request": "CLIENT_CANCELLED_REQUEST",
+  "Client Withdrew Selection": "CLIENT_WITHDREW_SELECTION",
+  "Position Filled": "POSITION_FILLED",
   "Other / Discretionary": "OTHER",
 };

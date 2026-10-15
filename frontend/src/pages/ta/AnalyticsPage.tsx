@@ -7,6 +7,7 @@ import {
   AnalyticsKpi,
   AttentionStrip,
   BackoutPanel,
+  ClosurePanel,
   DropOffChart,
   ExportMenu,
   KpiRow,
@@ -195,6 +196,8 @@ export const AnalyticsPage: React.FC = () => {
         <DropOffChart rows={data.dropOff} rangeLabel={label} />
         <BackoutPanel data={data.backouts} clientDecisions={data.clientDecisions} rangeLabel={label} showRecent compact />
       </div>
+
+      {data.closures && <ClosurePanel data={data.closures} rangeLabel={label} />}
     </div>
   );
 };

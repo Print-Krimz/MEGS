@@ -134,9 +134,9 @@ export function stagesReached(status: string, decisions: DecisionLike[]): Set<St
   return reached;
 }
 
-/** The stage row an application left from when it ended as BACKOUT / ARCHIVED / TALENT_POOL, or null if still active. */
+/** The stage row an application left from when it ended as BACKOUT / REJECTED / ARCHIVED / TALENT_POOL, or null if still active. */
 export function exitStageRow(status: string, decisions: DecisionLike[]): StageRowKey | null {
-  if (!["BACKOUT", "ARCHIVED", "TALENT_POOL"].includes(status)) return null;
+  if (!["BACKOUT", "REJECTED", "ARCHIVED", "TALENT_POOL"].includes(status)) return null;
   let latest: DecisionLike | null = null;
   for (const d of decisions) {
     if (d.isReverted || d.toStatus !== status) continue;

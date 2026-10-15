@@ -43,7 +43,8 @@ enum ApplicationStatus {
   CONTRACT_SIGNING // Paper contract is filled, wet-signed and the signed scan uploaded
   DEPLOYED          // Candidate is actively deployed
   BACKOUT           // Candidate withdrew
-  ARCHIVED          // Discarded / no longer active
+  REJECTED          // TA turned the candidate down (disposition lives on ApplicationClosure)
+  ARCHIVED          // Legacy: discarded / no longer active. New closures set isArchived instead.
 }
 
 enum DocumentValidityStatus {

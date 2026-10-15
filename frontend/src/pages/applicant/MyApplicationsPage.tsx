@@ -146,6 +146,7 @@ export const MyApplicationsPage: React.FC = () => {
       return (
         app.status === ApplicationStatus.ARCHIVED ||
         app.status === ApplicationStatus.BACKOUT ||
+        app.status === ApplicationStatus.REJECTED ||
         app.isArchived
       );
     }

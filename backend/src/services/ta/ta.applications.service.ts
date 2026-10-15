@@ -493,6 +493,7 @@ export const getTAApplication = async (id: number, options: { generateRequiremen
         orderBy: { createdAt: "desc" },
       },
       backout: true,
+      closures: { where: { reopenedAt: null }, orderBy: { createdAt: "desc" }, take: 1 },
       hiredEmployee: {
         select: {
           id: true,
@@ -635,8 +636,8 @@ export const updateTAApplicationStatus = async (
   });
 
   if (!application) throw new Error("Application not found");
-  if (status === "BACKOUT") {
-    throw new Error("Use the backout form so the stage, responsible party and reason are recorded.");
+  if (status === "BACKOUT" || status === "REJECTED") {
+    throw new Error("Use Reject Applicant or Mark as Backed Out so the stage, reason and disposition are recorded.");
   }
   if (application.isArchived && status !== "SUBMITTED" && status !== "ARCHIVED") {
     throw new Error("Cannot change status of an archived application. Restore it first.");
@@ -1172,19 +1173,24 @@ export const restoreTAApplication = async (id: number, actorId?: string, reason?
     data: { isArchived: false, archivedAt: null, status: "SUBMITTED" },
     select: { id: true, status: true, isArchived: true },
   });
+  // The closure stays as history; reopening it lets the application be closed again later.
+  await prisma.applicationClosure.updateMany({
+    where: { applicationId: id, reopenedAt: null },
+    data: { reopenedAt: new Date() },
+  });
 
   await prisma.recruiterDecision.create({
     data: {
       applicationId: id,
       actorId: actorId || application.userId,
-      fromStatus: "ARCHIVED",
+      fromStatus: application.status,
       toStatus: "SUBMITTED",
       reason: reason || "Application restored to SUBMITTED",
     },
   });
 
   void logAudit(actorId || application.userId, "APPLICATION_STATUS_UPDATED", "Application", id, {
-    fromStatus: "ARCHIVED",
+    fromStatus: application.status,
     toStatus: "SUBMITTED",
     reason: reason || "Application restored to SUBMITTED",
   });

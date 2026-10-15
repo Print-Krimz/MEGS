@@ -147,8 +147,19 @@ export const taApi = {
 
   recordBackout: (
     id: number | string,
-    data: { party: string; reason: string; notes?: string; occurredOn?: string }
+    data: { party: string; reason: string; notes?: string; occurredOn?: string; keepInTalentPool?: boolean }
   ) => api.post<unknown>(`/api/ta/applications/${id}/backout`, data),
+
+  closeApplication: (
+    id: number | string,
+    data: {
+      outcome: "REJECTED" | "BACKED_OUT";
+      reasonCode: string;
+      disposition: "TALENT_POOL" | "ARCHIVE";
+      notes?: string;
+      occurredOn?: string;
+    }
+  ) => api.post<unknown>(`/api/ta/applications/${id}/close`, data),
 
   archiveApplication: (id: number | string, data: { reason: string }) =>
     api.patch<Application>(`/api/ta/applications/${id}/archive`, data),

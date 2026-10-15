@@ -148,7 +148,7 @@ export const fetchJobDetails = async (jobId: number, userId: string) => {
     where: {
       userId, jobPostingId: jobId, isArchived: false,
       OR: [
-        { status: { notIn: ["BACKOUT", "ARCHIVED", "DEPLOYED"] } },
+        { status: { notIn: ["BACKOUT", "ARCHIVED", "REJECTED", "DEPLOYED"] } },
         { deployments: { some: { status: { notIn: ["ENDED", "CANCELLED"] } } } },
       ],
     },
@@ -186,7 +186,7 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     orderBy: { attemptNumber: "desc" },
   });
   const unfinishedApplication = priorApplications.find((previous) =>
-    !previous.isArchived && !["BACKOUT", "ARCHIVED", "DEPLOYED"].includes(previous.status)
+    !previous.isArchived && !["BACKOUT", "ARCHIVED", "REJECTED", "DEPLOYED"].includes(previous.status)
   );
   if (unfinishedApplication) throw new Error("You already have an active application for this job");
 

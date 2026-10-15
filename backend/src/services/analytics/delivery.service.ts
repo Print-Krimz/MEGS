@@ -82,6 +82,25 @@ export interface BackoutSummary {
   }[];
 }
 
+export type ClosureOutcomeKey = "REJECTED" | "BACKED_OUT";
+export type ClosureDispositionKey = "TALENT_POOL" | "ARCHIVE";
+
+export interface ClosureCounts {
+  total: number;
+  talentPool: number;
+  archive: number;
+  /** Closed before a disposition was recorded (older records). */
+  notRecorded: number;
+}
+
+/** Applications closed in the period as Rejected or Backed Out, split by what happened to the candidate next. */
+export interface ClosureSummary {
+  rejected: ClosureCounts;
+  backedOut: ClosureCounts;
+  topRejectionReasons: { reason: string; count: number }[];
+  rejectedByStage: { stage: StageRowKey; label: string; count: number }[];
+}
+
 export interface ClientDecisions {
   accepted: number;
   declined: number;
@@ -221,6 +240,7 @@ export interface TADeliveryResult {
   stageTable: StageTableRow[];
   dropOff: DropOffRow[];
   backouts: BackoutSummary;
+  closures: ClosureSummary;
   clientDecisions: ClientDecisions;
   /** The TA's own overdue candidates, longest wait first. */
   stuck: StuckCandidate[];
@@ -280,6 +300,7 @@ export interface AdminDeliveryResult {
   requests: RequestRow[];
   trend: Trend;
   backouts: BackoutSummary;
+  closures: ClosureSummary;
   clientDecisions: ClientDecisions;
   stageTable: StageTableRow[];
   stuck: StuckCandidate[];
@@ -576,6 +597,56 @@ export function summarizeBackouts(records: BackoutRecord[], recentLimit = 10): B
   };
 }
 
+export interface ClosureRecord {
+  outcome: ClosureOutcomeKey;
+  disposition: ClosureDispositionKey | null;
+  stage: string;
+  reasonCode: string;
+}
+
+async function loadClosures(jobClause: Record<string, unknown>, from: Date, to: Date): Promise<ClosureRecord[]> {
+  const rows = await prisma.applicationClosure.findMany({
+    where: { occurredAt: { gte: from, lte: to }, application: { jobPosting: jobClause as any } },
+    select: { outcome: true, disposition: true, stage: true, reasonCode: true },
+  });
+  return rows.map((r) => ({ outcome: r.outcome, disposition: r.disposition, stage: r.stage, reasonCode: r.reasonCode }));
+}
+
+export function summarizeClosures(records: ClosureRecord[]): ClosureSummary {
+  const empty = (): ClosureCounts => ({ total: 0, talentPool: 0, archive: 0, notRecorded: 0 });
+  const rejected = empty();
+  const backedOut = empty();
+  const reasons = new Map<string, number>();
+  const stages = new Map<StageRowKey, number>();
+
+  for (const r of records) {
+    const counts = r.outcome === "REJECTED" ? rejected : backedOut;
+    counts.total++;
+    if (r.disposition === "TALENT_POOL") counts.talentPool++;
+    else if (r.disposition === "ARCHIVE") counts.archive++;
+    else counts.notRecorded++;
+    if (r.outcome === "REJECTED") {
+      reasons.set(r.reasonCode, (reasons.get(r.reasonCode) ?? 0) + 1);
+      const row = stageRowFor(r.stage) ?? "APPLIED";
+      stages.set(row, (stages.get(row) ?? 0) + 1);
+    }
+  }
+
+  return {
+    rejected,
+    backedOut,
+    topRejectionReasons: [...reasons.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 5)
+      .map(([reason, count]) => ({ reason, count })),
+    rejectedByStage: STAGE_ROWS.filter((r) => stages.has(r.key)).map((r) => ({
+      stage: r.key,
+      label: r.label,
+      count: stages.get(r.key)!,
+    })),
+  };
+}
+
 /** Client answers recorded in the period. APPROVED and ENDORSED both mean the client accepted the candidate. */
 async function loadClientDecisions(jobClause: Record<string, unknown>, from: Date, to: Date): Promise<ClientDecisions> {
   const rows = await prisma.clientEndorsement.groupBy({
@@ -668,7 +739,7 @@ export function buildDropOff(
 
   for (const app of apps) {
     const reached = stagesReached(app.status, app.decisions);
-    const currentRow = app.status === "BACKOUT" || app.status === "ARCHIVED" || app.status === "TALENT_POOL" ? null : stageRowFor(app.status);
+    const currentRow = app.status === "BACKOUT" || app.status === "REJECTED" || app.status === "ARCHIVED" || app.status === "TALENT_POOL" ? null : stageRowFor(app.status);
     const exit = exitStageRow(app.status, app.decisions);
     const backoutRow = app.backoutStage ? stageRowFor(app.backoutStage) ?? "APPLIED" : null;
 
@@ -1075,10 +1146,11 @@ async function computeTADelivery(
   const { start, end, days } = parseDateRange(filters);
   const jobClause = buildJobClause(filters, scope);
   const owner = ownerFilter(filters, scope);
-  const [snapshot, entered, backoutRecords, dropOff, placements, clientDecisions, fetched] = await Promise.all([
+  const [snapshot, entered, backoutRecords, closureRecords, dropOff, placements, clientDecisions, fetched] = await Promise.all([
     loadSnapshot(jobClause, now),
     loadEntered(jobClause, start, end),
     loadBackouts(jobClause, start, end),
+    loadClosures(jobClause, start, end),
     loadDropOff(jobClause, start, end),
     loadPlacements(filters, owner, start, end),
     loadClientDecisions(jobClause, start, end),
@@ -1096,6 +1168,7 @@ async function computeTADelivery(
     stageTable: buildStageTable(snapshot, entered, backoutRecords),
     dropOff,
     backouts: summarizeBackouts(backoutRecords),
+    closures: summarizeClosures(closureRecords),
     clientDecisions,
     stuck: stuck.items,
     stuckTotal: stuck.total,
@@ -1120,10 +1193,11 @@ async function computeAdminDelivery(
   const jobClause = buildJobClause(filters);
   const owner = ownerFilter(filters);
 
-  const [snapshot, entered, backoutRecords, placements, endorsements, clientDecisions, fetched] = await Promise.all([
+  const [snapshot, entered, backoutRecords, closureRecords, placements, endorsements, clientDecisions, fetched] = await Promise.all([
     loadSnapshot(jobClause, now),
     loadEntered(jobClause, start, end),
     loadBackouts(jobClause, start, end),
+    loadClosures(jobClause, start, end),
     loadPlacements(filters, owner, start, end),
     prisma.clientEndorsement.findMany({
       where: { createdAt: { gte: start, lte: end }, application: { jobPosting: jobClause as any } },
@@ -1220,6 +1294,7 @@ async function computeAdminDelivery(
     requests,
     trend: buildTrend(placements, backoutRecords, start, end, days),
     backouts: summarizeBackouts(backoutRecords),
+    closures: summarizeClosures(closureRecords),
     clientDecisions,
     stageTable: buildStageTable(snapshot, entered, backoutRecords),
     stuck: stuck.items,

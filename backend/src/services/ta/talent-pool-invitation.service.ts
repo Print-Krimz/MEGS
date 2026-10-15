@@ -99,7 +99,7 @@ export const sendTalentPoolJobInvitation = async (input: SendInvitationInput) =>
   }
 
   const existingApp = profile.user.applications.find((app) => app.jobPostingId === targetJobId);
-  if (existingApp && !["BACKOUT", "ARCHIVED", "DEPLOYED"].includes(existingApp.status)) {
+  if (existingApp && !["BACKOUT", "ARCHIVED", "REJECTED", "DEPLOYED"].includes(existingApp.status)) {
     throw new InvalidKnnRequestError(`Candidate already has an active application (#${existingApp.id}) for this job.`);
   }
 

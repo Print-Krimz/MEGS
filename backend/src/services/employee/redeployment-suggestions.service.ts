@@ -78,7 +78,7 @@ export const listRedeploymentSuggestions = async () => {
         },
         user: {
           select: {
-            applications: { where: { status: { notIn: ["BACKOUT", "ARCHIVED"] } }, select: { jobPostingId: true } },
+            applications: { where: { status: { notIn: ["BACKOUT", "ARCHIVED", "REJECTED"] } }, select: { jobPostingId: true } },
             applicantProfile: {
               select: {
                 id: true,

@@ -139,6 +139,8 @@ export function getApplicationStatusPresentation(
         return { label: "Future Opportunities", badgeClass: "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]" };
       case ApplicationStatus.BACKOUT:
         return { label: "Backed Out", badgeClass: "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]" };
+      case ApplicationStatus.REJECTED:
+        return { label: "Not Selected", badgeClass: "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]" };
       case ApplicationStatus.ARCHIVED:
         return { label: "Archived", badgeClass: "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]" };
       default:
@@ -174,6 +176,8 @@ export function getApplicationStatusPresentation(
       return { label: "Talent Pool", badgeClass: "bg-violet-100 text-violet-800 border-violet-300" };
     case ApplicationStatus.BACKOUT:
       return { label: "Withdrawn", badgeClass: "bg-rose-100 text-rose-800 border-rose-300" };
+    case ApplicationStatus.REJECTED:
+      return { label: "Rejected", badgeClass: "bg-rose-100 text-rose-800 border-rose-300" };
     case ApplicationStatus.ARCHIVED:
       return { label: "Archived", badgeClass: "bg-gray-100 text-gray-600 border-gray-300" };
     default:

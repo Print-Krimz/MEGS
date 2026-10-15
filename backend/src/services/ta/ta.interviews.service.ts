@@ -48,7 +48,7 @@ export const scheduleNewInterview = async (
   if (!application) throw new Error("Application not found");
   if (application.isArchived) throw new Error("Cannot schedule interview for archived application");
 
-  const invalidStages = ["COMPLIANCE", "DEPLOYED", "ARCHIVED", "BACKOUT"];
+  const invalidStages = ["COMPLIANCE", "DEPLOYED", "ARCHIVED", "BACKOUT", "REJECTED"];
   if (invalidStages.includes(application.status)) {
     throw new Error(`Cannot schedule interview for application in ${application.status} stage.`);
   }
@@ -349,6 +349,7 @@ export const recordDirectInterviewResult = async (
         party: "APPLICANT",
         reason: "NO_SHOW",
         notes: "Missed scheduled interview",
+        disposition: "ARCHIVE",
         actorId: actorId || application.userId,
         actorRole: "TALENT_ACQUISITION",
       });
@@ -509,6 +510,7 @@ export const updateInterviewResult = async (
         party: "APPLICANT",
         reason: "NO_SHOW",
         notes: "Missed scheduled interview",
+        disposition: "ARCHIVE",
         actorId: actorId || interview.application.userId,
         actorRole: "TALENT_ACQUISITION",
       });

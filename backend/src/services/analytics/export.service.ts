@@ -340,6 +340,41 @@ function recruiterSections(result: ReportResult): Section[] {
   return sections;
 }
 
+function closureSections(result: ReportResult): Section[] {
+  const c = result.closures;
+  return [
+    {
+      sheet: "Closed applications",
+      title: "Closed applications",
+      note: "Applications closed within the dates. Rejected means we turned the applicant down. Backed out means the applicant dropped out. Talent pool and Archive are what was decided for the applicant afterwards. Not recorded is for older records closed before this choice existed.",
+      columns: [
+        { header: "Outcome", key: "outcome", weight: 120 },
+        { header: "Total", key: "total", weight: 60, align: "right" },
+        { header: "Talent pool", key: "talentPool", weight: 70, align: "right" },
+        { header: "Archive", key: "archive", weight: 70, align: "right" },
+        { header: "Not recorded", key: "notRecorded", weight: 80, align: "right" },
+      ],
+      rows: [
+        { outcome: "Rejected", total: c.rejected.total, talentPool: c.rejected.talentPool, archive: c.rejected.archive, notRecorded: c.rejected.notRecorded },
+        { outcome: "Backed out", total: c.backedOut.total, talentPool: c.backedOut.talentPool, archive: c.backedOut.archive, notRecorded: c.backedOut.notRecorded },
+      ],
+    },
+    {
+      sheet: "Why applicants were rejected",
+      title: "Why applicants were rejected",
+      note: "The most common reasons for rejecting an applicant within the dates, and the step they were at.",
+      columns: [
+        { header: "Reason", key: "reason", weight: 200 },
+        { header: "Applicants", key: "count", weight: 70, align: "right" },
+      ],
+      rows: [
+        ...c.topRejectionReasons.map((r) => ({ reason: sentenceCase(r.reason), count: r.count })),
+        ...c.rejectedByStage.map((s) => ({ reason: `Rejected at: ${s.label}`, count: s.count })),
+      ],
+    },
+  ];
+}
+
 function backoutSection(detail: DeliveryDetail, admin: boolean): Section {
   return {
     sheet: "People who backed out",
@@ -563,6 +598,7 @@ async function buildPipelineModel(requestedBy: Requester, filters: AnalyticsFilt
     stageSection(result),
     ...(admin ? recruiterSections(result) : []),
     backoutSection(detail, admin),
+    ...closureSections(result),
     candidatesSection(detail, admin),
     received,
   ];

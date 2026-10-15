@@ -135,6 +135,7 @@ export function formatTaStatus(status?: string | null): string {
     [ApplicationStatus.CONTRACT_SIGNING]: TA_COPY.pipeline.contractSigning,
     [ApplicationStatus.DEPLOYED]: TA_COPY.pipeline.deployed,
     [ApplicationStatus.BACKOUT]: "Withdrawn",
+    [ApplicationStatus.REJECTED]: "Rejected",
     [ApplicationStatus.ARCHIVED]: "Archived",
     [DeploymentStatus.READY_FOR_DEPLOYMENT]: "Scheduled for site",
     [DeploymentStatus.ACTIVE]: "Active on site",

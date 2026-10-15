@@ -17,8 +17,8 @@ import {
 import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
 import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
 import { InlineResumeViewer } from "../../components/ta/InlineResumeViewer";
-import { BackoutDialog } from "../../components/ta/BackoutDialog";
-import { BACKOUT_PARTY_LABELS, BACKOUT_REASON_LABELS, REJECTION_REASON_CODE_BY_PRESET, canRecordBackout } from "../../lib/backout";
+import { CloseApplicationDialog, type CloseSubmission } from "../../components/ta/CloseApplicationDialog";
+import { CLOSURE_DISPOSITION_LABELS, CLOSURE_OUTCOME_LABELS, canRecordBackout, closureReasonLabel, type ClosureOutcome } from "../../lib/backout";
 import { Button, Dialog, Input, Select, Textarea, ComboBox, PhoneInput, DateTimePicker, dateTimeLocalToManilaIso, manilaIsoToDateTimeLocal } from "../../components/ui";
 import {
   formatSSSNumber,
@@ -71,7 +71,6 @@ import {
   // ChevronUp,
   Check,
   X,
-  Archive,
 } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import type { TAApplicationSearch } from "../../routes";
@@ -157,12 +156,7 @@ export const ApplicationDetailPage: React.FC = () => {
   };
 
   // Modals state
-  const [backoutModalOpen, setBackoutModalOpen] = useState(false);
-  const [closeChooserOpen, setCloseChooserOpen] = useState(false);
-  const [rejectModalOpen, setRejectModalOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState("Qualifications Mismatch");
-  const [rejectNotes, setRejectNotes] = useState("");
-  const [rejectTargetStatus, setRejectTargetStatus] = useState<ApplicationStatus>(ApplicationStatus.ARCHIVED);
+  const [closeOutcome, setCloseOutcome] = useState<ClosureOutcome | null>(null);
 
   const [interviewModalOpen, setInterviewModalOpen] = useState(false);
   const [interviewType, setInterviewType] = useState<InterviewType>(InterviewType.INITIAL_SCREENING);
@@ -329,73 +323,22 @@ export const ApplicationDetailPage: React.FC = () => {
     },
   });
 
-  const backoutMutation = useMutation({
-    mutationFn: (data: { party: string; reason: string; notes?: string; occurredOn?: string }) =>
-      taApi.recordBackout(applicationId, data),
-    onSuccess: () => {
-      setBackoutModalOpen(false);
-      notify.success("Backout recorded");
-      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
-    },
-    onError: (err) => notify.error("Unable to record backout", err),
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: (data: { status: ApplicationStatus; reason: string; reasonCode?: string }) =>
-      taApi.updateApplicationStatus(applicationId, data),
+  const closeMutation = useMutation({
+    mutationFn: (data: CloseSubmission) => taApi.closeApplication(applicationId, data),
     onSuccess: (_, vars) => {
-      queryClient.setQueryData<any>(["ta", "application", applicationId], (old: any) =>
-        old
-          ? {
-              ...old,
-              status: vars.status,
-              isArchived: vars.status === ApplicationStatus.ARCHIVED ? true : old.isArchived,
-            }
-          : old
-      );
-      queryClient.setQueriesData<any>({ queryKey: ["ta", "applications"] }, (old: any) => {
-        if (!old) return old;
-        if (Array.isArray(old)) {
-          return old.map((item) =>
-            String(item.id) === String(applicationId)
-              ? { ...item, status: vars.status, isArchived: vars.status === ApplicationStatus.ARCHIVED ? true : item.isArchived }
-              : item
-          );
-        }
-        if (Array.isArray(old.data)) {
-          return {
-            ...old,
-            data: old.data.map((item: any) =>
-              String(item.id) === String(applicationId)
-                ? { ...item, status: vars.status, isArchived: vars.status === ApplicationStatus.ARCHIVED ? true : item.isArchived }
-                : item
-            ),
-          };
-        }
-        return old;
-      });
+      setCloseOutcome(null);
+      const message = vars.outcome === "REJECTED" ? "Applicant rejected" : "Marked as backed out";
+      setFeedback({ type: "success", message });
+      notify.success(message);
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId, "decisions"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
-      setRejectModalOpen(false);
-      setRejectNotes("");
-      const msg = `Candidate has been moved to ${getApplicationStatusMeta(vars.status).label}.`;
-      setFeedback({
-        type: "success",
-        message: msg,
-      });
-      notify.success("Candidate Status Updated", msg);
     },
     onError: (err: any) => {
-      const errMsg = formatErrorMessage(err);
-      setFeedback({
-        type: "error",
-        message: "Unable to archive this candidate. " + errMsg,
-      });
-      notify.error("Unable to archive candidate", err);
+      setFeedback({ type: "error", message: "Unable to close this application. " + formatErrorMessage(err) });
+      notify.error("Unable to close application", err);
     },
   });
 
@@ -1102,6 +1045,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const isTerminal =
     app.status === ApplicationStatus.ARCHIVED ||
     app.status === ApplicationStatus.BACKOUT ||
+    app.status === ApplicationStatus.REJECTED ||
     app.status === ApplicationStatus.DEPLOYED;
   const canReject = !isTerminal;
   const canBackout =
@@ -1272,30 +1216,43 @@ export const ApplicationDetailPage: React.FC = () => {
             >
               Refresh assessment
             </Button>
-            {(canBackout || canReject) && (
+            {canReject && (
               <Button
                 variant="outline"
                 size="sm"
                 className="text-rose-700 border-rose-300 hover:bg-rose-50"
                 leftIcon={<UserX className="w-3.5 h-3.5 text-rose-600" />}
-                onClick={() => setCloseChooserOpen(true)}
+                onClick={() => setCloseOutcome("REJECTED")}
               >
-                Close application
+                Reject Applicant
+              </Button>
+            )}
+            {canBackout && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-amber-800 border-amber-300 hover:bg-amber-50"
+                leftIcon={<UserX className="w-3.5 h-3.5 text-amber-700" />}
+                onClick={() => setCloseOutcome("BACKED_OUT")}
+              >
+                Mark as Backed Out
               </Button>
             )}
           </div>
         }
       />
 
-      {app.backout && (
+      {(app.closures ?? [])[0] && (
         <div role="status" className="p-3 rounded-lg border border-rose-200 bg-rose-50 text-xs text-rose-900 space-y-0.5">
           <p className="font-semibold">
-            Backout recorded: {BACKOUT_PARTY_LABELS[app.backout.party]} ·{" "}
-            {BACKOUT_REASON_LABELS[app.backout.reason] ?? app.backout.reason}
+            {CLOSURE_OUTCOME_LABELS[(app.closures ?? [])[0].outcome]} · {closureReasonLabel((app.closures ?? [])[0].reasonCode)}
+            {(app.closures ?? [])[0].disposition
+              ? ` · ${CLOSURE_DISPOSITION_LABELS[(app.closures ?? [])[0].disposition!]}`
+              : ""}
           </p>
           <p>
-            At {formatTaStatus(app.backout.stage)} on {formatDate(app.backout.occurredAt)}
-            {app.backout.notes ? ` — ${app.backout.notes}` : ""}
+            At {formatTaStatus((app.closures ?? [])[0].stage)} on {formatDate((app.closures ?? [])[0].occurredAt)}
+            {(app.closures ?? [])[0].notes ? ` — ${(app.closures ?? [])[0].notes}` : ""}
           </p>
         </div>
       )}
@@ -4246,124 +4203,15 @@ export const ApplicationDetailPage: React.FC = () => {
         </div>
       </Dialog>
 
-      <Dialog
-        open={closeChooserOpen}
-        onClose={() => setCloseChooserOpen(false)}
-        title="Close application"
-        description={`What happened with ${candidateName}?`}
-      >
-        <div className="space-y-2">
-          {canBackout && (
-            <button
-              type="button"
-              className="flex w-full items-start gap-3 rounded-lg border border-slate-200 p-3 text-left hover:bg-slate-50"
-              onClick={() => {
-                setCloseChooserOpen(false);
-                setBackoutModalOpen(true);
-              }}
-            >
-              <UserX className="mt-0.5 w-4 h-4 text-rose-600" />
-              <span>
-                <span className="block text-sm font-semibold text-slate-900">The applicant backed out</span>
-                <span className="block text-xs text-slate-500">
-                  The applicant withdrew or dropped out. You can also record a client or agency pull-out here.
-                </span>
-              </span>
-            </button>
-          )}
-          {canReject && (
-            <button
-              type="button"
-              className="flex w-full items-start gap-3 rounded-lg border border-slate-200 p-3 text-left hover:bg-slate-50"
-              onClick={() => {
-                setCloseChooserOpen(false);
-                setRejectReason("Qualifications Mismatch");
-                setRejectNotes("");
-                setRejectTargetStatus(ApplicationStatus.ARCHIVED);
-                setRejectModalOpen(true);
-              }}
-            >
-              <Archive className="mt-0.5 w-4 h-4 text-slate-500" />
-              <span>
-                <span className="block text-sm font-semibold text-slate-900">Archive this candidate</span>
-                <span className="block text-xs text-slate-500">
-                  We're not moving forward. Record why, then archive the application or keep them in the talent pool.
-                </span>
-              </span>
-            </button>
-          )}
-        </div>
-      </Dialog>
-
-      <BackoutDialog
-        open={backoutModalOpen}
-        onClose={() => setBackoutModalOpen(false)}
-        onSubmit={(data) => backoutMutation.mutate(data)}
-        loading={backoutMutation.isPending}
-        status={app.status}
-        mode="ta"
+      <CloseApplicationDialog
+        open={closeOutcome !== null}
+        onClose={() => setCloseOutcome(null)}
+        onSubmit={(data) => closeMutation.mutate(data)}
+        loading={closeMutation.isPending}
+        outcome={closeOutcome ?? "REJECTED"}
+        stage={app.status}
         candidateName={candidateName}
       />
-
-      {/* Reject Candidate Modal */}
-      <Dialog
-        open={rejectModalOpen}
-        onClose={() => setRejectModalOpen(false)}
-        title="Archive candidate"
-        description={`Record why ${candidateName} is no longer in the active pipeline.`}
-      >
-        <div className="space-y-4">
-          <Select
-            label="Reason"
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-            options={[
-              { value: "Qualifications Mismatch", label: "Skills or qualifications do not match" },
-              { value: "Failed Screening Interview", label: "Did not pass initial interview" },
-              { value: "Client Declined Endorsement", label: "Client declined" },
-              { value: "Failed Final Interview", label: "Did not pass final interview" },
-              { value: "Salary Expectation Unmet", label: "Salary expectations did not match" },
-              { value: "Failed Compliance Verification", label: "Requirements could not be verified" },
-              { value: "Other / Discretionary", label: "Other reason" },
-            ]}
-          />
-          <Select
-            label="What should happen next"
-            value={rejectTargetStatus}
-            onChange={(e) => setRejectTargetStatus(e.target.value as ApplicationStatus)}
-            options={[
-              { value: ApplicationStatus.ARCHIVED, label: "Archive application" },
-              { value: ApplicationStatus.TALENT_POOL, label: "Keep in candidate pool for future openings" },
-            ]}
-          />
-          <Textarea
-            label="Notes (optional)"
-            placeholder="Add details about this decision..."
-            value={rejectNotes}
-            onChange={(e) => setRejectNotes(e.target.value)}
-            rows={3}
-          />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setRejectModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              loading={rejectMutation.isPending}
-              onClick={() =>
-                rejectMutation.mutate({
-                  status: rejectTargetStatus,
-                  reason: rejectNotes.trim() ? `${rejectReason}: ${rejectNotes.trim()}` : rejectReason,
-                  reasonCode: REJECTION_REASON_CODE_BY_PRESET[rejectReason] ?? "OTHER",
-                })
-              }
-            >
-              Archive candidate
-            </Button>
-          </div>
-        </div>
-      </Dialog>
 
       {/* Employment contract: photograph the signed paper contract */}
       <Dialog

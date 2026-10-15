@@ -90,7 +90,7 @@ const pendingActionScope = (taUserId: string, filters: AnalyticsFilterDto) => {
   if (filters.mrfId) jobScope.mrfId = filters.mrfId;
   if (filters.jobPostingId) jobScope.id = filters.jobPostingId;
   if (filters.clientId) jobScope.mrf = { clientId: filters.clientId };
-  const application = { jobPosting: jobScope, isArchived: false, status: { notIn: ["BACKOUT", "ARCHIVED", "TALENT_POOL", "HIRED"] } };
+  const application = { jobPosting: jobScope, isArchived: false, status: { notIn: ["BACKOUT", "REJECTED", "ARCHIVED", "TALENT_POOL", "HIRED"] } };
 
   // A placement waiting for its start to be confirmed: the same deployment ownership rule as everywhere else.
   const deployment: any = { status: "READY_FOR_DEPLOYMENT", ...ownedWhere.deployment({ id: taUserId, role: "TALENT_ACQUISITION" }) };

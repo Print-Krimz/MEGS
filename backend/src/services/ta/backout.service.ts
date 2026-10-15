@@ -1,10 +1,10 @@
 import prisma from "../../utils/prisma.js";
 import { sendNotification, sendRoleNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
-import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
 import { syncMRFFulfillmentStatus } from "./ta.mrf.service.js";
 import { manilaDateString } from "../../schemas/field-limits.js";
 import { APPLICANT_WITHDRAWABLE_STATUSES, validateBackoutInput } from "./backout-rules.js";
+import { hasNoShowHistory, retainInTalentPool } from "./talent-pool-retain.js";
 
 export class BackoutConflictError extends Error {}
 
@@ -14,6 +14,13 @@ export interface RecordBackoutInput {
   reason: string;
   notes?: string | null;
   occurredAt?: Date;
+  /** TA choice; defaults to keeping the candidate unless the applicant pulled out. Never overrides no-show history. */
+  keepInTalentPool?: boolean;
+  /**
+   * Disposition chosen by the TA. TALENT_POOL keeps the candidate findable; ARCHIVE hides the application.
+   * When given it replaces keepInTalentPool. Applicant self-withdrawals leave it empty (nothing is chosen).
+   */
+  disposition?: "TALENT_POOL" | "ARCHIVE";
   actorId: string;
   actorRole: "TALENT_ACQUISITION" | "ADMINISTRATOR" | "APPLICANT";
 }
@@ -82,11 +89,19 @@ export const recordBackout = async (input: RecordBackoutInput) => {
     }
   }
 
+  if (input.disposition === "TALENT_POOL" && (input.reason === "NO_SHOW" || (await hasNoShowHistory(application.userId)))) {
+    throw new Error("A no-show cannot be added to the talent pool. Choose Archive instead.");
+  }
+
   const notes = input.notes?.trim() || null;
   const fromStatus = application.status;
+  const archiveNow = input.disposition === "ARCHIVE";
 
   const backout = await prisma.$transaction(async (tx) => {
-    await tx.application.update({ where: { id: applicationId }, data: { status: "BACKOUT" } });
+    await tx.application.update({
+      where: { id: applicationId },
+      data: { status: "BACKOUT", ...(archiveNow ? { isArchived: true, archivedAt: new Date() } : {}) },
+    });
 
     const created = await tx.applicationBackout.create({
       data: {
@@ -95,6 +110,19 @@ export const recordBackout = async (input: RecordBackoutInput) => {
         stage: fromStatus,
         party: party as any,
         reason: input.reason as any,
+        notes,
+        occurredAt,
+        recordedById: actorId,
+      },
+    });
+
+    await tx.applicationClosure.create({
+      data: {
+        applicationId,
+        outcome: "BACKED_OUT",
+        disposition: input.disposition ?? null,
+        stage: fromStatus,
+        reasonCode: input.reason,
         notes,
         occurredAt,
         recordedById: actorId,
@@ -145,13 +173,23 @@ export const recordBackout = async (input: RecordBackoutInput) => {
     await syncMRFFulfillmentStatus(pendingDeployment.mrfId, actorId).catch(() => {});
   }
 
-  // The candidate is not at fault when the client or agency pulled out: keep them findable for other openings.
-  if (party !== "APPLICANT") {
-    await returnToTalentPool(application.userId, applicationId, actorId).catch(() => {});
+  // A disposition from the TA decides; otherwise keep the candidate findable only when the client or agency pulled out.
+  const keepInPool = input.disposition ? input.disposition === "TALENT_POOL" : input.keepInTalentPool ?? party !== "APPLICANT";
+  if (!isApplicant && keepInPool) {
+    await retainInTalentPool({
+      userId: application.userId,
+      applicationId,
+      actorId,
+      notes:
+        party === "APPLICANT"
+          ? "Kept in talent pool by the recruiter after the applicant backed out"
+          : "Returned to talent pool after backout not caused by the candidate",
+    }).catch(() => {});
   }
 
   await notifyBackout({
     isApplicant,
+    party,
     applicationId,
     applicantUserId: application.userId,
     jobTitle: application.jobPosting?.title ?? "the position",
@@ -161,36 +199,15 @@ export const recordBackout = async (input: RecordBackoutInput) => {
   return backout;
 };
 
-async function returnToTalentPool(userId: string, applicationId: number, actorId: string) {
-  const profile = await prisma.applicantProfile.findUnique({
-    where: { userId },
-    select: { id: true, hasNoShowHistory: true },
-  });
-  if (!profile || profile.hasNoShowHistory) return;
-  const notes = "Returned to talent pool after backout not caused by the candidate";
-  await prisma.talentPoolMembership.upsert({
-    where: { applicantProfileId: profile.id },
-    create: {
-      applicantProfileId: profile.id,
-      sourceApplicationId: applicationId,
-      status: "ACTIVE",
-      availability: "AVAILABLE",
-      addedById: actorId,
-      notes,
-    },
-    update: { sourceApplicationId: applicationId, status: "ACTIVE", availability: "AVAILABLE", notes },
-  });
-  await rebuildCandidateFeatureProfile(profile.id).catch(() => {});
-}
-
 async function notifyBackout(args: {
   isApplicant: boolean;
+  party: string;
   applicationId: number;
   applicantUserId: string;
   jobTitle: string;
   postedById: string | null;
 }) {
-  const { isApplicant, applicationId, applicantUserId, jobTitle, postedById } = args;
+  const { isApplicant, party, applicationId, applicantUserId, jobTitle, postedById } = args;
   if (isApplicant) {
     const link = `/ta/applications/${applicationId}`;
     const title = "Applicant withdrew";
@@ -202,7 +219,9 @@ async function notifyBackout(args: {
   await sendNotification(
     applicantUserId,
     "Application closed",
-    `Your application for ${jobTitle} was closed because the placement did not go ahead.`,
+    party === "APPLICANT"
+      ? `Your application for ${jobTitle} was closed because you were unable to continue with the process.`
+      : `Your application for ${jobTitle} was closed because the placement did not go ahead.`,
     "INFO",
     `/app/applications/${applicationId}`
   );

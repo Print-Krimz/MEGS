@@ -100,11 +100,36 @@ export const taSchema = {
   recordBackout: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({
-      party: z.enum(["APPLICANT", "CLIENT", "AGENCY"]),
+      // Only the applicant backs out; client or agency decisions go through the archive flow.
+      party: z.literal("APPLICANT"),
       reason: z.enum(BACKOUT_REASON_VALUES),
       notes: boundedText(FIELD_LIMITS.notes).optional(),
       occurredOn: dateOnly.optional(), // Manila calendar date; defaults to now
+      keepInTalentPool: z.boolean().optional(), // defaults to true unless the applicant pulled out
     }),
+  }),
+  closeApplication: z.object({
+    params: z.object({ id: boundedIdText }),
+    body: z
+      .object({
+        outcome: z.enum(["REJECTED", "BACKED_OUT"]),
+        reasonCode: z.string().min(1).max(64),
+        disposition: z.enum(["TALENT_POOL", "ARCHIVE"]),
+        notes: boundedText(FIELD_LIMITS.notes).optional(),
+        occurredOn: dateOnly.optional(), // Backed Out only; Manila calendar date, defaults to now
+      })
+      .superRefine((body, ctx) => {
+        const valid =
+          body.outcome === "BACKED_OUT"
+            ? (BACKOUT_REASONS_BY_PARTY.APPLICANT as readonly string[]).includes(body.reasonCode)
+            : (REJECTION_REASON_CODES as readonly string[]).includes(body.reasonCode);
+        if (!valid) {
+          ctx.addIssue({ code: "custom", path: ["reasonCode"], message: "Reason is not valid for this outcome" });
+        }
+        if (body.outcome === "REJECTED" && body.occurredOn) {
+          ctx.addIssue({ code: "custom", path: ["occurredOn"], message: "Date only applies to a backout" });
+        }
+      }),
   }),
   archiveRestore: z.object({
     params: z.object({ id: boundedIdText }),

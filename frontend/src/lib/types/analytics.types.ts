@@ -74,6 +74,21 @@ export interface DropOffRow {
   rejected: number;
 }
 
+export interface ClosureCounts {
+  total: number;
+  talentPool: number;
+  archive: number;
+  /** Closed before a disposition was recorded (older records). */
+  notRecorded: number;
+}
+
+export interface ClosureSummary {
+  rejected: ClosureCounts;
+  backedOut: ClosureCounts;
+  topRejectionReasons: { reason: string; count: number }[];
+  rejectedByStage: { stage: string; label: string; count: number }[];
+}
+
 export interface BackoutSummary {
   withdrawals: number;
   backouts: number;
@@ -231,6 +246,8 @@ export interface TADeliveryDashboard {
   stageTable: StageTableRow[];
   dropOff: DropOffRow[];
   backouts: BackoutSummary;
+  /** Rejected and Backed Out applications in the period, by disposition. Absent on older servers. */
+  closures?: ClosureSummary;
   clientDecisions: ClientDecisions;
   /** The TA's own overdue candidates, longest wait first. */
   stuck: StuckCandidate[];

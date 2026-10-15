@@ -781,6 +781,7 @@ export const JobPostingDetailPage: React.FC = () => {
                             !application.isArchived &&
                             application.status !== ApplicationStatus.ARCHIVED &&
                             application.status !== ApplicationStatus.BACKOUT &&
+                            application.status !== ApplicationStatus.REJECTED &&
                             (application.user?.id === c.id || application.user?.email?.toLowerCase() === c.email?.toLowerCase())
                           ));
 

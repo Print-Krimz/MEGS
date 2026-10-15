@@ -1,4 +1,4 @@
-import type { ApplicationBackoutRecord } from "../backout";
+import type { ApplicationBackoutRecord, ApplicationClosureRecord } from "../backout";
 import type {
   ApplicationStatus,
   InterviewType,
@@ -207,6 +207,8 @@ export interface Application {
   recruiterDecisions?: RecruiterDecision[];
   deployments?: Deployment[];
   backout?: ApplicationBackoutRecord | null;
+  /** The live closure (Rejected or Backed Out), if the application was closed. */
+  closures?: ApplicationClosureRecord[];
   hiredEmployee?: {
     id: number;
     employeeNumber: string;

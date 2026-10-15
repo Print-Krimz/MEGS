@@ -37,6 +37,7 @@ model User {
   assignedClients Client[] @relation("ClientAssignedTa")
   recruiterDecisions RecruiterDecision[] @relation("DecisionActor")
   recordedBackouts ApplicationBackout[] @relation("BackoutRecordedBy")
+  recordedClosures ApplicationClosure[] @relation("ClosureRecordedBy")
   endorsedCandidates ClientEndorsement[] @relation("EndorsementActor")
   reviewedComplianceRequirements ComplianceRequirement[] @relation("ComplianceReviewer")
   createdDeployments Deployment[] @relation("DeploymentCreatedBy")
