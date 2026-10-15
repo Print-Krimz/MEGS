@@ -5,6 +5,7 @@ export interface SecurityControls {
   mfaDisabled: boolean;
   otpDisabled: boolean;
   rateLimitDisabled: boolean;
+  captchaDisabled?: boolean;
 }
 
 export const useSecurityControls = (enabled = true) => useQuery({

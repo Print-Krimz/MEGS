@@ -1,11 +1,11 @@
 import type { Request, Response, NextFunction } from "express";
-import { isLocalBypassEnabled } from "../security/runtime-config.js";
+import { getSecurityControls } from "../security/security-controls.js";
 
 /**
  * Cloudflare Turnstile CAPTCHA Verification Middleware
  *
  * Verifies the turnstile token supplied in `x-turnstile-token` header or `req.body.turnstileToken`.
- * Automatically bypasses verification in test environments (`NODE_ENV === "test"` or `DISABLE_CAPTCHA === "true"`).
+ * Bypassed in tests (`NODE_ENV === "test"`) and while the developer-owned `DISABLE_CAPTCHA` switch is "true".
  */
 export async function verifyTurnstile(
   req: Request,
@@ -23,8 +23,8 @@ export async function verifyTurnstile(
     delete req.body["cf-turnstile-response"];
   }
 
-  // Allow test environments and explicit disable flag to bypass
-  if (process.env.NODE_ENV === "test" || isLocalBypassEnabled("DISABLE_CAPTCHA")) {
+  // Allow test environments and the developer-owned DISABLE_CAPTCHA switch (Heroku Config Var) to bypass
+  if (process.env.NODE_ENV === "test" || getSecurityControls().captchaDisabled) {
     return next();
   }
 

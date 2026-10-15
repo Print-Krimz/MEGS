@@ -1,9 +1,5 @@
 import { isIP } from "node:net";
 type Environment = Record<string, string | undefined>;
-const bypassFlags = ["DISABLE_CAPTCHA"];
-
-export const isLocalBypassEnabled = (flag: string, env: Environment = process.env): boolean =>
-  (env.NODE_ENV === "development" || env.NODE_ENV === "test") && env[flag] === "true";
 
 export const allowedOrigins = (env: Environment = process.env): Set<string> => {
   const configured = [env.FRONTEND_URL, ...(env.CORS_ALLOWED_ORIGINS || "").split(",")].filter(Boolean) as string[];
@@ -41,7 +37,6 @@ export const proxyTrust = (env: Environment = process.env): false | number | str
 export const validateRuntimeSecurity = (env: Environment = process.env): void => {
   if (env.NODE_ENV && !["production", "development", "test"].includes(env.NODE_ENV)) throw new Error("NODE_ENV must be production, development or test");
   if (env.NODE_ENV === "production") {
-    for (const flag of bypassFlags) if (env[flag] === "true") throw new Error(`${flag} cannot disable production security`);
     for (const key of ["OTP_SECRET", "BACKUP_ENCRYPTION_SECRET"]) {
       if ((env[key]?.trim().length || 0) < 32) throw new Error(`${key} requires an explicit dedicated secret of at least 32 characters`);
     }

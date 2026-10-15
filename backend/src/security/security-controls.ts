@@ -2,6 +2,7 @@ export interface SecurityControls {
   mfaDisabled: boolean;
   otpDisabled: boolean;
   rateLimitDisabled: boolean;
+  captchaDisabled: boolean;
 }
 
 // Developer-owned configuration, matching the main MEGS repository's flags.
@@ -11,4 +12,5 @@ export const getSecurityControls = (): SecurityControls => ({
   mfaDisabled: process.env.DISABLE_MFA === "true",
   otpDisabled: process.env.DISABLE_OTP === "true",
   rateLimitDisabled: process.env.DISABLE_RATE_LIMIT === "true",
+  captchaDisabled: process.env.DISABLE_CAPTCHA === "true",
 });

@@ -15,6 +15,7 @@ import { MfaChallengeModal } from "../../components/auth/MfaChallengeModal";
 import { MfaSetupModal } from "../../components/auth/MfaSetupModal";
 import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
 import type { LoginResponse } from "../../lib/types/auth.types";
+import { useSecurityControls } from "../../hooks/useSecurityControls";
 
 const loginSchema = z.object({
   email: z.string().trim().min(1, "Email is required").email("Please enter a valid email address"),
@@ -34,6 +35,7 @@ export const LoginPage: React.FC = () => {
   const [turnstileToken, setTurnstileToken] = useState("");
   const turnstileTokenRef = React.useRef("");
   const turnstileRef = React.useRef<TurnstileWidgetRef>(null);
+  const controls = useSecurityControls();
   const submittingRef = React.useRef(false);
 
   const [mfaChallenge, setMfaChallenge] = useState<{
@@ -123,7 +125,9 @@ export const LoginPage: React.FC = () => {
     },
   });
 
-  const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
+  // Off when the build disables it or the developer-owned DISABLE_CAPTCHA switch is on (Heroku).
+  const isCaptchaDisabled =
+    import.meta.env.VITE_DISABLE_CAPTCHA === "true" || (controls.data?.captchaDisabled === true && !controls.isError);
   const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
   const isCaptchaRequired = hasSiteKey && !isCaptchaDisabled && import.meta.env.MODE !== "test";
   const isCredentialsFilled = formData.email.trim().length > 0 && formData.password.length > 0;
@@ -217,7 +221,7 @@ export const LoginPage: React.FC = () => {
             }
           />
 
-          {import.meta.env.VITE_DISABLE_CAPTCHA !== "true" && (
+          {!isCaptchaDisabled && (
             <div className="flex flex-col gap-2">
               <FieldLabel id="turnstile-label">Security verification</FieldLabel>
               <div

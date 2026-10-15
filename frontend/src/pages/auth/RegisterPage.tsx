@@ -102,7 +102,9 @@ export const RegisterPage: React.FC = () => {
     },
   });
 
-  const isCaptchaDisabled = import.meta.env.VITE_DISABLE_CAPTCHA === "true";
+  // Off when the build disables it or the developer-owned DISABLE_CAPTCHA switch is on (Heroku).
+  const isCaptchaDisabled =
+    import.meta.env.VITE_DISABLE_CAPTCHA === "true" || (controls.data?.captchaDisabled === true && !controls.isError);
   const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
   const isCaptchaRequired = hasSiteKey && !isCaptchaDisabled && import.meta.env.MODE !== "test";
   const isCredentialsFilled =
@@ -352,7 +354,7 @@ export const RegisterPage: React.FC = () => {
               required
             />
 
-            {import.meta.env.VITE_DISABLE_CAPTCHA !== "true" && (
+            {!isCaptchaDisabled && (
               <div className="flex flex-col gap-2">
                 <FieldLabel>Security verification</FieldLabel>
                 <TurnstileWidget
