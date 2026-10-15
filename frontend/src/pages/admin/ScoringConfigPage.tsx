@@ -105,9 +105,11 @@ export const ScoringConfigPage: React.FC = () => {
     },
   });
 
-  const totalWeight =
+  const weightSum =
     skillsWeight + experienceWeight + locationWeight + complianceWeight + educationWeight;
-  const isWeightValid = totalWeight === 100;
+  // Decimal weights can sum to 99.99999999999999 in floating point, so allow a 0.005 tolerance.
+  const isWeightValid = Math.abs(weightSum - 100) < 0.005;
+  const totalWeight = Math.round(weightSum * 100) / 100;
   const isKnnValid = Number.isInteger(defaultK) && Number.isInteger(maximumK) &&
     defaultK >= 1 && defaultK <= 100 && maximumK >= 1 && maximumK <= 100 && defaultK <= maximumK &&
     Number.isFinite(minSimilarity) && minSimilarity >= 0 && minSimilarity <= 1 &&

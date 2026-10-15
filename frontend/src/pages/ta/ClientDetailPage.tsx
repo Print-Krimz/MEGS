@@ -19,7 +19,7 @@ import {
   Plus,
   MapPin,
 } from "lucide-react";
-import { notify } from "../../lib/feedback";
+import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TA_COPY, formatPriority, formatTaStatus } from "../../lib/ta-copy";
 import {
   validatePersonName,
@@ -37,6 +37,18 @@ const contactNameLengthError = (first: string, last: string) =>
   [first.trim(), last.trim()].filter(Boolean).join(" ").length > FIELD_LIMITS.name
     ? `Contact name cannot exceed ${FIELD_LIMITS.name} characters.`
     : undefined;
+// Backend fields that have an inline input on this form. Any other field's message goes in the toast.
+const CLIENT_INLINE_FIELDS = [
+  "name",
+  "tradeName",
+  "industry",
+  "contactName",
+  "contactEmail",
+  "contactPhone",
+  "street",
+  "reviewThresholdDays",
+  "medicalValidityMonths",
+];
 
 export const ClientDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -58,6 +70,14 @@ export const ClientDetailPage: React.FC = () => {
   const [editPostalCode, setEditPostalCode] = useState("");
   const [editReviewThresholdDays, setEditReviewThresholdDays] = useState("5");
   const [editMedicalValidityMonths, setEditMedicalValidityMonths] = useState(6);
+  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
+  const clearServerFieldError = (field: string) =>
+    setServerFieldErrors((prev) => {
+      if (!(field in prev)) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
 
   const clientQuery = useQuery({
     queryKey: ["ta", "client", clientId],
@@ -82,10 +102,19 @@ export const ClientDetailPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "client", clientId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "clients"] });
+      setServerFieldErrors({});
       setEditModalOpen(false);
       notify.success("Client updated", "The client details were saved.");
     },
     onError: (err: any) => {
+      const fieldErrors = fieldErrorsFrom(err);
+      const entries = Object.entries(fieldErrors);
+      if (entries.length > 0) {
+        setServerFieldErrors(fieldErrors);
+        const toastEntry = entries.find(([field]) => !CLIENT_INLINE_FIELDS.includes(field)) ?? entries[0];
+        notify.error("Check the highlighted fields", toastEntry[1]);
+        return;
+      }
       notify.error("Unable to update client", err);
     },
   });
@@ -377,6 +406,7 @@ export const ClientDetailPage: React.FC = () => {
         onClose={() => {
           setEditModalOpen(false);
           setEditEmailError(null);
+          setServerFieldErrors({});
         }}
         title="Edit client"
         description={`Update details for ${client.name}`}
@@ -388,14 +418,14 @@ export const ClientDetailPage: React.FC = () => {
 
             const nameErr = validateStandardText(editName, "Legal company name", { maxLength: 200 });
             if (nameErr) {
-              notify.error("Invalid Company Name", nameErr);
+              notify.error("Check the highlighted fields", nameErr);
               return;
             }
 
             if (editTradeName.trim()) {
               const tradeErr = validateStandardText(editTradeName, "Brand name", { maxLength: 200 });
               if (tradeErr) {
-                notify.error("Invalid Brand Name", tradeErr);
+                notify.error("Check the highlighted fields", tradeErr);
                 return;
               }
             }
@@ -403,7 +433,7 @@ export const ClientDetailPage: React.FC = () => {
             if (editContactFirstName.trim()) {
               const fnErr = validatePersonName(editContactFirstName, "Contact first name");
               if (fnErr) {
-                notify.error("Invalid Contact Name", fnErr);
+                notify.error("Check the highlighted fields", fnErr);
                 return;
               }
             }
@@ -411,21 +441,21 @@ export const ClientDetailPage: React.FC = () => {
             if (editContactLastName.trim()) {
               const lnErr = validatePersonName(editContactLastName, "Contact last name");
               if (lnErr) {
-                notify.error("Invalid Contact Name", lnErr);
+                notify.error("Check the highlighted fields", lnErr);
                 return;
               }
             }
 
             const contactNameErr = contactNameLengthError(editContactFirstName, editContactLastName);
             if (contactNameErr) {
-              notify.error("Invalid Contact Name", contactNameErr);
+              notify.error("Check the highlighted fields", contactNameErr);
               return;
             }
 
             if (editContactPhone.trim()) {
               const phoneErr = validatePhilippineContactPhone(editContactPhone, { label: "Contact phone" });
               if (phoneErr) {
-                notify.error("Invalid Contact Phone", phoneErr);
+                notify.error("Check the highlighted fields", phoneErr);
                 return;
               }
             }
@@ -436,12 +466,12 @@ export const ClientDetailPage: React.FC = () => {
             }
             const hasAddress = [editStreet, editProvince, editCity, editBarangay, editPostalCode].some((value) => value.trim());
             if (hasAddress && (!editProvince.trim() || !editCity.trim() || !editBarangay.trim() || !editPostalCode.trim())) {
-              notify.error("Address is incomplete", "Enter the province, city, barangay, and postal code.");
+              notify.error("Check the highlighted fields", "Enter the province, city, barangay, and postal code.");
               return;
             }
             const reviewThreshold = Number(editReviewThresholdDays);
             if (!Number.isInteger(reviewThreshold) || reviewThreshold < 1 || reviewThreshold > 30) {
-              notify.error("Invalid review threshold", "Enter an integer between 1 and 30 days.");
+              notify.error("Check the highlighted fields", "Enter an integer between 1 and 30 days.");
               return;
             }
             const combinedName = [editContactFirstName.trim(), editContactLastName.trim()].filter(Boolean).join(" ");
@@ -468,21 +498,33 @@ export const ClientDetailPage: React.FC = () => {
             <Input
               label="Legal company name"
               value={editName}
-              onChange={(e) => setEditName(e.target.value)}
+              error={serverFieldErrors.name}
+              onChange={(e) => {
+                setEditName(e.target.value);
+                clearServerFieldError("name");
+              }}
               required
             />
             <Input
               label="Brand name (optional)"
               placeholder="e.g. Acme Logistics"
               value={editTradeName}
-              onChange={(e) => setEditTradeName(e.target.value)}
+              error={serverFieldErrors.tradeName}
+              onChange={(e) => {
+                setEditTradeName(e.target.value);
+                clearServerFieldError("tradeName");
+              }}
             />
           </div>
           <ComboBox
             label="Industry"
             placeholder="Select or enter industry sector..."
             value={editIndustry}
-            onChange={(val) => setEditIndustry(val)}
+            error={serverFieldErrors.industry}
+            onChange={(val) => {
+              setEditIndustry(val);
+              clearServerFieldError("industry");
+            }}
             options={PHILIPPINE_INDUSTRY_SECTORS.map((s) => ({ value: s, label: s }))}
             allowCustom
           />
@@ -493,7 +535,11 @@ export const ClientDetailPage: React.FC = () => {
               nameInput
               placeholder="e.g. Roberto"
               value={editContactFirstName}
-              onChange={(e) => setEditContactFirstName(e.target.value)}
+              error={serverFieldErrors.contactName}
+              onChange={(e) => {
+                setEditContactFirstName(e.target.value);
+                clearServerFieldError("contactName");
+              }}
             />
             <Input
               label="Contact last name"
@@ -502,7 +548,10 @@ export const ClientDetailPage: React.FC = () => {
               placeholder="e.g. Tan"
               error={contactNameLengthError(editContactFirstName, editContactLastName)}
               value={editContactLastName}
-              onChange={(e) => setEditContactLastName(e.target.value)}
+              onChange={(e) => {
+                setEditContactLastName(e.target.value);
+                clearServerFieldError("contactName");
+              }}
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -510,16 +559,21 @@ export const ClientDetailPage: React.FC = () => {
               label="Contact phone"
               placeholder="0917 123 4567"
               value={editContactPhone}
-              onChange={setEditContactPhone}
+              error={serverFieldErrors.contactPhone}
+              onChange={(val) => {
+                setEditContactPhone(val);
+                clearServerFieldError("contactPhone");
+              }}
             />
             <Input
               label="Contact email"
               type="email"
               placeholder="e.g. hr@acmecorp.com"
               value={editContactEmail}
-              error={editEmailError || undefined}
+              error={serverFieldErrors.contactEmail || editEmailError || undefined}
               onChange={(e) => {
                 setEditContactEmail(e.target.value);
+                clearServerFieldError("contactEmail");
                 if (editEmailError) setEditEmailError(null);
               }}
             />
@@ -533,7 +587,11 @@ export const ClientDetailPage: React.FC = () => {
               label="Street or building address"
               placeholder="e.g. Bldg 4, Light Industry Park"
               value={editStreet}
-              onChange={(e) => setEditStreet(e.target.value)}
+              error={serverFieldErrors.street}
+              onChange={(e) => {
+                setEditStreet(e.target.value);
+                clearServerFieldError("street");
+              }}
             />
             <PhilippineAddressFields
               province={editProvince}
@@ -560,14 +618,22 @@ export const ClientDetailPage: React.FC = () => {
                 min={1}
                 max={30}
                 value={editReviewThresholdDays}
-                onChange={(e) => setEditReviewThresholdDays(e.target.value)}
+                error={serverFieldErrors.reviewThresholdDays}
+                onChange={(e) => {
+                  setEditReviewThresholdDays(e.target.value);
+                  clearServerFieldError("reviewThresholdDays");
+                }}
                 helperText="Turnaround SLA (1 - 30 days, default: 5)"
                 required
               />
               <Select
                 label="Medical validity period"
                 value={String(editMedicalValidityMonths)}
-                onChange={(e) => setEditMedicalValidityMonths(Number(e.target.value))}
+                error={serverFieldErrors.medicalValidityMonths}
+                onChange={(e) => {
+                  setEditMedicalValidityMonths(Number(e.target.value));
+                  clearServerFieldError("medicalValidityMonths");
+                }}
                 helperText="Auto-expiration period for medical documents"
                 options={[
                   { value: "6", label: "6 months (Standard policy)" },

@@ -21,12 +21,12 @@ export const scheduleNewInterview = async (
   actorId?: string
 ) => {
   if (!["INITIAL_SCREENING", "FINAL_INTERVIEW"].includes(type)) {
-    throw new Error("type must be INITIAL_SCREENING or FINAL_INTERVIEW");
+    throw new Error("Choose either Initial Screening or Final Interview.");
   }
 
   const scheduledDate = new Date(scheduledAt);
   if (isNaN(scheduledDate.getTime())) {
-    throw new Error("Invalid scheduledAt format");
+    throw new Error("Enter a valid interview date and time.");
   }
   if (scheduledDate.getUTCFullYear() < 1900 || scheduledDate.getUTCFullYear() > 2100) {
     throw new Error("Interview dates must be within 1900 through 2100.");
@@ -50,7 +50,7 @@ export const scheduleNewInterview = async (
 
   const invalidStages = ["COMPLIANCE", "DEPLOYED", "ARCHIVED", "BACKOUT", "REJECTED"];
   if (invalidStages.includes(application.status)) {
-    throw new Error(`Cannot schedule interview for application in ${application.status} stage.`);
+    throw new Error("An interview can't be scheduled at this application's current stage.");
   }
 
   if (type === "INITIAL_SCREENING") {
@@ -58,7 +58,7 @@ export const scheduleNewInterview = async (
     // candidate to a new application instead.
     const screeningStages = ["SUBMITTED", "PARSING", "REVIEW", "MATCHED", "INITIAL_SCREENING", "NEEDS_ATTENTION"];
     if (!screeningStages.includes(application.status)) {
-      throw new Error(`Cannot schedule INITIAL_SCREENING interview for application currently in ${application.status} stage.`);
+      throw new Error("An Initial Screening interview can't be scheduled at this application's current stage.");
     }
 
     const passedScreening = await prisma.interview.findFirst({
@@ -90,7 +90,7 @@ export const scheduleNewInterview = async (
       },
     });
     if (!screening) {
-      throw new Error("Cannot schedule FINAL_INTERVIEW. Candidate must first complete and pass INITIAL_SCREENING.");
+      throw new Error("Cannot schedule a Final Interview. The candidate must first complete and pass Initial Screening.");
     }
 
     const declinedEndorsement = await prisma.clientEndorsement.findFirst({
@@ -100,7 +100,7 @@ export const scheduleNewInterview = async (
       },
     });
     if (declinedEndorsement) {
-      throw new Error("Cannot schedule FINAL_INTERVIEW. Client endorsement was declined.");
+      throw new Error("Cannot schedule a Final Interview. The client endorsement was declined.");
     }
 
     const passedFinal = await prisma.interview.findFirst({
@@ -113,7 +113,7 @@ export const scheduleNewInterview = async (
 
     const finalStages = ["INITIAL_SCREENING", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW"];
     if (!finalStages.includes(application.status)) {
-      throw new Error(`Cannot schedule FINAL_INTERVIEW for application currently in ${application.status} stage.`);
+      throw new Error("A Final Interview can't be scheduled at this application's current stage.");
     }
 
     // Advance application status to FINAL_INTERVIEW if not already in FINAL_INTERVIEW
@@ -246,10 +246,10 @@ export const recordDirectInterviewResult = async (
   actorId?: string
 ) => {
   if (!["INITIAL_SCREENING", "FINAL_INTERVIEW"].includes(type)) {
-    throw new Error("type must be INITIAL_SCREENING or FINAL_INTERVIEW");
+    throw new Error("Choose either Initial Screening or Final Interview.");
   }
   if (!["PASS", "PASSED", "FAIL", "FAILED", "NO_SHOW", "PENDING"].includes(result)) {
-    throw new Error("result must be PASS, PASSED, FAIL, FAILED, NO_SHOW, or PENDING");
+    throw new Error("Choose a result: Pass, Fail, No Show, or Pending.");
   }
 
   const application = await prisma.application.findUnique({
@@ -432,7 +432,7 @@ export const updateInterviewResult = async (
   actorId?: string
 ) => {
   if (!["PASS", "PASSED", "FAIL", "FAILED", "NO_SHOW", "PENDING"].includes(result)) {
-    throw new Error("result must be PASS, PASSED, FAIL, FAILED, NO_SHOW, or PENDING");
+    throw new Error("Choose a result: Pass, Fail, No Show, or Pending.");
   }
 
   const interview = await prisma.interview.findUnique({
@@ -660,7 +660,7 @@ export const correctInterviewResult = async (
   notes?: string
 ) => {
   if (!["PASS", "PASSED", "FAIL", "FAILED", "NO_SHOW"].includes(newResult)) {
-    throw new Error("result must be PASS, PASSED, FAIL, FAILED, or NO_SHOW");
+    throw new Error("Choose a result: Pass, Fail, or No Show.");
   }
   if (!reason || reason.trim().length < 10) {
     throw new Error("A reason of at least 10 characters is required to correct an interview result.");

@@ -16,6 +16,7 @@ import {
   getContractPdf,
   recordSignedContract,
 } from '../../services/ta/ta.applications.service.js';
+import { findDuplicateIdentifierWarnings } from '../../services/ta/duplicate-identifiers.js';
 
 // GET /api/ta/applications - List and filter applications across postings
 export const listApplications = async (req: Request, res: Response): Promise<void> => {
@@ -495,7 +496,14 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       changes,
     });
 
-    sendSuccess(res, "Candidate profile verified and updated successfully", updatedProfile);
+    // Soft warning only: checks just the identifiers changed by this save and never blocks it.
+    const warnings = await findDuplicateIdentifierWarnings(profile.id, {
+      mobileNumber: changes.mobileNumber?.to,
+      sss: changes.sss?.to,
+      tin: changes.tin?.to,
+    });
+
+    sendSuccess(res, "Candidate profile verified and updated successfully", { ...updatedProfile, warnings });
   } catch (error: any) {
     sendError(res, error.message, 500);
   }

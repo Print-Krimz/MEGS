@@ -142,6 +142,13 @@ export const validateDateRangeQuery = (req: Request, res: Response, next: NextFu
       sendError(res, "Start date must be on or before end date", 400);
       return;
     }
+    if (selectedRange === "custom") {
+      const inclusiveDays = (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000 + 1;
+      if (inclusiveDays > 366) {
+        sendError(res, "Choose a date range of 366 days or fewer.", 400);
+        return;
+      }
+    }
   }
   next();
 };

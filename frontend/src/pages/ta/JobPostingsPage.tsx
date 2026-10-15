@@ -26,7 +26,7 @@ import {
   FileText,
 } from "lucide-react";
 
-import { notify } from "../../lib/feedback";
+import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 import {
   validateStandardText,
@@ -62,6 +62,9 @@ const JOB_TEMPLATE_REQUIREMENTS = `### Qualifications
 - Safety compliance, operational reporting, equipment handling, quality inspection`;
 
 const EMPTY_LIST: any[] = [];
+
+// Backend fields that have an inline input on this form. Any other field's message goes in the toast.
+const JOB_INLINE_FIELDS = ["title", "location", "imageUrl", "description", "requirements", "mrfId"];
 
 export const JobPostingsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -152,6 +155,15 @@ export const JobPostingsPage: React.FC = () => {
     }
   };
 
+  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
+  const clearServerFieldError = (field: string) =>
+    setServerFieldErrors((prev) => {
+      if (!(field in prev)) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+
   const createJobMutation = useMutation({
     mutationFn: async (payload: any) => {
       const created = await taApi.createJob(payload);
@@ -176,9 +188,18 @@ export const JobPostingsPage: React.FC = () => {
       setFormRequirements("");
       setFormIsEvergreen(false);
       setCreateModalTab("edit");
+      setServerFieldErrors({});
       notify.success("Job opening created", `Job opening #${newJob?.id || ""} is ready.`);
     },
     onError: (err: any) => {
+      const fieldErrors = fieldErrorsFrom(err);
+      const entries = Object.entries(fieldErrors);
+      if (entries.length > 0) {
+        setServerFieldErrors(fieldErrors);
+        const toastEntry = entries.find(([field]) => !JOB_INLINE_FIELDS.includes(field)) ?? entries[0];
+        notify.error("Check the highlighted fields", toastEntry[1]);
+        return;
+      }
       notify.error("Unable to create job opening", err);
     },
   });
@@ -193,6 +214,8 @@ export const JobPostingsPage: React.FC = () => {
     }
     setFormDescription(JOB_TEMPLATE_DESCRIPTION);
     setFormRequirements(JOB_TEMPLATE_REQUIREMENTS);
+    clearServerFieldError("description");
+    clearServerFieldError("requirements");
     notify.info("Template loaded", "Job posting outline inserted into description and requirements.");
   };
 
@@ -428,7 +451,10 @@ export const JobPostingsPage: React.FC = () => {
       {/* Create Job Modal */}
       <Dialog
         open={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
+        onClose={() => {
+          setCreateModalOpen(false);
+          setServerFieldErrors({});
+        }}
         title="Create job opening"
         description="Publish an opening so applicants can apply."
         size="xl"
@@ -438,20 +464,20 @@ export const JobPostingsPage: React.FC = () => {
             e.preventDefault();
             if (!formTitle.trim()) return;
             if (!selectedMrfId) {
-              notify.error("Choose a manpower request", "A job opening is posted under one of your manpower requests.");
+              notify.error("Check the highlighted fields", "A job opening is posted under one of your manpower requests.");
               return;
             }
 
             const titleErr = validateStandardText(formTitle, "Job opening title", { maxLength: 200 });
             if (titleErr) {
-              notify.error("Invalid Title", titleErr);
+              notify.error("Check the highlighted fields", titleErr);
               return;
             }
 
             if (formLocation.trim()) {
               const locErr = validateStandardText(formLocation, "Work site", { maxLength: 200 });
               if (locErr) {
-                notify.error("Invalid Location", locErr);
+                notify.error("Check the highlighted fields", locErr);
                 return;
               }
             }
@@ -459,7 +485,7 @@ export const JobPostingsPage: React.FC = () => {
             if (formDescription.trim()) {
               const descErr = validateProseText(formDescription, "Description and responsibilities", { maxLength: 10000 });
               if (descErr) {
-                notify.error("Invalid Description", descErr);
+                notify.error("Check the highlighted fields", descErr);
                 return;
               }
             }
@@ -467,7 +493,7 @@ export const JobPostingsPage: React.FC = () => {
             if (formRequirements.trim()) {
               const reqErr = validateProseText(formRequirements, "Required skills and qualifications", { maxLength: 10000 });
               if (reqErr) {
-                notify.error("Invalid Requirements", reqErr);
+                notify.error("Check the highlighted fields", reqErr);
                 return;
               }
             }
@@ -536,7 +562,11 @@ export const JobPostingsPage: React.FC = () => {
                 placeholder="Search requests to fill this opening automatically..."
                 leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-slate-400" />}
                 value={selectedMrfId ? String(selectedMrfId) : ""}
-                onChange={handleSelectMRF}
+                error={serverFieldErrors.mrfId}
+                onChange={(val) => {
+                  setServerFieldErrors({});
+                  handleSelectMRF(val);
+                }}
                 options={mrfs.map((m) => ({
                   value: String(m.id),
                   label: `${m.title} (Request #${m.id})`,
@@ -552,7 +582,11 @@ export const JobPostingsPage: React.FC = () => {
                 label="Job opening title"
                 placeholder="e.g. Senior Electrician / Line Specialist"
                 value={formTitle}
-                onChange={(e) => setFormTitle(e.target.value)}
+                error={serverFieldErrors.title}
+                onChange={(e) => {
+                  setFormTitle(e.target.value);
+                  clearServerFieldError("title");
+                }}
                 required
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -560,13 +594,21 @@ export const JobPostingsPage: React.FC = () => {
                   label="Work site"
                   placeholder="e.g. Batangas City Facility"
                   value={formLocation}
-                  onChange={(e) => setFormLocation(e.target.value)}
+                  error={serverFieldErrors.location}
+                  onChange={(e) => {
+                    setFormLocation(e.target.value);
+                    clearServerFieldError("location");
+                  }}
                 />
                 <Input
                   label="Image web address (optional)"
                   placeholder="https://example.com/company-banner.jpg"
                   value={formImageUrl}
-                  onChange={(e) => setFormImageUrl(e.target.value)}
+                  error={serverFieldErrors.imageUrl}
+                  onChange={(e) => {
+                    setFormImageUrl(e.target.value);
+                    clearServerFieldError("imageUrl");
+                  }}
                 />
               </div>
 
@@ -575,7 +617,11 @@ export const JobPostingsPage: React.FC = () => {
                 label="Description and responsibilities"
                 placeholder="Describe role responsibilities..."
                 value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
+                error={serverFieldErrors.description}
+                onChange={(e) => {
+                  setFormDescription(e.target.value);
+                  clearServerFieldError("description");
+                }}
                 rows={4}
                 maxLength={10000}
                 required
@@ -584,7 +630,11 @@ export const JobPostingsPage: React.FC = () => {
                 label="Required skills and qualifications"
                 placeholder="e.g. TESDA NC II, 2+ years experience..."
                 value={formRequirements}
-                onChange={(e) => setFormRequirements(e.target.value)}
+                error={serverFieldErrors.requirements}
+                onChange={(e) => {
+                  setFormRequirements(e.target.value);
+                  clearServerFieldError("requirements");
+                }}
                 rows={4}
                 maxLength={10000}
                 required

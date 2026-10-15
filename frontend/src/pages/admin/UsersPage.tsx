@@ -25,7 +25,7 @@ import {
   KeyRound,
   AlertTriangle,
 } from "lucide-react";
-import { notify } from "../../lib/feedback";
+import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { formatAdminRole } from "../../lib/admin-copy";
 import { validatePersonName } from "../../lib/statutory-validation";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -85,6 +85,15 @@ export const UsersPage: React.FC = () => {
   });
 
   // Mutations
+  const [inviteFieldErrors, setInviteFieldErrors] = useState<Record<string, string>>({});
+  const clearInviteFieldError = (field: string) =>
+    setInviteFieldErrors((prev) => {
+      if (!(field in prev)) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+
   const inviteMutation = useMutation({
     mutationFn: adminApi.inviteTA,
     onSuccess: (user) => {
@@ -95,6 +104,7 @@ export const UsersPage: React.FC = () => {
       setInviteEmail("");
       setInviteFirstName("");
       setInviteLastName("");
+      setInviteFieldErrors({});
        const msg = "A secure account setup link was emailed to the recruiter.";
       setFeedback({
         type: "success",
@@ -107,6 +117,12 @@ export const UsersPage: React.FC = () => {
         type: "error",
          message: "We couldn't send the invitation. Please check the email address and try again.",
       });
+      const fieldErrors = fieldErrorsFrom(err);
+      if (Object.keys(fieldErrors).length > 0) {
+        setInviteFieldErrors(fieldErrors);
+        notify.error("Check the highlighted fields", Object.values(fieldErrors)[0]);
+        return;
+      }
       notify.error("Invitation Failed", err);
     },
   });
@@ -585,7 +601,10 @@ export const UsersPage: React.FC = () => {
       {/* Invite TA Modal */}
       <Dialog
         open={inviteModalOpen}
-        onClose={() => setInviteModalOpen(false)}
+        onClose={() => {
+          setInviteModalOpen(false);
+          setInviteFieldErrors({});
+        }}
         title="Invite a recruiter"
         description="We'll email a secure account setup link to this person."
       >
@@ -595,14 +614,14 @@ export const UsersPage: React.FC = () => {
             if (inviteFirstName.trim()) {
               const fnErr = validatePersonName(inviteFirstName, "First name");
               if (fnErr) {
-                notify.error("Invalid Name", fnErr);
+                notify.error("Check the highlighted fields", fnErr);
                 return;
               }
             }
             if (inviteLastName.trim()) {
               const lnErr = validatePersonName(inviteLastName, "Last name");
               if (lnErr) {
-                notify.error("Invalid Name", lnErr);
+                notify.error("Check the highlighted fields", lnErr);
                 return;
               }
             }
@@ -619,7 +638,11 @@ export const UsersPage: React.FC = () => {
             type="email"
             placeholder="e.g. recruiter@megs.ph"
             value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
+            error={inviteFieldErrors.email}
+            onChange={(e) => {
+              setInviteEmail(e.target.value);
+              clearInviteFieldError("email");
+            }}
             required
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -628,14 +651,22 @@ export const UsersPage: React.FC = () => {
               placeholder="e.g. Maria"
               nameInput
               value={inviteFirstName}
-              onChange={(e) => setInviteFirstName(e.target.value)}
+              error={inviteFieldErrors.firstName}
+              onChange={(e) => {
+                setInviteFirstName(e.target.value);
+                clearInviteFieldError("firstName");
+              }}
             />
             <Input
               label="Last name (optional)"
               placeholder="e.g. Santos"
               nameInput
               value={inviteLastName}
-              onChange={(e) => setInviteLastName(e.target.value)}
+              error={inviteFieldErrors.lastName}
+              onChange={(e) => {
+                setInviteLastName(e.target.value);
+                clearInviteFieldError("lastName");
+              }}
             />
           </div>
           <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">

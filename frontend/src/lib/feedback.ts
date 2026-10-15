@@ -135,3 +135,22 @@ export const notify = {
     toast.dismiss(id);
   },
 };
+
+/**
+ * Maps a backend validation error ({ errors: [{ field, message }] }) onto form fields.
+ * The leading request section ("body.", "query.", "params.") is dropped, so "body.firstName" becomes "firstName".
+ * Only the first message per field is kept. Returns an empty object for any other kind of error.
+ */
+export const fieldErrorsFrom = (error: unknown): Record<string, string> => {
+  if (!(error instanceof ApiError)) return {};
+  const details = error.details as any;
+  const issues: unknown = Array.isArray(details) ? details : details?.errors;
+  if (!Array.isArray(issues)) return {};
+  const result: Record<string, string> = {};
+  for (const issue of issues) {
+    if (!issue || typeof issue.field !== "string" || typeof issue.message !== "string") continue;
+    const key = issue.field.replace(/^(body|query|params)\./, "");
+    if (key && !(key in result)) result[key] = issue.message;
+  }
+  return result;
+};

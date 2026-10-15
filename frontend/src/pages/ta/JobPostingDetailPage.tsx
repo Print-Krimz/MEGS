@@ -48,7 +48,7 @@ import {
   ListOrdered,
   Eye,
 } from "lucide-react";
-import { notify } from "../../lib/feedback";
+import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
 import { SendInvitationModal } from "../../components/ta/SendInvitationModal";
 import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTrackerDrawer";
@@ -59,6 +59,9 @@ import {
   validateProseText,
 } from "../../lib/statutory-validation";
 import { getInitialJobCandidateView } from "../../lib/job-candidate-query-policy";
+
+// Backend fields that have an inline input on this form. Any other field's message goes in the toast.
+const JOB_INLINE_FIELDS = ["title", "location", "imageUrl", "status", "description", "requirements"];
 
 export const JobPostingDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -119,15 +122,33 @@ export const JobPostingDetailPage: React.FC = () => {
     },
   });
 
+  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
+  const clearServerFieldError = (field: string) =>
+    setServerFieldErrors((prev) => {
+      if (!(field in prev)) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+
   const updateJobMutation = useMutation({
     mutationFn: (data: any) => taApi.updateJob(jobId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "job", jobId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "jobs"] });
       setEditModalOpen(false);
+      setServerFieldErrors({});
       notify.success("Job opening updated", "The job details were saved.");
     },
     onError: (err: any) => {
+      const fieldErrors = fieldErrorsFrom(err);
+      const entries = Object.entries(fieldErrors);
+      if (entries.length > 0) {
+        setServerFieldErrors(fieldErrors);
+        const toastEntry = entries.find(([field]) => !JOB_INLINE_FIELDS.includes(field)) ?? entries[0];
+        notify.error("Check the highlighted fields", toastEntry[1]);
+        return;
+      }
       notify.error("Unable to update job opening", err);
     },
   });
@@ -820,7 +841,10 @@ export const JobPostingDetailPage: React.FC = () => {
       {/* Edit Job Modal */}
       <Dialog
         open={editModalOpen}
-        onClose={() => setEditModalOpen(false)}
+        onClose={() => {
+          setEditModalOpen(false);
+          setServerFieldErrors({});
+        }}
         title="Edit job opening"
         description={`Update job opening #${job.id}`}
         size="xl"
@@ -832,14 +856,14 @@ export const JobPostingDetailPage: React.FC = () => {
 
             const titleErr = validateStandardText(editTitle, "Title", { maxLength: 200 });
             if (titleErr) {
-              notify.error("Invalid Title", titleErr);
+              notify.error("Check the highlighted fields", titleErr);
               return;
             }
 
             if (editLocation.trim()) {
               const locErr = validateStandardText(editLocation, "Location", { maxLength: 200 });
               if (locErr) {
-                notify.error("Invalid Location", locErr);
+                notify.error("Check the highlighted fields", locErr);
                 return;
               }
             }
@@ -847,7 +871,7 @@ export const JobPostingDetailPage: React.FC = () => {
             if (editDescription.trim()) {
               const descErr = validateProseText(editDescription, "Description", { maxLength: 10000 });
               if (descErr) {
-                notify.error("Invalid Description", descErr);
+                notify.error("Check the highlighted fields", descErr);
                 return;
               }
             }
@@ -855,7 +879,7 @@ export const JobPostingDetailPage: React.FC = () => {
             if (editRequirements.trim()) {
               const reqErr = validateProseText(editRequirements, "Requirements", { maxLength: 10000 });
               if (reqErr) {
-                notify.error("Invalid Requirements", reqErr);
+                notify.error("Check the highlighted fields", reqErr);
                 return;
               }
             }
@@ -913,26 +937,42 @@ export const JobPostingDetailPage: React.FC = () => {
               <Input
                 label="Title"
                 value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
+                error={serverFieldErrors.title}
+                onChange={(e) => {
+                  setEditTitle(e.target.value);
+                  clearServerFieldError("title");
+                }}
                 required
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input
                   label="Location"
                   value={editLocation}
-                  onChange={(e) => setEditLocation(e.target.value)}
+                  error={serverFieldErrors.location}
+                  onChange={(e) => {
+                    setEditLocation(e.target.value);
+                    clearServerFieldError("location");
+                  }}
                 />
                 <Input
                   label="Image web address (optional)"
                   placeholder="https://example.com/company-banner.jpg"
                   value={editImageUrl}
-                  onChange={(e) => setEditImageUrl(e.target.value)}
+                  error={serverFieldErrors.imageUrl}
+                  onChange={(e) => {
+                    setEditImageUrl(e.target.value);
+                    clearServerFieldError("imageUrl");
+                  }}
                 />
               </div>
               <Select
                 label="Opening status"
                 value={editStatus}
-                onChange={(e) => setEditStatus(e.target.value as JobStatus)}
+                error={serverFieldErrors.status}
+                onChange={(e) => {
+                  setEditStatus(e.target.value as JobStatus);
+                  clearServerFieldError("status");
+                }}
                 options={[
                   { value: JobStatus.OPEN, label: "Open" },
                   { value: JobStatus.DRAFT, label: "Draft" },
@@ -944,7 +984,11 @@ export const JobPostingDetailPage: React.FC = () => {
               <Textarea
                 label="Description"
                 value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
+                error={serverFieldErrors.description}
+                onChange={(e) => {
+                  setEditDescription(e.target.value);
+                  clearServerFieldError("description");
+                }}
                 rows={4}
                 maxLength={10000}
                 required
@@ -952,7 +996,11 @@ export const JobPostingDetailPage: React.FC = () => {
               <Textarea
                 label="Requirements"
                 value={editRequirements}
-                onChange={(e) => setEditRequirements(e.target.value)}
+                error={serverFieldErrors.requirements}
+                onChange={(e) => {
+                  setEditRequirements(e.target.value);
+                  clearServerFieldError("requirements");
+                }}
                 rows={4}
                 maxLength={10000}
                 required

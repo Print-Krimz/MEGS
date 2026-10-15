@@ -18,6 +18,7 @@ export const FIELD_LIMITS = {
   integerId: 2_147_483_647,
   authToken: 16_384,
   password: 4_096,
+  newPasswordMaxBytes: 72,
 } as const;
 
 /**

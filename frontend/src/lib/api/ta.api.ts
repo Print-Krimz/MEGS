@@ -177,7 +177,7 @@ export const taApi = {
     api.upload<Application>(`/api/ta/applications/${id}/contract/signed`, formData),
 
   updateCandidateProfile: (id: number | string, data: UpdateCandidateProfileDto) =>
-    api.patch<ApplicantProfile>(`/api/ta/candidates/${id}`, data),
+    api.patch<ApplicantProfile & { warnings?: string[] }>(`/api/ta/candidates/${id}`, data),
 
   // -------------------------------------------------------------
   // 2. AI Scoring & Assessment

@@ -6,11 +6,12 @@ import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
 import { KeyRound, AlertCircle } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
+import { isWithinPasswordByteLimit, PASSWORD_MAX_BYTES, PASSWORD_MAX_BYTES_MESSAGE } from "../../lib/password-strength";
 
 const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, "Current password is required"),
-    newPassword: z.string().min(8, "New password must be at least 8 characters long"),
+    newPassword: z.string().min(8, "New password must be at least 8 characters long").refine(isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE),
     confirmPassword: z.string().min(1, "Please confirm your new password"),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
@@ -137,6 +138,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
             autoComplete="new-password"
             placeholder="Enter new password"
             value={formData.newPassword}
+            maxLength={PASSWORD_MAX_BYTES}
             onChange={(e) => handleChange("newPassword", e.target.value)}
             error={validationErrors.newPassword}
             showStrengthIndicator
@@ -148,6 +150,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
             autoComplete="new-password"
             placeholder="Re-enter new password"
             value={formData.confirmPassword}
+            maxLength={PASSWORD_MAX_BYTES}
             onChange={(e) => handleChange("confirmPassword", e.target.value)}
             error={validationErrors.confirmPassword}
             required

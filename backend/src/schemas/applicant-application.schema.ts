@@ -2,6 +2,7 @@ import { z } from "zod";
 import { boundedId, boundedText, boundedPageSize, finiteNumber, FIELD_LIMITS } from "./field-limits.js";
 import { APPLICANT_SELF_WITHDRAW_REASONS } from "../services/ta/backout-rules.js";
 import { talentPoolInvitationSchema } from "./talent-pool-invitation.schema.js";
+import { listSavedJobsQuerySchema } from "./applicant.schema.js";
 
 const APPLICANT_REASONS = APPLICANT_SELF_WITHDRAW_REASONS as unknown as [string, ...string[]];
 const idParams = z.object({ id: boundedId }).strict();
@@ -23,6 +24,7 @@ export const applicantApplicationSchema = {
       limit: boundedPageSize.optional(),
     }).strict(),
   }),
+  listSavedJobs: z.object({ query: listSavedJobsQuerySchema }),
   jobParams: z.object({ params: idParams }),
   applyParams: z.object({ params: idParams }),
   apply: z.object({ params: idParams, body: z.object({}).strict().optional() }),

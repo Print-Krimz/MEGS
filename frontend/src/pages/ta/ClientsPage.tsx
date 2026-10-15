@@ -26,7 +26,7 @@ import {
   Truck,
   MapPin,
 } from "lucide-react";
-import { notify } from "../../lib/feedback";
+import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
 import {
@@ -46,6 +46,8 @@ const contactNameLengthError = (first: string, last: string) =>
   [first.trim(), last.trim()].filter(Boolean).join(" ").length > FIELD_LIMITS.name
     ? `Contact name cannot exceed ${FIELD_LIMITS.name} characters.`
     : undefined;
+// Backend fields that have an inline input on this form. Any other field's message goes in the toast.
+const CLIENT_INLINE_FIELDS = ["name", "tradeName", "industry", "contactName", "contactEmail", "contactPhone", "street"];
 
 export const ClientsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -69,6 +71,14 @@ export const ClientsPage: React.FC = () => {
   const [city, setCity] = useState("");
   const [barangay, setBarangay] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
+  const clearServerFieldError = (field: string) =>
+    setServerFieldErrors((prev) => {
+      if (!(field in prev)) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
@@ -88,6 +98,7 @@ export const ClientsPage: React.FC = () => {
       setContactLastName("");
       setContactEmail("");
       setEmailError(null);
+      setServerFieldErrors({});
       setContactPhone("");
       setStreet("");
       setProvince("");
@@ -97,6 +108,14 @@ export const ClientsPage: React.FC = () => {
       notify.success("Client added", `Client '${newClient?.name || name}' was registered.`);
     },
     onError: (err: any) => {
+      const fieldErrors = fieldErrorsFrom(err);
+      const entries = Object.entries(fieldErrors);
+      if (entries.length > 0) {
+        setServerFieldErrors(fieldErrors);
+        const toastEntry = entries.find(([field]) => !CLIENT_INLINE_FIELDS.includes(field)) ?? entries[0];
+        notify.error("Check the highlighted fields", toastEntry[1]);
+        return;
+      }
       notify.error("Unable to add client", err);
     },
   });
@@ -361,6 +380,7 @@ export const ClientsPage: React.FC = () => {
         onClose={() => {
           setCreateModalOpen(false);
           setEmailError(null);
+          setServerFieldErrors({});
         }}
         title="Add client"
         description="Register the company and its main contact details."
@@ -372,14 +392,14 @@ export const ClientsPage: React.FC = () => {
 
             const nameErr = validateStandardText(name, "Legal company name", { maxLength: 200 });
             if (nameErr) {
-              notify.error("Invalid Company Name", nameErr);
+              notify.error("Check the highlighted fields", nameErr);
               return;
             }
 
             if (tradeName.trim()) {
               const tradeErr = validateStandardText(tradeName, "Brand name", { maxLength: 200 });
               if (tradeErr) {
-                notify.error("Invalid Brand Name", tradeErr);
+                notify.error("Check the highlighted fields", tradeErr);
                 return;
               }
             }
@@ -387,7 +407,7 @@ export const ClientsPage: React.FC = () => {
             if (contactFirstName.trim()) {
               const fnErr = validatePersonName(contactFirstName, "Contact first name");
               if (fnErr) {
-                notify.error("Invalid Contact Name", fnErr);
+                notify.error("Check the highlighted fields", fnErr);
                 return;
               }
             }
@@ -395,21 +415,21 @@ export const ClientsPage: React.FC = () => {
             if (contactLastName.trim()) {
               const lnErr = validatePersonName(contactLastName, "Contact last name");
               if (lnErr) {
-                notify.error("Invalid Contact Name", lnErr);
+                notify.error("Check the highlighted fields", lnErr);
                 return;
               }
             }
 
             const contactNameErr = contactNameLengthError(contactFirstName, contactLastName);
             if (contactNameErr) {
-              notify.error("Invalid Contact Name", contactNameErr);
+              notify.error("Check the highlighted fields", contactNameErr);
               return;
             }
 
             if (contactPhone.trim()) {
               const phoneErr = validatePhilippineContactPhone(contactPhone, { label: "Contact phone" });
               if (phoneErr) {
-                notify.error("Invalid Contact Phone", phoneErr);
+                notify.error("Check the highlighted fields", phoneErr);
                 return;
               }
             }
@@ -420,7 +440,7 @@ export const ClientsPage: React.FC = () => {
             }
             const hasAddress = [street, province, city, barangay, postalCode].some((value) => value.trim());
             if (hasAddress && (!province.trim() || !city.trim() || !barangay.trim() || !postalCode.trim())) {
-              notify.error("Address is incomplete", "Enter the province, city, barangay, and postal code.");
+              notify.error("Check the highlighted fields", "Enter the province, city, barangay, and postal code.");
               return;
             }
             const combinedName = [contactFirstName.trim(), contactLastName.trim()].filter(Boolean).join(" ");
@@ -445,14 +465,22 @@ export const ClientsPage: React.FC = () => {
               label="Legal company name"
               placeholder="e.g. Acme Industrial Services Corp."
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              error={serverFieldErrors.name}
+              onChange={(e) => {
+                setName(e.target.value);
+                clearServerFieldError("name");
+              }}
               required
             />
             <Input
               label="Brand name (optional)"
               placeholder="e.g. Acme Logistics"
               value={tradeName}
-              onChange={(e) => setTradeName(e.target.value)}
+              error={serverFieldErrors.tradeName}
+              onChange={(e) => {
+                setTradeName(e.target.value);
+                clearServerFieldError("tradeName");
+              }}
             />
           </div>
 
@@ -460,7 +488,11 @@ export const ClientsPage: React.FC = () => {
             label="Industry"
             placeholder="Select or enter industry sector..."
             value={industry}
-            onChange={(val) => setIndustry(val)}
+            error={serverFieldErrors.industry}
+            onChange={(val) => {
+              setIndustry(val);
+              clearServerFieldError("industry");
+            }}
             options={PHILIPPINE_INDUSTRY_SECTORS.map((s) => ({ value: s, label: s }))}
             allowCustom
           />
@@ -472,7 +504,11 @@ export const ClientsPage: React.FC = () => {
               nameInput
               placeholder="e.g. Roberto"
               value={contactFirstName}
-              onChange={(e) => setContactFirstName(e.target.value)}
+              error={serverFieldErrors.contactName}
+              onChange={(e) => {
+                setContactFirstName(e.target.value);
+                clearServerFieldError("contactName");
+              }}
             />
             <Input
               label="Contact last name"
@@ -481,7 +517,10 @@ export const ClientsPage: React.FC = () => {
               placeholder="e.g. Tan"
               error={contactNameLengthError(contactFirstName, contactLastName)}
               value={contactLastName}
-              onChange={(e) => setContactLastName(e.target.value)}
+              onChange={(e) => {
+                setContactLastName(e.target.value);
+                clearServerFieldError("contactName");
+              }}
             />
           </div>
 
@@ -490,16 +529,21 @@ export const ClientsPage: React.FC = () => {
               label="Contact phone"
               placeholder="0917 123 4567"
               value={contactPhone}
-              onChange={setContactPhone}
+              error={serverFieldErrors.contactPhone}
+              onChange={(val) => {
+                setContactPhone(val);
+                clearServerFieldError("contactPhone");
+              }}
             />
             <Input
               label="Contact email"
               type="email"
               placeholder="e.g. hr@acmecorp.com"
               value={contactEmail}
-              error={emailError || undefined}
+              error={serverFieldErrors.contactEmail || emailError || undefined}
               onChange={(e) => {
                 setContactEmail(e.target.value);
+                clearServerFieldError("contactEmail");
                 if (emailError) setEmailError(null);
               }}
             />
@@ -513,7 +557,11 @@ export const ClientsPage: React.FC = () => {
               label="Street or building address"
               placeholder="e.g. Bldg 4, Light Industry & Science Park II"
               value={street}
-              onChange={(e) => setStreet(e.target.value)}
+              error={serverFieldErrors.street}
+              onChange={(e) => {
+                setStreet(e.target.value);
+                clearServerFieldError("street");
+              }}
             />
             <PhilippineAddressFields
               province={province}

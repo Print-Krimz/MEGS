@@ -38,7 +38,7 @@ import {
   X,
   ExternalLink,
 } from "lucide-react";
-import { notify } from "../../lib/feedback";
+import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 import {
   validateStandardText,
@@ -159,17 +159,28 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const [editExperience, setEditExperience] = useState("");
   const [editEducation, setEditEducation] = useState("");
   const [editCertifications, setEditCertifications] = useState("");
+  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
+  const clearServerFieldError = (field: string) =>
+    setServerFieldErrors((prev) => {
+      if (!(field in prev)) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
 
   const handleEditHeadcountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    clearServerFieldError("headcount");
     setEditHeadcount(e.target.value);
   };
 
   const handleEditSalaryMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    clearServerFieldError("salaryRangeMin");
     const val = e.target.value;
     setEditSalaryMin(val);
   };
 
   const handleEditSalaryMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    clearServerFieldError("salaryRangeMax");
     const val = e.target.value;
     setEditSalaryMax(val);
   };
@@ -181,6 +192,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   );
 
   const handleEditAgeMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    clearServerFieldError("ageMin");
     const val = e.target.value;
     if (val === "") {
       setEditAgeMin("");
@@ -192,6 +204,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   };
 
   const handleEditAgeMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    clearServerFieldError("ageMax");
     const val = e.target.value;
     if (val === "") {
       setEditAgeMax("");
@@ -275,9 +288,16 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
       setEditStatusModalOpen(false);
       setEditDetailsModalOpen(false);
+      setServerFieldErrors({});
       notify.success("Manpower request updated", "The request details have been saved.");
     },
     onError: (err: any) => {
+      const fieldErrors = fieldErrorsFrom(err);
+      if (Object.keys(fieldErrors).length > 0) {
+        setServerFieldErrors(fieldErrors);
+        notify.error("Check the highlighted fields", Object.values(fieldErrors)[0]);
+        return;
+      }
       notify.error("Unable to update manpower request", err);
     },
   });
@@ -303,25 +323,26 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     setEditExperience(m.requiredExperience || "");
     setEditEducation(m.requiredEducation || "");
     setEditCertifications(m.requiredCertifications || "");
+    setServerFieldErrors({});
     setEditDetailsModalOpen(true);
   };
 
   const handleSaveDetails = () => {
     if (!editTitle.trim()) {
-      notify.error("Validation error", "Request title is required.");
+      notify.error("Check the highlighted fields", "Request title is required.");
       return;
     }
 
     const titleErr = validateStandardText(editTitle, "Request title", { maxLength: 200 });
     if (titleErr) {
-      notify.error("Invalid Title", titleErr);
+      notify.error("Check the highlighted fields", titleErr);
       return;
     }
 
     if (editLocation.trim()) {
       const locErr = validateStandardText(editLocation, "Location", { maxLength: 200 });
       if (locErr) {
-        notify.error("Invalid Location", locErr);
+        notify.error("Check the highlighted fields", locErr);
         return;
       }
     }
@@ -329,7 +350,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     if (editSkills.trim()) {
       const skillsErr = validateProseText(editSkills, "Required skills", { maxLength: 2000 });
       if (skillsErr) {
-        notify.error("Invalid Skills", skillsErr);
+        notify.error("Check the highlighted fields", skillsErr);
         return;
       }
     }
@@ -337,7 +358,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     if (editDescription.trim()) {
       const descErr = validateProseText(editDescription, "Job description", { maxLength: 10000 });
       if (descErr) {
-        notify.error("Invalid Description", descErr);
+        notify.error("Check the highlighted fields", descErr);
         return;
       }
     }
@@ -345,7 +366,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     if (editCertifications.trim()) {
       const certErr = validateProseText(editCertifications, "Required certifications", { maxLength: 2000 });
       if (certErr) {
-        notify.error("Invalid Certifications", certErr);
+        notify.error("Check the highlighted fields", certErr);
         return;
       }
     }
@@ -358,14 +379,14 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       parsedHeadcount < 1 ||
       parsedHeadcount > 1000
     ) {
-      notify.error("Validation error", "Headcount must be an integer between 1 and 1,000.");
+      notify.error("Check the highlighted fields", "Headcount must be an integer between 1 and 1,000.");
       return;
     }
 
     if (editSalaryMin !== "" && editSalaryMin != null) {
       const min = String(editSalaryMin);
       if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(min) || Number(min) > 1000000) {
-        notify.error("Validation error", "Minimum monthly salary must be between 0 and 1,000,000 PHP.");
+        notify.error("Check the highlighted fields", "Minimum monthly salary must be between 0 and 1,000,000 PHP.");
         return;
       }
     }
@@ -373,7 +394,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     if (editSalaryMax !== "" && editSalaryMax != null) {
       const max = String(editSalaryMax);
       if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(max) || Number(max) > 1000000) {
-        notify.error("Validation error", "Maximum monthly salary must be between 0 and 1,000,000 PHP.");
+        notify.error("Check the highlighted fields", "Maximum monthly salary must be between 0 and 1,000,000 PHP.");
         return;
       }
     }
@@ -385,7 +406,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       editSalaryMax != null
     ) {
       if (parseFloat(String(editSalaryMin)) > parseFloat(String(editSalaryMax))) {
-        notify.error("Validation error", "Minimum monthly salary cannot exceed maximum monthly salary.");
+        notify.error("Check the highlighted fields", "Minimum monthly salary cannot exceed maximum monthly salary.");
         return;
       }
     }
@@ -393,7 +414,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     if (editAgeMin !== "" && editAgeMin != null) {
       const min = String(editAgeMin);
       if (!/^\d+$/.test(min) || Number(min) < 18 || Number(min) > 65) {
-        notify.error("Validation error", "Minimum age must be an integer between 18 and 65.");
+        notify.error("Check the highlighted fields", "Minimum age must be an integer between 18 and 65.");
         return;
       }
     }
@@ -401,7 +422,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     if (editAgeMax !== "" && editAgeMax != null) {
       const max = String(editAgeMax);
       if (!/^\d+$/.test(max) || Number(max) < 18 || Number(max) > 65) {
-        notify.error("Validation error", "Maximum age must be an integer between 18 and 65.");
+        notify.error("Check the highlighted fields", "Maximum age must be an integer between 18 and 65.");
         return;
       }
     }
@@ -413,7 +434,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       editAgeMax != null
     ) {
       if (parseInt(String(editAgeMin), 10) > parseInt(String(editAgeMax), 10)) {
-        notify.error("Validation error", "Minimum age cannot exceed maximum age.");
+        notify.error("Check the highlighted fields", "Minimum age cannot exceed maximum age.");
         return;
       }
     }
@@ -619,6 +640,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   title={(MRF_MANUAL_NEXT_STATUSES[mrf.status] ?? []).length === 0 ? "This request's status is final." : undefined}
                   onClick={() => {
                     setEditStatus(mrf.status);
+                    setServerFieldErrors({});
                     setEditStatusModalOpen(true);
                   }}
                 >
@@ -1509,7 +1531,11 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     label="Request title"
                     placeholder="e.g. 50x Forklift Operators"
                     value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
+                    error={serverFieldErrors.title}
+                    onChange={(e) => {
+                      setEditTitle(e.target.value);
+                      clearServerFieldError("title");
+                    }}
                     required
                   />
                   <div className="grid grid-cols-2 gap-3">
@@ -1519,13 +1545,18 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                       min={1}
                       max={1000}
                       value={editHeadcount}
+                      error={serverFieldErrors.headcount}
                       onChange={handleEditHeadcountChange}
                       required
                     />
                     <Select
                       label="Priority"
                       value={editPriority}
-                      onChange={(e) => setEditPriority(e.target.value as any)}
+                      error={serverFieldErrors.priority}
+                      onChange={(e) => {
+                        setEditPriority(e.target.value as any);
+                        clearServerFieldError("priority");
+                      }}
                       options={[
                         { value: "LOW", label: "Low" },
                         { value: "NORMAL", label: "Normal" },
@@ -1541,13 +1572,21 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     label="Work site"
                     placeholder="e.g. Calamba, Laguna Plant"
                     value={editLocation}
-                    onChange={(e) => setEditLocation(e.target.value)}
+                    error={serverFieldErrors.location}
+                    onChange={(e) => {
+                      setEditLocation(e.target.value);
+                      clearServerFieldError("location");
+                    }}
                   />
                   <ComboBox
                     label="Employment Type"
                     placeholder="Select employment type..."
                     value={editEmploymentType}
-                    onChange={(val) => setEditEmploymentType(val || "Contractual")}
+                    error={serverFieldErrors.employmentType}
+                    onChange={(val) => {
+                      setEditEmploymentType(val || "Contractual");
+                      clearServerFieldError("employmentType");
+                    }}
                     options={EMPLOYMENT_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
                     allowCustom
                   />
@@ -1555,7 +1594,11 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     label="Work Arrangement"
                     placeholder="Select arrangement..."
                     value={editWorkArrangement}
-                    onChange={(val) => setEditWorkArrangement(val || "On-site")}
+                    error={serverFieldErrors.workArrangement}
+                    onChange={(val) => {
+                      setEditWorkArrangement(val || "On-site");
+                      clearServerFieldError("workArrangement");
+                    }}
                     options={WORK_ARRANGEMENT_OPTIONS.map((w) => ({ value: w, label: w }))}
                     allowCustom
                   />
@@ -1567,7 +1610,11 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     type="date"
                     min={editTargetFillDate && editTargetFillDate < getManilaToday() ? editTargetFillDate : getManilaToday()}
                     value={editTargetFillDate}
-                    onChange={(e) => setEditTargetFillDate(e.target.value)}
+                    error={serverFieldErrors.targetFillDate}
+                    onChange={(e) => {
+                      setEditTargetFillDate(e.target.value);
+                      clearServerFieldError("targetFillDate");
+                    }}
                   />
                   <Input
                     label="Minimum monthly salary (PHP)"
@@ -1577,6 +1624,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                       step="0.01"
                     placeholder="e.g. 18000"
                     value={editSalaryMin}
+                    error={serverFieldErrors.salaryRangeMin}
                     onChange={handleEditSalaryMinChange}
                   />
                   <Input
@@ -1588,7 +1636,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     placeholder="e.g. 25000"
                     value={editSalaryMax}
                     onChange={handleEditSalaryMaxChange}
-                    error={isEditSalaryRangeInvalid ? "Maximum salary cannot be less than minimum salary" : undefined}
+                    error={serverFieldErrors.salaryRangeMax || (isEditSalaryRangeInvalid ? "Maximum salary cannot be less than minimum salary" : undefined)}
                   />
                 </div>
 
@@ -1596,7 +1644,11 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   label="Description and notes"
                   placeholder="Specify shift schedules, client site notes, uniform provisions..."
                   value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
+                  error={serverFieldErrors.description}
+                  onChange={(e) => {
+                    setEditDescription(e.target.value);
+                    clearServerFieldError("description");
+                  }}
                   rows={3}
                   maxLength={10000}
                 />
@@ -1612,13 +1664,21 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     label="Required skills"
                     placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
                     value={editSkills}
-                    onChange={(e) => setEditSkills(e.target.value)}
+                    error={serverFieldErrors.requiredSkills}
+                    onChange={(e) => {
+                      setEditSkills(e.target.value);
+                      clearServerFieldError("requiredSkills");
+                    }}
                   />
                   <ComboBox
                     label="Required experience"
                     placeholder="Select or specify required experience..."
                     value={editExperience}
-                    onChange={(val) => setEditExperience(val || "")}
+                    error={serverFieldErrors.requiredExperience}
+                    onChange={(val) => {
+                      setEditExperience(val || "");
+                      clearServerFieldError("requiredExperience");
+                    }}
                     options={MRF_EXPERIENCE_OPTIONS.map((e) => ({ value: e, label: e }))}
                     allowCustom
                   />
@@ -1629,14 +1689,22 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     label="Minimum education"
                     placeholder="Select minimum education..."
                     value={editEducation}
-                    onChange={(val) => setEditEducation(val || "")}
+                    error={serverFieldErrors.requiredEducation}
+                    onChange={(val) => {
+                      setEditEducation(val || "");
+                      clearServerFieldError("requiredEducation");
+                    }}
                     options={MRF_EDUCATION_OPTIONS.map((ed) => ({ value: ed, label: ed }))}
                   />
                   <Input
                     label="Required certifications & licenses"
                     placeholder="e.g. Professional Driver's License, TESDA NC II, PRC"
                     value={editCertifications}
-                    onChange={(e) => setEditCertifications(e.target.value)}
+                    error={serverFieldErrors.requiredCertifications}
+                    onChange={(e) => {
+                      setEditCertifications(e.target.value);
+                      clearServerFieldError("requiredCertifications");
+                    }}
                   />
                 </div>
               </div>
@@ -1654,6 +1722,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     max={65}
                     placeholder="e.g. 21"
                     value={editAgeMin}
+                    error={serverFieldErrors.ageMin}
                     onChange={handleEditAgeMinChange}
                     helperText="Must be between 18 and 65"
                   />
@@ -1665,7 +1734,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     placeholder="e.g. 45"
                     value={editAgeMax}
                     onChange={handleEditAgeMaxChange}
-                    error={isEditAgeRangeInvalid ? "Maximum age cannot be less than minimum age" : undefined}
+                    error={serverFieldErrors.ageMax || (isEditAgeRangeInvalid ? "Maximum age cannot be less than minimum age" : undefined)}
                     helperText="Must be between 18 and 65"
                   />
                 </div>
@@ -1674,7 +1743,11 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   <Select
                     label="Gender preference"
                     value={editGenderPreference}
-                    onChange={(e) => setEditGenderPreference(e.target.value)}
+                    error={serverFieldErrors.genderPreference}
+                    onChange={(e) => {
+                      setEditGenderPreference(e.target.value);
+                      clearServerFieldError("genderPreference");
+                    }}
                     options={[
                       { value: "ANY", label: "Any / No preference" },
                       { value: "MALE", label: "Male preferred" },
@@ -1684,7 +1757,11 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   <Select
                     label="Tattoo visibility policy"
                     value={editTattooPolicy}
-                    onChange={(e) => setEditTattooPolicy(e.target.value)}
+                    error={serverFieldErrors.tattooPolicy}
+                    onChange={(e) => {
+                      setEditTattooPolicy(e.target.value);
+                      clearServerFieldError("tattooPolicy");
+                    }}
                     options={[
                       { value: "ALLOWED", label: "No restrictions / Allowed" },
                       { value: "NO_VISIBLE", label: "No visible tattoos" },
@@ -1726,7 +1803,11 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
               <Select
                 label="Request status"
                 value={editStatus}
-                onChange={(e) => setEditStatus(e.target.value)}
+                error={serverFieldErrors.status}
+                onChange={(e) => {
+                  setEditStatus(e.target.value);
+                  clearServerFieldError("status");
+                }}
                 options={[mrf.status, ...(MRF_MANUAL_NEXT_STATUSES[mrf.status] ?? [])].map((value) => ({
                   value,
                   label: MRF_STATUS_LABELS[value] ?? value,

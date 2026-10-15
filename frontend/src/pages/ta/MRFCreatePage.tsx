@@ -5,7 +5,7 @@ import { taApi } from "../../lib/api/ta.api";
 import { PageHeader } from "../../components/common";
 import { Button, Input, Select, Textarea, ComboBox } from "../../components/ui";
 import { ArrowLeft, Send, Building2, Copy } from "lucide-react";
-import { notify, formatErrorMessage } from "../../lib/feedback";
+import { notify, formatErrorMessage, fieldErrorsFrom } from "../../lib/feedback";
 import {
   EMPLOYMENT_TYPE_OPTIONS,
   WORK_ARRANGEMENT_OPTIONS,
@@ -62,23 +62,35 @@ export const MRFCreatePage: React.FC = () => {
   });
 
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
+  const clearServerFieldError = (field: string) =>
+    setServerFieldErrors((prev) => {
+      if (!(field in prev)) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
 
   const handleHeadcountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    clearServerFieldError("headcount");
     const val = e.target.value;
     setHeadcount(val);
   };
 
   const handleSalaryMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    clearServerFieldError("salaryRangeMin");
     const val = e.target.value;
     setSalaryMin(val);
   };
 
   const handleSalaryMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    clearServerFieldError("salaryRangeMax");
     const val = e.target.value;
     setSalaryMax(val);
   };
 
   const handleAgeMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    clearServerFieldError("ageMin");
     const val = e.target.value;
     if (val === "") {
       setAgeMin("");
@@ -90,6 +102,7 @@ export const MRFCreatePage: React.FC = () => {
   };
 
   const handleAgeMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    clearServerFieldError("ageMax");
     const val = e.target.value;
     if (val === "") {
       setAgeMax("");
@@ -119,6 +132,12 @@ export const MRFCreatePage: React.FC = () => {
       });
     },
     onError: (err: any) => {
+      const fieldErrors = fieldErrorsFrom(err);
+      if (Object.keys(fieldErrors).length > 0) {
+        setServerFieldErrors(fieldErrors);
+        notify.error("Check the highlighted fields", Object.values(fieldErrors)[0]);
+        return;
+      }
       const formatted = formatErrorMessage(err);
       setValidationError("Unable to create this manpower request: " + formatted);
       notify.error("Unable to create request", err);
@@ -130,6 +149,7 @@ export const MRFCreatePage: React.FC = () => {
   const handleClientChange = (val: string) => {
     const numericId = Number(val);
     setClientId(numericId);
+    clearServerFieldError("clientId");
     if (numericId) {
       const chosenClient = clients.find((c) => c.id === numericId);
       if (chosenClient) {
@@ -150,6 +170,7 @@ export const MRFCreatePage: React.FC = () => {
     const preset = getMRFPresetById(presetId);
     if (!preset) return;
 
+    setServerFieldErrors({});
     setTitle(preset.title);
     setRequiredSkills(formatSkillsList(preset.requiredSkills));
     setRequiredExperience(preset.requiredExperience);
@@ -165,6 +186,7 @@ export const MRFCreatePage: React.FC = () => {
   };
 
   const handleApplyClonedMRF = (mrf: ManpowerRequest, preserveClient: boolean) => {
+    setServerFieldErrors({});
     setTitle(mrf.title || "");
     setHeadcount(mrf.headcount || 1);
     if (mrf.priority) {
@@ -430,6 +452,7 @@ export const MRFCreatePage: React.FC = () => {
               placeholder="Search or select client account..."
               leftIcon={<Building2 className="w-3.5 h-3.5 text-slate-400" />}
               value={clientId ? String(clientId) : ""}
+              error={serverFieldErrors.clientId}
               onChange={handleClientChange}
               options={clientOptions}
               emptyText="No client accounts match your search"
@@ -439,7 +462,11 @@ export const MRFCreatePage: React.FC = () => {
               label="Request title"
               placeholder="e.g. 50x Forklift Operators - Warehouse Expansion"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              error={serverFieldErrors.title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                clearServerFieldError("title");
+              }}
               required
             />
           </div>
@@ -451,13 +478,18 @@ export const MRFCreatePage: React.FC = () => {
               min={1}
               max={1000}
               value={headcount}
+              error={serverFieldErrors.headcount}
               onChange={handleHeadcountChange}
               required
             />
             <Select
               label="Priority"
               value={priority}
-              onChange={(e) => setPriority(e.target.value as any)}
+              error={serverFieldErrors.priority}
+              onChange={(e) => {
+                setPriority(e.target.value as any);
+                clearServerFieldError("priority");
+              }}
               options={[
                 { value: "LOW", label: "Low" },
                 { value: "NORMAL", label: "Normal" },
@@ -470,7 +502,11 @@ export const MRFCreatePage: React.FC = () => {
               type="date"
               min={getManilaToday()}
               value={targetFillDate}
-              onChange={(e) => setTargetFillDate(e.target.value)}
+              error={serverFieldErrors.targetFillDate}
+              onChange={(e) => {
+                setTargetFillDate(e.target.value);
+                clearServerFieldError("targetFillDate");
+              }}
             />
           </div>
 
@@ -479,13 +515,21 @@ export const MRFCreatePage: React.FC = () => {
               label="Work site"
               placeholder="e.g. Calamba, Laguna Plant"
               value={location}
-              onChange={(e) => setLocation(e.target.value)}
+              error={serverFieldErrors.location}
+              onChange={(e) => {
+                setLocation(e.target.value);
+                clearServerFieldError("location");
+              }}
             />
             <ComboBox
               label="Employment Type"
               placeholder="Select employment type..."
               value={employmentType}
-              onChange={(val) => setEmploymentType(val || "Contractual")}
+              error={serverFieldErrors.employmentType}
+              onChange={(val) => {
+                setEmploymentType(val || "Contractual");
+                clearServerFieldError("employmentType");
+              }}
               options={EMPLOYMENT_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
               allowCustom
               required
@@ -494,7 +538,11 @@ export const MRFCreatePage: React.FC = () => {
               label="Work Arrangement"
               placeholder="Select arrangement..."
               value={workArrangement}
-              onChange={(val) => setWorkArrangement(val || "On-site")}
+              error={serverFieldErrors.workArrangement}
+              onChange={(val) => {
+                setWorkArrangement(val || "On-site");
+                clearServerFieldError("workArrangement");
+              }}
               options={WORK_ARRANGEMENT_OPTIONS.map((w) => ({ value: w, label: w }))}
               allowCustom
               required
@@ -517,6 +565,7 @@ export const MRFCreatePage: React.FC = () => {
               step="0.01"
               placeholder="e.g. 18000"
               value={salaryMin}
+              error={serverFieldErrors.salaryRangeMin}
               onChange={handleSalaryMinChange}
             />
             <Input
@@ -528,7 +577,7 @@ export const MRFCreatePage: React.FC = () => {
               placeholder="e.g. 25000"
               value={salaryMax}
               onChange={handleSalaryMaxChange}
-              error={isSalaryRangeInvalid ? "Maximum salary cannot be less than minimum salary" : undefined}
+              error={serverFieldErrors.salaryRangeMax || (isSalaryRangeInvalid ? "Maximum salary cannot be less than minimum salary" : undefined)}
             />
           </div>
 
@@ -537,7 +586,11 @@ export const MRFCreatePage: React.FC = () => {
               label="Required skills"
               placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
               value={requiredSkills}
-              onChange={(e) => setRequiredSkills(e.target.value)}
+              error={serverFieldErrors.requiredSkills}
+              onChange={(e) => {
+                setRequiredSkills(e.target.value);
+                clearServerFieldError("requiredSkills");
+              }}
             />
             {activeSkillsList.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
@@ -569,7 +622,11 @@ export const MRFCreatePage: React.FC = () => {
               label="Required experience"
               placeholder="Select or specify required experience..."
               value={requiredExperience}
-              onChange={(val) => setRequiredExperience(val || "")}
+              error={serverFieldErrors.requiredExperience}
+              onChange={(val) => {
+                setRequiredExperience(val || "");
+                clearServerFieldError("requiredExperience");
+              }}
               options={MRF_EXPERIENCE_OPTIONS.map((e) => ({ value: e, label: e }))}
               allowCustom
             />
@@ -577,7 +634,11 @@ export const MRFCreatePage: React.FC = () => {
               label="Minimum education"
               placeholder="Select minimum education..."
               value={requiredEducation}
-              onChange={(val) => setRequiredEducation(val || "")}
+              error={serverFieldErrors.requiredEducation}
+              onChange={(val) => {
+                setRequiredEducation(val || "");
+                clearServerFieldError("requiredEducation");
+              }}
               options={MRF_EDUCATION_OPTIONS.map((ed) => ({ value: ed, label: ed }))}
               allowCustom
             />
@@ -587,14 +648,22 @@ export const MRFCreatePage: React.FC = () => {
             label="Required certifications & licenses"
             placeholder="e.g. Professional Driver's License (Code 2/3), TESDA NC II Automotive Servicing, PRC License"
             value={requiredCertifications}
-            onChange={(e) => setRequiredCertifications(e.target.value)}
+            error={serverFieldErrors.requiredCertifications}
+            onChange={(e) => {
+              setRequiredCertifications(e.target.value);
+              clearServerFieldError("requiredCertifications");
+            }}
           />
 
           <Textarea
             label="Notes for this client"
             placeholder="Specify shift schedules, client site notes, uniform provisions..."
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            error={serverFieldErrors.description}
+            onChange={(e) => {
+              setDescription(e.target.value);
+              clearServerFieldError("description");
+            }}
             rows={4}
             maxLength={10000}
           />
@@ -614,6 +683,7 @@ export const MRFCreatePage: React.FC = () => {
               max={65}
               placeholder="e.g. 21"
               value={ageMin}
+              error={serverFieldErrors.ageMin}
               onChange={handleAgeMinChange}
               helperText="Must be between 18 and 65"
             />
@@ -625,7 +695,7 @@ export const MRFCreatePage: React.FC = () => {
               placeholder="e.g. 45"
               value={ageMax}
               onChange={handleAgeMaxChange}
-              error={isAgeRangeInvalid ? "Maximum age cannot be less than minimum age" : undefined}
+              error={serverFieldErrors.ageMax || (isAgeRangeInvalid ? "Maximum age cannot be less than minimum age" : undefined)}
               helperText="Must be between 18 and 65"
             />
           </div>
@@ -634,7 +704,11 @@ export const MRFCreatePage: React.FC = () => {
             <Select
               label="Gender preference"
               value={genderPreference}
-              onChange={(e) => setGenderPreference(e.target.value)}
+              error={serverFieldErrors.genderPreference}
+              onChange={(e) => {
+                setGenderPreference(e.target.value);
+                clearServerFieldError("genderPreference");
+              }}
               options={[
                 { value: "ANY", label: "Any / No preference" },
                 { value: "MALE", label: "Male preferred" },
@@ -644,7 +718,11 @@ export const MRFCreatePage: React.FC = () => {
             <Select
               label="Tattoo visibility policy"
               value={tattooPolicy}
-              onChange={(e) => setTattooPolicy(e.target.value)}
+              error={serverFieldErrors.tattooPolicy}
+              onChange={(e) => {
+                setTattooPolicy(e.target.value);
+                clearServerFieldError("tattooPolicy");
+              }}
               options={[
                 { value: "ALLOWED", label: "No restrictions / Allowed" },
                 { value: "NO_VISIBLE", label: "No visible tattoos" },

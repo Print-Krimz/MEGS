@@ -817,9 +817,10 @@ export const ApplicationDetailPage: React.FC = () => {
       if (!profileId) throw new Error("No applicant profile to update");
       return taApi.updateCandidateProfile(profileId, data);
     },
-    onSuccess: () => {
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
       notify.success("Profile Verified", "Candidate details updated successfully.");
+      (updated?.warnings ?? []).forEach((warning) => notify.warning("Possible duplicate", warning));
       setIsEditingProfile(false);
     },
     onError: (err: any) => {

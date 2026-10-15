@@ -14,9 +14,10 @@ import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { maskEmail } from "../../lib/utils";
 import { useSecurityControls } from "../../hooks/useSecurityControls";
+import { isWithinPasswordByteLimit, PASSWORD_MAX_BYTES, PASSWORD_MAX_BYTES_MESSAGE } from "../../lib/password-strength";
 
 const emailSchema = z.object({
-  email: z.string().trim().min(1, "Email is required").email("Please enter a valid email address"),
+  email: z.string().trim().toLowerCase().min(1, "Email is required").email("Please enter a valid email address"),
 });
 
 const otpSchema = z.object({
@@ -25,7 +26,7 @@ const otpSchema = z.object({
 
 const passwordSchema = z
   .object({
-    password: z.string().min(8, "Password must be at least 8 characters long"),
+    password: z.string().min(8, "Password must be at least 8 characters long").refine(isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE),
     confirmPassword: z.string().min(1, "Please confirm your password"),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -274,6 +275,7 @@ export const ForgotPasswordPage: React.FC = () => {
               autoComplete="new-password"
               placeholder="Create a new password"
               value={passwordData.password}
+              maxLength={PASSWORD_MAX_BYTES}
               onChange={(e) => {
                 setPasswordData((prev) => ({ ...prev, password: e.target.value }));
                 if (validationErrors.password) {
@@ -291,6 +293,7 @@ export const ForgotPasswordPage: React.FC = () => {
               autoComplete="new-password"
               placeholder="Re-enter your new password"
               value={passwordData.confirmPassword}
+              maxLength={PASSWORD_MAX_BYTES}
               onChange={(e) => {
                 setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }));
                 if (validationErrors.confirmPassword) {

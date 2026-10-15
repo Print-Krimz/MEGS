@@ -520,7 +520,7 @@ export const updateMRF = async (
   if (data.status !== undefined && data.status !== currentMrf.status) {
     const allowed = MRF_MANUAL_TRANSITIONS[currentMrf.status] ?? [];
     if (!allowed.includes(data.status)) {
-      throw new Error(`A request that is ${currentMrf.status} can't be moved to ${data.status}.`);
+      throw new Error("This request can't be moved to the selected status from its current status.");
     }
   }
   if (data.targetFillDate) {

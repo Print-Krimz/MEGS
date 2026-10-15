@@ -18,7 +18,7 @@ import type { LoginResponse } from "../../lib/types/auth.types";
 import { useSecurityControls } from "../../hooks/useSecurityControls";
 
 const loginSchema = z.object({
-  email: z.string().trim().min(1, "Email is required").email("Please enter a valid email address"),
+  email: z.string().trim().toLowerCase().min(1, "Email is required").email("Please enter a valid email address"),
   password: z.string().min(1, "Password is required"),
 });
 

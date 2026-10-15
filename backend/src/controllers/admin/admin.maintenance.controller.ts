@@ -54,7 +54,8 @@ export const renameBackupHandler = async (req: Request, res: Response): Promise<
     const updatedBackup = await renameDatabaseBackup(String(id), name.trim(), userId);
     sendSuccess(res, "Database backup renamed successfully.", updatedBackup);
   } catch (err: any) {
-    sendError(res, err.message || "Failed to rename database backup.", 500);
+    const status = err?.message === "Database backup record not found." ? 404 : 500;
+    sendError(res, err.message || "Failed to rename database backup.", status);
   }
 };
 

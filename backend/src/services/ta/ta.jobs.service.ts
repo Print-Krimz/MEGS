@@ -146,7 +146,7 @@ export const createTAJob = async (postedById: string, data: any, actor?: Actor) 
   }
 
   if (!title || !description || !requirements) {
-    throw new Error("title, description, and requirements are required");
+    throw new Error("Enter the job title, description, and requirements.");
   }
 
   const allowedStatuses = ["DRAFT", "OPEN"];
@@ -290,14 +290,14 @@ export const updateTAJob = async (jobId: number, data: any, actor?: Actor) => {
 export const updateTAJobStatus = async (jobId: number, status: any) => {
   const validStatuses = ["DRAFT", "OPEN", "CLOSED"];
   if (!status || !validStatuses.includes(status)) {
-    throw new Error(`status must be one of: ${validStatuses.join(", ")}`);
+    throw new Error("Choose a valid job status.");
   }
 
   const existing = await prisma.jobPosting.findUnique({ where: { id: jobId } });
   if (!existing) throw new Error("Job posting not found");
 
   if (existing.status === "DRAFT" && status === "CLOSED") {
-    throw new Error("A DRAFT job must be published (OPEN) before it can be CLOSED.");
+    throw new Error("A draft job posting must be published before it can be closed.");
   }
   if (status === "OPEN" && existing.status !== "OPEN" && existing.mrfId) {
     await assertRequestAcceptsJobs(existing.mrfId);

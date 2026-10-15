@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { boundedText, boundedId, dateOnly, FIELD_LIMITS } from "./field-limits.js";
+import { ApplicationStatus } from "@prisma/client";
+import { boundedText, boundedId, dateOnly } from "./field-limits.js";
 
 const dateFilters = {
   range: z.enum(["7d", "30d", "90d", "custom"]).optional(),
@@ -12,7 +13,7 @@ const filterFields = {
   clientId: boundedId.optional(),
   mrfId: boundedId.optional(),
   jobPostingId: boundedId.optional(),
-  stage: boundedText(FIELD_LIMITS.name).optional(),
+  stage: z.nativeEnum(ApplicationStatus).optional(),
   recruiterId: boundedText(128).optional(),
   mineOnly: z.union([z.boolean(), z.enum(["true", "false"])]).optional(),
 };

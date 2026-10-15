@@ -1,8 +1,13 @@
 import { z } from "zod";
 import { FIELD_LIMITS } from "./field-limits.js";
 
-const email = z.string().email("Invalid email format").max(FIELD_LIMITS.email);
-const password = (message: string) => z.string().min(8, message).max(FIELD_LIMITS.password);
+// Supabase Auth (bcrypt) only reads the first 72 bytes, so NEW passwords are capped in UTF-8 bytes, not characters.
+const withinNewPasswordBytes = (value: string) => new TextEncoder().encode(value).length <= FIELD_LIMITS.newPasswordMaxBytes;
+const NEW_PASSWORD_BYTES_MESSAGE = `Password must be ${FIELD_LIMITS.newPasswordMaxBytes} bytes or fewer.`;
+
+const email = z.string().trim().toLowerCase().email("Invalid email format").max(FIELD_LIMITS.email);
+const password = (message: string) =>
+  z.string().min(8, message).refine(withinNewPasswordBytes, NEW_PASSWORD_BYTES_MESSAGE);
 const token = z.string().min(1).max(FIELD_LIMITS.authToken);
 
 export const authSchema = {

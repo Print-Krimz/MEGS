@@ -42,7 +42,7 @@ export const recordClientEndorsement = async (
 
   const invalidStages = ["COMPLIANCE", "DEPLOYED", "ARCHIVED", "BACKOUT", "REJECTED"];
   if (invalidStages.includes(application.status)) {
-    throw new Error(`Cannot record client endorsement for application in ${application.status} stage.`);
+    throw new Error("Client endorsement can't be recorded at this application's current stage.");
   }
   assertAtClientEndorsementStage(application.status);
 
@@ -56,7 +56,7 @@ export const recordClientEndorsement = async (
     },
   });
   if (!screening) {
-    throw new Error("Cannot record client endorsement. A passed INITIAL_SCREENING interview is required.");
+    throw new Error("Cannot record client endorsement. A passed Initial Screening interview is required.");
   }
 
   const resolvedClientId =
@@ -65,7 +65,7 @@ export const recordClientEndorsement = async (
     clientId;
 
   if (!resolvedClientId) {
-    throw new Error("Cannot endorse candidate: Application requisition is missing a linked Job Posting, MRF, or Client relationship.");
+    throw new Error("Cannot endorse this candidate. The application is missing a linked job posting, manpower request, or client.");
   }
 
   const client = await prisma.client.findUnique({ where: { id: resolvedClientId } });

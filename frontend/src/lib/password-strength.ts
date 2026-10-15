@@ -106,3 +106,17 @@ export function evaluatePasswordStrength(password: string): PasswordStrengthResu
     isEligible: hasMinLength,
   };
 }
+
+/** Supabase Auth hashes passwords with bcrypt, which only reads the first 72 bytes. */
+export const PASSWORD_MAX_BYTES = 72;
+export const PASSWORD_MAX_BYTES_MESSAGE = `Password must be ${PASSWORD_MAX_BYTES} bytes or fewer.`;
+
+/** UTF-8 byte length, so accented letters and emoji count as more than one byte. */
+export function passwordByteLength(password: string): number {
+  return new TextEncoder().encode(password).length;
+}
+
+/** True when a NEW password fits the 72-byte limit. Login passwords are never checked against it. */
+export function isWithinPasswordByteLimit(password: string): boolean {
+  return passwordByteLength(password) <= PASSWORD_MAX_BYTES;
+}

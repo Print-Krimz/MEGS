@@ -40,7 +40,15 @@ import { ProfileOverview } from "./components/profile/ProfileOverview";
 import { ProfileSectionNav } from "./components/profile/ProfileSectionNav";
 import type { ProfileSection } from "./components/profile/profile-navigation";
 import { parseProfileSection } from "./components/profile/profile-navigation";
-import { getManilaToday } from "../../lib/field-limits";
+import { FIELD_LIMITS, getManilaToday, isValidDateOnly } from "../../lib/field-limits";
+import { fieldErrorsFrom } from "../../lib/feedback";
+import {
+  validateDateOfBirth,
+  validatePagIbigNumber,
+  validatePhilHealthNumber,
+  validateSSSNumber,
+  validateTINNumber,
+} from "../../lib/statutory-validation";
 import {
   RELIGION_OPTIONS,
   RELIGION_OTHER,
@@ -132,6 +140,60 @@ export function formatTINNumber(raw: string): string {
   return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 9)}-${digits.slice(9, 12)}`;
 }
 
+const withoutKey = (errors: Record<string, string>, key: string): Record<string, string> => {
+  if (!(key in errors)) return errors;
+  const next = { ...errors };
+  delete next[key];
+  return next;
+};
+
+const firstFieldError = (errors: Record<string, string>): string | undefined => Object.values(errors)[0];
+
+// Today's date in Manila time minus whole years; a Feb 29 date falls back to Feb 28 in a non-leap year.
+const manilaDateYearsAgo = (years: number): string => {
+  const [year, month, day] = getManilaToday().split("-").map(Number);
+  const monthDay = `${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const candidate = `${year - years}-${monthDay}`;
+  return isValidDateOnly(candidate) ? candidate : `${year - years}-02-28`;
+};
+
+const PERSONAL_SECTION_FIELDS: Record<string, string[]> = {
+  identity: ["firstName", "middleName", "lastName", "mobileNumber", "dateOfBirth", "birthPlace"],
+  background: ["gender", "civilStatus", "nationality", "religion", "height", "weight", "preferredWorkLocations"],
+  address: ["address", "province", "city", "barangay", "postalCode"],
+  summary: ["professionalSummary"],
+  government: ["sss", "philhealth", "pagibig", "tin"],
+  emergency: ["emergencyContactName", "emergencyContactPhone", "emergencyContactRelationship", "emergencyContactAddress"],
+  notes: ["additionalNotes"],
+};
+
+// Disclosure that holds a personal-info field, so an error inside a collapsed section can be opened.
+const personalSectionOf = (field: string): string | undefined =>
+  Object.keys(PERSONAL_SECTION_FIELDS).find((section) => PERSONAL_SECTION_FIELDS[section].includes(field));
+
+// Pre-submit checks run before the API call. Empty values pass; messages come from the helpers.
+const personalFieldErrorsFor = (form: {
+  dateOfBirth: string;
+  sss: string;
+  philhealth: string;
+  pagibig: string;
+  tin: string;
+}): Record<string, string> => {
+  const errors: Record<string, string> = {};
+  if (validateDateOfBirth(form.dateOfBirth, { minAge: 18, maxAge: 100 })) {
+    errors.dateOfBirth = "Applicant must be between 18 and 100 years old.";
+  }
+  const sss = validateSSSNumber(form.sss);
+  const philhealth = validatePhilHealthNumber(form.philhealth);
+  const pagibig = validatePagIbigNumber(form.pagibig);
+  const tin = validateTINNumber(form.tin);
+  if (sss) errors.sss = sss;
+  if (philhealth) errors.philhealth = philhealth;
+  if (pagibig) errors.pagibig = pagibig;
+  if (tin) errors.tin = tin;
+  return errors;
+};
+
 export const ProfilePage: React.FC = () => {
   const queryClient = useQueryClient();
   const { refreshUser, user } = useAuth();
@@ -198,6 +260,32 @@ export const ProfilePage: React.FC = () => {
     id: number | string;
     label: string;
   } | null>(null);
+
+  // Inline field errors: pre-submit checks, then backend validation errors. Cleared per field on edit.
+  const [personalFieldErrors, setPersonalFieldErrors] = useState<Record<string, string>>({});
+  const clearPersonalFieldError = (field: string) => setPersonalFieldErrors((prev) => withoutKey(prev, field));
+
+  const [expErrors, setExpErrors] = useState<Record<string, string>>({});
+  const [eduErrors, setEduErrors] = useState<Record<string, string>>({});
+  const [trainingErrors, setTrainingErrors] = useState<Record<string, string>>({});
+  const [refErrors, setRefErrors] = useState<Record<string, string>>({});
+  const clearExpError = (field: string) => setExpErrors((prev) => withoutKey(prev, field));
+  const clearEduError = (field: string) => setEduErrors((prev) => withoutKey(prev, field));
+  const clearTrainingError = (field: string) => setTrainingErrors((prev) => withoutKey(prev, field));
+  const clearRefError = (field: string) => setRefErrors((prev) => withoutKey(prev, field));
+  // Errors from one open of a qualification dialog do not carry over to the next open
+  React.useEffect(() => {
+    if (!expModalOpen) setExpErrors({});
+  }, [expModalOpen]);
+  React.useEffect(() => {
+    if (!eduModalOpen) setEduErrors({});
+  }, [eduModalOpen]);
+  React.useEffect(() => {
+    if (!trainingModalOpen) setTrainingErrors({});
+  }, [trainingModalOpen]);
+  React.useEffect(() => {
+    if (!refModalOpen) setRefErrors({});
+  }, [refModalOpen]);
 
   // Personal Info Form State
   const [personalForm, setPersonalForm] = useState({
@@ -323,7 +411,12 @@ export const ProfilePage: React.FC = () => {
       setFeedback({ type: "success", message: "Personal information saved successfully." });
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to save personal information: " + err.message });
+      const fieldErrors = fieldErrorsFrom(err);
+      const firstMessage = firstFieldError(fieldErrors);
+      setPersonalFieldErrors(fieldErrors);
+      const errorSection = Object.keys(fieldErrors).map(personalSectionOf).find(Boolean);
+      if (errorSection) setOpenPersonalSection(errorSection);
+      setFeedback({ type: "error", message: "Failed to save personal information: " + (firstMessage ?? err.message) });
     },
   });
 
@@ -521,7 +614,13 @@ export const ProfilePage: React.FC = () => {
       setFeedback({ type: "success", message: "Work experience saved successfully." });
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: err?.message || "Failed to save work experience." });
+      const fieldErrors = fieldErrorsFrom(err);
+      const firstMessage = firstFieldError(fieldErrors);
+      setExpErrors(fieldErrors);
+      setFeedback({
+        type: "error",
+        message: firstMessage ? "Failed to save work experience: " + firstMessage : (err?.message || "Failed to save work experience."),
+      });
     },
   });
 
@@ -552,7 +651,13 @@ export const ProfilePage: React.FC = () => {
       setFeedback({ type: "success", message: "Education record saved successfully." });
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: err?.message || "Failed to save education record." });
+      const fieldErrors = fieldErrorsFrom(err);
+      const firstMessage = firstFieldError(fieldErrors);
+      setEduErrors(fieldErrors);
+      setFeedback({
+        type: "error",
+        message: firstMessage ? "Failed to save education record: " + firstMessage : (err?.message || "Failed to save education record."),
+      });
     },
   });
 
@@ -594,7 +699,13 @@ export const ProfilePage: React.FC = () => {
       setFeedback({ type: "success", message: "Training certification saved successfully." });
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: err?.message || "Failed to save training certification." });
+      const fieldErrors = fieldErrorsFrom(err);
+      const firstMessage = firstFieldError(fieldErrors);
+      setTrainingErrors(fieldErrors);
+      setFeedback({
+        type: "error",
+        message: firstMessage ? "Failed to save training certification: " + firstMessage : (err?.message || "Failed to save training certification."),
+      });
     },
   });
 
@@ -625,7 +736,13 @@ export const ProfilePage: React.FC = () => {
       setFeedback({ type: "success", message: "Character reference saved successfully." });
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: err?.message || "Failed to save character reference." });
+      const fieldErrors = fieldErrorsFrom(err);
+      const firstMessage = firstFieldError(fieldErrors);
+      setRefErrors(fieldErrors);
+      setFeedback({
+        type: "error",
+        message: firstMessage ? "Failed to save character reference: " + firstMessage : (err?.message || "Failed to save character reference."),
+      });
     },
   });
 
@@ -709,12 +826,21 @@ export const ProfilePage: React.FC = () => {
   const handleSaveExp = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const startDate = formData.get("startDate") as string;
+    const isCurrent = formData.get("isCurrent") === "on";
+    // A current role has no end date, so any end date is ignored and not sent
+    const endDate = isCurrent ? "" : (formData.get("endDate") as string);
+    if (startDate && endDate && endDate < startDate) {
+      setExpErrors({ endDate: "End date can't be before the start date." });
+      return;
+    }
+    setExpErrors({});
     addExpMutation.mutate({
       roleTitle: formData.get("jobTitle") as string,
       company: formData.get("companyName") as string,
-      startDate: formData.get("startDate") as string,
-      endDate: (formData.get("endDate") as string) || undefined,
-      isCurrent: formData.get("isCurrent") === "on",
+      startDate,
+      endDate: endDate || undefined,
+      isCurrent,
       summary: (formData.get("responsibilities") as string) || undefined,
       previousId: editingExp?.id,
     });
@@ -724,12 +850,23 @@ export const ProfilePage: React.FC = () => {
   const handleSaveEdu = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const startDate = formData.get("startDate") as string;
+    const endDate = formData.get("endDate") as string;
+    if (!startDate) {
+      setEduErrors({ startDate: "Start date is required." });
+      return;
+    }
+    if (endDate && endDate < startDate) {
+      setEduErrors({ endDate: "End date can't be before the start date." });
+      return;
+    }
+    setEduErrors({});
     addEduMutation.mutate({
       school: formData.get("schoolName") as string,
       degree: formData.get("degree") as string,
       fieldOfStudy: (formData.get("fieldOfStudy") as string) || "General",
-      startDate: (formData.get("startDate") as string) || getManilaToday(),
-      endDate: (formData.get("endDate") as string) || undefined,
+      startDate,
+      endDate: endDate || undefined,
       notes: (formData.get("notes") as string) || undefined,
       previousId: editingEdu?.id,
     });
@@ -950,8 +1087,18 @@ export const ProfilePage: React.FC = () => {
               </div>
 
               <form
+                noValidate
                 onSubmit={(e) => {
                   e.preventDefault();
+                  const clientErrors = personalFieldErrorsFor(personalForm);
+                  setPersonalFieldErrors(clientErrors);
+                  const firstMessage = firstFieldError(clientErrors);
+                  if (firstMessage) {
+                    const errorSection = Object.keys(clientErrors).map(personalSectionOf).find(Boolean);
+                    if (errorSection) setOpenPersonalSection(errorSection);
+                    setFeedback({ type: "error", message: "Failed to save personal information: " + firstMessage });
+                    return;
+                  }
                   updateProfileMutation.mutate({
                     ...personalForm,
                     height: personalForm.height ? parseFloat(personalForm.height) : undefined,
@@ -977,9 +1124,11 @@ export const ProfilePage: React.FC = () => {
                       label="First Name"
                       maxLength={100}
                       value={personalForm.firstName}
+                      error={personalFieldErrors.firstName}
                       helperText={autoFilledFields.has("firstName") ? "✓ Extracted from resume" : undefined}
                       onChange={(e) => {
                         setPersonalForm((prev) => ({ ...prev, firstName: e.target.value }));
+                        clearPersonalFieldError("firstName");
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("firstName"); return n; });
                       }}
                       required
@@ -988,9 +1137,11 @@ export const ProfilePage: React.FC = () => {
                       label="Middle Name"
                       maxLength={100}
                       value={personalForm.middleName}
+                      error={personalFieldErrors.middleName}
                       helperText={autoFilledFields.has("middleName") ? "✓ Extracted from resume" : undefined}
                       onChange={(e) => {
                         setPersonalForm((prev) => ({ ...prev, middleName: e.target.value }));
+                        clearPersonalFieldError("middleName");
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("middleName"); return n; });
                       }}
                     />
@@ -998,9 +1149,11 @@ export const ProfilePage: React.FC = () => {
                       label="Last Name"
                       maxLength={100}
                       value={personalForm.lastName}
+                      error={personalFieldErrors.lastName}
                       helperText={autoFilledFields.has("lastName") ? "✓ Extracted from resume" : undefined}
                       onChange={(e) => {
                         setPersonalForm((prev) => ({ ...prev, lastName: e.target.value }));
+                        clearPersonalFieldError("lastName");
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("lastName"); return n; });
                       }}
                       required
@@ -1011,10 +1164,12 @@ export const ProfilePage: React.FC = () => {
                     <PhoneInput
                       label="Contact Number"
                       value={personalForm.mobileNumber}
+                      error={personalFieldErrors.mobileNumber}
                       mobileOnly
                       helperText={autoFilledFields.has("mobileNumber") ? "✓ Extracted from resume" : undefined}
                       onChange={(val) => {
                         setPersonalForm((prev) => ({ ...prev, mobileNumber: val }));
+                        clearPersonalFieldError("mobileNumber");
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("mobileNumber"); return n; });
                       }}
                       required
@@ -1023,11 +1178,13 @@ export const ProfilePage: React.FC = () => {
                       label="Date of Birth"
                       type="date"
                       value={personalForm.dateOfBirth}
-                      min={personalForm.dateOfBirth && personalForm.dateOfBirth < "1900-01-01" ? personalForm.dateOfBirth : "1900-01-01"}
-                      max={personalForm.dateOfBirth && personalForm.dateOfBirth > getManilaToday() ? personalForm.dateOfBirth : getManilaToday()}
+                      error={personalFieldErrors.dateOfBirth}
+                      min={manilaDateYearsAgo(100)}
+                      max={manilaDateYearsAgo(18)}
                       helperText={autoFilledFields.has("dateOfBirth") ? "✓ Extracted from resume" : undefined}
                       onChange={(e) => {
                         setPersonalForm((prev) => ({ ...prev, dateOfBirth: e.target.value }));
+                        clearPersonalFieldError("dateOfBirth");
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("dateOfBirth"); return n; });
                       }}
                     />
@@ -1035,9 +1192,11 @@ export const ProfilePage: React.FC = () => {
                       label="Place of Birth"
                       placeholder="e.g. Quezon City, Rizal"
                       value={personalForm.birthPlace}
+                      error={personalFieldErrors.birthPlace}
                       helperText={autoFilledFields.has("birthPlace") ? "✓ Extracted from resume" : undefined}
                       onChange={(e) => {
                         setPersonalForm((prev) => ({ ...prev, birthPlace: e.target.value }));
+                        clearPersonalFieldError("birthPlace");
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("birthPlace"); return n; });
                       }}
                     />
@@ -1061,9 +1220,11 @@ export const ProfilePage: React.FC = () => {
                     <Select
                       label="Gender"
                       value={personalForm.gender}
+                      error={personalFieldErrors.gender}
                       helperText={autoFilledFields.has("gender") ? "✓ Extracted from resume" : undefined}
                       onChange={(e) => {
                         setPersonalForm((prev) => ({ ...prev, gender: e.target.value }));
+                        clearPersonalFieldError("gender");
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("gender"); return n; });
                       }}
                       options={[
@@ -1077,9 +1238,11 @@ export const ProfilePage: React.FC = () => {
                     <Select
                       label="Civil Status"
                       value={personalForm.civilStatus}
+                      error={personalFieldErrors.civilStatus}
                       helperText={autoFilledFields.has("civilStatus") ? "✓ Extracted from resume" : undefined}
                       onChange={(e) => {
                         setPersonalForm((prev) => ({ ...prev, civilStatus: e.target.value }));
+                        clearPersonalFieldError("civilStatus");
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("civilStatus"); return n; });
                       }}
                       options={[
@@ -1097,8 +1260,10 @@ export const ProfilePage: React.FC = () => {
                       allowCustom={true}
                       options={NATIONALITY_OPTIONS}
                       value={personalForm.nationality}
+                      error={personalFieldErrors.nationality}
                       onChange={(val) => {
                         setPersonalForm((prev) => ({ ...prev, nationality: val }));
+                        clearPersonalFieldError("nationality");
                         setAutoFilledFields((prev) => {
                           const n = new Set(prev);
                           n.delete("nationality");
@@ -1113,10 +1278,12 @@ export const ProfilePage: React.FC = () => {
                       allowCustom={false}
                       options={RELIGION_OPTIONS}
                       value={religionParts.selected}
+                      error={personalFieldErrors.religion}
                       helperText={autoFilledFields.has("religion") ? "✓ Extracted from resume" : undefined}
                       onChange={(val) => {
                         setReligionOtherDraft("");
                         setPersonalForm((prev) => ({ ...prev, religion: joinReligion(val, "") }));
+                        clearPersonalFieldError("religion");
                         setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("religion"); return n; });
                       }}
                     />
@@ -1129,6 +1296,7 @@ export const ProfilePage: React.FC = () => {
                         onChange={(e) => {
                           setReligionOtherDraft(e.target.value);
                           setPersonalForm((prev) => ({ ...prev, religion: joinReligion(RELIGION_OTHER, e.target.value) }));
+                          clearPersonalFieldError("religion");
                           setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("religion"); return n; });
                         }}
                       />
@@ -1144,6 +1312,7 @@ export const ProfilePage: React.FC = () => {
                       step="0.1"
                       placeholder="e.g. 170"
                       value={personalForm.height}
+                      error={personalFieldErrors.height}
                       helperText={
                         autoFilledFields.has("height")
                           ? "✓ Extracted from resume"
@@ -1151,6 +1320,7 @@ export const ProfilePage: React.FC = () => {
                       }
                       onChange={(e) => {
                         setPersonalForm((prev) => ({ ...prev, height: e.target.value }));
+                        clearPersonalFieldError("height");
                         setAutoFilledFields((prev) => {
                           const n = new Set(prev);
                           n.delete("height");
@@ -1166,6 +1336,7 @@ export const ProfilePage: React.FC = () => {
                       step="0.1"
                       placeholder="e.g. 65"
                       value={personalForm.weight}
+                      error={personalFieldErrors.weight}
                       helperText={
                         autoFilledFields.has("weight")
                           ? "✓ Extracted from resume"
@@ -1173,6 +1344,7 @@ export const ProfilePage: React.FC = () => {
                       }
                       onChange={(e) => {
                         setPersonalForm((prev) => ({ ...prev, weight: e.target.value }));
+                        clearPersonalFieldError("weight");
                         setAutoFilledFields((prev) => {
                           const n = new Set(prev);
                           n.delete("weight");
@@ -1186,12 +1358,14 @@ export const ProfilePage: React.FC = () => {
                       allowCustom={true}
                       options={PREFERRED_WORK_LOCATION_OPTIONS}
                       value={personalForm.preferredWorkLocations}
-                      onChange={(val) =>
+                      error={personalFieldErrors.preferredWorkLocations}
+                      onChange={(val) => {
                         setPersonalForm((prev) => ({
                           ...prev,
                           preferredWorkLocations: val,
-                        }))
-                      }
+                        }));
+                        clearPersonalFieldError("preferredWorkLocations");
+                      }}
                     />
                   </div>
                 </div>
@@ -1214,9 +1388,11 @@ export const ProfilePage: React.FC = () => {
                     maxLength={500}
                     placeholder="House/Unit No., Street, Barangay"
                     value={personalForm.address}
+                    error={personalFieldErrors.address}
                     helperText={autoFilledFields.has("address") ? "✓ Extracted from resume" : undefined}
                     onChange={(e) => {
                       setPersonalForm((prev) => ({ ...prev, address: e.target.value }));
+                      clearPersonalFieldError("address");
                       setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("address"); return n; });
                     }}
                   />
@@ -1227,6 +1403,7 @@ export const ProfilePage: React.FC = () => {
                     postalCode={personalForm.postalCode}
                     onChange={(patch) => {
                       setPersonalForm((previous) => ({ ...previous, ...patch }));
+                      Object.keys(patch).forEach((field) => clearPersonalFieldError(field));
                       setAutoFilledFields((previous) => {
                         const next = new Set(previous);
                         Object.keys(patch).forEach((field) => next.delete(field));
@@ -1255,12 +1432,14 @@ export const ProfilePage: React.FC = () => {
                     maxLength={5000}
                     placeholder="Briefly describe your professional background, core expertise, and career objectives..."
                     value={personalForm.professionalSummary}
+                    error={personalFieldErrors.professionalSummary}
                     helperText={autoFilledFields.has("professionalSummary") ? "✓ Extracted from resume" : undefined}
                     onChange={(e) => {
                       setPersonalForm((prev) => ({
                         ...prev,
                         professionalSummary: e.target.value,
                       }));
+                      clearPersonalFieldError("professionalSummary");
                       setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("professionalSummary"); return n; });
                     }}
                   />
@@ -1284,37 +1463,53 @@ export const ProfilePage: React.FC = () => {
                       label="SSS Number"
                       placeholder="01-2345678-9"
                       value={personalForm.sss}
+                      error={personalFieldErrors.sss}
                       maxLength={12}
                       inputMode="numeric"
                       helperText="e.g. 01-2345678-9 (10 digits)"
-                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, sss: formatSSSNumber(e.target.value) }))}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, sss: formatSSSNumber(e.target.value) }));
+                        clearPersonalFieldError("sss");
+                      }}
                     />
                     <Input
                       label="PhilHealth Number"
                       placeholder="01-234567890-1"
                       value={personalForm.philhealth}
+                      error={personalFieldErrors.philhealth}
                       maxLength={14}
                       inputMode="numeric"
                       helperText="e.g. 01-234567890-1 (12 digits)"
-                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, philhealth: formatPhilHealthNumber(e.target.value) }))}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, philhealth: formatPhilHealthNumber(e.target.value) }));
+                        clearPersonalFieldError("philhealth");
+                      }}
                     />
                     <Input
                       label="Pag-IBIG / HDMF Number"
                       placeholder="1234-5678-9012"
                       value={personalForm.pagibig}
+                      error={personalFieldErrors.pagibig}
                       maxLength={14}
                       inputMode="numeric"
                       helperText="e.g. 1234-5678-9012 (12 digits)"
-                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, pagibig: formatPagIbigNumber(e.target.value) }))}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, pagibig: formatPagIbigNumber(e.target.value) }));
+                        clearPersonalFieldError("pagibig");
+                      }}
                     />
                     <Input
                       label="TIN Number"
                       placeholder="123-456-789-000"
                       value={personalForm.tin}
+                      error={personalFieldErrors.tin}
                       maxLength={15}
                       inputMode="numeric"
                       helperText="e.g. 123-456-789-000 (9 or 12 digits)"
-                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, tin: formatTINNumber(e.target.value) }))}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, tin: formatTINNumber(e.target.value) }));
+                        clearPersonalFieldError("tin");
+                      }}
                     />
                   </div>
                 </div>
@@ -1338,18 +1533,30 @@ export const ProfilePage: React.FC = () => {
                       nameInput
                       placeholder="Full Name"
                       value={personalForm.emergencyContactName}
-                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, emergencyContactName: e.target.value }))}
+                      error={personalFieldErrors.emergencyContactName}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, emergencyContactName: e.target.value }));
+                        clearPersonalFieldError("emergencyContactName");
+                      }}
                     />
                     <PhoneInput
                       label="Contact Number"
                       value={personalForm.emergencyContactPhone}
-                      onChange={(val) => setPersonalForm((prev) => ({ ...prev, emergencyContactPhone: val }))}
+                      error={personalFieldErrors.emergencyContactPhone}
+                      onChange={(val) => {
+                        setPersonalForm((prev) => ({ ...prev, emergencyContactPhone: val }));
+                        clearPersonalFieldError("emergencyContactPhone");
+                      }}
                     />
                     <Input
                       label="Relationship"
                       placeholder="e.g. Spouse / Parent / Sibling"
                       value={personalForm.emergencyContactRelationship}
-                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, emergencyContactRelationship: e.target.value }))}
+                      error={personalFieldErrors.emergencyContactRelationship}
+                      onChange={(e) => {
+                        setPersonalForm((prev) => ({ ...prev, emergencyContactRelationship: e.target.value }));
+                        clearPersonalFieldError("emergencyContactRelationship");
+                      }}
                     />
                   </div>
                 </div>
@@ -1372,7 +1579,11 @@ export const ProfilePage: React.FC = () => {
                     rows={2}
                     placeholder="Any special accommodations, schedule constraints, or additional remarks..."
                     value={personalForm.additionalNotes}
-                    onChange={(e) => setPersonalForm((prev) => ({ ...prev, additionalNotes: e.target.value }))}
+                    error={personalFieldErrors.additionalNotes}
+                    onChange={(e) => {
+                      setPersonalForm((prev) => ({ ...prev, additionalNotes: e.target.value }));
+                      clearPersonalFieldError("additionalNotes");
+                    }}
                   />
                 </div>
                 </ProfileDisclosure>
@@ -1761,12 +1972,18 @@ export const ProfilePage: React.FC = () => {
             label="Job Title / Position"
             name="jobTitle"
             defaultValue={editingExp?.roleTitle || ""}
+            maxLength={FIELD_LIMITS.shortText}
+            error={expErrors.title}
+            onChange={() => clearExpError("title")}
             required
           />
           <Input
             label="Company / Employer Name"
             name="companyName"
             defaultValue={editingExp?.company || ""}
+            maxLength={FIELD_LIMITS.shortText}
+            error={expErrors.company}
+            onChange={() => clearExpError("company")}
             required
           />
           <div className="grid grid-cols-2 gap-3">
@@ -1775,6 +1992,8 @@ export const ProfilePage: React.FC = () => {
               type="date"
               name="startDate"
               defaultValue={editingExp?.startDate ? editingExp.startDate.substring(0, 10) : ""}
+              error={expErrors.startDate}
+              onChange={() => clearExpError("startDate")}
               max={getManilaToday()}
               required
             />
@@ -1783,6 +2002,8 @@ export const ProfilePage: React.FC = () => {
               type="date"
               name="endDate"
               defaultValue={editingExp?.endDate ? editingExp.endDate.substring(0, 10) : ""}
+              error={expErrors.endDate}
+              onChange={() => clearExpError("endDate")}
               max={getManilaToday()}
             />
           </div>
@@ -1802,6 +2023,9 @@ export const ProfilePage: React.FC = () => {
             label="Responsibilities & Duties"
             name="responsibilities"
             defaultValue={editingExp?.summary || ""}
+            maxLength={FIELD_LIMITS.notes}
+            error={expErrors.description}
+            onChange={() => clearExpError("description")}
             rows={3}
           />
           <div className="flex justify-end gap-2 pt-3 border-t border-[#D9E2EC]">
@@ -1837,6 +2061,9 @@ export const ProfilePage: React.FC = () => {
             label="School / Institution Name"
             name="schoolName"
             defaultValue={editingEdu?.school || ""}
+            maxLength={FIELD_LIMITS.shortText}
+            error={eduErrors.school}
+            onChange={() => clearEduError("school")}
             required
           />
           <Input
@@ -1844,6 +2071,9 @@ export const ProfilePage: React.FC = () => {
             name="degree"
             placeholder="e.g. High School Diploma, BS Nursing"
             defaultValue={editingEdu?.degree || ""}
+            maxLength={FIELD_LIMITS.shortText}
+            error={eduErrors.degree}
+            onChange={() => clearEduError("degree")}
             required
           />
           <Input
@@ -1851,6 +2081,9 @@ export const ProfilePage: React.FC = () => {
             name="fieldOfStudy"
             placeholder="e.g. General Sciences, Electrical"
             defaultValue={editingEdu?.fieldOfStudy || ""}
+            maxLength={FIELD_LIMITS.shortText}
+            error={eduErrors.field}
+            onChange={() => clearEduError("field")}
           />
           <div className="grid grid-cols-2 gap-3">
             <Input
@@ -1858,6 +2091,8 @@ export const ProfilePage: React.FC = () => {
               type="date"
               name="startDate"
               defaultValue={editingEdu?.startDate ? editingEdu.startDate.substring(0, 10) : ""}
+              error={eduErrors.startDate}
+              onChange={() => clearEduError("startDate")}
               max={getManilaToday()}
             />
             <Input
@@ -1865,6 +2100,8 @@ export const ProfilePage: React.FC = () => {
               type="date"
               name="endDate"
               defaultValue={editingEdu?.endDate ? editingEdu.endDate.substring(0, 10) : ""}
+              error={eduErrors.endDate}
+              onChange={() => clearEduError("endDate")}
               max="2100-12-31"
             />
           </div>
@@ -1901,6 +2138,9 @@ export const ProfilePage: React.FC = () => {
             label="Certificate / Course Title"
             name="title"
             defaultValue={editingTraining?.title || ""}
+            maxLength={FIELD_LIMITS.shortText}
+            error={trainingErrors.title}
+            onChange={() => clearTrainingError("title")}
             required
           />
           <Input
@@ -1908,6 +2148,9 @@ export const ProfilePage: React.FC = () => {
             name="issuer"
             placeholder="e.g. TESDA, Red Cross, DOLE"
             defaultValue={editingTraining?.provider || ""}
+            maxLength={FIELD_LIMITS.shortText}
+            error={trainingErrors.provider}
+            onChange={() => clearTrainingError("provider")}
             required
           />
           <Input
@@ -1915,6 +2158,8 @@ export const ProfilePage: React.FC = () => {
             type="date"
             name="issueDate"
             defaultValue={editingTraining?.completionDate ? editingTraining.completionDate.substring(0, 10) : ""}
+            error={trainingErrors.completionDate}
+            onChange={() => clearTrainingError("completionDate")}
             max={getManilaToday()}
           />
           <div className="flex justify-end gap-2 pt-3 border-t border-[#D9E2EC]">
@@ -1950,6 +2195,9 @@ export const ProfilePage: React.FC = () => {
             label="Contact Full Name"
             name="name"
             defaultValue={editingRef?.name || ""}
+            maxLength={FIELD_LIMITS.name}
+            error={refErrors.name}
+            onChange={() => clearRefError("name")}
             required
           />
           <Input
@@ -1957,12 +2205,19 @@ export const ProfilePage: React.FC = () => {
             name="relationship"
             placeholder="e.g. Former Supervisor"
             defaultValue={editingRef?.relationship || ""}
+            maxLength={FIELD_LIMITS.name}
+            error={refErrors.relationship}
+            onChange={() => clearRefError("relationship")}
             required
           />
           <PhoneInput
             label="Contact Phone Number"
             value={refPhone}
-            onChange={setRefPhone}
+            error={refErrors.phone}
+            onChange={(val) => {
+              setRefPhone(val);
+              clearRefError("phone");
+            }}
             required
           />
           <Input
@@ -1970,6 +2225,9 @@ export const ProfilePage: React.FC = () => {
             type="email"
             name="email"
             defaultValue={editingRef?.email || ""}
+            maxLength={FIELD_LIMITS.email}
+            error={refErrors.email}
+            onChange={() => clearRefError("email")}
           />
           <div className="flex justify-end gap-2 pt-3 border-t border-[#D9E2EC]">
             <Button

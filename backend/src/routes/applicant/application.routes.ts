@@ -41,7 +41,7 @@ router.get("/jobs/:id", validate(applicantApplicationSchema.jobParams), getJobDe
 router.post("/jobs/:id/apply", validate(applicantApplicationSchema.applyParams), upload.single("file"), validate(applicantApplicationSchema.apply), applyToJob);
 router.post("/jobs/:id/save", validate(applicantApplicationSchema.jobParams), saveJobHandler);
 router.delete("/jobs/:id/save", validate(applicantApplicationSchema.jobParams), unsaveJobHandler);
-router.get("/saved-jobs", listSavedJobsHandler);
+router.get("/saved-jobs", validate(applicantApplicationSchema.listSavedJobs), listSavedJobsHandler);
 router.get("/saved-jobs/ids", getSavedJobIdsHandler);
 router.get("/active-deployment", getActiveDeployment);
 router.get("/invitations", getMyInvitationsHandler);
