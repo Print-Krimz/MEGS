@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from "react";
-import { Dialog, Input, Button } from "../ui";
+import { Check, Copy, Download } from "lucide-react";
+import { Button } from "@/components/shadcn/button";
+import { Checkbox } from "@/components/shadcn/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/shadcn/dialog";
+import { Field, FieldGroup, FieldLabel } from "@/components/shadcn/field";
+import { Spinner } from "@/components/shadcn/spinner";
 import { authApi } from "../../lib/api/auth.api";
-import { ShieldCheck, Copy, Download, Check, AlertCircle, QrCode, Lock } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import type { LoginResponse, MfaEnrollResponse, VerifyMfaEnrollResponse } from "../../lib/types/auth.types";
+import { AuthError } from "./AuthChrome";
+import { OtpCodeField } from "./OtpCodeField";
 
 interface MfaSetupModalProps {
   open: boolean;
@@ -44,7 +57,7 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
       .catch((err) => {
         const formatted = formatErrorMessage(err);
         setError(formatted);
-        notify.error("MFA Setup Error", err);
+        notify.error("MFA setup error", err);
       })
       .finally(() => {
         setIsLoading(false);
@@ -69,8 +82,6 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
     }
   }, [open]);
 
-
-
   const handleVerifyEnrollment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!enrollData) return;
@@ -90,11 +101,10 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
       setRecoveryCodes(res.recoveryCodes);
       setVerifiedSession(res);
       setStep("BACKUP");
-      notify.success("MFA Enabled", "Authenticator verified. Please save your recovery backup codes.");
+      notify.success("MFA enabled", "Authenticator verified. Please save your recovery backup codes.");
     } catch (err: any) {
       const formatted = formatErrorMessage(err);
       setError(formatted);
-      notify.error("Verification Failed", err);
     } finally {
       setIsLoading(false);
     }
@@ -148,200 +158,159 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
     }
   };
 
+  const locked = step === "BACKUP";
+
   return (
     <Dialog
       open={open}
-      onClose={() => {
-        if (step !== "BACKUP") onClose();
+      onOpenChange={(next) => {
+        if (!next && !locked) onClose();
       }}
-      title={
-        <div className="flex items-center gap-2 text-slate-900">
-          <ShieldCheck className="w-4 h-4 text-teal-600" />
-          <span>{step === "ENROLL" ? "Set Up Multi-Factor Authentication" : "Save Recovery Codes"}</span>
-        </div>
-      }
-      description={step === "ENROLL" ? `Mandatory security protection for ${email}` : "Keep these single-use codes in a secure location"}
-      size="md"
     >
-      <div className="space-y-4 pt-1">
-        {error && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <span className="leading-relaxed">{error}</span>
-          </div>
-        )}
+      <DialogContent
+        className="theme-megs max-h-[calc(100dvh-2rem)] gap-6 overflow-y-auto p-6 sm:max-w-lg sm:p-8"
+        showCloseButton={!locked}
+        onInteractOutside={(e) => {
+          if (locked) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (locked) e.preventDefault();
+        }}
+      >
+        <DialogHeader className="gap-2 text-left">
+          <DialogTitle className="font-display text-2xl leading-tight text-secondary">
+            {step === "ENROLL" ? "Set up two-step verification" : "Save your emergency backup codes"}
+          </DialogTitle>
+          <DialogDescription className="text-base leading-relaxed">
+            {step === "ENROLL"
+              ? `Scan the QR code with an authenticator app to protect ${email}.`
+              : `Each of these ${recoveryCodes.length} codes signs you in once if you lose your authenticator app.`}
+          </DialogDescription>
+        </DialogHeader>
+
+        <AuthError message={error} />
 
         {step === "ENROLL" ? (
-          <div className="space-y-4">
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs text-slate-700">
-              <p className="font-semibold text-slate-900 flex items-center gap-1.5">
-                <QrCode className="w-4 h-4 text-teal-600" />
-                <span>1. Scan with Microsoft or Google Authenticator</span>
-              </p>
-              <p className="text-slate-600">
-                Open your mobile authenticator app, tap <strong>+ (Add Account)</strong>, and scan the QR code below:
-              </p>
-            </div>
-
-            {/* QR Code container */}
-            <div className="flex flex-col items-center justify-center p-4 bg-white border border-slate-200 rounded-lg shadow-inner">
-              {enrollData?.qrCode ? (
-                <img
-                  src={enrollData.qrCode}
-                  alt="MFA Enrollment QR Code"
-                  className="w-44 h-44 object-contain border border-slate-100 p-2 rounded bg-white shadow-sm"
-                />
-              ) : (
-                <div className="w-44 h-44 flex flex-col items-center justify-center gap-2 bg-slate-100 text-xs text-slate-500 rounded p-3 text-center">
-                  {isLoading ? (
-                    "Generating QR code..."
-                  ) : (
-                    <>
-                      <span>Unable to load QR code</span>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={fetchEnrollment}
-                        className="text-xs py-1 px-2.5 h-auto mt-1"
-                      >
-                        Try Again
-                      </Button>
-                    </>
-                  )}
-                </div>
-              )}
-
-
-              {/* Manual Secret Key */}
-              {enrollData?.secret && (
-                <div className="mt-3 w-full max-w-sm flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded text-xs">
-                  <div className="truncate">
-                    <span className="text-slate-500 mr-1">Key:</span>
-                    <code className="font-mono font-bold text-slate-900">{enrollData.secret}</code>
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex size-44 shrink-0 items-center justify-center rounded-lg border border-border bg-white p-2">
+                {enrollData?.qrCode ? (
+                  <img
+                    src={enrollData.qrCode}
+                    alt="MFA Enrollment QR Code"
+                    className="size-full object-contain"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+                    {isLoading ? (
+                      <>
+                        <Spinner />
+                        <span>Generating QR code...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Unable to load QR code</span>
+                        <Button type="button" variant="outline" size="sm" onClick={fetchEnrollment}>
+                          Try Again
+                        </Button>
+                      </>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleCopySecret}
-                    className="p-1 text-teal-700 hover:text-teal-900 hover:bg-teal-50 rounded shrink-0 flex items-center gap-1 text-[11px] font-medium"
-                    title="Copy Secret Key"
-                  >
-                    {copiedSecret ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedSecret ? "Copied" : "Copy"}</span>
-                  </button>
+                )}
+              </div>
+
+              {enrollData?.secret && (
+                <div className="flex w-full flex-col gap-1.5 rounded-lg border border-border bg-muted p-3">
+                  <span className="text-sm text-muted-foreground">Or enter this key manually.</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="min-w-0 break-all font-mono text-sm font-semibold text-foreground">
+                      {enrollData.secret}
+                    </code>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopySecret}
+                      title="Copy Secret Key"
+                      className="shrink-0 text-accent hover:text-accent"
+                    >
+                      {copiedSecret ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                      {copiedSecret ? "Copied" : "Copy"}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleVerifyEnrollment} className="space-y-4">
-              <Input
-                label="Enter 6-Digit Code from App"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={6}
-                autoComplete="one-time-code"
-                placeholder="123456"
-                value={code}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, "");
-                  setCode(val);
-                  if (error) setError(null);
-                }}
-                className="font-mono tracking-widest text-center text-lg font-bold"
-                required
-                autoFocus
-              />
+            <form onSubmit={handleVerifyEnrollment} className="flex flex-col gap-6" noValidate>
+              <FieldGroup className="gap-4">
+                <OtpCodeField
+                  id="mfa-setup-code"
+                  label="Enter the 6-digit code from your app"
+                  value={code}
+                  onChange={(val) => {
+                    setCode(val);
+                    if (error) setError(null);
+                  }}
+                  disabled={isLoading}
+                  autoFocus
+                />
+              </FieldGroup>
 
-              <Button
-
-                type="submit"
-                variant="primary"
-                size="md"
-                loading={isLoading}
-                leftIcon={<Lock className="w-4 h-4" />}
-                className="w-full"
-              >
-                Verify & Enable MFA
-              </Button>
+              <DialogFooter className="flex-col gap-3 sm:flex-col sm:justify-stretch">
+                <Button type="submit" size="lg" disabled={isLoading} className="w-full">
+                  {isLoading && enrollData && <Spinner data-icon="inline-start" />}
+                  Verify and turn on
+                </Button>
+              </DialogFooter>
             </form>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 space-y-1">
-              <p className="font-semibold flex items-center gap-1.5 text-amber-950">
-                <ShieldCheck className="w-4 h-4 text-amber-700" />
-                <span>Save Your Emergency Backup Codes</span>
-              </p>
-              <p className="text-amber-800 leading-relaxed">
-                If you ever lose access to your authenticator app, each of these 8 codes can be used <strong>once</strong> to sign in to your workspace.
-              </p>
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-3">
+              <ul className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-border bg-muted p-4">
+                {recoveryCodes.map((rc, idx) => (
+                  <li key={idx} className="text-center">
+                    <code className="font-mono text-base font-semibold tracking-wider text-foreground">{rc}</code>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={handleCopyRecoveryCodes} className="flex-1">
+                  {copiedCodes ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                  {copiedCodes ? "Copied" : "Copy"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleDownloadRecoveryCodes} className="flex-1">
+                  <Download aria-hidden="true" />
+                  Download
+                </Button>
+              </div>
             </div>
 
-            {/* Recovery Codes Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-slate-900 rounded-lg border border-slate-800 text-center">
-              {recoveryCodes.map((rc, idx) => (
-                <div key={idx} className="p-2 bg-slate-800/80 rounded border border-slate-700 font-mono text-xs font-bold text-teal-300 tracking-wider">
-                  {rc}
-                </div>
-              ))}
-            </div>
-
-            {/* Actions */}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleCopyRecoveryCodes}
-                leftIcon={copiedCodes ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                className="flex-1 text-xs"
-              >
-                {copiedCodes ? "Codes Copied" : "Copy All Codes"}
-              </Button>
-
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleDownloadRecoveryCodes}
-                leftIcon={<Download className="w-3.5 h-3.5" />}
-                className="flex-1 text-xs"
-              >
-                Download (.txt)
-              </Button>
-            </div>
-
-            {/* Checkbox */}
-            <label className="flex items-start gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 cursor-pointer">
-              <input
-                type="checkbox"
+            <Field orientation="horizontal" className="items-start gap-3 rounded-lg border border-border p-4">
+              <Checkbox
+                id="mfa-recovery-ack"
                 checked={acknowledged}
-                onChange={(e) => {
-                  setAcknowledged(e.target.checked);
+                onCheckedChange={(checked) => {
+                  setAcknowledged(checked === true);
                   if (error) setError(null);
                 }}
-                className="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                className="mt-0.5"
               />
-              <span className="leading-relaxed">
-                I have securely saved or downloaded these 8 emergency recovery codes and understand they cannot be retrieved again.
-              </span>
-            </label>
+              <FieldLabel htmlFor="mfa-recovery-ack" className="text-sm font-normal leading-relaxed text-foreground">
+                I have saved or downloaded these {recoveryCodes.length} codes and know they cannot be shown again.
+              </FieldLabel>
+            </Field>
 
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={handleFinish}
-              disabled={!acknowledged}
-              className="w-full"
-            >
-              Continue to Workspace
-            </Button>
+            <DialogFooter className="flex-col gap-3 sm:flex-col sm:justify-stretch">
+              <Button type="button" size="lg" onClick={handleFinish} disabled={!acknowledged} className="w-full">
+                Continue to workspace
+              </Button>
+            </DialogFooter>
           </div>
         )}
-      </div>
+      </DialogContent>
     </Dialog>
   );
 };

@@ -21,15 +21,15 @@ export const FeedbackToaster: React.FC = () => {
         unstyled: true,
         classNames: {
           toast:
-            "group flex items-start gap-3 w-full max-w-sm p-3.5 bg-white border border-slate-300 text-slate-900 shadow-modal font-sans text-xs select-none transition-all duration-150 relative",
-          title: "font-mono font-bold text-xs uppercase tracking-wide text-slate-900",
-          description: "text-xs text-slate-600 leading-normal font-sans mt-0.5",
+            "group flex items-start gap-3 w-full max-w-sm p-4 rounded-lg bg-white border border-slate-300 text-slate-900 shadow-modal font-sans text-sm select-none transition-all duration-150 relative",
+          title: "font-sans text-sm font-semibold text-slate-900",
+          description: "text-sm text-slate-600 leading-normal font-sans mt-0.5",
           actionButton:
             "px-2.5 py-1 bg-teal-700 hover:bg-teal-800 text-white font-mono text-[11px] font-semibold transition-colors",
           cancelButton:
             "px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-[11px] font-medium transition-colors",
           closeButton:
-            "text-slate-400 hover:text-slate-700 p-1 transition-colors border border-transparent hover:border-slate-200",
+            "text-slate-500 hover:text-slate-900 p-1 rounded-md transition-colors",
           success: "border border-emerald-200 bg-emerald-50/40",
           error: "border border-rose-200 bg-rose-50/40",
           warning: "border border-amber-200 bg-amber-50/40",

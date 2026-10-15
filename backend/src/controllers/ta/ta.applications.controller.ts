@@ -19,7 +19,7 @@ import {
 // GET /api/ta/applications - List and filter applications across postings
 export const listApplications = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status, jobPostingId, jobId, clientId, search, isArchived, page, limit, mineOnly, summary } = req.query;
+    const { status, jobPostingId, jobId, clientId, search, isArchived, page, limit, mineOnly, returning, summary } = req.query;
     const currentUserId = req.user?.id;
     const result = await listTAApplications({
       status: status as string,
@@ -30,6 +30,7 @@ export const listApplications = async (req: Request, res: Response): Promise<voi
       page: page ? parseInt(page as string, 10) : undefined,
       limit: limit ? parseInt(limit as string, 10) : undefined,
       mineOnly: mineOnly === "true",
+      returningOnly: returning === "true",
       summary: summary === "true",
       currentUserId,
       actor: req.user,

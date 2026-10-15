@@ -231,10 +231,17 @@ export interface ApplicantApplicationSummary {
   } | null;
 }
 
+export interface ReturningWorkerInfo {
+  sameClient: boolean;
+  clientName: string;
+  priorPlacements: number;
+}
+
 export interface TAApplicationSummary {
   id: number;
   status: ApplicationStatus;
   isArchived: boolean;
+  returning?: ReturningWorkerInfo | null;
   createdAt: string;
   aiScore?: number | null;
   candidateFitScore?: number | null;

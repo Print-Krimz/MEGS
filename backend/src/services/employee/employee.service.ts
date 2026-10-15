@@ -500,7 +500,7 @@ export const listRedeploymentQueue = async (actor?: Actor) => {
       orderBy: [{ redeploymentFollowUpAt: "asc" }, { updatedAt: "asc" }],
       include: {
         redeploymentOwner: { select: { id: true, email: true } },
-        deployments: { where: { status: "ENDED" }, orderBy: { actualEnd: "desc" }, take: 1, include: { client: { select: { name: true } }, mrf: { select: { title: true } }, application: { select: { jobPosting: { select: { title: true } } } } } },
+        deployments: { where: { status: "ENDED" }, orderBy: { actualEnd: "desc" }, take: 1, include: { client: { select: { name: true } }, mrf: { select: { title: true } }, application: { select: { jobPosting: { select: { title: true } } } }, statusHistory: { where: { toStatus: "ENDED" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } },
         user: { select: {
           applicantProfile: { select: { id: true, firstName: true, lastName: true, invitations: { where: { status: "PENDING" }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true, jobPosting: { select: { title: true } } } } } },
           applications: { where: { isArchived: false, status: { notIn: ["BACKOUT", "ARCHIVED", "DEPLOYED"] }, ...(actor ? ownedWhere.application(actor) : {}) }, orderBy: { createdAt: "desc" }, select: { id: true, status: true, jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } } } },
@@ -509,12 +509,37 @@ export const listRedeploymentQueue = async (actor?: Actor) => {
     }),
     prisma.user.findMany({ where: { role: { in: ["TALENT_ACQUISITION", "ADMINISTRATOR"] }, isActive: true }, select: { id: true, email: true }, orderBy: { email: "asc" } }),
   ]);
+  // Every client the worker actually started at. A new application to any of these skips
+  // screening, using the same rule as application submission.
+  const startedPlacements = employees.length === 0 ? [] : await prisma.deployment.findMany({
+    where: {
+      employeeId: { in: employees.map((employee) => employee.id) },
+      status: { in: ["ACTIVE", "ENDED"] },
+      OR: [
+        { actualStart: { not: null } },
+        { statusHistory: { some: { toStatus: "ACTIVE" } } },
+        { status: "ENDED", contractStart: { not: null } },
+      ],
+    },
+    select: { employeeId: true, clientId: true, client: { select: { name: true } } },
+    distinct: ["employeeId", "clientId"],
+  });
+
   return { staff, items: employees.map((employee) => {
     const previous = employee.deployments[0];
+    const pastClients = startedPlacements
+      .filter((placement) => placement.employeeId === employee.id)
+      .map((placement) => ({ id: placement.clientId, name: placement.client.name }));
     const profile = employee.user.applicantProfile;
     const applications = employee.user.applications;
     const invitation = profile?.invitations?.[0];
+    const stage = applications.length ? "IN_PROGRESS" : invitation ? "WAITING_FOR_REPLY" : "NEEDS_PLACEMENT";
     return {
+      stage,
+      pastClients,
+      // Falls back to when the last assignment ended when the availability date was never recorded.
+      waitingSince: employee.redeploymentAvailableAt ?? previous?.actualEnd ?? previous?.statusHistory[0]?.createdAt ?? null,
+      pendingInvitation: invitation ? { id: invitation.id, title: invitation.jobPosting.title } : null,
       id: employee.id, employeeNumber: employee.employeeNumber,
       applicantProfileId: profile?.id ?? null,
       name: `${profile?.firstName || ""} ${profile?.lastName || ""}`.trim() || employee.employeeNumber,

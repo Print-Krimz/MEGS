@@ -2,9 +2,13 @@ import React, { useState } from "react";
 import { Link, useSearch } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
-import { Input, PasswordInput, Button } from "../../components/ui";
+import { Button } from "@/components/shadcn/button";
+import { FieldGroup } from "@/components/shadcn/field";
+import { Spinner } from "@/components/shadcn/spinner";
+import { AuthPasswordField, AuthTextField } from "../../components/auth/AuthField";
+import { AuthError, AuthHeading } from "../../components/auth/AuthChrome";
 import { authApi } from "../../lib/api/auth.api";
-import { LockKeyhole, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
+import { CheckCircle2, ArrowRight } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 
 const resetPasswordSchema = z
@@ -98,103 +102,86 @@ export const ResetPasswordPage: React.FC = () => {
 
   if (isSuccess) {
     return (
-      <div className="space-y-6 text-center py-2">
-        <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
-          <CheckCircle2 className="w-6 h-6" />
+      <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-4">
+          <div className="flex size-12 items-center justify-center rounded-full bg-success/10 text-success">
+            <CheckCircle2 className="size-6" aria-hidden="true" />
+          </div>
+          <AuthHeading
+            focusOnMount
+            title="Password Reset Complete"
+            description="Your password is updated. Sign in with the new one."
+          />
         </div>
-        <div className="space-y-1">
-          <h2 className="text-xl font-bold text-slate-900">Password Reset Complete</h2>
-          <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
-            Your new security password has been saved. You can now sign in with your updated credentials.
-          </p>
-        </div>
-        <div className="pt-2">
+        <Button asChild size="lg" className="w-full">
           <Link to="/login">
-            <Button variant="primary" size="md" rightIcon={<ArrowRight className="w-4 h-4" />} className="w-full">
-              Sign In to Your Account
-            </Button>
+            Sign In to Your Account
+            <ArrowRight data-icon="inline-end" aria-hidden="true" />
           </Link>
-        </div>
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="space-y-1 text-center sm:text-left">
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-          Set New Password
-        </h2>
-        <p className="text-xs text-slate-500">
-          Enter a secure new password for your account.
-        </p>
-      </div>
+    <div className="flex flex-col gap-8">
+      <AuthHeading title="Set a new password" description="Choose a password you have not used before." />
 
-      {/* Global Server Error Banner */}
-      {serverError && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-          <span className="leading-relaxed">{serverError}</span>
-        </div>
-      )}
+      <AuthError message={serverError} />
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        {!formData.token && (
-          <Input
-            label="Reset Token"
-            type="text"
-            placeholder="Paste reset token from email"
-            value={formData.token}
-            onChange={(e) => handleChange("token", e.target.value)}
-            error={validationErrors.token}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
+        <FieldGroup>
+          {!formData.token && (
+            <AuthTextField
+              id="reset-token"
+              label="Reset Token"
+              type="text"
+              placeholder="Paste the reset token from your email"
+              value={formData.token}
+              onChange={(e) => handleChange("token", e.target.value)}
+              error={validationErrors.token}
+              required
+            />
+          )}
+
+          <AuthPasswordField
+            id="reset-new-password"
+            label="New password"
+            autoComplete="new-password"
+            placeholder="Create a new password"
+            value={formData.password}
+            onChange={(e) => handleChange("password", e.target.value)}
+            error={validationErrors.password}
+            showStrength
             required
           />
-        )}
 
-        <PasswordInput
-          label="New Password"
-          autoComplete="new-password"
-          placeholder="Enter new password"
-          value={formData.password}
-          onChange={(e) => handleChange("password", e.target.value)}
-          error={validationErrors.password}
-          showStrengthIndicator
-          required
-        />
+          <AuthPasswordField
+            id="reset-confirm-password"
+            label="Confirm new password"
+            autoComplete="new-password"
+            placeholder="Re-enter your new password"
+            value={formData.confirmPassword}
+            onChange={(e) => handleChange("confirmPassword", e.target.value)}
+            error={validationErrors.confirmPassword}
+            required
+          />
+        </FieldGroup>
 
-        <PasswordInput
-          label="Confirm New Password"
-          autoComplete="new-password"
-          placeholder="Re-enter new password"
-          value={formData.confirmPassword}
-          onChange={(e) => handleChange("confirmPassword", e.target.value)}
-          error={validationErrors.confirmPassword}
-          required
-        />
-
-        <Button
-          type="submit"
-          variant="primary"
-          size="md"
-          loading={resetMutation.isPending}
-          leftIcon={<LockKeyhole className="w-4 h-4" />}
-          className="w-full mt-2"
-        >
-          Update Password
+        <Button type="submit" size="lg" disabled={resetMutation.isPending} className="w-full">
+          {resetMutation.isPending && <Spinner data-icon="inline-start" />}
+          {resetMutation.isPending ? "Updating…" : "Update password"}
         </Button>
       </form>
 
-      {/* Back to login */}
-      <div className="pt-4 border-t border-slate-100 text-center text-xs">
+      <p className="border-t border-border pt-6 text-center text-base">
         <Link
           to="/login"
-          className="font-semibold text-teal-700 hover:text-teal-900 hover:underline"
+          className="inline-block rounded-sm py-2 font-semibold text-accent underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          Back to Sign In
+          Back to sign in
         </Link>
-      </div>
+      </p>
     </div>
   );
 };

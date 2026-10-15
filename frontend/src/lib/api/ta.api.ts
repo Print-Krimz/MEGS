@@ -73,6 +73,7 @@ export interface ApplicationQueryFilters {
   clientId?: number | string;
   search?: string;
   isArchived?: boolean;
+  returning?: boolean;
   page?: number;
   limit?: number;
   summary?: boolean;
@@ -126,6 +127,7 @@ export const taApi = {
     const search = filters.search?.trim();
     if (search) params.append("search", search);
     if (filters.isArchived !== undefined) params.append("isArchived", String(filters.isArchived));
+    if (filters.returning) params.append("returning", "true");
     params.append("page", String(filters.page));
     params.append("limit", String(filters.limit));
     params.append("summary", "true");

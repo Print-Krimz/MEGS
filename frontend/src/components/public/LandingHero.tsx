@@ -1,6 +1,11 @@
 import React, { useState } from "react";
-import { Search, MapPin } from "lucide-react";
+import { ArrowRight, Building2, MapPin, Search } from "lucide-react";
 import { scrollToSection } from "../../lib/scrollToSection";
+import { Button } from "@/components/shadcn/button";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/shadcn/input-group";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
+import { m } from "./motion";
+import { IndustryExamples } from "./IndustryMosaic";
 
 export interface LandingHeroProps {
   onSearch?: (filters: { search: string; location: string }) => void;
@@ -18,6 +23,32 @@ const POPULAR_SEARCHES = [
   "Machine Operator",
 ];
 
+const CREDENTIALS = [
+  { label: "Operating since", value: "May 1997" },
+  { label: "DOLE compliance", value: "D.O. 174-17 & D.O. 40-03" },
+  { label: "Accredited member", value: "PALSCON" },
+  { label: "Main office", value: "Valenzuela City" },
+];
+
+type Audience = "applicant" | "employer";
+
+const rise = (i: number) => ({
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.35, ease: "easeOut" as const, delay: i * 0.06 },
+});
+
+const Credentials: React.FC<{ className?: string }> = ({ className }) => (
+  <dl className={className}>
+    {CREDENTIALS.map((item) => (
+      <div key={item.label} className="border-l-2 border-border pl-3">
+        <dt className="text-sm text-muted-foreground">{item.label}</dt>
+        <dd className="mt-0.5 text-base font-semibold text-secondary">{item.value}</dd>
+      </div>
+    ))}
+  </dl>
+);
+
 export const LandingHero: React.FC<LandingHeroProps> = ({
   onSearch,
   initialSearch = "",
@@ -25,6 +56,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
 }) => {
   const [keyword, setKeyword] = useState(initialSearch);
   const [location, setLocation] = useState(initialLocation);
+  const [audience, setAudience] = useState<Audience>("applicant");
 
   const scrollToJobsResults = () => {
     const jobsEl = document.getElementById("jobs");
@@ -53,131 +85,142 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
     scrollToJobsResults();
   };
 
+  const tabClass =
+    "relative h-11 flex-1 rounded-md border-0 px-5 text-base font-semibold text-secondary/70 hover:text-secondary data-[state=active]:bg-transparent data-[state=active]:text-secondary after:hidden sm:flex-none";
+
   return (
-    <section className="bg-[#071322] text-white border-b border-slate-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 lg:py-24">
-        
-        {/* Main Value Proposition */}
-        <div className="max-w-3xl mx-auto text-center space-y-5">
-          <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.14em] text-blue-300">
-            Serving Top 1,000 Corporations Since May 1997
-          </p>
+    <section className="border-b border-border bg-background">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-12 lg:items-start lg:gap-14 lg:px-8 lg:py-20">
+        <div className="lg:col-span-7">
 
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.08] text-balance">
-            Better People for Better Results.
-          </h1>
-
-          <p className="text-sm sm:text-base lg:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">
-            Premier Philippine manpower & human resource provider. Supplying DOLE D.O. 40-compliant workforce management, rapid site deployment, and insured personnel across 6 nationwide branches.
-          </p>
-
-          {/* Primary Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
-            <a
-              href="#jobs"
-              onClick={(e) => scrollToSection(e, "#jobs")}
-              className="w-full sm:w-auto px-7 py-3.5 bg-white hover:bg-blue-50 text-[#0f294a] text-sm font-bold rounded-lg transition-colors inline-flex items-center justify-center cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#071322]"
-            >
-              <span>Explore Open Roles</span>
-            </a>
-
-            <a
-              href="#contact"
-              onClick={(e) => scrollToSection(e, "#contact")}
-              className="w-full sm:w-auto px-7 py-3.5 bg-transparent hover:bg-white/10 text-white border border-white/25 text-sm font-semibold rounded-lg transition-colors inline-flex items-center justify-center cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#071322]"
-            >
-              <span>Request Manpower Proposal</span>
-            </a>
-          </div>
-        </div>
-
-        {/* Job Search Form */}
-        <div className="max-w-4xl mx-auto mt-10 sm:mt-12">
-          <form
-            onSubmit={handleSubmit}
-            className="bg-white p-2.5 rounded-xl border border-slate-300 shadow-md text-slate-900"
-            role="search"
-            aria-label="Job Search"
+          <m.h1
+            {...rise(1)}
+            className="font-display text-4xl leading-[1.06] text-secondary text-balance sm:text-5xl"
           >
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-              {/* Keyword Input */}
-              <div className="sm:col-span-5 relative flex items-center">
-                <Search className="w-5 h-5 text-slate-400 absolute left-3 pointer-events-none shrink-0" aria-hidden="true" />
-                <input
-                  type="text"
-                  id="hero-job-keyword"
-                  aria-label="Job title or keyword"
-                  placeholder="Role, skill, or specialization (e.g. Forklift)"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  className="w-full pl-10 pr-3 py-3 text-sm text-slate-900 placeholder-slate-500 bg-transparent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#0f294a] rounded-lg"
-                />
-              </div>
+            Reliable Manpower for Philippine Businesses.
+          </m.h1>
 
-              {/* Location Input */}
-              <div className="sm:col-span-4 relative flex items-center sm:border-l sm:border-slate-200 sm:pl-2">
-                <MapPin className="w-5 h-5 text-slate-400 absolute left-3 sm:left-5 pointer-events-none shrink-0" aria-hidden="true" />
-                <input
-                  type="text"
-                  id="hero-job-location"
-                  aria-label="Location"
-                  placeholder="Branch or City (e.g. Valenzuela, Cebu)"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full pl-10 pr-3 py-3 text-sm text-slate-900 placeholder-slate-500 bg-transparent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#0f294a] rounded-lg"
-                />
-              </div>
+          <m.p {...rise(2)} className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            MEGS recruits, deploys and manages DOLE-compliant workforces across manufacturing, logistics, retail,
+            hospitality and more. Based in Valenzuela City since May 1997.
+          </m.p>
 
-              {/* Submit */}
-              <div className="sm:col-span-3 flex items-center">
-                <button
-                  type="submit"
-                  className="w-full bg-[#0f294a] hover:bg-[#163b66] text-white text-sm font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] focus-visible:ring-offset-2 min-h-[44px]"
-                >
-                  <Search className="w-4 h-4" aria-hidden="true" />
-                  <span>Search Jobs</span>
-                </button>
-              </div>
-            </div>
-          </form>
-
-          {/* Quick Filter Links */}
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-300">
-            <span className="text-slate-400 text-xs">Popular specializations:</span>
-            {POPULAR_SEARCHES.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => handleTagClick(tag)}
-                className="text-xs text-slate-300 hover:text-white underline underline-offset-4 decoration-slate-600 hover:decoration-white px-1 py-1.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white rounded"
+          <m.div {...rise(3)} className="mt-8">
+            <Tabs value={audience} onValueChange={(v) => setAudience(v as Audience)} className="gap-5">
+              <TabsList
+                variant="line"
+                aria-label="I am looking to"
+                className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1 group-data-[orientation=horizontal]/tabs:h-auto sm:w-fit"
               >
-                {tag}
-              </button>
-            ))}
-          </div>
+                {(
+                  [
+                    ["applicant", "Find a job", Search],
+                    ["employer", "Hire workers", Building2],
+                  ] as const
+                ).map(([value, label, Icon]) => (
+                  <TabsTrigger key={value} value={value} className={tabClass}>
+                    {audience === value && (
+                      <m.span
+                        layoutId="hero-tab"
+                        aria-hidden="true"
+                        className="absolute inset-0 rounded-md border border-secondary/30 bg-background"
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                      />
+                    )}
+                    <span className="relative z-10 inline-flex items-center gap-2">
+                      <Icon aria-hidden="true" />
+                      {label}
+                    </span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
-          {/* Key Facts Summary */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mt-8 pt-8 border-t border-slate-800 text-center">
-            <div>
-              <span className="text-xl sm:text-2xl font-extrabold text-white">27+ Years</span>
-              <p className="text-xs text-slate-400 mt-1">Established May 1997</p>
-            </div>
-            <div>
-              <span className="text-xl sm:text-2xl font-extrabold text-white">6 Branches</span>
-              <p className="text-xs text-slate-400 mt-1">Luzon · Visayas · Mindanao</p>
-            </div>
-            <div>
-              <span className="text-xl sm:text-2xl font-extrabold text-white">DOLE D.O. 40</span>
-              <p className="text-xs text-slate-400 mt-1">Zero Joint Liability</p>
-            </div>
-            <div>
-              <span className="text-xl sm:text-2xl font-extrabold text-white">PALSCON</span>
-              <p className="text-xs text-slate-400 mt-1">Accredited Member</p>
-            </div>
-          </div>
+              <TabsContent value="applicant" className="flex flex-col gap-4 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4">
+                <form onSubmit={handleSubmit} role="search" aria-label="Job Search" className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <Search aria-hidden="true" />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      type="text"
+                      id="hero-job-keyword"
+                      aria-label="Job title or keyword"
+                      placeholder="Job title or skill"
+                      value={keyword}
+                      onChange={(e) => setKeyword(e.target.value)}
+                    />
+                  </InputGroup>
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <MapPin aria-hidden="true" />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      type="text"
+                      id="hero-job-location"
+                      aria-label="Location"
+                      placeholder="City or area"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                    />
+                  </InputGroup>
+                  <Button type="submit" size="lg" className="sm:px-8">
+                    <Search data-icon="inline-start" aria-hidden="true" />
+                    Search Jobs
+                  </Button>
+                </form>
 
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="w-full text-sm text-muted-foreground">Popular specializations:</span>
+                  {POPULAR_SEARCHES.slice(0, 4).map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => handleTagClick(tag)}
+                      className="min-h-11 cursor-pointer rounded-full bg-muted px-4 text-sm font-medium text-secondary transition-colors hover:bg-secondary hover:text-secondary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-10"
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="employer" className="flex flex-col items-start gap-4 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4">
+                <p className="max-w-xl text-base leading-relaxed text-foreground">
+                  Tell us the positions, headcount and site. We reply with a service proposal and our
+                  company profile, covering statutory records, on-site coordination and employee accident
+                  insurance.
+                </p>
+                <Button asChild size="lg">
+                  <a href="#contact" onClick={(e) => scrollToSection(e, "#contact")}>
+                    Request Manpower Proposal
+                    <ArrowRight data-icon="inline-end" aria-hidden="true" />
+                  </a>
+                </Button>
+              </TabsContent>
+            </Tabs>
+          </m.div>
+
+          <Credentials className="mt-10 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border pt-6 sm:grid-cols-4 lg:hidden" />
+          <IndustryExamples className="mt-8 lg:hidden" mosaicClassName="md:grid-cols-4" />
         </div>
 
+        <m.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut", delay: 0.2 }}
+          className="hidden lg:col-span-5 lg:block"
+        >
+          <figure className="overflow-hidden rounded-lg border border-border bg-background">
+            <IndustryExamples className="p-4 pb-1.5" mosaicClassName="" />
+            <figcaption className="border-t border-border bg-background p-5">
+              <div className="mb-4 flex items-center gap-3">
+                <img src="/images/canva-ref/megs-logo-480.jpg" alt="" width={480} height={348} loading="lazy" className="h-10 w-auto" />
+                <span className="text-sm font-semibold text-secondary">A PJAR Group Company</span>
+              </div>
+              <Credentials className="grid grid-cols-2 gap-x-6 gap-y-3" />
+            </figcaption>
+          </figure>
+        </m.div>
       </div>
     </section>
   );

@@ -11,6 +11,7 @@ import type { EmploymentStatus } from "../types/enums";
 
 export const employeesApi = {
   getRedeploymentQueue: () => api.get<RedeploymentQueueResponse>("/api/employees/redeployment-queue"),
+  getRedeploymentSuggestions: () => api.get<RedeploymentSuggestionsResponse>("/api/employees/redeployment-queue/suggestions"),
   updateRedeploymentFollowUp: (id: number, data: { ownerId: string | null; followUpAt: string | null; notes: string }) => api.patch(`/api/employees/${id}/redeployment`, data),
   getCredentialAlerts: () => api.get<EmployeeCredentialAlert[]>("/api/employees/credential-alerts"),
   listEmployees: (query?: EmployeeListQuery, options?: RequestInit) => {
@@ -81,9 +82,26 @@ export interface EmployeeCredentialAlert {
   jobTitle: string;
 }
 
+export interface RedeploymentJobSuggestion {
+  jobId: number;
+  title: string;
+  clientName: string | null;
+  location: string | null;
+  sameClient: boolean;
+  basis: "SAME_CLIENT" | "PROFILE_MATCH" | "KEYWORDS";
+  matchPercent: number | null;
+}
+
+export interface RedeploymentSuggestionsResponse {
+  items: Record<number, { total: number; suggestions: RedeploymentJobSuggestion[] }>;
+}
+
+export type RedeploymentStage ="NEEDS_PLACEMENT" | "WAITING_FOR_REPLY" | "IN_PROGRESS";
+
 export interface RedeploymentQueueResponse {
   staff: Array<{ id: string; email: string }>;
   items: Array<{
+    stage: RedeploymentStage; pastClients: Array<{ id: number; name: string }>; waitingSince: string | null; pendingInvitation: { id: number; title: string } | null;
     id: number; employeeNumber: string; applicantProfileId: number | null; name: string; previousClient: string | null; previousRole: string | null;
     availableAt: string | null; followUpAt: string | null; ownerId: string | null; ownerEmail: string | null; notes: string | null; nextAction: string;
     applications: Array<{ id: number; status: string; title: string; client: string | null }>;

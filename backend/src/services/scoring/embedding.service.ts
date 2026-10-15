@@ -16,7 +16,8 @@ export interface GenerateEmbeddingOptions {
   taskType?: EmbeddingTaskType;
 }
 
-const JOB_EMBEDDING_CACHE_LIMIT = 64;
+// Large enough to hold every open job (redeployment suggestions embed up to 60 at once).
+const JOB_EMBEDDING_CACHE_LIMIT = 256;
 const jobEmbeddingCache = new Map<string, number[] | Promise<number[]>>();
 
 /** Reuse normalized job/MRF embeddings; candidate eligibility remains a fresh database query. */
@@ -49,6 +50,54 @@ export const generateJobEmbedding = async (text: string): Promise<number[]> => {
     if (jobEmbeddingCache.get(key) === pending) jobEmbeddingCache.delete(key);
     throw error;
   }
+};
+
+const GEMINI_BATCH_LIMIT = 100;
+
+/**
+ * Batch form of generateJobEmbedding: cached texts are reused and the rest are sent
+ * to Gemini in as few requests as possible. Results are returned in input order.
+ */
+export const generateJobEmbeddings = async (texts: string[]): Promise<number[][]> => {
+  const taskType: EmbeddingTaskType = "RETRIEVAL_QUERY";
+  const model = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
+  const cleaned = texts.map((text) => text.trim() || "empty");
+  const keys = cleaned.map((text) => `${model}:${taskType}:${EMBEDDING_DIMENSION}:${createHash("sha256").update(text).digest("hex")}`);
+
+  const results: Array<number[] | undefined> = await Promise.all(
+    keys.map(async (key) => {
+      const cached = jobEmbeddingCache.get(key);
+      return cached ? [...(Array.isArray(cached) ? cached : await cached)] : undefined;
+    })
+  );
+
+  const missing = [...new Set(keys.filter((_, index) => !results[index]))];
+  for (let start = 0; start < missing.length; start += GEMINI_BATCH_LIMIT) {
+    const chunk = missing.slice(start, start + GEMINI_BATCH_LIMIT);
+    const response = await getGeminiClient().models.embedContent({
+      model,
+      contents: chunk.map((key) => cleaned[keys.indexOf(key)]),
+      config: { outputDimensionality: EMBEDDING_DIMENSION, taskType },
+    });
+    chunk.forEach((key, index) => {
+      const values = response.embeddings?.[index]?.values;
+      if (!Array.isArray(values) || values.length !== EMBEDDING_DIMENSION) {
+        throw new Error("Gemini returned an incomplete batch embedding response");
+      }
+      jobEmbeddingCache.set(key, l2Normalize(values));
+    });
+  }
+  while (jobEmbeddingCache.size > JOB_EMBEDDING_CACHE_LIMIT) {
+    const oldestKey = jobEmbeddingCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    jobEmbeddingCache.delete(oldestKey);
+  }
+
+  return keys.map((key, index) => {
+    const vector = results[index] ?? jobEmbeddingCache.get(key);
+    if (!Array.isArray(vector)) throw new Error("Job embedding missing after batch request");
+    return [...vector];
+  });
 };
 
 export const l2Normalize = (vector: number[]): number[] => {

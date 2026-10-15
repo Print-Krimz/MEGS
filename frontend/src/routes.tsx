@@ -307,6 +307,7 @@ export interface TAApplicationSearch {
   clientId?: number;
   jobId?: number;
   archived?: boolean;
+  returning?: boolean;
   page?: number;
   tab?: string;
 }
@@ -335,6 +336,7 @@ const parseTAApplicationSearch = (
     clientId: parsePositiveNumber(search.clientId),
     jobId: parsePositiveNumber(search.jobId),
     archived: parseBoolean(search.archived),
+    returning: parseBoolean(search.returning),
     page: parsePositiveNumber(search.page),
     tab: includeTab && typeof search.tab === "string" ? search.tab : undefined,
   };

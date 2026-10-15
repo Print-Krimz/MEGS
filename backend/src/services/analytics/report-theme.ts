@@ -87,22 +87,22 @@ export function getReportMetadata(opts: ReportMetadataOptions): ReportMetadata {
     codePrefix = "MEGS-TA";
     if (opts.reportType === "PIPELINE") {
       typeCode = "PIP";
-      title = "MEGS — Candidate Pipeline Report (TA)";
+      title = "MEGS — Applicant Progress Report (Recruiter)";
       filenameBase = `MEGS_TA_Candidate_Pipeline_Report_${dateHyphenated}`;
     } else if (opts.reportType === "DEPLOYMENT") {
       typeCode = "DEP";
-      title = "MEGS — Deployment Report (TA)";
+      title = "MEGS — Worker Start Report (Recruiter)";
       filenameBase = `MEGS_TA_Deployment_Report_${dateHyphenated}`;
     }
   } else {
     codePrefix = "MEGS-ADM";
     if (opts.reportType === "PIPELINE") {
       typeCode = "PIP";
-      title = "MEGS — Candidate Pipeline Report (Admin)";
+      title = "MEGS — Applicant Progress Report (Admin)";
       filenameBase = `MEGS_Admin_Workforce_Pipeline_Report_${dateHyphenated}`;
     } else if (opts.reportType === "DEPLOYMENT") {
       typeCode = "DEP";
-      title = "MEGS — Deployment Report (Admin)";
+      title = "MEGS — Worker Start Report (Admin)";
       filenameBase = `MEGS_Admin_Deployment_Governance_${dateHyphenated}`;
     } else if (opts.reportType === "AUDIT") {
       typeCode = "AUD";
@@ -114,13 +114,13 @@ export function getReportMetadata(opts: ReportMetadataOptions): ReportMetadata {
   const documentCode = `${codePrefix}-${typeCode}-${yyyymmdd}-${rand}`;
   const classification =
     opts.roleScope === "ADMINISTRATOR"
-      ? "CONFIDENTIAL — EXECUTIVE & AUDIT"
-      : "CONFIDENTIAL — HR INTERNAL";
+      ? "CONFIDENTIAL — ADMIN ONLY"
+      : "CONFIDENTIAL — MEGS STAFF ONLY";
 
   const roleBadge =
     opts.roleScope === "ADMINISTRATOR"
-      ? "System Administrator"
-      : "Talent Acquisition";
+      ? "Admin (whole team)"
+      : "Recruiter (own records)";
 
   const formattedDate = new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
@@ -143,7 +143,7 @@ export function getReportMetadata(opts: ReportMetadataOptions): ReportMetadata {
     division: "Human Resources & Talent Management",
     generatedAtFormatted: formattedDate,
     requestedByEmail: opts.requestedByEmail,
-    filterSummary: opts.filterSummary || "All Records (Unfiltered)",
+    filterSummary: opts.filterSummary || "All records",
     suggestedFilenameBase: filenameBase,
   };
 }

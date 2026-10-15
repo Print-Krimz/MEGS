@@ -2,18 +2,16 @@ import React, { useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
-import { Input, PasswordInput, Button } from "../../components/ui";
+import { Button } from "@/components/shadcn/button";
+import { Checkbox } from "@/components/shadcn/checkbox";
+import { FieldGroup } from "@/components/shadcn/field";
+import { Spinner } from "@/components/shadcn/spinner";
+import { AuthPasswordField, AuthTextField } from "../../components/auth/AuthField";
+import { AuthError, AuthHeading, AuthStep, AuthStepper } from "../../components/auth/AuthChrome";
+import { OtpCodeField } from "../../components/auth/OtpCodeField";
 import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
-import {
-  AlertCircle,
-  CheckCircle2,
-  ArrowRight,
-  Lock,
-  Copy,
-  Download,
-  Check,
-} from "lucide-react";
+import { CheckCircle2, ArrowRight, Lock, Copy, Download, Check } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 
 import type { MfaEnrollResponse, VerifyMfaEnrollResponse, InvitationDetailsResponse } from "../../lib/types/auth.types";
@@ -235,325 +233,279 @@ export const SetupAccountPage: React.FC = () => {
     }
   };
 
-  // STEP 4: Complete Screen
+  const STEPS = ["Set password", "Authenticator"];
+  const stepIndex = step === "PASSWORD" ? 0 : step === "COMPLETE" ? 2 : 1;
+  const progress = <AuthStepper steps={STEPS} current={stepIndex} label="Account setup progress" />;
+
+  let content: React.ReactNode;
+
   if (step === "COMPLETE") {
-    return (
-      <div className="space-y-6 text-center py-2">
-        <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
-          <CheckCircle2 className="w-6 h-6" />
+    content = (
+      <div className="flex flex-col gap-8">
+        {progress}
+        <div className="flex flex-col gap-4">
+          <div className="flex size-12 items-center justify-center rounded-full bg-success/10 text-success">
+            <CheckCircle2 className="size-6" aria-hidden="true" />
+          </div>
+          <AuthHeading
+            focusOnMount
+            title="Account activated"
+            description="Your recruiter workspace is protected with two-factor authentication. Sign in to get started."
+          />
         </div>
-        <div className="space-y-1">
-          <h2 className="text-xl font-bold text-slate-900">Account Fully Activated</h2>
-          <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
-            Your MEGS recruiter workspace is secured with Two-Factor Authentication and ready for operational use.
-          </p>
-        </div>
-        <div className="pt-2">
+        <Button asChild size="lg" className="w-full">
           <Link to="/login">
-            <Button variant="primary" size="md" rightIcon={<ArrowRight className="w-4 h-4" />} className="w-full">
-              Sign In to Workspace
-            </Button>
+            Sign in to workspace
+            <ArrowRight data-icon="inline-end" aria-hidden="true" />
           </Link>
-        </div>
+        </Button>
       </div>
     );
-  }
+  } else if (step === "BACKUP_CODES") {
+    content = (
+      <div className="flex flex-col gap-8">
+        {progress}
+        <AuthHeading
+          focusOnMount
+          title="Save your backup codes"
+          description="Each code works once. Use one to sign in if you lose access to your authenticator."
+        />
 
-  // STEP 3: Backup Codes Screen
-  if (step === "BACKUP_CODES") {
-    return (
-      <div className="space-y-5">
-        <div className="space-y-1 text-center sm:text-left">
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-            Step 2 of 2: Save Backup Codes
-          </h2>
-          <p className="text-xs text-slate-500">
-            Emergency single-use recovery codes in case you lose your authenticator device.
-          </p>
-        </div>
+        <AuthError message={serverError} />
 
-        {serverError && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <span className="leading-relaxed">{serverError}</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-slate-900 rounded-lg border border-slate-800 text-center">
+        <div className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-muted p-3 sm:grid-cols-4">
           {recoveryCodes.map((rc, idx) => (
-            <div key={idx} className="p-2 bg-slate-800/80 rounded border border-slate-700 font-mono text-xs font-bold text-teal-300 tracking-wider">
+            <div
+              key={idx}
+              className="rounded-md border border-border bg-background px-2 py-2 text-center font-mono text-sm font-semibold text-foreground"
+            >
               {rc}
             </div>
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={handleCopyRecoveryCodes}
-            leftIcon={copiedCodes ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-            className="flex-1 text-xs"
-          >
-            {copiedCodes ? "Codes Copied" : "Copy All Codes"}
+        <div className="flex flex-wrap gap-3">
+          <Button type="button" variant="outline" className="flex-1" onClick={handleCopyRecoveryCodes}>
+            {copiedCodes ? (
+              <Check data-icon="inline-start" className="text-success" aria-hidden="true" />
+            ) : (
+              <Copy data-icon="inline-start" aria-hidden="true" />
+            )}
+            {copiedCodes ? "Codes copied" : "Copy all codes"}
           </Button>
 
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={handleDownloadRecoveryCodes}
-            leftIcon={<Download className="w-3.5 h-3.5" />}
-            className="flex-1 text-xs"
-          >
+          <Button type="button" variant="outline" className="flex-1" onClick={handleDownloadRecoveryCodes}>
+            <Download data-icon="inline-start" aria-hidden="true" />
             Download (.txt)
           </Button>
         </div>
 
-        <label className="flex items-start gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 cursor-pointer">
-          <input
-            type="checkbox"
+        <label
+          htmlFor="setup-acknowledged"
+          className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted p-4 text-sm leading-relaxed text-foreground"
+        >
+          <Checkbox
+            id="setup-acknowledged"
             checked={acknowledged}
-            onChange={(e) => {
-              setAcknowledged(e.target.checked);
+            onCheckedChange={(checked) => {
+              setAcknowledged(checked === true);
               if (serverError) setServerError(null);
             }}
-            className="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            className="mt-0.5"
           />
-          <span className="leading-relaxed">
-            I have securely saved or downloaded these 8 emergency recovery codes.
-          </span>
+          <span>I have saved or downloaded these {recoveryCodes.length} recovery codes.</span>
         </label>
 
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={handleFinishOnboarding}
-          disabled={!acknowledged}
-          rightIcon={<ArrowRight className="w-4 h-4" />}
-          className="w-full"
-        >
-          Complete Setup & Enter Workspace
-        </Button>
-      </div>
-    );
-  }
-
-  // STEP 2: MFA QR Code Enrollment Screen
-  if (step === "MFA_ENROLL") {
-    return (
-      <div className="space-y-5">
-        <div className="space-y-1 text-center sm:text-left">
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-            Step 2 of 2: Configure Authenticator
-          </h2>
-          <p className="text-xs text-slate-500">
-            Scan the QR code with Microsoft Authenticator or Google Authenticator.
+        <div className="flex flex-col gap-3">
+          <Button
+            type="button"
+            size="lg"
+            className="w-full"
+            onClick={handleFinishOnboarding}
+            disabled={!acknowledged}
+            aria-describedby="setup-finish-hint"
+          >
+            Finish and open workspace
+            <ArrowRight data-icon="inline-end" aria-hidden="true" />
+          </Button>
+          <p id="setup-finish-hint" aria-live="polite" className="min-h-5 text-center text-sm text-muted-foreground">
+            {acknowledged ? null : "Confirm you saved your codes to continue."}
           </p>
         </div>
+      </div>
+    );
+  } else if (step === "MFA_ENROLL") {
+    content = (
+      <div className="flex flex-col gap-8">
+        {progress}
+        <AuthHeading
+          focusOnMount
+          title="Set up your authenticator"
+          description="Scan the QR code with Microsoft Authenticator or Google Authenticator, then enter the code it shows."
+        />
 
-        {serverError && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <span className="leading-relaxed">{serverError}</span>
-          </div>
-        )}
+        <AuthError message={serverError} />
 
-        <div className="flex flex-col items-center justify-center p-3 bg-white border border-slate-200 rounded-lg shadow-inner">
+        <div className="flex flex-col items-center gap-4 rounded-lg border border-border bg-muted p-4">
           {enrollData?.qrCode ? (
             <img
               src={enrollData.qrCode}
               alt="MFA QR Code"
-              className="w-40 h-40 object-contain border border-slate-100 p-2 rounded bg-white shadow-sm"
+              className="size-40 rounded-md border border-border bg-white object-contain p-2"
             />
           ) : (
-            <div className="w-40 h-40 flex items-center justify-center bg-slate-100 text-xs text-slate-500 rounded">
-              {isMfaLoading ? "Generating QR code..." : "Loading QR code..."}
+            <div className="flex size-40 items-center justify-center gap-2 rounded-md border border-border bg-background text-sm text-muted-foreground">
+              <Spinner />
+              <span>{isMfaLoading ? "Generating QR code…" : "Loading QR code…"}</span>
             </div>
           )}
 
           {enrollData?.secret && (
-            <div className="mt-3 w-full max-w-sm flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded text-xs">
+            <div className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-background py-1 pl-3 pr-1 text-sm">
               <div className="truncate">
-                <span className="text-slate-500 mr-1">Key:</span>
-                <code className="font-mono font-bold text-slate-900">{enrollData.secret}</code>
+                <span className="mr-1 text-muted-foreground">Key:</span>
+                <code className="font-mono font-semibold text-foreground">{enrollData.secret}</code>
               </div>
-              <button
-                type="button"
-                onClick={handleCopySecret}
-                className="p-1 text-teal-700 hover:text-teal-900 hover:bg-teal-50 rounded shrink-0 flex items-center gap-1 text-[11px] font-medium"
-              >
-                {copiedSecret ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedSecret ? "Copied" : "Copy"}</span>
-              </button>
+              <Button type="button" variant="ghost" size="sm" className="text-accent hover:text-accent" onClick={handleCopySecret}>
+                {copiedSecret ? (
+                  <Check data-icon="inline-start" className="text-success" aria-hidden="true" />
+                ) : (
+                  <Copy data-icon="inline-start" aria-hidden="true" />
+                )}
+                {copiedSecret ? "Copied" : "Copy"}
+              </Button>
             </div>
           )}
         </div>
 
-        <form onSubmit={handleVerifyMfa} className="space-y-4">
-          <div className="space-y-1">
-            <label className="block text-xs font-semibold text-slate-700">
-              Enter 6-Digit Code from App <span className="text-rose-500">*</span>
-            </label>
-            <Input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              autoComplete="one-time-code"
-              placeholder="123456"
-              value={totpCode}
-              onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, "");
-                setTotpCode(val);
-                if (serverError) setServerError(null);
-              }}
-              className="font-mono tracking-widest text-center text-lg font-bold"
-              required
-              autoFocus
-            />
-          </div>
+        <form onSubmit={handleVerifyMfa} className="flex flex-col gap-6" noValidate>
+          <OtpCodeField
+            id="setup-totp"
+            label="6-digit code from your app"
+            value={totpCode}
+            autoFocus
+            onChange={(val) => {
+              setTotpCode(val.replace(/\D/g, "").slice(0, 6));
+              if (serverError) setServerError(null);
+            }}
+          />
 
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            loading={isMfaLoading}
-            leftIcon={<Lock className="w-4 h-4" />}
-            className="w-full"
-          >
-            Verify & Continue
+          <div className="flex flex-col gap-3">
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={totpCode.length !== 6 || isMfaLoading}
+              aria-describedby="setup-totp-hint"
+            >
+              {isMfaLoading && <Spinner data-icon="inline-start" />}
+              {isMfaLoading ? "Verifying…" : "Verify and continue"}
+            </Button>
+            <p id="setup-totp-hint" aria-live="polite" className="min-h-5 text-center text-sm text-muted-foreground">
+              {totpCode.length !== 6 ? "Enter all six digits to continue." : null}
+            </p>
+          </div>
+        </form>
+      </div>
+    );
+  } else if (tokenLoading) {
+    content = (
+      <div className="flex flex-col gap-8">
+        {progress}
+        <div className="flex items-center gap-3 text-base text-muted-foreground" aria-live="polite">
+          <Spinner />
+          <span>Verifying your invitation…</span>
+        </div>
+      </div>
+    );
+  } else if (tokenError) {
+    content = (
+      <div className="flex flex-col gap-8">
+        <AuthHeading focusOnMount title="Invitation invalid or expired" />
+
+        <AuthError message={tokenError} />
+
+        <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">
+          <p className="font-semibold text-foreground">Need a new invitation?</p>
+          <p>Ask your system administrator for a new single-use invitation link.</p>
+        </div>
+
+        <Button asChild variant="outline" size="lg" className="w-full">
+          <Link to="/login">Return to sign in</Link>
+        </Button>
+      </div>
+    );
+  } else {
+    content = (
+      <div className="flex flex-col gap-8">
+        {progress}
+        <AuthHeading
+          title="Set your password"
+          description="Create a password to secure your recruiter workspace."
+        />
+
+        {invitationDetails?.maskedEmail && (
+          <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border bg-muted p-4">
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Lock className="size-3.5 shrink-0" aria-hidden="true" />
+              Invited email (locked)
+            </span>
+            <span className="break-all text-base font-semibold text-foreground">
+              {invitationDetails.maskedEmail}
+            </span>
+          </div>
+        )}
+
+        <AuthError message={serverError} />
+
+        <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-6" noValidate>
+          <FieldGroup>
+            {!routeToken && (
+              <AuthTextField
+                id="setup-token"
+                label="Invitation token"
+                type="text"
+                placeholder="Paste your invitation token"
+                value={formData.token}
+                onChange={(e) => handleChange("token", e.target.value)}
+                error={validationErrors.token}
+                required
+              />
+            )}
+
+            <AuthPasswordField
+              id="setup-password"
+              label="Set password"
+              autoComplete="new-password"
+              placeholder="Create a password"
+              value={formData.password}
+              onChange={(e) => handleChange("password", e.target.value)}
+              error={validationErrors.password}
+              showStrength
+              required
+            />
+
+            <AuthPasswordField
+              id="setup-confirm-password"
+              label="Confirm password"
+              autoComplete="new-password"
+              placeholder="Re-enter your password"
+              value={formData.confirmPassword}
+              onChange={(e) => handleChange("confirmPassword", e.target.value)}
+              error={validationErrors.confirmPassword}
+              required
+            />
+          </FieldGroup>
+
+          <Button type="submit" size="lg" className="w-full" disabled={setupMutation.isPending}>
+            {setupMutation.isPending && <Spinner data-icon="inline-start" />}
+            {setupMutation.isPending ? "Setting password…" : "Continue to Step 2"}
+            {!setupMutation.isPending && <ArrowRight data-icon="inline-end" aria-hidden="true" />}
           </Button>
         </form>
       </div>
     );
   }
 
-  // STEP 1: Set Password Form
-  if (tokenLoading) {
-    return (
-      <div className="space-y-4 py-8 text-center">
-        <div className="inline-block animate-spin w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full" />
-        <p className="text-xs text-slate-500 font-mono">Verifying invitation credentials...</p>
-      </div>
-    );
-  }
-
-  if (tokenError) {
-    return (
-      <div className="space-y-6">
-        <div className="p-4 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-3 text-xs text-rose-900">
-          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <h3 className="font-bold text-rose-950 font-sans text-sm">Invitation Invalid or Expired</h3>
-            <p className="leading-relaxed">{tokenError}</p>
-          </div>
-        </div>
-
-        <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 space-y-2">
-          <p className="font-medium text-slate-900">Need a new invitation?</p>
-          <p>
-            Please contact your system administrator to request a new single-use invitation link.
-          </p>
-        </div>
-
-        <Link
-          to="/login"
-          className="inline-flex items-center justify-center w-full px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors"
-        >
-          Return to Sign In
-        </Link>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="space-y-1 text-center sm:text-left">
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-          Step 1 of 2: Set Password
-        </h2>
-        <p className="text-xs text-slate-500">
-          Create your password to begin securing your recruiter workspace.
-        </p>
-      </div>
-
-      {/* Locked Masked Email Card */}
-      {invitationDetails?.maskedEmail && (
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
-          <div className="space-y-0.5">
-            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider font-mono">
-              Invited Email (Locked)
-            </span>
-            <div className="font-mono text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-              <span>{invitationDetails.maskedEmail}</span>
-            </div>
-          </div>
-          <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-teal-50 border border-teal-200 text-teal-800 rounded">
-            TA SPECIALIST
-          </span>
-        </div>
-      )}
-
-      {/* Global Server Error Banner */}
-      {serverError && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-          <span className="leading-relaxed">{serverError}</span>
-        </div>
-      )}
-
-      {/* Form */}
-      <form onSubmit={handlePasswordSubmit} className="space-y-4" noValidate>
-        {!routeToken && (
-          <Input
-            label="Invitation Token"
-            type="text"
-            placeholder="Paste your invitation token"
-            value={formData.token}
-            onChange={(e) => handleChange("token", e.target.value)}
-            error={validationErrors.token}
-            required
-          />
-        )}
-
-        <PasswordInput
-          label="Set Password"
-          autoComplete="new-password"
-          placeholder="Create password"
-          value={formData.password}
-          onChange={(e) => handleChange("password", e.target.value)}
-          error={validationErrors.password}
-          showStrengthIndicator
-          required
-        />
-
-        <PasswordInput
-          label="Confirm Password"
-          autoComplete="new-password"
-          placeholder="Re-enter password"
-          value={formData.confirmPassword}
-          onChange={(e) => handleChange("confirmPassword", e.target.value)}
-          error={validationErrors.confirmPassword}
-          required
-        />
-
-        <Button
-          type="submit"
-          variant="primary"
-          size="md"
-          loading={setupMutation.isPending}
-          rightIcon={<ArrowRight className="w-4 h-4" />}
-          className="w-full mt-2"
-        >
-          Continue to Step 2
-        </Button>
-      </form>
-    </div>
-  );
+  return <AuthStep stepKey={step}>{content}</AuthStep>;
 };
-

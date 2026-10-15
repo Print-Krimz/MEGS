@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { listRedeploymentQueue, updateRedeploymentFollowUp } from "../../services/employee/employee.service.js";
+import { listRedeploymentSuggestions } from "../../services/employee/redeployment-suggestions.service.js";
 import { sendSuccess, sendError } from "../../utils/response.js";
 import { logAudit } from "../../utils/audit.js";
 import {
@@ -24,7 +25,12 @@ export const listRedeploymentQueueHandler = async (req: Request, res: Response):
   catch (error: any) { sendError(res, error.message, 500); }
 };
 
-export const updateRedeploymentFollowUpHandler = async (req: Request, res: Response): Promise<void> => {
+export const listRedeploymentSuggestionsHandler = async (_req: Request, res: Response): Promise<void> => {
+  try { sendSuccess(res, "Redeployment suggestions retrieved", await listRedeploymentSuggestions()); }
+  catch (error: any) { sendError(res, error.message, 500); }
+};
+
+export const updateRedeploymentFollowUpHandler =async (req: Request, res: Response): Promise<void> => {
   try { sendSuccess(res, "Redeployment follow-up saved", await updateRedeploymentFollowUp(Number(req.params.id), req.user!.id, req.body, req.user)); }
   catch (error: any) { sendError(res, error.message, 400); }
 };

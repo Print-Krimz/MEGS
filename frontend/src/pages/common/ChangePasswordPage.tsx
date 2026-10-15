@@ -2,11 +2,14 @@ import React, { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
-import { PasswordInput, Button } from "../../components/ui";
+import { Button } from "@/components/shadcn/button";
+import { FieldGroup } from "@/components/shadcn/field";
+import { Spinner } from "@/components/shadcn/spinner";
+import { AuthPasswordField } from "../../components/auth/AuthField";
+import { AuthError, AuthHeading } from "../../components/auth/AuthChrome";
 import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
-import { KeyRound, AlertCircle, ShieldAlert } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 
 const changePasswordSchema = z
@@ -93,95 +96,73 @@ export const ChangePasswordPage: React.FC = () => {
     }
   };
 
+  const goHome = () => {
+    if (user?.role === Role.ADMINISTRATOR) navigate({ to: "/admin" });
+    else if (user?.role === Role.TALENT_ACQUISITION) navigate({ to: "/ta" });
+    else navigate({ to: "/app" });
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Notice header */}
-      <div className="space-y-1 text-center sm:text-left">
-        {mustChangePassword && (
-          <div className="flex items-center gap-2 text-amber-700 mb-1">
-            <ShieldAlert className="w-4 h-4 shrink-0" />
-            <span className="text-xs font-mono font-bold uppercase tracking-wider">
-              Mandatory Security Requirement
-            </span>
-          </div>
-        )}
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-          Update Your Password
-        </h2>
-        <p className="text-xs text-slate-500">
-          {mustChangePassword
-            ? "Your account requires an immediate password update before you can continue."
-            : "Set a strong, unique password to secure your account."}
-        </p>
-      </div>
+    <div className="flex flex-col gap-8">
+      <AuthHeading
+        title="Update your password"
+        description={
+          mustChangePassword
+            ? "Your account requires a new password before you can continue."
+            : "Choose a strong, unique password to keep your account secure."
+        }
+      />
 
-      {/* Global Server Error Banner */}
-      {serverError && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-          <span className="leading-relaxed">{serverError}</span>
-        </div>
-      )}
+      <AuthError message={serverError} />
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        <PasswordInput
-          label="Current Password"
-          autoComplete="current-password"
-          placeholder="Enter current password"
-          value={formData.currentPassword}
-          onChange={(e) => handleChange("currentPassword", e.target.value)}
-          error={validationErrors.currentPassword}
-          required
-        />
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
+        <FieldGroup>
+          <AuthPasswordField
+            id="change-current-password"
+            label="Current password"
+            autoComplete="current-password"
+            placeholder="Enter your current password"
+            value={formData.currentPassword}
+            onChange={(e) => handleChange("currentPassword", e.target.value)}
+            error={validationErrors.currentPassword}
+            required
+          />
 
-        <PasswordInput
-          label="New Password"
-          autoComplete="new-password"
-          placeholder="Enter new password"
-          value={formData.newPassword}
-          onChange={(e) => handleChange("newPassword", e.target.value)}
-          error={validationErrors.newPassword}
-          showStrengthIndicator
-          required
-        />
+          <AuthPasswordField
+            id="change-new-password"
+            label="New password"
+            autoComplete="new-password"
+            placeholder="Create a new password"
+            value={formData.newPassword}
+            onChange={(e) => handleChange("newPassword", e.target.value)}
+            error={validationErrors.newPassword}
+            hint="Use at least 8 characters, different from your current password."
+            showStrength
+            required
+          />
 
-        <PasswordInput
-          label="Confirm New Password"
-          autoComplete="new-password"
-          placeholder="Re-enter new password"
-          value={formData.confirmPassword}
-          onChange={(e) => handleChange("confirmPassword", e.target.value)}
-          error={validationErrors.confirmPassword}
-          required
-        />
+          <AuthPasswordField
+            id="change-confirm-password"
+            label="Confirm new password"
+            autoComplete="new-password"
+            placeholder="Re-enter your new password"
+            value={formData.confirmPassword}
+            onChange={(e) => handleChange("confirmPassword", e.target.value)}
+            error={validationErrors.confirmPassword}
+            required
+          />
+        </FieldGroup>
 
-        <div className="flex items-center gap-2 pt-2">
+        <div className="flex flex-col gap-3">
+          <Button type="submit" size="lg" className="w-full" disabled={changeMutation.isPending}>
+            {changeMutation.isPending && <Spinner data-icon="inline-start" />}
+            Update password
+          </Button>
           {!mustChangePassword && (
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => {
-                if (user?.role === Role.ADMINISTRATOR) navigate({ to: "/admin" });
-                else if (user?.role === Role.TALENT_ACQUISITION) navigate({ to: "/ta" });
-                else navigate({ to: "/app" });
-              }}
-              className="w-1/3"
-            >
+            <Button type="button" variant="ghost" size="lg" className="w-full text-muted-foreground" onClick={goHome}>
               Cancel
             </Button>
           )}
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            loading={changeMutation.isPending}
-            leftIcon={<KeyRound className="w-4 h-4" />}
-            className={mustChangePassword ? "w-full mt-2" : "flex-1"}
-          >
-            Update Password
-          </Button>
         </div>
       </form>
     </div>

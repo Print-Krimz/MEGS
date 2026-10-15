@@ -8,6 +8,10 @@ export interface ComboBoxOption {
   label: string;
   subtitle?: string;
   badge?: string;
+  /** Colours the badge; "teal" and "amber" render as a readable label rather than a code tag. */
+  badgeTone?: "neutral" | "teal" | "amber";
+  /** Options sharing a group are shown under one heading, in the order given. */
+  group?: string;
   disabled?: boolean;
 }
 
@@ -544,9 +548,19 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
               const isSelected = opt.value === value;
               const isHighlighted = idx === highlightedIndex;
 
+              const showGroupHeading = Boolean(opt.group) && opt.group !== filteredOptions[idx - 1]?.group;
+
               return (
+                <React.Fragment key={`${opt.value}-${opt.label}-${idx}`}>
+                {showGroupHeading && (
+                  <li
+                    role="presentation"
+                    className="bg-slate-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-600"
+                  >
+                    {opt.group}
+                  </li>
+                )}
                 <li
-                  key={`${opt.value}-${opt.label}-${idx}`}
                   id={`${listId}-option-${idx}`}
                   role="option"
                   aria-selected={isSelected}
@@ -564,7 +578,16 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                         {opt.label}
                       </span>
                       {opt.badge && (
-                        <span className="shrink-0 text-[10px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-600 border border-slate-200">
+                        <span
+                          className={cn(
+                            "shrink-0 text-[10px] px-1.5 py-0.2 border",
+                            opt.badgeTone === "teal"
+                              ? "rounded font-sans font-semibold bg-teal-50 text-teal-800 border-teal-300"
+                              : opt.badgeTone === "amber"
+                                ? "rounded font-sans font-semibold bg-amber-50 text-amber-800 border-amber-300"
+                                : "font-mono bg-slate-100 text-slate-600 border-slate-200"
+                          )}
+                        >
                           {opt.badge}
                         </span>
                       )}
@@ -580,6 +603,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                     <Check className="w-3.5 h-3.5 text-teal-700 shrink-0" />
                   )}
                 </li>
+                </React.Fragment>
               );
             })}
 

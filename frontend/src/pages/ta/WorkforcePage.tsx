@@ -1,5 +1,7 @@
 import React from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { employeesApi } from "../../lib/api/employees.api";
 import { Send, IdCard, FileCheck2, FileClock } from "lucide-react";
 import { PageHeader, Tabs } from "../../components/common";
 import { TA_COPY } from "../../lib/ta-copy";
@@ -60,6 +62,13 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
     }
   };
 
+  // Same query key as the Redeployment tab, so the badge and the tab share one request.
+  const redeploymentQueue = useQuery({
+    queryKey: ["ta", "redeployment-queue"],
+    queryFn: employeesApi.getRedeploymentQueue,
+  });
+  const needsPlacement = (redeploymentQueue.data?.items || []).filter((row) => row.stage === "NEEDS_PLACEMENT").length;
+
   const activeTab = currentTab;
   const tabFallback = (
     <div className="flex min-h-32 items-center justify-center text-sm text-slate-600" role="status" aria-live="polite">
@@ -88,7 +97,13 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
           { id: "employees", label: "Employee Records (201)", icon: IdCard, panelId: "workforce-employees" },
           { id: "clearances", label: "Pre-employment Queue", icon: FileCheck2, panelId: "workforce-clearances" },
           { id: "post_deployment", label: "Post-Deployment Follow-ups", icon: FileClock, panelId: "workforce-post-deployment" },
-          { id: "redeployment", label: "Redeployment", icon: Send, panelId: "workforce-redeployment" },
+          {
+            id: "redeployment",
+            label: "Redeployment",
+            icon: Send,
+            panelId: "workforce-redeployment",
+            ...(needsPlacement > 0 ? { badge: { text: `${needsPlacement} need placement`, variant: "warning" as const } } : {}),
+          },
         ]}
       />
 

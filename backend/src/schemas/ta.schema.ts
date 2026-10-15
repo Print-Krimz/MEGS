@@ -74,6 +74,7 @@ export const taSchema = {
       search: boundedText(FIELD_LIMITS.search).optional(),
       isArchived: z.enum(["true", "false"]).optional(),
       mineOnly: z.enum(["true", "false"]).optional(),
+      returning: z.enum(["true", "false"]).optional(),
       page: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional(),
       limit: finiteNumber({ min: 1, max: FIELD_LIMITS.pageSize, integer: true }).optional(),
       summary: z.enum(["true", "false"]).optional(),

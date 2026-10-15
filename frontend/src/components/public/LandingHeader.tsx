@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "@tanstack/react-router";
-import { Menu, X } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
 import { scrollToSection } from "../../lib/scrollToSection";
+import { Button } from "@/components/shadcn/button";
+import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger, SheetClose } from "@/components/shadcn/sheet";
+import { m } from "./motion";
 
 export const LandingHeader: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -21,8 +24,8 @@ export const LandingHeader: React.FC = () => {
     { label: "About", href: "#about" },
     { label: "Services", href: "#services" },
     { label: "Industries", href: "#industries" },
-    { label: "Branches & Map", href: "#branches" },
-    { label: "Find Jobs", href: "#jobs" },
+    { label: "Branches & map", href: "#branches" },
+    { label: "Find jobs", href: "#jobs" },
     { label: "Contact", href: "#contact" },
   ];
 
@@ -43,6 +46,14 @@ export const LandingHeader: React.FC = () => {
   };
 
   useEffect(() => {
+    const onScroll = () => {
+      if (window.scrollY < 120) setActiveNav("");
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
     // ScrollSpy to track active section while scrolling
     const sectionIds = navLinks.map((l) => l.href.substring(1));
     let observer: IntersectionObserver | null = null;
@@ -50,7 +61,7 @@ export const LandingHeader: React.FC = () => {
     if (typeof window !== "undefined" && typeof window.IntersectionObserver !== "undefined") {
       observer = new IntersectionObserver(
         (entries) => {
-          if (isManualScrollRef.current) return;
+          if (isManualScrollRef.current || window.scrollY < 120) return;
           const visible = entries.filter((entry) => entry.isIntersecting);
           if (visible.length > 0) {
             const topVisible = visible.reduce((prev, curr) =>
@@ -75,38 +86,31 @@ export const LandingHeader: React.FC = () => {
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-2xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20">
-          
-          {/* Brand Logo & Name with Canva Seal */}
+    <header className="sticky top-0 z-40 border-b border-border bg-background">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between sm:h-20">
           <Link
             to="/"
-            className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] rounded-sm py-1 group"
+            className="flex items-center gap-3 rounded-md py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="MEGS Home"
           >
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full p-0.5 bg-white border border-slate-200 shadow-2xs overflow-hidden shrink-0">
-              <img
-                src="/images/canva-ref/megs-seal.jpg"
-                alt="MEGS Logo Seal"
-                className="w-full h-full object-contain rounded-full"
-              />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-black text-xl sm:text-2xl tracking-tight text-[#0f294a] font-sans leading-none">
-                MEGS INC.
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 tracking-wider uppercase mt-1 hidden sm:inline-block">
+            <img
+              src="/images/canva-ref/megs-logo-480.jpg"
+              alt="MEGS Inc. logo"
+              width={480}
+              height={348}
+              decoding="async"
+              className="h-10 w-auto shrink-0 sm:h-12"
+            />
+            <span className="flex flex-col leading-none">
+              <span className="whitespace-nowrap font-display text-xl text-primary sm:text-2xl">MEGS Inc.</span>
+              <span className="mt-1 hidden whitespace-nowrap text-xs font-medium text-muted-foreground md:block">
                 MAR Employment for Good Services
               </span>
-            </div>
+            </span>
           </Link>
 
-          {/* Desktop Navigation Links */}
-          <nav
-            aria-label="Main Navigation"
-            className="hidden lg:flex items-center gap-1 xl:gap-2"
-          >
+          <nav aria-label="Main Navigation" className="hidden items-center gap-1 min-[1140px]:flex">
             {navLinks.map((item) => {
               const isActive = activeNav === item.href;
               return (
@@ -114,17 +118,18 @@ export const LandingHeader: React.FC = () => {
                   key={item.href}
                   href={item.href}
                   onClick={(e) => handleNavClick(e, item.href)}
-                  className={`relative py-2 px-3 text-xs xl:text-sm transition-colors duration-150 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] focus-visible:ring-offset-2 cursor-pointer ${
-                    isActive
-                      ? "text-[#0f294a] font-bold"
-                      : "text-slate-600 hover:text-[#0f294a] font-medium"
+                  aria-current={isActive ? "location" : undefined}
+                  className={`relative cursor-pointer whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    isActive ? "font-semibold text-secondary" : "font-medium text-muted-foreground hover:text-secondary"
                   }`}
                 >
                   {item.label}
                   {isActive && (
-                    <span
+                    <m.span
+                      layoutId="nav-active"
                       aria-hidden="true"
-                      className="absolute bottom-0 left-2 right-2 h-[2px] bg-[#0f294a] rounded-full"
+                      className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-primary"
+                      transition={{ duration: 0.2, ease: "easeOut" }}
                     />
                   )}
                 </a>
@@ -132,109 +137,74 @@ export const LandingHeader: React.FC = () => {
             })}
           </nav>
 
-          {/* Desktop Auth Actions */}
-          <div className="hidden sm:flex items-center gap-3">
+          <div className="hidden items-center gap-2 sm:flex">
             {isAuthenticated ? (
-              <Link
-                to={getPortalDestination()}
-                className="inline-flex items-center justify-center px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-[#0f294a] hover:bg-[#163b66] rounded-lg transition-colors border border-[#0f294a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a]"
-              >
-                Go to Portal
-              </Link>
+              <Button asChild variant="secondary">
+                <Link to={getPortalDestination()}>Go to Portal</Link>
+              </Button>
             ) : (
               <>
-                <Link
-                  to="/login"
-                  className="inline-flex items-center justify-center px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:text-[#0f294a] hover:bg-slate-100 rounded-lg transition-colors border border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a]"
-                >
-                  Log In
-                </Link>
-                <Link
-                  to="/register"
-                  className="inline-flex items-center justify-center px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-[#0f294a] hover:bg-[#163b66] rounded-lg transition-colors border border-[#0f294a] shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a]"
-                >
-                  Create Account
-                </Link>
+                <Button asChild variant="ghost">
+                  <Link to="/login">Log in</Link>
+                </Button>
+                <Button asChild variant="secondary">
+                  <Link to="/register">Create account</Link>
+                </Button>
               </>
             )}
           </div>
 
-          {/* Mobile Menu Toggle Button */}
-          <div className="flex lg:hidden items-center gap-2">
+          <div className="flex items-center gap-2 min-[1140px]:hidden">
             {!isAuthenticated && (
-              <Link
-                to="/login"
-                className="sm:hidden px-3 py-1.5 text-xs font-bold text-slate-700 border border-slate-300 rounded-lg"
-              >
-                Log In
-              </Link>
+              <Button asChild variant="ghost" size="sm" className="sm:hidden">
+                <Link to="/login">Log in</Link>
+              </Button>
             )}
-            <button
-              type="button"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2.5 text-slate-700 hover:text-slate-900 border border-slate-300 rounded-lg hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f294a] min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
-              aria-expanded={isMobileMenuOpen}
-              aria-label="Toggle navigation menu"
-            >
-              {isMobileMenuOpen ? (
-                <X className="w-5 h-5" />
-              ) : (
-                <Menu className="w-5 h-5" />
-              )}
-            </button>
+            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Toggle navigation menu">
+                  <Menu />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="theme-megs w-[min(20rem,90vw)] gap-0 p-0 data-[state=open]:duration-250 data-[state=closed]:duration-200">
+                <SheetTitle className="border-b border-border px-5 py-4 font-display text-lg text-primary">
+                  MEGS Inc.
+                </SheetTitle>
+                <SheetDescription className="sr-only">Site navigation</SheetDescription>
+                <nav aria-label="Mobile Navigation" className="flex flex-col p-3">
+                  {navLinks.map((item) => (
+                    <SheetClose asChild key={item.href}>
+                      <a
+                        href={item.href}
+                        onClick={(e) => scrollToSection(e, item.href)}
+                        className="flex min-h-11 cursor-pointer items-center rounded-md px-3 text-base font-medium text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {item.label}
+                      </a>
+                    </SheetClose>
+                  ))}
+                </nav>
+                <div className="mt-auto flex flex-col gap-2 border-t border-border p-4">
+                  {isAuthenticated ? (
+                    <Button asChild size="lg">
+                      <Link to={getPortalDestination()} onClick={() => setIsMobileMenuOpen(false)}>Go to Portal</Link>
+                    </Button>
+                  ) : (
+                    <>
+                      <Button asChild size="lg">
+                        <Link to="/register" onClick={() => setIsMobileMenuOpen(false)}>Create account</Link>
+                      </Button>
+                      <Button asChild size="lg" variant="outline">
+                        <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>Sign in</Link>
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </div>
-
-      {/* Mobile Navigation Drawer */}
-      {isMobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-6 space-y-3 shadow-md">
-          <nav className="flex flex-col space-y-1">
-            {navLinks.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                onClick={(e) => {
-                  scrollToSection(e, item.href);
-                  setIsMobileMenuOpen(false);
-                }}
-                className="px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 hover:text-[#0f294a] rounded-md transition-colors cursor-pointer"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-          
-          <div className="pt-3 border-t border-slate-200 flex flex-col gap-2">
-            {isAuthenticated ? (
-              <Link
-                to={getPortalDestination()}
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="w-full text-center px-4 py-3 text-sm font-semibold text-white bg-[#0f294a] rounded-lg"
-              >
-                Go to Portal
-              </Link>
-            ) : (
-              <>
-                <Link
-                  to="/register"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="w-full text-center px-4 py-3 text-sm font-semibold text-white bg-[#0f294a] hover:bg-[#163b66] rounded-lg"
-                >
-                  Create Account
-                </Link>
-                <Link
-                  to="/login"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="w-full text-center px-4 py-3 text-sm font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg"
-                >
-                  Sign In
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </header>
   );
 };

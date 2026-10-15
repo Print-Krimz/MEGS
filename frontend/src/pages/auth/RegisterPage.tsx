@@ -2,10 +2,15 @@ import React, { useState, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
-import { Input, PasswordInput, Button } from "../../components/ui";
+import { Button } from "@/components/shadcn/button";
+import { FieldGroup, FieldLabel } from "@/components/shadcn/field";
+import { Spinner } from "@/components/shadcn/spinner";
+import { AuthPasswordField, AuthTextField } from "../../components/auth/AuthField";
+import { AuthError, AuthHeading, AuthStep, AuthStepper } from "../../components/auth/AuthChrome";
+import { OtpCodeField } from "../../components/auth/OtpCodeField";
 import { authApi } from "../../lib/api/auth.api";
 import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
-import { AlertCircle, CheckCircle2, ArrowRight, ArrowLeft, ShieldCheck, RefreshCw } from "lucide-react";
+import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { maskEmail } from "../../lib/utils";
 
@@ -56,14 +61,13 @@ export const RegisterPage: React.FC = () => {
       setServerError(null);
       setStep("VERIFY_OTP");
       setCooldown(60);
-      notify.success("Verification Code Sent", "Please check your Gmail inbox for the 6-digit code.");
+      notify.success("Verification code sent", "Check your inbox for the 6-digit code. It may take a minute.");
     },
     onError: (err) => {
       turnstileRef.current?.reset();
       setTurnstileToken("");
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
-      notify.error("Registration Failed", err);
     },
   });
 
@@ -72,12 +76,10 @@ export const RegisterPage: React.FC = () => {
     onSuccess: () => {
       setServerError(null);
       setStep("SUCCESS");
-      notify.success("Account Verified", "Your email has been verified successfully.");
     },
     onError: (err) => {
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
-      notify.error("Verification Failed", err);
     },
   });
 
@@ -86,12 +88,11 @@ export const RegisterPage: React.FC = () => {
     onSuccess: () => {
       setServerError(null);
       setCooldown(60);
-      notify.success("Code Resent", "A new 6-digit verification code has been dispatched.");
+      notify.success("Code resent", "A new 6-digit verification code has been dispatched.");
     },
     onError: (err) => {
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
-      notify.error("Resend Failed", err);
     },
   });
 
@@ -176,280 +177,199 @@ export const RegisterPage: React.FC = () => {
     }
   };
 
-  if (step === "SUCCESS") {
-    return (
-      <div className="space-y-6 text-center py-2">
-        {/* Step Progress Indicator */}
-        <nav aria-label="Registration progress" className="border-b border-slate-100 pb-4 text-left">
-          <ol className="flex items-center justify-between text-xs">
-            <li className="flex items-center gap-1.5 font-medium text-[#047857]">
-              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#047857] text-white">✓</span>
-              <span>Account</span>
-            </li>
-            <div className="flex-1 h-px bg-[#D9E2EC] mx-2" aria-hidden="true" />
-            <li className="flex items-center gap-1.5 font-medium text-[#047857]">
-              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#047857] text-white">✓</span>
-              <span>Verification</span>
-            </li>
-            <div className="flex-1 h-px bg-[#D9E2EC] mx-2" aria-hidden="true" />
-            <li className="flex items-center gap-1.5 font-bold text-[#0B315D]">
-              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#0B315D] text-white">3</span>
-              <span>Ready</span>
-            </li>
-          </ol>
-        </nav>
+  const STEPS = ["Account", "Verification", "Ready"];
+  const stepIndex = step === "REGISTER" ? 0 : step === "VERIFY_OTP" ? 1 : 2;
+  const registerHint = !isCredentialsFilled
+    ? "Fill in all three fields to continue."
+    : isCaptchaRequired && !turnstileToken
+      ? "Completing the security check…"
+      : null;
 
-        <div className="w-12 h-12 rounded-full bg-[#ECFDF5] text-[#047857] flex items-center justify-center mx-auto border border-[#047857]/20">
-          <CheckCircle2 className="w-6 h-6" />
+  const progress = <AuthStepper steps={STEPS} current={stepIndex} label="Registration progress" />;
+
+  let content: React.ReactNode;
+
+  if (step === "SUCCESS") {
+    content = (
+      <div className="flex flex-col gap-8">
+        {progress}
+        <div className="flex flex-col gap-4">
+          <div className="flex size-12 items-center justify-center rounded-full bg-success/10 text-success">
+            <CheckCircle2 className="size-6" aria-hidden="true" />
+          </div>
+          <AuthHeading
+            focusOnMount
+            title="Email verified"
+            description={
+              <>
+                Your candidate account (<strong className="font-semibold text-foreground">{maskEmail(formData.email)}</strong>)
+                is active. Sign in to build your profile and apply for open roles.
+              </>
+            }
+          />
         </div>
-        <div className="space-y-1">
-          <h2 className="text-xl font-bold text-[#102A43]">Email Verified Successfully</h2>
-          <p className="text-xs text-[#627D98] max-w-sm mx-auto leading-relaxed">
-            Your candidate portal account (<strong className="font-mono text-[#102A43]">{maskEmail(formData.email)}</strong>) is now active. You can sign in to build your profile and apply for opportunities.
-          </p>
-        </div>
-        <div className="pt-2">
+        <Button asChild size="lg" className="w-full">
           <Link to="/login" search={{ email: formData.email.trim() }}>
-            <Button variant="primary" size="md" rightIcon={<ArrowRight className="w-4 h-4" />} className="w-full">
-              Proceed to Sign In
-            </Button>
+            Proceed to sign in
+            <ArrowRight data-icon="inline-end" aria-hidden="true" />
           </Link>
-        </div>
+        </Button>
       </div>
     );
-  }
+  } else if (step === "VERIFY_OTP") {
+    content = (
+      <div className="flex flex-col gap-8">
+        {progress}
+        <AuthHeading
+          title="Enter 6-digit code"
+          description={
+            <>
+              We sent a verification code to <strong className="font-semibold text-foreground">{maskEmail(formData.email)}</strong>.
+              Enter it below to activate your account.
+            </>
+          }
+        />
 
-  if (step === "VERIFY_OTP") {
-    return (
-      <div className="space-y-6">
-        {/* Step Progress Indicator */}
-        <nav aria-label="Registration progress" className="border-b border-[#D9E2EC] pb-4">
-          <ol className="flex items-center justify-between text-xs">
-            <li className="flex items-center gap-1.5 font-medium text-[#047857]">
-              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#047857] text-white">✓</span>
-              <span>Account</span>
-            </li>
-            <div className="flex-1 h-px bg-[#D9E2EC] mx-2" aria-hidden="true" />
-            <li className="flex items-center gap-1.5 font-bold text-[#0B315D]">
-              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#0B315D] text-white">2</span>
-              <span>Verification</span>
-            </li>
-            <div className="flex-1 h-px bg-[#D9E2EC] mx-2" aria-hidden="true" />
-            <li className="flex items-center gap-1.5 font-medium text-[#627D98]">
-              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#F7F9FC] text-[#627D98] border border-[#D9E2EC]">3</span>
-              <span>Ready</span>
-            </li>
-          </ol>
-        </nav>
+        <AuthError message={serverError} />
 
-        {/* Header */}
-        <div className="space-y-1 text-left">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#EAF0F7] text-[#0B315D] text-[11px] font-semibold border border-[#D9E2EC] mb-1">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Email Verification Required</span>
-          </div>
-          <h2 className="text-xl font-bold text-[#102A43] tracking-tight font-sans">
-            Enter 6-Digit Code
-          </h2>
-          <p className="text-xs text-[#627D98] leading-relaxed">
-            We sent a 6-digit verification code to <strong className="font-mono text-[#102A43]">{maskEmail(formData.email)}</strong>. Enter it below to activate your account.
-          </p>
-        </div>
+        <form onSubmit={handleOtpSubmit} className="flex flex-col gap-6" noValidate>
+          <OtpCodeField
+            label="6-digit verification code"
+            value={otpCode}
+            autoFocus
+            onChange={(val) => {
+              setOtpCode(val.replace(/\D/g, "").slice(0, 6));
+              if (validationErrors.otp) {
+                setValidationErrors({});
+              }
+            }}
+            error={validationErrors.otp}
+            hint="The code expires in 10 minutes."
+          />
 
-        {/* Global Server Error Banner */}
-        {serverError && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <span className="leading-relaxed">{serverError}</span>
-          </div>
-        )}
-
-        {/* OTP Form */}
-        <form onSubmit={handleOtpSubmit} className="space-y-4" noValidate>
-          <div>
-            <label htmlFor="otp-input" className="block text-xs font-semibold text-slate-700 mb-1">
-              6-Digit Verification Code <span className="text-rose-500">*</span>
-            </label>
-            <input
-              id="otp-input"
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              autoFocus
-              autoComplete="one-time-code"
-              placeholder="••••••"
-              value={otpCode}
-              onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, "").slice(0, 6);
-                setOtpCode(val);
-                if (validationErrors.otp) {
-                  setValidationErrors({});
-                }
-              }}
-              className="w-full text-center text-2xl font-mono tracking-[0.4em] font-bold py-2.5 px-3 rounded-lg border border-[#D9E2EC] focus:outline-none focus:ring-2 focus:ring-[#0B315D] focus:border-transparent bg-white text-[#102A43]"
-            />
-            {validationErrors.otp && (
-              <p className="text-xs text-rose-600 mt-1 font-medium">{validationErrors.otp}</p>
-            )}
-            <p className="text-[11px] text-[#627D98] mt-1.5 text-center">Code expires in 10 minutes</p>
-          </div>
-
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            loading={verifyMutation.isPending}
-            rightIcon={<ArrowRight className="w-4 h-4" />}
-            className="w-full"
-            disabled={otpCode.length !== 6}
-          >
-            Verify & Activate Account
+          <Button type="submit" size="lg" className="w-full" disabled={otpCode.length !== 6 || verifyMutation.isPending}>
+            {verifyMutation.isPending && <Spinner data-icon="inline-start" />}
+            Verify and activate account
           </Button>
         </form>
 
-        {/* Resend Cooldown Controls */}
-        <div className="pt-3 border-t border-[#D9E2EC] flex items-center justify-between text-xs">
-          <button
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-5">
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
+            className="-ml-3"
             onClick={() => {
               setStep("REGISTER");
               setServerError(null);
             }}
-            className="text-[#627D98] hover:text-[#102A43] hover:underline inline-flex items-center gap-1 text-[11px]"
           >
-            <ArrowLeft className="w-3 h-3" />
-            <span>Edit Email</span>
-          </button>
+            <ArrowLeft data-icon="inline-start" aria-hidden="true" />
+            Edit email
+          </Button>
 
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
+            className="-mr-3 text-accent hover:text-accent"
             disabled={cooldown > 0 || resendMutation.isPending}
             onClick={handleResend}
-            className={`inline-flex items-center gap-1 font-medium ${
-              cooldown > 0
-                ? "text-[#627D98] cursor-not-allowed"
-                : "text-[#0B315D] hover:text-[#082747] hover:underline cursor-pointer"
-            }`}
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${resendMutation.isPending ? "animate-spin" : ""}`} />
-            <span>{cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend Code"}</span>
-          </button>
+            <RefreshCw data-icon="inline-start" aria-hidden="true" className={resendMutation.isPending ? "animate-spin" : undefined} />
+            {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
+          </Button>
         </div>
+      </div>
+    );
+  } else {
+    content = (
+      <div className="flex flex-col gap-8">
+        {progress}
+        <AuthHeading
+          title="Create your candidate account"
+          description="Search open roles and track every application from review to deployment."
+        />
+
+        <AuthError message={serverError} />
+
+        <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-6" noValidate>
+          <FieldGroup>
+            <AuthTextField
+              id="register-email"
+              label="Email address"
+              type="email"
+              autoComplete="email"
+              placeholder="name@example.com"
+              value={formData.email}
+              onChange={(e) => handleChange("email", e.target.value)}
+              error={validationErrors.email}
+              hint="We will send a verification code to this email."
+              required
+            />
+
+            <AuthPasswordField
+              id="register-password"
+              label="Password"
+              autoComplete="new-password"
+              placeholder="Create a password"
+              value={formData.password}
+              onChange={(e) => handleChange("password", e.target.value)}
+              error={validationErrors.password}
+              showStrength
+              required
+            />
+
+            <AuthPasswordField
+              id="register-confirm-password"
+              label="Confirm password"
+              autoComplete="new-password"
+              placeholder="Re-enter your password"
+              value={formData.confirmPassword}
+              onChange={(e) => handleChange("confirmPassword", e.target.value)}
+              error={validationErrors.confirmPassword}
+              required
+            />
+
+            {import.meta.env.VITE_DISABLE_CAPTCHA !== "true" && (
+              <div className="flex flex-col gap-2">
+                <FieldLabel>Security verification</FieldLabel>
+                <TurnstileWidget
+                  ref={turnstileRef}
+                  action="signup"
+                  onSuccess={(token) => {
+                    setTurnstileToken(token);
+                    setServerError(null);
+                  }}
+                  onExpire={() => setTurnstileToken("")}
+                />
+              </div>
+            )}
+          </FieldGroup>
+
+          <div className="flex flex-col gap-3">
+            <Button type="submit" size="lg" disabled={isSubmitDisabled} aria-describedby="register-submit-hint" className="w-full">
+              {registerMutation.isPending && <Spinner data-icon="inline-start" />}
+              {registerMutation.isPending ? "Creating account…" : "Create candidate account"}
+            </Button>
+            <p id="register-submit-hint" aria-live="polite" className="min-h-5 text-center text-sm text-muted-foreground">
+              {registerHint}
+            </p>
+          </div>
+        </form>
+
+        <p className="border-t border-border pt-6 text-center text-base text-muted-foreground">
+          Already have an account?{" "}
+          <Link
+            to="/login"
+            className="inline-block rounded-sm py-2 font-semibold text-accent underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Sign in
+          </Link>
+        </p>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Step Progress Indicator */}
-      <nav aria-label="Registration progress" className="border-b border-[#D9E2EC] pb-4">
-        <ol className="flex items-center justify-between text-xs">
-          <li className="flex items-center gap-1.5 font-bold text-[#0B315D]">
-            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#0B315D] text-white">1</span>
-            <span>Account</span>
-          </li>
-          <div className="flex-1 h-px bg-[#D9E2EC] mx-2" aria-hidden="true" />
-          <li className="flex items-center gap-1.5 font-medium text-[#627D98]">
-            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#F7F9FC] text-[#627D98] border border-[#D9E2EC]">2</span>
-            <span>Verification</span>
-          </li>
-          <div className="flex-1 h-px bg-[#D9E2EC] mx-2" aria-hidden="true" />
-          <li className="flex items-center gap-1.5 font-medium text-[#627D98]">
-            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-[#F7F9FC] text-[#627D98] border border-[#D9E2EC]">3</span>
-            <span>Ready</span>
-          </li>
-        </ol>
-      </nav>
-
-      {/* Header */}
-      <div className="space-y-1 text-left">
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-          Create Candidate Account
-        </h2>
-        <p className="text-xs text-slate-500">
-          Register to search open opportunities and track application milestones.
-        </p>
-      </div>
-
-      {/* Global Server Error Banner */}
-      {serverError && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-          <span className="leading-relaxed">{serverError}</span>
-        </div>
-      )}
-
-      {/* Registration Form */}
-      <form onSubmit={handleRegisterSubmit} className="space-y-4" noValidate>
-        <Input
-          label="Email Address"
-          type="email"
-          autoComplete="email"
-          placeholder="your.email@example.com"
-          value={formData.email}
-          onChange={(e) => handleChange("email", e.target.value)}
-          error={validationErrors.email}
-          required
-        />
-
-        <PasswordInput
-          label="Password"
-          autoComplete="new-password"
-          placeholder="Create password"
-          value={formData.password}
-          onChange={(e) => handleChange("password", e.target.value)}
-          error={validationErrors.password}
-          showStrengthIndicator
-          required
-        />
-
-        <PasswordInput
-          label="Confirm Password"
-          autoComplete="new-password"
-          placeholder="Re-enter password"
-          value={formData.confirmPassword}
-          onChange={(e) => handleChange("confirmPassword", e.target.value)}
-          error={validationErrors.confirmPassword}
-          required
-        />
-
-        {import.meta.env.VITE_DISABLE_CAPTCHA !== "true" && (
-          <TurnstileWidget
-            ref={turnstileRef}
-            action="signup"
-            onSuccess={(token) => {
-              setTurnstileToken(token);
-              setServerError(null);
-            }}
-            onExpire={() => setTurnstileToken("")}
-          />
-        )}
-
-        <Button
-          type="submit"
-          variant="primary"
-          size="md"
-          loading={registerMutation.isPending}
-          disabled={isSubmitDisabled}
-          className="w-full mt-2"
-        >
-          {isCaptchaRequired && !turnstileToken && isCredentialsFilled
-            ? "Verifying security..."
-            : "Create Candidate Account"}
-        </Button>
-      </form>
-
-      {/* Login link */}
-      <div className="pt-4 border-t border-[#D9E2EC] text-center text-xs text-[#627D98]">
-        Already have an account?{" "}
-        <Link
-          to="/login"
-          className="font-semibold text-[#0B315D] hover:text-[#082747] hover:underline"
-        >
-          Sign In
-        </Link>
-      </div>
-    </div>
-  );
+  return <AuthStep stepKey={step}>{content}</AuthStep>;
 };

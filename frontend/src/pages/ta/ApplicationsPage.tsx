@@ -23,8 +23,10 @@ import {
   Eye,
   Archive,
   RotateCcw,
+  Undo2,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
+import type { ReturningWorkerInfo } from "../../lib/types/application.types";
 import type { TAApplicationSearch } from "../../routes";
 import { TA_COPY } from "../../lib/ta-copy";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -35,6 +37,36 @@ import {
 } from "../../lib/query-policies";
 
 const EMPTY_LIST: any[] = [];
+
+const ReturningBadge: React.FC<{ info?: ReturningWorkerInfo | null }> = ({ info }) => {
+  if (!info) return null;
+  const title = info.sameClient
+    ? `Previously deployed at ${info.clientName}. Screening is skipped and the application goes straight to Requirements.`
+    : `Previously deployed at ${info.clientName}. This is a different client, so the full process applies.`;
+  return (
+    <span
+      title={title}
+      className={`mt-1 inline-flex max-w-[18rem] items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+        info.sameClient ? "border-teal-300 bg-teal-50 text-teal-800" : "border-slate-300 bg-slate-50 text-slate-700"
+      }`}
+    >
+      <Undo2 className="h-3 w-3 shrink-0" aria-hidden="true" />
+      <span className="truncate">
+        {info.sameClient ? "Redeployment" : "Previously deployed"} · {info.clientName}
+      </span>
+    </span>
+  );
+};
+
+const ScreeningSkippedNote: React.FC<{ info?: ReturningWorkerInfo | null }> = ({ info }) =>
+  info?.sameClient ? (
+    <div
+      className="mt-1 text-[10px] text-slate-500"
+      title="Prior placement at this client: screening and interview stages were skipped."
+    >
+      Screening skipped
+    </div>
+  ) : null;
 
 const readApplicationSearch = (): TAApplicationSearch => {
   const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
@@ -49,6 +81,7 @@ const readApplicationSearch = (): TAApplicationSearch => {
     clientId: number(params.get("clientId")),
     jobId: number(params.get("jobId")),
     archived: params.get("archived") === "true" || params.get("archived") === "1" ? true : undefined,
+    returning: params.get("returning") === "true" || params.get("returning") === "1" ? true : undefined,
     page: number(params.get("page")),
   };
 };
@@ -70,6 +103,7 @@ export const ApplicationsPage: React.FC = () => {
     ...(routeSearch.jobId ? { jobId: String(routeSearch.jobId) } : {}),
   }));
   const [showArchived, setShowArchived] = useState(Boolean(routeSearch.archived));
+  const [returningOnly, setReturningOnly] = useState(Boolean(routeSearch.returning));
 
   useEffect(() => {
     setPage(routeSearch.page || 1);
@@ -80,7 +114,8 @@ export const ApplicationsPage: React.FC = () => {
       ...(routeSearch.jobId ? { jobId: String(routeSearch.jobId) } : {}),
     });
     setShowArchived(Boolean(routeSearch.archived));
-  }, [routeSearch.page, routeSearch.q, routeSearch.stage, routeSearch.clientId, routeSearch.jobId, routeSearch.archived]);
+    setReturningOnly(Boolean(routeSearch.returning));
+  }, [routeSearch.page, routeSearch.q, routeSearch.stage, routeSearch.clientId, routeSearch.jobId, routeSearch.archived, routeSearch.returning]);
 
   const updateListUrl = (next: Partial<TAApplicationSearch>) => {
     const valueFor = <K extends keyof TAApplicationSearch>(key: K, fallback: TAApplicationSearch[K]) =>
@@ -93,6 +128,7 @@ export const ApplicationsPage: React.FC = () => {
         clientId: valueFor("clientId", filterValues.clientId ? Number(filterValues.clientId) : undefined),
         jobId: valueFor("jobId", filterValues.jobId ? Number(filterValues.jobId) : undefined),
         archived: valueFor("archived", showArchived || undefined),
+        returning: valueFor("returning", returningOnly || undefined),
         page: valueFor("page", page > 1 ? page : undefined),
       },
       replace: true,
@@ -105,6 +141,7 @@ export const ApplicationsPage: React.FC = () => {
     clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
     jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
     archived: showArchived || undefined,
+    returning: returningOnly || undefined,
     page: page > 1 ? page : undefined,
   };
 
@@ -123,6 +160,7 @@ export const ApplicationsPage: React.FC = () => {
       clientId: filterValues.clientId || "",
       jobId: filterValues.jobId || "",
       showArchived,
+      returningOnly,
     }],
     queryFn: ({ signal }) =>
       taApi.listApplicationsPage({
@@ -133,6 +171,7 @@ export const ApplicationsPage: React.FC = () => {
         jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
         clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
         isArchived: showArchived,
+        returning: returningOnly || undefined,
         summary: true,
       }, { signal }),
     placeholderData: keepPreviousData,
@@ -265,6 +304,20 @@ export const ApplicationsPage: React.FC = () => {
         actions={
           <div className="flex items-center gap-2">
             <Button
+              variant={returningOnly ? "primary" : "outline"}
+              size="sm"
+              leftIcon={<Undo2 className="w-3.5 h-3.5" />}
+              aria-pressed={returningOnly}
+              onClick={() => {
+                const next = !returningOnly;
+                setReturningOnly(next);
+                setPage(1);
+                updateListUrl({ returning: next || undefined, page: undefined });
+              }}
+            >
+              Returning workers only
+            </Button>
+            <Button
               variant={showArchived ? "primary" : "outline"}
               size="sm"
               leftIcon={<Archive className="w-3.5 h-3.5" />}
@@ -336,8 +389,9 @@ export const ApplicationsPage: React.FC = () => {
         onReset={() => {
           setSearch("");
           setFilterValues({});
+          setReturningOnly(false);
           setPage(1);
-          updateListUrl({ q: undefined, stage: undefined, clientId: undefined, jobId: undefined, page: undefined });
+          updateListUrl({ returning: undefined, q: undefined, stage: undefined, clientId: undefined, jobId: undefined, page: undefined });
         }}
         filters={[
           {
@@ -388,20 +442,21 @@ export const ApplicationsPage: React.FC = () => {
             icon={<Users className="w-5 h-5" />}
             title={showArchived ? "No archived applications" : "No candidates found in pipeline"}
             description={
-              search || Object.keys(filterValues).length > 0
+              search || returningOnly || Object.keys(filterValues).length > 0
                 ? "No applications matched your search filters. Try clearing filters to see all records."
                 : "Candidate applications submitted through the applicant portal will appear here."
             }
             action={
-              (search || Object.keys(filterValues).length > 0) && (
+              (search || returningOnly || Object.keys(filterValues).length > 0) && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {
                     setSearch("");
                     setFilterValues({});
+                    setReturningOnly(false);
                     setPage(1);
-                    updateListUrl({ q: undefined, stage: undefined, clientId: undefined, jobId: undefined, page: undefined });
+                    updateListUrl({ returning: undefined, q: undefined, stage: undefined, clientId: undefined, jobId: undefined, page: undefined });
                   }}
                 >
                   Reset All Filters
@@ -425,8 +480,12 @@ export const ApplicationsPage: React.FC = () => {
                     <div className="min-w-0">
                       <h2 className="font-semibold text-slate-950">{candidateName}</h2>
                       <p className="mt-0.5 break-words text-sm text-slate-600">{app.jobPosting?.title || "Job opening"}</p>
+                      <ReturningBadge info={app.returning} />
                     </div>
-                    <StatusBadge status={app.status} />
+                    <div className="text-right">
+                      <StatusBadge status={app.status} />
+                      <ScreeningSkippedNote info={app.returning} />
+                    </div>
                   </div>
                   <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                     <div>
@@ -485,6 +544,7 @@ export const ApplicationsPage: React.FC = () => {
                         <div className="text-[10px] text-slate-500 font-mono">
                           {app.user?.email} {p?.mobileNumber ? `• ${p.mobileNumber}` : ""}
                         </div>
+                        <ReturningBadge info={app.returning} />
                       </td>
                       <td className="px-3.5 py-2.5">
                         <div className="font-semibold text-slate-900">
@@ -496,6 +556,7 @@ export const ApplicationsPage: React.FC = () => {
                       </td>
                       <td className="px-3.5 py-2.5">
                         <StatusBadge status={app.status} />
+                        <ScreeningSkippedNote info={app.returning} />
                       </td>
                       <td className="px-3.5 py-2.5 text-center">
                         <ScoreBadge

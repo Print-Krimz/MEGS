@@ -2,20 +2,15 @@ import React, { useState, useEffect } from "react";
 import { Link, useSearch } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
-import { Input, PasswordInput, Button } from "../../components/ui";
+import { Button } from "@/components/shadcn/button";
+import { FieldGroup, FieldLabel } from "@/components/shadcn/field";
+import { Spinner } from "@/components/shadcn/spinner";
+import { AuthPasswordField, AuthTextField } from "../../components/auth/AuthField";
+import { AuthError, AuthHeading, AuthStep, AuthStepper } from "../../components/auth/AuthChrome";
+import { OtpCodeField } from "../../components/auth/OtpCodeField";
 import { authApi } from "../../lib/api/auth.api";
 import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
-import {
-  KeyRound,
-  AlertCircle,
-  CheckCircle2,
-  ArrowLeft,
-  ArrowRight,
-  ShieldCheck,
-  RefreshCw,
-  LockKeyhole,
-  Lock,
-} from "lucide-react";
+import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { maskEmail } from "../../lib/utils";
 
@@ -76,14 +71,13 @@ export const ForgotPasswordPage: React.FC = () => {
       setServerError(null);
       setStep("VERIFY_OTP");
       setCooldown(60);
-      notify.success("Verification Code Sent", "Please check your Gmail inbox for the 6-digit code.");
+      notify.success("Verification code sent", "Check your inbox for the 6-digit code. It may take a minute.");
     },
     onError: (err) => {
       turnstileRef.current?.reset();
       setTurnstileToken("");
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
-      notify.error("Recovery Request Failed", err);
     },
   });
 
@@ -95,7 +89,7 @@ export const ForgotPasswordPage: React.FC = () => {
         setResetToken(data.resetToken);
         setServerError(null);
         setStep("SET_PASSWORD");
-        notify.success("Code Verified", "Please set your new security password.");
+        notify.success("Code verified", "Please set your new security password.");
       } else {
         setServerError("Verification session could not be established. Please retry.");
       }
@@ -103,7 +97,6 @@ export const ForgotPasswordPage: React.FC = () => {
     onError: (err) => {
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
-      notify.error("Verification Failed", err);
     },
   });
 
@@ -113,12 +106,11 @@ export const ForgotPasswordPage: React.FC = () => {
     onSuccess: () => {
       setServerError(null);
       setCooldown(60);
-      notify.success("Code Resent", "A new 6-digit verification code has been dispatched.");
+      notify.success("Code resent", "A new 6-digit verification code has been dispatched.");
     },
     onError: (err) => {
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
-      notify.error("Resend Failed", err);
     },
   });
 
@@ -128,12 +120,11 @@ export const ForgotPasswordPage: React.FC = () => {
     onSuccess: () => {
       setServerError(null);
       setStep("SUCCESS");
-      notify.success("Password Updated", "Your account password has been successfully reset.");
+      notify.success("Password updated", "Your account password has been successfully reset.");
     },
     onError: (err) => {
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
-      notify.error("Password Reset Failed", err);
     },
   });
 
@@ -217,299 +208,264 @@ export const ForgotPasswordPage: React.FC = () => {
     });
   };
 
+  const STEPS = ["Email", "Verify", "New password", "Done"];
+  const stepIndex = step === "EMAIL" ? 0 : step === "VERIFY_OTP" ? 1 : step === "SET_PASSWORD" ? 2 : 3;
+  const emailHint = !isEmailFilled
+    ? "Enter your email to continue."
+    : isCaptchaRequired && !turnstileToken
+      ? "Completing the security check…"
+      : null;
+  const otpHint = otpCode.length !== 6 ? "Enter all 6 digits to continue." : null;
+
+  const progress = <AuthStepper steps={STEPS} current={stepIndex} label="Password reset progress" />;
+
+  let content: React.ReactNode;
+
   if (step === "SUCCESS") {
-    return (
-      <div className="space-y-6 text-center py-2">
-        <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
-          <CheckCircle2 className="w-6 h-6" />
+    content = (
+      <div className="flex flex-col gap-8">
+        {progress}
+        <div className="flex flex-col gap-4">
+          <div className="flex size-12 items-center justify-center rounded-full bg-success/10 text-success">
+            <CheckCircle2 className="size-6" aria-hidden="true" />
+          </div>
+          <AuthHeading
+            focusOnMount
+            title="Password Reset Complete"
+            description="Your password is updated. Sign in with the new one."
+          />
         </div>
-        <div className="space-y-1">
-          <h2 className="text-xl font-bold text-slate-900">Password Reset Complete</h2>
-          <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
-            Your new security password has been saved. You can now sign in with your updated credentials.
-          </p>
-        </div>
-
-        <div className="pt-2">
+        <Button asChild size="lg" className="w-full">
           <Link to="/login" search={{ email: email.trim() }}>
-            <Button variant="primary" size="md" rightIcon={<ArrowRight className="w-4 h-4" />} className="w-full">
-              Proceed to Sign In
-            </Button>
+            Proceed to Sign In
+            <ArrowRight data-icon="inline-end" aria-hidden="true" />
           </Link>
-        </div>
+        </Button>
       </div>
     );
-  }
+  } else if (step === "SET_PASSWORD") {
+    content = (
+      <div className="flex flex-col gap-8">
+        {progress}
+        <AuthHeading
+          focusOnMount
+          title="Set New Password"
+          description={
+            <>
+              Choose a new password for <strong className="font-semibold text-foreground">{maskEmail(email)}</strong>.
+            </>
+          }
+        />
 
-  if (step === "SET_PASSWORD") {
-    return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="space-y-1 text-center sm:text-left">
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[11px] font-medium border border-emerald-200 mb-1">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Code Verified</span>
-          </div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-            Set New Password
-          </h2>
-          <p className="text-xs text-slate-500">
-            Create a secure new password for <strong className="font-mono text-slate-800">{maskEmail(email)}</strong>.
-          </p>
-        </div>
+        <AuthError message={serverError} />
 
-        {/* Global Server Error Banner */}
-        {serverError && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <span className="leading-relaxed">{serverError}</span>
-          </div>
-        )}
-
-        {/* New Password Form */}
-        <form onSubmit={handlePasswordSubmit} className="space-y-4" noValidate>
-          <PasswordInput
-            label="New Password"
-            autoComplete="new-password"
-            placeholder="Enter new password"
-            value={passwordData.password}
-            onChange={(e) => {
-              setPasswordData((prev) => ({ ...prev, password: e.target.value }));
-              if (validationErrors.password) {
-                setValidationErrors((prev) => ({ ...prev, password: "" }));
-              }
-            }}
-            error={validationErrors.password}
-            showStrengthIndicator
-            required
-          />
-
-          <PasswordInput
-            label="Confirm New Password"
-            autoComplete="new-password"
-            placeholder="Re-enter new password"
-            value={passwordData.confirmPassword}
-            onChange={(e) => {
-              setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }));
-              if (validationErrors.confirmPassword) {
-                setValidationErrors((prev) => ({ ...prev, confirmPassword: "" }));
-              }
-            }}
-            error={validationErrors.confirmPassword}
-            required
-          />
-
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            loading={resetPasswordMutation.isPending}
-            leftIcon={<LockKeyhole className="w-4 h-4" />}
-            className="w-full mt-2"
-          >
-            Update Password
-          </Button>
-        </form>
-      </div>
-    );
-  }
-
-  if (step === "VERIFY_OTP") {
-    return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="space-y-1 text-center sm:text-left">
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 text-[11px] font-medium border border-blue-200 mb-1">
-            <KeyRound className="w-3.5 h-3.5" />
-            <span>Password Recovery Code</span>
-          </div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-            Enter 6-Digit Code
-          </h2>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Enter the 6-digit reset code sent to <strong className="font-mono text-slate-800">{maskEmail(email)}</strong>.
-          </p>
-        </div>
-
-        {/* Global Server Error Banner */}
-        {serverError && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <span className="leading-relaxed">{serverError}</span>
-          </div>
-        )}
-
-        {/* OTP Form */}
-        <form onSubmit={handleOtpSubmit} className="space-y-4" noValidate>
-          <div>
-            <label htmlFor="reset-otp-input" className="block text-xs font-semibold text-slate-700 mb-1">
-              6-Digit Verification Code <span className="text-rose-500">*</span>
-            </label>
-            <input
-              id="reset-otp-input"
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              autoFocus
-              autoComplete="one-time-code"
-              placeholder="••••••"
-              value={otpCode}
+        <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-6" noValidate>
+          <FieldGroup>
+            <AuthPasswordField
+              id="reset-password"
+              label="New password"
+              autoComplete="new-password"
+              placeholder="Create a new password"
+              value={passwordData.password}
               onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, "").slice(0, 6);
-                setOtpCode(val);
-                if (validationErrors.otp) {
-                  setValidationErrors({});
+                setPasswordData((prev) => ({ ...prev, password: e.target.value }));
+                if (validationErrors.password) {
+                  setValidationErrors((prev) => ({ ...prev, password: "" }));
                 }
               }}
-              className="w-full text-center text-2xl font-mono tracking-[0.4em] font-bold py-2.5 px-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white text-slate-900"
+              error={validationErrors.password}
+              showStrength
+              required
             />
-            {validationErrors.otp && (
-              <p className="text-xs text-rose-600 mt-1 font-medium">{validationErrors.otp}</p>
-            )}
-            <p className="text-[11px] text-slate-400 mt-1.5 text-center">Code expires in 10 minutes</p>
-          </div>
 
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            loading={verifyOtpMutation.isPending}
-            rightIcon={<ArrowRight className="w-4 h-4" />}
-            className="w-full"
-            disabled={otpCode.length !== 6}
-          >
-            Verify Code
+            <AuthPasswordField
+              id="reset-confirm-password"
+              label="Confirm new password"
+              autoComplete="new-password"
+              placeholder="Re-enter your new password"
+              value={passwordData.confirmPassword}
+              onChange={(e) => {
+                setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }));
+                if (validationErrors.confirmPassword) {
+                  setValidationErrors((prev) => ({ ...prev, confirmPassword: "" }));
+                }
+              }}
+              error={validationErrors.confirmPassword}
+              required
+            />
+          </FieldGroup>
+
+          <Button type="submit" size="lg" className="w-full" disabled={resetPasswordMutation.isPending}>
+            {resetPasswordMutation.isPending && <Spinner data-icon="inline-start" />}
+            Update password
           </Button>
         </form>
+      </div>
+    );
+  } else if (step === "VERIFY_OTP") {
+    content = (
+      <div className="flex flex-col gap-8">
+        {progress}
+        <AuthHeading
+          title="Enter 6-digit code"
+          description={
+            <>
+              We sent a reset code to <strong className="font-semibold text-foreground">{maskEmail(email)}</strong>.
+            </>
+          }
+        />
 
-        {/* Resend Controls */}
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-          {isEmailLocked ? (
-            <Link
-              to="/login"
-              search={{ email: email.trim() }}
-              className="text-slate-500 hover:text-slate-800 hover:underline inline-flex items-center gap-1 text-[11px]"
+        <AuthError message={serverError} />
+
+        <form onSubmit={handleOtpSubmit} className="flex flex-col gap-6" noValidate>
+          <OtpCodeField
+            id="reset-otp-input"
+            label="6-digit verification code"
+            value={otpCode}
+            autoFocus
+            onChange={(val) => {
+              setOtpCode(val.replace(/\D/g, "").slice(0, 6));
+              if (validationErrors.otp) {
+                setValidationErrors({});
+              }
+            }}
+            error={validationErrors.otp}
+            hint="The code expires in 10 minutes."
+          />
+
+          <div className="flex flex-col gap-3">
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={otpCode.length !== 6 || verifyOtpMutation.isPending}
+              aria-describedby="reset-otp-submit-hint"
             >
-              <ArrowLeft className="w-3 h-3" />
-              <span>Back to Sign In</span>
-            </Link>
+              {verifyOtpMutation.isPending && <Spinner data-icon="inline-start" />}
+              Verify Code
+            </Button>
+            <p id="reset-otp-submit-hint" aria-live="polite" className="min-h-5 text-center text-sm text-muted-foreground">
+              {otpHint}
+            </p>
+          </div>
+        </form>
+
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-5">
+          {isEmailLocked ? (
+            <Button asChild variant="ghost" size="sm" className="-ml-3">
+              <Link to="/login" search={{ email: email.trim() }}>
+                <ArrowLeft data-icon="inline-start" aria-hidden="true" />
+                Back to sign in
+              </Link>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
+              className="-ml-3"
               onClick={() => {
                 setStep("EMAIL");
                 setServerError(null);
               }}
-              className="text-slate-500 hover:text-slate-800 hover:underline inline-flex items-center gap-1 text-[11px]"
             >
-              <ArrowLeft className="w-3 h-3" />
-              <span>Change Email</span>
-            </button>
+              <ArrowLeft data-icon="inline-start" aria-hidden="true" />
+              Change Email
+            </Button>
           )}
 
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
+            className="-mr-3 text-accent hover:text-accent"
             disabled={cooldown > 0 || resendMutation.isPending}
             onClick={handleResend}
-            className={`inline-flex items-center gap-1 font-medium ${
-              cooldown > 0
-                ? "text-slate-400 cursor-not-allowed"
-                : "text-blue-700 hover:text-blue-900 hover:underline cursor-pointer"
-            }`}
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${resendMutation.isPending ? "animate-spin" : ""}`} />
-            <span>{cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend Code"}</span>
-          </button>
+            <RefreshCw data-icon="inline-start" aria-hidden="true" className={resendMutation.isPending ? "animate-spin" : undefined} />
+            {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
+          </Button>
         </div>
+      </div>
+    );
+  } else {
+    content = (
+      <div className="flex flex-col gap-8">
+        {progress}
+        <AuthHeading
+          title="Reset your password"
+          description={
+            isEmailLocked
+              ? "We will send a 6-digit code to the email on your account."
+              : "Enter the email on your account and we will send a 6-digit code."
+          }
+        />
+
+        <AuthError message={serverError} />
+
+        <form onSubmit={handleEmailSubmit} className="flex flex-col gap-6" noValidate>
+          <FieldGroup>
+            <AuthTextField
+              id="forgot-email"
+              label="Registered email address"
+              type="email"
+              autoComplete="email"
+              placeholder="name@example.com"
+              value={isEmailLocked ? maskEmail(email) : email}
+              readOnly={isEmailLocked}
+              onChange={(e) => {
+                if (isEmailLocked) return;
+                setEmail(e.target.value);
+                if (validationErrors.email) {
+                  setValidationErrors({});
+                }
+              }}
+              error={validationErrors.email}
+              hint={isEmailLocked ? "This email is fixed for this reset." : undefined}
+              className={isEmailLocked ? "cursor-not-allowed bg-muted text-muted-foreground" : undefined}
+              required
+            />
+
+            {import.meta.env.VITE_DISABLE_CAPTCHA !== "true" && (
+              <div className="flex flex-col gap-2">
+                <FieldLabel>Security verification</FieldLabel>
+                <TurnstileWidget
+                  ref={turnstileRef}
+                  action="forgot_password"
+                  onSuccess={(token) => {
+                    setTurnstileToken(token);
+                    setServerError(null);
+                  }}
+                  onExpire={() => setTurnstileToken("")}
+                />
+              </div>
+            )}
+          </FieldGroup>
+
+          <div className="flex flex-col gap-3">
+            <Button type="submit" size="lg" disabled={isSubmitDisabled} aria-describedby="forgot-submit-hint" className="w-full">
+              {forgotMutation.isPending && <Spinner data-icon="inline-start" />}
+              {forgotMutation.isPending ? "Sending code…" : "Send verification code"}
+            </Button>
+            <p id="forgot-submit-hint" aria-live="polite" className="min-h-5 text-center text-sm text-muted-foreground">
+              {emailHint}
+            </p>
+          </div>
+        </form>
+
+        <p className="border-t border-border pt-6 text-center text-base">
+          <Link
+            to="/login"
+            search={email.trim() ? { email: email.trim() } : undefined}
+            className="inline-flex items-center gap-1.5 rounded-sm font-semibold text-accent underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            Back to sign in
+          </Link>
+        </p>
       </div>
     );
   }
 
-  // Step 1: EMAIL
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="space-y-1 text-center sm:text-left">
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-          Reset Password
-        </h2>
-        <p className="text-xs text-slate-500">
-          {isEmailLocked
-            ? "Verify your account with a 6-digit code sent to your registered email address."
-            : "Enter your registered email address to receive a 6-digit password reset code."}
-        </p>
-      </div>
-
-      {/* Error banner */}
-      {serverError && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-          <span className="leading-relaxed">{serverError}</span>
-        </div>
-      )}
-
-      {/* Form */}
-      <form onSubmit={handleEmailSubmit} className="space-y-4" noValidate>
-        <Input
-          label="Registered Email Address"
-          type="email"
-          autoComplete="email"
-          placeholder="name@agency.com or applicant email"
-          value={isEmailLocked ? maskEmail(email) : email}
-          readOnly={isEmailLocked}
-          leftIcon={isEmailLocked ? <Lock className="w-3.5 h-3.5 text-slate-400" /> : undefined}
-          onChange={(e) => {
-            if (isEmailLocked) return;
-            setEmail(e.target.value);
-            if (validationErrors.email) {
-              setValidationErrors({});
-            }
-          }}
-          error={validationErrors.email}
-          helperText={isEmailLocked ? "Account email cannot be modified during recovery" : undefined}
-          className={isEmailLocked ? "bg-slate-100 text-slate-700 cursor-not-allowed font-medium" : ""}
-          required
-        />
-
-        {import.meta.env.VITE_DISABLE_CAPTCHA !== "true" && (
-          <TurnstileWidget
-            ref={turnstileRef}
-            action="forgot_password"
-            onSuccess={(token) => {
-              setTurnstileToken(token);
-              setServerError(null);
-            }}
-            onExpire={() => setTurnstileToken("")}
-          />
-        )}
-
-        <Button
-          type="submit"
-          variant="primary"
-          size="md"
-          loading={forgotMutation.isPending}
-          disabled={isSubmitDisabled}
-          leftIcon={<KeyRound className="w-4 h-4" />}
-          className="w-full mt-2"
-        >
-          {isCaptchaRequired && !turnstileToken && isEmailFilled
-            ? "Verifying security..."
-            : "Send Verification Code"}
-        </Button>
-      </form>
-
-      {/* Back to login */}
-      <div className="pt-4 border-t border-slate-100 text-center">
-        <Link
-          to="/login"
-          search={email.trim() ? { email: email.trim() } : undefined}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 hover:text-teal-900 hover:underline"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Sign In</span>
-        </Link>
-      </div>
-    </div>
-  );
+  return <AuthStep stepKey={step}>{content}</AuthStep>;
 };

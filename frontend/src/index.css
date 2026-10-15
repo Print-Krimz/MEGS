@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/archivo/wdth.css";
 
 @theme {
   /* Authoritative MEGS recruitment palette */
@@ -31,6 +33,22 @@
   --color-info: #6D4FD3;
   --color-info-light: #F3F0FF;
 
+  /* Semantic tokens consumed by components/shadcn. Values mirror the navy
+     dashboard palette; the public and auth surfaces override them in .theme-megs. */
+  --color-background: #FFFFFF;
+  --color-foreground: #102A43;
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: #0B315D;
+  --color-secondary-foreground: #FFFFFF;
+  --color-accent: #0B315D;
+  --color-muted: #EAF0F7;
+  --color-muted-foreground: #627D98;
+  --color-input: #D9E2EC;
+  --color-ring: #0B315D;
+  --color-destructive: #DC2626;
+  --color-megs-navy-900: #081D38;
+  --color-megs-red-tint: #FDF1F2;
+
   /* Typography */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -47,6 +65,39 @@
   --shadow-card: none;
   --shadow-dropdown: 0 8px 18px rgb(15 23 42 / 0.12);
   --shadow-modal: 0 16px 32px rgb(15 23 42 / 0.18);
+}
+
+/*
+ * MEGS public + auth world. Red is the action and identity color, navy is the
+ * structural ink, blue carries links and focus. Applied on the landing page and
+ * auth layout roots only, so the portals keep their navy theme.
+ */
+.theme-megs {
+  --font-sans: "Archivo Variable", "Segoe UI", system-ui, sans-serif;
+  --color-primary: #C8102E;
+  --color-primary-hover: #A30D25;
+  --color-primary-light: #FDF1F2;
+  --color-secondary: #0B2F5B;
+  --color-accent: #1A55C4;
+  --color-ring: #1A55C4;
+  --color-destructive: #B42318;
+  --color-foreground: #0F1B2D;
+  --color-muted: #F1F3F6;
+  --color-muted-foreground: #4B5A6E;
+  --color-text-secondary: #4B5A6E;
+  --color-text-muted: #4B5A6E;
+  --color-input: #8793A3;
+  --color-border: #DDE2E9;
+  --color-page: #F6F7F9;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.875rem;
+  font-family: var(--font-sans);
+  color: var(--color-foreground);
+}
+.theme-megs .font-display {
+  font-stretch: 112%;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 /* Respect motion preferences for non-essential movement. */
@@ -105,4 +156,16 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-border-dark);
+}
+
+/* Map pins: hide crowded labels at low zoom; the selected or hovered pin keeps its label. */
+.megs-map-marker .megs-map-label {
+  transition: opacity 120ms ease-out;
+}
+.megs-labels-hidden .megs-map-marker:not(.megs-active):not(:hover):not(:focus-visible) .megs-map-label {
+  opacity: 0;
+  pointer-events: none;
+}
+.megs-map-marker.megs-active {
+  z-index: 1000 !important;
 }

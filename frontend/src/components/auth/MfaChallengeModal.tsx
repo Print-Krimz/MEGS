@@ -1,9 +1,21 @@
 import React, { useState } from "react";
-import { Dialog, Input, Button } from "../ui";
+import { Button } from "@/components/shadcn/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/shadcn/dialog";
+import { FieldGroup } from "@/components/shadcn/field";
+import { Spinner } from "@/components/shadcn/spinner";
 import { authApi } from "../../lib/api/auth.api";
-import { ShieldCheck, KeyRound, AlertCircle, Smartphone } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import type { LoginResponse } from "../../lib/types/auth.types";
+import { AuthError } from "./AuthChrome";
+import { AuthTextField } from "./AuthField";
+import { OtpCodeField } from "./OtpCodeField";
 
 interface MfaChallengeModalProps {
   open: boolean;
@@ -14,6 +26,8 @@ interface MfaChallengeModalProps {
   email: string;
   onSuccess: (data: LoginResponse) => void;
 }
+
+const TOGGLE_CLASS = "w-full text-accent hover:text-accent";
 
 export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
   open,
@@ -46,12 +60,11 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
         challengeId,
         code: code.trim(),
       });
-      notify.success("MFA Verified", "Secure session initiated.");
+      notify.success("MFA verified", "Secure session initiated.");
       onSuccess(res);
     } catch (err: any) {
       const formatted = formatErrorMessage(err);
       setError(formatted);
-      notify.error("Verification Failed", err);
     } finally {
       setIsLoading(false);
     }
@@ -71,12 +84,11 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
         token: tempToken,
         recoveryCode: recoveryCode.trim(),
       });
-      notify.success("Recovery Code Accepted", "Logged in using single-use backup code.");
+      notify.success("Recovery code accepted", "Logged in using single-use backup code.");
       onSuccess(res);
     } catch (err: any) {
       const formatted = formatErrorMessage(err);
       setError(formatted);
-      notify.error("Recovery Failed", err);
     } finally {
       setIsLoading(false);
     }
@@ -85,126 +97,105 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
   return (
     <Dialog
       open={open}
-      onClose={onClose}
-      title={
-        <div className="flex items-center gap-2 text-slate-900">
-          <ShieldCheck className="w-4 h-4 text-teal-600" />
-          <span>Two-Factor Authentication</span>
-        </div>
-      }
-      description={`Security verification required for ${email}`}
-      size="sm"
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
     >
-      <div className="space-y-4 pt-1">
-        {error && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <span className="leading-relaxed">{error}</span>
-          </div>
-        )}
+      <DialogContent
+        className="theme-megs max-h-[calc(100dvh-2rem)] gap-6 overflow-y-auto p-6 sm:max-w-md sm:p-8"
+        showCloseButton
+      >
+        <DialogHeader className="gap-2 text-left">
+          <DialogTitle className="font-display text-2xl leading-tight text-secondary">
+            Two-step verification
+          </DialogTitle>
+          <DialogDescription className="text-base leading-relaxed">
+            {`Security verification required for ${email}`}
+          </DialogDescription>
+        </DialogHeader>
+
+        <AuthError message={error} />
 
         {mode === "TOTP" ? (
-          <form onSubmit={handleVerifyTotp} className="space-y-4">
-            <div className="space-y-1.5 text-center sm:text-left">
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Open <strong>Microsoft Authenticator</strong> or <strong>Google Authenticator</strong> on your mobile device and enter the 6-digit code for <strong>MEGS Recruitment</strong>.
-              </p>
-            </div>
+          <form onSubmit={handleVerifyTotp} className="flex flex-col gap-6" noValidate>
+            <FieldGroup className="gap-4">
+              <OtpCodeField
+                id="mfa-challenge-code"
+                label="Authenticator code"
+                hint="Enter the 6-digit code for MEGS Recruitment from your authenticator app."
+                value={code}
+                onChange={(val) => {
+                  setCode(val);
+                  if (error) setError(null);
+                }}
+                disabled={isLoading}
+                autoFocus
+              />
+            </FieldGroup>
 
-            <Input
-              label="Authenticator Code"
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              autoComplete="one-time-code"
-              placeholder="123456"
-              value={code}
-              onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, "");
-                setCode(val);
-                if (error) setError(null);
-              }}
-              className="font-mono tracking-widest text-center text-lg font-bold"
-              required
-              autoFocus
-            />
-
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              loading={isLoading}
-              leftIcon={<Smartphone className="w-4 h-4" />}
-              className="w-full"
-            >
-              Verify Code
-            </Button>
-
-            <div className="pt-2 text-center border-t border-slate-100">
-              <button
+            <DialogFooter className="flex-col gap-3 sm:flex-col sm:justify-stretch">
+              <Button type="submit" size="lg" disabled={isLoading} className="w-full">
+                {isLoading && <Spinner data-icon="inline-start" />}
+                Verify code
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
+                className={TOGGLE_CLASS}
                 onClick={() => {
                   setError(null);
                   setMode("RECOVERY");
                 }}
-                className="text-xs text-teal-700 hover:text-teal-900 font-medium hover:underline inline-flex items-center gap-1.5"
               >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>Lost device? Use emergency backup code</span>
-              </button>
-            </div>
+                Lost device? Use emergency backup code
+              </Button>
+            </DialogFooter>
           </form>
         ) : (
-          <form onSubmit={handleVerifyRecovery} className="space-y-4">
-            <div className="space-y-1.5 text-center sm:text-left">
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Enter one of your 8-character single-use emergency recovery backup codes (e.g. <code>A1B2-C3D4</code>).
-              </p>
-            </div>
+          <form onSubmit={handleVerifyRecovery} className="flex flex-col gap-6" noValidate>
+            <FieldGroup className="gap-4">
+              <AuthTextField
+                id="mfa-recovery-code"
+                label="Emergency recovery code"
+                hint="Use one of the 8-character codes you saved during setup. Each code works once."
+                type="text"
+                placeholder="XXXX-XXXX"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                value={recoveryCode}
+                onChange={(e) => {
+                  setRecoveryCode(e.target.value.toUpperCase());
+                  if (error) setError(null);
+                }}
+                disabled={isLoading}
+                className="h-12 text-center font-mono text-lg uppercase tracking-wider"
+                autoFocus
+              />
+            </FieldGroup>
 
-            <Input
-              label="Emergency Recovery Code"
-              type="text"
-              placeholder="XXXX-XXXX"
-              value={recoveryCode}
-              onChange={(e) => {
-                setRecoveryCode(e.target.value.toUpperCase());
-                if (error) setError(null);
-              }}
-              className="font-mono tracking-wider uppercase text-center font-bold"
-              required
-              autoFocus
-            />
-
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              loading={isLoading}
-              leftIcon={<KeyRound className="w-4 h-4" />}
-              className="w-full"
-            >
-              Verify Recovery Code
-            </Button>
-
-            <div className="pt-2 text-center border-t border-slate-100">
-              <button
+            <DialogFooter className="flex-col gap-3 sm:flex-col sm:justify-stretch">
+              <Button type="submit" size="lg" disabled={isLoading} className="w-full">
+                {isLoading && <Spinner data-icon="inline-start" />}
+                Verify recovery code
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
+                className={TOGGLE_CLASS}
                 onClick={() => {
                   setError(null);
                   setMode("TOTP");
                 }}
-                className="text-xs text-teal-700 hover:text-teal-900 font-medium hover:underline inline-flex items-center gap-1.5"
               >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>Return to Authenticator App Code</span>
-              </button>
-            </div>
+                Use authenticator app code instead
+              </Button>
+            </DialogFooter>
           </form>
         )}
-      </div>
+      </DialogContent>
     </Dialog>
   );
 };
-

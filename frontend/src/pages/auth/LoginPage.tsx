@@ -2,11 +2,14 @@ import React, { useState } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
-import { Input, PasswordInput, Button } from "../../components/ui";
+import { Button } from "@/components/shadcn/button";
+import { FieldGroup, FieldLabel } from "@/components/shadcn/field";
+import { Spinner } from "@/components/shadcn/spinner";
+import { AuthPasswordField, AuthTextField } from "../../components/auth/AuthField";
+import { AuthError, AuthHeading } from "../../components/auth/AuthChrome";
 import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
-import { AlertCircle } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { MfaChallengeModal } from "../../components/auth/MfaChallengeModal";
 import { MfaSetupModal } from "../../components/auth/MfaSetupModal";
@@ -114,7 +117,6 @@ export const LoginPage: React.FC = () => {
       setTurnstileToken("");
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
-      notify.error("Sign In Failed", err);
     },
     onSettled: () => {
       submittingRef.current = false;
@@ -169,132 +171,108 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const submitHint = !isCredentialsFilled
+    ? "Enter your email and password to continue."
+    : isCaptchaRequired && !turnstileToken
+      ? "Completing the security check…"
+      : null;
+
   return (
-    <div className="space-y-6">
-      {/* Title */}
-      <div className="space-y-1 text-left">
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-          Welcome back
-        </h2>
-        <p className="text-xs text-slate-500">
-          Sign in to your MEGS account.
-        </p>
-      </div>
+    <div className="flex flex-col gap-8">
+      <AuthHeading title="Welcome back" description="Sign in to your MEGS account." />
 
-      {/* Global Server Error Banner */}
-      {serverError && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-800 animate-fade-in">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-          <span className="leading-relaxed">{serverError}</span>
-        </div>
-      )}
+      <AuthError message={serverError} />
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        <Input
-          id="login-email"
-          label="Email Address"
-          type="email"
-          autoComplete="email"
-          placeholder="your.email@example.com"
-          value={formData.email}
-          onChange={(e) => handleChange("email", e.target.value)}
-          error={validationErrors.email}
-          required
-        />
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
+        <FieldGroup>
+          <AuthTextField
+            id="login-email"
+            label="Email address"
+            type="email"
+            autoComplete="email"
+            placeholder="name@example.com"
+            value={formData.email}
+            onChange={(e) => handleChange("email", e.target.value)}
+            error={validationErrors.email}
+            required
+          />
 
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <label htmlFor="login-password" className="block text-xs font-semibold text-slate-700">
-              Password <span className="text-rose-500">*</span>
-            </label>
-            <Link
-              to="/forgot-password"
-              search={formData.email.trim() ? { email: formData.email.trim() } : undefined}
-              className="text-xs text-[#0B315D] hover:text-[#082747] font-medium hover:underline"
-            >
-              Forgot password?
-            </Link>
-          </div>
-          <PasswordInput
+          <AuthPasswordField
             id="login-password"
+            label="Password"
             autoComplete="current-password"
-            placeholder="Enter password"
+            placeholder="Enter your password"
             value={formData.password}
             onChange={(e) => handleChange("password", e.target.value)}
             error={validationErrors.password}
             required
-          />
-        </div>
-
-        {/* Security Verification Section */}
-        {import.meta.env.VITE_DISABLE_CAPTCHA !== "true" && (
-          <div className="space-y-1.5 text-left pt-1">
-            <div>
-              <span
-                id="turnstile-label"
-                className="block text-xs font-semibold text-slate-700 select-none"
+            labelAction={
+              <Link
+                to="/forgot-password"
+                search={formData.email.trim() ? { email: formData.email.trim() } : undefined}
+                className="inline-block rounded-sm py-2 text-sm font-medium text-accent underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                Security Verification <span className="text-rose-500" aria-hidden="true">*</span>
-              </span>
-            </div>
+                Forgot password?
+              </Link>
+            }
+          />
 
-            <div
-              role="region"
-              aria-labelledby="turnstile-label"
-              aria-live="polite"
-              className="w-full max-w-full py-1 min-h-[65px]"
-            >
-              <TurnstileWidget
-                ref={turnstileRef}
-                action="login"
-                theme="light"
-                size="flexible"
-                onSuccess={(token) => {
-                  turnstileTokenRef.current = token;
-                  setTurnstileToken(token);
-                  setServerError(null);
-                }}
-                onExpire={() => {
-                  turnstileTokenRef.current = "";
-                  setTurnstileToken("");
-                }}
-                onError={(error) => {
-                  if (import.meta.env.DEV) {
-                    console.error("[Turnstile error]", error);
-                  }
-                  turnstileTokenRef.current = "";
-                  setTurnstileToken("");
-                }}
-              />
+          {import.meta.env.VITE_DISABLE_CAPTCHA !== "true" && (
+            <div className="flex flex-col gap-2">
+              <FieldLabel id="turnstile-label">Security verification</FieldLabel>
+              <div
+                role="region"
+                aria-labelledby="turnstile-label"
+                aria-live="polite"
+                className="min-h-[65px] w-full max-w-full"
+              >
+                <TurnstileWidget
+                  ref={turnstileRef}
+                  action="login"
+                  theme="light"
+                  size="flexible"
+                  onSuccess={(token) => {
+                    turnstileTokenRef.current = token;
+                    setTurnstileToken(token);
+                    setServerError(null);
+                  }}
+                  onExpire={() => {
+                    turnstileTokenRef.current = "";
+                    setTurnstileToken("");
+                  }}
+                  onError={(error) => {
+                    if (import.meta.env.DEV) {
+                      console.error("[Turnstile error]", error);
+                    }
+                    turnstileTokenRef.current = "";
+                    setTurnstileToken("");
+                  }}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </FieldGroup>
 
-        <Button
-          type="submit"
-          variant="primary"
-          size="md"
-          loading={loginMutation.isPending}
-          disabled={isSubmitDisabled}
-          className="w-full mt-1"
-        >
-          {isCaptchaRequired && !turnstileToken && isCredentialsFilled
-            ? "Verifying security..."
-            : "Sign In"}
-        </Button>
+        <div className="flex flex-col gap-3">
+          <Button type="submit" size="lg" disabled={isSubmitDisabled} aria-describedby="login-submit-hint" className="w-full">
+            {loginMutation.isPending && <Spinner data-icon="inline-start" />}
+            {loginMutation.isPending ? "Signing in…" : "Sign in"}
+          </Button>
+          <p id="login-submit-hint" aria-live="polite" className="min-h-5 text-center text-sm text-muted-foreground">
+            {submitHint}
+          </p>
+        </div>
       </form>
 
-      {/* Register Link Footer */}
-      <div className="pt-4 border-t border-[#D9E2EC] text-center text-xs text-[#627D98]">
+      <p className="border-t border-border pt-6 text-center text-base text-muted-foreground">
         Don't have an account?{" "}
         <Link
           to="/register"
-          className="font-semibold text-[#0B315D] hover:text-[#082747] hover:underline"
+          className="inline-block rounded-sm py-2 font-semibold text-accent underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Create an account
         </Link>
-      </div>
+      </p>
 
       {/* MFA Challenge Modal */}
       {mfaChallenge && (

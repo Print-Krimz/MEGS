@@ -1,121 +1,118 @@
 import React from "react";
-import { Target, Compass, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { Button } from "@/components/shadcn/button";
 import { scrollToSection } from "../../lib/scrollToSection";
+import { SectionHeader } from "./SectionHeader";
+import { Reveal } from "./motion";
 
-export const LandingAbout: React.FC = () => {
-  return (
-    <section id="about" className="py-16 sm:py-20 bg-white border-b border-slate-200 scroll-mt-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Section Header & Main Company Intro */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center mb-10">
-          
-          <div className="lg:col-span-8 space-y-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Company Background & Heritage
-            </p>
-            
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0f294a] tracking-tight">
-              Trusted Workforce Partner to the Philippines&apos; Top 1,000 Corporations
-            </h2>
-            
-            <p className="text-sm sm:text-base text-slate-600 leading-relaxed font-sans">
-              Founded in <strong className="text-slate-900 font-semibold">May 1997</strong>, <strong className="text-slate-900 font-semibold">MAR EMPLOYMENT FOR GOOD SERVICES INC. (MEGS)</strong> has steadily expanded to rank among the nation&apos;s most reputable manpower and human resources organizations. For nearly three decades, we have provided leading Philippine enterprises with the strategic people management, compliant employment governance, and disciplined manpower required to thrive in a competitive and evolving job-contracting market.
-            </p>
+const yearsServing = new Date().getFullYear() - 1997;
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="text-2xl font-bold text-[#0f294a] block">May 1997</span>
-                <span className="text-xs text-slate-600 font-medium mt-1 block font-sans">Founded & Serving Nationwide</span>
+const keyFacts = [
+  { term: `${yearsServing} years`, detail: "Serving client companies since 1997" },
+  { term: "Top 1,000", detail: "Philippine corporate clientele" },
+  { term: "Valenzuela City", detail: "Main office and operations" },
+];
+
+const values = [
+  {
+    name: "Integrity",
+    tagline: "Preserving institutional reputation",
+    description:
+      "Integrity defines the reputation of our business. We preserve integrity by developing our employees' character, building their self-esteem, and instilling absolute honesty and statutory compliance in their day-to-day tasks.",
+  },
+  {
+    name: "Loyalty",
+    tagline: "Alignment and ethical dedication",
+    description:
+      "We cultivate loyalty by emphasizing ethical work for the organization's collective interest. We unite clients and workers around a shared mindset of mutual success, dependable partnerships, and long-term security.",
+  },
+  {
+    name: "Respect",
+    tagline: "Promoting teamwork and dignity",
+    description:
+      "We value respect in the workplace because it promotes teamwork, protects worker dignity, and increases employee productivity as they perform their duties and responsibilities across client operational sites.",
+  },
+];
+
+export const LandingAbout: React.FC = () => (
+  <section id="about" className="scroll-mt-20 bg-page py-16 sm:py-24">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <Reveal className="grid gap-10 lg:grid-cols-12 lg:gap-16">
+        <div className="lg:col-span-8">
+          <SectionHeader title="Trusted workforce partner to the Philippines' top 1,000 corporations" />
+          <p className="mt-6 max-w-3xl text-base leading-relaxed text-foreground sm:text-lg">
+            Founded in May 1997, MAR EMPLOYMENT FOR GOOD SERVICES INC. (MEGS) has grown into one of the nation&apos;s
+            most reputable manpower and human resources organizations. For nearly three decades we have given leading
+            Philippine enterprises the people management, compliant employment governance, and disciplined manpower
+            they need in a competitive and changing job-contracting market.
+          </p>
+          <dl className="mt-8 grid max-w-3xl grid-cols-1 divide-y divide-border border-y border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            {keyFacts.map((fact) => (
+              <div key={fact.term} className="py-4 sm:px-6 sm:first:pl-0 sm:last:pr-0">
+                <dt className="font-display text-2xl text-secondary">{fact.term}</dt>
+                <dd className="mt-1 text-sm text-muted-foreground">{fact.detail}</dd>
               </div>
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="text-2xl font-bold text-[#0f294a] block">Top 1,000</span>
-                <span className="text-xs text-slate-600 font-medium mt-1 block font-sans">Philippine Corporate Clientele</span>
-              </div>
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="text-2xl font-bold text-[#0f294a] block">6 Branches</span>
-                <span className="text-xs text-slate-600 font-medium mt-1 block font-sans">Luzon, Visayas & Mindanao</span>
-              </div>
-            </div>
-          </div>
-
-          {/* MEGS Seal & Brand Mark */}
-          <div className="lg:col-span-4 flex flex-col items-center justify-center p-8 bg-slate-50 border border-slate-200 rounded-xl text-center">
-            <div className="relative w-44 h-44 mb-4 flex items-center justify-center bg-white rounded-full p-2 border border-slate-200 shadow-sm">
-              <img
-                src="/images/canva-ref/megs-seal.jpg"
-                alt="MEGS Inc. - Better People for Better Result"
-                className="w-full h-full object-contain rounded-full"
-                loading="lazy"
-              />
-            </div>
-            <h3 className="text-sm font-bold uppercase text-[#0f294a] tracking-wide">
-              MAR Employment for Good Services Inc.
-            </h3>
-            <p className="text-xs text-slate-600 font-medium mt-1">
-              &ldquo;Better People for Better Result&rdquo;
-            </p>
-          </div>
-
+            ))}
+          </dl>
         </div>
 
-        {/* Mission and 5-Year Vision Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* Mission Card */}
-          <div className="p-8 bg-slate-50/70 text-slate-900 rounded-xl border border-slate-200 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 rounded-lg bg-blue-50 text-[#0f294a] flex items-center justify-center border border-blue-100/60">
-                  <Target className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Corporate Mission
-                </span>
-              </div>
-              <h3 className="text-xl font-bold tracking-tight text-[#0f294a] mb-3 font-sans">
-                Empowering Filipino Enterprise
-              </h3>
-              <blockquote className="text-sm text-slate-600 leading-relaxed italic border-l-2 border-blue-600/60 pl-3.5 my-2 font-sans">
-                &ldquo;To provide Filipino businesses with only the best trained and qualified employees available in the country.&rdquo;
-              </blockquote>
-            </div>
+        <div className="flex items-center gap-5 lg:col-span-4 lg:flex-col lg:items-start lg:justify-center">
+          <img
+            src="/images/canva-ref/megs-logo-480.jpg"
+            alt="MEGS Inc. - Better People for Better Results"
+            loading="lazy"
+            decoding="async"
+            width={176}
+            height={176}
+            className="size-32 shrink-0 rounded-full border border-border bg-background object-contain sm:size-40 lg:size-44"
+          />
+          <div>
+            <p className="font-display text-base text-secondary">MAR Employment for Good Services Inc.</p>
+            <p className="mt-1 text-sm text-muted-foreground">&ldquo;Better People for Better Results&rdquo;</p>
           </div>
+        </div>
+      </Reveal>
 
-          {/* Vision Card */}
-          <div className="p-8 bg-slate-50/70 text-slate-900 rounded-xl border border-slate-200 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 rounded-lg bg-blue-50 text-[#0f294a] flex items-center justify-center border border-blue-100/60">
-                  <Compass className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  5-Year Strategic Vision
-                </span>
-              </div>
-              <h3 className="text-xl font-bold tracking-tight text-[#0f294a] mb-3 font-sans">
-                Better People for Better Results
-              </h3>
-              <blockquote className="text-sm text-slate-600 leading-relaxed italic border-l-2 border-blue-600/60 pl-3.5 my-2 font-sans">
-                &ldquo;To deliver &lsquo;Better people for better results&rsquo; to 200 client firms and provide a great employment experience to 15,000 deployed personnel across the Philippines.&rdquo;
-              </blockquote>
-            </div>
-            <div className="pt-6 mt-6 border-t border-slate-200 flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-medium">Target: 200 Client Firms &middot; 15,000 Personnel</span>
-              <a
-                href="#contact"
-                onClick={(e) => scrollToSection(e, "#contact")}
-                className="text-[#0f294a] font-semibold hover:text-blue-700 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <span>Partner With Us</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+      <Reveal className="mt-14 sm:mt-20">
+        <div className="h-1 w-12 bg-primary" aria-hidden="true" />
+        <div className="mt-8 grid gap-10 md:grid-cols-2 md:gap-16">
+          <div>
+            <h3 className="text-2xl font-bold tracking-tight text-secondary">Corporate mission</h3>
+            <p className="mt-2 text-lg font-semibold leading-snug text-foreground">Empowering Filipino Enterprise</p>
+            <p className="mt-4 text-base leading-relaxed text-foreground">
+              &ldquo;To provide Filipino businesses with only the best trained and qualified employees available in the
+              country.&rdquo;
+            </p>
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold tracking-tight text-secondary">5-year strategic vision</h3>
+            <p className="mt-2 text-lg font-semibold leading-snug text-foreground">Better People for Better Results</p>
+            <p className="mt-4 text-base leading-relaxed text-foreground">
+              &ldquo;To deliver &lsquo;Better people for better results&rsquo; to 200 client firms and provide a great
+              employment experience to 15,000 deployed personnel across the Philippines.&rdquo;
+            </p>
+            <Button asChild variant="link" className="mt-3 h-11 px-0">
+              <a href="#contact" onClick={(e) => scrollToSection(e, "#contact")}>
+                Partner with us
+                <ArrowRight data-icon="inline-end" />
               </a>
-            </div>
+            </Button>
           </div>
-
         </div>
+      </Reveal>
 
-      </div>
-    </section>
-  );
-};
+      <Reveal className="mt-14 sm:mt-20">
+        <h3 className="font-bold tracking-tight text-xl text-secondary sm:text-2xl">Our 3 corporate values</h3>
+        <div className="mt-6 grid grid-cols-1 divide-y divide-border border-y border-border md:grid-cols-3 md:divide-x md:divide-y-0">
+          {values.map((value) => (
+            <div key={value.name} className="py-6 md:px-8 md:first:pl-0 md:last:pr-0">
+              <h4 className="font-bold tracking-tight text-lg text-secondary">{value.name}</h4>
+              <p className="mt-1 text-sm font-semibold text-foreground">{value.tagline}</p>
+              <p className="mt-3 text-base leading-relaxed text-muted-foreground">{value.description}</p>
+            </div>
+          ))}
+        </div>
+      </Reveal>
+    </div>
+  </section>
+);

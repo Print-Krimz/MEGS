@@ -25,11 +25,91 @@ export interface ListTAApplicationsOptions {
   page?: number;
   limit?: number;
   mineOnly?: boolean;
+  returningOnly?: boolean;
   actor?: Actor;
   currentUserId?: string;
   postedById?: string;
   summary?: boolean;
 }
+
+export interface ReturningWorkerInfo {
+  /** True when the worker was previously placed at the same client as this job opening. */
+  sameClient: boolean;
+  clientName: string;
+  priorPlacements: number;
+}
+
+// A placement counts as "prior" only if it actually started, matching the same-client
+// routing rule used when the application was submitted.
+const startedPlacementWhere = {
+  status: { in: ["ACTIVE", "ENDED"] as ("ACTIVE" | "ENDED")[] },
+  OR: [
+    { actualStart: { not: null } },
+    { statusHistory: { some: { toStatus: "ACTIVE" as const } } },
+    { status: "ENDED" as const, contractStart: { not: null } },
+  ],
+};
+
+const attachReturningInfo = async <
+  T extends {
+    id: number;
+    createdAt: Date;
+    user?: { id: string } | null;
+    jobPosting?: { mrf?: { clientId?: number | null } | null } | null;
+  },
+>(applications: T[]): Promise<(T & { returning: ReturningWorkerInfo | null })[]> => {
+  const userIds = [...new Set(applications.map((a) => a.user?.id).filter((id): id is string => Boolean(id)))];
+  const placements = userIds.length === 0
+    ? []
+    : await prisma.deployment.findMany({
+        where: { employee: { userId: { in: userIds } }, ...startedPlacementWhere },
+        select: {
+          applicationId: true,
+          clientId: true,
+          createdAt: true,
+          client: { select: { name: true } },
+          employee: { select: { userId: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+  return applications.map((application) => {
+    const jobClientId = application.jobPosting?.mrf?.clientId ?? null;
+    const prior = placements.filter(
+      (p) =>
+        p.employee.userId === application.user?.id &&
+        p.applicationId !== application.id &&
+        p.createdAt < application.createdAt
+    );
+    if (prior.length === 0) return { ...application, returning: null };
+    const sameClient = jobClientId !== null ? prior.filter((p) => p.clientId === jobClientId) : [];
+    const reference = sameClient[0] ?? prior[0];
+    return {
+      ...application,
+      returning: {
+        sameClient: sameClient.length > 0,
+        clientName: reference.client.name,
+        priorPlacements: prior.length,
+      },
+    };
+  });
+};
+
+const findReturningApplicationIds = async (): Promise<number[]> => {
+  const rows = await prisma.$queryRaw<Array<{ id: number }>>`
+    SELECT DISTINCT a."id"
+    FROM "Application" a
+    JOIN "Employee" e ON e."userId" = a."userId"
+    JOIN "Deployment" d ON d."employeeId" = e."id"
+    WHERE d."status" IN ('ACTIVE', 'ENDED')
+      AND (d."actualStart" IS NOT NULL
+        OR (d."status" = 'ENDED' AND d."contractStart" IS NOT NULL)
+        OR EXISTS (SELECT 1 FROM "DeploymentStatusHistory" h WHERE h."deploymentId" = d."id" AND h."toStatus" = 'ACTIVE'))
+      AND (d."applicationId" IS NULL OR d."applicationId" <> a."id")
+      AND d."createdAt" < a."createdAt"
+  `;
+  return rows.map((row) => row.id);
+};
 
 export const listTAApplications = async (
   statusOrOptions?: string | ListTAApplicationsOptions,
@@ -43,7 +123,7 @@ export const listTAApplications = async (
           jobPostingId: legacyJobPostingId,
         };
 
-  const { status, jobPostingId, clientId, search, isArchived, page, limit, mineOnly, currentUserId, postedById, summary, actor } = options;
+  const { status, jobPostingId, clientId, search, isArchived, page, limit, mineOnly, returningOnly, currentUserId, postedById, summary, actor } = options;
   const dynamicScoring = scoringFlags.dynamicCandidateScoringEnabled();
   const configuration = dynamicScoring ? await getActiveScoringConfiguration() : null;
 
@@ -76,6 +156,10 @@ export const listTAApplications = async (
         ],
       });
     }
+  }
+
+  if (returningOnly) {
+    andConditions.push({ id: { in: await findReturningApplicationIds() } });
   }
 
   if (isArchived !== undefined) {
@@ -172,7 +256,7 @@ export const listTAApplications = async (
         `;
     const scoresByApplication = new Map(scoreRows.map((row) => [row.applicationId, row]));
 
-    const items = applications.map((application) => {
+    const items = (await attachReturningInfo(applications)).map((application) => {
         const score = scoresByApplication.get(application.id);
         const { _count, ...row } = application;
         return {
@@ -270,7 +354,7 @@ export const listTAApplications = async (
   ]);
 
 
-  const formatted = applications
+  const formatted = (await attachReturningInfo(applications))
     .map((application) => {
       const activeScore = configuration
         ? application.candidateScores?.find((cs) => cs.jobPostingId === application.jobPosting.id && cs.configurationId === configuration.id && cs.status === "CALCULATED")
