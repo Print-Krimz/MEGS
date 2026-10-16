@@ -24,6 +24,8 @@ import {
   rangeOf,
   readInteraction,
   requiredEnv,
+  SLOW_NETWORK,
+  SLOW_NETWORK_PROFILE,
   statsOf,
   VIEWPORT,
   writeResult,
@@ -575,6 +577,58 @@ test.describe.serial("production-preview performance baseline", () => {
       };
       persist("workforce", { scenario: "/ta/workforce variants and TA list endpoints at 1,000 rows (CPU 4x)", variants: output, payloads });
     }).catch((error) => skipped("workforce", error));
+  });
+
+  test("network profile: landing and /app/jobs at 150 ms / 1.6 Mbps / 750 Kbps (PERF_NETWORK=slow)", async ({ browser }) => {
+    test.setTimeout(20 * 60_000);
+    test.skip(!SLOW_NETWORK, "set PERF_NETWORK=slow to run the network profile");
+    await runOrSkip("network", async () => {
+      const routes: Array<{ path: string; identity: IdentityKey | null }> = [
+        { path: "/", identity: null },
+        { path: "/app/jobs", identity: "APPLICANT" },
+      ];
+      const results: Record<string, unknown> = {};
+      for (const route of routes) {
+        const session = await openSession(browser, { identity: route.identity ?? undefined, scale: SMALL_SCALE });
+        try {
+          await gotoAndSettle(session.page, route.path, 0);
+          await session.page.evaluate(() => document.fonts.ready.then(() => true));
+          await session.page.waitForTimeout(10_000);
+          const metrics = await collectMetrics(session.page);
+          // Validation that the profile reached real requests: every .js resource should take at least the latency.
+          const jsDurations = await session.page.evaluate(() =>
+            (performance.getEntriesByType("resource") as PerformanceResourceTiming[])
+              .filter((e) => /\.m?js$/i.test(new URL(e.name).pathname))
+              .map((e) => Math.round(e.responseEnd - e.startTime)),
+          );
+          results[route.path] = {
+            lcpMs: metrics.lcpMs,
+            cls: metrics.cls,
+            jsCount: metrics.jsCount,
+            jsTransferBytes: metrics.jsBytes,
+            jsRawBytes: metrics.jsRawBytes,
+            imageBytes: metrics.imageBytes,
+            fontBytes: metrics.fontBytes,
+            longtaskTotalMs: metrics.longtaskTotalMs,
+            jsMinDurationMs: jsDurations.length ? Math.min(...jsDurations) : null,
+            jsMaxDurationMs: jsDurations.length ? Math.max(...jsDurations) : null,
+            apiRequests: Object.values(session.net.apiCounts).reduce((total, n) => total + n, 0),
+            unexpectedApi: session.net.unexpectedApi,
+            blockedExternal: session.net.blockedExternal,
+            pageErrors: session.errors.length,
+          };
+        } finally {
+          await session.close();
+        }
+      }
+      writeResult(OUT, "network", {
+        scenario: "network profile, one fresh-context sample per route; 10 s settle after fonts.ready; CPU 4x",
+        profile: { cpuThrottleRate: CPU_RATE, ...SLOW_NETWORK_PROFILE },
+        dist: DIST,
+        label: LABEL,
+        results,
+      });
+    });
   });
 
   test("write summary", async () => {

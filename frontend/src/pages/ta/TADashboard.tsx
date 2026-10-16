@@ -74,8 +74,9 @@ export const TADashboard: React.FC = () => {
   });
 
   const interviewSlaQuery = useQuery({
-    queryKey: ["ta", "compliance", "interviews"],
-    queryFn: taApi.checkInterviewCompliance,
+    // Only the summary is shown, so ask for a single-row page instead of every interview.
+    queryKey: ["ta", "compliance", "interviews", "summary"],
+    queryFn: ({ signal }) => taApi.listInterviewCompliancePage({ page: 1, pageSize: 1 }, { signal }),
   });
 
   const recentAppsQuery = useQuery({

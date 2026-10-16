@@ -20,6 +20,18 @@ export const VIEWPORT = { width: 1440, height: 900 } as const;
 export const CPU_RATE = 4;
 export const DEFAULT_DELAY_MS = 100;
 
+/**
+ * Opt-in network profile (env PERF_NETWORK=slow). Off by default, so default runs are unchanged.
+ * - CDP Network.emulateNetworkConditions applies to requests that reach the network (preview-origin files).
+ * - Routed API fixtures never touch the network, so each one also waits `latencyMs` plus its transfer time.
+ */
+export const SLOW_NETWORK = process.env.PERF_NETWORK === "slow";
+export const SLOW_NETWORK_PROFILE = {
+  latencyMs: 150,
+  downloadBytesPerSec: 1_600_000 / 8,
+  uploadBytesPerSec: 750_000 / 8,
+} as const;
+
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
   "access-control-allow-headers": "*",
@@ -44,6 +56,8 @@ export interface SessionOptions {
   scale?: FixtureScale;
   /** Per-path fixture delays in ms, overriding the 100 ms default. */
   delays?: Record<string, number>;
+  /** Default true. False skips the PerformanceObserver store (used by the memory investigation, which must not accumulate harness arrays). */
+  observers?: boolean;
 }
 
 export interface Session {
@@ -60,7 +74,16 @@ export function newNetLog(): NetLog {
 }
 
 /** Runs in the page before any app script. Installs observers and optional auth state. */
-function initScript(arg: { token: string | null; role: string | null }) {
+function initScript(arg: { token: string | null; role: string | null; observers: boolean }) {
+  if (arg.token) {
+    try {
+      localStorage.setItem("access_token", arg.token);
+      if (arg.role) localStorage.setItem("user_role", arg.role);
+    } catch {
+      /* storage unavailable */
+    }
+  }
+  if (!arg.observers) return;
   const w = window as unknown as { __perf?: Record<string, unknown> };
   try {
     performance.setResourceTimingBufferSize(4000);
@@ -119,14 +142,6 @@ function initScript(arg: { token: string | null; role: string | null }) {
       store.events.push({ name: e.name, start: e.startTime, duration: e.duration, interactionId: e.interactionId });
     }
   });
-  if (arg.token) {
-    try {
-      localStorage.setItem("access_token", arg.token);
-      if (arg.role) localStorage.setItem("user_role", arg.role);
-    } catch {
-      /* storage unavailable */
-    }
-  }
 }
 
 async function fulfillJson(route: Route, status: number, data: unknown) {
@@ -182,6 +197,11 @@ async function installRouting(
       }
       net.apiBytes[key] = Buffer.byteLength(answer.body);
       net.apiBytes[shapeKey] = Buffer.byteLength(answer.body);
+      if (SLOW_NETWORK) {
+        // Stand-in for one round trip plus the body's download time on the emulated link.
+        const transferMs = SLOW_NETWORK_PROFILE.latencyMs + (Buffer.byteLength(answer.body) / SLOW_NETWORK_PROFILE.downloadBytesPerSec) * 1000;
+        await new Promise((resolve) => setTimeout(resolve, transferMs));
+      }
       net.apiFulfilledAt[key] = Date.now();
       await route.fulfill({ status: answer.status, contentType: "application/json", headers: CORS_HEADERS, body: answer.body });
       return;
@@ -213,6 +233,7 @@ export async function openSession(browser: Browser, options: SessionOptions = {}
   await context.addInitScript(initScript, {
     token: options.identity ? `perf-${identity.toLowerCase()}-token` : null,
     role: options.identity ?? null,
+    observers: options.observers ?? true,
   });
   await installRouting(context, identity, scale, options.delays ?? {}, net);
   const page = await context.newPage();
@@ -223,6 +244,15 @@ export async function openSession(browser: Browser, options: SessionOptions = {}
   });
   const cdp = await context.newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU_RATE });
+  if (SLOW_NETWORK) {
+    await cdp.send("Network.enable");
+    await cdp.send("Network.emulateNetworkConditions", {
+      offline: false,
+      latency: SLOW_NETWORK_PROFILE.latencyMs,
+      downloadThroughput: SLOW_NETWORK_PROFILE.downloadBytesPerSec,
+      uploadThroughput: SLOW_NETWORK_PROFILE.uploadBytesPerSec,
+    });
+  }
   return {
     context,
     page,

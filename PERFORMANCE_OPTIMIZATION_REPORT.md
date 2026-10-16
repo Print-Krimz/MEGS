@@ -6,7 +6,7 @@
 
 ## 1. Summary
 
-Tasks P1, P2, P3, P4, P7, P9 and P10 meet their acceptance targets in laboratory measurement. P5 and P6 are partly done: the safe parts shipped, and the rest needs a real database. P8, P11 and the P12 memory investigation were not started, because the plan requires disposable-database measurement or explicit approval first.
+Tasks P1, P2, P3, P4, P7, P9 and P10 meet their acceptance targets in laboratory measurement. P5 and P6 are partly done: the safe parts shipped, and the rest needs a real database. The P12 memory investigation found bounded retention and no application-owned leak. P8 and P11 were not started, because the plan requires disposable-database measurement or explicit approval first.
 
 | Headline metric | Baseline | After | Change | Target |
 | --- | ---: | ---: | ---: | --- |
@@ -18,7 +18,7 @@ Tasks P1, P2, P3, P4, P7, P9 and P10 meet their acceptance targets in laboratory
 | TA list page payloads (1,000 rows) | 0.65-1.53 MB | 6.8-14.8 KB | -99% | >= 90% cut: met |
 | Redeployment suggestions CPU, 10-worker page | 453 ms (full list) | 4.7 ms | -99% | >= 80% cut: met |
 | Landing images incl. favicon, settled | 509,883 B | 135,899 B | -73% | <= 250,000: met |
-| Landing images, after scrolling the whole page | 1,635,801 B | 479,455 B | -71% | <= 250,000: not met |
+| Landing images, after scrolling the whole page | 1,635,801 B | 213,853 B | -87% | <= 250,000: met |
 | Favicon | 36,123 B | 1,991 B | -94% | <= 5 KB: met |
 
 ## 2. How the work was run
@@ -110,7 +110,12 @@ Behaviour changes to note:
 | MRF search keystroke p95 (1,000 rows) | 112 ms | 80 ms |
 
 - Suggestion CPU, measured with mocked Prisma, 1,000 workers, 60 jobs and 768-dimension vectors: 453 ms for the full list against 4.7 ms for a 10-worker page. Rankings for the requested workers are identical.
-- Still on the legacy contract: ClientDetailPage, CloneMRFModal, JobPostingsPage, the TA dashboard interview summary, and `getRedeploymentQueue`.
+- Follow-up: the TA dashboard interview summary now requests `page=1&pageSize=1` and reads only `summary`. On a 1,000-row fixture that is 244,611 B down to 1,296 B. Its query key stays under the `["ta","compliance","interviews"]` prefix, so existing invalidation still refreshes it.
+- Kept on the legacy contract on purpose:
+  - ClientDetailPage renders every MRF and deployment for one client.
+  - CloneMRFModal searches ID, title and client name on the client side; server search would change matching.
+  - The JobPostingsPage ComboBox filters on the client side.
+- `getRedeploymentQueue` has no remaining UI caller. The function is kept for compatibility.
 - The paged redeployment queue and interview report still read lean rows for the whole pool, then filter and slice in memory. This keeps ordering identical but is not SQL-level paging.
 
 ### P5: Analytics discarded work (partly done)
@@ -166,8 +171,52 @@ The p95 target (<= 200 ms) holds in both builds. The p95 change is within noise.
 - 13 WebP variants were generated from the existing images, sized to about 2x their rendered size. Source images are kept.
 - Only `src` paths changed. Crops, dimensions, alt text and lazy loading are unchanged.
 - The favicon is now `favicon-48.png` (1,991 B). `favicon.jpg` is no longer referenced.
-- The landing page meets 250 KB when settled (135,899 B). After scrolling all six industry cards it loads 479,455 B. Shrinking the 800 px cards further risked visible quality loss, so the work stopped there.
+- Follow-up: the mosaic thumbnails and the industry cards show the same photos. Both now share one `<name>-480.webp`, so the browser downloads each photo once.
+- The cards use `srcSet` with 480w and 800w variants. WebP quality is 70 at 480 px and 68 at 800 px, encoded from the original JPGs.
+- Mosaic `width`/`height` are now 480x320. That is the same 3:2 ratio, so there is no CLS change.
+- Before and after screenshots at 1440x900 and 390x844 show no visible quality loss.
+
+| Landing images incl. favicon | Before | After first pass | After follow-up |
+| --- | ---: | ---: | ---: |
+| Settled | 509,883 | 135,899 | 135,027 |
+| Scrolled through the whole page | 1,635,801 | 479,455 | 213,853 |
 - **Fonts:** Archivo is already split by unicode range into latin, latin-ext and vietnamese files. No change could be shown to save 25% while keeping Filipino glyphs, the peso sign and the 112% width.
+
+### P12: Memory investigation (done, no code change)
+
+Method: applicant dashboard to Jobs and back by clicking nav links, 100 cycles, observers off. Post-GC heap was read from CDP, with heap snapshots at cycles 20 and 100.
+
+| Cycle | After build | Baseline build |
+| ---: | ---: | ---: |
+| 0 | 3,691,108 | 4,305,900 |
+| 20 | 5,375,036 | 5,967,164 |
+| 60 | 5,806,844 | 6,412,856 |
+| 100 | 5,973,984 | 6,559,592 |
+| Growth, cycles 20 to 100 | +11.1% | +9.9% |
+
+- Both builds grow by the same absolute amount (about 595 KB). The after build crosses 10% only because it starts lower.
+- DOM nodes, event listeners, query-cache entries (9), timers and detached DOM nodes (0) are flat from cycle 20.
+- Snapshot growth breaks down as:
+  - V8 compiled code: 63%.
+  - Browser performance-entry buffers: 18%. These hit their caps.
+  - Inspector network data that Playwright's CDP session keeps: 8%. Likely a harness artifact.
+  - JavaScript objects: under 1%.
+- In a 200-cycle run, each block of 20 cycles added less than the one before. The heap still crept about 2 KB per cycle.
+- Verdict: bounded retention, no application-owned leak, so no app code was changed. The strict 10% acceptance is missed by 1.1 points. Confirming a plateau would need a rerun without Playwright's `Network` domain.
+
+### Slow-network rerun (150 ms latency, 1.6 Mbps down, 750 Kbps up, CPU 4x)
+
+| Route | Build | LCP median [range] | JS transferred | JS files |
+| --- | --- | ---: | ---: | ---: |
+| `/` | Baseline | 4,372 ms [4,280-6,856] | 244,910 B | 7 |
+| `/` | After | 4,188 ms [4,144-5,464] | 209,367 B | 27 |
+| `/app/jobs` | Baseline | 4,024 ms [3,740-4,848] | 257,482 B | 15 |
+| `/app/jobs` | After | 3,620 ms [3,572-4,796] | 171,087 B | 30 |
+
+- LCP medians improve by 4% on landing and 10% on Jobs, but the ranges overlap.
+- Both builds miss the 2.5 s LCP target on this profile.
+- The after build makes more, smaller JS requests, so latency matters more. The cost of the extra requests was not isolated.
+- API fixtures get a modelled delay, because CDP throttling does not apply to routed requests.
 
 ## 5. Regressions found and fixed
 
@@ -183,8 +232,8 @@ The p95 target (<= 200 ms) holds in both builds. The p95 change is within noise.
 | --- | --- |
 | Frontend typecheck (`tsc -p tsconfig.app.json --noEmit`) | Pass |
 | Frontend production build (`npm run build`) | Pass |
-| Bundle budget (`node frontend/scripts/measure-bundle.mjs`) | Pass: 119,721 B; Leaflet and address data absent from initial graph |
-| Frontend unit tests, full run | 727 of 728 pass |
+| Bundle budget (`node frontend/scripts/measure-bundle.mjs`) | Pass: 119,730 B after follow-ups; Leaflet and address data absent from initial graph |
+| Frontend unit tests, full run (after follow-ups) | 727 of 728 pass |
 | Frontend TA pages after final fix | 114 of 114 pass |
 | Backend typecheck (`npx tsc --noEmit`) | Pass |
 | Backend mocked suites (14 files, incl. plan's safe set, P4/P5/P6/P7 tests) | 163 of 163 pass |
@@ -235,10 +284,10 @@ Needs a disposable database or staging data:
 - Real API p50/p95 for paged lists and analytics dashboards.
 
 Frontend follow-ups:
-- P12 memory: 100-cycle SPA heap snapshots and retainer analysis. Not started.
-- Landing page images when the whole page is scrolled (479 KB against 250 KB). This needs smaller industry-card variants and a visual quality check.
-- Migrate the remaining legacy full-list callers (ClientDetailPage, CloneMRFModal, JobPostingsPage), then consider SQL-level paging for the redeployment queue and interview report.
-- Rerun the 150 ms / 1.6 Mbps network profile and the warm HTTP cache comparison.
+- P12: rerun the memory check without Playwright's CDP `Network` domain to confirm the heap levels off.
+- LCP on the slow network profile is still about 3.6-4.4 s. Measure whether the extra JS round trips cost time, and test with a warm HTTP cache.
+- Consider SQL-level paging for the redeployment queue and interview report.
+- Update the old industry image filenames in `docs/superpowers/specs/2026-09-04-landing-page-canva-enhancement-design.md`.
 - Delete the unreferenced `frontend/public/favicon.jpg` if nothing else needs it.
 
 Not done in any environment:

@@ -18,7 +18,8 @@ if (!dist) {
 
 export default defineConfig({
   testDir: ".",
-  testMatch: /production-preview\.perf\.ts$/,
+  // PERF_MEMORY=1 selects the P12 memory investigation spec; default runs match only the production-preview spec.
+  testMatch: process.env.PERF_MEMORY ? /memory\.perf\.ts$/ : /production-preview\.perf\.ts$/,
   fullyParallel: false,
   workers: 1,
   retries: 0,

@@ -23,6 +23,12 @@ PERF_DIST=/path/to/dist PERF_LABEL=after npx playwright test -c perf/perf.config
 - `vite preview` serves `PERF_DIST` on `127.0.0.1:4173` (strict port). Stop anything already on 4173 first.
 - Run a single scenario with `-g`, for example `-g "MRF search"`.
 
+Opt-in modes (default runs are unchanged):
+
+- `PERF_NETWORK=slow`: adds the network profile to every session. CDP throttles real requests (150 ms latency, 1.6 Mbps down, 750 Kbps up). Routed API fixtures never touch the network, so each one also waits 150 ms plus its body's download time. Run the network scenario with `-g "network profile"`. Use one run per sample so builds can be interleaved.
+- `PERF_MEMORY=1`: switches the config to `memory.perf.ts` (P12). Applicant dashboard and Explore Jobs navigated by nav-link clicks, forced GC at each checkpoint, heap snapshots at cycle 20 and the last cycle. `PERF_MEMORY_CYCLES` (default 100). Harness PerformanceObserver stores are off. Output goes to `test-results/perf/memory/`. Diff snapshots with `node --max-old-space-size=8192 perf/heap-diff.mjs <early> <late> --out diff.json`.
+- `node perf/summarize-network.mjs [builds] [samples]` rolls up the network samples (`test-results/perf/network/<build>-s<n>/`).
+
 To make an "after" build without touching the default output folder:
 
 ```powershell
@@ -59,7 +65,7 @@ A scenario that cannot run is written as `{"skipped": "<reason>"}`.
 
 ## Not covered
 
-- Network throttling (150 ms latency, 1.6 Mbps down, 750 Kbps up). Only CPU throttling is applied.
+- Network throttling only applies with `PERF_NETWORK=slow` (see above). Default runs are CPU-only.
 - HTTP caching. Routed fixtures disable it, so these numbers are cold-cache.
 - React Profiler attribution. Use a profiling build for that.
 - Real API latency, database cost, login and Turnstile.
