@@ -188,6 +188,7 @@ export const PhilippineAddressFields: React.FC<PhilippineAddressFieldsProps> = (
             value={barangay}
             onChange={(value) => handleBarangayChange(value)}
             options={barangayOptions}
+            windowed
             required={Boolean(province || city || barangay || postalCode)}
             disabled={disabled || !locality}
             emptyText="No barangay in this city matches your search"

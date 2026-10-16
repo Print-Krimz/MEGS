@@ -56,11 +56,17 @@ const cosine = (a: number[], b: number[]) => {
  * Ranking: jobs at a client the worker was placed with first (they skip screening),
  * then profile similarity (embeddings), falling back to keyword overlap with the
  * worker's previous roles and skills when embeddings are unavailable.
+ * `employeeIds` limits scoring to those workers (the visible queue page); each still has to
+ * pass the same eligibility rule, so ineligible IDs are simply absent from the result.
  */
-export const listRedeploymentSuggestions = async () => {
+export const listRedeploymentSuggestions = async (employeeIds?: number[]) => {
   const [employees, jobs, configuration] = await Promise.all([
     prisma.employee.findMany({
-      where: { status: "AVAILABLE_FOR_REDEPLOYMENT", deployments: { none: { status: { notIn: ["ENDED", "CANCELLED"] } } } },
+      where: {
+        status: "AVAILABLE_FOR_REDEPLOYMENT",
+        deployments: { none: { status: { notIn: ["ENDED", "CANCELLED"] } } },
+        ...(employeeIds ? { id: { in: employeeIds } } : {}),
+      },
       select: {
         id: true,
         position: true,

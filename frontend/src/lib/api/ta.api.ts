@@ -32,6 +32,7 @@ import type {
   PipelineAnalytics,
   ComplianceAnalytics,
   InterviewSLASummary,
+  InterviewSLAPage,
   UpdateCandidateProfileDto,
 } from "../types/ta.types";
 import type { ApplicantProfile } from "../types/applicant.types";
@@ -364,6 +365,27 @@ export const taApi = {
     return api.get<ManpowerRequest[]>(`/api/ta/mrfs${qs ? `?${qs}` : ""}`, options);
   },
 
+  listMRFsPage: (filters: {
+    page: number;
+    pageSize: number;
+    search?: string;
+    clientId?: number | string;
+    status?: string;
+    priority?: string;
+    sortBy?: string;
+  }, options?: RequestInit) => {
+    const params = new URLSearchParams();
+    if (filters.clientId) params.append("clientId", String(filters.clientId));
+    if (filters.status) params.append("status", filters.status);
+    if (filters.priority) params.append("priority", filters.priority);
+    if (filters.sortBy) params.append("sortBy", filters.sortBy);
+    const search = filters.search?.trim();
+    if (search) params.append("search", search);
+    params.append("page", String(filters.page));
+    params.append("pageSize", String(filters.pageSize));
+    return api.get<PaginatedListResponse<ManpowerRequest>>(`/api/ta/mrfs?${params.toString()}`, options);
+  },
+
   createMRF: (data: CreateMRFDto) =>
     api.post<ManpowerRequest>("/api/ta/mrfs", data),
 
@@ -441,6 +463,29 @@ export const taApi = {
   checkInterviewCompliance: () =>
     api.get<InterviewSLASummary>("/api/ta/compliance/interviews"),
 
+  listInterviewCompliancePage: (filters: {
+    page: number;
+    pageSize: number;
+    search?: string;
+    status?: string;
+    stage?: string;
+    position?: string;
+    sortField?: string;
+    sortDirection?: string;
+  }, options?: RequestInit) => {
+    const params = new URLSearchParams();
+    const search = filters.search?.trim();
+    if (search) params.append("search", search);
+    if (filters.status) params.append("status", filters.status);
+    if (filters.stage) params.append("stage", filters.stage);
+    if (filters.position) params.append("position", filters.position);
+    if (filters.sortField) params.append("sortField", filters.sortField);
+    if (filters.sortDirection) params.append("sortDirection", filters.sortDirection);
+    params.append("page", String(filters.page));
+    params.append("pageSize", String(filters.pageSize));
+    return api.get<InterviewSLAPage>(`/api/ta/compliance/interviews?${params.toString()}`, options);
+  },
+
   // -------------------------------------------------------------
   // 8. 201 Compliance Tracking
   // -------------------------------------------------------------
@@ -497,6 +542,17 @@ export const taApi = {
     return api.get<Deployment[]>(`/api/ta/deployments${qs ? `?${qs}` : ""}`);
   },
 
+  listDeploymentsPage: (filters: { page: number; pageSize: number; search?: string; status?: string; clientId?: number | string }, options?: RequestInit) => {
+    const params = new URLSearchParams();
+    if (filters.status) params.append("status", filters.status);
+    if (filters.clientId) params.append("clientId", String(filters.clientId));
+    const search = filters.search?.trim();
+    if (search) params.append("search", search);
+    params.append("page", String(filters.page));
+    params.append("pageSize", String(filters.pageSize));
+    return api.get<PaginatedListResponse<Deployment>>(`/api/ta/deployments?${params.toString()}`, options);
+  },
+
   getDeploymentDetails: (id: number | string) =>
     api.get<Deployment>(`/api/ta/deployments/${id}`),
 
@@ -522,8 +578,8 @@ export const taApi = {
   // -------------------------------------------------------------
   // 11. Analytics & Operations Intelligence
   // -------------------------------------------------------------
-  getDashboardSummary: (filters?: Partial<AnalyticsFilterState>) =>
-    api.get<TADeliveryDashboard>(`/api/ta/analytics/dashboard${buildTAAnalyticsQueryString(filters)}`),
+  getDashboardSummary: (filters?: Partial<AnalyticsFilterState>, signal?: AbortSignal) =>
+    api.get<TADeliveryDashboard>(`/api/ta/analytics/dashboard${buildTAAnalyticsQueryString(filters)}`, { signal }),
 
   getPendingActions: (filters?: Partial<AnalyticsFilterState>) =>
     api.get<TAPendingActionItem[]>(`/api/ta/analytics/pending-actions${buildTAAnalyticsQueryString(filters)}`),

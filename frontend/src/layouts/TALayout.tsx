@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { lazy, Suspense, useState, useRef, useEffect } from "react";
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard,
@@ -19,10 +19,14 @@ import {
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
-import { NotificationBell, RealtimeToastContainer, SignOutDialog, ChangePasswordModal } from "../components/common";
+import { NotificationBell, RealtimeToastContainer, SignOutDialog } from "../components/common";
 import { getInitials } from "../lib/utils";
 import { Role } from "../lib/types/enums";
 import { TA_COPY } from "../lib/ta-copy";
+
+const ChangePasswordModal = lazy(() =>
+  import("../components/common/ChangePasswordModal").then((m) => ({ default: m.ChangePasswordModal })),
+);
 
 export const TALayout: React.FC = () => {
   const { user } = useAuth();
@@ -490,10 +494,11 @@ export const TALayout: React.FC = () => {
         </header>
 
         {/* Account Security / Change Password Dialog */}
-        <ChangePasswordModal
-          open={showChangePasswordModal}
-          onClose={() => setShowChangePasswordModal(false)}
-        />
+        {showChangePasswordModal && (
+          <Suspense fallback={null}>
+            <ChangePasswordModal open onClose={() => setShowChangePasswordModal(false)} />
+          </Suspense>
+        )}
 
         {/* Content Container */}
         <main id="ta-main-content" className="flex-1 p-3 sm:p-5 lg:p-6 max-w-[1600px] w-full mx-auto min-w-0">

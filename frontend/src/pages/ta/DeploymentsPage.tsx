@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
   PageHeader,
@@ -23,6 +23,8 @@ import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { employeesApi } from "../../lib/api/employees.api";
 import { getManilaToday } from "../../lib/field-limits";
+import { SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 
 export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
   const navigate = useNavigate();
@@ -31,6 +33,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
 
   const [statusModalDeployment, setStatusModalDeployment] = useState<{ id: number; currentStatus: DeploymentStatus } | null>(null);
   const [newStatus, setNewStatus] = useState<DeploymentStatus>(DeploymentStatus.ACTIVE);
@@ -45,17 +48,16 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
   const [reviewNotes, setReviewNotes] = useState("");
 
   const deploymentsQuery = useQuery({
-    queryKey: ["ta", "deployments", filterValues],
-    queryFn: () => {
-      const backendStatus =
-        filterValues.status === "ENDED_REDEPLOYMENT" || filterValues.status === "ENDED_SEPARATED"
-          ? "ENDED"
-          : filterValues.status || undefined;
-      return taApi.listDeployments({
-        status: backendStatus,
+    queryKey: ["ta", "deployments", "page", { page, pageSize, search: debouncedSearch, filters: filterValues }],
+    queryFn: ({ signal }) =>
+      taApi.listDeploymentsPage({
+        page,
+        pageSize,
+        search: debouncedSearch || undefined,
+        status: filterValues.status || undefined,
         clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
-      });
-    },
+      }, { signal }),
+    placeholderData: keepPreviousData,
   });
 
   const clientsQuery = useQuery({
@@ -90,6 +92,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "redeployment-queue"] });
       setEndModalDeployment(null);
       setEndReason("");
       notify.success("Assignment ended", "The actual end date and employee status were recorded.");
@@ -111,42 +114,16 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
     onError: (error: any) => notify.error("Could not record check-in", error?.message || error),
   });
 
-  const allDeployments = deploymentsQuery.data || [];
   const clients = clientsQuery.data || [];
 
-  const filteredDeployments = allDeployments.filter((dep) => {
-    if (
-      filterValues.status === "ENDED_REDEPLOYMENT" &&
-      !(dep.status === DeploymentStatus.ENDED && dep.employee?.status === "AVAILABLE_FOR_REDEPLOYMENT")
-    ) {
-      return false;
-    }
-    if (
-      filterValues.status === "ENDED_SEPARATED" &&
-      !(dep.status === DeploymentStatus.ENDED && dep.employee?.status === "SEPARATED")
-    ) {
-      return false;
-    }
-    if (!search || !search.trim()) return true;
-    const q = search.trim().toLowerCase();
-    const emp = dep.employee;
-    const profile = emp?.user?.applicantProfile || dep.application?.user?.applicantProfile;
-    const empName = profile
-      ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim().toLowerCase()
-      : "";
-    const empEmail = (emp?.user?.email || dep.application?.user?.email || "").toLowerCase();
-    const siteMatch = (dep.site || "").toLowerCase().includes(q);
-    const clientMatch = (dep.client?.name || "").toLowerCase().includes(q);
-    const empNumMatch = (emp?.employeeNumber || "").toLowerCase().includes(q);
-    const jobTitleMatch = (dep.application?.jobPosting?.title || dep.mrf?.title || "").toLowerCase().includes(q);
-    return empName.includes(q) || empEmail.includes(q) || siteMatch || clientMatch || empNumMatch || jobTitleMatch;
-  });
+  const paginatedDeployments = deploymentsQuery.data?.items ?? [];
+  const totalItems = deploymentsQuery.data?.total ?? 0;
+  const totalPages = Math.max(1, deploymentsQuery.data?.totalPages ?? 1);
 
-  const totalPages = Math.max(1, Math.ceil(filteredDeployments.length / pageSize));
-  const paginatedDeployments = filteredDeployments.slice(
-    (page - 1) * pageSize,
-    page * pageSize
-  );
+  // A refresh can leave the current page past the end (for example after an assignment ends).
+  useEffect(() => {
+    if (deploymentsQuery.data && !deploymentsQuery.isPlaceholderData && page > totalPages) setPage(totalPages);
+  }, [deploymentsQuery.data, deploymentsQuery.isPlaceholderData, page, totalPages]);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -350,7 +327,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
         <LoadingState variant="table" rows={6} />
       ) : deploymentsQuery.isError ? (
         <ErrorState error={deploymentsQuery.error} onRetry={() => deploymentsQuery.refetch()} />
-      ) : filteredDeployments.length === 0 ? (
+      ) : totalItems === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
           <EmptyState
             icon={<Truck className="w-6 h-6" />}
@@ -514,7 +491,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
             <Pagination
               currentPage={page}
               totalPages={totalPages}
-              totalItems={filteredDeployments.length}
+              totalItems={totalItems}
               pageSize={pageSize}
               onPageChange={setPage}
               itemLabel="deployments"

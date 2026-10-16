@@ -4,6 +4,7 @@ import { logAudit } from '../../utils/audit.js';
 import { recordBackout } from './backout.service.js';
 import { isFutureDateTime } from "../../schemas/field-limits.js";
 import { ownedWhere, type Actor } from "./ownership.js";
+import { isPageRequested, paginateArray, type PageRequest } from "../../utils/pagination.js";
 
 export const fetchInterviews = async (applicationId: number) => {
   return await prisma.interview.findMany({
@@ -583,7 +584,16 @@ export const updateInterviewResult = async (
 };
 
 // Calculates elapsed days in current interview stage against the 7-day SLA
-export const getInterviewComplianceReport = async (actor?: Actor) => {
+export interface InterviewComplianceOptions extends PageRequest {
+  search?: string;
+  status?: "HEALTHY" | "WARNING" | "BREACHED";
+  stage?: "INITIAL_SCREENING" | "FINAL_INTERVIEW";
+  position?: string;
+  sortField?: "candidate" | "position" | "scheduledAt" | "deadline";
+  sortDirection?: "asc" | "desc";
+}
+
+export const getInterviewComplianceReport = async (actor?: Actor, options: InterviewComplianceOptions = {}) => {
   const applications = await prisma.application.findMany({
     where: {
       status: { in: ["INITIAL_SCREENING", "FINAL_INTERVIEW"] },
@@ -631,15 +641,37 @@ export const getInterviewComplianceReport = async (actor?: Actor) => {
     };
   });
 
-  return {
-    summary: {
-      total: complianceReport.length,
-      breached: complianceReport.filter(r => r.slaStatus === "BREACHED").length,
-      warning: complianceReport.filter(r => r.slaStatus === "WARNING").length,
-      healthy: complianceReport.filter(r => r.slaStatus === "HEALTHY").length,
-    },
-    details: complianceReport
+  const summary = {
+    total: complianceReport.length,
+    breached: complianceReport.filter(r => r.slaStatus === "BREACHED").length,
+    warning: complianceReport.filter(r => r.slaStatus === "WARNING").length,
+    healthy: complianceReport.filter(r => r.slaStatus === "HEALTHY").length,
   };
+
+  if (!isPageRequested(options)) return { summary, details: complianceReport };
+
+  // Paginated: filter and sort the whole report, then return one page. The summary and the
+  // position list always cover the unfiltered report so counts and filter choices stay stable.
+  const query = options.search?.trim().toLowerCase();
+  const direction = options.sortDirection === "desc" ? -1 : 1;
+  const sortField = options.sortField ?? "deadline";
+  const matches = complianceReport
+    .filter((row) =>
+      (!options.status || row.slaStatus === options.status) &&
+      (!options.stage || row.currentStage === options.stage) &&
+      (!options.position || row.jobTitle === options.position) &&
+      (!query || row.candidateName.toLowerCase().includes(query) || row.jobTitle.toLowerCase().includes(query))
+    )
+    .sort((a, b) => {
+      const comparison =
+        sortField === "candidate" ? a.candidateName.localeCompare(b.candidateName)
+        : sortField === "position" ? a.jobTitle.localeCompare(b.jobTitle)
+        : sortField === "scheduledAt" ? new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+        : new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+      return comparison * direction || a.applicationId - b.applicationId;
+    });
+  const positions = [...new Set(complianceReport.map((row) => row.jobTitle).filter((title) => title.trim()))].sort((a, b) => a.localeCompare(b));
+  return { ...paginateArray(matches, options), summary, positions };
 };
 
 // Aliases for consistency with plan & controller terminology

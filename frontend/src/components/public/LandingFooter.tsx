@@ -17,7 +17,7 @@ export const LandingFooter: React.FC = () => {
           <div className="lg:col-span-7">
             <div className="flex items-center gap-3">
               <img
-                src="/images/canva-ref/megs-logo-480.jpg"
+                src="/images/canva-ref/megs-logo-352.webp"
                 alt="MEGS Inc. logo"
                 width={480}
                 height={348}
@@ -38,7 +38,7 @@ export const LandingFooter: React.FC = () => {
               <div className="inline-flex items-center gap-2 rounded-md border border-white/10 px-2.5 py-1.5">
                 <span className="flex h-6 items-center rounded-sm bg-white px-1.5">
                   <img
-                    src="/images/canva-ref/pjar-logo.png"
+                    src="/images/canva-ref/pjar-logo-192.webp"
                     alt="PJAR Group of Companies"
                     className="h-4 w-auto object-contain"
                     loading="lazy"
@@ -49,7 +49,7 @@ export const LandingFooter: React.FC = () => {
               <div className="inline-flex items-center gap-2 rounded-md border border-white/10 px-2.5 py-1.5">
                 <span className="flex h-6 items-center rounded-sm bg-white px-1.5">
                   <img
-                    src="/images/canva-ref/palscon-logo.png"
+                    src="/images/canva-ref/palscon-logo-192.webp"
                     alt="PALSCON Accredited"
                     className="h-4 w-auto object-contain"
                     loading="lazy"

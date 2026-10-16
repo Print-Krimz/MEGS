@@ -270,7 +270,7 @@ export const LandingBranches: React.FC = () => {
             {/* Map */}
             <div className="lg:sticky lg:top-24 lg:col-span-7">
               <img
-                src="/images/canva-ref/megs-logo-480.jpg"
+                src="/images/canva-ref/megs-logo-352.webp"
                 alt="Map of the Philippines with MEGS Branch Locations"
                 className="sr-only"
               />

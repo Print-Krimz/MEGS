@@ -15,7 +15,6 @@ export * from "./ErrorBoundary";
 export * from "./DocumentPreviewModal";
 export * from "./FeedbackToaster";
 export * from "./JobImage";
-export * from "./ChangePasswordModal";
 export * from "./ActionMenu";
 export * from "./Tabs";
 export * from "./TurnstileWidget";

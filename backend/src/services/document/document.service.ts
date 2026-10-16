@@ -195,4 +195,151 @@ export const resolveDocumentSignedUrl = async (
   throw new Error("Failed to generate download URL");
 };
 
+export interface DocumentUrlRequest {
+  ref: string | null | undefined;
+  requesterId: string;
+  requesterRole?: string;
+}
+
+// Batch form of mayRead for one requester: same rules, but ownership is checked with one query per kind
+// (applications, applicant owners) instead of one per document. Returns the ids of the readable documents.
+async function readableDocumentIds(
+  docs: Array<{ id: number; ownerId: string; applicationId: number | null; category?: string }>,
+  requesterId: string,
+  role: string
+): Promise<Set<number>> {
+  const allowed = new Set<number>();
+  if (role === "ADMINISTRATOR") return new Set(docs.map((d) => d.id));
+  const actor = { id: requesterId, role };
+  const appChecks: typeof docs = [];
+  const ownerChecks: typeof docs = [];
+  for (const doc of docs) {
+    if (doc.category === "CONTRACT") {
+      if (role === "TALENT_ACQUISITION" && doc.applicationId) appChecks.push(doc);
+    } else if (doc.ownerId === requesterId) {
+      allowed.add(doc.id);
+    } else if (role === "TALENT_ACQUISITION") {
+      (doc.applicationId ? appChecks : ownerChecks).push(doc);
+    }
+  }
+  if (appChecks.length > 0) {
+    const apps = await prisma.application.findMany({
+      where: { id: { in: [...new Set(appChecks.map((d) => d.applicationId as number))] }, ...ownedWhere.application(actor) } as any,
+      select: { id: true },
+    });
+    const ownedApps = new Set(apps.map((a) => a.id));
+    for (const doc of appChecks) if (ownedApps.has(doc.applicationId as number)) allowed.add(doc.id);
+  }
+  if (ownerChecks.length > 0) {
+    const users = await prisma.user.findMany({
+      where: {
+        id: { in: [...new Set(ownerChecks.map((d) => d.ownerId))] },
+        OR: [
+          { applications: { some: ownedWhere.application(actor) } },
+          { employee: { is: ownedWhere.employeePool(actor) } },
+          { applicantProfile: { is: { talentPoolMembership: { isNot: null } } } },
+        ],
+      } as any,
+      select: { id: true },
+    });
+    const visible = new Set(users.map((u) => u.id));
+    for (const doc of ownerChecks) if (visible.has(doc.ownerId)) allowed.add(doc.id);
+  }
+  return allowed;
+}
+
+// Batch form of resolveDocumentSignedUrl for lists. Result is index-aligned with the requests; anything the single
+// resolver would throw for (malformed, missing, unauthorized, storage failure, bad legacy URL) becomes null.
+// One metadata query, at most two authorization queries per requester, and one createSignedUrls call per bucket.
+export const resolveDocumentSignedUrls = async (
+  requests: DocumentUrlRequest[],
+  expiresInSeconds: number = 900
+): Promise<Array<string | null>> => {
+  const results: Array<string | null> = requests.map(() => null);
+  const ids = new Set<number>();
+  const paths = new Set<string>();
+  const lookups: Array<{ index: number; id?: number; path?: string }> = [];
+
+  requests.forEach((request, index) => {
+    const ref = request.ref;
+    if (!ref) return;
+    if (ref.startsWith("http://") || ref.startsWith("https://")) {
+      try {
+        results[index] = validateLegacyResumeUrl(ref).toString();
+      } catch {
+        results[index] = null;
+      }
+      return;
+    }
+    const match = ref.match(/^\/api\/documents\/(\d+)(?:\/download)?$/);
+    const docId = match ? Number(match[1]) : /^\d+$/.test(ref) ? Number(ref) : NaN;
+    if (Number.isSafeInteger(docId) && docId > 0) {
+      ids.add(docId);
+      lookups.push({ index, id: docId });
+    } else {
+      paths.add(ref);
+      lookups.push({ index, path: ref });
+    }
+  });
+  if (lookups.length === 0) return results;
+
+  const or: any[] = [];
+  if (ids.size > 0) or.push({ id: { in: [...ids] } });
+  if (paths.size > 0) or.push({ storagePath: { in: [...paths] } });
+  const docs = await prisma.storedDocument.findMany({ where: { OR: or } });
+  const byId = new Map(docs.map((d) => [d.id, d]));
+  const byPath = new Map<string, (typeof docs)[number]>();
+  for (const d of docs) if (!byPath.has(d.storagePath)) byPath.set(d.storagePath, d);
+
+  // Authorize each distinct requester once over the distinct documents they asked for.
+  const wanted = new Map<string, { requesterId: string; role: string; docs: Map<number, (typeof docs)[number]> }>();
+  const targets: Array<{ index: number; doc: (typeof docs)[number]; key: string }> = [];
+  for (const lookup of lookups) {
+    const doc = lookup.id !== undefined ? byId.get(lookup.id) : byPath.get(lookup.path as string);
+    if (!doc) continue;
+    const { requesterId, requesterRole = "APPLICANT" } = requests[lookup.index];
+    const key = `${requesterRole}:${requesterId}`;
+    if (!wanted.has(key)) wanted.set(key, { requesterId, role: requesterRole, docs: new Map() });
+    wanted.get(key)!.docs.set(doc.id, doc);
+    targets.push({ index: lookup.index, doc, key });
+  }
+  const readable = new Map<string, Set<number>>();
+  for (const [key, group] of wanted) {
+    try {
+      readable.set(key, await readableDocumentIds([...group.docs.values()], group.requesterId, group.role));
+    } catch {
+      readable.set(key, new Set());
+    }
+  }
+
+  // Sign each distinct bucket/path once.
+  const expiry = Math.min(900, Math.max(1, Math.trunc(expiresInSeconds) || 60));
+  const pathsByBucket = new Map<string, Set<string>>();
+  for (const { doc, key } of targets) {
+    if (!readable.get(key)?.has(doc.id)) continue;
+    if (!pathsByBucket.has(doc.storageBucket)) pathsByBucket.set(doc.storageBucket, new Set());
+    pathsByBucket.get(doc.storageBucket)!.add(doc.storagePath);
+  }
+  const signed = new Map<string, string>();
+  for (const [bucket, bucketPaths] of pathsByBucket) {
+    const list = [...bucketPaths];
+    try {
+      await ensureBucketExists(bucket);
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrls(list, expiry);
+      if (error || !data) continue;
+      data.forEach((entry, i) => {
+        const path = entry.path ?? list[i];
+        if (!entry.error && entry.signedUrl && path) signed.set(`${bucket}\u0000${path}`, entry.signedUrl);
+      });
+    } catch {
+      // Whole bucket failed: its rows stay null.
+    }
+  }
+  for (const { index, doc, key } of targets) {
+    if (!readable.get(key)?.has(doc.id)) continue;
+    results[index] = signed.get(`${doc.storageBucket}\u0000${doc.storagePath}`) ?? null;
+  }
+  return results;
+};
+
 

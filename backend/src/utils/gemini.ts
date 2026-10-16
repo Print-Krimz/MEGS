@@ -101,6 +101,31 @@ export const withGeminiCapacity = async <T>(request: () => Promise<T>): Promise<
   return result;
 };
 
+/**
+ * Embedding call with the same 10 s deadline as content generation. The signal is handed to
+ * the SDK so the request is cancelled on timeout, and the provider slot is released only
+ * after that abort. Timeouts are not retried (withProviderRetry rethrows TimeoutError).
+ */
+export const embedContentWithDeadline = (
+  params: { model: string; contents: any; config?: any },
+  timeoutMs: number = 10000,
+): Promise<any> => withGeminiCapacity(() => withProviderRetry(async () => {
+  const ai = getGeminiClient();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(Object.assign(new Error("AI processing timed out"), { name: "TimeoutError" })), timeoutMs);
+  try {
+    return await abortable(ai.models.embedContent({
+      ...params,
+      config: { ...params.config, abortSignal: controller.signal },
+    }), controller.signal);
+  } catch (error: any) {
+    if (controller.signal.aborted) throw Object.assign(new Error("AI processing timed out"), { name: "TimeoutError" });
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}));
+
 export const generateContentWithFallback = (
   params: { contents: any; config?: any }, timeoutMs = 10000,
 ): Promise<any> => withGeminiCapacity(() => generateUnqueued(params, timeoutMs));

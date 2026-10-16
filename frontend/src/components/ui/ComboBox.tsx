@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useId } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useId } from "react";
 import { ChevronDown, Check, X, Search, Loader2 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { FIELD_LIMITS, getInputTextLimit } from "../../lib/field-limits";
@@ -35,7 +35,32 @@ export interface ComboBoxProps {
   id?: string;
   leftIcon?: React.ReactNode;
   size?: "sm" | "md";
+  /**
+   * Opt-in windowed rendering for large, ungrouped lists: only the visible rows plus overscan are mounted.
+   * Ignored (normal rendering) when options are grouped or when allowCustom/loading is set.
+   */
+  windowed?: boolean;
 }
+
+/** Fixed row height (px) and overscan used by windowed mode; at most ~25 options are ever mounted. */
+const WINDOW_ROW_HEIGHT = 52;
+const WINDOW_OVERSCAN = 8;
+const WINDOW_VIEWPORT_FALLBACK = 240;
+
+interface IndexedOption {
+  opt: ComboBoxOption;
+  labelLower: string;
+  valueLower: string;
+  subtitleLower: string;
+  /** Normalized "value label subtitle" used for token matching. */
+  combinedNorm: string;
+  normValue: string;
+  normLabel: string;
+  /** Numeric part of "Barangay N" (value first, then label), or null. */
+  barangayNum: number | null;
+}
+
+const BARANGAY_NUMBER = /\bbarangay\s+0*(\d+)\b/i;
 
 const normalizeSearchText = (text: string): string => {
   return text
@@ -69,6 +94,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
   id: customId,
   leftIcon,
   size = "md",
+  windowed = false,
 }) => {
   const generatedId = useId();
   const inputId = customId || generatedId;
@@ -95,10 +121,32 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
+  // Searchable text and duplicate-value lookups are computed once per options change, not per keystroke.
+  const { indexed, valueIndices } = React.useMemo(() => {
+    const valueIndices = new Map<string, number[]>();
+    const indexed: IndexedOption[] = normalizedOptions.map((opt, i) => {
+      const list = valueIndices.get(opt.value);
+      if (list) list.push(i);
+      else valueIndices.set(opt.value, [i]);
+      const num = opt.value.match(BARANGAY_NUMBER)?.[1] ?? opt.label.match(BARANGAY_NUMBER)?.[1];
+      return {
+        opt,
+        labelLower: opt.label.toLowerCase(),
+        valueLower: opt.value.toLowerCase(),
+        subtitleLower: opt.subtitle?.toLowerCase() || "",
+        combinedNorm: normalizeSearchText(`${opt.value} ${opt.label} ${opt.subtitle || ""}`),
+        normValue: normalizeSearchText(opt.value),
+        normLabel: normalizeSearchText(opt.label),
+        barangayNum: num ? parseInt(num, 10) : null,
+      };
+    });
+    return { indexed, valueIndices };
+  }, [normalizedOptions]);
+
   // Find active option based on current value
   const selectedOption = React.useMemo(() => {
     if (!value) return null;
-    const matches = normalizedOptions.filter((opt) => opt.value === value);
+    const matches = (valueIndices.get(value) ?? []).map((i) => normalizedOptions[i]);
     if (matches.length === 1) return matches[0];
     if (matches.length > 1) {
       const matchByQuery = matches.find((opt) => {
@@ -110,13 +158,11 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
     // Fallback: normalized match (e.g. value is "Brgy 1", option value is "Barangay 1")
     const normValue = normalizeSearchText(value);
     if (normValue) {
-      const normMatch = normalizedOptions.find(
-        (opt) => normalizeSearchText(opt.value) === normValue || normalizeSearchText(opt.label) === normValue
-      );
-      if (normMatch) return normMatch;
+      const normMatch = indexed.find((item) => item.normValue === normValue || item.normLabel === normValue);
+      if (normMatch) return normMatch.opt;
     }
     return null;
-  }, [normalizedOptions, value, searchQuery]);
+  }, [normalizedOptions, indexed, valueIndices, value, searchQuery]);
 
   // Synchronize search input display with value
   useEffect(() => {
@@ -153,61 +199,73 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
     const numberOnly = rawQuery.match(/^0*(\d+)$/)?.[1];
     const numberQuery = numberOnly ? parseInt(numberOnly, 10) : null;
 
-    const matched = normalizedOptions.filter((opt) => {
+    const matched = indexed.filter((item) => {
+      const opt = item.opt;
       // 1. Exact 4-digit code match in search query (e.g. "1208--Valuen" matches option with value "1208")
       if (fourDigitMatch && opt.value === fourDigitMatch) {
         // If there are other non-numeric query tokens, check if at least one matches or prioritize
         const textTokens = queryTokens.filter((t) => t !== fourDigitMatch);
         if (textTokens.length === 0) return true;
-        const combinedNormalized = normalizeSearchText(`${opt.value} ${opt.label} ${opt.subtitle || ""}`);
-        const anyTextMatches = textTokens.some((t) => combinedNormalized.includes(t));
+        const anyTextMatches = textTokens.some((t) => item.combinedNorm.includes(t));
         // If text tokens match, or if this is the only option with that 4-digit code
-        if (anyTextMatches || normalizedOptions.filter((o) => o.value === fourDigitMatch).length === 1) {
+        if (anyTextMatches || valueIndices.get(fourDigitMatch)?.length === 1) {
           return true;
         }
       }
 
       // Exact number query matching option number (e.g. user typed "1", matches "Barangay 1" or "Brgy 1")
-      if (numberQuery !== null) {
-        const optNum = opt.value.match(/\bbarangay\s+0*(\d+)\b/i)?.[1] || opt.label.match(/\bbarangay\s+0*(\d+)\b/i)?.[1];
-        if (optNum && parseInt(optNum, 10) === numberQuery) {
-          return true;
-        }
+      if (numberQuery !== null && item.barangayNum === numberQuery) {
+        return true;
       }
 
-      const labelLower = opt.label.toLowerCase();
-      const valueLower = opt.value.toLowerCase();
-      const subtitleLower = opt.subtitle?.toLowerCase() || "";
-
       // 2. Direct substring match
-      if (labelLower.includes(q) || valueLower.includes(q) || subtitleLower.includes(q)) {
+      if (item.labelLower.includes(q) || item.valueLower.includes(q) || item.subtitleLower.includes(q)) {
         return true;
       }
 
       // 3. Normalized token matching (e.g. "1208 Valen" matches "1208 — Valenzuela", "brgy 1" matches "Barangay 1")
-      if (queryTokens.length > 0) {
-        const combinedNormalized = normalizeSearchText(`${opt.value} ${opt.label} ${opt.subtitle || ""}`);
-        const allTokensMatch = queryTokens.every((token) => combinedNormalized.includes(token));
-        if (allTokensMatch) return true;
+      if (queryTokens.length > 0 && queryTokens.every((token) => item.combinedNorm.includes(token))) {
+        return true;
       }
 
       return false;
     });
 
     if (numberQuery !== null) {
-      return [...matched].sort((a, b) => {
-        const aNum = a.value.match(/\bbarangay\s+0*(\d+)\b/i)?.[1] || a.label.match(/\bbarangay\s+0*(\d+)\b/i)?.[1];
-        const bNum = b.value.match(/\bbarangay\s+0*(\d+)\b/i)?.[1] || b.label.match(/\bbarangay\s+0*(\d+)\b/i)?.[1];
-        const aExact = aNum && parseInt(aNum, 10) === numberQuery;
-        const bExact = bNum && parseInt(bNum, 10) === numberQuery;
-        if (aExact && !bExact) return -1;
-        if (!aExact && bExact) return 1;
-        return 0;
-      });
+      return [...matched]
+        .sort((a, b) => {
+          const aExact = a.barangayNum === numberQuery;
+          const bExact = b.barangayNum === numberQuery;
+          if (aExact && !bExact) return -1;
+          if (!aExact && bExact) return 1;
+          return 0;
+        })
+        .map((item) => item.opt);
     }
 
-    return matched;
-  }, [normalizedOptions, searchQuery, selectedOption, allowCustom, value]);
+    return matched.map((item) => item.opt);
+  }, [normalizedOptions, indexed, valueIndices, searchQuery, selectedOption, allowCustom, value]);
+
+  // Windowing only applies to the large, ungrouped, non-custom list; everything else keeps the full render path.
+  const useWindow = windowed && !allowCustom && !loading && !filteredOptions.some((opt) => opt.group);
+  const [windowScrollTop, setWindowScrollTop] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Logical indices (into filteredOptions) to mount: visible rows + overscan, plus the active row so
+  // aria-activedescendant always points at a mounted element.
+  const renderIndices = React.useMemo(() => {
+    const total = filteredOptions.length;
+    if (!useWindow) return Array.from({ length: total }, (_, i) => i);
+    const first = Math.max(0, Math.floor(windowScrollTop / WINDOW_ROW_HEIGHT) - WINDOW_OVERSCAN);
+    const last = Math.min(
+      total - 1,
+      Math.ceil((windowScrollTop + WINDOW_VIEWPORT_FALLBACK) / WINDOW_ROW_HEIGHT) + WINDOW_OVERSCAN
+    );
+    const indices: number[] = [];
+    for (let i = first; i <= last; i++) indices.push(i);
+    if (highlightedIndex < total && (highlightedIndex < first || highlightedIndex > last)) indices.push(highlightedIndex);
+    return indices;
+  }, [useWindow, filteredOptions.length, windowScrollTop, highlightedIndex]);
 
   const handleSelectOption = (opt: ComboBoxOption) => {
     if (opt.disabled) return;
@@ -329,17 +387,29 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [isOpen, searchQuery, normalizedOptions, filteredOptions, selectedOption, allowCustom, value]);
 
-  // Scroll highlighted item into view
-  useEffect(() => {
-    if (isOpen && listRef.current) {
-      const items = listRef.current.querySelectorAll("li");
-      if (items[highlightedIndex] && typeof items[highlightedIndex].scrollIntoView === "function") {
-        items[highlightedIndex].scrollIntoView({
-          block: "nearest",
-        });
-      }
+  // Keep the highlighted option visible by scrolling the dropdown itself, never the surrounding document.
+  useLayoutEffect(() => {
+    const container = scrollRef.current;
+    if (!isOpen || !container) return;
+
+    if (useWindow) {
+      const viewport = container.clientHeight || WINDOW_VIEWPORT_FALLBACK;
+      const top = highlightedIndex * WINDOW_ROW_HEIGHT;
+      let next = container.scrollTop;
+      if (top < next) next = top;
+      else if (top + WINDOW_ROW_HEIGHT > next + viewport) next = top + WINDOW_ROW_HEIGHT - viewport;
+      if (next !== container.scrollTop) container.scrollTop = next;
+      setWindowScrollTop(next);
+      return;
     }
-  }, [highlightedIndex, isOpen]);
+
+    const item = document.getElementById(`${listId}-option-${highlightedIndex}`);
+    if (!item) return;
+    const itemRect = item.getBoundingClientRect();
+    const boxRect = container.getBoundingClientRect();
+    if (itemRect.top < boxRect.top) container.scrollTop -= boxRect.top - itemRect.top;
+    else if (itemRect.bottom > boxRect.bottom) container.scrollTop += itemRect.bottom - boxRect.bottom;
+  }, [highlightedIndex, isOpen, useWindow, filteredOptions, listId]);
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -420,7 +490,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
     if (!disabled) {
       setIsOpen(true);
       e.target.select();
-      const selectedIdx = normalizedOptions.findIndex((opt) => opt.value === value);
+      const selectedIdx = valueIndices.get(value)?.[0] ?? -1;
       setHighlightedIndex(selectedIdx >= 0 ? selectedIdx : 0);
     }
   };
@@ -428,7 +498,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
   const handleInputClick = () => {
     if (!disabled && !isOpen) {
       setIsOpen(true);
-      const selectedIdx = normalizedOptions.findIndex((opt) => opt.value === value);
+      const selectedIdx = valueIndices.get(value)?.[0] ?? -1;
       setHighlightedIndex(selectedIdx >= 0 ? selectedIdx : 0);
     }
   };
@@ -516,7 +586,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                   } else {
                     inputRef.current?.focus();
                     setIsOpen(true);
-                    const selectedIdx = normalizedOptions.findIndex((opt) => opt.value === value);
+                    const selectedIdx = valueIndices.get(value)?.[0] ?? -1;
                     setHighlightedIndex(selectedIdx >= 0 ? selectedIdx : 0);
                   }
                 }
@@ -537,14 +607,20 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
 
       {/* Dropdown Options Listbox */}
       {isOpen && !disabled && (
-        <div className="absolute z-[70] w-full mt-1 bg-white border border-slate-300 shadow-xl max-h-60 overflow-y-auto font-sans animate-fade-in text-xs">
+        <div
+          ref={scrollRef}
+          onScroll={useWindow ? (e) => setWindowScrollTop(e.currentTarget.scrollTop) : undefined}
+          className="absolute z-[70] w-full mt-1 bg-white border border-slate-300 shadow-xl max-h-60 overflow-y-auto font-sans animate-fade-in text-xs"
+        >
           <ul
             id={listId}
             role="listbox"
             ref={listRef}
-            className="divide-y divide-slate-100 py-0.5"
+            className={cn("divide-y divide-slate-100", useWindow ? "relative" : "py-0.5")}
+            style={useWindow ? { height: filteredOptions.length * WINDOW_ROW_HEIGHT } : undefined}
           >
-            {filteredOptions.map((opt, idx) => {
+            {renderIndices.map((idx) => {
+              const opt = filteredOptions[idx];
               const isSelected = opt.value === value;
               const isHighlighted = idx === highlightedIndex;
 
@@ -564,10 +640,14 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                   id={`${listId}-option-${idx}`}
                   role="option"
                   aria-selected={isSelected}
+                  aria-setsize={useWindow ? filteredOptions.length : undefined}
+                  aria-posinset={useWindow ? idx + 1 : undefined}
+                  style={useWindow ? { position: "absolute", top: idx * WINDOW_ROW_HEIGHT, left: 0, right: 0, height: WINDOW_ROW_HEIGHT } : undefined}
                   onMouseEnter={() => setHighlightedIndex(idx)}
                   onClick={() => handleSelectOption(opt)}
                   className={cn(
-                    "px-3 py-2.5 cursor-pointer flex items-center justify-between gap-2 transition-colors select-none",
+                    "px-3 cursor-pointer flex items-center justify-between gap-2 transition-colors select-none",
+                    useWindow ? "box-border overflow-hidden" : "py-2.5",
                     isHighlighted ? "bg-teal-50 text-teal-950" : "text-slate-800 hover:bg-slate-50",
                     opt.disabled && "opacity-50 cursor-not-allowed pointer-events-none"
                   )}

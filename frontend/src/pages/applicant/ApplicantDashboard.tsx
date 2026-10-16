@@ -1,13 +1,12 @@
 import React from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { applicantApi } from "../../lib/api/applicant.api";
 import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
 import {
   PageHeader,
   StatusBadge,
   EmptyState,
-  LoadingState,
   ErrorState,
 } from "../../components/common";
 import { formatDate, getTimeBasedGreeting, formatSalaryRange } from "../../lib/utils";
@@ -27,6 +26,67 @@ import {
   getApplicationRefetchInterval,
   INVITATION_POLL_MS,
 } from "../../lib/query-policies";
+
+function SectionData<T>({
+  query,
+  skeleton,
+  children,
+}: {
+  query: UseQueryResult<T>;
+  skeleton: React.ReactNode;
+  children: (data: T) => React.ReactNode;
+}) {
+  if (query.isError && !query.isFetching) {
+    return <ErrorState className="my-0 border-0" error={query.error} onRetry={() => { void query.refetch(); }} />;
+  }
+  if (query.isPending || query.isError) {
+    return (
+      <div role="status" aria-label="Loading section" className="motion-safe:animate-pulse">
+        {skeleton}
+        <span className="sr-only">Loading information</span>
+      </div>
+    );
+  }
+  return <>{children(query.data)}</>;
+}
+
+function listSkeleton(rows: number, rowClass = "h-[88px]") {
+  return (
+    <div className="divide-y divide-slate-200">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className={`${rowClass} p-5 space-y-2`}>
+          <div className="h-4 w-1/3 bg-slate-200" />
+          <div className="h-3 w-1/2 bg-slate-100" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function summarizeApplications(applicationData: unknown) {
+  const data = applicationData as
+    | any[]
+    | { items?: any[]; total?: number }
+    | undefined;
+  const applications: any[] = Array.isArray(data) ? data : data?.items ?? [];
+  const totalApps = Array.isArray(data) ? applications.length : data?.total ?? applications.length;
+  const activeApps = applications.filter(
+    (a) =>
+      a.status !== ApplicationStatus.DEPLOYED &&
+      a.status !== ApplicationStatus.ARCHIVED &&
+      a.status !== ApplicationStatus.BACKOUT &&
+      a.status !== ApplicationStatus.REJECTED &&
+      a.status !== ApplicationStatus.TALENT_POOL
+  ).length;
+  const interviewApps = applications.filter(
+    (a) =>
+      a.status === ApplicationStatus.INITIAL_SCREENING ||
+      a.status === ApplicationStatus.CLIENT_ENDORSEMENT ||
+      a.status === ApplicationStatus.FINAL_INTERVIEW
+  ).length;
+  const placedApps = applications.filter((a) => a.status === ApplicationStatus.DEPLOYED).length;
+  return { applications, totalApps, activeApps, interviewApps, placedApps };
+}
 
 export const ApplicantDashboard: React.FC = () => {
   const profileQuery = useQuery({
@@ -53,69 +113,12 @@ export const ApplicantDashboard: React.FC = () => {
     queryFn: ({ signal }) => applicantJobsApi.getJobsPage({ page: 1, limit: 4 }, { signal }),
   });
 
-  if (profileQuery.isLoading || applicationsQuery.isLoading) {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Candidate Portal"
-          description="Track your applications and recruitment milestones"
-        />
-        <LoadingState variant="cards" />
-        <LoadingState variant="table" rows={4} />
-      </div>
-    );
-  }
-
-  if (applicationsQuery.isError) {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Candidate Portal"
-          description="Track your applications and recruitment milestones"
-        />
-        <ErrorState
-          error={applicationsQuery.error}
-          onRetry={() => {
-            profileQuery.refetch();
-            applicationsQuery.refetch();
-          }}
-        />
-      </div>
-    );
-  }
-
   const profile = profileQuery.data || null;
-  const applicationData = applicationsQuery.data;
-  const applications = Array.isArray(applicationData) ? applicationData : applicationData?.items ?? [];
   const openJobs = Array.isArray(jobsQuery.data) ? jobsQuery.data : jobsQuery.data?.items ?? [];
   const openJobsTotal = Array.isArray(jobsQuery.data) ? jobsQuery.data.length : jobsQuery.data?.total ?? openJobs.length;
 
   const allInvitations = Array.isArray(invitationsQuery.data) ? invitationsQuery.data : [];
   const pendingInvitations = allInvitations.filter((inv) => inv.status === "PENDING");
-
-  // Metrics computation
-  const totalApps = Array.isArray(applicationData) ? applications.length : applicationData?.total ?? applications.length;
-  const activeApps = applications.filter(
-    (a) =>
-      a.status !== ApplicationStatus.DEPLOYED &&
-      a.status !== ApplicationStatus.ARCHIVED &&
-      a.status !== ApplicationStatus.BACKOUT &&
-      a.status !== ApplicationStatus.REJECTED &&
-      a.status !== ApplicationStatus.TALENT_POOL
-  ).length;
-  const interviewApps = applications.filter(
-    (a) =>
-      a.status === ApplicationStatus.INITIAL_SCREENING ||
-      a.status === ApplicationStatus.CLIENT_ENDORSEMENT ||
-      a.status === ApplicationStatus.FINAL_INTERVIEW
-  ).length;
-  const placedApps = applications.filter(
-    (a) => a.status === ApplicationStatus.DEPLOYED
-  ).length;
-
-  // Profile readiness computed via unified profile health engine
-  const profileHealth = computeProfileHealth(profile);
-  const readinessPercent = profileHealth.score;
 
   return (
     <div className="space-y-6">
@@ -170,104 +173,141 @@ export const ApplicantDashboard: React.FC = () => {
       )}
 
       {/* Digital Resume Readiness Card */}
-      <div className="bg-white border border-slate-200 p-5 rounded-md">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Digital Resume Readiness:
-              </span>
-              <span className="text-sm font-black font-mono text-slate-900">
-                {readinessPercent}%
-              </span>
-              <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-900 border border-slate-200 text-[10px] font-mono font-bold uppercase rounded-md">
-                {profileHealth.tier}
-              </span>
+      <div className="bg-white border border-slate-200 p-5 rounded-md min-h-[148px]">
+        <SectionData
+          query={profileQuery}
+          skeleton={
+            <div className="space-y-3">
+              <div className="h-4 w-1/2 bg-slate-200" />
+              <div className="h-3 w-3/4 bg-slate-100" />
+              <div className="h-2 w-full bg-slate-100 rounded-full" />
+              <div className="h-3 w-1/3 bg-slate-100" />
             </div>
-            <p className="text-xs text-slate-500">
-              Complete your profile to increase visibility to recruiters and partner employers.
-            </p>
-          </div>
-          <Link
-            to="/app/profile"
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-900 hover:text-slate-950 hover:bg-slate-100 rounded-md transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
-          >
-            <span>{readinessPercent >= 100 ? "View Profile" : "Complete Profile"}</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+          }
+        >
+          {(profileData) => {
+            const profileHealth = computeProfileHealth(profileData || null);
+            const readinessPercent = profileHealth.score;
+            return (
+              <>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Digital Resume Readiness:
+                  </span>
+                  <span className="text-sm font-black font-mono text-slate-900">
+                    {readinessPercent}%
+                  </span>
+                  <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-900 border border-slate-200 text-[10px] font-mono font-bold uppercase rounded-md">
+                    {profileHealth.tier}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Complete your profile to increase visibility to recruiters and partner employers.
+                </p>
+              </div>
+              <Link
+                to="/app/profile"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-900 hover:text-slate-950 hover:bg-slate-100 rounded-md transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+              >
+                <span>{readinessPercent >= 100 ? "View Profile" : "Complete Profile"}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
 
-        <div className="w-full bg-slate-100 h-2 border border-slate-200 overflow-hidden rounded-full my-3">
-          <div
-            className="h-full bg-slate-900 transition-all duration-300 rounded-full"
-            style={{ width: `${readinessPercent}%` }}
-            role="progressbar"
-            aria-valuenow={readinessPercent}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          />
-        </div>
+            <div className="w-full bg-slate-100 h-2 border border-slate-200 overflow-hidden rounded-full my-3">
+              <div
+                className="h-full bg-slate-900 transition-all duration-300 rounded-full"
+                style={{ width: `${readinessPercent}%` }}
+                role="progressbar"
+                aria-valuenow={readinessPercent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              />
+            </div>
 
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          {readinessPercent >= 100 ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-          )}
-          <span>{profileHealth.nextActionTip}</span>
-        </div>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              {readinessPercent >= 100 ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+              )}
+              <span>{profileHealth.nextActionTip}</span>
+            </div>
+              </>
+            );
+          }}
+        </SectionData>
       </div>
 
       {/* 4-Segment Operational Metrics Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-md border border-slate-200">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Applications
+      <SectionData
+        query={applicationsQuery}
+        skeleton={
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white p-5 rounded-md border border-slate-200 h-[116px] space-y-2">
+                <div className="h-3 w-1/2 bg-slate-200" />
+                <div className="h-8 w-12 bg-slate-200" />
+                <div className="h-3 w-3/4 bg-slate-100" />
+              </div>
+            ))}
           </div>
-          <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-1 tabular-nums">
-            {totalApps}
+        }
+      >
+        {(applicationData) => {
+          const { totalApps, activeApps, interviewApps, placedApps } = summarizeApplications(applicationData);
+          return (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-md border border-slate-200">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Applications
+              </div>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-1 tabular-nums">
+                {totalApps}
+              </div>
+              <div className="text-xs text-slate-500 mt-1">
+                Total submissions
+              </div>
+            </div>
+            <div className="bg-white p-5 rounded-md border border-slate-200">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                In Progress
+              </div>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-1 tabular-nums">
+                {activeApps}
+              </div>
+              <div className="text-xs text-slate-500 mt-1">
+                Under recruiter evaluation
+              </div>
+            </div>
+            <div className="bg-white p-5 rounded-md border border-slate-200">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Interviews
+              </div>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-purple-700 mt-1 tabular-nums">
+                {interviewApps}
+              </div>
+              <div className="text-xs text-slate-500 mt-1">
+                Screening & client sessions
+              </div>
+            </div>
+            <div className="bg-white p-5 rounded-md border border-slate-200">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Placed
+              </div>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 mt-1 tabular-nums">
+                {placedApps}
+              </div>
+              <div className="text-xs text-slate-500 mt-1">
+                Successfully deployed
+              </div>
+            </div>
           </div>
-          <div className="text-xs text-slate-500 mt-1">
-            Total submissions
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-md border border-slate-200">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            In Progress
-          </div>
-          <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-1 tabular-nums">
-            {activeApps}
-          </div>
-          <div className="text-xs text-slate-500 mt-1">
-            Under recruiter evaluation
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-md border border-slate-200">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Interviews
-          </div>
-          <div className="text-2xl sm:text-3xl font-black font-mono text-purple-700 mt-1 tabular-nums">
-            {interviewApps}
-          </div>
-          <div className="text-xs text-slate-500 mt-1">
-            Screening & client sessions
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-md border border-slate-200">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Placed
-          </div>
-          <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 mt-1 tabular-nums">
-            {placedApps}
-          </div>
-          <div className="text-xs text-slate-500 mt-1">
-            Successfully deployed
-          </div>
-        </div>
-      </div>
+          );
+        }}
+      </SectionData>
 
       {/* Recent Applications Section */}
       <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
@@ -284,78 +324,85 @@ export const ApplicantDashboard: React.FC = () => {
             to="/app/applications"
             className="text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline"
           >
-            View All ({applications.length})
+            {applicationsQuery.data ? `View All (${summarizeApplications(applicationsQuery.data).applications.length})` : "View All"}
           </Link>
         </div>
 
-        {applications.length === 0 ? (
-          <div className="p-8">
-            <EmptyState
-              icon={<Briefcase className="w-6 h-6 text-slate-400" />}
-              title="No applications yet"
-              description="Explore current verified job requisitions and submit your application with one click."
-              action={
-                <Link
-                  to="/app/jobs"
-                  className="inline-flex min-h-10 items-center justify-center rounded-md bg-slate-900 hover:bg-slate-950 px-4 text-xs sm:text-sm font-medium text-white transition-colors"
-                >
-                  Browse Open Jobs
-                </Link>
-              }
-            />
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-200">
-            {applications.slice(0, 5).map((app) => {
-              const clientName = (app.jobPosting as any)?.mrf?.client?.name || "Verified Client";
-              return (
-                <div
-                  key={app.id}
-                  className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50 transition-colors"
-                >
-                  <div className="space-y-1.5 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-slate-900">
-                        {app.jobPosting?.title || "Job Opening"}
-                      </span>
-                      <StatusBadge status={app.status} audience="applicant" size="sm" />
-                    </div>
-                    <div className="text-xs text-slate-500 flex flex-wrap items-center gap-3">
-                      <span className="flex items-center gap-1 font-medium text-slate-900">
-                        <Building className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{clientName}</span>
-                      </span>
-                      {app.jobPosting?.location && (
-                        <span className="flex items-center gap-1 text-slate-500">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{app.jobPosting.location}</span>
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1 text-slate-500">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Applied {formatDate(app.createdAt)}</span>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
+        <SectionData query={applicationsQuery} skeleton={listSkeleton(3)}>
+          {(applicationData) => {
+            const { applications } = summarizeApplications(applicationData);
+            return (
+            applications.length === 0 ? (
+              <div className="p-8">
+                <EmptyState
+                  icon={<Briefcase className="w-6 h-6 text-slate-400" />}
+                  title="No applications yet"
+                  description="Explore current verified job requisitions and submit your application with one click."
+                  action={
                     <Link
-                      to="/app/applications"
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-950 px-3.5 text-xs font-medium text-slate-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+                      to="/app/jobs"
+                      className="inline-flex min-h-10 items-center justify-center rounded-md bg-slate-900 hover:bg-slate-950 px-4 text-xs sm:text-sm font-medium text-white transition-colors"
                     >
-                      <span>Track Status</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      Browse Open Jobs
                     </Link>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                  }
+                />
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-200">
+                {applications.slice(0, 5).map((app) => {
+                  const clientName = (app.jobPosting as any)?.mrf?.client?.name || "Verified Client";
+                  return (
+                    <div
+                      key={app.id}
+                      className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-900">
+                            {app.jobPosting?.title || "Job Opening"}
+                          </span>
+                          <StatusBadge status={app.status} audience="applicant" size="sm" />
+                        </div>
+                        <div className="text-xs text-slate-500 flex flex-wrap items-center gap-3">
+                          <span className="flex items-center gap-1 font-medium text-slate-900">
+                            <Building className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{clientName}</span>
+                          </span>
+                          {app.jobPosting?.location && (
+                            <span className="flex items-center gap-1 text-slate-500">
+                              <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{app.jobPosting.location}</span>
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1 text-slate-500">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Applied {formatDate(app.createdAt)}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        <Link
+                          to="/app/applications"
+                          className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-950 px-3.5 text-xs font-medium text-slate-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+                        >
+                          <span>Track Status</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+            );
+          }}
+        </SectionData>
       </div>
 
       {/* Recommended Open Jobs Preview */}
-      {openJobs.length > 0 && (
+      {(jobsQuery.isPending || jobsQuery.isError || openJobs.length > 0) && (
         <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
           <div className="p-5 border-b border-slate-200 flex items-center justify-between">
             <div>
@@ -370,66 +417,70 @@ export const ApplicantDashboard: React.FC = () => {
               to="/app/jobs"
               className="text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline"
             >
-              Browse All ({openJobsTotal})
+              {jobsQuery.data ? `Browse All (${openJobsTotal})` : "Browse All"}
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200">
-            {openJobs.slice(0, 4).map((job) => {
-              const clientName = (job as any)?.mrf?.client?.name || "Verified Client";
-              return (
-                <div
-                  key={job.id}
-                  className="p-5 flex flex-col justify-between hover:bg-slate-50 transition-colors space-y-3"
-                >
-                  <div className="space-y-1.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="text-sm sm:text-base font-bold text-slate-900 hover:text-slate-700 transition-colors leading-snug">
-                        {job.title}
-                      </h4>
-                      <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                        Open
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      <span className="font-medium text-slate-900">{clientName}</span>
-                      <span className="text-slate-300">•</span>
-                      <span>{job.location || "Philippines"}</span>
-                      {((job as any)?.mrf?.salaryRangeMin || (job as any)?.mrf?.salaryRangeMax) ? (
-                        <>
-                          <span className="text-slate-300">•</span>
-                          <span className="font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md text-[11px] border border-emerald-200">
-                            {formatSalaryRange((job as any).mrf.salaryRangeMin, (job as any).mrf.salaryRangeMax)}
-                          </span>
-                        </>
-                      ) : null}
-                    </div>
-
-                    {job.description && (
-                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                        {job.description}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-500">
-                      Posted {formatDate(job.createdAt)}
-                    </span>
-                    <Link
-                      to="/app/jobs/$jobId"
-                      params={{ jobId: String(job.id) }}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 rounded-md"
+          <SectionData query={jobsQuery} skeleton={listSkeleton(2, "h-[120px]")}>
+            {() => (
+              <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200">
+                {openJobs.slice(0, 4).map((job) => {
+                  const clientName = (job as any)?.mrf?.client?.name || "Verified Client";
+                  return (
+                    <div
+                      key={job.id}
+                      className="p-5 flex flex-col justify-between hover:bg-slate-50 transition-colors space-y-3"
                     >
-                      <span>View Details</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="text-sm sm:text-base font-bold text-slate-900 hover:text-slate-700 transition-colors leading-snug">
+                            {job.title}
+                          </h4>
+                          <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                            Open
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <span className="font-medium text-slate-900">{clientName}</span>
+                          <span className="text-slate-300">•</span>
+                          <span>{job.location || "Philippines"}</span>
+                          {((job as any)?.mrf?.salaryRangeMin || (job as any)?.mrf?.salaryRangeMax) ? (
+                            <>
+                              <span className="text-slate-300">•</span>
+                              <span className="font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md text-[11px] border border-emerald-200">
+                                {formatSalaryRange((job as any).mrf.salaryRangeMin, (job as any).mrf.salaryRangeMax)}
+                              </span>
+                            </>
+                          ) : null}
+                        </div>
+
+                        {job.description && (
+                          <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                            {job.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+                        <span className="text-[11px] text-slate-500">
+                          Posted {formatDate(job.createdAt)}
+                        </span>
+                        <Link
+                          to="/app/jobs/$jobId"
+                          params={{ jobId: String(job.id) }}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 rounded-md"
+                        >
+                          <span>View Details</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </SectionData>
         </div>
       )}
     </div>

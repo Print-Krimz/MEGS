@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { lazy, Suspense, useState, useRef, useEffect } from "react";
 import { Link, Outlet } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -14,11 +14,15 @@ import {
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
-import { NotificationBell, RealtimeToastContainer, SignOutDialog, ChangePasswordModal } from "../components/common";
+import { NotificationBell, RealtimeToastContainer, SignOutDialog } from "../components/common";
 import { getInitials } from "../lib/utils";
 import { applicantApi } from "../lib/api/applicant.api";
 
 import { normalizeTitleCase } from "../lib/text-case";
+
+const ChangePasswordModal = lazy(() =>
+  import("../components/common/ChangePasswordModal").then((m) => ({ default: m.ChangePasswordModal })),
+);
 
 export const ApplicantLayout: React.FC = () => {
   const { user } = useAuth();
@@ -335,10 +339,11 @@ export const ApplicantLayout: React.FC = () => {
       />
 
       {/* Account Security / Change Password Dialog */}
-      <ChangePasswordModal
-        open={showChangePasswordModal}
-        onClose={() => setShowChangePasswordModal(false)}
-      />
+      {showChangePasswordModal && (
+        <Suspense fallback={null}>
+          <ChangePasswordModal open onClose={() => setShowChangePasswordModal(false)} />
+        </Suspense>
+      )}
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-6 px-4 text-center text-xs text-slate-500">

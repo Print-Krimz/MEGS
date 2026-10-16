@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { listRedeploymentQueueHandler, listRedeploymentSuggestionsHandler, updateRedeploymentFollowUpHandler } from "../../controllers/employee/employee.controller.js";
+import { getRedeploymentQueueSummaryHandler, listRedeploymentQueueHandler, listRedeploymentSuggestionsHandler, updateRedeploymentFollowUpHandler } from "../../controllers/employee/employee.controller.js";
 import { authenticateJWT, requireRole } from "../../middleware/auth.middleware.js";
 import { validate } from "../../middleware/validate.middleware.js";
 import { requireOwned, requireOwnedBody } from "../../services/ta/ownership.js";
@@ -36,8 +36,10 @@ router.post(
 
 // Employee list & filtering (Redeployment Pool vs Active)
 router.get("/credential-alerts", requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"), listEmployeeCredentialAlertsHandler);
-router.get("/redeployment-queue", requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"), listRedeploymentQueueHandler);
-router.get("/redeployment-queue/suggestions", requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"), listRedeploymentSuggestionsHandler);
+// Static routes stay above every "/:id" route.
+router.get("/redeployment-queue", requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"), validate(employeeSchema.redeploymentQueue), listRedeploymentQueueHandler);
+router.get("/redeployment-queue/summary", requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"), validate(employeeSchema.redeploymentSummary), getRedeploymentQueueSummaryHandler);
+router.get("/redeployment-queue/suggestions", requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"), validate(employeeSchema.redeploymentSuggestions), listRedeploymentSuggestionsHandler);
 router.patch("/:id/redeployment", requireRole("TALENT_ACQUISITION", "ADMINISTRATOR"), validate(employeeSchema.updateRedeployment), requireOwned("employeePool"), updateRedeploymentFollowUpHandler);
 
 router.get(

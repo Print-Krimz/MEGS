@@ -1,12 +1,13 @@
 import prisma from "../../utils/prisma.js";
 import { rethrowPlacementConflict } from "../employee/placement-conflict.js";
-import { DeploymentStatus } from "@prisma/client";
+import { DeploymentStatus, type Prisma } from "@prisma/client";
 import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
 import { logAudit } from "../../utils/audit.js";
 import { sendNotification } from "../../utils/notification.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 import { PIPELINE_STAGE_ORDER } from "./pipeline-rules.js";
 import { assertOwns, ownedWhere, type Actor } from "./ownership.js";
+import { isPageRequested, pageEnvelope, resolvePage, type PageRequest } from "../../utils/pagination.js";
 import {
   calculateMRFFulfillment,
   syncMRFFulfillmentStatus,
@@ -424,38 +425,84 @@ export const autoPromoteDeployments = async () => {
   // deployment or employment status.
 };
 
-export const listDeployments = async (clientId?: number, status?: string, actor?: Actor) => {
+export interface DeploymentListOptions extends PageRequest {
+  search?: string;
+}
+
+const DEPLOYMENT_LIST_INCLUDE = {
+  employee: {
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          applicantProfile: { select: { firstName: true, lastName: true, mobileNumber: true } },
+        },
+      },
+    },
+  },
+  application: {
+    include: {
+      jobPosting: { select: { id: true, title: true } },
+    },
+  },
+  client: { select: { id: true, name: true, industry: true } },
+  mrf: { select: { id: true, title: true } },
+  createdBy: { select: { id: true, email: true } },
+} satisfies Prisma.DeploymentInclude;
+
+// Same fields the Deployments screen has always searched: worker name, email, number, site, client, and role.
+const deploymentSearchClause = (search: string): Prisma.DeploymentWhereInput => {
+  const contains = (value: string) => ({ contains: value, mode: "insensitive" as const });
+  const profileMatches = (value: string): Prisma.ApplicantProfileWhereInput => ({ OR: [{ firstName: contains(value) }, { lastName: contains(value) }] });
+  const tokens = search.split(/\s+/).filter(Boolean);
+  return {
+    OR: [
+      { employee: { is: { user: { is: { applicantProfile: { is: profileMatches(search) } } } } } },
+      { application: { is: { user: { is: { applicantProfile: { is: profileMatches(search) } } } } } },
+      ...(tokens.length > 1
+        ? [
+            { employee: { is: { user: { is: { AND: tokens.map((token) => ({ applicantProfile: { is: profileMatches(token) } })) } } } } },
+            { application: { is: { user: { is: { AND: tokens.map((token) => ({ applicantProfile: { is: profileMatches(token) } })) } } } } },
+          ]
+        : []),
+      { employee: { is: { user: { is: { email: contains(search) } } } } },
+      { application: { is: { user: { is: { email: contains(search) } } } } },
+      { employee: { is: { employeeNumber: contains(search) } } },
+      { site: contains(search) },
+      { client: { is: { name: contains(search) } } },
+      { application: { is: { jobPosting: { is: { title: contains(search) } } } } },
+      { mrf: { is: { title: contains(search) } } },
+    ],
+  };
+};
+
+export const listDeployments = async (clientId?: number, status?: string, actor?: Actor, options: DeploymentListOptions = {}) => {
   await autoPromoteDeployments();
 
-  const where: any = actor ? { ...ownedWhere.deployment(actor) } : {};
+  const where: Prisma.DeploymentWhereInput = actor ? { ...ownedWhere.deployment(actor) } : {};
   if (clientId) where.clientId = clientId;
-  if (status) where.status = status as DeploymentStatus;
+  if (status === "ENDED_REDEPLOYMENT" || status === "ENDED_SEPARATED") {
+    where.status = "ENDED";
+    where.employee = { is: { status: status === "ENDED_REDEPLOYMENT" ? "AVAILABLE_FOR_REDEPLOYMENT" : "SEPARATED" } };
+  } else if (status) {
+    where.status = status as DeploymentStatus;
+  }
+  const search = options.search?.trim();
+  if (search) where.AND = [deploymentSearchClause(search)];
 
-  return await prisma.deployment.findMany({
-    where,
-    include: {
-      employee: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              applicantProfile: { select: { firstName: true, lastName: true, mobileNumber: true } },
-            },
-          },
-        },
-      },
-      application: {
-        include: {
-          jobPosting: { select: { id: true, title: true } },
-        },
-      },
-      client: { select: { id: true, name: true, industry: true } },
-      mrf: { select: { id: true, title: true } },
-      createdBy: { select: { id: true, email: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const orderBy: Prisma.DeploymentOrderByWithRelationInput[] = [{ createdAt: "desc" }, { id: "desc" }];
+
+  if (isPageRequested(options)) {
+    const { page, pageSize, skip, take } = resolvePage(options);
+    const [items, total] = await Promise.all([
+      prisma.deployment.findMany({ where, include: DEPLOYMENT_LIST_INCLUDE, orderBy, skip, take }),
+      prisma.deployment.count({ where }),
+    ]);
+    return pageEnvelope(items, total, page, pageSize);
+  }
+
+  return await prisma.deployment.findMany({ where, include: DEPLOYMENT_LIST_INCLUDE, orderBy });
 };
 
 export const getDeploymentDetails = async (id: number) => {

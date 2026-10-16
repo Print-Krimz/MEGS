@@ -1,28 +1,29 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LoadingState, ErrorState, EmptyState, Pagination } from "../../components/common";
 import { Button, ComboBox, Dialog, Input, Textarea } from "../../components/ui";
 import {
   employeesApi,
   type RedeploymentJobSuggestion,
-  type RedeploymentQueueResponse,
+  type RedeploymentQueuePageResponse,
   type RedeploymentStage,
 } from "../../lib/api/employees.api";
 import { taApi } from "../../lib/api/ta.api";
 import { formatDate, getApplicationStatusMeta } from "../../lib/utils";
 import { notify } from "../../lib/feedback";
-import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
+import { REFERENCE_QUERY_STALE_TIME_MS, SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 
-type Row = RedeploymentQueueResponse["items"][number];
+type Row = RedeploymentQueuePageResponse["items"][number];
 
 const STAGES: Array<{ id: RedeploymentStage; label: string; hint: string }> = [
   { id: "NEEDS_PLACEMENT", label: "Needs placement", hint: "No application or invitation yet" },
   { id: "WAITING_FOR_REPLY", label: "Waiting for reply", hint: "Invited, worker has not answered" },
   { id: "IN_PROGRESS", label: "Already applying", hint: "In a hiring pipeline" },
 ];
-const STAGE_ORDER: Record<RedeploymentStage, number> = { NEEDS_PLACEMENT: 0, WAITING_FOR_REPLY: 1, IN_PROGRESS: 2 };
 const LONG_WAIT_DAYS = 14;
+const PAGE_SIZE = 10;
 
 const daysSince = (value: string | null) =>
   value ? Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000)) : null;
@@ -127,24 +128,42 @@ export const RedeploymentQueuePage: React.FC = () => {
   const [targetJobId, setTargetJobId] = useState("");
   const [assignmentMessage, setAssignmentMessage] = useState("");
 
+  const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
+
+  // The server filters, orders, and pages the queue, and returns stage counts for the whole queue.
   const query = useQuery({
-    queryKey: ["ta", "redeployment-queue"],
-    queryFn: employeesApi.getRedeploymentQueue,
+    queryKey: ["ta", "redeployment-queue", "page", { page, stage: stageFilter, search: debouncedSearch }],
+    queryFn: ({ signal }) =>
+      employeesApi.getRedeploymentQueuePage({ page, pageSize: PAGE_SIZE, search: debouncedSearch || undefined, stage: stageFilter }, { signal }),
+    placeholderData: keepPreviousData,
   });
 
-  // Separate request: the first run analyses every open job, so it can take a few seconds.
+  const pageItems = query.data?.items ?? [];
+  const totalItems = query.data?.total ?? 0;
+  const totalPages = Math.max(1, query.data?.totalPages ?? 1);
+  const visibleEmployeeIds = pageItems.map((row) => row.id);
+
+  // Separate request: scores only the workers on this page, so it stays small as the queue grows.
   const suggestionsQuery = useQuery({
-    queryKey: ["ta", "redeployment-suggestions"],
-    queryFn: employeesApi.getRedeploymentSuggestions,
+    queryKey: ["ta", "redeployment-suggestions", { employeeIds: visibleEmployeeIds.join(",") }],
+    queryFn: ({ signal }) => employeesApi.getRedeploymentSuggestions(visibleEmployeeIds, { signal }),
+    enabled: visibleEmployeeIds.length > 0 && !query.isPlaceholderData,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 
+  // Open jobs are only needed once a worker is chosen for assignment.
   const openJobsQuery = useQuery({
     queryKey: ["ta", "redeployment-open-jobs"],
     queryFn: () => taApi.listJobs({ status: "OPEN" }),
+    enabled: Boolean(assignmentTarget),
     staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
+
+  // A refresh can leave the current page past the end (for example after an assignment is sent).
+  useEffect(() => {
+    if (query.data && !query.isPlaceholderData && page > totalPages) setPage(totalPages);
+  }, [query.data, query.isPlaceholderData, page, totalPages]);
 
   const assignRole = useMutation({
     mutationFn: () =>
@@ -215,26 +234,7 @@ export const RedeploymentQueuePage: React.FC = () => {
     setAssignmentMessage("");
   };
 
-  const allItems = query.data?.items || [];
-  const counts = STAGES.reduce(
-    (acc, stage) => ({ ...acc, [stage.id]: allItems.filter((row) => row.stage === stage.id).length }),
-    {} as Record<RedeploymentStage, number>
-  );
-  // Needs placement first, then longest-waiting first within each group.
-  const items = allItems
-    .filter((row) => !stageFilter || row.stage === stageFilter)
-    .filter((row) =>
-      `${row.name} ${row.employeeNumber} ${row.previousClient || ""} ${row.previousRole || ""}`
-        .toLowerCase()
-        .includes(search.toLowerCase())
-    )
-    .sort(
-      (a, b) =>
-        STAGE_ORDER[a.stage] - STAGE_ORDER[b.stage] ||
-        (daysSince(b.waitingSince) ?? -1) - (daysSince(a.waitingSince) ?? -1)
-    );
-  const pageItems = items.slice((page - 1) * 10, page * 10);
-  const pages = Math.max(1, Math.ceil(items.length / 10));
+  const counts: Record<RedeploymentStage, number> = query.data?.summary.stages ?? { NEEDS_PLACEMENT: 0, WAITING_FOR_REPLY: 0, IN_PROGRESS: 0 };
 
   return (
     <div className="space-y-4">
@@ -279,7 +279,7 @@ export const RedeploymentQueuePage: React.FC = () => {
           setPage(1);
         }}
       />
-      {!items.length ? (
+      {!pageItems.length ? (
         <EmptyState
           title={stageFilter || search ? "No workers match this view" : "No workers waiting for redeployment"}
           description={
@@ -336,7 +336,7 @@ export const RedeploymentQueuePage: React.FC = () => {
                     ) : (
                       <SuggestedJobs
                         data={suggestionsQuery.data?.items[row.id]}
-                        loading={suggestionsQuery.isLoading}
+                        loading={suggestionsQuery.isPending}
                         failed={suggestionsQuery.isError}
                         onRetry={() => suggestionsQuery.refetch()}
                         onPick={(jobId) => openAssignment(row, jobId)}
@@ -385,13 +385,13 @@ export const RedeploymentQueuePage: React.FC = () => {
           </table>
         </div>
       )}
-      {items.length > 10 && (
+      {totalItems > PAGE_SIZE && (
         <Pagination
           currentPage={page}
-          totalPages={pages}
+          totalPages={totalPages}
           onPageChange={setPage}
-          totalItems={items.length}
-          pageSize={10}
+          totalItems={totalItems}
+          pageSize={PAGE_SIZE}
         />
       )}
       <Dialog

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { lazy, Suspense, useState, useRef, useEffect } from "react";
 import { Link, Outlet } from "@tanstack/react-router";
 import {
   ShieldAlert,
@@ -22,10 +22,13 @@ import {
   NotificationBell,
   RealtimeToastContainer,
   SignOutDialog,
-  ChangePasswordModal,
 } from "../components/common";
 import { getInitials } from "../lib/utils";
 import "./admin.css";
+
+const ChangePasswordModal = lazy(() =>
+  import("../components/common/ChangePasswordModal").then((m) => ({ default: m.ChangePasswordModal })),
+);
 
 interface NavSection {
   label: string;
@@ -470,10 +473,11 @@ export const AdminLayout: React.FC = () => {
         </header>
 
         {/* Account Security / Change Password Dialog */}
-        <ChangePasswordModal
-          open={showChangePasswordModal}
-          onClose={() => setShowChangePasswordModal(false)}
-        />
+        {showChangePasswordModal && (
+          <Suspense fallback={null}>
+            <ChangePasswordModal open onClose={() => setShowChangePasswordModal(false)} />
+          </Suspense>
+        )}
 
         {/* Content Container */}
         <main id="admin-main-content" tabIndex={-1} className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto min-w-0">

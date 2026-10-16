@@ -5,25 +5,25 @@ import { cn } from "../../lib/shadcn-utils";
 
 const TILES = [
   {
-    src: "/images/canva-ref/industries/thumbs/warehousing.jpg",
+    src: "/images/canva-ref/industries/thumbs/warehousing.webp",
     label: "Warehousing",
     alt: "Forklift operator moving pallets in a warehouse",
     pos: "object-[22%_72%]",
   },
   {
-    src: "/images/canva-ref/industries/thumbs/casino.jpg",
+    src: "/images/canva-ref/industries/thumbs/casino.webp",
     label: "Gaming",
     alt: "Casino staff and players at a roulette table",
     pos: "object-[50%_30%]",
   },
   {
-    src: "/images/canva-ref/industries/thumbs/retail.jpg",
+    src: "/images/canva-ref/industries/thumbs/retail.webp",
     label: "Retail",
     alt: "Shopper walking down a supermarket aisle",
     pos: "object-[58%_58%]",
   },
   {
-    src: "/images/canva-ref/industries/thumbs/hospitality.jpg",
+    src: "/images/canva-ref/industries/thumbs/hospitality.webp",
     label: "Hospitality",
     alt: "Guests dining at a restaurant table",
     pos: "object-[48%_55%]",

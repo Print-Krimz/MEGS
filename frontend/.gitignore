@@ -44,5 +44,8 @@ playwright.config.ts
 tests/
 
 # Scripts & temporary tools
-scripts/
+# The bundle-budget check is tracked on purpose; other scripts stay local.
+!scripts/
+scripts/*
+!scripts/measure-bundle.mjs
 .impeccable/

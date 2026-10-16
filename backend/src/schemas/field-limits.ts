@@ -289,6 +289,8 @@ export const finiteNumber = (options: {
 export const boundedId = finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true });
 export const boundedIdText = z.string().regex(/^\d{1,10}$/).refine((value) => Number(value) >= 1 && Number(value) <= FIELD_LIMITS.integerId, "ID is outside the supported range");
 export const boundedPageSize = finiteNumber({ min: 1, max: FIELD_LIMITS.pageSize, integer: true });
+/** Opt-in pagination query fields. Omitting both keeps the legacy full-list response. */
+export const pageQueryFields = { page: boundedId.optional(), pageSize: boundedPageSize.optional() };
 
 export const DATE_ONLY_MIN = "1900-01-01";
 export const DATE_ONLY_MAX = "2100-12-31";
