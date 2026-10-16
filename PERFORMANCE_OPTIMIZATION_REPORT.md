@@ -261,6 +261,24 @@ Method: applicant dashboard to Jobs and back by clicking nav links, 100 cycles, 
 | 9 | Accessibility | Pass. Windowed list keeps `aria-setsize`/`aria-posinset` and an always-mounted active row. The hidden banner copy is `aria-hidden` and not focusable. |
 | 10 | Responsive layout | Pass in code review. Skeleton uses the same responsive padding as loaded tiles. Mobile viewport was not measured with the harness. |
 
+### Development database check (October 16, 2026)
+
+The user authorized this check against the development database. A read-only script called the backend services directly, without starting the server, and compared old and new results. The script is `backend/scripts/perf-db-parity.ts`, which is local-only under the scripts ignore rule.
+
+| Check | Result |
+| --- | --- |
+| MRF pagination: 4 sorts, search, status, 2 actors | Pass (24) |
+| Deployment pagination: 10 statuses incl. `ENDED_REDEPLOYMENT`/`ENDED_SEPARATED`, search | Pass (80) |
+| Interview compliance pagination: summary, positions, all sorts and filters | Pass (30) |
+| Redeployment queue pagination and summary counts | Pass (14) |
+| Suggestions `employeeIds` batch equals full-list entries | Pass |
+| Returning-applicant filter against the old global SQL, per job and owner scope | Pass (about 30) |
+| Photo batch resolver against the old per-row resolver, incl. bad references | Pass; 45 signing calls became 1 |
+
+- 179 of 179 sub-checks pass, with no SQL errors.
+- Row counts and the latest `updatedAt` in 12 tables were identical before and after, so nothing was written.
+- Limits: the dataset is small (48 applications, 12 MRFs, 7 deployments, 3 queue workers, 1 returning applicant) and has one TA, who owns nearly everything. Deep paging and the case where one TA must not see another TA's rows were not exercised.
+
 ## 7. Regression tooling now tracked
 
 These are now tracked through narrow ignore exceptions:
@@ -278,7 +296,7 @@ A new workflow, `.github/workflows/performance.yml`, runs the bundle budget on p
 
 Needs a disposable database or staging data:
 - P5 steps 3-5: grouped first-placement query; query count, SQL duration, pool wait and payload measurement; filter-option query reuse.
-- P6: a fully relational returning filter for administrators, and checking the `EXISTS` query against real Postgres.
+- P6: a fully relational returning filter for administrators. The `EXISTS` query now passes on the development database; it still needs a check with several TAs and more returning applicants.
 - P8: export and backup memory work. It must be benchmarked first; nothing was changed.
 - P11: legacy repair backfill and index evidence. This needs read-only inventory, then approval before any shared-database write.
 - Real API p50/p95 for paged lists and analytics dashboards.
