@@ -228,9 +228,11 @@ export const listTAApplications = async (
         where,
         skip: (resolvedPage - 1) * resolvedLimit,
         take: resolvedLimit,
-        orderBy: dynamicScoring ? { createdAt: "desc" } : [
+        // id breaks createdAt ties so rows never repeat or vanish between pages.
+        orderBy: dynamicScoring ? [{ createdAt: "desc" }, { id: "desc" }] : [
           { aiScore: { sort: "desc", nulls: "last" } },
           { createdAt: "desc" },
+          { id: "desc" },
         ],
         select: {
           id: true,
@@ -311,9 +313,11 @@ export const listTAApplications = async (
       where,
       ...(take ? { take } : {}),
       ...(skip ? { skip } : {}),
-      orderBy: dynamicScoring ? { createdAt: "desc" } : [
+      // id breaks createdAt ties so rows never repeat or vanish between pages.
+      orderBy: dynamicScoring ? [{ createdAt: "desc" }, { id: "desc" }] : [
         { aiScore: { sort: "desc", nulls: "last" } },
         { createdAt: "desc" },
+        { id: "desc" },
       ],
       select: {
         id: true,
