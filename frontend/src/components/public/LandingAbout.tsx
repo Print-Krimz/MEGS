@@ -58,7 +58,7 @@ export const LandingAbout: React.FC = () => (
 
         <div className="flex items-center gap-5 lg:col-span-4 lg:flex-col lg:items-start lg:justify-center">
           <img
-            src="/images/canva-ref/megs-logo-480.jpg"
+            src="/images/canva-ref/megs-logo-352.webp"
             alt="MEGS Inc. - Better People for Better Results"
             loading="lazy"
             decoding="async"

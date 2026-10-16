@@ -219,8 +219,8 @@ export const adminApi = {
   // -------------------------------------------------------------
   // 5. Recruitment Analytics
   // -------------------------------------------------------------
-  getDashboardSummary: (filters?: Partial<AnalyticsFilterState>) =>
-    api.get<AdminDeliveryDashboard>(`/api/admin/analytics/dashboard${buildAnalyticsQueryString(filters)}`),
+  getDashboardSummary: (filters?: Partial<AnalyticsFilterState>, signal?: AbortSignal) =>
+    api.get<AdminDeliveryDashboard>(`/api/admin/analytics/dashboard${buildAnalyticsQueryString(filters)}`, { signal }),
 
   getFilterOptions: () =>
     api.get<AnalyticsFilterOptions>("/api/admin/analytics/filters"),

@@ -95,7 +95,7 @@ export const LandingHeader: React.FC = () => {
             aria-label="MEGS Home"
           >
             <img
-              src="/images/canva-ref/megs-logo-480.jpg"
+              src="/images/canva-ref/megs-logo-352.webp"
               alt="MEGS Inc. logo"
               width={480}
               height={348}

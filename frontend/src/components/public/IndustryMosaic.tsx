@@ -5,25 +5,25 @@ import { cn } from "../../lib/shadcn-utils";
 
 const TILES = [
   {
-    src: "/images/canva-ref/industries/thumbs/warehousing.jpg",
+    src: "/images/canva-ref/industries/warehousing-480.webp",
     label: "Warehousing",
     alt: "Forklift operator moving pallets in a warehouse",
     pos: "object-[22%_72%]",
   },
   {
-    src: "/images/canva-ref/industries/thumbs/casino.jpg",
+    src: "/images/canva-ref/industries/casino-480.webp",
     label: "Gaming",
     alt: "Casino staff and players at a roulette table",
     pos: "object-[50%_30%]",
   },
   {
-    src: "/images/canva-ref/industries/thumbs/retail.jpg",
+    src: "/images/canva-ref/industries/retail-480.webp",
     label: "Retail",
     alt: "Shopper walking down a supermarket aisle",
     pos: "object-[58%_58%]",
   },
   {
-    src: "/images/canva-ref/industries/thumbs/hospitality.jpg",
+    src: "/images/canva-ref/industries/hospitality-480.webp",
     label: "Hospitality",
     alt: "Guests dining at a restaurant table",
     pos: "object-[48%_55%]",
@@ -44,8 +44,8 @@ export const IndustryMosaic: React.FC<IndustryMosaicProps> = ({ className, showL
         <img
           src={tile.src}
           alt={tile.alt}
-          width={640}
-          height={427}
+          width={480}
+          height={320}
           loading={eager ? "eager" : "lazy"}
           decoding="async"
           className={cn("aspect-[4/3] size-full object-cover", tile.pos)}

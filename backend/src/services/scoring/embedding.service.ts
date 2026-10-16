@@ -1,5 +1,4 @@
-import { getGeminiClient, withGeminiCapacity } from "../../utils/gemini.js";
-import { withProviderRetry } from "../../security/provider-retry.js";
+import { embedContentWithDeadline } from "../../utils/gemini.js";
 import { createHash } from "crypto";
 
 export const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001";
@@ -65,40 +64,65 @@ export const generateJobEmbeddings = async (texts: string[]): Promise<number[][]
   const cleaned = texts.map((text) => text.trim() || "empty");
   const keys = cleaned.map((text) => `${model}:${taskType}:${EMBEDDING_DIMENSION}:${createHash("sha256").update(text).digest("hex")}`);
 
-  const results: Array<number[] | undefined> = await Promise.all(
-    keys.map(async (key) => {
-      const cached = jobEmbeddingCache.get(key);
-      return cached ? [...(Array.isArray(cached) ? cached : await cached)] : undefined;
-    })
-  );
-
-  const missing = [...new Set(keys.filter((_, index) => !results[index]))];
-  for (let start = 0; start < missing.length; start += GEMINI_BATCH_LIMIT) {
-    const chunk = missing.slice(start, start + GEMINI_BATCH_LIMIT);
-    const response = await withGeminiCapacity(() => withProviderRetry(() => getGeminiClient().models.embedContent({
-      model,
-      contents: chunk.map((key) => cleaned[keys.indexOf(key)]),
-      config: { outputDimensionality: EMBEDDING_DIMENSION, taskType },
-    })));
-    chunk.forEach((key, index) => {
-      const values = response.embeddings?.[index]?.values;
-      if (!Array.isArray(values) || values.length !== EMBEDDING_DIMENSION) {
-        throw new Error("Gemini returned an incomplete batch embedding response");
-      }
-      jobEmbeddingCache.set(key, l2Normalize(values));
-    });
-  }
+  // Resolve each unique key to a cached vector, someone else's pending promise, or one we own.
+  const entries = new Map<string, number[] | Promise<number[]>>();
+  const owned: Array<{ key: string; text: string; resolve: (v: number[]) => void; reject: (e: unknown) => void; promise: Promise<number[]> }> = [];
+  keys.forEach((key, index) => {
+    if (entries.has(key)) return;
+    const cached = jobEmbeddingCache.get(key);
+    if (cached) {
+      jobEmbeddingCache.delete(key);
+      jobEmbeddingCache.set(key, cached);
+      entries.set(key, cached);
+      return;
+    }
+    let resolve!: (v: number[]) => void;
+    let reject!: (e: unknown) => void;
+    const promise = new Promise<number[]>((res, rej) => { resolve = res; reject = rej; });
+    promise.catch(() => undefined); // waiters observe the rejection; avoid unhandled-rejection noise
+    jobEmbeddingCache.set(key, promise);
+    entries.set(key, promise);
+    owned.push({ key, text: cleaned[index], resolve, reject, promise });
+  });
   while (jobEmbeddingCache.size > JOB_EMBEDDING_CACHE_LIMIT) {
     const oldestKey = jobEmbeddingCache.keys().next().value;
     if (oldestKey === undefined) break;
     jobEmbeddingCache.delete(oldestKey);
   }
 
-  return keys.map((key, index) => {
-    const vector = results[index] ?? jobEmbeddingCache.get(key);
-    if (!Array.isArray(vector)) throw new Error("Job embedding missing after batch request");
-    return [...vector];
-  });
+  // Cold keys are submitted after being published, so overlapping callers share this work.
+  const failOwned = (items: typeof owned, error: unknown) => {
+    for (const item of items) {
+      if (jobEmbeddingCache.get(item.key) === item.promise) jobEmbeddingCache.delete(item.key);
+      item.reject(error);
+    }
+  };
+  void (async () => {
+    for (let start = 0; start < owned.length; start += GEMINI_BATCH_LIMIT) {
+      const chunk = owned.slice(start, start + GEMINI_BATCH_LIMIT);
+      try {
+        const response = await embedContentWithDeadline({
+          model,
+          contents: chunk.map((item) => item.text),
+          config: { outputDimensionality: EMBEDDING_DIMENSION, taskType },
+        });
+        chunk.forEach((item, index) => {
+          const values = response.embeddings?.[index]?.values;
+          if (!Array.isArray(values) || values.length !== EMBEDDING_DIMENSION) {
+            throw new Error("Gemini returned an incomplete batch embedding response");
+          }
+          const vector = l2Normalize(values);
+          if (jobEmbeddingCache.get(item.key) === item.promise) jobEmbeddingCache.set(item.key, vector);
+          item.resolve(vector);
+        });
+      } catch (error) {
+        failOwned(owned.slice(start), error); // already-resolved entries ignore a second settle
+        return;
+      }
+    }
+  })();
+
+  return Promise.all(keys.map(async (key) => [...await entries.get(key)!]));
 };
 
 export const l2Normalize = (vector: number[]): number[] => {
@@ -119,15 +143,14 @@ export const generateEmbedding = async (
   const taskType = options.taskType ?? "SEMANTIC_SIMILARITY";
   const model = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
 
-  const ai = getGeminiClient();
-  const response = await withGeminiCapacity(() => withProviderRetry(() => ai.models.embedContent({
+  const response = await embedContentWithDeadline({
     model,
     contents: cleanText,
     config: {
       outputDimensionality: EMBEDDING_DIMENSION,
       taskType,
     },
-  })));
+  });
 
   const embeddingObj = response.embeddings?.[0];
   if (!embeddingObj || !Array.isArray(embeddingObj.values) || embeddingObj.values.length === 0) {

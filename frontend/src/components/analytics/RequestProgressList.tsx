@@ -50,7 +50,7 @@ const slaText = (row: RequestRow): string => {
 const TH = "px-3 py-2 text-left text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap";
 
 /** Open client requests, most urgent first, as one row each with a status filter, search and paging. */
-export const RequestProgressList: React.FC<RequestProgressListProps> = ({
+export const RequestProgressList = React.memo(function RequestProgressList({
   rows,
   linkTo,
   showOwner = true,
@@ -58,7 +58,7 @@ export const RequestProgressList: React.FC<RequestProgressListProps> = ({
   pageSize = 10,
   bare = false,
   focus,
-}) => {
+}: RequestProgressListProps) {
   const [health, setHealth] = useState<RequestHealthFilter>("ALL");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -242,4 +242,4 @@ export const RequestProgressList: React.FC<RequestProgressListProps> = ({
       {note && <p id="requests-note" className="scroll-mt-4 border-t border-slate-200 px-3.5 py-2.5 text-xs text-slate-600 font-sans">{note}</p>}
     </AnalyticsPanel>
   );
-};
+});

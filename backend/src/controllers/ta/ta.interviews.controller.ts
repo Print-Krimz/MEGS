@@ -88,7 +88,7 @@ export const recordInterviewDirectly = async (req: Request, res: Response): Prom
 // GET /api/ta/compliance/interviews - Audit report for candidate interview stage SLA duration
 export const checkInterviewCompliance = async (req: Request, res: Response): Promise<void> => {
   try {
-    const report = await getInterviewComplianceReport(req.user);
+    const report = await getInterviewComplianceReport(req.user, req.query as any);
     sendSuccess(res, "Interview compliance report generated", report);
   } catch (error: any) {
     sendError(res, error.message, 500);

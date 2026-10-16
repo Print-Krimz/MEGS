@@ -214,7 +214,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
             <IndustryExamples className="p-4 pb-1.5" mosaicClassName="" />
             <figcaption className="border-t border-border bg-background p-5">
               <div className="mb-4 flex items-center gap-3">
-                <img src="/images/canva-ref/megs-logo-480.jpg" alt="" width={480} height={348} loading="lazy" className="h-10 w-auto" />
+                <img src="/images/canva-ref/megs-logo-352.webp" alt="" width={480} height={348} loading="lazy" className="h-10 w-auto" />
                 <span className="text-sm font-semibold text-secondary">A PJAR Group Company</span>
               </div>
               <Credentials className="grid grid-cols-2 gap-x-6 gap-y-3" />

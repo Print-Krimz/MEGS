@@ -15,7 +15,8 @@ export const listMRFsHandler = async (req: Request, res: Response): Promise<void
     const status = req.query.status as string | undefined;
     const priority = req.query.priority as string | undefined;
     const sortBy = (req.query.sortBy as any) || "created_desc";
-    const mrfs = await listMRFs(clientId, status, priority, sortBy, req.user);
+    const { search, page, pageSize } = req.query as { search?: string; page?: number; pageSize?: number };
+    const mrfs = await listMRFs(clientId, status, priority, sortBy, req.user, { search, page, pageSize });
     sendSuccess(res, "Manpower Requests retrieved successfully", mrfs);
   } catch (error: any) {
     sendError(res, error.message, 500);

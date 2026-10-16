@@ -18,7 +18,7 @@ const industries: Industry[] = [
   {
     id: "manufacturing",
     name: "Manufacturing",
-    image: "/images/canva-ref/industries/manufacturing.jpg",
+    image: "/images/canva-ref/industries/manufacturing",
     description:
       "Electronics assembly, food processing lines, plastic extrusion, packaging operations, and precision machinery plants across economic zones.",
     roles: ["Machine Operators", "Assembly Crew", "QA/QC Personnel", "Production Supervisors"],
@@ -26,7 +26,7 @@ const industries: Industry[] = [
   {
     id: "logistics",
     name: "Logistics & Transport",
-    image: "/images/canva-ref/industries/logistics.jpg",
+    image: "/images/canva-ref/industries/logistics",
     description:
       "Multi-modal freight forwarding, delivery fleet operations, courier transport, route planning, and national supply chain dispatching.",
     roles: ["Delivery Drivers", "Messengers", "Fleet Dispatchers", "Logistics Clerks"],
@@ -34,7 +34,7 @@ const industries: Industry[] = [
   {
     id: "warehousing",
     name: "Warehousing & Storage",
-    image: "/images/canva-ref/industries/warehousing.jpg",
+    image: "/images/canva-ref/industries/warehousing",
     description:
       "High-density distribution centers, inventory scanning, goods receiving, palletizing, order sorting, and industrial forklift maneuvers.",
     roles: ["Forklift Operators", "Warehouse Crew", "Material Handlers", "Inventory Encoders"],
@@ -42,7 +42,7 @@ const industries: Industry[] = [
   {
     id: "retail",
     name: "Retail, Sales & Distribution",
-    image: "/images/canva-ref/industries/retail.jpg",
+    image: "/images/canva-ref/industries/retail",
     description:
       "Hypermarkets, department stores, retail chains, and fast-moving consumer goods (FMCG) distribution networks.",
     roles: ["Sales Promo / Merchandisers", "Cashiers & Baggers", "Brand Ambassadors", "Stock Clerks"],
@@ -50,7 +50,7 @@ const industries: Industry[] = [
   {
     id: "hospitality",
     name: "Hotel & Restaurant",
-    image: "/images/canva-ref/industries/hospitality.jpg",
+    image: "/images/canva-ref/industries/hospitality",
     description:
       "Premier hotels, restaurant chains, catering services, banquet halls, institutional cafeterias, and hospitality dining floors.",
     roles: ["Food Servers", "Kitchen Helpers", "Dining Stewards", "Banquet Crew"],
@@ -58,7 +58,7 @@ const industries: Industry[] = [
   {
     id: "gaming",
     name: "Gaming & Casino",
-    image: "/images/canva-ref/industries/casino.jpg",
+    image: "/images/canva-ref/industries/casino",
     description:
       "Integrated resort gaming facilities, entertainment complexes, high-volume recreation centers, and guest operations support.",
     roles: ["Floor Attendants", "Cashier Personnel", "Utility Helpers", "Front-Line Support"],
@@ -66,6 +66,13 @@ const industries: Industry[] = [
 ];
 
 type TileLayout = "feature" | "side" | "plain";
+
+/** Rendered widths: the feature tile is ~700px wide on desktop, side tiles ~200px, plain tiles ~390px. */
+const IMAGE_SIZES: Record<TileLayout, string> = {
+  feature: "(min-width: 1280px) 700px, (min-width: 1024px) 54vw, 100vw",
+  side: "(min-width: 1024px) 200px, 100vw",
+  plain: "(min-width: 1024px) 390px, 100vw",
+};
 
 const IndustryTile: React.FC<{ industry: Industry; layout: TileLayout }> = ({ industry, layout }) => (
   <article
@@ -82,7 +89,9 @@ const IndustryTile: React.FC<{ industry: Industry; layout: TileLayout }> = ({ in
       )}
     >
       <img
-        src={industry.image}
+        src={`${industry.image}-480.webp`}
+        srcSet={`${industry.image}-480.webp 480w, ${industry.image}-800.webp 800w`}
+        sizes={IMAGE_SIZES[layout]}
         alt={`${industry.name} workers on site`}
         loading="lazy"
         decoding="async"

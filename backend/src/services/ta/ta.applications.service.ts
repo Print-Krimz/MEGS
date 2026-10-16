@@ -6,7 +6,7 @@ import { scoringFlags } from '../../utils/scoring-flags.js';
 import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.service.js";
 import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
 import { logAudit } from '../../utils/audit.js';
-import { resolveDocumentSignedUrl, uploadAndStoreDocument } from '../document/document.service.js';
+import { resolveDocumentSignedUrl, resolveDocumentSignedUrls, uploadAndStoreDocument } from '../document/document.service.js';
 import { buildContractPdfBuffer } from './contract-pdf-builder.js';
 import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
@@ -95,18 +95,34 @@ const attachReturningInfo = async <
   });
 };
 
-const findReturningApplicationIds = async (): Promise<number[]> => {
+// The placement must predate the application (d.createdAt < a.createdAt), a cross-row comparison a Prisma
+// relation filter cannot express, so the IDs still come from SQL. Narrow it to the TA's own applications
+// (same rule as ownedWhere.application) and the requested job so a TA never scans other TAs' rows.
+const findReturningApplicationIds = async (actor?: Actor, jobPostingId?: number): Promise<number[]> => {
+  const jobFilter = jobPostingId !== undefined ? Prisma.sql`AND a."jobPostingId" = ${jobPostingId}` : Prisma.empty;
+  const ownerFilter = actor?.role === "TALENT_ACQUISITION"
+    ? Prisma.sql`AND EXISTS (
+        SELECT 1 FROM "JobPosting" jp
+        LEFT JOIN "ManpowerRequest" m ON m."id" = jp."mrfId"
+        WHERE jp."id" = a."jobPostingId"
+          AND (m."assignedTaId" = ${actor.id} OR (jp."mrfId" IS NULL AND jp."postedById" = ${actor.id})))`
+    : Prisma.empty;
   const rows = await prisma.$queryRaw<Array<{ id: number }>>`
-    SELECT DISTINCT a."id"
+    SELECT a."id"
     FROM "Application" a
-    JOIN "Employee" e ON e."userId" = a."userId"
-    JOIN "Deployment" d ON d."employeeId" = e."id"
-    WHERE d."status" IN ('ACTIVE', 'ENDED')
-      AND (d."actualStart" IS NOT NULL
-        OR (d."status" = 'ENDED' AND d."contractStart" IS NOT NULL)
-        OR EXISTS (SELECT 1 FROM "DeploymentStatusHistory" h WHERE h."deploymentId" = d."id" AND h."toStatus" = 'ACTIVE'))
-      AND (d."applicationId" IS NULL OR d."applicationId" <> a."id")
-      AND d."createdAt" < a."createdAt"
+    WHERE EXISTS (
+      SELECT 1
+      FROM "Employee" e
+      JOIN "Deployment" d ON d."employeeId" = e."id"
+      WHERE e."userId" = a."userId"
+        AND d."status" IN ('ACTIVE', 'ENDED')
+        AND (d."actualStart" IS NOT NULL
+          OR (d."status" = 'ENDED' AND d."contractStart" IS NOT NULL)
+          OR EXISTS (SELECT 1 FROM "DeploymentStatusHistory" h WHERE h."deploymentId" = d."id" AND h."toStatus" = 'ACTIVE'))
+        AND (d."applicationId" IS NULL OR d."applicationId" <> a."id")
+        AND d."createdAt" < a."createdAt")
+    ${jobFilter}
+    ${ownerFilter}
   `;
   return rows.map((row) => row.id);
 };
@@ -159,7 +175,8 @@ export const listTAApplications = async (
   }
 
   if (returningOnly) {
-    andConditions.push({ id: { in: await findReturningApplicationIds() } });
+    const parsedJobId = jobPostingId ? parseInt(String(jobPostingId), 10) : NaN;
+    andConditions.push({ id: { in: await findReturningApplicationIds(actor, isNaN(parsedJobId) ? undefined : parsedJobId) } });
   }
 
   if (isArchived !== undefined) {
@@ -211,9 +228,11 @@ export const listTAApplications = async (
         where,
         skip: (resolvedPage - 1) * resolvedLimit,
         take: resolvedLimit,
-        orderBy: dynamicScoring ? { createdAt: "desc" } : [
+        // id breaks createdAt ties so rows never repeat or vanish between pages.
+        orderBy: dynamicScoring ? [{ createdAt: "desc" }, { id: "desc" }] : [
           { aiScore: { sort: "desc", nulls: "last" } },
           { createdAt: "desc" },
+          { id: "desc" },
         ],
         select: {
           id: true,
@@ -294,9 +313,11 @@ export const listTAApplications = async (
       where,
       ...(take ? { take } : {}),
       ...(skip ? { skip } : {}),
-      orderBy: dynamicScoring ? { createdAt: "desc" } : [
+      // id breaks createdAt ties so rows never repeat or vanish between pages.
+      orderBy: dynamicScoring ? [{ createdAt: "desc" }, { id: "desc" }] : [
         { aiScore: { sort: "desc", nulls: "last" } },
         { createdAt: "desc" },
+        { id: "desc" },
       ],
       select: {
         id: true,
@@ -378,31 +399,23 @@ export const listTAApplications = async (
       return (right.candidateFitScore ?? right.aiScore ?? -1) - (left.candidateFitScore ?? left.aiScore ?? -1) || right.createdAt.getTime() - left.createdAt.getTime();
     });
 
-  const resolvedData = await Promise.all(
-    formatted.map(async (application) => {
-      const photo = application.user?.applicantProfile?.photoUrl;
-      if (photo && application.user) {
-        try {
-          const resolved = await resolveDocumentSignedUrl(photo, application.user.id, "TALENT_ACQUISITION");
-          if (resolved) {
-            return {
-              ...application,
-              user: {
-                ...application.user,
-                applicantProfile: application.user.applicantProfile
-                  ? { ...application.user.applicantProfile, photoUrl: resolved }
-                  : null,
-              },
-            };
-          }
-        } catch {
-          return { ...application, user: { ...application.user,
-            applicantProfile: application.user.applicantProfile ? { ...application.user.applicantProfile, photoUrl: null } : null } };
-        }
-      }
-      return application;
-    })
+  const photoUrls = await resolveDocumentSignedUrls(
+    formatted.map((application) => ({
+      ref: application.user ? application.user.applicantProfile?.photoUrl : null,
+      requesterId: application.user?.id ?? "",
+      requesterRole: "TALENT_ACQUISITION",
+    }))
   );
+  const resolvedData = formatted.map((application, index) => {
+    if (!application.user?.applicantProfile?.photoUrl) return application;
+    return {
+      ...application,
+      user: {
+        ...application.user,
+        applicantProfile: { ...application.user.applicantProfile, photoUrl: photoUrls[index] },
+      },
+    };
+  });
 
   return {
     data: resolvedData,

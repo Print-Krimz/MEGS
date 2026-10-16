@@ -12,9 +12,36 @@ import {
   optionalSafeAddress,
   optionalSafeText,
   optionalSafeProse,
+  pageQueryFields,
 } from "./field-limits.js";
 
+export const MAX_SUGGESTION_EMPLOYEE_IDS = 25;
+
+/** Comma-separated employee IDs, de-duplicated and capped so one request scores a bounded worker set. */
+const employeeIdList = z.string().max(600).transform((raw, ctx) => {
+  const parts = raw.split(",").map((part) => part.trim());
+  if (parts.some((part) => !/^\d{1,10}$/.test(part) || Number(part) < 1 || Number(part) > FIELD_LIMITS.integerId)) {
+    ctx.addIssue({ code: "custom", message: "Enter employee IDs as a comma-separated list of positive whole numbers" });
+    return z.NEVER;
+  }
+  const ids = [...new Set(parts.map(Number))];
+  if (ids.length > MAX_SUGGESTION_EMPLOYEE_IDS) {
+    ctx.addIssue({ code: "custom", message: `Request at most ${MAX_SUGGESTION_EMPLOYEE_IDS} employees at a time` });
+    return z.NEVER;
+  }
+  return ids;
+});
+
 export const employeeSchema = {
+  redeploymentQueue: z.object({
+    query: z.object({
+      ...pageQueryFields,
+      search: boundedText(FIELD_LIMITS.search).optional(),
+      stage: z.enum(["NEEDS_PLACEMENT", "WAITING_FOR_REPLY", "IN_PROGRESS"]).optional(),
+    }).strict(),
+  }),
+  redeploymentSummary: z.object({ query: z.object({}).strict() }),
+  redeploymentSuggestions: z.object({ query: z.object({ employeeIds: employeeIdList.optional() }).strict() }),
   updateRedeployment: z.object({
     params: z.object({ id: boundedIdText }).strict(),
     body: z.object({ ownerId: z.string().uuid().nullable().optional(), followUpAt: dateOnly.nullable().optional(), notes: optionalSafeProse("Notes", FIELD_LIMITS.notes) }).strict(),

@@ -3,9 +3,10 @@ import { ownedWhere, owns, type Actor } from "../ta/ownership.js";
 import { rethrowPlacementConflict } from "./placement-conflict.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 import { validateStructuredAddress } from "../../utils/address-validation.js";
-import { EmploymentStatus, EmploymentEventType, DeploymentStatus } from "@prisma/client";
-import { resolveDocumentSignedUrl } from "../document/document.service.js";
+import { EmploymentStatus, EmploymentEventType, DeploymentStatus, type Prisma } from "@prisma/client";
+import { resolveDocumentSignedUrl, resolveDocumentSignedUrls } from "../document/document.service.js";
 import { logAudit } from "../../utils/audit.js";
+import { isPageRequested, pageEnvelope, resolvePage, type PageRequest } from "../../utils/pagination.js";
 import {
   calculateMRFFulfillment,
   syncMRFFulfillmentStatus,
@@ -387,31 +388,23 @@ export const listEmployees = async (filters: {
     }),
   ]);
 
-  const resolvedItems = await Promise.all(
-    items.map(async (item) => {
-      const photo = item.user?.applicantProfile?.photoUrl;
-      if (photo && item.user) {
-        try {
-          const resolved = await resolveDocumentSignedUrl(photo, item.user.id, "ADMINISTRATOR");
-          if (resolved) {
-            return {
-              ...item,
-              user: {
-                ...item.user,
-                applicantProfile: item.user.applicantProfile
-                  ? { ...item.user.applicantProfile, photoUrl: resolved }
-                  : null,
-              },
-            };
-          }
-        } catch {
-          return { ...item, user: { ...item.user,
-            applicantProfile: item.user.applicantProfile ? { ...item.user.applicantProfile, photoUrl: null } : null } };
-        }
-      }
-      return item;
-    })
+  const photoUrls = await resolveDocumentSignedUrls(
+    items.map((item) => ({
+      ref: item.user?.applicantProfile?.photoUrl,
+      requesterId: item.user?.id ?? "",
+      requesterRole: "ADMINISTRATOR",
+    }))
   );
+  const resolvedItems = items.map((item, index) => {
+    if (!item.user?.applicantProfile?.photoUrl) return item;
+    return {
+      ...item,
+      user: {
+        ...item.user,
+        applicantProfile: { ...item.user.applicantProfile, photoUrl: photoUrls[index] },
+      },
+    };
+  });
 
   return resolvedItems;
 };
@@ -494,27 +487,31 @@ export const listEmployeeCredentialAlerts = async (actor?: Actor) => {
   });
 };
 
-export const listRedeploymentQueue = async (actor?: Actor) => {
-  const [employees, staff] = await Promise.all([
-    prisma.employee.findMany({
-      where: { status: "AVAILABLE_FOR_REDEPLOYMENT", deployments: { none: { status: { notIn: ["ENDED", "CANCELLED"] } } } },
-      orderBy: [{ redeploymentFollowUpAt: "asc" }, { updatedAt: "asc" }],
-      include: {
-        redeploymentOwner: { select: { id: true, email: true } },
-        deployments: { where: { status: "ENDED" }, orderBy: { actualEnd: "desc" }, take: 1, include: { client: { select: { name: true } }, mrf: { select: { title: true } }, application: { select: { jobPosting: { select: { title: true } } } }, statusHistory: { where: { toStatus: "ENDED" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } },
-        user: { select: {
-          applicantProfile: { select: { id: true, firstName: true, lastName: true, invitations: { where: { status: "PENDING" }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true, jobPosting: { select: { title: true } } } } } },
-          applications: { where: { isArchived: false, status: { notIn: ["BACKOUT", "ARCHIVED", "REJECTED", "DEPLOYED"] }, ...(actor ? ownedWhere.application(actor) : {}) }, orderBy: { createdAt: "desc" }, select: { id: true, status: true, jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } } } },
-        } },
-      },
-    }),
-    prisma.user.findMany({ where: { role: { in: ["TALENT_ACQUISITION", "ADMINISTRATOR"] }, isActive: true }, select: { id: true, email: true }, orderBy: { email: "asc" } }),
-  ]);
-  // Every client the worker actually started at. A new application to any of these skips
-  // screening, using the same rule as application submission.
-  const startedPlacements = employees.length === 0 ? [] : await prisma.deployment.findMany({
+export type RedeploymentStageName = "NEEDS_PLACEMENT" | "WAITING_FOR_REPLY" | "IN_PROGRESS";
+const REDEPLOYMENT_STAGE_ORDER: Record<RedeploymentStageName, number> = { NEEDS_PLACEMENT: 0, WAITING_FOR_REPLY: 1, IN_PROGRESS: 2 };
+const REDEPLOYMENT_POOL_WHERE: Prisma.EmployeeWhereInput = { status: "AVAILABLE_FOR_REDEPLOYMENT", deployments: { none: { status: { notIn: ["ENDED", "CANCELLED"] } } } };
+const REDEPLOYMENT_POOL_ORDER: Prisma.EmployeeOrderByWithRelationInput[] = [{ redeploymentFollowUpAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }];
+const redeploymentApplicationWhere = (actor?: Actor) => ({ isArchived: false, status: { notIn: ["BACKOUT", "ARCHIVED", "REJECTED", "DEPLOYED"] }, ...(actor ? ownedWhere.application(actor) : {}) }) as any;
+const redeploymentStageOf = (hasApplications: boolean, hasInvitation: boolean): RedeploymentStageName =>
+  hasApplications ? "IN_PROGRESS" : hasInvitation ? "WAITING_FOR_REPLY" : "NEEDS_PLACEMENT";
+const DAY_MS = 86_400_000;
+
+export interface RedeploymentQueueOptions extends PageRequest {
+  search?: string;
+  stage?: RedeploymentStageName;
+}
+
+const loadRedeploymentStaff = () =>
+  prisma.user.findMany({ where: { role: { in: ["TALENT_ACQUISITION", "ADMINISTRATOR"] }, isActive: true }, select: { id: true, email: true }, orderBy: { email: "asc" } });
+
+// Every client the worker actually started at. A new application to any of these skips
+// screening, using the same rule as application submission. Grouped by worker once.
+const loadStartedPlacements = async (employeeIds: number[]) => {
+  const byEmployee = new Map<number, Array<{ id: number; name: string }>>();
+  if (employeeIds.length === 0) return byEmployee;
+  const placements = await prisma.deployment.findMany({
     where: {
-      employeeId: { in: employees.map((employee) => employee.id) },
+      employeeId: { in: employeeIds },
       status: { in: ["ACTIVE", "ENDED"] },
       OR: [
         { actualStart: { not: null } },
@@ -525,33 +522,126 @@ export const listRedeploymentQueue = async (actor?: Actor) => {
     select: { employeeId: true, clientId: true, client: { select: { name: true } } },
     distinct: ["employeeId", "clientId"],
   });
+  for (const placement of placements) {
+    const clients = byEmployee.get(placement.employeeId);
+    const client = { id: placement.clientId, name: placement.client.name };
+    if (clients) clients.push(client);
+    else byEmployee.set(placement.employeeId, [client]);
+  }
+  return byEmployee;
+};
 
-  return { staff, items: employees.map((employee) => {
+const findRedeploymentEmployees = (actor?: Actor, ids?: number[]) =>
+  prisma.employee.findMany({
+    where: { ...REDEPLOYMENT_POOL_WHERE, ...(ids ? { id: { in: ids } } : {}) },
+    orderBy: REDEPLOYMENT_POOL_ORDER,
+    include: {
+      redeploymentOwner: { select: { id: true, email: true } },
+      deployments: { where: { status: "ENDED" }, orderBy: { actualEnd: "desc" }, take: 1, include: { client: { select: { name: true } }, mrf: { select: { title: true } }, application: { select: { jobPosting: { select: { title: true } } } }, statusHistory: { where: { toStatus: "ENDED" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } },
+      user: { select: {
+        applicantProfile: { select: { id: true, firstName: true, lastName: true, invitations: { where: { status: "PENDING" }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true, jobPosting: { select: { title: true } } } } } },
+        applications: { where: redeploymentApplicationWhere(actor), orderBy: { createdAt: "desc" }, select: { id: true, status: true, jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } } } },
+      } },
+    },
+  });
+
+type RedeploymentEmployee = Awaited<ReturnType<typeof findRedeploymentEmployees>>[number];
+
+const mapRedeploymentRow = (employee: RedeploymentEmployee, pastClients: Array<{ id: number; name: string }>) => {
+  const previous = employee.deployments[0];
+  const profile = employee.user.applicantProfile;
+  const applications = employee.user.applications;
+  const invitation = profile?.invitations?.[0];
+  const stage = redeploymentStageOf(applications.length > 0, Boolean(invitation));
+  return {
+    stage,
+    pastClients,
+    // Falls back to when the last assignment ended when the availability date was never recorded.
+    waitingSince: employee.redeploymentAvailableAt ?? previous?.actualEnd ?? previous?.statusHistory[0]?.createdAt ?? null,
+    pendingInvitation: invitation ? { id: invitation.id, title: invitation.jobPosting.title } : null,
+    id: employee.id, employeeNumber: employee.employeeNumber,
+    applicantProfileId: profile?.id ?? null,
+    name: `${profile?.firstName || ""} ${profile?.lastName || ""}`.trim() || employee.employeeNumber,
+    previousClient: previous?.client.name ?? null,
+    previousRole: previous?.application?.jobPosting.title || previous?.mrf?.title || employee.position,
+    availableAt: employee.redeploymentAvailableAt, followUpAt: employee.redeploymentFollowUpAt,
+    ownerId: employee.redeploymentOwnerId, ownerEmail: employee.redeploymentOwner?.email ?? null, notes: employee.redeploymentNotes,
+    nextAction: applications.length ? "Application in progress" : invitation ? "Waiting for applicant response" : "Find a placement",
+    applications: applications.map((application) => ({ id: application.id, status: application.status, title: application.jobPosting.title, client: application.jobPosting.mrf?.client.name ?? null })),
+  };
+};
+
+/** Lean projection of the whole shared pool: only what stage, search, and ordering need. */
+const loadRedeploymentIndex = async (actor?: Actor) => {
+  const employees = await prisma.employee.findMany({
+    where: REDEPLOYMENT_POOL_WHERE,
+    orderBy: REDEPLOYMENT_POOL_ORDER,
+    select: {
+      id: true,
+      employeeNumber: true,
+      position: true,
+      redeploymentAvailableAt: true,
+      deployments: { where: { status: "ENDED" }, orderBy: { actualEnd: "desc" }, take: 1, select: { actualEnd: true, client: { select: { name: true } }, mrf: { select: { title: true } }, application: { select: { jobPosting: { select: { title: true } } } }, statusHistory: { where: { toStatus: "ENDED" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } },
+      user: { select: {
+        applicantProfile: { select: { firstName: true, lastName: true, invitations: { where: { status: "PENDING" }, take: 1, select: { id: true } } } },
+        applications: { where: redeploymentApplicationWhere(actor), take: 1, select: { id: true } },
+      } },
+    },
+  });
+  return employees.map((employee) => {
     const previous = employee.deployments[0];
-    const pastClients = startedPlacements
-      .filter((placement) => placement.employeeId === employee.id)
-      .map((placement) => ({ id: placement.clientId, name: placement.client.name }));
     const profile = employee.user.applicantProfile;
-    const applications = employee.user.applications;
-    const invitation = profile?.invitations?.[0];
-    const stage = applications.length ? "IN_PROGRESS" : invitation ? "WAITING_FOR_REPLY" : "NEEDS_PLACEMENT";
+    const name = `${profile?.firstName || ""} ${profile?.lastName || ""}`.trim() || employee.employeeNumber;
+    const previousClient = previous?.client.name ?? "";
+    const previousRole = previous?.application?.jobPosting.title || previous?.mrf?.title || employee.position || "";
+    const waitingSince = employee.redeploymentAvailableAt ?? previous?.actualEnd ?? previous?.statusHistory[0]?.createdAt ?? null;
     return {
-      stage,
-      pastClients,
-      // Falls back to when the last assignment ended when the availability date was never recorded.
-      waitingSince: employee.redeploymentAvailableAt ?? previous?.actualEnd ?? previous?.statusHistory[0]?.createdAt ?? null,
-      pendingInvitation: invitation ? { id: invitation.id, title: invitation.jobPosting.title } : null,
-      id: employee.id, employeeNumber: employee.employeeNumber,
-      applicantProfileId: profile?.id ?? null,
-      name: `${profile?.firstName || ""} ${profile?.lastName || ""}`.trim() || employee.employeeNumber,
-      previousClient: previous?.client.name ?? null,
-      previousRole: previous?.application?.jobPosting.title || previous?.mrf?.title || employee.position,
-      availableAt: employee.redeploymentAvailableAt, followUpAt: employee.redeploymentFollowUpAt,
-      ownerId: employee.redeploymentOwnerId, ownerEmail: employee.redeploymentOwner?.email ?? null, notes: employee.redeploymentNotes,
-      nextAction: applications.length ? "Application in progress" : invitation ? "Waiting for applicant response" : "Find a placement",
-      applications: applications.map((application) => ({ id: application.id, status: application.status, title: application.jobPosting.title, client: application.jobPosting.mrf?.client.name ?? null })),
+      id: employee.id,
+      stage: redeploymentStageOf(employee.user.applications.length > 0, Boolean(profile?.invitations?.length)),
+      waitingSince,
+      searchText: `${name} ${employee.employeeNumber} ${previousClient} ${previousRole}`.toLowerCase(),
     };
-  }) };
+  });
+};
+
+const countRedeploymentStages = (index: Array<{ stage: RedeploymentStageName }>) => {
+  const stages: Record<RedeploymentStageName, number> = { NEEDS_PLACEMENT: 0, WAITING_FOR_REPLY: 0, IN_PROGRESS: 0 };
+  for (const row of index) stages[row.stage] += 1;
+  return { total: index.length, stages };
+};
+
+/** Authoritative stage counts for the whole shared queue (workforce badge, stage filter tiles). */
+export const getRedeploymentQueueSummary = async (actor?: Actor) => countRedeploymentStages(await loadRedeploymentIndex(actor));
+
+const listRedeploymentQueuePage = async (actor: Actor | undefined, options: RedeploymentQueueOptions) => {
+  const [index, staff] = await Promise.all([loadRedeploymentIndex(actor), loadRedeploymentStaff()]);
+  const summary = countRedeploymentStages(index);
+  const search = options.search?.trim().toLowerCase();
+  const now = Date.now();
+  const daysWaiting = (since: Date | null) => (since ? Math.max(0, Math.floor((now - since.getTime()) / DAY_MS)) : -1);
+  // Needs placement first, then longest-waiting first; array sort is stable so the pool order breaks ties.
+  const matches = index
+    .filter((row) => (!options.stage || row.stage === options.stage) && (!search || row.searchText.includes(search)))
+    .sort((a, b) => REDEPLOYMENT_STAGE_ORDER[a.stage] - REDEPLOYMENT_STAGE_ORDER[b.stage] || daysWaiting(b.waitingSince) - daysWaiting(a.waitingSince));
+  const { page, pageSize, skip, take } = resolvePage(options);
+  const pageIds = matches.slice(skip, skip + take).map((row) => row.id);
+  const [employees, placements] = await Promise.all([
+    pageIds.length ? findRedeploymentEmployees(actor, pageIds) : Promise.resolve([]),
+    loadStartedPlacements(pageIds),
+  ]);
+  const byId = new Map(employees.map((employee) => [employee.id, employee]));
+  const items = pageIds.flatMap((id) => {
+    const employee = byId.get(id);
+    return employee ? [mapRedeploymentRow(employee, placements.get(id) ?? [])] : [];
+  });
+  return { ...pageEnvelope(items, matches.length, page, pageSize), staff, summary };
+};
+
+export const listRedeploymentQueue = async (actor?: Actor, options: RedeploymentQueueOptions = {}) => {
+  if (isPageRequested(options)) return listRedeploymentQueuePage(actor, options);
+  const [employees, staff] = await Promise.all([findRedeploymentEmployees(actor), loadRedeploymentStaff()]);
+  const placements = await loadStartedPlacements(employees.map((employee) => employee.id));
+  return { staff, items: employees.map((employee) => mapRedeploymentRow(employee, placements.get(employee.id) ?? [])) };
 };
 
 export const updateRedeploymentFollowUp = async (id: number, actorId: string, data: { ownerId?: string | null; followUpAt?: string | null; notes?: string }, actor?: Actor) => {

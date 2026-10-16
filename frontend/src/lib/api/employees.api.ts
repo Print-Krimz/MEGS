@@ -8,10 +8,24 @@ import type {
   UpdateEmployeeDetailsDto,
 } from "../types/employee.types";
 import type { EmploymentStatus } from "../types/enums";
+import type { PaginatedListResponse } from "../types/api.types";
 
 export const employeesApi = {
   getRedeploymentQueue: () => api.get<RedeploymentQueueResponse>("/api/employees/redeployment-queue"),
-  getRedeploymentSuggestions: () => api.get<RedeploymentSuggestionsResponse>("/api/employees/redeployment-queue/suggestions"),
+  getRedeploymentQueuePage: (query: { page: number; pageSize: number; search?: string; stage?: RedeploymentStage | null }, options?: RequestInit) => {
+    const params = new URLSearchParams({ page: String(query.page), pageSize: String(query.pageSize) });
+    const search = query.search?.trim();
+    if (search) params.append("search", search);
+    if (query.stage) params.append("stage", query.stage);
+    return api.get<RedeploymentQueuePageResponse>(`/api/employees/redeployment-queue?${params.toString()}`, options);
+  },
+  getRedeploymentQueueSummary: (options?: RequestInit) => api.get<RedeploymentQueueSummary>("/api/employees/redeployment-queue/summary", options),
+  /** With employeeIds, only those workers are scored (at most 25); without, every queued worker is. */
+  getRedeploymentSuggestions: (employeeIds?: number[], options?: RequestInit) =>
+    api.get<RedeploymentSuggestionsResponse>(
+      `/api/employees/redeployment-queue/suggestions${employeeIds ? `?employeeIds=${employeeIds.join(",")}` : ""}`,
+      options,
+    ),
   updateRedeploymentFollowUp: (id: number, data: { ownerId: string | null; followUpAt: string | null; notes: string }) => api.patch(`/api/employees/${id}/redeployment`, data),
   getCredentialAlerts: () => api.get<EmployeeCredentialAlert[]>("/api/employees/credential-alerts"),
   listEmployees: (query?: EmployeeListQuery, options?: RequestInit) => {
@@ -98,6 +112,11 @@ export interface RedeploymentSuggestionsResponse {
 
 export type RedeploymentStage ="NEEDS_PLACEMENT" | "WAITING_FOR_REPLY" | "IN_PROGRESS";
 
+export interface RedeploymentQueueSummary {
+  total: number;
+  stages: Record<RedeploymentStage, number>;
+}
+
 export interface RedeploymentQueueResponse {
   staff: Array<{ id: string; email: string }>;
   items: Array<{
@@ -106,4 +125,9 @@ export interface RedeploymentQueueResponse {
     availableAt: string | null; followUpAt: string | null; ownerId: string | null; ownerEmail: string | null; notes: string | null; nextAction: string;
     applications: Array<{ id: number; status: string; title: string; client: string | null }>;
   }>;
+}
+
+export interface RedeploymentQueuePageResponse extends PaginatedListResponse<RedeploymentQueueResponse["items"][number]> {
+  staff: RedeploymentQueueResponse["staff"];
+  summary: RedeploymentQueueSummary;
 }

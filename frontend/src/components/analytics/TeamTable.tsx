@@ -18,7 +18,7 @@ interface TeamTableProps {
 
 const TH = "px-3 py-2 text-right text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap";
 
-export const TeamTable: React.FC<TeamTableProps> = ({ rows, rangeLabel, selectedRecruiterId, onSelectRecruiter, pageSize = 10, bare = false, initialQuery = "" }) => {
+export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selectedRecruiterId, onSelectRecruiter, pageSize = 10, bare = false, initialQuery = "" }: TeamTableProps) {
   const [query, setQuery] = useState(initialQuery);
   const [page, setPage] = useState(1);
 
@@ -161,4 +161,4 @@ export const TeamTable: React.FC<TeamTableProps> = ({ rows, rangeLabel, selected
       <PaginationBar page={currentPage} pageSize={pageSize} total={visible.length} onPageChange={setPage} noun="recruiters" />
     </AnalyticsPanel>
   );
-};
+});

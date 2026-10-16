@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ApplicationStatus } from "@prisma/client";
 import { BACKOUT_REASONS_BY_PARTY, REJECTION_REASON_CODES } from "../services/ta/backout-rules.js";
-import { boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber } from "./field-limits.js";
+import { boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber, pageQueryFields } from "./field-limits.js";
 
 const phoneField = formattedPhone;
 
@@ -97,12 +97,27 @@ export const taSchema = {
       status: z.enum(["OPEN", "IN_PROGRESS", "ON_HOLD", "FILLED", "CANCELLED"]).optional(),
       priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
       sortBy: z.enum(["priority", "created_desc", "created_asc", "target_date"]).optional(),
+      search: boundedText(FIELD_LIMITS.search).optional(),
+      ...pageQueryFields,
     }).strict(),
   }),
   listDeployments: z.object({
     query: z.object({
       clientId: idValue.optional(),
-      status: z.enum(["READY_FOR_DEPLOYMENT", "ACTIVE", "ENDED", "CANCELLED", "PENDING_ORIENTATION", "READY", "DISPATCHED"]).optional(),
+      status: z.enum(["READY_FOR_DEPLOYMENT", "ACTIVE", "ENDED", "CANCELLED", "PENDING_ORIENTATION", "READY", "DISPATCHED", "ENDED_REDEPLOYMENT", "ENDED_SEPARATED"]).optional(),
+      search: boundedText(FIELD_LIMITS.search).optional(),
+      ...pageQueryFields,
+    }).strict(),
+  }),
+  listInterviewCompliance: z.object({
+    query: z.object({
+      search: boundedText(FIELD_LIMITS.search).optional(),
+      status: z.enum(["HEALTHY", "WARNING", "BREACHED"]).optional(),
+      stage: z.enum(["INITIAL_SCREENING", "FINAL_INTERVIEW"]).optional(),
+      position: boundedText(FIELD_LIMITS.search).optional(),
+      sortField: z.enum(["candidate", "position", "scheduledAt", "deadline"]).optional(),
+      sortDirection: z.enum(["asc", "desc"]).optional(),
+      ...pageQueryFields,
     }).strict(),
   }),
   recordBackout: z.object({

@@ -1129,19 +1129,23 @@ function buildDetail(
   return { candidates, starts, backouts, overdue: overdue.items, overdueTotal: overdue.total };
 }
 
+/** Returned by the dashboard path, which never reads detail. Only reports (getTAReportData / getAdminReportData) build it. */
+const EMPTY_DETAIL: DeliveryDetail = { candidates: [], starts: [], backouts: [], overdue: [], overdueTotal: 0 };
+
 // ─────────────────────────────────────────────
 // TA dashboard
 // ─────────────────────────────────────────────
 export const getTADelivery = async (filters: AnalyticsFilterDto, scope: UserScope, now = new Date()): Promise<TADeliveryResult> =>
-  (await computeTADelivery(filters, scope, now)).result;
+  (await computeTADelivery(filters, scope, now, false)).result;
 
 /** Dashboard result plus the row-level data behind it. Reports use this so they cannot drift from the dashboard. */
-export const getTAReportData = (filters: AnalyticsFilterDto, scope: UserScope, now = new Date()) => computeTADelivery(filters, scope, now);
+export const getTAReportData = (filters: AnalyticsFilterDto, scope: UserScope, now = new Date()) => computeTADelivery(filters, scope, now, true);
 
 async function computeTADelivery(
   filters: AnalyticsFilterDto,
   scope: UserScope,
-  now: Date
+  now: Date,
+  withDetail: boolean
 ): Promise<{ result: TADeliveryResult; detail: DeliveryDetail }> {
   const { start, end, days } = parseDateRange(filters);
   const jobClause = buildJobClause(filters, scope);
@@ -1173,21 +1177,22 @@ async function computeTADelivery(
     stuck: stuck.items,
     stuckTotal: stuck.total,
   };
-  return { result, detail: buildDetail(snapshot, placements, backoutRecords, self) };
+  return { result, detail: withDetail ? buildDetail(snapshot, placements, backoutRecords, self) : EMPTY_DETAIL };
 }
 
 // ─────────────────────────────────────────────
 // Admin (team leader) dashboard
 // ─────────────────────────────────────────────
 export const getAdminDelivery = async (filters: AnalyticsFilterDto, now = new Date()): Promise<AdminDeliveryResult> =>
-  (await computeAdminDelivery(filters, now)).result;
+  (await computeAdminDelivery(filters, now, false)).result;
 
 /** Dashboard result plus the row-level data behind it. Reports use this so they cannot drift from the dashboard. */
-export const getAdminReportData = (filters: AnalyticsFilterDto, now = new Date()) => computeAdminDelivery(filters, now);
+export const getAdminReportData = (filters: AnalyticsFilterDto, now = new Date()) => computeAdminDelivery(filters, now, true);
 
 async function computeAdminDelivery(
   filters: AnalyticsFilterDto,
-  now: Date
+  now: Date,
+  withDetail: boolean
 ): Promise<{ result: AdminDeliveryResult; detail: DeliveryDetail }> {
   const { start, end, days } = parseDateRange(filters);
   const jobClause = buildJobClause(filters);
@@ -1300,5 +1305,5 @@ async function computeAdminDelivery(
     stuck: stuck.items,
     stuckTotal: stuck.total,
   };
-  return { result, detail: buildDetail(snapshot, placements, backoutRecords, recruiterOf) };
+  return { result, detail: withDetail ? buildDetail(snapshot, placements, backoutRecords, recruiterOf) : EMPTY_DETAIL };
 }

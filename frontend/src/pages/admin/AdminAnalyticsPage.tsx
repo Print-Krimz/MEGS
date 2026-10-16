@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
 import { PageHeader, LoadingState, ErrorState } from "../../components/common";
@@ -37,10 +37,13 @@ export const AdminAnalyticsPage: React.FC = () => {
 
   const dashboardQuery = useQuery({
     queryKey: ["admin", "analytics", "dashboard", filters],
-    queryFn: () => adminApi.getDashboardSummary(filters),
+    queryFn: ({ signal }) => adminApi.getDashboardSummary(filters, signal),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   });
+
+  // Stable, so the memoized recruiter lists do not re-render when only the open tab changes.
+  const selectRecruiter = useCallback((recruiterId: string | undefined) => setFilters((f) => ({ ...f, recruiterId })), []);
 
   /** Open the waiting list with a filter applied. */
   const showWaiting = (focus: Omit<WaitingFocus, "nonce">) => {
@@ -96,7 +99,6 @@ export const AdminAnalyticsPage: React.FC = () => {
   const lateRequests = kpis.requisitions.overdue + kpis.requisitions.atRisk;
   const noOwner = data.requests.filter((r) => r.ownerId === null && r.health !== "FILLED").length;
   const noOpening = data.requests.filter((r) => r.attention === "NO_OPENING").length;
-  const selectRecruiter = (recruiterId: string | undefined) => setFilters((f) => ({ ...f, recruiterId }));
   const staleNote =
     kpis.staleFilledRequisitions > 0
       ? `${kpis.staleFilledRequisitions} ${kpis.staleFilledRequisitions === 1 ? "request is" : "requests are"} marked filled but ${kpis.staleFilledRequisitions === 1 ? "has" : "have"} no placement behind ${kpis.staleFilledRequisitions === 1 ? "it" : "them"}. They are left out of the seat counts.`

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { listRedeploymentQueue, updateRedeploymentFollowUp } from "../../services/employee/employee.service.js";
+import { getRedeploymentQueueSummary, listRedeploymentQueue, updateRedeploymentFollowUp } from "../../services/employee/employee.service.js";
 import { listRedeploymentSuggestions } from "../../services/employee/redeployment-suggestions.service.js";
 import { sendSuccess, sendError } from "../../utils/response.js";
 import { logAudit } from "../../utils/audit.js";
@@ -21,12 +21,17 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const listRedeploymentQueueHandler = async (req: Request, res: Response): Promise<void> => {
-  try { sendSuccess(res, "Redeployment queue retrieved", await listRedeploymentQueue(req.user)); }
+  try { sendSuccess(res, "Redeployment queue retrieved", await listRedeploymentQueue(req.user, req.query as any)); }
   catch (error: any) { sendError(res, error.message, 500); }
 };
 
-export const listRedeploymentSuggestionsHandler = async (_req: Request, res: Response): Promise<void> => {
-  try { sendSuccess(res, "Redeployment suggestions retrieved", await listRedeploymentSuggestions()); }
+export const getRedeploymentQueueSummaryHandler = async (req: Request, res: Response): Promise<void> => {
+  try { sendSuccess(res, "Redeployment queue summary retrieved", await getRedeploymentQueueSummary(req.user)); }
+  catch (error: any) { sendError(res, error.message, 500); }
+};
+
+export const listRedeploymentSuggestionsHandler = async (req: Request, res: Response): Promise<void> => {
+  try { sendSuccess(res, "Redeployment suggestions retrieved", await listRedeploymentSuggestions(req.query.employeeIds as unknown as number[] | undefined)); }
   catch (error: any) { sendError(res, error.message, 500); }
 };
 

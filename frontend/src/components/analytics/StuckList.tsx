@@ -32,7 +32,7 @@ const SELECT =
   "min-h-9 border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]";
 
 /** Candidates past their stage limit, longest wait first, so a team leader can see who is holding them up. */
-export const StuckList: React.FC<StuckListProps> = ({
+export const StuckList = React.memo(function StuckList({
   rows,
   total,
   closedOpenings = 0,
@@ -43,7 +43,7 @@ export const StuckList: React.FC<StuckListProps> = ({
   subtitle = "Candidates past the allowed days for their stage. Verified waits first, then longest wait. Critical means twice the limit or more.",
   bare = false,
   focus,
-}) => {
+}: StuckListProps) {
   const admin = viewer === "admin";
   const [urgency, setUrgency] = useState<"ALL" | "critical">("ALL");
   const [stage, setStage] = useState("ALL");
@@ -206,4 +206,4 @@ export const StuckList: React.FC<StuckListProps> = ({
       )}
     </AnalyticsPanel>
   );
-};
+});

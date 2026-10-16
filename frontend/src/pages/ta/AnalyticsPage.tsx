@@ -36,7 +36,7 @@ export const AnalyticsPage: React.FC = () => {
 
   const dashboardQuery = useQuery({
     queryKey: ["ta", "analytics", "dashboard", filters],
-    queryFn: () => taApi.getDashboardSummary(filters),
+    queryFn: ({ signal }) => taApi.getDashboardSummary(filters, signal),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   });

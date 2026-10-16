@@ -1,7 +1,9 @@
 import prisma from "../../utils/prisma.js";
+import type { Prisma } from "@prisma/client";
 import { logAudit } from "../../utils/audit.js";
 import { sendRoleNotification, sendNotification } from "../../utils/notification.js";
 import { assertOwns, ownedWhere, type Actor } from "./ownership.js";
+import { isPageRequested, pageEnvelope, resolvePage, type PageRequest } from "../../utils/pagination.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 
 export interface MRFFulfillmentStats {
@@ -192,63 +194,121 @@ export const syncMRFStatusWithHeadcount = syncMRFFulfillmentStatus;
 
 export type MRFSortOption = "priority" | "created_desc" | "created_asc" | "target_date";
 
+const PRIORITY_RANK: Record<string, number> = {
+  URGENT: 4,
+  HIGH: 3,
+  NORMAL: 2,
+  LOW: 1,
+};
+
+const STATUS_ACTIVE_RANK: Record<string, number> = {
+  OPEN: 2,
+  IN_PROGRESS: 2,
+  ON_HOLD: 1,
+  FILLED: 0,
+  CANCELLED: 0,
+};
+
+type MRFSortKey = { id: number; status: string; priority: string; targetFillDate: Date | string | null; createdAt: Date | string };
+
+const compareMRFs = (sortBy: MRFSortOption) => (a: MRFSortKey, b: MRFSortKey): number => {
+  if (sortBy === "priority") {
+    // 1. Active status first (OPEN / IN_PROGRESS > ON_HOLD > FILLED / CANCELLED)
+    const statusDiff = (STATUS_ACTIVE_RANK[b.status] ?? 1) - (STATUS_ACTIVE_RANK[a.status] ?? 1);
+    if (statusDiff !== 0) return statusDiff;
+
+    // 2. Priority rank (URGENT > HIGH > NORMAL > LOW)
+    const priorityDiff = (PRIORITY_RANK[b.priority] ?? 2) - (PRIORITY_RANK[a.priority] ?? 2);
+    if (priorityDiff !== 0) return priorityDiff;
+
+    // 3. Target Fill Date (soonest first)
+    if (a.targetFillDate && b.targetFillDate) {
+      const dateDiff = new Date(a.targetFillDate).getTime() - new Date(b.targetFillDate).getTime();
+      if (dateDiff !== 0) return dateDiff;
+    } else if (a.targetFillDate && !b.targetFillDate) {
+      return -1;
+    } else if (!a.targetFillDate && b.targetFillDate) {
+      return 1;
+    }
+
+    // 4. Chronological fallback (newest first), then higher id first as a stable tiebreaker
+    const chronoDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (chronoDiff !== 0) return chronoDiff;
+    return b.id - a.id;
+  }
+
+  if (sortBy === "created_asc") {
+    const chronoDiff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    if (chronoDiff !== 0) return chronoDiff;
+    return a.id - b.id;
+  }
+
+  if (sortBy === "target_date") {
+    if (a.targetFillDate && b.targetFillDate) {
+      const dateDiff = new Date(a.targetFillDate).getTime() - new Date(b.targetFillDate).getTime();
+      if (dateDiff !== 0) return dateDiff;
+    } else if (a.targetFillDate) {
+      return -1;
+    } else if (b.targetFillDate) {
+      return 1;
+    }
+    const chronoDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (chronoDiff !== 0) return chronoDiff;
+    return b.id - a.id;
+  }
+
+  const chronoDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  if (chronoDiff !== 0) return chronoDiff;
+  return b.id - a.id;
+};
+
+const MRF_LIST_INCLUDE: Prisma.ManpowerRequestInclude = {
+  client: { select: { id: true, name: true } },
+  createdBy: { select: { id: true, email: true } },
+  deployments: {
+    where: {
+      status: {
+        in: [
+          "READY_FOR_DEPLOYMENT",
+          "ACTIVE",
+          "READY",
+          "DISPATCHED",
+          "PENDING_ORIENTATION",
+        ],
+      },
+    },
+    select: { id: true },
+  },
+  _count: {
+    select: {
+      jobPostings: true,
+      deployments: true,
+    },
+  },
+};
+
+export interface MRFListOptions extends PageRequest {
+  search?: string;
+}
+
 export const listMRFs = async (
   clientId?: number,
   status?: string,
   priority?: string,
   sortBy: MRFSortOption = "priority",
-  actor?: Actor
+  actor?: Actor,
+  options: MRFListOptions = {}
 ) => {
   const where: any = actor ? { ...ownedWhere.mrf(actor) } : {};
   if (clientId) where.clientId = clientId;
   if (status) where.status = status;
   if (priority) where.priority = priority;
+  const search = options.search?.trim();
+  if (search) {
+    where.AND = [{ OR: [{ title: { contains: search, mode: "insensitive" } }, { client: { name: { contains: search, mode: "insensitive" } } }] }];
+  }
 
-  const mrfs = await prisma.manpowerRequest.findMany({
-    where,
-    include: {
-      client: { select: { id: true, name: true } },
-      createdBy: { select: { id: true, email: true } },
-      deployments: {
-        where: {
-          status: {
-            in: [
-              "READY_FOR_DEPLOYMENT",
-              "ACTIVE",
-              "READY",
-              "DISPATCHED",
-              "PENDING_ORIENTATION",
-            ],
-          },
-        },
-        select: { id: true },
-      },
-      _count: {
-        select: {
-          jobPostings: true,
-          deployments: true,
-        },
-      },
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-  });
-
-  const PRIORITY_RANK: Record<string, number> = {
-    URGENT: 4,
-    HIGH: 3,
-    NORMAL: 2,
-    LOW: 1,
-  };
-
-  const STATUS_ACTIVE_RANK: Record<string, number> = {
-    OPEN: 2,
-    IN_PROGRESS: 2,
-    ON_HOLD: 1,
-    FILLED: 0,
-    CANCELLED: 0,
-  };
-
-  const mapped = mrfs.map((mrf) => {
+  const mapMRF = (mrf: any) => {
     const headcount = Math.max(1, mrf.headcount || 1);
     const deployedCount = mrf.deployments.length;
     const remainingCount = Math.max(0, headcount - deployedCount);
@@ -267,55 +327,31 @@ export const listMRFs = async (
         isFulfilled,
       },
     };
+  };
+
+  if (isPageRequested(options)) {
+    // Filter and order on a lean projection, then load full rows for the requested page only.
+    const keys = await prisma.manpowerRequest.findMany({
+      where,
+      select: { id: true, status: true, priority: true, targetFillDate: true, createdAt: true },
+    });
+    const { page, pageSize, skip, take } = resolvePage(options);
+    const pageIds = keys.sort(compareMRFs(sortBy)).slice(skip, skip + take).map((key) => key.id);
+    const rows = pageIds.length
+      ? await prisma.manpowerRequest.findMany({ where: { ...where, id: { in: pageIds } }, include: MRF_LIST_INCLUDE })
+      : [];
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const items = pageIds.flatMap((id) => (byId.has(id) ? [mapMRF(byId.get(id))] : []));
+    return pageEnvelope(items, keys.length, page, pageSize);
+  }
+
+  const mrfs = await prisma.manpowerRequest.findMany({
+    where,
+    include: MRF_LIST_INCLUDE,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
   });
 
-  return mapped.sort((a, b) => {
-    if (sortBy === "priority") {
-      // 1. Active status first (OPEN / IN_PROGRESS > ON_HOLD > FILLED / CANCELLED)
-      const statusDiff = (STATUS_ACTIVE_RANK[b.status] ?? 1) - (STATUS_ACTIVE_RANK[a.status] ?? 1);
-      if (statusDiff !== 0) return statusDiff;
-
-      // 2. Priority rank (URGENT > HIGH > NORMAL > LOW)
-      const priorityDiff = (PRIORITY_RANK[b.priority] ?? 2) - (PRIORITY_RANK[a.priority] ?? 2);
-      if (priorityDiff !== 0) return priorityDiff;
-
-      // 3. Target Fill Date (soonest first)
-      if (a.targetFillDate && b.targetFillDate) {
-        const dateDiff = new Date(a.targetFillDate).getTime() - new Date(b.targetFillDate).getTime();
-        if (dateDiff !== 0) return dateDiff;
-      } else if (a.targetFillDate && !b.targetFillDate) {
-        return -1;
-      } else if (!a.targetFillDate && b.targetFillDate) {
-        return 1;
-      }
-
-      // 4. Chronological fallback (newest first), then higher id first as a stable tiebreaker
-      const chronoDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      if (chronoDiff !== 0) return chronoDiff;
-      return b.id - a.id;
-    }
-
-    if (sortBy === "created_asc") {
-      const chronoDiff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      if (chronoDiff !== 0) return chronoDiff;
-      return a.id - b.id;
-    }
-
-    if (sortBy === "target_date") {
-      if (a.targetFillDate && b.targetFillDate) {
-        return new Date(a.targetFillDate).getTime() - new Date(b.targetFillDate).getTime();
-      }
-      if (a.targetFillDate) return -1;
-      if (b.targetFillDate) return 1;
-      const chronoDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      if (chronoDiff !== 0) return chronoDiff;
-      return b.id - a.id;
-    }
-
-    const chronoDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    if (chronoDiff !== 0) return chronoDiff;
-    return b.id - a.id;
-  });
+  return mrfs.map(mapMRF).sort(compareMRFs(sortBy));
 };
 
 export const createMRF = async (

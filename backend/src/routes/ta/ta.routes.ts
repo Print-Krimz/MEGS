@@ -187,7 +187,7 @@ router.patch("/applications/:id/endorsements/:endorsementId", validate(taSchema.
 router.post("/applications/:id/analyze", validate(taSchema.idParams), requireOwned("application"), analyzeApplication);
 
 // Interview Scheduling & Compliance
-router.get("/compliance/interviews", checkInterviewCompliance);
+router.get("/compliance/interviews", validate(taSchema.listInterviewCompliance), checkInterviewCompliance);
 router.get("/applications/:id/interviews", validate(taSchema.idParams), requireOwned("application"), listInterviews);
 router.post("/applications/:id/interviews", validate(taSchema.scheduleInterview), requireOwned("application"), scheduleInterview);
 router.post("/applications/:id/interviews/record", validate(taSchema.recordInterview), requireOwned("application"), recordInterviewDirectly);

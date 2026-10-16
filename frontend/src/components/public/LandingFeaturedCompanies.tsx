@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
 import { ArrowRight } from "lucide-react";
-import { Pagination } from "../common";
+import { Pagination } from "../common/Pagination";
 import { Button } from "@/components/shadcn/button";
 import { SectionHeader } from "./SectionHeader";
 import { Reveal } from "./motion";

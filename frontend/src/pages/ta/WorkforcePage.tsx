@@ -62,12 +62,12 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
     }
   };
 
-  // Same query key as the Redeployment tab, so the badge and the tab share one request.
-  const redeploymentQueue = useQuery({
-    queryKey: ["ta", "redeployment-queue"],
-    queryFn: employeesApi.getRedeploymentQueue,
+  // Counts only: the full queue is downloaded by the Redeployment tab itself, one page at a time.
+  const redeploymentSummary = useQuery({
+    queryKey: ["ta", "redeployment-queue", "summary"],
+    queryFn: ({ signal }) => employeesApi.getRedeploymentQueueSummary({ signal }),
   });
-  const needsPlacement = (redeploymentQueue.data?.items || []).filter((row) => row.stage === "NEEDS_PLACEMENT").length;
+  const needsPlacement = redeploymentSummary.data?.stages.NEEDS_PLACEMENT ?? 0;
 
   const activeTab = currentTab;
   const tabFallback = (

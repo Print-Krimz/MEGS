@@ -9,7 +9,6 @@ import {
 import type { QueryClient } from "@tanstack/react-query";
 import type { AuthContextType } from "./context/AuthContext";
 import { ApplicationStatus, PIPELINE_FILTER_STAGES, Role } from "./lib/types/enums";
-import { LandingPage } from "./pages/public/LandingPage";
 
 // TanStack preloads every matched route component after synchronous guards run.
 // Its native lazy components therefore load layouts and leaf pages in parallel.
@@ -18,6 +17,8 @@ const RoutePending = () => (
     Loading workspace…
   </div>
 );
+
+const LandingPage = lazyRouteComponent(() => import("./pages/public/LandingPage"), "LandingPage");
 
 const AuthLayout = lazyRouteComponent(() => import("./layouts/AuthLayout"), "AuthLayout");
 const ApplicantLayout = lazyRouteComponent(() => import("./layouts/ApplicantLayout"), "ApplicantLayout");

@@ -10,6 +10,7 @@ import type {
 import type { ApplicantProfile } from "./applicant.types";
 import type { Client } from "./client.types";
 import type { JobPosting } from "./application.types";
+import type { PaginatedListResponse } from "./api.types";
 import type { User } from "./auth.types";
 
 declare module "./application.types" {
@@ -327,6 +328,17 @@ export interface ComplianceAnalytics {
   statusBreakdown: Record<string, number>;
 }
 
+export interface InterviewSLAItem {
+  interviewId: number;
+  applicationId: number;
+  candidateName: string;
+  jobTitle: string;
+  scheduledAt: string;
+  deadline: string;
+  status: "HEALTHY" | "WARNING" | "BREACHED";
+  currentStage?: string;
+}
+
 export interface InterviewSLASummary {
   summary: {
     total: number;
@@ -334,14 +346,11 @@ export interface InterviewSLASummary {
     warning: number;
     healthy: number;
   };
-  details: Array<{
-    interviewId: number;
-    applicationId: number;
-    candidateName: string;
-    jobTitle: string;
-    scheduledAt: string;
-    deadline: string;
-    status: "HEALTHY" | "WARNING" | "BREACHED";
-    currentStage?: string;
-  }>;
+  details: InterviewSLAItem[];
+}
+
+/** Paginated interview SLA report: one page of items plus the unfiltered summary and position choices. */
+export interface InterviewSLAPage extends PaginatedListResponse<InterviewSLAItem> {
+  summary: InterviewSLASummary["summary"];
+  positions: string[];
 }

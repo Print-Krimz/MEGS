@@ -13,7 +13,7 @@ export const LandingAffiliates: React.FC = () => {
           {/* PJAR Group affiliation */}
           <div className="flex flex-1 items-center gap-4 lg:pr-8">
             <img
-              src="/images/canva-ref/pjar-logo.png"
+              src="/images/canva-ref/pjar-logo-192.webp"
               alt="PJAR Group of Companies"
               className="h-9 w-auto max-w-24 shrink-0 object-contain"
               loading="lazy"
@@ -29,7 +29,7 @@ export const LandingAffiliates: React.FC = () => {
           {/* PALSCON membership */}
           <div className="flex flex-1 items-center gap-4 lg:px-8">
             <img
-              src="/images/canva-ref/palscon-logo.png"
+              src="/images/canva-ref/palscon-logo-192.webp"
               alt="PALSCON - Philippine Association of Local Service Contractors"
               className="h-9 w-auto max-w-24 shrink-0 object-contain"
               loading="lazy"

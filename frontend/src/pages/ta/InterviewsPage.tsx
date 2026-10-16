@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
   PageHeader,
@@ -24,6 +24,8 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
+import { SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 
 type SortField = "candidate" | "position" | "scheduledAt" | "deadline";
 type SortDirection = "asc" | "desc";
@@ -39,6 +41,7 @@ export const InterviewsPage: React.FC = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [page, setPage] = useState(1);
   const pageSize = 8;
+  const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
 
   const [resultModalOpen, setResultModalOpen] = useState(false);
   const [targetInterview, setTargetInterview] = useState<{
@@ -50,8 +53,19 @@ export const InterviewsPage: React.FC = () => {
   const [resultNotes, setResultNotes] = useState("");
 
   const slaQuery = useQuery({
-    queryKey: ["ta", "compliance", "interviews"],
-    queryFn: taApi.checkInterviewCompliance,
+    queryKey: ["ta", "compliance", "interviews", "page", { page, pageSize, search: debouncedSearch, status: statusFilter, stage: stageFilter, position: positionFilter, sortField, sortDirection }],
+    queryFn: ({ signal }) =>
+      taApi.listInterviewCompliancePage({
+        page,
+        pageSize,
+        search: debouncedSearch || undefined,
+        status: statusFilter === "ALL" ? undefined : statusFilter,
+        stage: stageFilter || undefined,
+        position: positionFilter || undefined,
+        sortField,
+        sortDirection,
+      }, { signal }),
+    placeholderData: keepPreviousData,
   });
 
   const updateResultMutation = useMutation({
@@ -89,76 +103,16 @@ export const InterviewsPage: React.FC = () => {
 
   const slaData = slaQuery.data;
   const summary = slaData?.summary || { total: 0, breached: 0, warning: 0, healthy: 0 };
-  const items = slaData?.details || [];
+  const paginatedItems = slaData?.items ?? [];
+  const totalItems = slaData?.total ?? 0;
+  const totalPages = Math.max(1, slaData?.totalPages ?? 1);
 
-  const positionOptions = useMemo(() => {
-    const titles = Array.from(
-      new Set(
-        items
-          .map((item) => item.jobTitle)
-          .filter((title): title is string => Boolean(title && title.trim()))
-      )
-    ).sort((a, b) => a.localeCompare(b));
+  const positionOptions = (slaData?.positions ?? []).map((title) => ({ value: title, label: title }));
 
-    return titles.map((title) => ({
-      value: title,
-      label: title,
-    }));
-  }, [items]);
-
-  const filteredItems = useMemo(() => {
-    return items.filter((row) => {
-      const matchesStatus =
-        statusFilter === "ALL" ? true : row.status === statusFilter;
-      const q = search.trim().toLowerCase();
-      const matchesSearch =
-        !q ||
-        row.candidateName.toLowerCase().includes(q) ||
-        row.jobTitle.toLowerCase().includes(q);
-      const itemStage =
-        row.currentStage === "FINAL_INTERVIEW"
-          ? "FINAL_INTERVIEW"
-          : "INITIAL_SCREENING";
-      const matchesStage = !stageFilter || itemStage === stageFilter;
-      const matchesPosition =
-        !positionFilter || row.jobTitle === positionFilter;
-
-      return matchesStatus && matchesSearch && matchesStage && matchesPosition;
-    });
-  }, [items, statusFilter, search, stageFilter, positionFilter]);
-
-  const sortedItems = useMemo(() => {
-    return [...filteredItems].sort((a, b) => {
-      let comparison = 0;
-      switch (sortField) {
-        case "candidate":
-          comparison = (a.candidateName || "").localeCompare(b.candidateName || "");
-          break;
-        case "position":
-          comparison = (a.jobTitle || "").localeCompare(b.jobTitle || "");
-          break;
-        case "scheduledAt": {
-          const timeA = new Date(a.scheduledAt).getTime() || 0;
-          const timeB = new Date(b.scheduledAt).getTime() || 0;
-          comparison = timeA - timeB;
-          break;
-        }
-        case "deadline": {
-          const timeA = new Date(a.deadline).getTime() || 0;
-          const timeB = new Date(b.deadline).getTime() || 0;
-          comparison = timeA - timeB;
-          break;
-        }
-      }
-      return sortDirection === "asc" ? comparison : -comparison;
-    });
-  }, [filteredItems, sortField, sortDirection]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize));
-  const paginatedItems = sortedItems.slice(
-    (page - 1) * pageSize,
-    page * pageSize
-  );
+  // A refresh can leave the current page past the end (for example after outcomes are recorded).
+  useEffect(() => {
+    if (slaData && !slaQuery.isPlaceholderData && page > totalPages) setPage(totalPages);
+  }, [slaData, slaQuery.isPlaceholderData, page, totalPages]);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -416,7 +370,7 @@ export const InterviewsPage: React.FC = () => {
           </div>
         </div>
 
-        {items.length === 0 ? (
+        {summary.total === 0 ? (
           <div className="p-8">
             <EmptyState
               icon={<CheckCircle2 className="w-6 h-6 text-emerald-600" />}
@@ -424,7 +378,7 @@ export const InterviewsPage: React.FC = () => {
               description="There are no overdue or soon-due interview outcomes."
             />
           </div>
-        ) : sortedItems.length === 0 ? (
+        ) : totalItems === 0 ? (
           <div className="p-8">
             <EmptyState
               title="No matching interviews"
@@ -578,7 +532,7 @@ export const InterviewsPage: React.FC = () => {
               <Pagination
                 currentPage={page}
                 totalPages={totalPages}
-                totalItems={sortedItems.length}
+                totalItems={totalItems}
                 pageSize={pageSize}
                 onPageChange={setPage}
                 itemLabel="interviews"

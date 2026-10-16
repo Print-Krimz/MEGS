@@ -103,7 +103,8 @@ export const listDeploymentsHandler = async (req: Request, res: Response): Promi
     const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
     const status = req.query.status as string | undefined;
 
-    const deployments = await listDeployments(clientId, status, req.user);
+    const { search, page, pageSize } = req.query as { search?: string; page?: number; pageSize?: number };
+    const deployments = await listDeployments(clientId, status, req.user, { search, page, pageSize });
     sendSuccess(res, "Deployments retrieved successfully", deployments);
   } catch (error: any) {
     sendError(res, error.message, 500);

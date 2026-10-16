@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
   PageHeader,
@@ -20,7 +20,8 @@ import {
   Building2,
 } from "lucide-react";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
-import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
+import { REFERENCE_QUERY_STALE_TIME_MS, SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 
 export const MRFListPage: React.FC = () => {
   const [search, setSearch] = useState("");
@@ -28,16 +29,21 @@ export const MRFListPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<string>("created_desc");
   const [page, setPage] = useState(1);
   const pageSize = 8;
+  const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
 
   const mrfsQuery = useQuery({
-    queryKey: ["ta", "mrfs", filterValues, sortBy],
-    queryFn: () =>
-      taApi.listMRFs({
+    queryKey: ["ta", "mrfs", "page", { page, pageSize, search: debouncedSearch, filters: filterValues, sortBy }],
+    queryFn: ({ signal }) =>
+      taApi.listMRFsPage({
+        page,
+        pageSize,
+        search: debouncedSearch || undefined,
         status: filterValues.status || undefined,
         priority: filterValues.priority || undefined,
         clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
         sortBy,
-      }),
+      }, { signal }),
+    placeholderData: keepPreviousData,
   });
 
   const clientsQuery = useQuery({
@@ -46,19 +52,16 @@ export const MRFListPage: React.FC = () => {
     staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
 
-  const allMrfs = mrfsQuery.data || [];
   const clients = clientsQuery.data || [];
 
-  const filteredMrfs = allMrfs.filter((mrf) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    const titleMatch = mrf.title.toLowerCase().includes(q);
-    const clientMatch = mrf.client?.name?.toLowerCase().includes(q);
-    return titleMatch || clientMatch;
-  });
+  const paginatedMrfs = mrfsQuery.data?.items ?? [];
+  const totalItems = mrfsQuery.data?.total ?? 0;
+  const totalPages = Math.max(1, mrfsQuery.data?.totalPages ?? 1);
 
-  const totalPages = Math.max(1, Math.ceil(filteredMrfs.length / pageSize));
-  const paginatedMrfs = filteredMrfs.slice((page - 1) * pageSize, page * pageSize);
+  // A refresh can leave the current page past the end (for example after records move out of view).
+  useEffect(() => {
+    if (mrfsQuery.data && !mrfsQuery.isPlaceholderData && page > totalPages) setPage(totalPages);
+  }, [mrfsQuery.data, mrfsQuery.isPlaceholderData, page, totalPages]);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -167,7 +170,7 @@ export const MRFListPage: React.FC = () => {
         <LoadingState variant="table" rows={5} />
       ) : mrfsQuery.isError ? (
         <ErrorState error={mrfsQuery.error} onRetry={() => mrfsQuery.refetch()} />
-      ) : filteredMrfs.length === 0 ? (
+      ) : totalItems === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
           <EmptyState
             icon={<Briefcase className="w-6 h-6" />}
@@ -273,7 +276,7 @@ export const MRFListPage: React.FC = () => {
             <Pagination
               currentPage={page}
               totalPages={totalPages}
-              totalItems={filteredMrfs.length}
+              totalItems={totalItems}
               pageSize={pageSize}
               onPageChange={setPage}
             />
