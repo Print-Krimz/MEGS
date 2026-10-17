@@ -7,11 +7,19 @@ export function aiData(value: string, maximum = 128_000): string {
   return JSON.stringify(value);
 }
 
+const requirementCheckSchema = z.object({
+  requirement: z.string().trim().min(1).max(300),
+  result: z.enum(["MET", "PARTIAL", "NOT_MET", "UNCLEAR"]),
+  evidence: z.string().trim().max(600),
+}).strict();
+
 const analysisSchema = z.object({
   score: z.number().finite().int().min(0).max(100),
   summary: z.string().trim().min(1).max(4000),
   strengths: z.array(z.string().trim().min(1).max(1000)).max(30),
   gaps: z.array(z.string().trim().min(1).max(1000)).max(30),
+  // Older stored analyses have no checklist; new ones list each job requirement.
+  requirements: z.array(requirementCheckSchema).max(15).default([]),
 }).strict();
 
 export function parseAiJson(text: string): Record<string, unknown> {

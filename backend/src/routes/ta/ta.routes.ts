@@ -32,7 +32,7 @@ import {
   updateCandidateProfileHandler,
 } from '../../controllers/ta/ta.applications.controller.js';
 
-import { analyzeApplication } from '../../controllers/ta/ta.ai.controller.js';
+import { analyzeApplication, getAnalysisStatus } from '../../controllers/ta/ta.ai.controller.js';
 
 import {
   listInterviews,
@@ -185,6 +185,7 @@ router.patch("/applications/:id/endorsements/:endorsementId", validate(taSchema.
 
 // AI Resume Scoring
 router.post("/applications/:id/analyze", validate(taSchema.idParams), requireOwned("application"), analyzeApplication);
+router.get("/applications/:id/analyze/status", validate(taSchema.idParams), requireOwned("application"), getAnalysisStatus);
 
 // Interview Scheduling & Compliance
 router.get("/compliance/interviews", validate(taSchema.listInterviewCompliance), checkInterviewCompliance);

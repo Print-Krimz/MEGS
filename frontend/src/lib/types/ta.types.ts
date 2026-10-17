@@ -21,6 +21,28 @@ declare module "./application.types" {
 
 export type { JobPosting, ComplianceRequirement } from "./application.types";
 
+export type ResumeAnalysisPhase =
+  | "IDLE"
+  | "QUEUED"
+  | "READING_RESUME"
+  | "EXTRACTING_TEXT"
+  | "AI_ANALYSIS"
+  | "SCORING"
+  | "DONE"
+  | "FAILED";
+
+export interface ResumeAnalysisStatus {
+  phase: ResumeAnalysisPhase;
+  startedAt?: string;
+  updatedAt?: string;
+  /** Gemini resume review score. */
+  score?: number;
+  /** Rule-based match score, the one shown on the application page. */
+  fitScore?: number | null;
+  requirementsMet?: number;
+  requirementsTotal?: number;
+}
+
 export interface MRFComplianceTemplate {
   id: number;
   mrfId?: number | null;

@@ -130,12 +130,54 @@ export const generateContentWithFallback = (
   params: { contents: any; config?: any }, timeoutMs = 10000,
 ): Promise<any> => withGeminiCapacity(() => generateUnqueued(params, timeoutMs));
 
+export type RequirementCheckResult = "MET" | "PARTIAL" | "NOT_MET" | "UNCLEAR";
+
+export interface RequirementCheck {
+  requirement: string;
+  result: RequirementCheckResult;
+  evidence: string;
+}
+
 export interface ResumeAnalysisResult {
-  score: number;       // 0–100 match score
+  score: number;       // 0–100 AI estimate; used only when no rule-based match score exists
   summary: string;
   strengths: string[];
   gaps: string[];
+  requirements: RequirementCheck[];
 }
+
+// Shared response contract for both the text and document analysis prompts.
+const RESUME_ANALYSIS_INSTRUCTIONS = `
+Respond with a JSON object matching this exact structure:
+{
+  "requirements": [
+    {
+      "requirement": "<one requirement from JOB REQUIREMENTS, short, in the employer's own words>",
+      "result": "<MET | PARTIAL | NOT_MET | UNCLEAR>",
+      "evidence": "<one short sentence citing what the resume says, or what is missing>"
+    }
+  ],
+  "score": <integer from 0 to 100 representing overall fit — 100 is a perfect match>,
+  "summary": "<2 to 3 sentence overall assessment of the candidate's fit for this role>",
+  "strengths": ["<strength 1>", "<strength 2>", ...],
+  "gaps": ["<gap 1>", "<gap 2>", ...]
+}
+
+Requirement checklist rules:
+- Split JOB REQUIREMENTS into its distinct requirements (skills, traits, experience, education, certifications, location). List each once, at most 12.
+- MET: the resume clearly shows it. PARTIAL: related or weaker evidence. NOT_MET: the resume shows the candidate lacks it. UNCLEAR: the resume does not mention it either way.
+- Judge meaning, not exact wording: "dependable" supports "Responsible"; "team collaboration" supports "Respectful". Requirements may be written in Filipino or English.
+- Evidence must come from the resume. Never invent facts.
+
+Scoring guide:
+- 80–100: Excellent match, meets nearly all requirements
+- 60–79:  Good match, meets most requirements with minor gaps
+- 40–59:  Partial match, meets some requirements
+- 0–39:   Poor match, significant gaps
+
+Be objective. Base your assessment only on the resume content vs the stated requirements.
+Respond with valid JSON only. Do not include markdown or any text outside the JSON object.
+`.trim();
 
 // Prompts Gemini for structured resume scoring. Invoked exclusively via background workers.
 export const analyzeResume = async (
@@ -154,22 +196,8 @@ ${aiData(requirements, 32_000)}
 CANDIDATE RESUME:
 ${aiData(resumeText)}
 
-Analyze the resume against the job requirements and respond with a JSON object matching this exact structure:
-{
-  "score": <integer from 0 to 100 representing overall fit — 100 is a perfect match>,
-  "summary": "<2 to 3 sentence overall assessment of the candidate's fit for this role>",
-  "strengths": ["<strength 1>", "<strength 2>", ...],
-  "gaps": ["<gap 1>", "<gap 2>", ...]
-}
-
-Scoring guide:
-- 80–100: Excellent match, meets nearly all requirements
-- 60–79:  Good match, meets most requirements with minor gaps
-- 40–59:  Partial match, meets some requirements
-- 0–39:   Poor match, significant gaps
-
-Be objective. Base your score only on the resume content vs the stated requirements.
-Respond with valid JSON only. Do not include markdown or any text outside the JSON object.
+Check the resume against each job requirement.
+${RESUME_ANALYSIS_INSTRUCTIONS}
 `.trim();
 
   const response = await generateContentWithFallback({
@@ -575,22 +603,8 @@ JOB TITLE: ${aiData(jobTitle, 1000)}
 JOB REQUIREMENTS:
 ${aiData(requirements, 32_000)}
 
-Analyze the resume document against the job requirements and respond with a JSON object matching this exact structure:
-{
-  "score": <integer from 0 to 100 representing overall fit — 100 is a perfect match>,
-  "summary": "<2 to 3 sentence overall assessment of the candidate's fit for this role>",
-  "strengths": ["<strength 1>", "<strength 2>", ...],
-  "gaps": ["<gap 1>", "<gap 2>", ...]
-}
-
-Scoring guide:
-- 80–100: Excellent match, meets nearly all requirements
-- 60–79:  Good match, meets most requirements with minor gaps
-- 40–59:  Partial match, meets some requirements
-- 0–39:   Poor match, significant gaps
-
-Be objective. Base your score only on the resume content vs the stated requirements.
-Respond with valid JSON only. Do not include markdown or any text outside the JSON object.
+Check the resume document against each job requirement.
+${RESUME_ANALYSIS_INSTRUCTIONS}
 `.trim();
 
   const response = await generateContentWithFallback({

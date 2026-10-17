@@ -1,5 +1,6 @@
 import { ApplicationStatus, Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
+import { safeLogError } from "../../security/errors.js";
 import { calculateAndPersistCandidateScore } from "./candidate-scoring.service.js";
 import { getActiveScoringConfiguration } from "./scoring-configuration.service.js";
 import { CandidateFeatureInput } from "./scoring.types.js";
@@ -66,8 +67,10 @@ export const rebuildCandidateFeatureProfile = async (applicantProfileId: number)
   try {
     const embedding = await generateEmbedding(text, { taskType: "RETRIEVAL_DOCUMENT" });
     vectorStr = `[${embedding.join(",")}]`;
-  } catch {
-    // Graceful fallback for mock or offline environments without active Gemini API
+  } catch (error) {
+    // Graceful fallback for mock or offline environments without active Gemini API.
+    // Logged so a missing embedding (skills scored on exact words only) is visible.
+    safeLogError(`Scoring: embed candidate profile #${applicantProfileId}`, error);
   }
 
   try {

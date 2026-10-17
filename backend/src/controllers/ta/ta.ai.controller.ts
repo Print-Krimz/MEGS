@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { sendSuccess, sendError } from '../../utils/response.js';
 import { queueApplicationAnalysis } from '../../services/ta/ta.ai.service.js';
+import { getAnalysisProgress } from '../../workers/resume.worker.js';
 
 // POST /api/ta/applications/:id/analyze - Enqueues background Gemini AI resume analysis
 export const analyzeApplication = async (req: Request, res: Response): Promise<void> => {
@@ -17,4 +18,14 @@ export const analyzeApplication = async (req: Request, res: Response): Promise<v
     if (statusCode === 429) res.setHeader("Retry-After", "5");
     sendError(res, error.message, statusCode);
   }
+};
+
+// GET /api/ta/applications/:id/analyze/status - Current step of the latest resume analysis run
+export const getAnalysisStatus = async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) {
+    sendError(res, "Invalid application ID", 400);
+    return;
+  }
+  sendSuccess(res, "Analysis status", getAnalysisProgress(id) ?? { phase: "IDLE" });
 };

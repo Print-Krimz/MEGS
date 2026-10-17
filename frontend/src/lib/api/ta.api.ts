@@ -11,6 +11,7 @@ import type {
 } from "../types/application.types";
 import type {
   ManpowerRequest,
+  ResumeAnalysisStatus,
   CreateMRFDto,
   UpdateMRFDto,
   MRFComplianceTemplate,
@@ -188,6 +189,9 @@ export const taApi = {
       `/api/ta/applications/${id}/analyze`,
       {}
     ),
+
+  getAnalysisStatus: (id: number | string) =>
+    api.get<ResumeAnalysisStatus>(`/api/ta/applications/${id}/analyze/status`),
 
   // -------------------------------------------------------------
   // 3. Job Postings & Candidate Match Ranking

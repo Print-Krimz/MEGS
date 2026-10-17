@@ -3,7 +3,7 @@ import prisma from '../../utils/prisma.js';
 import { uploadFileToSupabase } from '../../middleware/upload.middleware.js';
 import { logAudit } from '../../utils/audit.js';
 import { sendNotification, sendRoleNotification } from '../../utils/notification.js';
-import { enqueueResumeAnalysis } from '../../workers/resume.worker.js';
+import { enqueueResumeAnalysis, trackFitRevalidation } from '../../workers/resume.worker.js';
 import { revalidateApplication } from "../scoring/scoring-configuration.service.js";
 import {
   ensureApplicantProfile,
@@ -308,7 +308,9 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
       } });
     }
   }
-  void revalidateApplication(application.id, jobId).catch((error) => console.error("[Scoring] failed to queue application revalidation", error));
+  const revalidation = revalidateApplication(application.id, jobId);
+  trackFitRevalidation(application.id, revalidation);
+  void revalidation.catch((error) => console.error("[Scoring] failed to queue application revalidation", error));
 
   logAudit(userId, "APPLICATION_SUBMITTED", "Application", application.id, {
     jobPostingId: jobId,

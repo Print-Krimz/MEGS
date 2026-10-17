@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
@@ -17,6 +17,8 @@ import {
 import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
 import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
 import { InlineResumeViewer } from "../../components/ta/InlineResumeViewer";
+import { ResumeAnalysisDialog } from "../../components/ta/ResumeAnalysisDialog";
+import { RequirementChecklist, parseRequirementChecks } from "../../components/ta/RequirementChecklist";
 import { CloseApplicationDialog, type CloseSubmission } from "../../components/ta/CloseApplicationDialog";
 import { CLOSURE_DISPOSITION_LABELS, CLOSURE_OUTCOME_LABELS, canRecordBackout, closureReasonLabel, type ClosureOutcome } from "../../lib/backout";
 import { Button, Dialog, Input, Select, Textarea, ComboBox, PhoneInput, DateTimePicker, dateTimeLocalToManilaIso, manilaIsoToDateTimeLocal } from "../../components/ui";
@@ -507,13 +509,17 @@ export const ApplicationDetailPage: React.FC = () => {
     },
   });
 
+  const [analysisRunId, setAnalysisRunId] = useState(0);
+  const [analysisDialogOpen, setAnalysisDialogOpen] = useState(false);
+  // Runs once when the analysis dialog sees the job finish, even if the dialog was hidden.
+  const handleAnalysisFinished = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
+  }, [queryClient, applicationId]);
   const analyzeMutation = useMutation({
     mutationFn: () => taApi.analyzeApplication(applicationId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
-      const msg = "Candidate assessment and match score updated successfully.";
-      setFeedback({ type: "success", message: msg });
-      notify.success("Candidate assessment updated", msg);
+      setAnalysisRunId(Date.now());
+      setAnalysisDialogOpen(true);
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: `Unable to refresh the candidate assessment. ${formatErrorMessage(err)}` });
@@ -776,6 +782,7 @@ export const ApplicationDetailPage: React.FC = () => {
           summary: typeof parsed.summary === "string" ? parsed.summary : "",
           strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
           gaps: Array.isArray(parsed.gaps) ? parsed.gaps : [],
+          requirements: parseRequirementChecks(parsed.requirements),
         };
       }
     } catch {
@@ -785,6 +792,7 @@ export const ApplicationDetailPage: React.FC = () => {
       summary: String(appData.aiSummary),
       strengths: [],
       gaps: [],
+      requirements: [],
     };
   }, [appData?.aiSummary]);
 
@@ -2351,8 +2359,16 @@ export const ApplicationDetailPage: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Strengths & Gaps Breakdown */}
-                      {(parsedAiAssessment.strengths.length > 0 || parsedAiAssessment.gaps.length > 0) && (
+                      {/* Requirement-by-requirement check (newer analyses) */}
+                      {parsedAiAssessment.requirements.length > 0 && (
+                        <div className="pt-3 border-t border-slate-200">
+                          <RequirementChecklist checks={parsedAiAssessment.requirements} />
+                        </div>
+                      )}
+
+                      {/* Strengths & Gaps Breakdown (older analyses without a checklist) */}
+                      {parsedAiAssessment.requirements.length === 0 &&
+                        (parsedAiAssessment.strengths.length > 0 || parsedAiAssessment.gaps.length > 0) && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-200">
                           {/* Key Strengths */}
                           <div className="space-y-2">
@@ -4242,6 +4258,15 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
         </div>
       </Dialog>
+
+      <ResumeAnalysisDialog
+        open={analysisDialogOpen}
+        onClose={() => setAnalysisDialogOpen(false)}
+        applicationId={applicationId}
+        candidateName={candidateName}
+        runId={analysisRunId}
+        onFinished={handleAnalysisFinished}
+      />
 
       <CloseApplicationDialog
         open={closeOutcome !== null}

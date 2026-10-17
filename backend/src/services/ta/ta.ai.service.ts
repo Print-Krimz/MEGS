@@ -1,5 +1,5 @@
 import prisma from '../../utils/prisma.js';
-import { enqueueResumeAnalysis, getQueueStatus } from '../../workers/resume.worker.js';
+import { enqueueResumeAnalysis, getQueueStatus, trackFitRevalidation } from '../../workers/resume.worker.js';
 
 // Transitions eligible application to PARSING and queues background analysis
 export const queueApplicationAnalysis = async (applicationId: number) => {
@@ -19,8 +19,10 @@ export const queueApplicationAnalysis = async (applicationId: number) => {
   if (!application.resumeUrl) throw new Error("This application has no resume attached");
   if (application.status === "BACKOUT") throw new Error("Cannot analyze an application that has backed out");
 
-  // Only transition to PARSING if the application is in an initial un-reviewed status
-  const transitionToParsingStatuses = ["SUBMITTED", "NEEDS_ATTENTION", "MATCHED"];
+  // Only transition to PARSING if the application is in an initial un-reviewed status.
+  // MATCHED/REVIEW cannot move back to PARSING (pipeline-rules.ts); they keep their status
+  // and the refreshed match score re-categorizes them.
+  const transitionToParsingStatuses = ["SUBMITTED", "NEEDS_ATTENTION"];
   if (transitionToParsingStatuses.includes(application.status)) {
     const { updateTAApplicationStatus } = await import("./ta.applications.service.js");
     await updateTAApplicationStatus(applicationId, "PARSING", undefined, "Queued for AI resume parsing");
@@ -39,7 +41,9 @@ export const queueApplicationAnalysis = async (applicationId: number) => {
   // Trigger candidate scoring revalidation in background
   if (application.jobPostingId) {
     const { revalidateApplication } = await import("../scoring/scoring-configuration.service.js");
-    void revalidateApplication(applicationId, application.jobPostingId).catch((err) =>
+    const revalidation = revalidateApplication(applicationId, application.jobPostingId);
+    trackFitRevalidation(applicationId, revalidation);
+    void revalidation.catch((err) =>
       console.error("[AI Service] Failed to revalidate candidate score:", err)
     );
   }

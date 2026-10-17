@@ -41,6 +41,7 @@ const taApplicationEvents = new Set([
   "Compliance Document Re-Submitted",
   "All Compliance Documents Submitted",
   "Candidate Matched by AI",
+  "Candidate Matched",
 ]);
 
 export function getNotificationInvalidationKeys(
@@ -73,7 +74,7 @@ export function getNotificationInvalidationKeys(
       ["ta", "application", applicationId],
       ["ta", "analytics"],
     ];
-    if (["New Candidate Application", "Job Invitation Accepted", "Candidate Matched by AI"].includes(title)) {
+    if (["New Candidate Application", "Job Invitation Accepted", "Candidate Matched by AI", "Candidate Matched"].includes(title)) {
       related.push(["ta", "jobs"]);
       related.push(["ta", "job"]);
     }

@@ -1287,6 +1287,8 @@ export const restoreTAApplication = async (id: number, actorId?: string, reason?
  * Automatically categorizes a candidate based on their AI score if they are in the pre-screening phase.
  * Prevents downward progression if the candidate has already advanced to an interview or beyond.
  */
+const formatScore = (score: number) => (Number.isInteger(score) ? String(score) : score.toFixed(1));
+
 export const applyScoreCategorization = async (applicationId: number, score: number, customThreshold?: number) => {
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
@@ -1340,7 +1342,7 @@ export const applyScoreCategorization = async (applicationId: number, score: num
       applicationId, 
       nextStatus, 
       undefined, 
-      `AI Score (${score}) resulted in categorization: ${nextStatus}`
+      `Match score (${formatScore(score)}) resulted in categorization: ${nextStatus}`
     );
 
     if (nextStatus === "MATCHED") {
@@ -1351,8 +1353,8 @@ export const applyScoreCategorization = async (applicationId: number, score: num
       const jobTitle = application.jobPosting?.title || "Requisition";
       const postedById = application.jobPosting?.postedById;
 
-      const notifTitle = "Candidate Matched by AI";
-      const notifMessage = `${candidateName} achieved a match score of ${score}% for "${jobTitle}".`;
+      const notifTitle = "Candidate Matched";
+      const notifMessage = `${candidateName} has a match score of ${formatScore(score)}/100 for "${jobTitle}".`;
       const notifType = "SUCCESS";
       const link = `/ta/applications/${applicationId}`;
 

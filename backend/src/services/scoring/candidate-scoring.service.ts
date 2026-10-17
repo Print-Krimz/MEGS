@@ -76,6 +76,15 @@ export const calculateAndPersistCandidateScore = async (
   });
   if (!featureProfile) {
     featureProfile = await rebuildCandidateFeatureProfile(profileId);
+  } else {
+    // Profiles whose embedding failed earlier are rebuilt so the skills score can
+    // compare meaning, not only exact words.
+    const [embeddingRow] = await prisma.$queryRaw<Array<{ missing: boolean }>>`
+      SELECT ("embedding" IS NULL) AS missing FROM "CandidateFeatureProfile" WHERE id = ${featureProfile.id}
+    `.catch(() => [] as Array<{ missing: boolean }>);
+    if (embeddingRow?.missing) {
+      featureProfile = (await rebuildCandidateFeatureProfile(profileId)) ?? featureProfile;
+    }
   }
   if (!featureProfile) {
     throw new Error("Candidate feature profile could not be loaded or created.");
