@@ -252,6 +252,12 @@ export interface TalentPoolCandidate {
   lastContactedAt?: string | null;
 }
 
+/** Talent pool search response. unsearchableCount = eligible members without a search index yet. */
+export interface TalentPoolSearchResult {
+  items: TalentPoolMatchResult[];
+  unsearchableCount: number;
+}
+
 export interface TalentPoolMatchResult {
   candidate: TalentPoolCandidate;
   similarity: number;

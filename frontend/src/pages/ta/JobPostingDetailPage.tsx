@@ -190,9 +190,10 @@ export const JobPostingDetailPage: React.FC = () => {
   );
   const applicantCount = rankedCandidatesQuery.data?.length ?? job?.applications?.length ?? 0;
   const talentPoolMatches = React.useMemo(
-    () => talentPoolQuery.data || [],
+    () => talentPoolQuery.data?.items ?? [],
     [talentPoolQuery.data]
   );
+  const unsearchablePoolCount = talentPoolQuery.data?.unsearchableCount ?? 0;
 
   const activeScores = React.useMemo(() => {
     return rankedScores.filter((s) => {
@@ -485,7 +486,7 @@ export const JobPostingDetailPage: React.FC = () => {
             ariaLabel="Job opening candidate views"
             items={[
               { id: "applicants", label: `Applicants (${applicantCount})`, icon: Users, panelId: "job-applicants" },
-              { id: "talentPool", label: `Candidate pool matches (${talentPoolMatches.length})`, icon: Users, panelId: "job-talent-pool" },
+              { id: "talentPool", label: talentPoolQuery.isError ? "Candidate pool matches" : `Candidate pool matches (${talentPoolMatches.length})`, icon: Users, panelId: "job-talent-pool" },
             ]}
             className="border-b-0 flex-1"
           />
@@ -719,14 +720,27 @@ export const JobPostingDetailPage: React.FC = () => {
         {/* Tab 2: Discovered Talent Pool Candidates */}
         {activeTab === "talentPool" && (
           <div id="job-talent-pool" role="tabpanel" tabIndex={0}>
+            {talentPoolMatches.length > 0 && unsearchablePoolCount > 0 && (
+              <p className="px-4 pt-4 text-xs text-slate-600">
+                {unsearchablePoolCount} candidate pool {unsearchablePoolCount === 1 ? "member" : "members"} can't be matched yet and {unsearchablePoolCount === 1 ? "is" : "are"} not shown.
+              </p>
+            )}
             {talentPoolQuery.isLoading ? (
               <LoadingState variant="cards" />
+            ) : talentPoolQuery.isError ? (
+              <div className="p-4">
+                <ErrorState error={talentPoolQuery.error} onRetry={() => talentPoolQuery.refetch()} />
+              </div>
             ) : talentPoolMatches.length === 0 ? (
               <div className="p-8">
                 <EmptyState
                   icon={<Users className="w-6 h-6 text-slate-400" />}
                   title="No candidate pool matches for this opening"
-                  description="All available talent pool members have already been considered or have no matching skills."
+                  description={
+                    unsearchablePoolCount > 0
+                      ? `${unsearchablePoolCount} candidate pool ${unsearchablePoolCount === 1 ? "member" : "members"} can't be matched yet because ${unsearchablePoolCount === 1 ? "their profile is" : "their profiles are"} still being prepared for matching. Try again later.`
+                      : "No available candidate pool member is similar enough to this opening."
+                  }
                 />
               </div>
             ) : (

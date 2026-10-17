@@ -33,6 +33,9 @@ const serializeScore = (score: any) => ({
   explanation: score.explanation,
 });
 
+// v2: unified job terms, partial semantic credit, missing data left out of the score.
+export const FIT_SCORE_VERSION = "fit-score-v2";
+
 export const calculateAndPersistCandidateScore = async (
   applicationId: number,
   jobPostingId: number,
@@ -174,7 +177,7 @@ export const calculateAndPersistCandidateScore = async (
   }
 
   const explanation = {
-    version: "fit-score-v1",
+    version: FIT_SCORE_VERSION,
     ...(activeTotalWeight === 0
       ? {
           basis: "No specific job requirements configured",
@@ -183,6 +186,10 @@ export const calculateAndPersistCandidateScore = async (
         }
       : {}),
     missingMandatory: dimensionCalculation.missingMandatory,
+    // Dimensions left out because the profile lacks data, and those TA should check by hand.
+    incompleteFields: SCORING_DIMENSIONS.filter((dim) => dimensionCalculation.dimensionStatuses[dim] === "NOT_ASSESSED"),
+    needsReview: SCORING_DIMENSIONS.filter((dim) => dimensionCalculation.dimensionStatuses[dim] === "NEEDS_REVIEW"),
+    embeddingUsed: typeof computedKnnSimilarity === "number" && computedKnnSimilarity > 0,
     dimensions,
     dimensionExplanations: dimensionCalculation.explanations,
     dimensionsApplicable: dimensionCalculation.dimensionsApplicable,
@@ -207,7 +214,7 @@ export const calculateAndPersistCandidateScore = async (
         explanation: explanation as Prisma.InputJsonValue,
         featureSchemaVersion: FEATURE_SCHEMA_VERSION,
         extractionVersion: EXTRACTION_VERSION,
-        calculationVersion: "fit-score-v1",
+        calculationVersion: FIT_SCORE_VERSION,
       },
       include: { configuration: { select: { version: true } } },
     });

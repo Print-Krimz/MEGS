@@ -18,7 +18,7 @@ import { PhilippineAddressFields } from "../../components/common/PhilippineAddre
 import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
 import { InlineResumeViewer } from "../../components/ta/InlineResumeViewer";
 import { ResumeAnalysisDialog } from "../../components/ta/ResumeAnalysisDialog";
-import { RequirementChecklist, parseRequirementChecks } from "../../components/ta/RequirementChecklist";
+import { CandidateAssessmentPanel, parseCandidateAssessment } from "../../components/ta/CandidateAssessmentPanel";
 import { CloseApplicationDialog, type CloseSubmission } from "../../components/ta/CloseApplicationDialog";
 import { CLOSURE_DISPOSITION_LABELS, CLOSURE_OUTCOME_LABELS, canRecordBackout, closureReasonLabel, type ClosureOutcome } from "../../lib/backout";
 import { Button, Dialog, Input, Select, Textarea, ComboBox, PhoneInput, DateTimePicker, dateTimeLocalToManilaIso, manilaIsoToDateTimeLocal } from "../../components/ui";
@@ -64,7 +64,6 @@ import {
   Plus,
   UserX,
   CheckCircle2,
-  AlertCircle,
   Eye,
   XCircle,
   FileCheck,
@@ -773,28 +772,10 @@ export const ApplicationDetailPage: React.FC = () => {
   });
 
   const appData = applicationQuery.data;
-  const parsedAiAssessment = React.useMemo(() => {
-    if (!appData?.aiSummary) return null;
-    try {
-      const parsed = typeof appData.aiSummary === "string" ? JSON.parse(appData.aiSummary) : appData.aiSummary;
-      if (parsed && typeof parsed === "object") {
-        return {
-          summary: typeof parsed.summary === "string" ? parsed.summary : "",
-          strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
-          gaps: Array.isArray(parsed.gaps) ? parsed.gaps : [],
-          requirements: parseRequirementChecks(parsed.requirements),
-        };
-      }
-    } catch {
-      // Plain text fallback
-    }
-    return {
-      summary: String(appData.aiSummary),
-      strengths: [],
-      gaps: [],
-      requirements: [],
-    };
-  }, [appData?.aiSummary]);
+  const parsedAiAssessment = React.useMemo(
+    () => parseCandidateAssessment(appData?.aiSummary),
+    [appData?.aiSummary]
+  );
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({
@@ -2282,7 +2263,10 @@ export const ApplicationDetailPage: React.FC = () => {
                         dim.key === "COMPLIANCE" &&
                         (status === "PENDING_ONBOARDING_STAGE" ||
                           (!status && scoreExplanation?.dimensionsApplicable?.COMPLIANCE === false));
+                      const isNotAssessed = status === "NOT_ASSESSED";
+                      const isNeedsReview = status === "NEEDS_REVIEW";
                       const isMissingMandatory =
+                        !isNotAssessed &&
                         Array.isArray(scoreExplanation?.missingMandatory) &&
                         scoreExplanation.missingMandatory.includes(dim.key);
 
@@ -2297,7 +2281,25 @@ export const ApplicationDetailPage: React.FC = () => {
                             {dim.label}
                           </div>
 
-                          {isNotRequired ? (
+                          {isNotAssessed ? (
+                            <>
+                              <div className="text-xs font-semibold text-slate-600 font-sans mt-1">
+                                Not assessed
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-sans mt-0.5 leading-tight">
+                                Missing in profile
+                              </div>
+                            </>
+                          ) : isNeedsReview ? (
+                            <>
+                              <div className="text-xs font-semibold text-amber-700 font-sans mt-1">
+                                Check with candidate
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-sans mt-0.5 leading-tight">
+                                Work history unclear
+                              </div>
+                            </>
+                          ) : isNotRequired ? (
                             <div className="text-xs font-semibold text-slate-500 font-sans mt-1">
                               Not required
                             </div>
@@ -2331,89 +2333,8 @@ export const ApplicationDetailPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Candidate Assessment & Recommendation */}
-                {parsedAiAssessment && (
-                  <div id="eval-assessment" className="border border-slate-300 bg-white shadow-xs rounded-md overflow-hidden">
-                    <div className="px-4 py-3 bg-teal-50 border-b border-slate-300 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileCheck className="w-4 h-4 text-teal-800" />
-                        <h4 className="text-xs font-bold font-mono text-teal-950 uppercase tracking-wide">
-                          Candidate Assessment & Recommendation
-                        </h4>
-                      </div>
-                      <span className="text-[11px] font-mono font-semibold px-2 py-0.5 bg-white text-teal-900 border border-slate-300 rounded-md">
-                        Assessment summary
-                      </span>
-                    </div>
-
-                    <div className="p-4 space-y-4 text-xs">
-                      {/* Executive Summary */}
-                      {parsedAiAssessment.summary && (
-                        <div className="space-y-1.5">
-                          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-                            Summary
-                          </div>
-                          <p className="text-slate-900 leading-relaxed font-sans text-xs">
-                            {parsedAiAssessment.summary}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Requirement-by-requirement check (newer analyses) */}
-                      {parsedAiAssessment.requirements.length > 0 && (
-                        <div className="pt-3 border-t border-slate-200">
-                          <RequirementChecklist checks={parsedAiAssessment.requirements} />
-                        </div>
-                      )}
-
-                      {/* Strengths & Gaps Breakdown (older analyses without a checklist) */}
-                      {parsedAiAssessment.requirements.length === 0 &&
-                        (parsedAiAssessment.strengths.length > 0 || parsedAiAssessment.gaps.length > 0) && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-200">
-                          {/* Key Strengths */}
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-teal-900 uppercase tracking-wider">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-teal-700" />
-                              <span>Candidate Strengths ({parsedAiAssessment.strengths.length})</span>
-                            </div>
-                            {parsedAiAssessment.strengths.length > 0 ? (
-                              <ul className="space-y-1.5">
-                                {parsedAiAssessment.strengths.map((strength: string, i: number) => (
-                                  <li key={i} className="flex items-start gap-2 text-slate-800">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-teal-600 mt-1.5 shrink-0" />
-                                    <span className="leading-snug">{strength}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-slate-400 italic">No specific strengths documented</p>
-                            )}
-                          </div>
-
-                          {/* Identified Gaps / Development Areas */}
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-amber-900 uppercase tracking-wider">
-                              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                              <span>Identified Gaps & Considerations ({parsedAiAssessment.gaps.length})</span>
-                            </div>
-                            {parsedAiAssessment.gaps.length > 0 ? (
-                              <ul className="space-y-1.5">
-                                {parsedAiAssessment.gaps.map((gap: string, i: number) => (
-                                  <li key={i} className="flex items-start gap-2 text-slate-800">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                                    <span className="leading-snug">{gap}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-slate-400 italic">No critical gaps identified</p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                {/* Candidate assessment: identity warning, summary, requirement checklist, other notes */}
+                {parsedAiAssessment && <CandidateAssessmentPanel assessment={parsedAiAssessment} />}
               </div>
 
               {/* SECTION C: Interview Management */}

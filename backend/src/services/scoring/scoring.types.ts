@@ -10,7 +10,12 @@ export type ScoringDimension = (typeof SCORING_DIMENSIONS)[number];
 
 export type ScoringWeights = Record<ScoringDimension, number>;
 
-export type DimensionStatus = "EVALUATED" | "NOT_REQUIRED" | "PENDING_ONBOARDING_STAGE";
+/**
+ * EVALUATED counts toward the match score. The others are left out of the weighting:
+ * NOT_REQUIRED (job asks nothing), PENDING_ONBOARDING_STAGE (checked at Requirements),
+ * NOT_ASSESSED (candidate profile lacks the data), NEEDS_REVIEW (evidence unclear; TA checks).
+ */
+export type DimensionStatus = "EVALUATED" | "NOT_REQUIRED" | "PENDING_ONBOARDING_STAGE" | "NOT_ASSESSED" | "NEEDS_REVIEW";
 
 export type DimensionExplanation = {
   basis: string;

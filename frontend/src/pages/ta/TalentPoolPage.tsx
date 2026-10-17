@@ -116,7 +116,8 @@ export const TalentPoolPage: React.FC = () => {
   };
 
   const jobs = jobsQuery.data || [];
-  const results = searchMutation.data || [];
+  const results = searchMutation.data?.items ?? [];
+  const unsearchablePoolCount = searchMutation.data?.unsearchableCount ?? 0;
 
   const handleOpenContactModal = (c: TalentPoolCandidate) => {
     setContactMembershipId(c.membershipId || c.applicantProfileId || 0);
@@ -285,7 +286,11 @@ export const TalentPoolPage: React.FC = () => {
           <EmptyState
             icon={<Search className="w-6 h-6 text-slate-400" />}
             title="No matching candidate profiles found"
-            description="Try modifying search keywords or searching against all job categories."
+            description={
+              unsearchablePoolCount > 0
+                ? `${unsearchablePoolCount} candidate pool ${unsearchablePoolCount === 1 ? "member" : "members"} can't be searched yet because ${unsearchablePoolCount === 1 ? "their profile is" : "their profiles are"} still being prepared for matching. Try again later.`
+                : "Try modifying search keywords or searching against all job categories."
+            }
           />
         </div>
       ) : results.length > 0 ? (

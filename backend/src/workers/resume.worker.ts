@@ -9,6 +9,7 @@ import { extractDocumentText } from "../security/document-parser.js";
 import { downloadLegacyResume } from "../security/legacy-resume-download.js";
 import { ensureBucketExists } from "../middleware/upload.middleware.js";
 import { safeLogError } from "../security/errors.js";
+import { checkResumeIdentity } from "../services/ta/resume-identity.js";
 
 // Concurrency 1 prevents rate limit exhaustion against Gemini API
 // One active job; other producers wait for admission, never a total-count rejection.
@@ -71,7 +72,9 @@ export const trackFitRevalidation = (applicationId: number, promise: Promise<unk
 const latestFitScore = async (applicationId: number): Promise<number | null> => {
   await fitRevalidations.get(applicationId);
   const latest = await prisma.candidateScore.findFirst({
-    where: { applicationId },
+    // Only a current score counts; a STALE row from an older configuration must not stop
+    // the AI-estimate fallback from moving the application out of PARSING.
+    where: { applicationId, status: "CALCULATED" },
     orderBy: { calculatedAt: "desc" },
     select: { finalFitScore: true },
   });
@@ -195,6 +198,12 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
       userId: true,
       status: true,
       resumeUrl: true,
+      user: {
+        select: {
+          email: true,
+          applicantProfile: { select: { firstName: true, lastName: true, mobileNumber: true } },
+        },
+      },
       jobPosting: {
         select: {
           title: true,
@@ -359,11 +368,20 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
           strengths: analysis.strengths,
           gaps: analysis.gaps,
           requirements: analysis.requirements,
+          // Only the comparison result is stored, not the resume's contact details.
+          identityCheck: checkResumeIdentity(analysis.resumeIdentity, {
+            ...application.user?.applicantProfile,
+            email: application.user?.email,
+          }),
         }),
       },
     });
 
-    const fitScore = await latestFitScore(applicationId).catch(() => null);
+    // undefined = the read failed; never let a database hiccup hand status to the AI estimate.
+    const fitScore = await latestFitScore(applicationId).catch((error) => {
+      safeLogError(`Worker: read match score for application #${applicationId}`, error);
+      return undefined;
+    });
     if (fitScore === null) {
       // No profile-based match score (e.g. no applicant profile yet): use the AI estimate.
       const { applyScoreCategorization } = await import("../services/ta/ta.applications.service.js");

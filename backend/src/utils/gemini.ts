@@ -144,6 +144,13 @@ export interface ResumeAnalysisResult {
   strengths: string[];
   gaps: string[];
   requirements: RequirementCheck[];
+  resumeIdentity: ResumeIdentity | null;
+}
+
+export interface ResumeIdentity {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
 }
 
 // Shared response contract for both the text and document analysis prompts.
@@ -159,8 +166,13 @@ Respond with a JSON object matching this exact structure:
   ],
   "score": <integer from 0 to 100 representing overall fit — 100 is a perfect match>,
   "summary": "<2 to 3 sentence overall assessment of the candidate's fit for this role>",
-  "strengths": ["<strength 1>", "<strength 2>", ...],
-  "gaps": ["<gap 1>", "<gap 2>", ...]
+  "strengths": ["<other strength not already covered by a requirement above>", ...],
+  "gaps": ["<other concern not already covered by a requirement above>", ...],
+  "resumeIdentity": {
+    "name": "<candidate's full name as printed at the top of the resume, or null>",
+    "email": "<candidate's own email on the resume, or null>",
+    "phone": "<candidate's own phone number on the resume, or null>"
+  }
 }
 
 Requirement checklist rules:
@@ -168,6 +180,13 @@ Requirement checklist rules:
 - MET: the resume clearly shows it. PARTIAL: related or weaker evidence. NOT_MET: the resume shows the candidate lacks it. UNCLEAR: the resume does not mention it either way.
 - Judge meaning, not exact wording: "dependable" supports "Responsible"; "team collaboration" supports "Respectful". Requirements may be written in Filipino or English.
 - Evidence must come from the resume. Never invent facts.
+
+Strengths and gaps rules:
+- Only list points that are NOT already one of the requirements above. Do not repeat a requirement in different words.
+- At most 4 strengths and 4 gaps, each one short phrase.
+
+Resume identity rules:
+- Copy the resume owner's own name, email and phone exactly as printed. Never use a reference, employer or relative's details. Use null when absent.
 
 Scoring guide:
 - 80–100: Excellent match, meets nearly all requirements
