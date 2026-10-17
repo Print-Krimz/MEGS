@@ -14,7 +14,12 @@ export const analyzeApplication = async (req: Request, res: Response): Promise<v
     const result = await queueApplicationAnalysis(id);
     sendSuccess(res, "Resume analysis queued. Results will be available shortly.", result);
   } catch (error: any) {
-    const statusCode = error.status === 429 ? 429 : error.message.includes("not found") ? 404 : 400;
+    // Archived and backed-out applications conflict with their current state (409); the
+    // message is on the public allow-list so TA sees the real reason.
+    const statusCode = error.status === 429 ? 429
+      : error.message.includes("not found") ? 404
+      : /archived application|backed out/.test(error.message) ? 409
+      : 400;
     if (statusCode === 429) res.setHeader("Retry-After", "5");
     sendError(res, error.message, statusCode);
   }

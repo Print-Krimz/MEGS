@@ -19,6 +19,7 @@ import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeplo
 import { InlineResumeViewer } from "../../components/ta/InlineResumeViewer";
 import { ResumeAnalysisDialog } from "../../components/ta/ResumeAnalysisDialog";
 import { CandidateAssessmentPanel, parseCandidateAssessment } from "../../components/ta/CandidateAssessmentPanel";
+import { ScoreReasons } from "../../components/ta/ScoreReasons";
 import { CloseApplicationDialog, type CloseSubmission } from "../../components/ta/CloseApplicationDialog";
 import { CLOSURE_DISPOSITION_LABELS, CLOSURE_OUTCOME_LABELS, canRecordBackout, closureReasonLabel, type ClosureOutcome } from "../../lib/backout";
 import { Button, Dialog, Input, Select, Textarea, ComboBox, PhoneInput, DateTimePicker, dateTimeLocalToManilaIso, manilaIsoToDateTimeLocal } from "../../components/ui";
@@ -45,7 +46,7 @@ import {
   InterviewType,
 } from "../../lib/types/enums";
 import type { Interview } from "../../lib/types/application.types";
-import type { UpdateCandidateProfileDto, ReviewComplianceDto } from "../../lib/types/ta.types";
+import type { UpdateCandidateProfileDto, ReviewComplianceDto, DimensionExplanation } from "../../lib/types/ta.types";
 import {
   UserCheck,
   Award,
@@ -1003,6 +1004,7 @@ export const ApplicationDetailPage: React.FC = () => {
         return parsed as {
           dimensionStatuses?: Record<string, string>;
           dimensionsApplicable?: Record<string, boolean>;
+          dimensionExplanations?: Record<string, DimensionExplanation>;
           missingMandatory?: string[];
           [key: string]: unknown;
         };
@@ -2265,6 +2267,7 @@ export const ApplicationDetailPage: React.FC = () => {
                           (!status && scoreExplanation?.dimensionsApplicable?.COMPLIANCE === false));
                       const isNotAssessed = status === "NOT_ASSESSED";
                       const isNeedsReview = status === "NEEDS_REVIEW";
+                      const isJobUnclear = status === "JOB_UNCLEAR";
                       const isMissingMandatory =
                         !isNotAssessed &&
                         Array.isArray(scoreExplanation?.missingMandatory) &&
@@ -2299,6 +2302,15 @@ export const ApplicationDetailPage: React.FC = () => {
                                 Work history unclear
                               </div>
                             </>
+                          ) : isJobUnclear ? (
+                            <>
+                              <div className="text-xs font-semibold text-amber-700 font-sans mt-1">
+                                Job unclear
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-sans mt-0.5 leading-tight">
+                                Not a city or province
+                              </div>
+                            </>
                           ) : isNotRequired ? (
                             <div className="text-xs font-semibold text-slate-500 font-sans mt-1">
                               Not required
@@ -2331,6 +2343,13 @@ export const ApplicationDetailPage: React.FC = () => {
                   <div className="p-4 bg-slate-50 border border-slate-300 text-center text-xs font-mono text-slate-500 rounded-md">
                     Detailed criteria score breakdown is being calculated.
                   </div>
+                )}
+
+                {scores && (
+                  <ScoreReasons
+                    statuses={scoreExplanation?.dimensionStatuses}
+                    explanations={scoreExplanation?.dimensionExplanations}
+                  />
                 )}
 
                 {/* Candidate assessment: identity warning, summary, requirement checklist, other notes */}
@@ -2563,7 +2582,7 @@ export const ApplicationDetailPage: React.FC = () => {
                                   <div className="text-right">
                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-teal-50 text-teal-900 border border-teal-200 text-xs font-mono font-bold">
                                       <Users className="w-3 h-3 text-teal-600" />
-                                      <span>{simPercent}% Match</span>
+                                      <span>{simPercent}% similar profile</span>
                                     </span>
                                   </div>
                                 </div>

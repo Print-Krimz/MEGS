@@ -36,7 +36,11 @@ export interface AnalysisProgress {
   fitScore?: number | null;
   requirementsMet?: number;
   requirementsTotal?: number;
+  /** Why a FAILED run stopped, so TA can tell a missing resume from a busy service. */
+  failureReason?: AnalysisFailureReason;
 }
+
+export type AnalysisFailureReason = "NOT_FOUND" | "NO_RESUME" | "UNREADABLE_RESUME" | "AI_UNAVAILABLE" | "SAVE_FAILED";
 
 const analysisProgress = new Map<number, AnalysisProgress>();
 const PROGRESS_TTL_MS = 5 * 60 * 1000;
@@ -226,7 +230,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
 
   if (!application) {
     console.error(`[Worker] Application #${applicationId} not found. Skipping.`);
-    setPhase(applicationId, "FAILED");
+    setPhase(applicationId, "FAILED", { failureReason: "NOT_FOUND" });
     return;
   }
 
@@ -242,7 +246,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
         status: "NEEDS_ATTENTION",
       },
     });
-    setPhase(applicationId, "FAILED");
+    setPhase(applicationId, "FAILED", { failureReason: "NO_RESUME" });
     await notifyNeedsAttention(applicationId, jobTitle, postedById);
     return;
   }
@@ -264,7 +268,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
         status: "NEEDS_ATTENTION",
       },
     });
-    setPhase(applicationId, "FAILED");
+    setPhase(applicationId, "FAILED", { failureReason: "UNREADABLE_RESUME" });
     await notifyNeedsAttention(applicationId, jobTitle, postedById);
     return;
   }
@@ -340,7 +344,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
     console.log(`[Worker] Gemini returned score ${analysis.score} for application #${applicationId}`);
   } catch (err: any) {
     const reference = safeLogError(`Worker: analyze application #${applicationId}`, err);
-    setPhase(applicationId, "FAILED");
+    setPhase(applicationId, "FAILED", { failureReason: "AI_UNAVAILABLE" });
     try {
       await prisma.application.update({
         where: { id: applicationId },
@@ -399,7 +403,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
   } catch (saveErr: any) {
     if (saveErr.code === "P2025") {
       console.warn(`[Worker] Application #${applicationId} was removed before analysis could be saved.`);
-      setPhase(applicationId, "FAILED");
+      setPhase(applicationId, "FAILED", { failureReason: "NOT_FOUND" });
       return;
     }
     throw saveErr;
@@ -416,7 +420,7 @@ export const enqueueResumeAnalysis = async (applicationId: number): Promise<void
       try { await processResumeJob(applicationId); }
       catch (error) {
         safeLogError(`Worker: application #${applicationId}`, error);
-        setPhase(applicationId, "FAILED");
+        setPhase(applicationId, "FAILED", { failureReason: "SAVE_FAILED" });
         await prisma.application.updateMany({ where: { id: applicationId }, data: {
           status: "NEEDS_ATTENTION", aiSummary: "Analysis could not be saved. Retry resume analysis or review manually.",
         } });

@@ -1,9 +1,9 @@
 import { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
-import { SCORING_DIMENSIONS, ScoringDimension, ScoringWeights, JobFeatureInput } from "./scoring.types.js";
+import { ScoringWeights } from "./scoring.types.js";
 import { EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION, rebuildCandidateFeatureProfile, readFeatureInput } from "./talent-pool-knn.service.js";
-import { getActiveScoringConfiguration, DEFAULT_WEIGHTS } from "./scoring-configuration.service.js";
-import { calculateFitDimensions, clampScore, requiredYearsFromText } from "./scoring.dimensions.js";
+import { getActiveScoringConfiguration } from "./scoring-configuration.service.js";
+import { buildJobEmbeddingText, buildJobFeatureInput, computeMatchScore } from "./match-score.js";
 import { generateJobEmbedding } from "./embedding.service.js";
 
 const serializeScore = (score: any) => ({
@@ -34,7 +34,8 @@ const serializeScore = (score: any) => ({
 });
 
 // v2: unified job terms, partial semantic credit, missing data left out of the score.
-export const FIT_SCORE_VERSION = "fit-score-v2";
+// v3: per-item education/certifications, unclear job requirements left out, found/not found lists.
+export const FIT_SCORE_VERSION = "fit-score-v3";
 
 export const calculateAndPersistCandidateScore = async (
   applicationId: number,
@@ -77,8 +78,9 @@ export const calculateAndPersistCandidateScore = async (
   let featureProfile = await prisma.candidateFeatureProfile.findUnique({
     where: { applicantProfileId: profileId },
   });
-  if (!featureProfile) {
-    featureProfile = await rebuildCandidateFeatureProfile(profileId);
+  if (!featureProfile || featureProfile.featureSchemaVersion !== FEATURE_SCHEMA_VERSION) {
+    // Missing, or built by an older feature version (for example before protected terms were removed).
+    featureProfile = (await rebuildCandidateFeatureProfile(profileId)) ?? featureProfile;
   } else {
     // Profiles whose embedding failed earlier are rebuilt so the skills score can
     // compare meaning, not only exact words.
@@ -93,31 +95,13 @@ export const calculateAndPersistCandidateScore = async (
     throw new Error("Candidate feature profile could not be loaded or created.");
   }
   const candidate = readFeatureInput(featureProfile.rawFeatures);
-  const mrf = (job as any).mrf;
-  const splitList = (val?: string | null) =>
-    val ? val.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : undefined;
-
-  const jobFeatureInput: JobFeatureInput = {
-    title: job.title,
-    requirements: job.requirements,
-    location: job.location ?? mrf?.location ?? null,
-    requiredSkills: splitList(mrf?.requiredSkills),
-    requiredYearsExperience: mrf?.requiredExperience
-      ? requiredYearsFromText(mrf.requiredExperience)
-      : undefined,
-    requiredEducation: splitList(mrf?.requiredEducation),
-    requiredCertifications: splitList(mrf?.requiredCertifications),
-    requiredComplianceDocuments: mrf?.complianceTemplates?.length
-      ? mrf.complianceTemplates.map((t: any) => t.documentLabel)
-      : splitList(mrf?.complianceRequirements),
-    applicationStage: application.status,
-  };
+  const mrf = job.mrf;
+  const jobFeatureInput = buildJobFeatureInput(job, mrf, application.status);
 
   let computedKnnSimilarity = knnSimilarity;
   if (computedKnnSimilarity === undefined && featureProfile?.id) {
     try {
-      const jobText = [job.title, job.requirements, mrf?.requiredSkills, mrf?.requiredExperience].filter(Boolean).join(" ");
-      const jobEmbedding = await generateJobEmbedding(jobText);
+      const jobEmbedding = await generateJobEmbedding(buildJobEmbeddingText(job, mrf));
       const vectorStr = `[${jobEmbedding.join(",")}]`;
       const vectorResults = await prisma.$queryRaw<Array<{ similarity: number }>>`
         SELECT (1 - ("embedding" <=> ${vectorStr}::vector)) AS similarity
@@ -132,49 +116,8 @@ export const calculateAndPersistCandidateScore = async (
     }
   }
 
-  const dimensionCalculation = calculateFitDimensions(candidate, jobFeatureInput, computedKnnSimilarity);
-  const dimensions = dimensionCalculation.scores;
-  const weights = (active.weights || {}) as Partial<ScoringWeights>;
-
-  // Determine which dimensions are applicable (isApplicable === true and dimensionStatus === "EVALUATED")
-  const applicableDimensions = SCORING_DIMENSIONS.filter((dim) => {
-    return (
-      dimensionCalculation.dimensionsApplicable[dim] === true &&
-      dimensionCalculation.dimensionStatuses[dim] === "EVALUATED"
-    );
-  });
-
-  // Calculate activeTotalWeight = sum(configured weights of applicable dimensions)
-  const activeTotalWeight = applicableDimensions.reduce((sum, dim) => {
-    const rawWeight = Number(weights[dim]);
-    const dimWeight = Number.isFinite(rawWeight) ? rawWeight : (DEFAULT_WEIGHTS[dim] ?? 0);
-    return sum + dimWeight;
-  }, 0);
-
-  let finalFitScore: number;
-  const normalizedWeights: Record<ScoringDimension, number> = {} as any;
-
-  if (activeTotalWeight > 0) {
-    let rawFitScore = 0;
-    for (const dim of SCORING_DIMENSIONS) {
-      if (applicableDimensions.includes(dim)) {
-        const rawWeight = Number(weights[dim]);
-        const dimWeight = Number.isFinite(rawWeight) ? rawWeight : (DEFAULT_WEIGHTS[dim] ?? 0);
-        const normalizedWeight = (dimWeight / activeTotalWeight) * 100;
-        normalizedWeights[dim] = clampScore(normalizedWeight);
-        const dimScore = typeof dimensions[dim] === "number" && Number.isFinite(dimensions[dim]) ? dimensions[dim] : 0;
-        rawFitScore += (dimScore * normalizedWeight) / 100;
-      } else {
-        normalizedWeights[dim] = 0;
-      }
-    }
-    finalFitScore = clampScore(rawFitScore);
-  } else {
-    for (const dim of SCORING_DIMENSIONS) {
-      normalizedWeights[dim] = 0;
-    }
-    finalFitScore = 50;
-  }
+  const match = computeMatchScore(candidate, jobFeatureInput, computedKnnSimilarity, (active.weights || {}) as Partial<ScoringWeights>);
+  const { dimensions, finalFitScore, activeTotalWeight } = match;
 
   const explanation = {
     version: FIT_SCORE_VERSION,
@@ -185,17 +128,17 @@ export const calculateAndPersistCandidateScore = async (
           note: "No specific job requirements configured",
         }
       : {}),
-    missingMandatory: dimensionCalculation.missingMandatory,
-    // Dimensions left out because the profile lacks data, and those TA should check by hand.
-    incompleteFields: SCORING_DIMENSIONS.filter((dim) => dimensionCalculation.dimensionStatuses[dim] === "NOT_ASSESSED"),
-    needsReview: SCORING_DIMENSIONS.filter((dim) => dimensionCalculation.dimensionStatuses[dim] === "NEEDS_REVIEW"),
+    missingMandatory: match.missingMandatory,
+    incompleteFields: match.incompleteFields,
+    needsReview: match.needsReview,
+    requirementClarity: match.requirementClarity,
     embeddingUsed: typeof computedKnnSimilarity === "number" && computedKnnSimilarity > 0,
     dimensions,
-    dimensionExplanations: dimensionCalculation.explanations,
-    dimensionsApplicable: dimensionCalculation.dimensionsApplicable,
-    dimensionStatuses: dimensionCalculation.dimensionStatuses,
+    dimensionExplanations: match.explanations,
+    dimensionsApplicable: match.dimensionsApplicable,
+    dimensionStatuses: match.dimensionStatuses,
     weights: active.weights,
-    normalizedWeights,
+    normalizedWeights: match.normalizedWeights,
     activeTotalWeight,
     protectedAttributesExcluded: true,
   };

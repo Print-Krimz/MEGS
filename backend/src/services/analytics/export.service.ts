@@ -454,8 +454,14 @@ async function receivedSection(filters: AnalyticsFilterDto, requestedBy: Request
     select: {
       id: true,
       status: true,
-      aiScore: true,
       createdAt: true,
+      // The rule-based match score the application page shows, not the AI estimate.
+      candidateScores: {
+        where: { status: { in: ["CALCULATED", "STALE"] } },
+        orderBy: [{ calculatedAt: "desc" }, { id: "desc" }],
+        take: 1,
+        select: { finalFitScore: true },
+      },
       user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
       jobPosting: { select: { title: true, mrf: { select: { title: true, client: { select: { name: true } } } } } },
     },
@@ -473,7 +479,7 @@ async function receivedSection(filters: AnalyticsFilterDto, requestedBy: Request
       { header: "Client", key: "client", weight: 100 },
       { header: "Client request", key: "request", weight: 120 },
       { header: "Step today", key: "status", weight: 90, align: "center", badge: true },
-      { header: "AI match score", key: "score", weight: 50, align: "right" },
+      { header: "Match score", key: "score", weight: 50, align: "right" },
       { header: "Date applied", key: "received", weight: 58, align: "center" },
     ],
     rows: apps.map((a) => {
@@ -486,7 +492,7 @@ async function receivedSection(filters: AnalyticsFilterDto, requestedBy: Request
         client: clean(a.jobPosting?.mrf?.client?.name ?? ""),
         request: clean(a.jobPosting?.mrf?.title ?? "No client request"),
         status: stageLabelOf(a.status),
-        score: a.aiScore !== null && a.aiScore !== undefined ? `${a.aiScore}%` : null,
+        score: a.candidateScores[0] ? Number(a.candidateScores[0].finalFitScore).toFixed(1) : null,
         received: date(a.createdAt),
       };
     }),

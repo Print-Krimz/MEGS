@@ -16,6 +16,14 @@ const STEPS: { phase: ResumeAnalysisPhase; label: string }[] = [
 
 const stepIndex = (phase: ResumeAnalysisPhase) => STEPS.findIndex((step) => step.phase === phase);
 
+const FAILURE_MESSAGES: Record<string, string> = {
+  NOT_FOUND: "This application no longer exists.",
+  NO_RESUME: "This application has no resume attached. Ask the applicant to upload one, then refresh again.",
+  UNREADABLE_RESUME: "The resume file could not be opened or read. Check the file, or review it manually.",
+  AI_UNAVAILABLE: "The resume review service is busy or unavailable. Try again in a few minutes.",
+  SAVE_FAILED: "The results could not be saved. Try again in a few minutes.",
+};
+
 interface ResumeAnalysisDialogProps {
   open: boolean;
   onClose: () => void;
@@ -180,7 +188,9 @@ export const ResumeAnalysisDialog: React.FC<ResumeAnalysisDialogProps> = ({
             )}
             {isFailed && (
               <p className="text-amber-800">
-                The analysis could not finish. Review the resume manually; the application is marked as needing attention.
+                {(data?.failureReason && FAILURE_MESSAGES[data.failureReason]) ??
+                  "The analysis could not finish. Review the resume manually."}
+                {data?.failureReason !== "NOT_FOUND" && " The application is marked as needing attention."}
               </p>
             )}
             {isLost && (

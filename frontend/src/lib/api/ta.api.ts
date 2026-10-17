@@ -103,6 +103,7 @@ const toTalentPoolSearchResult = (
   return {
     items: Array.isArray(res?.items) ? res.items : [],
     unsearchableCount: typeof res?.unsearchableCount === "number" ? res.unsearchableCount : 0,
+    requirementClarity: res?.requirementClarity,
   };
 };
 

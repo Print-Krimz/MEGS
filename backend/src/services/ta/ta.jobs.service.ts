@@ -1,8 +1,9 @@
 import prisma from '../../utils/prisma.js';
 import { JobStatus } from "@prisma/client";
-import { revalidateJobScoring } from "../scoring/scoring-configuration.service.js";
+import { getActiveScoringConfiguration, revalidateJobScoring } from "../scoring/scoring-configuration.service.js";
 import { logAudit } from "../../utils/audit.js";
 import { discoverTalentPoolForJob } from "../scoring/talent-pool-knn.service.js";
+import { jobRequirementClarity } from "../scoring/match-score.js";
 import { sendNotification } from "../../utils/notification.js";
 import { assertOwns, ownedWhere, type Actor } from "./ownership.js";
 
@@ -105,19 +106,23 @@ export const triggerTalentPoolAutoDiscovery = async (jobId: number, postedById: 
     if (!job || job.status !== "OPEN") return;
 
     const targetRecruiterId = postedById || job.postedById;
-    const discovery = await discoverTalentPoolForJob(jobId, { k: 10 });
+    // Same bar as screening's "Match found": the admin-set match threshold on the match score.
+    const [discovery, configuration] = await Promise.all([
+      discoverTalentPoolForJob(jobId, { k: 10 }),
+      getActiveScoringConfiguration(),
+    ]);
+    const threshold = Number(configuration.matchThreshold);
     const qualifiedMatches = discovery.items.filter(
-      (item: any) => item.similarity >= 0.75 && item.candidate.availability === "AVAILABLE"
+      (item) => item.matchScore !== null && item.matchScore >= threshold && item.candidate.availability === "AVAILABLE"
     );
 
     if (qualifiedMatches.length > 0) {
-      const topMatch = Math.round(qualifiedMatches[0].similarity * 100);
       const count = qualifiedMatches.length;
 
       await sendNotification(
         targetRecruiterId,
         "Talent Pool Candidates Matched",
-        `Found ${count} pre-screened candidate${count > 1 ? "s" : ""} in the Talent Pool matching "${job.title}" (${topMatch}% top match).`,
+        `Found ${count} Talent Pool candidate${count > 1 ? "s" : ""} for "${job.title}" with a match score of ${threshold} or more.`,
         "INFO",
         `/ta/jobs/${job.id}?tab=talentPool`
       );
@@ -197,6 +202,8 @@ export const getTAJob = async (jobId: number) => {
           salaryRangeMax: true,
           employmentType: true,
           workArrangement: true,
+          location: true,
+          requiredSkills: true,
         },
       },
       applications: {
@@ -236,6 +243,7 @@ export const getTAJob = async (jobId: number) => {
 
   return {
     ...job,
+    requirementClarity: jobRequirementClarity(job, job.mrf),
     applications: job.applications.map((app) => ({
       ...app,
       candidateFitScore: app.candidateScores?.[0] ? Number(app.candidateScores[0].finalFitScore) : null,

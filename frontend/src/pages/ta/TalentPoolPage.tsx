@@ -22,6 +22,7 @@ import { TA_COPY } from "../../lib/ta-copy";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
 import { SendInvitationModal } from "../../components/ta/SendInvitationModal";
 import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTrackerDrawer";
+import { PoolMatchNotes, PoolMatchScore } from "../../components/ta/PoolMatchDetails";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
 
 export const TalentPoolPage: React.FC = () => {
@@ -89,23 +90,25 @@ export const TalentPoolPage: React.FC = () => {
     },
   });
 
+  // A job search ranks by match score; a word search by profile similarity. One at a time.
+  const runSearch = () =>
+    searchMutation.mutate(selectedJobId ? { jobId: selectedJobId, k: 20 } : { text: searchText.trim(), k: 20 });
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const query = searchText.trim();
-    if (!query && !selectedJobId) {
-      setValidationError("Enter at least 2 search characters or choose a job opening.");
-      return;
-    }
-    if (query && query.length < 2) {
-      setValidationError("Search must be at least 2 characters long.");
-      return;
+    if (!selectedJobId) {
+      if (!query) {
+        setValidationError("Enter at least 2 search characters or choose a job opening.");
+        return;
+      }
+      if (query.length < 2) {
+        setValidationError("Search must be at least 2 characters long.");
+        return;
+      }
     }
     setValidationError(null);
-    searchMutation.mutate({
-      text: query || undefined,
-      jobId: selectedJobId || undefined,
-      k: 20,
-    });
+    runSearch();
   };
 
   const handleReset = () => {
@@ -206,6 +209,8 @@ export const TalentPoolPage: React.FC = () => {
             label="Search skills, keywords, or qualifications"
               placeholder="e.g. Electrician with TESDA NC II, industrial machinery repair, Laguna area"
               value={searchText}
+              disabled={selectedJobId > 0}
+              helperText={selectedJobId > 0 ? "Clear the job opening to search by words." : undefined}
               error={validationError || undefined}
               onChange={(e) => {
                 setSearchText(e.target.value);
@@ -269,16 +274,8 @@ export const TalentPoolPage: React.FC = () => {
         <ErrorState
           error={searchMutation.error}
           onRetry={() => {
-            const query = searchText.trim();
-            if (query.length >= 2 || selectedJobId > 0) {
-              searchMutation.mutate({
-                text: query || undefined,
-                jobId: selectedJobId || undefined,
-                k: 20,
-              });
-            } else {
-              searchMutation.reset();
-            }
+            if (searchText.trim().length >= 2 || selectedJobId > 0) runSearch();
+            else searchMutation.reset();
           }}
         />
       ) : searchMutation.isSuccess && results.length === 0 ? (
@@ -297,13 +294,12 @@ export const TalentPoolPage: React.FC = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs font-mono text-slate-500">
             <span>Found {results.length} matching candidates</span>
-            <span>Sorted by match score</span>
+            <span>{searchMutation.variables?.jobId ? "Sorted by match score" : "Sorted by profile similarity"}</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {results.map((res) => {
               const c = res.candidate;
-              const simPercent = Math.round((res.similarity || 0) * 100);
 
               const availabilityBadgeClass =
                 c.availability === "AVAILABLE"
@@ -335,12 +331,7 @@ export const TalentPoolPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-50 text-teal-900 border border-teal-200 text-xs font-mono font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-teal-600" />
-                          <span>{simPercent}% Match</span>
-                        </span>
-                      </div>
+                      <PoolMatchScore result={res} />
                     </div>
 
                     {c.currentRole && (
@@ -356,6 +347,8 @@ export const TalentPoolPage: React.FC = () => {
                         <span>{[c.city, c.province].filter(Boolean).join(", ")}</span>
                       </div>
                     )}
+
+                    <PoolMatchNotes result={res} />
 
                     {c.skills && c.skills.length > 0 && (
                       <div className="flex flex-wrap gap-1 pt-1">

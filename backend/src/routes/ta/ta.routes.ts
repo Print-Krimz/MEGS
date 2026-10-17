@@ -155,9 +155,10 @@ router.patch("/jobs/:id/status", validate(taSchema.updateStatus), requireOwned("
 router.post("/jobs/:jobId/rank-candidates", validate(candidateScoringRouteSchema.rankJob), requireOwned("job", "jobId"), rankCandidates);
 router.get("/jobs/:jobId/ranked-candidates", validate(candidateScoringRouteSchema.rankedCandidates), requireOwned("job", "jobId"), getRankedCandidates);
 router.get("/jobs/:jobId/talent-pool", validate(candidateScoringRouteSchema.talentPool), requireOwned("job", "jobId"), getTalentPool);
-router.get("/candidates/:candidateId/similar", validate(candidateScoringRouteSchema.similarCandidates), getSimilarCandidates);
+// candidateId is an application id; the TA must own that application.
+router.get("/candidates/:candidateId/similar", validate(candidateScoringRouteSchema.similarCandidates), requireOwned("application", "candidateId"), getSimilarCandidates);
 router.patch("/candidates/:id", validate(taSchema.updateCandidateProfile), requireOwned("candidate"), updateCandidateProfileHandler);
-router.post("/talent-pool/search", validate(candidateScoringRouteSchema.searchTalentPool), requireOwnedBody("job", "jobId"), searchTalentPool);
+router.post("/talent-pool/search", validate(candidateScoringRouteSchema.searchTalentPool), requireOwnedBody("job", "jobId"), requireOwnedBody("application", "candidateId"), searchTalentPool);
 router.post("/talent-pool/members", validate(candidateScoringRouteSchema.addCandidate), addCandidateToPool);
 router.post("/talent-pool/contacts", validate(candidateScoringRouteSchema.recordContact), requireOwnedBody("job", "jobPostingId"), recordContact);
 router.post("/talent-pool/consider", validate(candidateScoringRouteSchema.considerCandidate), requireOwnedBody("job", "targetJobId"), considerCandidateForJob);

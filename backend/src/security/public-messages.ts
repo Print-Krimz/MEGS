@@ -50,6 +50,7 @@ export const publicMessages = new Set<string>([
   "Candidate profile is required before a deterministic score can be calculated.",
   "Cannot analyze an application that has backed out",
   "Cannot analyze an archived application",
+  "Cannot analyze an application that has backed out",
   "Cannot cancel invitation for an active user",
   "Cannot change status of an archived application. Restore it first.",
   "Cannot deploy candidate to a cancelled Manpower Request.",

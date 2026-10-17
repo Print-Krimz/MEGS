@@ -79,6 +79,7 @@ export const getTalentPool = async (req: Request, res: Response) => {
 export const getSimilarCandidates = async (req: Request, res: Response) => {
   try {
     if (!requireKnnTalentPooling(res)) return;
+    // candidateId is an application id (ownership checked by the route).
     const { jobId: candidateId } = candidateScoringSchema.rankJobParams.parse({ jobId: req.params.candidateId });
     const query = candidateScoringSchema.talentPoolQuery.parse(req.query);
     const result = await findSimilarCandidates(candidateId, query);

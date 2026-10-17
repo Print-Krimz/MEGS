@@ -40,6 +40,16 @@ import {
 } from "lucide-react";
 import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
+import { RequirementClarityNotice } from "../../components/ta/RequirementClarityNotice";
+import { FieldWarning } from "../../components/ta/FieldWarning";
+import {
+  LOCATION_HINT,
+  LOCATION_UNCLEAR_WARNING,
+  SKILLS_HINT,
+  SKILLS_TRAITS_WARNING,
+  locationLooksUnclear,
+  skillsLookLikeTraits,
+} from "../../lib/requirement-hints";
 import {
   validateStandardText,
   validateProseText,
@@ -651,6 +661,10 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           </div>
         }
       />
+
+      {!readOnly && (
+        <RequirementClarityNotice clarity={mrf.requirementClarity} fixHint="Use Edit details to fix them." />
+      )}
 
       {readOnly && (
         <AssignmentPanel
@@ -1568,16 +1582,20 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <Input
-                    label="Work site"
-                    placeholder="e.g. Calamba, Laguna Plant"
-                    value={editLocation}
-                    error={serverFieldErrors.location}
-                    onChange={(e) => {
-                      setEditLocation(e.target.value);
-                      clearServerFieldError("location");
-                    }}
-                  />
+                  <div className="space-y-1">
+                    <Input
+                      label="Work site"
+                      placeholder="e.g. Calamba, Laguna"
+                      helperText={LOCATION_HINT}
+                      value={editLocation}
+                      error={serverFieldErrors.location}
+                      onChange={(e) => {
+                        setEditLocation(e.target.value);
+                        clearServerFieldError("location");
+                      }}
+                    />
+                    <FieldWarning show={locationLooksUnclear(editLocation)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
+                  </div>
                   <ComboBox
                     label="Employment Type"
                     placeholder="Select employment type..."
@@ -1660,16 +1678,20 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   Skills and qualifications
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Required skills"
-                    placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
-                    value={editSkills}
-                    error={serverFieldErrors.requiredSkills}
-                    onChange={(e) => {
-                      setEditSkills(e.target.value);
-                      clearServerFieldError("requiredSkills");
-                    }}
-                  />
+                  <div className="space-y-1">
+                    <Input
+                      label="Required skills"
+                      placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
+                      helperText={SKILLS_HINT}
+                      value={editSkills}
+                      error={serverFieldErrors.requiredSkills}
+                      onChange={(e) => {
+                        setEditSkills(e.target.value);
+                        clearServerFieldError("requiredSkills");
+                      }}
+                    />
+                    <FieldWarning show={skillsLookLikeTraits(editSkills)}>{SKILLS_TRAITS_WARNING}</FieldWarning>
+                  </div>
                   <ComboBox
                     label="Required experience"
                     placeholder="Select or specify required experience..."
