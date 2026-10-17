@@ -9,7 +9,7 @@ import { Button } from "@/components/shadcn/button";
 const PANEL_COPY: Record<string, { title: string; points: string[] }> = {
   "/login": {
     title: "Pick up where you left off.",
-    points: ["Track every application in one place", "Keep your documents and profile current", "Staff accounts use two-step verification"],
+    points: ["Track every application in one place", "Keep your documents and profile current", "See where you stand at every hiring stage"],
   },
   "/register": {
     title: "Start your MEGS application.",
@@ -21,11 +21,11 @@ const PANEL_COPY: Record<string, { title: string; points: string[] }> = {
   },
   change: {
     title: "Keep your account secure.",
-    points: ["Use a password you do not use anywhere else", "Staff accounts use two-step verification", "We never ask for your password by email"],
+    points: ["Use a password you do not use anywhere else", "Sign out when you use a shared device", "We never ask for your password by email"],
   },
   default: {
     title: "Your account, kept secure.",
-    points: ["Email verification protects every account", "Staff accounts use two-step verification", "We never ask for your password by email"],
+    points: ["Email verification protects every account", "Sign out when you use a shared device", "We never ask for your password by email"],
   },
 };
 
