@@ -13,6 +13,8 @@ import {
   JobContentRenderer,
 } from "../../components/common";
 import { Button, Dialog, Input, Textarea, ComboBox } from "../../components/ui";
+import { FieldWarning } from "../../components/ta/FieldWarning";
+import { LOCATION_HINT, LOCATION_UNCLEAR_WARNING, locationLooksUnclear } from "../../lib/requirement-hints";
 import { formatDate, formatSalaryRange, formatEmploymentType, cn } from "../../lib/utils";
 import { JobStatus } from "../../lib/types/enums";
 import {
@@ -590,16 +592,20 @@ export const JobPostingsPage: React.FC = () => {
                 required
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input
-                  label="Work site"
-                  placeholder="e.g. Batangas City Facility"
-                  value={formLocation}
-                  error={serverFieldErrors.location}
-                  onChange={(e) => {
-                    setFormLocation(e.target.value);
-                    clearServerFieldError("location");
-                  }}
-                />
+                <div className="space-y-1">
+                  <Input
+                    label="Work site"
+                    placeholder="e.g. Batangas City, Batangas"
+                    helperText={LOCATION_HINT}
+                    value={formLocation}
+                    error={serverFieldErrors.location}
+                    onChange={(e) => {
+                      setFormLocation(e.target.value);
+                      clearServerFieldError("location");
+                    }}
+                  />
+                  <FieldWarning show={locationLooksUnclear(formLocation)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
+                </div>
                 <Input
                   label="Image web address (optional)"
                   placeholder="https://example.com/company-banner.jpg"

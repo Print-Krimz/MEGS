@@ -3,7 +3,7 @@
  * Metro Manila (NCR) keeps its dedicated dataset (ncr-address.ts / ncr-postal-reference.ts).
  */
 import geo from "../data/ph-geo.json";
-import { isNcrProvince } from "./ncr-address.js";
+import { isNcrProvince, NCR_LOCALITIES } from "./ncr-address.js";
 
 interface GeoCity {
   code: string;
@@ -77,3 +77,17 @@ export const isCityInProvince = (province: unknown, city: unknown): boolean => {
 /** Postal codes on file for a city outside NCR (informational; never used to reject a valid 4-digit code). */
 export const getCityPostalCodes = (province: unknown, city: unknown): string[] =>
   findCity(province, city)?.zip ?? [];
+
+// Every province, city and municipality name we hold, as normalized keys (NCR included).
+const PLACE_KEYS = new Set<string>([
+  ...PROVINCES.map((p) => normalizeLocationKey(p.name)),
+  ...CITIES.map((c) => normalizeLocationKey(c.name)),
+  ...NCR_LOCALITIES.map((l) => normalizeLocationKey(l.name)),
+  ...["metro manila", "ncr", "national capital region"].map(normalizeLocationKey),
+].filter(Boolean));
+
+/** True when the text names a known province, city or municipality ("Antipolo City", "Rizal", "Metro Manila"). */
+export const isKnownPlaceName = (value: unknown): boolean => {
+  const key = normalizeLocationKey(value);
+  return Boolean(key) && PLACE_KEYS.has(key);
+};

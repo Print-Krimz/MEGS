@@ -65,6 +65,13 @@
   --shadow-card: none;
   --shadow-dropdown: 0 8px 18px rgb(15 23 42 / 0.12);
   --shadow-modal: 0 16px 32px rgb(15 23 42 / 0.18);
+
+  /* Resume analysis dialog: a line sweeping down the page while the AI reads it. */
+  --animate-resume-scan: resume-scan 2.2s ease-in-out infinite alternate;
+  @keyframes resume-scan {
+    from { top: 0%; }
+    to { top: calc(100% - 2px); }
+  }
 }
 
 /*

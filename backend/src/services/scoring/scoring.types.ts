@@ -10,13 +10,33 @@ export type ScoringDimension = (typeof SCORING_DIMENSIONS)[number];
 
 export type ScoringWeights = Record<ScoringDimension, number>;
 
-export type DimensionStatus = "EVALUATED" | "NOT_REQUIRED" | "PENDING_ONBOARDING_STAGE";
+/**
+ * EVALUATED counts toward the match score. The others are left out of the weighting:
+ * NOT_REQUIRED (job asks nothing), PENDING_ONBOARDING_STAGE (checked at Requirements),
+ * NOT_ASSESSED (candidate profile lacks the data), NEEDS_REVIEW (evidence unclear; TA checks),
+ * JOB_UNCLEAR (the job's own requirement can't be scored, e.g. traits listed as skills).
+ */
+export type DimensionStatus = "EVALUATED" | "NOT_REQUIRED" | "PENDING_ONBOARDING_STAGE" | "NOT_ASSESSED" | "NEEDS_REVIEW" | "JOB_UNCLEAR";
 
 export type DimensionExplanation = {
   basis: string;
   missingMandatory: boolean;
   dimensionStatus: DimensionStatus;
   isApplicable: boolean;
+  /** Job requirements (original wording) found in the profile. Explanation only. */
+  matched?: string[];
+  /** Job requirements (original wording) not found in the profile. Explanation only. */
+  missing?: string[];
+  requiredYears?: number | null;
+  candidateYears?: number | null;
+  /** The job place the candidate's location matched. */
+  locationMatchedOn?: string | null;
+};
+
+/** Problems in how a job states its requirements; the affected dimension is left out of the score. */
+export type RequirementClarity = {
+  skillsAreTraits: boolean;
+  locationNotAPlace: boolean;
 };
 
 export type DimensionResult = {

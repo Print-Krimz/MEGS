@@ -415,7 +415,7 @@ export const updateProfileResumeService = async (userId: string, resumeUrl: stri
         data: { resumeUrl },
       });
 
-      const { enqueueResumeAnalysis } = await import("../../workers/resume.worker.js");
+      const { enqueueResumeAnalysis, trackFitRevalidation } = await import("../../workers/resume.worker.js");
       const { revalidateApplication } = await import("../scoring/scoring-configuration.service.js");
 
       for (const app of activeApplications) {
@@ -423,6 +423,7 @@ export const updateProfileResumeService = async (userId: string, resumeUrl: stri
           await enqueueResumeAnalysis(app.id);
           const res = revalidateApplication(app.id, app.jobPostingId);
           if (res && typeof res.catch === "function") {
+            trackFitRevalidation(app.id, res);
             void res.catch((err) =>
               console.error("[Scoring] failed to queue application revalidation", err)
             );

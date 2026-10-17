@@ -26,6 +26,16 @@ import {
   formatSkillsList,
 } from "../../lib/mrf-presets";
 import { CloneMRFModal } from "../../components/ta/CloneMRFModal";
+import { FieldWarning } from "../../components/ta/FieldWarning";
+import {
+  LOCATION_HINT,
+  LOCATION_UNCLEAR_WARNING,
+  SKILLS_HINT,
+  SKILLS_TRAITS_WARNING,
+  clientWorkLocation,
+  locationLooksUnclear,
+  skillsLookLikeTraits,
+} from "../../lib/requirement-hints";
 import type { ManpowerRequest } from "../../lib/types/ta.types";
 
 export const MRFCreatePage: React.FC = () => {
@@ -153,11 +163,10 @@ export const MRFCreatePage: React.FC = () => {
     if (numericId) {
       const chosenClient = clients.find((c) => c.id === numericId);
       if (chosenClient) {
-        const fullAddr = [chosenClient.street, chosenClient.barangay, chosenClient.city, chosenClient.province, chosenClient.postalCode]
-          .filter(Boolean)
-          .join(", ") || chosenClient.address;
-        if (fullAddr && (!location || location === "Philippines")) {
-          setLocation(fullAddr);
+        // City and province only: a street address can't be matched to where candidates live.
+        const workLocation = clientWorkLocation(chosenClient);
+        if (workLocation && (!location || location === "Philippines")) {
+          setLocation(workLocation);
         }
       }
     }
@@ -511,16 +520,20 @@ export const MRFCreatePage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Input
-              label="Work site"
-              placeholder="e.g. Calamba, Laguna Plant"
-              value={location}
-              error={serverFieldErrors.location}
-              onChange={(e) => {
-                setLocation(e.target.value);
-                clearServerFieldError("location");
-              }}
-            />
+            <div className="space-y-1">
+              <Input
+                label="Work site"
+                placeholder="e.g. Calamba, Laguna"
+                helperText={LOCATION_HINT}
+                value={location}
+                error={serverFieldErrors.location}
+                onChange={(e) => {
+                  setLocation(e.target.value);
+                  clearServerFieldError("location");
+                }}
+              />
+              <FieldWarning show={locationLooksUnclear(location)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
+            </div>
             <ComboBox
               label="Employment Type"
               placeholder="Select employment type..."
@@ -585,6 +598,7 @@ export const MRFCreatePage: React.FC = () => {
             <Input
               label="Required skills"
               placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
+              helperText={SKILLS_HINT}
               value={requiredSkills}
               error={serverFieldErrors.requiredSkills}
               onChange={(e) => {
@@ -592,6 +606,7 @@ export const MRFCreatePage: React.FC = () => {
                 clearServerFieldError("requiredSkills");
               }}
             />
+            <FieldWarning show={skillsLookLikeTraits(requiredSkills)}>{SKILLS_TRAITS_WARNING}</FieldWarning>
             {activeSkillsList.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                 <span className="text-[11px] font-mono text-slate-500">

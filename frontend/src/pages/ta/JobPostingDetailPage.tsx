@@ -15,6 +15,10 @@ import {
   JobContentRenderer,
 } from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
+import { PoolMatchNotes, PoolMatchScore } from "../../components/ta/PoolMatchDetails";
+import { RequirementClarityNotice } from "../../components/ta/RequirementClarityNotice";
+import { FieldWarning } from "../../components/ta/FieldWarning";
+import { LOCATION_HINT, LOCATION_UNCLEAR_WARNING, locationLooksUnclear } from "../../lib/requirement-hints";
 import { formatDate, formatSalaryRange, formatEmploymentType, cn } from "../../lib/utils";
 import { ApplicationStatus, JobStatus } from "../../lib/types/enums";
 
@@ -190,9 +194,10 @@ export const JobPostingDetailPage: React.FC = () => {
   );
   const applicantCount = rankedCandidatesQuery.data?.length ?? job?.applications?.length ?? 0;
   const talentPoolMatches = React.useMemo(
-    () => talentPoolQuery.data || [],
+    () => talentPoolQuery.data?.items ?? [],
     [talentPoolQuery.data]
   );
+  const unsearchablePoolCount = talentPoolQuery.data?.unsearchableCount ?? 0;
 
   const activeScores = React.useMemo(() => {
     return rankedScores.filter((s) => {
@@ -285,6 +290,15 @@ export const JobPostingDetailPage: React.FC = () => {
               Recalculate match scores
             </Button>
           </div>
+        }
+      />
+
+      <RequirementClarityNotice
+        clarity={job.requirementClarity}
+        fixHint={
+          job.requirementClarity?.skillsAreTraits
+            ? "Edit the required skills on the client request, and the location here."
+            : "Edit the location here."
         }
       />
 
@@ -485,7 +499,7 @@ export const JobPostingDetailPage: React.FC = () => {
             ariaLabel="Job opening candidate views"
             items={[
               { id: "applicants", label: `Applicants (${applicantCount})`, icon: Users, panelId: "job-applicants" },
-              { id: "talentPool", label: `Candidate pool matches (${talentPoolMatches.length})`, icon: Users, panelId: "job-talent-pool" },
+              { id: "talentPool", label: talentPoolQuery.isError ? "Candidate pool matches" : `Candidate pool matches (${talentPoolMatches.length})`, icon: Users, panelId: "job-talent-pool" },
             ]}
             className="border-b-0 flex-1"
           />
@@ -719,21 +733,38 @@ export const JobPostingDetailPage: React.FC = () => {
         {/* Tab 2: Discovered Talent Pool Candidates */}
         {activeTab === "talentPool" && (
           <div id="job-talent-pool" role="tabpanel" tabIndex={0}>
+            {talentPoolMatches.length > 0 && (
+              <p className="px-4 pt-4 text-xs text-slate-600">
+                Ranked by the same match score used for applications. Scores are a guide; you decide whom to invite.
+              </p>
+            )}
+            {talentPoolMatches.length > 0 && unsearchablePoolCount > 0 && (
+              <p className="px-4 pt-4 text-xs text-slate-600">
+                {unsearchablePoolCount} candidate pool {unsearchablePoolCount === 1 ? "member" : "members"} can't be matched yet and {unsearchablePoolCount === 1 ? "is" : "are"} not shown.
+              </p>
+            )}
             {talentPoolQuery.isLoading ? (
               <LoadingState variant="cards" />
+            ) : talentPoolQuery.isError ? (
+              <div className="p-4">
+                <ErrorState error={talentPoolQuery.error} onRetry={() => talentPoolQuery.refetch()} />
+              </div>
             ) : talentPoolMatches.length === 0 ? (
               <div className="p-8">
                 <EmptyState
                   icon={<Users className="w-6 h-6 text-slate-400" />}
                   title="No candidate pool matches for this opening"
-                  description="All available talent pool members have already been considered or have no matching skills."
+                  description={
+                    unsearchablePoolCount > 0
+                      ? `${unsearchablePoolCount} candidate pool ${unsearchablePoolCount === 1 ? "member" : "members"} can't be matched yet because ${unsearchablePoolCount === 1 ? "their profile is" : "their profiles are"} still being prepared for matching. Try again later.`
+                      : "No available candidate pool member is close enough to this opening."
+                  }
                 />
               </div>
             ) : (
               <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 {talentPoolMatches.map((res) => {
                   const c = res.candidate;
-                  const simPercent = Math.round((res.similarity || 0) * 100);
 
                   return (
                     <div
@@ -756,12 +787,7 @@ export const JobPostingDetailPage: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="text-right">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-50 text-teal-900 border border-teal-200 text-xs font-mono font-bold">
-                              <span className="w-1.5 h-1.5 rounded-full bg-teal-600" />
-                              <span>{simPercent}% Match</span>
-                            </span>
-                          </div>
+                          <PoolMatchScore result={res} />
                         </div>
 
                         {c.currentRole && (
@@ -777,6 +803,8 @@ export const JobPostingDetailPage: React.FC = () => {
                             <span>{[c.city, c.province].filter(Boolean).join(", ")}</span>
                           </div>
                         )}
+
+                        <PoolMatchNotes result={res} />
 
                         {c.skills && c.skills.length > 0 && (
                           <div className="flex flex-wrap gap-1 pt-1">
@@ -945,15 +973,19 @@ export const JobPostingDetailPage: React.FC = () => {
                 required
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input
-                  label="Location"
-                  value={editLocation}
-                  error={serverFieldErrors.location}
-                  onChange={(e) => {
-                    setEditLocation(e.target.value);
-                    clearServerFieldError("location");
-                  }}
-                />
+                <div className="space-y-1">
+                  <Input
+                    label="Location"
+                    helperText={LOCATION_HINT}
+                    value={editLocation}
+                    error={serverFieldErrors.location}
+                    onChange={(e) => {
+                      setEditLocation(e.target.value);
+                      clearServerFieldError("location");
+                    }}
+                  />
+                  <FieldWarning show={locationLooksUnclear(editLocation)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
+                </div>
                 <Input
                   label="Image web address (optional)"
                   placeholder="https://example.com/company-banner.jpg"

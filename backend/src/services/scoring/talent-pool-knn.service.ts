@@ -1,51 +1,60 @@
-import { ApplicationStatus, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
+import { safeLogError } from "../../security/errors.js";
+import { stripProtectedTerms } from "../../security/protected-terms.js";
 import { calculateAndPersistCandidateScore } from "./candidate-scoring.service.js";
 import { getActiveScoringConfiguration } from "./scoring-configuration.service.js";
-import { CandidateFeatureInput } from "./scoring.types.js";
-import { normalizeComplianceDocumentType } from "./scoring.dimensions.js";
+import { CandidateFeatureInput, ScoringWeights } from "./scoring.types.js";
+import { isTraitItem, normalizeComplianceDocumentType } from "./scoring.dimensions.js";
 import { generateEmbedding, generateJobEmbedding } from "./embedding.service.js";
+import { buildJobEmbeddingText, buildJobFeatureInput, computeMatchScore, jobRequirementClarity } from "./match-score.js";
 
-export const FEATURE_SCHEMA_VERSION = "candidate-feature-v1";
+// v2: protected terms removed from work summaries; notes and compliance documents left out
+// of the embedding text. Profiles on an older version are rebuilt before they are searched.
+export const FEATURE_SCHEMA_VERSION = "candidate-feature-v2";
 const VOCABULARY_VERSION = "gemini-embedding-001-v1";
 export const EXTRACTION_VERSION = "deterministic-v1";
 
 const normalizeLocation = (value: string | null | undefined) =>
-  value?.toLocaleLowerCase("en-US").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim() || null;
+  value?.toLocaleLowerCase("en-US").normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim() || null;
 
 const splitAreas = (value: string | null | undefined) =>
   (value ?? "").split(/[,;/|]/).map(normalizeLocation).filter((entry): entry is string => Boolean(entry));
 
 const yearsBetween = (start: Date, end: Date) => Math.max(0, (end.getTime() - start.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 
+// The text embedded for a candidate. Compliance documents stay in the features (the compliance
+// dimension needs them) but are not part of what the profile "is about".
 const featureDocument = (features: CandidateFeatureInput) => [
   ...features.skills,
   ...features.roleExperience,
   ...features.education,
   ...features.certifications,
-  ...features.complianceDocuments,
 ].join(" ");
 
 const buildCandidateFeatureInput = (profile: {
   skills: Array<{ skill: { name: string } }>;
   workExperiences: Array<{ roleTitle: string; summary: string | null; startDate: Date; endDate: Date | null; isCurrent: boolean }>;
-  educations: Array<{ degree: string | null; fieldOfStudy: string | null; notes: string | null }>;
-  trainings: Array<{ title: string; provider: string | null; notes: string | null }>;
+  educations: Array<{ degree: string | null; fieldOfStudy: string | null }>;
+  trainings: Array<{ title: string; provider: string | null }>;
   assets: Array<{ label: string; documentType: string | null; verificationState: string }>;
   city: string | null;
   province: string | null;
   preferredWorkLocations: string | null;
 }): CandidateFeatureInput => {
-  const experience = profile.workExperiences.reduce((total, item) => total + yearsBetween(item.startDate, item.isCurrent ? new Date() : item.endDate ?? item.startDate), 0);
+  // A role with no end date is treated as ongoing; counting it as 0 years hid real experience.
+  const experience = profile.workExperiences.reduce((total, item) => total + yearsBetween(item.startDate, item.isCurrent || !item.endDate ? new Date() : item.endDate), 0);
   return {
     skills: profile.skills.map((item) => item.skill.name),
-    roleExperience: profile.workExperiences.flatMap((item) => [item.roleTitle, item.summary ?? ""]),
+    // Free-text summaries can mention age, civil status or religion; those clauses are dropped.
+    // Education and training notes are left out for the same reason.
+    roleExperience: profile.workExperiences.flatMap((item) => [item.roleTitle, stripProtectedTerms(item.summary)]),
     yearsExperience: profile.workExperiences.length ? Math.min(50, Number(experience.toFixed(2))) : null,
     city: normalizeLocation(profile.city),
     province: normalizeLocation(profile.province),
     preferredAreas: splitAreas(profile.preferredWorkLocations),
-    education: profile.educations.flatMap((item) => [item.degree ?? "", item.fieldOfStudy ?? "", item.notes ?? ""]),
-    certifications: profile.trainings.flatMap((item) => [item.title, item.provider ?? "", item.notes ?? ""]),
+    education: profile.educations.flatMap((item) => [item.degree ?? "", item.fieldOfStudy ?? ""]),
+    certifications: profile.trainings.flatMap((item) => [item.title, item.provider ?? ""]),
     complianceDocuments: profile.assets
       .filter((item) => item.verificationState !== "REJECTED")
       .map((item) => normalizeComplianceDocumentType(item.label, item.documentType))
@@ -66,8 +75,10 @@ export const rebuildCandidateFeatureProfile = async (applicantProfileId: number)
   try {
     const embedding = await generateEmbedding(text, { taskType: "RETRIEVAL_DOCUMENT" });
     vectorStr = `[${embedding.join(",")}]`;
-  } catch {
-    // Graceful fallback for mock or offline environments without active Gemini API
+  } catch (error) {
+    // Graceful fallback for mock or offline environments without active Gemini API.
+    // Logged so a missing embedding (skills scored on exact words only) is visible.
+    safeLogError(`Scoring: embed candidate profile #${applicantProfileId}`, error);
   }
 
   try {
@@ -94,6 +105,9 @@ export const rebuildCandidateFeatureProfile = async (applicantProfileId: number)
       },
     });
 
+    // On a failed re-embed the previous vector is kept: a slightly older vector keeps the
+    // member searchable, while clearing it would hide them after a temporary Gemini outage.
+    // Profiles with no vector at all are picked up by scripts/backfill-embeddings.ts.
     if (vectorStr) {
       try {
         await prisma.$executeRaw`
@@ -114,12 +128,118 @@ export const rebuildCandidateFeatureProfile = async (applicantProfileId: number)
 
 export const readFeatureInput = (value: unknown): CandidateFeatureInput => value as CandidateFeatureInput;
 
-type TalentPoolOptions = { k?: number; includeArchived?: boolean; minimumSimilarity?: number };
+type TalentPoolOptions = { k?: number; minimumSimilarity?: number };
 
 export class InvalidKnnRequestError extends Error {
   readonly code = "INVALID_REQUEST";
   constructor(message: string) { super(message); }
 }
+
+/** Embedding or vector search failed. Callers must not show or notify any match. */
+export class MatchingUnavailableError extends Error {
+  readonly code = "MATCHING_UNAVAILABLE";
+  constructor() { super("Candidate matching is unavailable right now. Try again in a few minutes."); }
+}
+
+type RawKnnResult = { applicantProfileId: number; similarity: number };
+
+// Runs the embedding call and vector query; any failure becomes MatchingUnavailableError
+// so no caller can fall back to invented similarity values.
+const runKnnSearch = async (context: string, search: () => Promise<RawKnnResult[]>): Promise<RawKnnResult[]> => {
+  try {
+    return await search();
+  } catch (error) {
+    if (error instanceof InvalidKnnRequestError) throw error;
+    safeLogError(`Talent pool: ${context}`, error);
+    throw new MatchingUnavailableError();
+  }
+};
+
+/**
+ * Who may be offered from the Talent Pool (aliases: ap = ApplicantProfile, u = User,
+ * tpm = TalentPoolMembership). One copy, used by every search and by the unsearchable count.
+ * Active deployments are found through the application or the employee record, so a
+ * redeployment created without an application still counts.
+ */
+const ELIGIBLE_MEMBER_SQL = Prisma.sql`
+  tpm."status" = 'ACTIVE'
+  AND tpm."availability" != 'UNAVAILABLE'
+  AND ap."isActive" = true
+  AND ap."hasNoShowHistory" = false
+  AND u."isActive" = true
+  AND NOT EXISTS (
+    SELECT 1 FROM "Application" app_hired
+    WHERE app_hired."userId" = u."id"
+      AND app_hired."status" IN ('HIRED', 'ONBOARDING')
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM "Deployment" dep
+    LEFT JOIN "Application" dep_app ON dep."applicationId" = dep_app."id"
+    LEFT JOIN "Employee" dep_emp ON dep."employeeId" = dep_emp."id"
+    WHERE (dep_app."userId" = u."id" OR dep_emp."userId" = u."id")
+      AND dep."status" NOT IN ('ENDED', 'CANCELLED')
+  )
+`;
+
+/** Leaves out people who already applied to this job (unless they backed out or were archived). */
+const notAppliedToJobSql = (jobPostingId: number | undefined) =>
+  jobPostingId === undefined
+    ? Prisma.empty
+    : Prisma.sql`
+      AND NOT EXISTS (
+        SELECT 1 FROM "Application" app_active
+        WHERE app_active."userId" = u."id"
+          AND app_active."jobPostingId" = ${jobPostingId}
+          AND app_active."status" NOT IN ('BACKOUT', 'ARCHIVED')
+      )`;
+
+// A member is searchable once their features are on the current version and embedded.
+const SEARCHABLE_SQL = Prisma.sql`cfp."embedding" IS NOT NULL AND cfp."featureSchemaVersion" = ${FEATURE_SCHEMA_VERSION}`;
+
+/**
+ * Eligible pool members that vector search cannot see yet: no embedding, or features on an
+ * older version (same eligibility rules as the searches below).
+ */
+export const countUnsearchablePoolMembers = async (jobPostingId?: number): Promise<number> => {
+  try {
+    const [row] = await prisma.$queryRaw<Array<{ count: number }>>`
+      SELECT COUNT(*)::int AS "count"
+      FROM "TalentPoolMembership" tpm
+      JOIN "ApplicantProfile" ap ON ap."id" = tpm."applicantProfileId"
+      JOIN "User" u ON u."id" = ap."userId"
+      LEFT JOIN "CandidateFeatureProfile" cfp ON cfp."applicantProfileId" = ap."id"
+      WHERE
+        (cfp."id" IS NULL OR NOT (${SEARCHABLE_SQL}))
+        AND ${ELIGIBLE_MEMBER_SQL}
+        ${notAppliedToJobSql(jobPostingId)}
+    `;
+    return Number(row?.count ?? 0);
+  } catch (error) {
+    safeLogError("Talent pool: count unsearchable members", error);
+    return 0;
+  }
+};
+
+/** Nearest eligible members to `queryVector` (a SQL expression for a vector), best first. */
+const nearestPoolMembers = (queryVector: Prisma.Sql, extraWhere: Prisma.Sql, minimumSimilarity: number, limit: number) =>
+  prisma.$queryRaw<RawKnnResult[]>`
+    SELECT
+      ap."id" AS "applicantProfileId",
+      (1 - (cfp."embedding" <=> ${queryVector})) AS "similarity"
+    FROM "CandidateFeatureProfile" cfp
+    JOIN "ApplicantProfile" ap ON ap."id" = cfp."applicantProfileId"
+    JOIN "User" u ON u."id" = ap."userId"
+    JOIN "TalentPoolMembership" tpm ON tpm."applicantProfileId" = ap."id"
+    WHERE
+      ${SEARCHABLE_SQL}
+      AND ${ELIGIBLE_MEMBER_SQL}
+      ${extraWhere}
+      AND (1 - (cfp."embedding" <=> ${queryVector})) >= ${minimumSimilarity}
+    ORDER BY (1 - (cfp."embedding" <=> ${queryVector})) DESC, ap."id" ASC
+    LIMIT ${limit}
+  `;
+
+const vectorLiteral = (embedding: number[]) => Prisma.sql`${`[${embedding.join(",")}]`}::vector`;
 
 const resolveKnnOptions = (
   configuration: Awaited<ReturnType<typeof getActiveScoringConfiguration>>,
@@ -131,6 +251,7 @@ const resolveKnnOptions = (
   }
   return {
     k,
+    maximumK: configuration.knnSettings.maximumK as number,
     minimumSimilarity: requested.minimumSimilarity ?? configuration.knnSettings.minimumSimilarity,
   };
 };
@@ -170,7 +291,37 @@ const publicCandidateFromProfile = (profile: {
   };
 };
 
-const hydrateRankedCandidates = async (rawResults: Array<{ applicantProfileId: number; similarity: number }>) => {
+// Open application stages: the person is being processed for another job right now.
+const IN_PROCESS_STATUSES = [
+  "SUBMITTED", "PARSING", "REVIEW", "NEEDS_ATTENTION", "MATCHED", "INITIAL_SCREENING",
+  "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "CONTRACT_SIGNING",
+] as const;
+
+export type InProcessApplication = { applicationId: number; jobId: number; jobTitle: string; status: string };
+
+/** Open applications on other jobs, per user. Shown as a tag; TA decides whether to offer. */
+const loadInProcessApplications = async (userIds: string[], excludeJobId?: number) => {
+  const byUser = new Map<string, InProcessApplication[]>();
+  if (!userIds.length) return byUser;
+  const rows = await prisma.application.findMany({
+    where: {
+      userId: { in: userIds },
+      isArchived: false,
+      status: { in: [...IN_PROCESS_STATUSES] },
+      ...(excludeJobId !== undefined ? { jobPostingId: { not: excludeJobId } } : {}),
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { id: true, userId: true, jobPostingId: true, status: true, jobPosting: { select: { title: true } } },
+  });
+  for (const row of rows) {
+    const list = byUser.get(row.userId) ?? [];
+    list.push({ applicationId: row.id, jobId: row.jobPostingId, jobTitle: row.jobPosting?.title ?? "", status: row.status });
+    byUser.set(row.userId, list);
+  }
+  return byUser;
+};
+
+const hydrateRankedCandidates = async (rawResults: RawKnnResult[], excludeJobId?: number) => {
   if (rawResults.length === 0) return [];
   const profileIds = [...new Set(rawResults.map((result) => result.applicantProfileId))];
   const profiles = await prisma.applicantProfile.findMany({
@@ -180,9 +331,11 @@ const hydrateRankedCandidates = async (rawResults: Array<{ applicantProfileId: n
       skills: { include: { skill: true } },
       workExperiences: { orderBy: { startDate: "desc" } },
       talentPoolMembership: true,
+      candidateFeatureProfile: { select: { rawFeatures: true } },
     },
   });
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const inProcess = await loadInProcessApplications(profiles.map((profile) => profile.user.id), excludeJobId);
   return rawResults.flatMap((result, index) => {
     const profile = profilesById.get(result.applicantProfileId);
     if (!profile) return [];
@@ -190,214 +343,106 @@ const hydrateRankedCandidates = async (rawResults: Array<{ applicantProfileId: n
       candidate: publicCandidateFromProfile(profile as any),
       similarity: Number(result.similarity),
       knnRank: index + 1,
+      inProcessFor: inProcess.get(profile.user.id) ?? [],
+      features: profile.candidateFeatureProfile?.rawFeatures ? readFeatureInput(profile.candidateFeatureProfile.rawFeatures) : null,
     }];
   });
 };
 
+const withoutFeatures = <T extends { features: unknown }>({ features: _features, ...item }: T) => item;
+
 /**
- * Discovers eligible talent pool candidates for a target Job/MRF.
- * Uses authoritative requirements from JobPosting and MRF.
- * Does not overwrite or corrupt historical CandidateScores of other applications.
+ * Discovers eligible Talent Pool candidates for a job. Vector search builds a shortlist; the
+ * shortlist is then ranked by the same rule-based match score screening uses, so a candidate
+ * holding a required certificate ranks above an otherwise similar one without it.
+ * No application or score row is created.
  */
 export const discoverTalentPoolForJob = async (jobPostingId: number, requested: TalentPoolOptions = {}) => {
   const [configuration, job] = await Promise.all([
     getActiveScoringConfiguration(),
     prisma.jobPosting.findUniqueOrThrow({
       where: { id: jobPostingId },
-      include: { mrf: true },
+      include: { mrf: { include: { complianceTemplates: true } } },
     }),
   ]);
 
   const knn = resolveKnnOptions(configuration, requested);
-  
-  // Prefer authoritative MRF + JobPosting requirements
-  const jobText = [
-    job.title,
-    job.description,
-    job.requirements,
-    job.mrf?.requiredSkills,
-    job.mrf?.requiredExperience,
-    job.mrf?.requiredEducation,
-    job.mrf?.requiredCertifications,
-  ].filter(Boolean).join(" ");
+  // A wider shortlist than k, so re-ranking can lift a strong candidate whose wording is less similar.
+  const shortlistSize = Math.max(knn.k, Math.min(knn.maximumK, knn.k * 3));
 
-  const jobEmbedding = await generateJobEmbedding(jobText);
-  const vectorStr = `[${jobEmbedding.join(",")}]`;
+  const rawResults = await runKnnSearch("discover candidates for job", async () => {
+    const queryVector = vectorLiteral(await generateJobEmbedding(buildJobEmbeddingText(job, job.mrf)));
+    return nearestPoolMembers(queryVector, notAppliedToJobSql(jobPostingId), knn.minimumSimilarity, shortlistSize);
+  });
 
-  let rawResults: Array<{ applicantProfileId: number; similarity: number }> = [];
-  try {
-    rawResults = await prisma.$queryRaw`
-      SELECT 
-        ap."id" AS "applicantProfileId",
-        (1 - (cfp."embedding" <=> ${vectorStr}::vector)) AS "similarity"
-      FROM "CandidateFeatureProfile" cfp
-      JOIN "ApplicantProfile" ap ON ap."id" = cfp."applicantProfileId"
-      JOIN "User" u ON u."id" = ap."userId"
-      JOIN "TalentPoolMembership" tpm ON tpm."applicantProfileId" = ap."id"
-      WHERE 
-        cfp."embedding" IS NOT NULL
-        AND tpm."status" = 'ACTIVE'
-        AND tpm."availability" != 'UNAVAILABLE'
-        AND ap."isActive" = true
-        AND ap."hasNoShowHistory" = false
-        AND u."isActive" = true
-        AND NOT EXISTS (
-          SELECT 1 FROM "Application" app_hired
-          WHERE app_hired."userId" = u."id"
-            AND app_hired."status" IN ('HIRED', 'ONBOARDING')
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM "Deployment" dep
-          JOIN "Application" dep_app ON dep."applicationId" = dep_app."id"
-          WHERE dep_app."userId" = u."id"
-            AND dep."status" NOT IN ('ENDED', 'CANCELLED')
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM "Application" app_active
-          WHERE app_active."userId" = u."id"
-            AND app_active."jobPostingId" = ${jobPostingId}
-            AND app_active."status" NOT IN ('BACKOUT', 'ARCHIVED')
-        )
-        AND (1 - (cfp."embedding" <=> ${vectorStr}::vector)) >= ${knn.minimumSimilarity}
-      ORDER BY (1 - (cfp."embedding" <=> ${vectorStr}::vector)) DESC, ap."id" ASC
-      LIMIT ${knn.k}
-    `;
-  } catch (err) {
-    // Fallback for mocked unit test environments without real pgvector Postgres
-    const members = await prisma.talentPoolMembership.findMany({
-      where: {
-        status: "ACTIVE",
-        availability: { not: "UNAVAILABLE" },
-        applicantProfile: {
-          isActive: true,
-          hasNoShowHistory: false,
-          user: {
-            isActive: true,
-            applications: {
-              none: {
-                OR: [
-                  { status: { in: ["HIRED", "ONBOARDING"] } },
-                  { deployments: { some: { status: { notIn: ["ENDED", "CANCELLED"] } } } },
-                  {
-                    jobPostingId,
-                    status: { notIn: [ApplicationStatus.BACKOUT, ApplicationStatus.ARCHIVED] },
-                  },
-                ],
-              },
-            },
-          },
-        },
-      },
-      take: knn.k,
-      select: { applicantProfileId: true },
-    });
-    rawResults = members.map((m) => ({ applicantProfileId: m.applicantProfileId, similarity: 0.85 }));
-  }
+  const [hydrated, unsearchableCount] = await Promise.all([
+    hydrateRankedCandidates(rawResults, jobPostingId),
+    countUnsearchablePoolMembers(jobPostingId),
+  ]);
 
-  const items = await hydrateRankedCandidates(rawResults);
+  // Compliance is checked at the Requirements stage, as for any application before it.
+  const jobInput = buildJobFeatureInput(job, job.mrf, null);
+  const weights = (configuration.weights ?? {}) as Partial<ScoringWeights>;
+  const hasSkillItems = Boolean(jobInput.requiredSkills?.some((item) => !isTraitItem(item)));
+  const ranked = hydrated.map((item) => {
+    if (!item.features) return { ...withoutFeatures(item), matchScore: null, dimensionStatuses: null, missingRequired: [] as string[] };
+    const match = computeMatchScore(item.features, jobInput, item.similarity, weights);
+    // Only listed skill items count as "missing"; title words used when the job lists none do not.
+    const missingRequired = [
+      ...(match.dimensionStatuses.SKILLS === "EVALUATED" && hasSkillItems ? match.explanations.SKILLS.missing ?? [] : []),
+      ...(match.dimensionStatuses.EDUCATION_CERTIFICATIONS === "EVALUATED" ? match.explanations.EDUCATION_CERTIFICATIONS.missing ?? [] : []),
+    ].slice(0, 5);
+    return { ...withoutFeatures(item), matchScore: match.finalFitScore, dimensionStatuses: match.dimensionStatuses, missingRequired };
+  });
 
-  return { items };
+  ranked.sort((a, b) =>
+    (b.matchScore ?? -1) - (a.matchScore ?? -1) ||
+    b.similarity - a.similarity ||
+    a.candidate.applicantProfileId - b.candidate.applicantProfileId,
+  );
+  const items = ranked.slice(0, knn.k).map((item, index) => ({ ...item, rank: index + 1 }));
+
+  return { items, unsearchableCount, requirementClarity: jobRequirementClarity(job, job.mrf) };
 };
 
 /**
- * Finds similar candidates in the talent pool based on another candidate's profile.
+ * Finds Talent Pool members whose profile is close to the candidate of an application.
+ * Compares stored profile vectors directly (no new embedding call).
  */
-export const findSimilarCandidates = async (sourceApplicationOrProfileId: number, requested: TalentPoolOptions = {}) => {
-  let applicantProfile: any = null;
-
-  const app = await prisma.application.findUnique({
-    where: { id: sourceApplicationOrProfileId },
-    include: {
+export const findSimilarCandidates = async (applicationId: number, requested: TalentPoolOptions = {}) => {
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: {
       user: {
-        include: {
+        select: {
           applicantProfile: {
-            include: { candidateFeatureProfile: true },
+            select: { id: true, isActive: true, candidateFeatureProfile: { select: { id: true, featureSchemaVersion: true } } },
           },
         },
       },
     },
   });
-
-  if (app) {
-    if (app.user?.applicantProfile) {
-      applicantProfile = app.user.applicantProfile;
-    } else {
-      return { items: [] };
-    }
-  } else {
-    applicantProfile = await prisma.applicantProfile.findUnique({
-      where: { id: sourceApplicationOrProfileId },
-      include: { candidateFeatureProfile: true },
-    });
-  }
-
-  if (!applicantProfile || !applicantProfile.isActive) {
-    return { items: [] };
-  }
+  const sourceProfile = application?.user?.applicantProfile;
+  if (!sourceProfile || !sourceProfile.isActive) return { items: [] };
 
   const configuration = await getActiveScoringConfiguration();
   const knn = resolveKnnOptions(configuration, requested);
-  const sourceFeature = applicantProfile.candidateFeatureProfile ?? (await rebuildCandidateFeatureProfile(applicantProfile.id));
-  if (!sourceFeature) {
-    return { items: [] };
+  let sourceFeatureId = sourceProfile.candidateFeatureProfile?.id;
+  if (!sourceFeatureId || sourceProfile.candidateFeatureProfile?.featureSchemaVersion !== FEATURE_SCHEMA_VERSION) {
+    sourceFeatureId = (await rebuildCandidateFeatureProfile(sourceProfile.id))?.id;
   }
+  if (!sourceFeatureId) return { items: [] };
 
-  const doc = featureDocument(readFeatureInput(sourceFeature.rawFeatures));
-  const sourceEmbedding = await generateEmbedding(doc, { taskType: "SEMANTIC_SIMILARITY" });
-  const vectorStr = `[${sourceEmbedding.join(",")}]`;
-
-  let rawResults: Array<{ applicantProfileId: number; similarity: number }> = [];
-  try {
-    rawResults = await prisma.$queryRaw`
-      SELECT 
-        ap."id" AS "applicantProfileId",
-        (1 - (cfp."embedding" <=> ${vectorStr}::vector)) AS "similarity"
-      FROM "CandidateFeatureProfile" cfp
-      JOIN "ApplicantProfile" ap ON ap."id" = cfp."applicantProfileId"
-      JOIN "User" u ON u."id" = ap."userId"
-      JOIN "TalentPoolMembership" tpm ON tpm."applicantProfileId" = ap."id"
-      WHERE 
-        cfp."embedding" IS NOT NULL
-        AND ap."id" != ${applicantProfile.id}
-        AND tpm."status" = 'ACTIVE'
-        AND tpm."availability" != 'UNAVAILABLE'
-        AND ap."isActive" = true
-        AND ap."hasNoShowHistory" = false
-        AND u."isActive" = true
-        AND NOT EXISTS (
-          SELECT 1 FROM "Application" app_hired
-          WHERE app_hired."userId" = u."id"
-            AND app_hired."status" IN ('HIRED', 'ONBOARDING')
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM "Deployment" dep
-          JOIN "Application" dep_app ON dep."applicationId" = dep_app."id"
-          WHERE dep_app."userId" = u."id"
-            AND dep."status" NOT IN ('ENDED', 'CANCELLED')
-        )
-        AND (1 - (cfp."embedding" <=> ${vectorStr}::vector)) >= ${knn.minimumSimilarity}
-      ORDER BY (1 - (cfp."embedding" <=> ${vectorStr}::vector)) DESC, ap."id" ASC
-      LIMIT ${knn.k}
+  const rawResults = await runKnnSearch("find similar candidates", async () => {
+    const [source] = await prisma.$queryRaw<Array<{ hasEmbedding: boolean }>>`
+      SELECT ("embedding" IS NOT NULL) AS "hasEmbedding" FROM "CandidateFeatureProfile" WHERE id = ${sourceFeatureId}
     `;
-  } catch (err) {
-    const members = await prisma.talentPoolMembership.findMany({
-      where: {
-        applicantProfileId: { not: applicantProfile.id },
-        status: "ACTIVE",
-        availability: { not: "UNAVAILABLE" },
-        applicantProfile: {
-          isActive: true,
-          hasNoShowHistory: false,
-        },
-      },
-      take: knn.k,
-      select: { applicantProfileId: true },
-    });
-    rawResults = members.map((m) => ({ applicantProfileId: m.applicantProfileId, similarity: 0.85 }));
-  }
+    if (!source?.hasEmbedding) throw new Error("Source profile has no embedding");
+    const queryVector = Prisma.sql`(SELECT src."embedding" FROM "CandidateFeatureProfile" src WHERE src."id" = ${sourceFeatureId})`;
+    return nearestPoolMembers(queryVector, Prisma.sql`AND ap."id" != ${sourceProfile.id}`, knn.minimumSimilarity, knn.k);
+  });
 
-  const items = await hydrateRankedCandidates(rawResults);
-
+  const items = (await hydrateRankedCandidates(rawResults)).map(withoutFeatures);
   return { items };
 };
 
@@ -407,60 +452,17 @@ export const findSimilarCandidates = async (sourceApplicationOrProfileId: number
 export const searchTalentPoolByText = async (text: string, requested: TalentPoolOptions = {}) => {
   const configuration = await getActiveScoringConfiguration();
   const knn = resolveKnnOptions(configuration, requested);
-  const queryEmbedding = await generateEmbedding(text, { taskType: "RETRIEVAL_QUERY" });
-  const vectorStr = `[${queryEmbedding.join(",")}]`;
+  const rawResults = await runKnnSearch("search by text", async () => {
+    const queryVector = vectorLiteral(await generateEmbedding(text, { taskType: "RETRIEVAL_QUERY" }));
+    return nearestPoolMembers(queryVector, Prisma.empty, knn.minimumSimilarity, knn.k);
+  });
 
-  let rawResults: Array<{ applicantProfileId: number; similarity: number }> = [];
-  try {
-    rawResults = await prisma.$queryRaw`
-      SELECT 
-        ap."id" AS "applicantProfileId",
-        (1 - (cfp."embedding" <=> ${vectorStr}::vector)) AS "similarity"
-      FROM "CandidateFeatureProfile" cfp
-      JOIN "ApplicantProfile" ap ON ap."id" = cfp."applicantProfileId"
-      JOIN "User" u ON u."id" = ap."userId"
-      JOIN "TalentPoolMembership" tpm ON tpm."applicantProfileId" = ap."id"
-      WHERE 
-        cfp."embedding" IS NOT NULL
-        AND tpm."status" = 'ACTIVE'
-        AND tpm."availability" != 'UNAVAILABLE'
-        AND ap."isActive" = true
-        AND ap."hasNoShowHistory" = false
-        AND u."isActive" = true
-        AND NOT EXISTS (
-          SELECT 1 FROM "Application" app_hired
-          WHERE app_hired."userId" = u."id"
-            AND app_hired."status" IN ('HIRED', 'ONBOARDING')
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM "Deployment" dep
-          JOIN "Application" dep_app ON dep."applicationId" = dep_app."id"
-          WHERE dep_app."userId" = u."id"
-            AND dep."status" NOT IN ('ENDED', 'CANCELLED')
-        )
-        AND (1 - (cfp."embedding" <=> ${vectorStr}::vector)) >= ${knn.minimumSimilarity}
-      ORDER BY (1 - (cfp."embedding" <=> ${vectorStr}::vector)) DESC, ap."id" ASC
-      LIMIT ${knn.k}
-    `;
-  } catch (err) {
-    const members = await prisma.talentPoolMembership.findMany({
-      where: {
-        status: "ACTIVE",
-        availability: { not: "UNAVAILABLE" },
-        applicantProfile: {
-          isActive: true,
-          hasNoShowHistory: false,
-        },
-      },
-      take: knn.k,
-      select: { applicantProfileId: true },
-    });
-    rawResults = members.map((m) => ({ applicantProfileId: m.applicantProfileId, similarity: 0.85 }));
-  }
+  const [hydrated, unsearchableCount] = await Promise.all([
+    hydrateRankedCandidates(rawResults),
+    countUnsearchablePoolMembers(),
+  ]);
 
-  const items = await hydrateRankedCandidates(rawResults);
-
-  return { items, retrievalOnly: true };
+  return { items: hydrated.map(withoutFeatures), retrievalOnly: true, unsearchableCount };
 };
 
 /**
@@ -610,7 +612,11 @@ export const considerTalentPoolCandidateForJob = async (input: {
   const isDeployed = profile.user.applications.some((app) =>
     app.deployments.some((dep) => !["ENDED", "CANCELLED"].includes(dep.status))
   );
-  if (isDeployed) {
+  // A redeployment can exist without an application; check the employee record too.
+  const isDeployedAsEmployee = !isDeployed && (await prisma.deployment.count({
+    where: { employee: { userId: profile.userId }, status: { notIn: ["ENDED", "CANCELLED"] } },
+  })) > 0;
+  if (isDeployed || isDeployedAsEmployee) {
     throw new InvalidKnnRequestError("Candidate is currently actively deployed.");
   }
 

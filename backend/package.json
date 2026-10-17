@@ -19,6 +19,7 @@
     "db:clean": "tsx scripts/clean-database.ts",
     "db:purge-mock": "tsx scripts/purge-mock-data.ts",
     "db:restore": "tsx scripts/restore-database.ts",
+    "db:backfill-embeddings": "tsx scripts/backfill-embeddings.ts",
     "db:studio": "prisma studio"
   },
   "keywords": [],

@@ -2,7 +2,6 @@ import { z } from "zod";
 import { FIELD_LIMITS, finiteNumber } from "./field-limits.js";
 
 const positiveId = finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true });
-const queryBoolean = z.union([z.boolean(), z.enum(["true", "false"]).transform((value) => value === "true")]);
 
 const weights = z.object({
   SKILLS: z.number().finite().min(0).max(100),
@@ -38,14 +37,16 @@ export const candidateScoringSchema = {
   rankJobParams: z.object({ jobId: positiveId }).strict(),
   talentPoolQuery: z.object({
     k: z.union([z.number().finite().int().min(1).max(100), z.string().regex(/^[0-9]{1,3}$/).transform(Number).refine((value) => value >= 1 && value <= 100)]).optional(),
-    includeArchived: queryBoolean.optional(),
   }).strict(),
   talentPoolSearch: z.object({
     jobId: positiveId.optional(),
     candidateId: positiveId.optional(),
     text: z.string().trim().min(2).max(200).optional(),
     k: z.number().finite().int().min(1).max(100).optional(),
-  }).strict().refine((value) => Boolean(value.jobId || value.candidateId || value.text), { message: "Provide jobId, candidateId, or text." }),
+  }).strict()
+    .refine((value) => Boolean(value.jobId || value.candidateId || value.text), { message: "Provide jobId, candidateId, or text." })
+    // One kind of search at a time; a job search would otherwise silently ignore the text.
+    .refine((value) => [value.jobId, value.candidateId, value.text].filter(Boolean).length === 1, { message: "Search by a job, a candidate, or words, not more than one." }),
   addToTalentPool: z.object({
     applicantProfileId: positiveId,
     sourceApplicationId: positiveId.optional(),

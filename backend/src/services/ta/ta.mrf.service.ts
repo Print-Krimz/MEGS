@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { logAudit } from "../../utils/audit.js";
 import { sendRoleNotification, sendNotification } from "../../utils/notification.js";
 import { assertOwns, ownedWhere, type Actor } from "./ownership.js";
+import { jobRequirementClarity } from "../scoring/match-score.js";
 import { isPageRequested, pageEnvelope, resolvePage, type PageRequest } from "../../utils/pagination.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 
@@ -507,6 +508,7 @@ export const getMRFDetails = async (id: number) => {
   return {
     ...mrf,
     fulfillment,
+    requirementClarity: jobRequirementClarity({ title: mrf.title, requirements: "", location: mrf.location }, mrf),
   };
 };
 

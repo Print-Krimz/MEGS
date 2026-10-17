@@ -32,7 +32,6 @@ export const ScoringConfigPage: React.FC = () => {
   const [defaultK, setDefaultK] = useState<number>(10);
   const [maximumK, setMaximumK] = useState<number>(50);
   const [minSimilarity, setMinSimilarity] = useState<number>(0.5);
-  const [excludeCurrentlyHired, setExcludeCurrentlyHired] = useState<boolean>(true);
 
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [confirmRestoreOpen, setConfirmRestoreOpen] = useState(false);
@@ -67,8 +66,6 @@ export const ScoringConfigPage: React.FC = () => {
         if (config.knnSettings.defaultK !== undefined) setDefaultK(config.knnSettings.defaultK);
         if (config.knnSettings.maximumK !== undefined) setMaximumK(config.knnSettings.maximumK);
         if (config.knnSettings.minimumSimilarity !== undefined) setMinSimilarity(config.knnSettings.minimumSimilarity);
-        if (config.knnSettings.excludeCurrentlyHired !== undefined)
-          setExcludeCurrentlyHired(config.knnSettings.excludeCurrentlyHired);
       }
     }
   }, [config]);
@@ -125,8 +122,7 @@ export const ScoringConfigPage: React.FC = () => {
       matchThreshold !== (config.matchThreshold ?? 60) ||
       defaultK !== (config.knnSettings?.defaultK ?? 10) ||
       maximumK !== (config.knnSettings?.maximumK ?? 50) ||
-      minSimilarity !== (config.knnSettings?.minimumSimilarity ?? 0.5) ||
-      excludeCurrentlyHired !== (config.knnSettings?.excludeCurrentlyHired ?? true)
+      minSimilarity !== (config.knnSettings?.minimumSimilarity ?? 0.5)
     )
   );
 
@@ -176,7 +172,6 @@ export const ScoringConfigPage: React.FC = () => {
         defaultK,
         maximumK,
         minimumSimilarity: minSimilarity,
-        excludeCurrentlyHired,
       },
       matchThreshold,
     });
@@ -487,7 +482,7 @@ export const ScoringConfigPage: React.FC = () => {
                  className="w-full h-11 accent-teal-700 cursor-pointer"
               />
               <p className="text-xs text-slate-500 font-sans">
-                Candidates scoring {matchThreshold} or higher are recommended automatically. Lower scores stay available for recruiter review.
+                Candidates scoring {matchThreshold} or higher are recommended automatically. Lower scores stay available for recruiter review. When a job opens, Talent Pool members at or above this score are sent to the recruiter as a notification.
               </p>
             </div>
           </div>
@@ -503,17 +498,9 @@ export const ScoringConfigPage: React.FC = () => {
           </div>
 
           <div className="p-4 space-y-4">
-            <div>
-              <label className="flex items-start gap-2 text-sm text-slate-800 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={excludeCurrentlyHired}
-                  onChange={(e) => setExcludeCurrentlyHired(e.target.checked)}
-                  className="rounded-none border-slate-300 text-teal-700 focus:ring-0 w-4 h-4"
-                />
-                <span>Leave currently deployed employees out of matching</span>
-              </label>
-            </div>
+            <p className="text-sm text-slate-700">
+              Only active Talent Pool members are matched. Hired and currently deployed people are always left out.
+            </p>
 
             <details className="group border border-slate-200 rounded-md p-3">
               <summary className="text-sm font-semibold text-slate-700 cursor-pointer flex items-center justify-between">

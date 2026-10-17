@@ -11,6 +11,7 @@ import type {
 } from "../types/application.types";
 import type {
   ManpowerRequest,
+  ResumeAnalysisStatus,
   CreateMRFDto,
   UpdateMRFDto,
   MRFComplianceTemplate,
@@ -26,6 +27,7 @@ import type {
   TalentPoolMembership,
   TalentPoolSearchDto,
   TalentPoolMatchResult,
+  TalentPoolSearchResult,
   SendTalentPoolInvitationDto,
   BatchSendTalentPoolInvitationsDto,
   TalentPoolInvitationRecord,
@@ -93,6 +95,17 @@ export interface TADashboardCounts {
   openJobs: number;
   activeDeployments: number;
 }
+
+const toTalentPoolSearchResult = (
+  res: Partial<TalentPoolSearchResult> | TalentPoolMatchResult[] | null | undefined
+): TalentPoolSearchResult => {
+  if (Array.isArray(res)) return { items: res, unsearchableCount: 0 };
+  return {
+    items: Array.isArray(res?.items) ? res.items : [],
+    unsearchableCount: typeof res?.unsearchableCount === "number" ? res.unsearchableCount : 0,
+    requirementClarity: res?.requirementClarity,
+  };
+};
 
 export const taApi = {
   getDashboardCounts: (options?: RequestInit) =>
@@ -189,6 +202,9 @@ export const taApi = {
       {}
     ),
 
+  getAnalysisStatus: (id: number | string) =>
+    api.get<ResumeAnalysisStatus>(`/api/ta/applications/${id}/analyze/status`),
+
   // -------------------------------------------------------------
   // 3. Job Postings & Candidate Match Ranking
   // -------------------------------------------------------------
@@ -251,16 +267,10 @@ export const taApi = {
     return (Array.isArray(res) ? res : []) as CandidateScore[];
   },
 
-  getJobTalentPool: async (jobId: number | string, options?: RequestInit) => {
-    const res = await api.get<{ items: TalentPoolMatchResult[] } | TalentPoolMatchResult[]>(
-      `/api/ta/jobs/${jobId}/talent-pool`,
-      options,
-    );
-    if (res && typeof res === "object" && "items" in res && Array.isArray((res as any).items)) {
-      return (res as any).items as TalentPoolMatchResult[];
-    }
-    return (Array.isArray(res) ? res : []) as TalentPoolMatchResult[];
-  },
+  getJobTalentPool: async (jobId: number | string, options?: RequestInit): Promise<TalentPoolSearchResult> =>
+    toTalentPoolSearchResult(
+      await api.get<Partial<TalentPoolSearchResult> | TalentPoolMatchResult[]>(`/api/ta/jobs/${jobId}/talent-pool`, options)
+    ),
 
   getSimilarCandidates: async (candidateId: number | string) => {
     const res = await api.get<{ items: TalentPoolMatchResult[] } | TalentPoolMatchResult[]>(
@@ -275,16 +285,10 @@ export const taApi = {
   // -------------------------------------------------------------
   // 4. Talent Pool (KNN Matching & Reactivation)
   // -------------------------------------------------------------
-  searchTalentPool: async (data: TalentPoolSearchDto) => {
-    const res = await api.post<{ items: TalentPoolMatchResult[] } | TalentPoolMatchResult[]>(
-      "/api/ta/talent-pool/search",
-      data
-    );
-    if (res && typeof res === "object" && "items" in res && Array.isArray((res as any).items)) {
-      return (res as any).items as TalentPoolMatchResult[];
-    }
-    return (Array.isArray(res) ? res : []) as TalentPoolMatchResult[];
-  },
+  searchTalentPool: async (data: TalentPoolSearchDto): Promise<TalentPoolSearchResult> =>
+    toTalentPoolSearchResult(
+      await api.post<Partial<TalentPoolSearchResult> | TalentPoolMatchResult[]>("/api/ta/talent-pool/search", data)
+    ),
 
   addCandidateToPool: (data: { applicantProfileId: number; sourceApplicationId?: number; notes?: string }) =>
     api.post<TalentPoolMembership>("/api/ta/talent-pool/members", data),

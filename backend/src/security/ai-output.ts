@@ -7,12 +7,35 @@ export function aiData(value: string, maximum = 128_000): string {
   return JSON.stringify(value);
 }
 
+const requirementCheckSchema = z.object({
+  requirement: z.string().trim().min(1).max(300),
+  result: z.enum(["MET", "PARTIAL", "NOT_MET", "UNCLEAR"]),
+  evidence: z.string().trim().max(600),
+}).strict();
+
+const optionalText = (max: number) =>
+  z.string().trim().max(max).nullish().transform((value) => (value ? value : null));
+
+// Name and contact details as printed on the resume, used only to warn TA when the
+// resume does not appear to belong to the applicant.
+const resumeIdentitySchema = z.object({
+  name: optionalText(200),
+  email: optionalText(254),
+  phone: optionalText(40),
+});
+
+// Unknown top-level keys are dropped rather than rejected so small model drift does not
+// send an application to manual review; every known field keeps its bounds.
 const analysisSchema = z.object({
   score: z.number().finite().int().min(0).max(100),
   summary: z.string().trim().min(1).max(4000),
   strengths: z.array(z.string().trim().min(1).max(1000)).max(30),
   gaps: z.array(z.string().trim().min(1).max(1000)).max(30),
-}).strict();
+  // Older stored analyses have no checklist; new ones list each job requirement.
+  requirements: z.array(requirementCheckSchema).max(15).nullish().transform((value) => value ?? []),
+  // Advisory only: a malformed identity block must not throw away the whole analysis.
+  resumeIdentity: resumeIdentitySchema.nullish().transform((value) => value ?? null).catch(null),
+});
 
 export function parseAiJson(text: string): Record<string, unknown> {
   if (!text || text.length > 256_000) throw new Error("AI response is empty or exceeds the supported size");

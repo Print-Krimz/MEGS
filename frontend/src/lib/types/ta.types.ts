@@ -16,10 +16,61 @@ import type { User } from "./auth.types";
 declare module "./application.types" {
   interface JobPosting {
     isEvergreen?: boolean;
+    /** Set on the job detail response: requirements the match score can't use as written. */
+    requirementClarity?: RequirementClarity;
   }
 }
 
+/** Problems in how a job or request states its requirements (from the backend). */
+export interface RequirementClarity {
+  skillsAreTraits: boolean;
+  locationNotAPlace: boolean;
+}
+
+/** Status of one match score dimension. Only EVALUATED counts toward the score. */
+export type DimensionStatus =
+  | "EVALUATED"
+  | "NOT_REQUIRED"
+  | "PENDING_ONBOARDING_STAGE"
+  | "NOT_ASSESSED"
+  | "NEEDS_REVIEW"
+  | "JOB_UNCLEAR";
+
+/** Per-dimension detail stored with a match score (fit-score-v3 and later). */
+export interface DimensionExplanation {
+  basis?: string;
+  matched?: string[];
+  missing?: string[];
+  requiredYears?: number | null;
+  candidateYears?: number | null;
+  locationMatchedOn?: string | null;
+}
+
 export type { JobPosting, ComplianceRequirement } from "./application.types";
+
+export type ResumeAnalysisPhase =
+  | "IDLE"
+  | "QUEUED"
+  | "READING_RESUME"
+  | "EXTRACTING_TEXT"
+  | "AI_ANALYSIS"
+  | "SCORING"
+  | "DONE"
+  | "FAILED";
+
+export interface ResumeAnalysisStatus {
+  phase: ResumeAnalysisPhase;
+  startedAt?: string;
+  updatedAt?: string;
+  /** Gemini resume review score. */
+  score?: number;
+  /** Rule-based match score, the one shown on the application page. */
+  fitScore?: number | null;
+  requirementsMet?: number;
+  requirementsTotal?: number;
+  /** Why a FAILED run stopped. */
+  failureReason?: "NOT_FOUND" | "NO_RESUME" | "UNREADABLE_RESUME" | "AI_UNAVAILABLE" | "SAVE_FAILED";
+}
 
 export interface MRFComplianceTemplate {
   id: number;
@@ -40,6 +91,8 @@ export interface ManpowerRequest {
   location?: string | null;
   targetFillDate?: string | null;
   priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+  /** Set on the request detail response. */
+  requirementClarity?: RequirementClarity;
   requiredSkills?: string | null;
   requiredExperience?: string | null;
   requiredEducation?: string | null;
@@ -230,10 +283,33 @@ export interface TalentPoolCandidate {
   lastContactedAt?: string | null;
 }
 
+/** Talent pool search response. unsearchableCount = eligible members without a search index yet. */
+export interface TalentPoolSearchResult {
+  items: TalentPoolMatchResult[];
+  unsearchableCount: number;
+  /** Job searches only. */
+  requirementClarity?: RequirementClarity;
+}
+
+/** An open application on another job; shown as a tag, TA decides. */
+export interface InProcessApplication {
+  applicationId: number;
+  jobId: number;
+  jobTitle: string;
+  status: string;
+}
+
 export interface TalentPoolMatchResult {
   candidate: TalentPoolCandidate;
+  /** Profile similarity (0-1). Used to build the shortlist; not a grade. */
   similarity: number;
   knnRank: number;
+  /** Job searches only: the same match score screening shows (0-100). */
+  matchScore?: number | null;
+  dimensionStatuses?: Record<string, DimensionStatus> | null;
+  /** Job searches only: required skills or credentials not found in the profile. */
+  missingRequired?: string[];
+  inProcessFor?: InProcessApplication[];
 }
 
 export interface ConsiderCandidateForJobDto {

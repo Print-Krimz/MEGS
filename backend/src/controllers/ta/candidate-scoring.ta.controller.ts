@@ -9,6 +9,7 @@ import {
   discoverTalentPoolForJob,
   findSimilarCandidates,
   InvalidKnnRequestError,
+  MatchingUnavailableError,
   recordTalentPoolContact,
   searchTalentPoolByText,
 } from "../../services/scoring/talent-pool-knn.service.js";
@@ -31,6 +32,8 @@ const handle = (res: Response, error: unknown) => {
     });
   }
   if (error instanceof InvalidKnnRequestError) return res.status(422).json({ success: false, message: error.message, code: error.code });
+  // Fixed, user-safe message; sent directly because sendError hides every 5xx message.
+  if (error instanceof MatchingUnavailableError) return res.status(503).json({ success: false, message: error.message, code: error.code });
   return sendError(res, error instanceof Error ? error.message : "Unable to process talent-pool request", 500);
 };
 
@@ -76,6 +79,7 @@ export const getTalentPool = async (req: Request, res: Response) => {
 export const getSimilarCandidates = async (req: Request, res: Response) => {
   try {
     if (!requireKnnTalentPooling(res)) return;
+    // candidateId is an application id (ownership checked by the route).
     const { jobId: candidateId } = candidateScoringSchema.rankJobParams.parse({ jobId: req.params.candidateId });
     const query = candidateScoringSchema.talentPoolQuery.parse(req.query);
     const result = await findSimilarCandidates(candidateId, query);

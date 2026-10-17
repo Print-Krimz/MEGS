@@ -12,9 +12,6 @@ export interface CandidateScoringKnnSettings {
   defaultK?: number;
   maximumK?: number;
   minimumSimilarity?: number;
-  includeArchived?: boolean;
-  excludeRejected?: boolean;
-  excludeCurrentlyHired?: boolean;
 }
 
 export interface CandidateScoringConfiguration {
