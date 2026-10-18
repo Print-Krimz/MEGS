@@ -29,7 +29,7 @@ import {
 import { documentsApi } from "../../lib/api/documents.api";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
-import { getManilaToday } from "../../lib/field-limits";
+import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 
 type StatusFilter = "ALL" | "WAITING_CANDIDATE" | "WAITING_REVIEW" | "APPROVED" | "TO_FOLLOW";
 type SortField = "candidate" | "submitted";
@@ -378,7 +378,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     );
     setToFollowExpectedAt(
       defaultReq?.toFollowExpectedAt
-        ? new Date(defaultReq.toFollowExpectedAt).toISOString().split("T")[0]
+        ? toManilaDateInput(defaultReq.toFollowExpectedAt)
         : ""
     );
     setReviewNotes(defaultReq?.reviewNotes || "");
@@ -955,8 +955,9 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
               ? `${quickReviewCandidate.user.applicantProfile.firstName} ${quickReviewCandidate.user.applicantProfile.lastName}`
               : quickReviewCandidate.user?.email || "Candidate"
           } • ${quickReviewCandidate.jobPosting?.title || "Job opening"}`}
+          size="xl"
         >
-          <div className="space-y-4">
+          <div className="grid gap-5 lg:grid-cols-[20rem_minmax(0,1fr)]">
             {/* Requirements List */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-slate-700 block">
@@ -972,7 +973,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                     : "No requirements configured for this application."}
                 </p>
               ) : (
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg max-h-48 overflow-y-auto lg:max-h-[28rem]">
                   {openReviewReqs.map((req) => {
                     const isSelected = req.id === selectedReqId;
                     return (
@@ -992,7 +993,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                           );
                           setToFollowExpectedAt(
                             req.toFollowExpectedAt
-                              ? new Date(req.toFollowExpectedAt).toISOString().split("T")[0]
+                              ? toManilaDateInput(req.toFollowExpectedAt)
                               : ""
                           );
                           setReviewNotes(req.reviewNotes || "");
@@ -1012,7 +1013,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
                               isSelected ? "bg-teal-600" : "bg-transparent"
                             }`}
                           />
-                          <span className="truncate">{req.documentLabel}</span>
+                          <span className="truncate" title={req.documentLabel}>{req.documentLabel}</span>
                         </div>
                         <div className="shrink-0">
                           {renderReqStatusBadge(req.reviewStatus)}
@@ -1025,7 +1026,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
             </div>
 
             {selectedReq ? (
-              <div className="space-y-3 pt-2 border-t border-slate-100">
+              <div className="space-y-3 border-t border-slate-100 pt-3 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
                 <div className="text-xs font-semibold text-slate-800">
                   Reviewing: <span className="font-bold text-teal-900">{selectedReq.documentLabel}</span>
                 </div>

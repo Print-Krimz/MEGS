@@ -1,4 +1,5 @@
 import prisma from "../../utils/prisma.js";
+import { isGeneralClearance } from "../../utils/compliance-reuse.js";
 import { generateJobEmbeddings } from "../scoring/embedding.service.js";
 import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.service.js";
 
@@ -16,6 +17,23 @@ export interface RedeploymentJobSuggestion {
   basis: SuggestionBasis;
   /** 0–100 when ranked by profile similarity, otherwise null. */
   matchPercent: number | null;
+  /** Up to 3 words the worker's history/skills share with the job, shown as the reason for the match. */
+  sharedKeywords: string[];
+}
+
+/** An approved, still-valid document the worker could bring to a new placement (same rules as the redeployment fast-track). */
+export interface ReusableDocument {
+  label: string;
+  expiresAt: string | null;
+  /** Reused at any client. Otherwise only at one of `clientIds`. */
+  general: boolean;
+  clientIds: number[];
+}
+
+export interface RedeploymentWorkerSuggestions {
+  total: number;
+  suggestions: RedeploymentJobSuggestion[];
+  reusableDocuments: ReusableDocument[];
 }
 
 const STOP_WORDS = new Set(["and", "the", "for", "with", "staff", "worker", "operator", "assistant", "light", "medium", "heavy"]);
@@ -69,6 +87,7 @@ export const listRedeploymentSuggestions = async (employeeIds?: number[]) => {
       },
       select: {
         id: true,
+        userId: true,
         position: true,
         deployments: {
           // Started placements only, matching the same-client routing rule on application submission.
@@ -121,7 +140,33 @@ export const listRedeploymentSuggestions = async (employeeIds?: number[]) => {
     getActiveScoringConfiguration().catch(() => null),
   ]);
 
-  if (employees.length === 0 || jobs.length === 0) return { items: {} as Record<number, { total: number; suggestions: RedeploymentJobSuggestion[] }> };
+  if (employees.length === 0 || jobs.length === 0) return { items: {} as Record<number, RedeploymentWorkerSuggestions> };
+
+  // Valid approved documents from earlier applications, reviewed within the last 12 months.
+  const now = new Date();
+  const twelveMonthsAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+  const priorDocuments = await prisma.complianceRequirement.findMany({
+    where: {
+      application: { userId: { in: employees.map((e) => e.userId) } },
+      reviewStatus: "APPROVED",
+      documentId: { not: null },
+      reviewedAt: { gte: twelveMonthsAgo },
+      OR: [{ validityStatus: "NO_EXPIRY" }, { validityStatus: "HAS_EXPIRY", expiresAt: { gt: now } }],
+    },
+    orderBy: { reviewedAt: "desc" },
+    select: {
+      documentLabel: true,
+      expiresAt: true,
+      application: {
+        select: {
+          userId: true,
+          jobPosting: { select: { mrf: { select: { clientId: true } } } },
+          deployments: { select: { clientId: true } },
+          clientEndorsements: { select: { clientId: true } },
+        },
+      },
+    },
+  });
 
   const profileIds = employees.map((e) => e.user.applicantProfile?.id).filter((id): id is number => Boolean(id));
   const candidateVectors = new Map<number, number[]>();
@@ -165,8 +210,32 @@ export const listRedeploymentSuggestions = async (employeeIds?: number[]) => {
   const jobTitleKeywords = new Map(jobs.map((job) => [job.id, keywords(job.title)]));
   const jobKeywords = new Map(jobs.map((job) => [job.id, keywords(`${job.title} ${job.requirements ?? ""} ${job.mrf?.requiredSkills ?? ""}`)]));
 
-  const items: Record<number, { total: number; suggestions: RedeploymentJobSuggestion[] }> = {};
+  const documentsByUser = new Map<string, typeof priorDocuments>();
+  for (const doc of priorDocuments) {
+    const list = documentsByUser.get(doc.application.userId);
+    if (list) list.push(doc);
+    else documentsByUser.set(doc.application.userId, [doc]);
+  }
+
+  const items: Record<number, RedeploymentWorkerSuggestions> = {};
   for (const employee of employees) {
+    const reusableByLabel = new Map<string, ReusableDocument>();
+    for (const doc of documentsByUser.get(employee.userId) ?? []) {
+      const key = doc.documentLabel.trim().toLowerCase();
+      if (reusableByLabel.has(key)) continue;
+      const clientIds = new Set<number>();
+      const mrfClient = doc.application.jobPosting?.mrf?.clientId;
+      if (mrfClient) clientIds.add(mrfClient);
+      doc.application.deployments.forEach((d) => d.clientId && clientIds.add(d.clientId));
+      doc.application.clientEndorsements.forEach((e) => e.clientId && clientIds.add(e.clientId));
+      reusableByLabel.set(key, {
+        label: doc.documentLabel,
+        expiresAt: doc.expiresAt ? doc.expiresAt.toISOString() : null,
+        general: isGeneralClearance(doc.documentLabel),
+        clientIds: [...clientIds],
+      });
+    }
+
     const profile = employee.user.applicantProfile;
     const pastClients = new Set(employee.deployments.map((d) => d.clientId));
     const excluded = new Set([
@@ -194,7 +263,8 @@ export const listRedeploymentSuggestions = async (employeeIds?: number[]) => {
         const keywordFit = titleOverlap > 0 || overlap >= 2;
         const fits = sameClient || (similarity !== null ? similarity >= minimumSimilarity : keywordFit);
         const basis: SuggestionBasis = sameClient ? "SAME_CLIENT" : similarity !== null ? "PROFILE_MATCH" : "KEYWORDS";
-        return { job, sameClient, similarity, overlap, titleOverlap, fits, basis };
+        const sharedKeywords = [...(jobKeywords.get(job.id) ?? [])].filter((word) => workerKeywords.has(word)).slice(0, 3);
+        return { job, sameClient, similarity, overlap, titleOverlap, fits, basis, sharedKeywords };
       })
       .filter((entry) => entry.fits)
       .sort(
@@ -206,8 +276,9 @@ export const listRedeploymentSuggestions = async (employeeIds?: number[]) => {
       );
 
     items[employee.id] = {
+      reusableDocuments: [...reusableByLabel.values()],
       total: ranked.length,
-      suggestions: ranked.slice(0, MAX_SUGGESTIONS_PER_WORKER).map(({ job, sameClient, similarity, basis }) => ({
+      suggestions: ranked.slice(0, MAX_SUGGESTIONS_PER_WORKER).map(({ job, sameClient, similarity, basis, sharedKeywords }) => ({
         jobId: job.id,
         title: job.title,
         clientName: job.mrf?.client?.name ?? null,
@@ -215,6 +286,7 @@ export const listRedeploymentSuggestions = async (employeeIds?: number[]) => {
         sameClient,
         basis,
         matchPercent: similarity !== null ? Math.round(Math.max(0, Math.min(1, similarity)) * 100) : null,
+        sharedKeywords,
       })),
     };
   }

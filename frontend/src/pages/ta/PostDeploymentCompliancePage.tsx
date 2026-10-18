@@ -24,9 +24,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
-import { getManilaToday } from "../../lib/field-limits";
+import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import {
   calculateDaysOnSite,
+  groupUrgencyStatuses,
+  getFollowUpTargetDate,
   calculateUrgencyStatus,
   getWorkerUrgencyCategory,
 } from "../../lib/compliance-queue";
@@ -207,7 +209,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
       readyForReviewDocs += submittedReqs.length;
 
       const hasUpcoming = pendingReqs.some((r) => {
-        const urgency = calculateUrgencyStatus(r.toFollowExpectedAt);
+        const urgency = calculateUrgencyStatus(getFollowUpTargetDate(r));
         return urgency.category === "UPCOMING";
       });
       if (hasUpcoming) {
@@ -215,7 +217,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
       }
 
       const hasOverdue = pendingReqs.some((r) => {
-        const urgency = calculateUrgencyStatus(r.toFollowExpectedAt);
+        const urgency = calculateUrgencyStatus(getFollowUpTargetDate(r));
         return urgency.category === "OVERDUE";
       });
       if (hasOverdue) {
@@ -311,7 +313,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
     );
     setToFollowExpectedAt(
       defaultReq?.toFollowExpectedAt
-        ? new Date(defaultReq.toFollowExpectedAt).toISOString().split("T")[0]
+        ? toManilaDateInput(defaultReq.toFollowExpectedAt)
         : ""
     );
     setReviewNotes(defaultReq?.reviewNotes || "");
@@ -333,13 +335,13 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
         matchesUrgency = (app.complianceRequirements || []).some(
           (r) =>
             r.reviewStatus !== "APPROVED" &&
-            calculateUrgencyStatus(r.toFollowExpectedAt).category === "OVERDUE"
+            calculateUrgencyStatus(getFollowUpTargetDate(r)).category === "OVERDUE"
         );
       } else if (urgencyFilter === "UPCOMING") {
         matchesUrgency = (app.complianceRequirements || []).some(
           (r) =>
             r.reviewStatus !== "APPROVED" &&
-            calculateUrgencyStatus(r.toFollowExpectedAt).category === "UPCOMING"
+            calculateUrgencyStatus(getFollowUpTargetDate(r)).category === "UPCOMING"
         );
       } else if (urgencyFilter === "HEALTHY") {
         matchesUrgency = urgencyCategory === "HEALTHY";
@@ -431,6 +433,10 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
   );
   const selectedReq = quickReviewApp?.complianceRequirements?.find(
     (r) => r.id === selectedReqId
+  );
+  // Same rule as the backend: an open updated-copy request blocks approval until the worker submits the new file.
+  const awaitingUpdatedCopy = Boolean(
+    selectedReq?.updateRequestedAt && !selectedReq.updateRequestCompletedAt && selectedReq.reviewStatus !== "SUBMITTED"
   );
 
   return (
@@ -637,7 +643,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                   </div>
 
                   <div className="text-xs text-slate-600">
-                    <span>Started {formatDate(deployment?.contractStart)}</span>
+                    <span>{deployment ? `Started ${formatDate(deployment.contractStart)}` : "No active deployment"}</span>
                     {daysOnSite !== null && (
                       <span className="text-slate-500 font-mono ml-2">
                         ({daysOnSite} {daysOnSite === 1 ? "day" : "days"} on site)
@@ -670,14 +676,11 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                           No target date
                         </Badge>
                       ) : (
-                        followUpReqs.map((req) => {
-                          const urgency = calculateUrgencyStatus(req.toFollowExpectedAt);
-                          return (
-                            <Badge key={req.id} variant={urgency.variant} size="sm">
-                              {urgency.label}
-                            </Badge>
-                          );
-                        })
+                        groupUrgencyStatuses(followUpReqs.map(getFollowUpTargetDate)).map((urgency) => (
+                          <Badge key={urgency.label} variant={urgency.variant} size="sm">
+                            {urgency.label}
+                          </Badge>
+                        ))
                       )}
                     </div>
                   </div>
@@ -759,14 +762,20 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
 
                       {/* Deployment Info */}
                       <td className="px-4 py-3 font-sans">
-                        <div className="text-slate-900 font-mono text-xs">
-                          {formatDate(deployment?.contractStart)}
-                        </div>
-                        <div className="text-slate-500 text-[11px]">
-                          {daysOnSite !== null
-                            ? `${daysOnSite} ${daysOnSite === 1 ? "day" : "days"} on site`
-                            : "-"}
-                        </div>
+                        {deployment ? (
+                          <>
+                            <div className="text-slate-900 font-mono text-xs">
+                              {formatDate(deployment.contractStart)}
+                            </div>
+                            {daysOnSite !== null && (
+                              <div className="text-slate-500 text-[11px]">
+                                {daysOnSite} {daysOnSite === 1 ? "day" : "days"} on site
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-slate-500 text-xs">No active deployment</div>
+                        )}
                       </td>
 
                       {/* Follow-Up Documents */}
@@ -792,14 +801,11 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                               No target date
                             </Badge>
                           ) : (
-                            followUpReqs.map((req) => {
-                              const urgency = calculateUrgencyStatus(req.toFollowExpectedAt);
-                              return (
-                                <Badge key={req.id} variant={urgency.variant} size="sm">
-                                  {urgency.label}
-                                </Badge>
-                              );
-                            })
+                            groupUrgencyStatuses(followUpReqs.map(getFollowUpTargetDate)).map((urgency) => (
+                              <Badge key={urgency.label} variant={urgency.variant} size="sm">
+                                {urgency.label}
+                              </Badge>
+                            ))
                           )}
                         </div>
                       </td>
@@ -862,8 +868,9 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
               ? `${quickReviewApp.user.applicantProfile.firstName || ""} ${quickReviewApp.user.applicantProfile.lastName || ""}`.trim()
               : quickReviewApp.user?.email || "Worker"
           } • ${quickReviewApp.jobPosting?.title || "Job opening"}`}
+          size="xl"
         >
-          <div className="space-y-4">
+          <div className="grid gap-5 lg:grid-cols-[20rem_minmax(0,1fr)]">
             {/* Requirements List */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-slate-700 block">
@@ -874,10 +881,10 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                   No open follow-up documents for this worker.
                 </p>
               ) : (
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg max-h-48 overflow-y-auto lg:max-h-[28rem]">
                   {openFollowUpReqs.map((req) => {
                     const isSelected = req.id === selectedReqId;
-                    const urgency = calculateUrgencyStatus(req.toFollowExpectedAt);
+                    const urgency = calculateUrgencyStatus(getFollowUpTargetDate(req));
                     return (
                       <button
                         key={req.id}
@@ -895,7 +902,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                           );
                           setToFollowExpectedAt(
                             req.toFollowExpectedAt
-                              ? new Date(req.toFollowExpectedAt).toISOString().split("T")[0]
+                              ? toManilaDateInput(req.toFollowExpectedAt)
                               : ""
                           );
                           setReviewNotes(req.reviewNotes || "");
@@ -915,7 +922,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                               isSelected ? "bg-teal-600" : "bg-transparent"
                             }`}
                           />
-                          <span className="truncate">{req.documentLabel}</span>
+                          <span className="truncate" title={req.documentLabel}>{req.documentLabel}</span>
                         </div>
                         <div className="shrink-0 flex items-center gap-1.5">
                           <Badge variant={urgency.variant} size="sm">
@@ -930,7 +937,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
             </div>
 
             {selectedReq ? (
-              <div className="space-y-3 pt-2 border-t border-slate-100">
+              <div className="space-y-3 border-t border-slate-100 pt-3 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
                 <div className="text-xs font-semibold text-slate-800">
                   Reviewing: <span className="font-bold text-teal-900">{selectedReq.documentLabel}</span>
                 </div>
@@ -953,6 +960,12 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                       No document uploaded yet by worker
                     </p>
                   </div>
+                )}
+
+                {awaitingUpdatedCopy && (
+                  <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    An updated copy was requested. The file above is the old one. You can approve once the worker uploads the new copy.
+                  </p>
                 )}
 
                 <Select
@@ -1041,6 +1054,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
                     loading={reviewMutation.isPending}
                     disabled={
                       reviewStatus === "" ||
+                      (reviewStatus === "APPROVED" && awaitingUpdatedCopy) ||
                       (reviewStatus === "APPROVED" &&
                       (documentValidity === "UNKNOWN" ||
                         (documentValidity === "HAS_EXPIRY" && !documentExpiresAt) ||

@@ -104,10 +104,19 @@ export interface RedeploymentJobSuggestion {
   sameClient: boolean;
   basis: "SAME_CLIENT" | "PROFILE_MATCH" | "KEYWORDS";
   matchPercent: number | null;
+  sharedKeywords: string[];
+}
+
+export interface ReusableDocument {
+  label: string;
+  expiresAt: string | null;
+  /** Reused at any client. Otherwise only at one of `clientIds`. */
+  general: boolean;
+  clientIds: number[];
 }
 
 export interface RedeploymentSuggestionsResponse {
-  items: Record<number, { total: number; suggestions: RedeploymentJobSuggestion[] }>;
+  items: Record<number, { total: number; suggestions: RedeploymentJobSuggestion[]; reusableDocuments: ReusableDocument[] }>;
 }
 
 export type RedeploymentStage ="NEEDS_PLACEMENT" | "WAITING_FOR_REPLY" | "IN_PROGRESS";

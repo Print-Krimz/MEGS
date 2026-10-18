@@ -773,12 +773,14 @@ export type ComplianceScope = "PRE_DEPLOYMENT" | "POST_DEPLOYMENT" | "ALL";
 
 /**
  * Post-deployment follow-ups: requirements marked To Follow, plus deferred ones (they carry a follow-up
- * target date) whose new upload awaits review or was rejected. Approved and never-deferred items are excluded.
+ * target date, or an open updated-copy request) whose new upload awaits review or was rejected. Approved and never-deferred items are excluded.
  */
 export const POST_DEPLOYMENT_FOLLOW_UP_WHERE: Prisma.ComplianceRequirementWhereInput = {
   OR: [
     { reviewStatus: "TO_FOLLOW" },
     { toFollowExpectedAt: { not: null }, reviewStatus: { in: ["SUBMITTED", "REJECTED", "PENDING"] } },
+    // An updated copy requested from the 201 records stays here until the new copy is approved.
+    { updateRequestedAt: { not: null }, updateRequestCompletedAt: null, reviewStatus: { in: ["SUBMITTED", "REJECTED", "PENDING"] } },
   ],
 };
 

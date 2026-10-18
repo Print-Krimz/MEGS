@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Fully mocked: no database, no embedding provider.
-const { employeeFindMany, jobFindMany, queryRaw, embeddings } = vi.hoisted(() => ({
+const { employeeFindMany, jobFindMany, queryRaw, embeddings, documentFindMany } = vi.hoisted(() => ({
+  documentFindMany: vi.fn(),
   employeeFindMany: vi.fn(),
   jobFindMany: vi.fn(),
   queryRaw: vi.fn(),
@@ -12,6 +13,7 @@ vi.mock("../../utils/prisma.js", () => ({
   default: {
     employee: { findMany: employeeFindMany },
     jobPosting: { findMany: jobFindMany },
+    complianceRequirement: { findMany: documentFindMany },
     $queryRaw: queryRaw,
   },
 }));
@@ -68,6 +70,7 @@ const buildFixture = () => {
     if (id % 10 !== 0) vectors.set(profileId, noisy(topics[id % TOPICS]));
     return {
       id,
+      userId: `user-${id}`,
       position: id % 3 === 0 ? "Operator" : null,
       // A few workers are ineligible for suggestions: they already hold an open placement.
       eligible: !INELIGIBLE.has(id),
@@ -95,6 +98,7 @@ const installMocks = () => {
       .map(({ eligible: _eligible, ...employee }) => employee);
   });
   jobFindMany.mockResolvedValue(fixture.jobs);
+  documentFindMany.mockResolvedValue([]);
   queryRaw.mockImplementation(async (_strings: TemplateStringsArray, profileIds: number[]) =>
     profileIds.flatMap((id) => (fixture.vectors.has(id) ? [{ applicantProfileId: id, embedding: JSON.stringify(fixture.vectors.get(id)) }] : []))
   );
@@ -154,6 +158,31 @@ describe("listRedeploymentSuggestions employeeIds batch", () => {
     const excluded = await listRedeploymentSuggestions([5, 7]);
     expect(excluded.items[5].suggestions.map((s) => s.jobId)).not.toContain(1000 + (5 % JOB_COUNT));
     expect(excluded.items[7].suggestions.map((s) => s.jobId)).not.toContain(1000 + ((7 + 3) % JOB_COUNT));
+  });
+
+  it("lists each worker's valid documents once, flagging which follow the worker to any client", async () => {
+    const document = (label: string, userId: string, clientId: number) => ({
+      documentLabel: label,
+      expiresAt: null,
+      application: {
+        userId,
+        jobPosting: { mrf: { clientId } },
+        deployments: [{ clientId }],
+        clientEndorsements: [],
+      },
+    });
+    documentFindMany.mockResolvedValue([
+      document("NBI Clearance", "user-6", 3),
+      document("NBI Clearance", "user-6", 4), // older duplicate of the same label is dropped
+      document("Client Safety Orientation", "user-6", 3),
+      document("NBI Clearance", "user-9", 2),
+    ]);
+    const result = await listRedeploymentSuggestions([6, 9]);
+    expect(result.items[6].reusableDocuments).toEqual([
+      { label: "NBI Clearance", expiresAt: null, general: true, clientIds: [3] },
+      { label: "Client Safety Orientation", expiresAt: null, general: false, clientIds: [3] },
+    ]);
+    expect(result.items[9].reusableDocuments).toHaveLength(1);
   });
 
   it("does not return workers that fail the eligibility check, even when requested", async () => {

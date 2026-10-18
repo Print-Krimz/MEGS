@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LoadingState, ErrorState, EmptyState, Pagination } from "../../components/common";
-import { Button, ComboBox, Dialog, Input, Textarea } from "../../components/ui";
+import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
 import {
   employeesApi,
   type RedeploymentJobSuggestion,
@@ -22,6 +22,7 @@ const STAGES: Array<{ id: RedeploymentStage; label: string; hint: string }> = [
   { id: "WAITING_FOR_REPLY", label: "Waiting for reply", hint: "Invited, worker has not answered" },
   { id: "IN_PROGRESS", label: "Already applying", hint: "In a hiring pipeline" },
 ];
+const WARN_WAIT_DAYS = 7;
 const LONG_WAIT_DAYS = 14;
 const PAGE_SIZE = 10;
 
@@ -30,24 +31,27 @@ const daysSince = (value: string | null) =>
 
 const WaitingCell: React.FC<{ since: string | null }> = ({ since }) => {
   const days = daysSince(since);
-  if (since === null || days === null) return <span className="text-slate-500">Not recorded</span>;
-  const long = days >= LONG_WAIT_DAYS;
+  if (since === null || days === null) {
+    return <span className="text-slate-400" title="No end date on the previous placement">—</span>;
+  }
+  const tone =
+    days >= LONG_WAIT_DAYS
+      ? "border border-rose-300 bg-rose-50 text-rose-800"
+      : days >= WARN_WAIT_DAYS
+        ? "border border-amber-300 bg-amber-50 text-amber-800"
+        : "text-slate-800";
   return (
     <div>
       <span
-        className={`inline-flex rounded px-1.5 py-0.5 font-semibold ${
-          long ? "border border-amber-300 bg-amber-50 text-amber-800" : "text-slate-800"
-        }`}
-        title={long ? `Waiting ${LONG_WAIT_DAYS}+ days. Prioritise this worker.` : undefined}
+        className={`inline-flex rounded px-1.5 py-0.5 font-semibold ${tone}`}
+        title={days >= WARN_WAIT_DAYS ? `Waiting ${days} days. Prioritise this worker.` : undefined}
       >
-        {days === 0 ? "Since today" : `Waiting ${days} day${days === 1 ? "" : "s"}`}
+        {days === 0 ? "Today" : `${days} day${days === 1 ? "" : "s"}`}
       </span>
       <div className="mt-1 text-slate-500">Since {formatDate(since)}</div>
     </div>
   );
 };
-
-const ROW_SUGGESTIONS = 3;
 
 // Short tag for the job picker; the full reason is shown on the row.
 const suggestionTag = (suggestion: RedeploymentJobSuggestion) =>
@@ -57,12 +61,14 @@ const suggestionTag = (suggestion: RedeploymentJobSuggestion) =>
       ? `${suggestion.matchPercent}% match`
       : "Related experience";
 
-const suggestionReason = (suggestion: RedeploymentJobSuggestion) =>
-  suggestion.sameClient
-    ? "Same client, skips screening"
-    : suggestion.matchPercent !== null
-      ? `${suggestion.matchPercent}% profile match`
-      : "Matches previous role or skills";
+const suggestionReason = (suggestion: RedeploymentJobSuggestion) => {
+  if (suggestion.sameClient) return "Same client, skips screening";
+  const shared = suggestion.sharedKeywords?.length ? `shares ${suggestion.sharedKeywords.join(", ")}` : "";
+  if (suggestion.matchPercent !== null) {
+    return shared ? `${suggestion.matchPercent}% profile match, ${shared}` : `${suggestion.matchPercent}% profile match`;
+  }
+  return shared ? `Matches previous role or skills: ${shared}` : "Matches previous role or skills";
+};
 
 const SuggestedJobs: React.FC<{
   data?: { total: number; suggestions: RedeploymentJobSuggestion[] };
@@ -83,36 +89,24 @@ const SuggestedJobs: React.FC<{
     );
   }
   if (!data || data.total === 0) return <span className="text-slate-500">No matching open jobs</span>;
+  const top = data.suggestions[0];
   return (
-    <div className="space-y-1.5">
-      <div className="font-semibold text-slate-800">
-        {data.total} job{data.total === 1 ? "" : "s"} fit this worker
-      </div>
-      {data.suggestions.slice(0, ROW_SUGGESTIONS).map((suggestion) => (
-        <button
-          key={suggestion.jobId}
-          type="button"
-          onClick={() => onPick(suggestion.jobId)}
-          title={`Assign to ${suggestion.title}`}
-          className={`block w-full max-w-[18rem] rounded border px-2 py-1 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
-            suggestion.sameClient
-              ? "border-amber-300 bg-amber-50 hover:bg-amber-100"
-              : "border-slate-200 bg-white hover:bg-slate-50"
-          }`}
-        >
-          <span className="block truncate font-medium text-slate-900">{suggestion.title}</span>
-          <span className="block truncate text-[11px] text-slate-500">
-            {suggestion.clientName || "Client not set"} · {suggestionReason(suggestion)}
-          </span>
-        </button>
-      ))}
-      {data.total > ROW_SUGGESTIONS && (
+    <div className="space-y-1">
+      <button
+        type="button"
+        onClick={() => onPick()}
+        className="font-semibold text-teal-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+      >
+        {data.total} job{data.total === 1 ? "" : "s"} fit · View matches
+      </button>
+      {top && (
         <button
           type="button"
-          onClick={() => onPick()}
-          className="text-[11px] font-medium text-teal-700 hover:underline"
+          onClick={() => onPick(top.jobId)}
+          title={`Assign to ${top.title}: ${suggestionReason(top)}`}
+          className="block max-w-[16rem] truncate text-left text-slate-600 hover:text-slate-900 hover:underline"
         >
-          See all {data.total} matches
+          Top: {top.title} · {suggestionTag(top)}
         </button>
       )}
     </div>
@@ -127,6 +121,13 @@ export const RedeploymentQueuePage: React.FC = () => {
   const [assignmentTarget, setAssignmentTarget] = useState<Row | null>(null);
   const [targetJobId, setTargetJobId] = useState("");
   const [assignmentMessage, setAssignmentMessage] = useState("");
+  // Until the TA edits the text, the message follows the template for the chosen job.
+  const [messageEdited, setMessageEdited] = useState(false);
+  const [jobSearch, setJobSearch] = useState("");
+  // null = automatic: Suggested when the worker has suggestions, otherwise All open jobs.
+  const [jobView, setJobView] = useState<"suggested" | "all" | null>(null);
+  const [clientFilter, setClientFilter] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
 
@@ -170,7 +171,7 @@ export const RedeploymentQueuePage: React.FC = () => {
       taApi.sendTalentPoolInvitation({
         applicantProfileId: assignmentTarget!.applicantProfileId!,
         targetJobId: Number(targetJobId),
-        message: assignmentMessage.trim() || undefined,
+        message: invitationMessage.trim() || undefined,
       }),
     onSuccess: () => {
       void cache.invalidateQueries({ queryKey: ["ta", "redeployment-queue"] });
@@ -178,13 +179,17 @@ export const RedeploymentQueuePage: React.FC = () => {
       setAssignmentTarget(null);
       setTargetJobId("");
       setAssignmentMessage("");
+      setMessageEdited(false);
+      setConfirmOpen(false);
       notify.success(
         "Assignment sent",
         "The worker can review and accept the open role from their portal."
       );
     },
-    onError: (error: any) =>
-      notify.error("Assignment failed", error?.message || error),
+    onError: (error: any) => {
+      setConfirmOpen(false);
+      notify.error("Assignment failed", error?.message || error);
+    },
   });
 
   if (query.isLoading) return <LoadingState variant="table" rows={5} />;
@@ -201,37 +206,69 @@ export const RedeploymentQueuePage: React.FC = () => {
   // previous client is flagged, not only the ones that made the suggestion list.
   const pastClientIds = new Set((assignmentTarget?.pastClients ?? []).map((client) => client.id));
   const isSameClientJob = (clientId: number | null | undefined) => clientId != null && pastClientIds.has(clientId);
-  const suggestedGroup = `Suggested for ${assignmentTarget?.name ?? "this worker"}`;
   const openJobs = openJobsQuery.data || [];
-  const hasSuggestions = openJobs.some((job) => suggestedJobIds.has(job.id) || isSameClientJob(job.mrf?.clientId));
-  const dialogJobOptions = openJobs
+  const selectedJob = openJobs.find((job) => String(job.id) === targetJobId);
+  const selectedSameClient = selectedJob ? isSameClientJob(selectedJob.mrf?.clientId) : false;
+
+  const jobCards = openJobs
     .map((job) => {
       const suggestion = suggestedJobIds.get(job.id);
       const sameClient = isSameClientJob(job.mrf?.clientId);
-      const tag = sameClient
-        ? { badge: "Same client · skips screening", badgeTone: "amber" as const }
-        : suggestion
-          ? { badge: suggestionTag(suggestion), badgeTone: "neutral" as const }
-          : {};
       return {
-        value: String(job.id),
-        label: job.title,
-        subtitle: `${job.mrf?.client?.name || "General Client"} • ${job.location || "On-site"}`,
-        ...tag,
-        ...(hasSuggestions ? { group: sameClient || suggestion ? suggestedGroup : "Other open jobs" } : {}),
+        job,
+        suggestion,
+        sameClient,
+        suggested: sameClient || Boolean(suggestion),
         // Same-client jobs first, then ranked suggestions, then everything else.
         rank: sameClient ? -1 : suggestion ? targetRanks.get(job.id)! : Number.MAX_SAFE_INTEGER,
       };
     })
-    .sort((a, b) => a.rank - b.rank)
-    .map(({ rank: _rank, ...option }) => option);
-  const selectedJob = openJobs.find((job) => String(job.id) === targetJobId);
-  const selectedSameClient = selectedJob ? isSameClientJob(selectedJob.mrf?.clientId) : false;
+    .sort((a, b) => a.rank - b.rank);
+  const jobQuery = jobSearch.trim().toLowerCase();
+  const visibleJobCards = jobQuery
+    ? jobCards.filter(({ job }) =>
+        `${job.title} ${job.mrf?.client?.name ?? ""} ${job.location ?? ""}`.toLowerCase().includes(jobQuery))
+    : jobCards;
+  const clientOptions = [...new Map(
+    openJobs.filter((job) => job.mrf?.clientId != null).map((job) => [String(job.mrf!.clientId), job.mrf?.client?.name || "General Client"])
+  )].sort((a, b) => a[1].localeCompare(b[1]));
+  const clientCards = clientFilter
+    ? visibleJobCards.filter(({ job }) => String(job.mrf?.clientId) === clientFilter)
+    : visibleJobCards;
+  const suggestedCards = clientCards.filter((card) => card.suggested);
+  const otherCards = clientCards.filter((card) => !card.suggested);
+  const totalSuggested = jobCards.filter((card) => card.suggested).length;
+  // Searching always looks through every job, so a suggestion tab can never hide a match.
+  const effectiveView = jobQuery ? "all" : (jobView ?? (totalSuggested > 0 ? "suggested" : "all"));
+
+  // A document is reused at any client when it is a general clearance, otherwise only at a client the worker already served.
+  const selectedClientId = selectedJob?.mrf?.clientId;
+  const reusableDocs = (targetSuggestions?.reusableDocuments ?? []).filter(
+    (doc) => doc.general || (selectedClientId != null && doc.clientIds.includes(selectedClientId))
+  );
+  const waitingDays = daysSince(assignmentTarget?.waitingSince ?? null);
+
+  const firstName = assignmentTarget?.name?.trim().split(/\s+/)[0] || "there";
+  const templateMessage = selectedJob
+    ? selectedSameClient
+      ? `Hi ${firstName}, we have an open ${selectedJob.title} role at ${selectedJob.mrf?.client?.name || "your previous client"}, where you worked before. Because you already know the client, your application goes straight to requirements and your valid documents are reused. Please review the role and accept it in your Applicant account.`
+      : `Hi ${firstName}, we have an open ${selectedJob.title} role${selectedJob.mrf?.client?.name ? ` at ${selectedJob.mrf.client.name}` : ""} that fits your experience. If you accept, your application starts with screening. Please review the role and accept it in your Applicant account.`
+    : "";
+  const invitationMessage = messageEdited ? assignmentMessage : templateMessage;
 
   const openAssignment = (row: Row, jobId?: number) => {
     setAssignmentTarget(row);
     setTargetJobId(jobId ? String(jobId) : "");
     setAssignmentMessage("");
+    setMessageEdited(false);
+    setJobSearch("");
+    setJobView(null);
+    setClientFilter("");
+  };
+
+  const closeAssignment = () => {
+    setAssignmentTarget(null);
+    setConfirmOpen(false);
   };
 
   const counts: Record<RedeploymentStage, number> = query.data?.summary.stages ?? { NEEDS_PLACEMENT: 0, WAITING_FOR_REPLY: 0, IN_PROGRESS: 0 };
@@ -321,11 +358,17 @@ export const RedeploymentQueuePage: React.FC = () => {
                     >
                       {row.name}
                     </Link>
-                    <div className="mt-1 text-slate-500">{row.employeeNumber}</div>
+                    <div className="mt-1 font-mono text-[11px] text-slate-400">{row.employeeNumber}</div>
                   </td>
                   <td className="p-3">
-                    <span className="font-semibold">{row.previousClient || "Not recorded"}</span>
-                    <div className="mt-1 text-slate-500">{row.previousRole || "Role not recorded"}</div>
+                    {row.previousClient || row.previousRole ? (
+                      <>
+                        <span className="font-semibold">{row.previousClient || "—"}</span>
+                        <div className="mt-1 text-slate-500">{row.previousRole || "—"}</div>
+                      </>
+                    ) : (
+                      <span className="text-slate-400" title="No previous placement on record">—</span>
+                    )}
                   </td>
                   <td className="p-3">
                     <WaitingCell since={row.waitingSince} />
@@ -362,13 +405,15 @@ export const RedeploymentQueuePage: React.FC = () => {
                   </td>
                   <td className="p-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        variant={row.stage === "NEEDS_PLACEMENT" ? "primary" : "outline"}
-                        size="sm"
-                        onClick={() => openAssignment(row)}
-                      >
-                        Assign to Open Role
-                      </Button>
+                      {row.stage !== "IN_PROGRESS" && (
+                        <Button
+                          variant={row.stage === "NEEDS_PLACEMENT" ? "primary" : "outline"}
+                          size="sm"
+                          onClick={() => openAssignment(row)}
+                        >
+                          Assign to Open Role
+                        </Button>
+                      )}
                       <Link
                         className="text-xs text-slate-500 hover:text-slate-800 hover:underline"
                         to="/ta/employees/$employeeId"
@@ -396,79 +441,247 @@ export const RedeploymentQueuePage: React.FC = () => {
       )}
       <Dialog
         open={Boolean(assignmentTarget)}
-        onClose={() => setAssignmentTarget(null)}
+        onClose={closeAssignment}
         title="Assign to open role"
-        description={`Select an open job requisition to invite or assign ${assignmentTarget?.name}.`}
-        overflowVisible
+        description={`Choose an open job to invite ${assignmentTarget?.name} to.`}
+        size="xl"
       >
         <div className="space-y-4">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-            <span className="font-semibold text-slate-900">Previously placed at: </span>
-            {assignmentTarget?.pastClients.length
-              ? assignmentTarget.pastClients.map((client) => client.name).join(", ")
-              : "No previous client on record"}
+          <div className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+            <div className="font-semibold text-slate-900">{assignmentTarget?.name}</div>
+            <div>
+              Last placement:{" "}
+              {assignmentTarget?.previousClient || assignmentTarget?.previousRole
+                ? [assignmentTarget?.previousRole, assignmentTarget?.previousClient].filter(Boolean).join(" at ")
+                : "none on record"}
+            </div>
+            <div>
+              {waitingDays === null ? "Waiting time not recorded" : `Waiting ${waitingDays} day${waitingDays === 1 ? "" : "s"}`}
+              {" · "}
+              {targetSuggestions?.reusableDocuments.length
+                ? `${targetSuggestions.reusableDocuments.length} document${targetSuggestions.reusableDocuments.length === 1 ? "" : "s"} still valid`
+                : "no valid documents on file"}
+            </div>
           </div>
           {!assignmentTarget?.applicantProfileId && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
               This employee does not have an applicant profile linked to their account and cannot be invited directly.
             </div>
           )}
-          <ComboBox
-            label="Open Job Requisition"
-            placeholder="Select an open job..."
-            loading={openJobsQuery.isLoading}
-            loadingText="Loading open jobs..."
-            value={targetJobId}
-            onChange={(val) => setTargetJobId(val)}
-            options={dialogJobOptions}
-            disabled={openJobsQuery.isError}
-            error={openJobsQuery.isError ? "Failed to load open jobs. Please try again." : undefined}
-          />
+
+          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="space-y-2">
+            <Input
+              label="Open job"
+              placeholder="Search all open jobs by title, client or location"
+              value={jobSearch}
+              onChange={(event) => setJobSearch(event.target.value)}
+            />
+            {!jobQuery && (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-md border border-slate-200 p-0.5 text-xs" role="tablist" aria-label="Job list">
+                  {([
+                    { id: "suggested", label: `Suggested (${totalSuggested})` },
+                    { id: "all", label: `All open jobs (${openJobs.length})` },
+                  ] as const).map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={effectiveView === tab.id}
+                      onClick={() => setJobView(tab.id)}
+                      className={`rounded px-2.5 py-1 font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
+                        effectiveView === tab.id ? "bg-teal-700 text-white" : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                {effectiveView === "all" && clientOptions.length > 1 && (
+                  <Select
+                    aria-label="Filter by client"
+                    value={clientFilter}
+                    onChange={(event) => setClientFilter(event.target.value)}
+                    options={[{ value: "", label: "All clients" }, ...clientOptions.map(([value, label]) => ({ value, label }))]}
+                  />
+                )}
+              </div>
+            )}
+            {openJobsQuery.isLoading ? (
+              <p className="text-xs text-slate-500">Loading open jobs…</p>
+            ) : openJobsQuery.isError ? (
+              <p className="text-xs text-rose-700">Failed to load open jobs. Please try again.</p>
+            ) : effectiveView === "suggested" && suggestedCards.length === 0 ? (
+              <p className="text-xs text-slate-500">
+                No suggested jobs for this worker.{" "}
+                <button type="button" onClick={() => setJobView("all")} className="font-medium text-teal-700 hover:underline">
+                  Browse all open jobs
+                </button>
+              </p>
+            ) : clientCards.length === 0 ? (
+              <p className="text-xs text-slate-500">No open jobs match your search or filter.</p>
+            ) : (
+              <div className="max-h-72 space-y-3 overflow-y-auto rounded-md border border-slate-200 p-2 lg:max-h-[30rem]" role="radiogroup" aria-label="Open jobs">
+                {[
+                  { heading: `Suggested for ${assignmentTarget?.name ?? "this worker"}`, cards: suggestedCards },
+                  { heading: suggestedCards.length ? "Other open jobs" : "", cards: effectiveView === "all" ? otherCards : [] },
+                ].map(({ heading, cards }) =>
+                  cards.length === 0 ? null : (
+                    <div key={heading || "all"} className="space-y-1.5">
+                      {heading && (
+                        <div className="px-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">{heading}</div>
+                      )}
+                      {cards.map(({ job, suggestion, sameClient }) => {
+                        const selected = String(job.id) === targetJobId;
+                        return (
+                          <button
+                            key={job.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            onClick={() => setTargetJobId(String(job.id))}
+                            className={`block w-full rounded-md border p-2.5 text-left text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
+                              selected
+                                ? "border-teal-700 bg-teal-50"
+                                : sameClient
+                                  ? "border-amber-300 bg-amber-50/60 hover:bg-amber-50"
+                                  : "border-slate-200 bg-white hover:bg-slate-50"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="font-semibold text-slate-900">{job.title}</span>
+                              {(sameClient || suggestion) && (
+                                <span
+                                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+                                    sameClient ? "border-amber-300 bg-amber-100 text-amber-900" : "border-slate-200 bg-slate-50 text-slate-700"
+                                  }`}
+                                >
+                                  {sameClient ? "Same client" : suggestion ? suggestionTag(suggestion) : ""}
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-0.5 text-slate-500">
+                              {job.mrf?.client?.name || "General Client"} · {job.location || "On-site"}
+                            </div>
+                            {(sameClient || suggestion) && (
+                              <div className="mt-0.5 text-slate-600">
+                                {sameClient ? "Same client, skips screening" : suggestion ? suggestionReason(suggestion) : ""}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
+          {!selectedJob && (
+            <p className="rounded-md border border-dashed border-slate-300 p-3 text-xs text-slate-500">
+              Pick a job to see its details and what happens to the worker's documents.
+            </p>
+          )}
           {selectedJob && (
-            <div
-              role="status"
-              className={`rounded-md border p-3 text-xs ${
-                selectedSameClient
-                  ? "border-amber-300 bg-amber-50 text-amber-900"
-                  : "border-slate-200 bg-white text-slate-700"
-              }`}
-            >
-              {selectedSameClient ? (
-                <>
-                  <span className="font-semibold">Same client as before ({selectedJob.mrf?.client?.name}).</span>{" "}
-                  If the worker accepts, screening is skipped and the application goes straight to Requirements.
-                  Documents still valid from the previous placement are reused.
-                </>
-              ) : (
-                <>
-                  <span className="font-semibold">New client for this worker
-                    {selectedJob.mrf?.client?.name ? ` (${selectedJob.mrf.client.name})` : ""}.
-                  </span>{" "}
-                  If the worker accepts, the application starts from screening like any new applicant.
-                </>
-              )}
+            <div role="status" className="space-y-2 rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-700">
+              <div>
+                <span className="font-semibold text-slate-900">{selectedJob.title}</span>
+                {" · "}
+                {[
+                  selectedJob.location,
+                  selectedJob.mrf?.employmentType,
+                  selectedJob.mrf?.workArrangement,
+                  selectedJob.mrf?.salaryRangeMin != null || selectedJob.mrf?.salaryRangeMax != null
+                    ? `₱${(selectedJob.mrf?.salaryRangeMin ?? 0).toLocaleString()}${selectedJob.mrf?.salaryRangeMax != null ? `–${selectedJob.mrf.salaryRangeMax.toLocaleString()}` : "+"}`
+                    : null,
+                  selectedJob._count ? `${selectedJob._count.applications} applicant${selectedJob._count.applications === 1 ? "" : "s"}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </div>
+              <div className={selectedSameClient ? "text-amber-900" : ""}>
+                {selectedSameClient ? (
+                  <>
+                    <span className="font-semibold">Same client as before ({selectedJob.mrf?.client?.name}).</span>{" "}
+                    If the worker accepts, screening is skipped and the application goes straight to Requirements.
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold">
+                      New client for this worker{selectedJob.mrf?.client?.name ? ` (${selectedJob.mrf.client.name})` : ""}.
+                    </span>{" "}
+                    If the worker accepts, the application starts from screening like any new applicant.
+                  </>
+                )}
+              </div>
+              <div>
+                <span className="font-semibold text-slate-900">Documents reused: </span>
+                {reusableDocs.length === 0
+                  ? "none. The worker will upload every requirement."
+                  : reusableDocs
+                      .map((doc) => (doc.expiresAt ? `${doc.label} (valid to ${formatDate(doc.expiresAt)})` : `${doc.label} (no expiry)`))
+                      .join(", ")}
+              </div>
             </div>
           )}
-          <Textarea
-            label="Invitation Message (Optional)"
-            placeholder="Add an optional note or assignment details for the worker..."
-            value={assignmentMessage}
-            onChange={(event) => setAssignmentMessage(event.target.value)}
-            rows={3}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setAssignmentTarget(null)}>
+          <div className="space-y-1">
+            <Textarea
+              label="Invitation message"
+              placeholder="Pick a job and a message is filled in for you."
+              value={invitationMessage}
+              onChange={(event) => {
+                setAssignmentMessage(event.target.value);
+                setMessageEdited(true);
+              }}
+              rows={5}
+              maxLength={1000}
+            />
+            {messageEdited && templateMessage && (
+              <button
+                type="button"
+                onClick={() => setMessageEdited(false)}
+                className="text-xs font-medium text-teal-700 hover:underline"
+              >
+                Reset to template
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-500">
+            The worker gets this invitation in their portal and can accept or decline it.
+          </p>
+          </div>
+          </div>
+          <div className="flex items-center justify-end gap-3">
+            {!targetJobId && <span className="text-[11px] text-slate-500">Pick a job first</span>}
+            <Button variant="outline" onClick={closeAssignment}>
               Cancel
             </Button>
             <Button
               variant="primary"
-              loading={assignRole.isPending}
               disabled={!targetJobId || !assignmentTarget?.applicantProfileId}
-              onClick={() => assignRole.mutate()}
+              onClick={() => setConfirmOpen(true)}
             >
               Send opportunity
             </Button>
           </div>
+        </div>
+      </Dialog>
+      <Dialog
+        open={confirmOpen && Boolean(selectedJob)}
+        onClose={() => setConfirmOpen(false)}
+        title="Send this opportunity?"
+        description={`${selectedJob?.title ?? "This job"}${selectedJob?.mrf?.client?.name ? ` (${selectedJob.mrf.client.name})` : ""} will be sent to ${assignmentTarget?.name}.`}
+      >
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+            Back
+          </Button>
+          <Button variant="primary" loading={assignRole.isPending} onClick={() => assignRole.mutate()}>
+            Send opportunity
+          </Button>
         </div>
       </Dialog>
     </div>

@@ -1,3 +1,4 @@
+import { isGeneralClearance } from "../../utils/compliance-reuse.js";
 import prisma from "../../utils/prisma.js";
 import { rethrowPlacementConflict } from "../employee/placement-conflict.js";
 import { DeploymentStatus, type Prisma } from "@prisma/client";
@@ -865,22 +866,6 @@ export const fastTrackRedeployment = async (
     }
     priorAppClientMap.set(priorApp.id, clientIds);
   }
-
-  const isGeneralClearance = (label: string): boolean => {
-    const norm = label.toLowerCase();
-    return (
-      norm.includes("nbi") ||
-      norm.includes("philhealth") ||
-      norm.includes("sss") ||
-      norm.includes("pag-ibig") ||
-      norm.includes("pagibig") ||
-      norm.includes("tin") ||
-      norm.includes("bir") ||
-      norm.includes("government") ||
-      norm.includes("valid id") ||
-      norm.includes("police")
-    );
-  };
 
   const priorAppIds = priorApplications.map((a) => a.id);
   const eligiblePriorRequirements: any[] = [];

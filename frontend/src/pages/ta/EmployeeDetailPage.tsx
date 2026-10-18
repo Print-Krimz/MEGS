@@ -14,7 +14,8 @@ import {
 } from "../../components/common";
 import { Button, ComboBox, Dialog, Input, PhoneInput, Select, Textarea } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
-import { addManilaCalendarDays, getManilaToday, toManilaDateInput } from "../../lib/field-limits";
+import { addManilaCalendarDays, getManilaToday } from "../../lib/field-limits";
+import { calculateUrgencyStatus } from "../../lib/compliance-queue";
 import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
 import { notify } from "../../lib/feedback";
 import {
@@ -53,21 +54,6 @@ type TabKey =
   | "deployments"
   | "compliance"
   | "qualifications";
-function isDateBeforeToday(dateValue: string | Date | null | undefined): boolean {
-  if (!dateValue) return false;
-  const todayStr = getManilaToday();
-  const dateStr = toManilaDateInput(typeof dateValue === "string" ? dateValue : dateValue.toISOString());
-  if (dateStr) {
-    return dateStr < todayStr;
-  }
-  const d = new Date(dateValue);
-  if (isNaN(d.getTime())) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(d);
-  target.setHours(0, 0, 0, 0);
-  return target.getTime() < today.getTime();
-}
 
 export const EmployeeDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -621,7 +607,7 @@ export const EmployeeDetailPage: React.FC = () => {
                         <tbody className="divide-y divide-slate-100">
                           {followUpItems.map((req: any) => {
                             const targetDate = req.updateRequestDeadline || req.toFollowExpectedAt || req.deadline;
-                            const overdue = isDateBeforeToday(targetDate);
+                            const urgency = calculateUrgencyStatus(targetDate);
                             return (
                               <tr key={req.id} className="hover:bg-slate-50/70 transition-colors">
                                 <td className="px-4 py-3 font-semibold text-slate-900">
@@ -630,10 +616,15 @@ export const EmployeeDetailPage: React.FC = () => {
                                 <td className="px-4 py-3 font-mono text-[11px] text-slate-600">
                                   {targetDate ? (
                                     <div className="flex items-center gap-1.5">
-                                      <span>Target date: {formatDate(targetDate)}</span>
-                                      {overdue && (
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
-                                          Overdue
+                                      <span>{formatDate(targetDate)}</span>
+                                      {urgency.category === "OVERDUE" && (
+                                        <span className="text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                                          {urgency.label}
+                                        </span>
+                                      )}
+                                      {urgency.category === "UPCOMING" && (
+                                        <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                          {urgency.label}
                                         </span>
                                       )}
                                     </div>
@@ -655,7 +646,7 @@ export const EmployeeDetailPage: React.FC = () => {
                                         View
                                       </Button>
                                     ) : (
-                                      <span className="text-slate-400 text-[11px] font-mono">—</span>
+                                      <span className="text-slate-500 text-[11px]">Waiting for upload</span>
                                     )}
                                   </div>
                                 </td>
