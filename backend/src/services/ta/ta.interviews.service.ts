@@ -2,7 +2,7 @@ import prisma from '../../utils/prisma.js';
 import { sendNotification } from '../../utils/notification.js';
 import { logAudit } from '../../utils/audit.js';
 import { recordBackout } from './backout.service.js';
-import { isFutureDateTime } from "../../schemas/field-limits.js";
+import { isFutureDateTime, isWorkingHours } from "../../schemas/field-limits.js";
 import { ownedWhere, type Actor } from "./ownership.js";
 import { isPageRequested, paginateArray, type PageRequest } from "../../utils/pagination.js";
 
@@ -34,6 +34,9 @@ export const scheduleNewInterview = async (
   }
   if (!isFutureDateTime(scheduledAt)) {
     throw new Error("Cannot schedule an interview in the past. Please select a future date and time.");
+  }
+  if (!isWorkingHours(scheduledAt)) {
+    throw new Error("Interviews must be scheduled during strictly working hours (9:00 AM to 5:00 PM Manila time).");
   }
 
   const application = await prisma.application.findUnique({

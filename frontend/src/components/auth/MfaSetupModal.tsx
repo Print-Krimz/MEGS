@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Check, Copy, Download } from "lucide-react";
+import { Check, Copy, Download, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import { Checkbox } from "@/components/shadcn/checkbox";
 import {
@@ -44,6 +44,7 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [copiedCodes, setCopiedCodes] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
   const enrollingRef = React.useRef(false);
 
   const fetchEnrollment = React.useCallback(() => {
@@ -79,6 +80,7 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
       setError(null);
       setCode("");
       setStep("ENROLL");
+      setShowSecret(false);
       enrollingRef.current = false;
     }
   }, [open]);
@@ -226,20 +228,39 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
                 <div className="flex w-full flex-col gap-1.5 rounded-lg border border-border bg-muted p-3">
                   <span className="text-sm text-muted-foreground">Or enter this key manually.</span>
                   <div className="flex items-center justify-between gap-2">
-                    <code className="min-w-0 break-all font-mono text-sm font-semibold text-foreground">
-                      {enrollData.secret}
-                    </code>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleCopySecret}
-                      title="Copy Secret Key"
-                      className="shrink-0 text-accent hover:text-accent"
+                    <code
+                      className="min-w-0 break-all font-mono text-sm font-semibold text-foreground"
+                      aria-label={showSecret ? "Manual setup key" : "Manual setup key hidden"}
                     >
-                      {copiedSecret ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-                      {copiedSecret ? "Copied" : "Copy"}
-                    </Button>
+                      {showSecret ? enrollData.secret : "•".repeat(enrollData.secret.length)}
+                    </code>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowSecret((prev) => !prev)}
+                        title={showSecret ? "Hide secret key" : "Show secret key"}
+                        aria-label={showSecret ? "Hide secret key" : "Show secret key"}
+                        aria-pressed={showSecret}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        {showSecret ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                        {showSecret ? "Hide" : "Show"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCopySecret}
+                        title="Copy Secret Key"
+                        aria-label="Copy secret key"
+                        className="text-accent hover:text-accent"
+                      >
+                        {copiedSecret ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                        {copiedSecret ? "Copied" : "Copy"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}

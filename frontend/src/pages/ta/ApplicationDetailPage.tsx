@@ -22,7 +22,7 @@ import { CandidateAssessmentPanel, parseCandidateAssessment } from "../../compon
 import { ScoreReasons } from "../../components/ta/ScoreReasons";
 import { CloseApplicationDialog, type CloseSubmission } from "../../components/ta/CloseApplicationDialog";
 import { CLOSURE_DISPOSITION_LABELS, CLOSURE_OUTCOME_LABELS, canRecordBackout, closureReasonLabel, type ClosureOutcome } from "../../lib/backout";
-import { Button, Dialog, Input, Select, Textarea, ComboBox, PhoneInput, DateTimePicker, dateTimeLocalToManilaIso, manilaIsoToDateTimeLocal } from "../../components/ui";
+import { Button, Dialog, Input, Select, Textarea, ComboBox, PhoneInput, DateTimePicker, dateTimeLocalToManilaIso, manilaIsoToDateTimeLocal, isWorkingHoursIso } from "../../components/ui";
 import {
   formatSSSNumber,
   formatPhilHealthNumber,
@@ -3411,7 +3411,8 @@ export const ApplicationDetailPage: React.FC = () => {
             onChange={(val) => setInterviewDate(val)}
             minDate={new Date()}
             required
-            helperText="Select an interview date and time during business hours (past dates are disabled)."
+            workingHoursOnly
+            helperText="Interviews must be scheduled during strictly working hours (9:00 AM to 5:00 PM, past dates disabled)."
           />
           <Textarea
             label="Meeting details (optional)"
@@ -3427,12 +3428,21 @@ export const ApplicationDetailPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-                  disabled={!interviewDate || !dateTimeLocalToManilaIso(interviewDate) || Date.parse(dateTimeLocalToManilaIso(interviewDate)) <= Date.now()}
+              disabled={
+                !interviewDate ||
+                !dateTimeLocalToManilaIso(interviewDate) ||
+                Date.parse(dateTimeLocalToManilaIso(interviewDate)) <= Date.now() ||
+                !isWorkingHoursIso(interviewDate)
+              }
               loading={scheduleInterviewMutation.isPending}
               onClick={() => {
                 const scheduledAt = dateTimeLocalToManilaIso(interviewDate);
                 if (!scheduledAt || Date.parse(scheduledAt) <= Date.now()) {
                   notify.error("Invalid Date", "Please select a valid future date and time for the interview.");
+                  return;
+                }
+                if (!isWorkingHoursIso(interviewDate)) {
+                  notify.error("Outside Working Hours", "Interviews must be scheduled during strictly working hours (9:00 AM to 5:00 PM).");
                   return;
                 }
                 scheduleInterviewMutation.mutate({

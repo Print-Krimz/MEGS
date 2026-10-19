@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ApplicationStatus } from "@prisma/client";
 import { BACKOUT_REASONS_BY_PARTY, REJECTION_REASON_CODES } from "../services/ta/backout-rules.js";
-import { boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber, pageQueryFields } from "./field-limits.js";
+import { boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber, pageQueryFields, isWorkingHours } from "./field-limits.js";
 
 const phoneField = formattedPhone;
 
@@ -175,7 +175,14 @@ export const taSchema = {
     params: z.object({ id: boundedIdText }),
     body: z.object({
       type: z.enum(["INITIAL_SCREENING", "FINAL_INTERVIEW"]),
-      scheduledAt: z.string().datetime({ offset: true }).max(35),
+      scheduledAt: z
+        .string()
+        .datetime({ offset: true })
+        .max(35)
+        .refine(
+          (val) => isWorkingHours(val),
+          "Interviews must be scheduled during strictly working hours (9:00 AM to 5:00 PM Manila time)."
+        ),
       notes: boundedText(FIELD_LIMITS.notes).optional(),
     }).strict(),
   }),

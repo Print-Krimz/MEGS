@@ -16,6 +16,7 @@ export interface DateTimePickerProps {
   className?: string;
   placeholder?: string;
   id?: string;
+  workingHoursOnly?: boolean;
 }
 
 const BUSINESS_SLOTS = [
@@ -60,7 +61,21 @@ export function manilaIsoToDateTimeLocal(value?: string | null): string {
   return Number.isFinite(instant.getTime()) ? formatToValueString(toManilaWallDate(instant)) : "";
 }
 
-function parseDateTimeValue(val?: string | null): Date | null {
+export function isWithinWorkingHours(date: Date | null): boolean {
+  if (!date || isNaN(date.getTime())) return false;
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const totalMinutes = hours * 60 + minutes;
+  return totalMinutes >= 540 && totalMinutes <= 1020;
+}
+
+export function isWorkingHoursIso(isoOrLocal?: string | null): boolean {
+  if (!isoOrLocal) return false;
+  const parsed = parseDateTimeValue(isoOrLocal);
+  return isWithinWorkingHours(parsed);
+}
+
+export function parseDateTimeValue(val?: string | null): Date | null {
   if (!val || typeof val !== "string") return null;
   const trimmed = val.trim();
   if (!trimmed) return null;
@@ -154,6 +169,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   className,
   placeholder = "Select date and time...",
   id: customId,
+  workingHoursOnly = false,
 }) => {
   const generatedId = useId();
   const inputId = customId || generatedId;
@@ -269,6 +285,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
     }
   };
 
+  const isTodayPastWorkingHours = useMemo(() => {
+    return workingHoursOnly && (now.getHours() > 17 || (now.getHours() === 17 && now.getMinutes() >= 0));
+  }, [workingHoursOnly, now]);
+
   // Calendar days calculation
   const calendarDays = useMemo(() => {
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -284,8 +304,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(viewYear, viewMonth, day, 0, 0, 0, 0);
-      const isDisabled = date.getTime() < minDateMidnight.getTime() || date.getTime() > maxDateEnd.getTime();
       const isToday = isSameDay(date, now);
+      const isDisabled =
+        date.getTime() < minDateMidnight.getTime() ||
+        date.getTime() > maxDateEnd.getTime() ||
+        (isToday && isTodayPastWorkingHours);
       const isSelected = parsedValue ? isSameDay(date, parsedValue) : false;
 
       days.push({
@@ -301,7 +324,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       firstDayIndex,
       days,
     };
-  }, [viewYear, viewMonth, minDateMidnight, maxDateEnd, now, parsedValue]);
+  }, [viewYear, viewMonth, minDateMidnight, maxDateEnd, now, parsedValue, isTodayPastWorkingHours]);
 
   // Helper to apply or update date while preserving or defaulting time
   const handleSelectDate = (date: Date) => {
@@ -311,6 +334,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
     if (parsedValue) {
       hours = parsedValue.getHours();
       minutes = parsedValue.getMinutes();
+    }
+
+    if (workingHoursOnly) {
+      const totalMinutes = hours * 60 + minutes;
+      if (totalMinutes < 540 || totalMinutes > 1020) {
+        hours = 9;
+        minutes = 0;
+      }
     }
 
     const candidate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes, 0, 0);
@@ -324,8 +355,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
       if (nextSlot) {
         candidate.setHours(nextSlot.hour, nextSlot.minute, 0, 0);
-      } else {
-        // If today's business slots have all passed, advance hour slightly beyond now if possible
+      } else if (!workingHoursOnly) {
+        // If today's business slots have all passed and not restricted to working hours, advance hour slightly beyond now if possible
         const nextHour = now.getHours() + 1;
         if (nextHour <= 23) {
           candidate.setHours(nextHour, 0, 0, 0);
@@ -349,7 +380,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       {
         label: "Today",
         date: today,
-        disabled: today.getTime() < minDateMidnight.getTime() || today.getTime() > maxDateEnd.getTime(),
+        disabled:
+          today.getTime() < minDateMidnight.getTime() ||
+          today.getTime() > maxDateEnd.getTime() ||
+          isTodayPastWorkingHours,
       },
       {
         label: "Tomorrow",
@@ -367,7 +401,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
         disabled: nextMonday.getTime() < minDateMidnight.getTime() || nextMonday.getTime() > maxDateEnd.getTime(),
       },
     ];
-  }, [now, minDateMidnight, maxDateEnd]);
+  }, [now, minDateMidnight, maxDateEnd, isTodayPastWorkingHours]);
 
   const handleShortcutClick = (date: Date) => {
     setViewYear(date.getFullYear());
@@ -380,6 +414,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
     const base = parsedValue || (calendarDays.days.find((d) => !d.isDisabled)?.date ?? new Date());
     const updated = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hour, minute, 0, 0);
     if (manilaWallDateToEpoch(updated) <= Date.now()) return;
+    if (workingHoursOnly && !isWithinWorkingHours(updated)) return;
     onChange(formatToValueString(updated));
   };
 
@@ -390,6 +425,20 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   const currentHour12 = currentHour24 === 0 ? 12 : currentHour24 > 12 ? currentHour24 - 12 : currentHour24;
   const currentPeriod: "AM" | "PM" = currentHour24 >= 12 ? "PM" : "AM";
 
+  const availableHours12 = useMemo(() => {
+    if (!workingHoursOnly) {
+      return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    }
+    return currentPeriod === "AM" ? [9, 10, 11] : [12, 1, 2, 3, 4, 5];
+  }, [workingHoursOnly, currentPeriod]);
+
+  const availableMinutes = useMemo(() => {
+    if (workingHoursOnly && currentHour24 === 17) {
+      return [0];
+    }
+    return [0, 15, 30, 45];
+  }, [workingHoursOnly, currentHour24]);
+
   const handleCustomHourChange = (newHour12: number) => {
     const base = parsedValue || (calendarDays.days.find((d) => !d.isDisabled)?.date ?? new Date());
     let newHour24 = newHour12;
@@ -398,12 +447,19 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
     } else {
       newHour24 = newHour12 === 12 ? 12 : newHour12 + 12;
     }
-    const updated = new Date(base.getFullYear(), base.getMonth(), base.getDate(), newHour24, currentMinute, 0, 0);
+    let newMinute = currentMinute;
+    if (workingHoursOnly && newHour24 === 17 && newMinute > 0) {
+      newMinute = 0;
+    }
+    const updated = new Date(base.getFullYear(), base.getMonth(), base.getDate(), newHour24, newMinute, 0, 0);
     onChange(formatToValueString(updated));
   };
 
   const handleCustomMinuteChange = (newMinute: number) => {
     const base = parsedValue || (calendarDays.days.find((d) => !d.isDisabled)?.date ?? new Date());
+    if (workingHoursOnly && currentHour24 === 17 && newMinute > 0) {
+      newMinute = 0;
+    }
     const updated = new Date(base.getFullYear(), base.getMonth(), base.getDate(), currentHour24, newMinute, 0, 0);
     onChange(formatToValueString(updated));
   };
@@ -411,21 +467,42 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   const handleCustomPeriodToggle = (period: "AM" | "PM") => {
     if (period === currentPeriod) return;
     const base = parsedValue || (calendarDays.days.find((d) => !d.isDisabled)?.date ?? new Date());
-    let newHour24 = currentHour12;
-    if (period === "AM") {
-      newHour24 = currentHour12 === 12 ? 0 : currentHour12;
-    } else {
-      newHour24 = currentHour12 === 12 ? 12 : currentHour12 + 12;
+    let newHour12 = currentHour12;
+    if (workingHoursOnly) {
+      if (period === "AM" && ![9, 10, 11].includes(currentHour12)) {
+        newHour12 = 9;
+      } else if (period === "PM" && ![12, 1, 2, 3, 4, 5].includes(currentHour12)) {
+        newHour12 = 1;
+      }
     }
-    const updated = new Date(base.getFullYear(), base.getMonth(), base.getDate(), newHour24, currentMinute, 0, 0);
+    let newHour24 = newHour12;
+    if (period === "AM") {
+      newHour24 = newHour12 === 12 ? 0 : newHour12;
+    } else {
+      newHour24 = newHour12 === 12 ? 12 : newHour12 + 12;
+    }
+    let newMinute = currentMinute;
+    if (workingHoursOnly && newHour24 === 17 && newMinute > 0) {
+      newMinute = 0;
+    }
+    const updated = new Date(base.getFullYear(), base.getMonth(), base.getDate(), newHour24, newMinute, 0, 0);
     onChange(formatToValueString(updated));
   };
 
-  // Check if current selection is invalid (in the past)
+  // Check if current selection is invalid (in the past or outside working hours)
   const isCurrentSelectionInPast = useMemo(() => {
     if (!parsedValue) return false;
-    return manilaWallDateToEpoch(parsedValue) <= Date.now() || parsedValue.getTime() < minDateMidnight.getTime() || parsedValue.getTime() > maxDateEnd.getTime();
+    return (
+      manilaWallDateToEpoch(parsedValue) <= Date.now() ||
+      parsedValue.getTime() < minDateMidnight.getTime() ||
+      parsedValue.getTime() > maxDateEnd.getTime()
+    );
   }, [parsedValue, minDateMidnight, maxDateEnd]);
+
+  const isCurrentSelectionOutsideWorkingHours = useMemo(() => {
+    if (!parsedValue || !workingHoursOnly) return false;
+    return !isWithinWorkingHours(parsedValue);
+  }, [parsedValue, workingHoursOnly]);
 
   // Confirmation banner copy
   const confirmationText = useMemo(() => {
@@ -679,16 +756,21 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
               {/* Custom Time Controls */}
               <div className="pt-2 border-t border-slate-200 space-y-1.5">
-                <span className="block text-[11px] font-semibold text-slate-600">Custom Time</span>
+                <div className="flex items-center justify-between">
+                  <span className="block text-[11px] font-semibold text-slate-600">Custom Time</span>
+                  {workingHoursOnly && (
+                    <span className="text-[10px] text-teal-700 font-medium">9 AM – 5 PM</span>
+                  )}
+                </div>
                 <div className="flex items-center gap-1.5">
                   {/* Hour Select */}
                   <select
-                    value={currentHour12}
+                    value={availableHours12.includes(currentHour12) ? currentHour12 : availableHours12[0]}
                     onChange={(e) => handleCustomHourChange(parseInt(e.target.value, 10))}
                     aria-label="Hour"
                     className="flex-1 min-w-0 bg-white border border-slate-300 rounded px-1.5 py-1 text-xs text-slate-800 font-medium focus:outline-none focus:ring-1 focus:ring-teal-700"
                   >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => (
+                    {availableHours12.map((h) => (
                       <option key={h} value={h}>
                         {h.toString().padStart(2, "0")}
                       </option>
@@ -699,12 +781,12 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
                   {/* Minute Select */}
                   <select
-                    value={currentMinute}
+                    value={availableMinutes.includes(currentMinute) ? currentMinute : availableMinutes[0]}
                     onChange={(e) => handleCustomMinuteChange(parseInt(e.target.value, 10))}
                     aria-label="Minute"
                     className="flex-1 min-w-0 bg-white border border-slate-300 rounded px-1.5 py-1 text-xs text-slate-800 font-medium focus:outline-none focus:ring-1 focus:ring-teal-700"
                   >
-                    {[0, 15, 30, 45].map((m) => (
+                    {availableMinutes.map((m) => (
                       <option key={m} value={m}>
                         {m.toString().padStart(2, "0")}
                       </option>
@@ -745,6 +827,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                     Selected time has already passed.
                   </p>
                 )}
+                {!isCurrentSelectionInPast && isCurrentSelectionOutsideWorkingHours && (
+                  <p className="text-[11px] text-rose-600 font-medium">
+                    Interviews must be scheduled during working hours (9:00 AM to 5:00 PM).
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -763,11 +850,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
             <button
               type="button"
-              disabled={!parsedValue || isCurrentSelectionInPast}
+              disabled={!parsedValue || isCurrentSelectionInPast || isCurrentSelectionOutsideWorkingHours}
               onClick={() => setIsOpen(false)}
               className={cn(
                 "px-3 py-1.5 rounded text-xs font-semibold bg-teal-700 text-white hover:bg-teal-800 transition-colors shadow-2xs flex items-center gap-1 shrink-0",
-                (!parsedValue || isCurrentSelectionInPast) && "opacity-40 cursor-not-allowed hover:bg-teal-700"
+                (!parsedValue || isCurrentSelectionInPast || isCurrentSelectionOutsideWorkingHours) && "opacity-40 cursor-not-allowed hover:bg-teal-700"
               )}
             >
               <Check className="w-3.5 h-3.5" />
