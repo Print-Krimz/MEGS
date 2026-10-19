@@ -8,6 +8,7 @@ model User {
   // UUID from Supabase auth.users — synced on registration, not auto-generated here
   id    String @id
   email String @unique
+  phoneNumber String? @unique
 
   role Role @default(APPLICANT)
 

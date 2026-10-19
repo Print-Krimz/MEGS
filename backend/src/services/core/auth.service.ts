@@ -18,24 +18,92 @@ import {
   createMfaChallenge,
 } from './mfa.service.js';
 import { maskEmail } from '../../utils/mask.js';
+import {
+  isPhilippinePhone,
+  normalizeToE164,
+  toSyntheticEmail,
+  isSyntheticEmail,
+  fromSyntheticEmail,
+  sendSmsViaTextBee,
+  maskPhoneNumber,
+} from '../../utils/sms.js';
 import { ensureApplicantProfile } from '../applicant/applicant.service.js';
 import { isActiveAccount, isMfaEnforced } from '../../security/auth-policy.js';
 import { getSecurityControls } from '../../security/security-controls.js';
 import { safeLogError } from '../../security/errors.js';
 
+interface ResolvedAuthIdentifier {
+  raw: string;
+  isPhone: boolean;
+  phoneE164: string | null;
+  syntheticEmail: string | null;
+  email: string;
+}
+
+const resolveAuthIdentifier = (identifier: string): ResolvedAuthIdentifier => {
+  const clean = identifier.trim();
+  if (isPhilippinePhone(clean)) {
+    const phoneE164 = normalizeToE164(clean);
+    const syntheticEmail = toSyntheticEmail(phoneE164);
+    return {
+      raw: clean,
+      isPhone: true,
+      phoneE164,
+      syntheticEmail,
+      email: syntheticEmail,
+    };
+  }
+
+  if (isSyntheticEmail(clean)) {
+    const phoneE164 = fromSyntheticEmail(clean);
+    return {
+      raw: clean,
+      isPhone: true,
+      phoneE164,
+      syntheticEmail: clean.toLowerCase(),
+      email: clean.toLowerCase(),
+    };
+  }
+
+  return {
+    raw: clean,
+    isPhone: false,
+    phoneE164: null,
+    syntheticEmail: null,
+    email: clean.toLowerCase(),
+  };
+};
+
+const findUserByIdentifier = async (resolved: ResolvedAuthIdentifier) => {
+  if (resolved.isPhone && resolved.phoneE164) {
+    const userByPhone = await prisma.user.findUnique({
+      where: { phoneNumber: resolved.phoneE164 },
+    });
+    if (userByPhone) return userByPhone;
+  }
+  return prisma.user.findUnique({
+    where: { email: resolved.email },
+  });
+};
+
 const isOtpTestBypassEnabled = async (): Promise<boolean> =>
   (await getSecurityControls()).otpDisabled;
 
-export const registerUser = async (email: string, password: string) => {
+export const registerUser = async (emailOrPhone: string, password: string) => {
   if (password.length < 8) {
     throw new Error("Password must be at least 8 characters");
   }
 
-  const emailLower = email.toLowerCase().trim();
+  const resolved = resolveAuthIdentifier(emailOrPhone);
 
-  const existingUser = await prisma.user.findUnique({ where: { email: emailLower } });
+  const existingUser = await findUserByIdentifier(resolved);
+
   if (existingUser && existingUser.accountStatus !== "PENDING_VERIFICATION") {
-    throw new Error("An account with this email already exists");
+    throw new Error(
+      resolved.isPhone
+        ? "An account with this mobile number already exists"
+        : "An account with this email already exists"
+    );
   }
 
   let dbUserId: string;
@@ -44,7 +112,7 @@ export const registerUser = async (email: string, password: string) => {
     // A pending registration keeps its original password and profile. Re-registering only resends the code,
     // under the same 60-second cooldown that resendOtp applies.
     const latestOtp = await prisma.authOtp.findFirst({
-      where: { email: emailLower, purpose: "REGISTRATION" },
+      where: { email: resolved.email, purpose: "REGISTRATION" },
       orderBy: { createdAt: "desc" },
     });
     if (latestOtp && !(await getSecurityControls()).rateLimitDisabled) {
@@ -58,7 +126,7 @@ export const registerUser = async (email: string, password: string) => {
   } else {
     // Create new Supabase and Prisma User records
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: emailLower,
+      email: resolved.email,
       password,
       email_confirm: true,
     });
@@ -71,17 +139,33 @@ export const registerUser = async (email: string, password: string) => {
       data: {
         id: authData.user.id,
         email: authData.user.email!,
+        phoneNumber: resolved.phoneE164,
         role: "APPLICANT",
         accountStatus: "PENDING_VERIFICATION",
         mustChangePassword: false,
       },
     });
     dbUserId = dbUser.id;
+
+    if (resolved.isPhone && resolved.phoneE164) {
+      await prisma.applicantProfile.upsert({
+        where: { userId: dbUserId },
+        create: {
+          userId: dbUserId,
+          firstName: "",
+          lastName: "",
+          mobileNumber: resolved.phoneE164,
+        },
+        update: {
+          mobileNumber: resolved.phoneE164,
+        },
+      });
+    }
   }
 
-  // Invalidate any older unused registration OTPs for this email
+  // Invalidate any older unused registration OTPs for this identifier
   await prisma.authOtp.updateMany({
-    where: { email: emailLower, purpose: "REGISTRATION", isUsed: false },
+    where: { email: resolved.email, purpose: "REGISTRATION", isUsed: false },
     data: { isUsed: true },
   });
 
@@ -91,7 +175,7 @@ export const registerUser = async (email: string, password: string) => {
 
   await prisma.authOtp.create({
     data: {
-      email: emailLower,
+      email: resolved.email,
       otpHash,
       purpose: "REGISTRATION",
       attempts: 0,
@@ -101,33 +185,43 @@ export const registerUser = async (email: string, password: string) => {
     },
   });
 
-  if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
-    console.log(`🔑 [DEV OTP] REGISTRATION code generated for ${maskEmail(emailLower)}.`);
+  if (resolved.isPhone && resolved.phoneE164) {
+    if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+      console.log(`📱 [DEV OTP] REGISTRATION SMS code generated for ${maskPhoneNumber(resolved.phoneE164)}: ${plainOtp}`);
+    }
+    const smsMessage = `Your MEGS verification code is ${plainOtp}. Valid for 10 minutes.`;
+    await sendSmsViaTextBee(resolved.phoneE164, smsMessage);
+  } else {
+    if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+      console.log(`🔑 [DEV OTP] REGISTRATION code generated for ${maskEmail(resolved.email)}.`);
+    }
+    await sendRegistrationOtpEmail(resolved.email, plainOtp);
   }
 
-  await sendRegistrationOtpEmail(emailLower, plainOtp);
-
   logAudit(dbUserId, "USER_REGISTERED", "User", dbUserId, {
-    email: emailLower,
+    email: resolved.email,
+    phoneNumber: resolved.phoneE164,
     role: "APPLICANT",
     accountStatus: "PENDING_VERIFICATION",
   });
 
   return {
     id: dbUserId,
-    email: emailLower,
+    email: resolved.email,
     role: "APPLICANT",
     accountStatus: "PENDING_VERIFICATION",
-    message: "A 6-digit verification code has been sent to your email.",
+    message: resolved.isPhone
+      ? "A 6-digit verification code has been sent to your mobile number via SMS."
+      : "A 6-digit verification code has been sent to your email.",
   };
 };
 
 export const verifyOtp = async (
-  email: string,
+  emailOrPhone: string,
   otp: string,
   purpose: "REGISTRATION" | "PASSWORD_RESET"
 ) => {
-  const emailLower = email.toLowerCase().trim();
+  const resolved = resolveAuthIdentifier(emailOrPhone);
   const cleanOtp = otp.trim();
 
   if (!/^\d{6}$/.test(cleanOtp)) {
@@ -138,9 +232,13 @@ export const verifyOtp = async (
     throw new Error("Invalid verification purpose");
   }
 
+  const dbUser = await findUserByIdentifier(resolved);
+
+  const canonicalEmail = dbUser?.email || resolved.email;
+
   const activeOtp = await prisma.authOtp.findFirst({
     where: {
-      email: emailLower,
+      email: canonicalEmail,
       purpose,
       isUsed: false,
     },
@@ -188,7 +286,7 @@ export const verifyOtp = async (
   const isMatch = isDevMasterOtp || verifyOtpHash(cleanOtp, activeOtp.otpHash);
   if (!isMatch) {
     const updatedOtp = await prisma.authOtp.findUnique({ where: { id: activeOtp.id } });
-    const remaining = Math.max(0, activeOtp.maxAttempts - (updatedOtp?.attempts ?? activeOtp.maxAttempts));
+    const remaining = Math.max(0, activeOtp.maxAttempts - (updatedOtp?.attempts ?? (activeOtp.attempts + 1)));
     if (remaining <= 0) {
       await prisma.authOtp.update({
         where: { id: activeOtp.id },
@@ -199,7 +297,6 @@ export const verifyOtp = async (
     throw new Error(`Invalid verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`);
   }
 
-  const dbUser = await prisma.user.findUnique({ where: { email: emailLower } });
   if (!dbUser || !dbUser.isActive ||
       (purpose === "REGISTRATION" ? dbUser.accountStatus !== "PENDING_VERIFICATION" :
         !isActiveAccount(dbUser.isActive, dbUser.accountStatus))) {
@@ -222,10 +319,28 @@ export const verifyOtp = async (
     });
     if (activated.count !== 1) throw new Error("User account is invalid or deactivated.");
 
-    logAudit(dbUser.id, "USER_VERIFIED", "User", dbUser.id, { email: emailLower });
+    if (resolved.isPhone && (dbUser.phoneNumber || resolved.phoneE164)) {
+      const phoneToSave = dbUser.phoneNumber || resolved.phoneE164!;
+      await prisma.applicantProfile.upsert({
+        where: { userId: dbUser.id },
+        create: {
+          userId: dbUser.id,
+          firstName: "",
+          lastName: "",
+          mobileNumber: phoneToSave,
+        },
+        update: {
+          mobileNumber: phoneToSave,
+        },
+      });
+    }
+
+    logAudit(dbUser.id, "USER_VERIFIED", "User", dbUser.id, { email: canonicalEmail });
 
     return {
-      message: "Email verified successfully. You can now log in to your account.",
+      message: resolved.isPhone
+        ? "Mobile number verified successfully. You can now log in to your account."
+        : "Email verified successfully. You can now log in to your account.",
     };
   }
 
@@ -249,7 +364,7 @@ export const verifyOtp = async (
     },
   });
 
-  logAudit(dbUser.id, "PASSWORD_RESET_OTP_VERIFIED", "User", dbUser.id, { email: emailLower });
+  logAudit(dbUser.id, "PASSWORD_RESET_OTP_VERIFIED", "User", dbUser.id, { email: canonicalEmail });
 
   return {
     message: "Verification successful.",
@@ -258,18 +373,22 @@ export const verifyOtp = async (
 };
 
 export const resendOtp = async (
-  email: string,
+  emailOrPhone: string,
   purpose: "REGISTRATION" | "PASSWORD_RESET"
 ) => {
-  const emailLower = email.toLowerCase().trim();
+  const resolved = resolveAuthIdentifier(emailOrPhone);
 
   if (purpose !== "REGISTRATION" && purpose !== "PASSWORD_RESET") {
     throw new Error("Invalid verification purpose");
   }
 
+  const dbUser = await findUserByIdentifier(resolved);
+
+  const canonicalEmail = dbUser?.email || resolved.email;
+
   // Check 60-second cooldown from most recent OTP of this purpose
   const latestOtp = await prisma.authOtp.findFirst({
-    where: { email: emailLower, purpose },
+    where: { email: canonicalEmail, purpose },
     orderBy: { createdAt: "desc" },
   });
 
@@ -282,23 +401,27 @@ export const resendOtp = async (
   }
 
   if (purpose === "REGISTRATION") {
-    const dbUser = await prisma.user.findUnique({ where: { email: emailLower } });
     if (!dbUser || dbUser.accountStatus !== "PENDING_VERIFICATION") {
-      throw new Error("No pending registration found for this email address.");
+      throw new Error(
+        resolved.isPhone
+          ? "No pending registration found for this mobile number."
+          : "No pending registration found for this email address."
+      );
     }
   } else {
     // Password reset anti-enumeration check
-    const dbUser = await prisma.user.findUnique({ where: { email: emailLower } });
     if (!dbUser || !isActiveAccount(dbUser.isActive, dbUser.accountStatus)) {
       return {
-        message: "If an account exists for this email, a new verification code has been sent.",
+        message: resolved.isPhone
+          ? "If an account exists for this mobile number, a new verification code has been sent via SMS."
+          : "If an account exists for this email, a new verification code has been sent.",
       };
     }
   }
 
   // Invalidate older unused OTPs for this email and purpose
   await prisma.authOtp.updateMany({
-    where: { email: emailLower, purpose, isUsed: false },
+    where: { email: canonicalEmail, purpose, isUsed: false },
     data: { isUsed: true },
   });
 
@@ -307,7 +430,7 @@ export const resendOtp = async (
 
   await prisma.authOtp.create({
     data: {
-      email: emailLower,
+      email: canonicalEmail,
       otpHash,
       purpose,
       attempts: 0,
@@ -317,28 +440,47 @@ export const resendOtp = async (
     },
   });
 
-  if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
-    console.log(`🔑 [DEV OTP] RESEND (${purpose}) code generated for ${maskEmail(emailLower)}.`);
-  }
-
-  if (purpose === "REGISTRATION") {
-    await sendRegistrationOtpEmail(emailLower, plainOtp);
+  if (resolved.isPhone && (dbUser?.phoneNumber || resolved.phoneE164)) {
+    const phoneToSend = dbUser?.phoneNumber || resolved.phoneE164!;
+    if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+      console.log(`📱 [DEV OTP] RESEND (${purpose}) SMS code generated for ${maskPhoneNumber(phoneToSend)}: ${plainOtp}`);
+    }
+    const prefix = purpose === "REGISTRATION" ? "verification" : "password reset";
+    await sendSmsViaTextBee(phoneToSend, `Your MEGS ${prefix} code is ${plainOtp}. Valid for 10 minutes.`);
   } else {
-    await sendPasswordResetOtpEmail(emailLower, plainOtp);
+    if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+      console.log(`🔑 [DEV OTP] RESEND (${purpose}) code generated for ${maskEmail(canonicalEmail)}.`);
+    }
+    if (purpose === "REGISTRATION") {
+      await sendRegistrationOtpEmail(canonicalEmail, plainOtp);
+    } else {
+      await sendPasswordResetOtpEmail(canonicalEmail, plainOtp);
+    }
   }
 
   return {
-    message: "A new verification code has been sent to your email.",
+    message: resolved.isPhone
+      ? "A new verification code has been sent to your mobile number via SMS."
+      : "A new verification code has been sent to your email.",
   };
 };
 
-export const loginUser = async (email: string, password: string, ip?: string) => {
-  const emailLower = email.toLowerCase().trim();
-  const { data, error } = await supabase.auth.signInWithPassword({ email: emailLower, password });
+export const loginUser = async (emailOrPhone: string, password: string, ip?: string) => {
+  const resolved = resolveAuthIdentifier(emailOrPhone);
+  let targetEmail = resolved.email;
+
+  if (resolved.isPhone && resolved.phoneE164) {
+    const userByPhone = await findUserByIdentifier(resolved);
+    if (userByPhone) {
+      targetEmail = userByPhone.email;
+    }
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email: targetEmail, password });
 
   if (error || !data.session || !data.user) {
     logAudit(null, "FAILED_LOGIN_ATTEMPT", "User", null, {
-      attemptedEmail: emailLower,
+      attemptedEmail: targetEmail,
       reason: "Invalid email or password",
       ip,
     });
@@ -350,6 +492,7 @@ export const loginUser = async (email: string, password: string, ip?: string) =>
     select: {
       id: true,
       email: true,
+      phoneNumber: true,
       role: true,
       isActive: true,
       accountStatus: true,
@@ -359,7 +502,7 @@ export const loginUser = async (email: string, password: string, ip?: string) =>
 
   if (!dbUser) {
     logAudit(data.user.id, "FAILED_LOGIN_ATTEMPT", "User", data.user.id, {
-      attemptedEmail: emailLower,
+      attemptedEmail: targetEmail,
       reason: "User account not found in database",
       ip,
     });
@@ -368,16 +511,20 @@ export const loginUser = async (email: string, password: string, ip?: string) =>
 
   if (dbUser.accountStatus === "PENDING_VERIFICATION") {
     logAudit(dbUser.id, "FAILED_LOGIN_ATTEMPT", "User", dbUser.id, {
-      attemptedEmail: emailLower,
-      reason: "Account pending email verification",
+      attemptedEmail: targetEmail,
+      reason: "Account pending verification",
       ip,
     });
-    throw new Error("Please verify your email address with the 6-digit code sent to your inbox before signing in.");
+    throw new Error(
+      resolved.isPhone
+        ? "Please verify your mobile number with the 6-digit code sent via SMS before signing in."
+        : "Please verify your email address with the 6-digit code sent to your inbox before signing in."
+    );
   }
 
   if (!dbUser.isActive || dbUser.accountStatus === "DEACTIVATED") {
     logAudit(dbUser.id, "FAILED_LOGIN_ATTEMPT", "User", dbUser.id, {
-      attemptedEmail: emailLower,
+      attemptedEmail: targetEmail,
       reason: "Account has been deactivated",
       ip,
     });
@@ -386,7 +533,7 @@ export const loginUser = async (email: string, password: string, ip?: string) =>
 
   if (dbUser.accountStatus === "PENDING" || dbUser.accountStatus === "INVITED") {
     logAudit(dbUser.id, "FAILED_LOGIN_ATTEMPT", "User", dbUser.id, {
-      attemptedEmail: emailLower,
+      attemptedEmail: targetEmail,
       reason: "Account setup not completed",
       ip,
     });
@@ -447,6 +594,7 @@ export const loginUser = async (email: string, password: string, ip?: string) =>
     user: {
       id: dbUser.id,
       email: dbUser.email,
+      phoneNumber: dbUser.phoneNumber,
       role: dbUser.role,
       accountStatus: dbUser.accountStatus,
       mustChangePassword: dbUser.mustChangePassword,
@@ -476,22 +624,26 @@ export const logoutUser = async (token?: string, userId?: string) => {
   }
 };
 
-export const requestPasswordReset = async (email: string) => {
+export const requestPasswordReset = async (emailOrPhone: string) => {
+  const resolved = resolveAuthIdentifier(emailOrPhone);
   const GENERIC_RESPONSE = {
-    message: "If an account exists for this email, a 6-digit verification code has been sent.",
+    message: resolved.isPhone
+      ? "If an account exists for this mobile number, a 6-digit verification code has been sent via SMS."
+      : "If an account exists for this email, a 6-digit verification code has been sent.",
   };
 
-  const emailLower = email.toLowerCase().trim();
-
   try {
-    const dbUser = await prisma.user.findUnique({ where: { email: emailLower } });
+    const dbUser = await findUserByIdentifier(resolved);
+
     if (!dbUser || !isActiveAccount(dbUser.isActive, dbUser.accountStatus)) {
       return GENERIC_RESPONSE;
     }
 
+    const canonicalEmail = dbUser.email;
+
     // Check 60s cooldown from last PASSWORD_RESET OTP
     const latestOtp = await prisma.authOtp.findFirst({
-      where: { email: emailLower, purpose: "PASSWORD_RESET" },
+      where: { email: canonicalEmail, purpose: "PASSWORD_RESET" },
       orderBy: { createdAt: "desc" },
     });
 
@@ -505,7 +657,7 @@ export const requestPasswordReset = async (email: string) => {
 
     // Invalidate previous PASSWORD_RESET OTPs for this email
     await prisma.authOtp.updateMany({
-      where: { email: emailLower, purpose: "PASSWORD_RESET", isUsed: false },
+      where: { email: canonicalEmail, purpose: "PASSWORD_RESET", isUsed: false },
       data: { isUsed: true },
     });
 
@@ -514,7 +666,7 @@ export const requestPasswordReset = async (email: string) => {
 
     await prisma.authOtp.create({
       data: {
-        email: emailLower,
+        email: canonicalEmail,
         otpHash,
         purpose: "PASSWORD_RESET",
         attempts: 0,
@@ -524,16 +676,24 @@ export const requestPasswordReset = async (email: string) => {
       },
     });
 
-    if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
-      console.log(`🔑 [DEV OTP] PASSWORD_RESET code generated for ${maskEmail(emailLower)}.`);
-    }
-
-    try {
-      await sendPasswordResetOtpEmail(emailLower, plainOtp);
-      logAudit(dbUser.id, "PASSWORD_RESET_REQUESTED", "User", dbUser.id, { email: emailLower });
-    } catch (mailError: any) {
-      safeLogError("Auth password reset email", mailError);
-      throw new Error("Failed to deliver the verification email. Please try again later.");
+    if (resolved.isPhone && (dbUser.phoneNumber || resolved.phoneE164)) {
+      const phoneToSend = dbUser.phoneNumber || resolved.phoneE164!;
+      if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+        console.log(`📱 [DEV OTP] PASSWORD_RESET SMS code generated for ${maskPhoneNumber(phoneToSend)}: ${plainOtp}`);
+      }
+      await sendSmsViaTextBee(phoneToSend, `Your MEGS password reset code is ${plainOtp}. Valid for 10 minutes.`);
+      logAudit(dbUser.id, "PASSWORD_RESET_REQUESTED", "User", dbUser.id, { phone: phoneToSend });
+    } else {
+      if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+        console.log(`🔑 [DEV OTP] PASSWORD_RESET code generated for ${maskEmail(canonicalEmail)}.`);
+      }
+      try {
+        await sendPasswordResetOtpEmail(canonicalEmail, plainOtp);
+        logAudit(dbUser.id, "PASSWORD_RESET_REQUESTED", "User", dbUser.id, { email: canonicalEmail });
+      } catch (mailError: any) {
+        safeLogError("Auth password reset email", mailError);
+        throw new Error("Failed to deliver the verification email. Please try again later.");
+      }
     }
 
     return GENERIC_RESPONSE;
@@ -782,9 +942,11 @@ export const setupAccount = async (token: string, newPassword: string) => {
     });
   });
 
+  const effectiveUser = updatedUser || { ...dbUser, accountStatus: "ACTIVE" };
+
   logAudit(dbUser.id, "TA_ACCOUNT_ACTIVATED", "User", dbUser.id, {
     email: dbUser.email,
-    role: updatedUser.role,
+    role: effectiveUser.role,
   });
 
   let tempToken: string | null = null;
@@ -800,7 +962,7 @@ export const setupAccount = async (token: string, newPassword: string) => {
 
   return {
     message: "Account setup completed successfully.",
-    user: updatedUser,
+    user: effectiveUser,
     tempToken,
   };
 };

@@ -16,9 +16,23 @@ import { MfaSetupModal } from "../../components/auth/MfaSetupModal";
 import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
 import type { LoginResponse } from "../../lib/types/auth.types";
 import { useSecurityControls } from "../../hooks/useSecurityControls";
+import { isPhilippinePhone } from "../../lib/utils";
+
+const isEmailOrPhone = (val: string) => {
+  const clean = val.trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(clean) || isPhilippinePhone(clean);
+};
 
 const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().min(1, "Email is required").email("Please enter a valid email address"),
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email or mobile number is required")
+    .refine(
+      isEmailOrPhone,
+      "Please enter a valid email address or Philippine mobile number (e.g. 09171234567)"
+    ),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -176,7 +190,7 @@ export const LoginPage: React.FC = () => {
   };
 
   const submitHint = !isCredentialsFilled
-    ? "Enter your email and password to continue."
+    ? "Enter your email or mobile number and password to continue."
     : isCaptchaRequired && !turnstileToken
       ? "Completing the security check…"
       : null;
@@ -191,10 +205,10 @@ export const LoginPage: React.FC = () => {
         <FieldGroup>
           <AuthTextField
             id="login-email"
-            label="Email address"
-            type="email"
-            autoComplete="email"
-            placeholder="name@example.com"
+            label="Email address or mobile number"
+            type="text"
+            autoComplete="username"
+            placeholder="juan.delacruz@gmail.com or 09171234567"
             value={formData.email}
             onChange={(e) => handleChange("email", e.target.value)}
             error={validationErrors.email}

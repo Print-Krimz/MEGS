@@ -9,12 +9,11 @@ node_modules/
 # Tests & specs
 __tests__/
 *.test.ts
-# Performance regression tests, tracked on purpose
-!src/services/analytics/delivery.parity.test.ts
-!src/services/employee/redeployment-suggestions.service.test.ts
-!src/services/scoring/embedding.service.test.ts
 *.spec.ts
 tests/
+
+# Seed & Dev scripts
+prisma/seed.ts
 
 # Backups and dumps
 backups/

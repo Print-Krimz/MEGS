@@ -12,12 +12,25 @@ import { authApi } from "../../lib/api/auth.api";
 import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
 import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
-import { maskEmail } from "../../lib/utils";
+import { maskIdentifier, isPhilippinePhone } from "../../lib/utils";
 import { useSecurityControls } from "../../hooks/useSecurityControls";
 import { isWithinPasswordByteLimit, PASSWORD_MAX_BYTES, PASSWORD_MAX_BYTES_MESSAGE } from "../../lib/password-strength";
 
+const isEmailOrPhone = (val: string) => {
+  const clean = val.trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(clean) || isPhilippinePhone(clean);
+};
+
 const emailSchema = z.object({
-  email: z.string().trim().toLowerCase().min(1, "Email is required").email("Please enter a valid email address"),
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email or mobile number is required")
+    .refine(
+      isEmailOrPhone,
+      "Please enter a valid email address or Philippine mobile number (e.g. 09171234567)"
+    ),
 });
 
 const otpSchema = z.object({
@@ -77,7 +90,13 @@ export const ForgotPasswordPage: React.FC = () => {
       setServerError(null);
       setStep("VERIFY_OTP");
       setCooldown(60);
-      notify.success("Verification code sent", "Check your inbox for the 6-digit code. It may take a minute.");
+      const isPhone = isPhilippinePhone(email.trim());
+      notify.success(
+        "Verification code sent",
+        isPhone
+          ? "Check your mobile phone for the 6-digit SMS code. It may take a minute."
+          : "Check your inbox for the 6-digit code. It may take a minute."
+      );
     },
     onError: (err) => {
       turnstileRef.current?.reset();
@@ -112,7 +131,13 @@ export const ForgotPasswordPage: React.FC = () => {
     onSuccess: () => {
       setServerError(null);
       setCooldown(60);
-      notify.success("Code resent", "A new 6-digit verification code has been dispatched.");
+      const isPhone = isPhilippinePhone(email.trim());
+      notify.success(
+        "Code resent",
+        isPhone
+          ? "A new 6-digit verification SMS has been dispatched."
+          : "A new 6-digit verification code has been dispatched."
+      );
     },
     onError: (err) => {
       const formatted = formatErrorMessage(err);
@@ -216,10 +241,10 @@ export const ForgotPasswordPage: React.FC = () => {
     });
   };
 
-  const STEPS = ["Email", "Verify", "New password", "Done"];
+  const STEPS = ["Account", "Verify", "New password", "Done"];
   const stepIndex = step === "EMAIL" ? 0 : step === "VERIFY_OTP" ? 1 : step === "SET_PASSWORD" ? 2 : 3;
   const emailHint = !isEmailFilled
-    ? "Enter your email to continue."
+    ? "Enter your email or mobile number to continue."
     : isCaptchaRequired && !turnstileToken
       ? "Completing the security check…"
       : null;
@@ -260,7 +285,7 @@ export const ForgotPasswordPage: React.FC = () => {
           title="Set New Password"
           description={
             <>
-              Choose a new password for <strong className="font-semibold text-foreground">{maskEmail(email)}</strong>.
+              Choose a new password for <strong className="font-semibold text-foreground">{maskIdentifier(email)}</strong>.
             </>
           }
         />
@@ -320,7 +345,7 @@ export const ForgotPasswordPage: React.FC = () => {
           title="Enter 6-digit code"
           description={
             <>
-              We sent a reset code to <strong className="font-semibold text-foreground">{maskEmail(email)}</strong>.
+              We sent a reset code to <strong className="font-semibold text-foreground">{maskIdentifier(email)}</strong>.
             </>
           }
         />
@@ -380,7 +405,7 @@ export const ForgotPasswordPage: React.FC = () => {
               }}
             >
               <ArrowLeft data-icon="inline-start" aria-hidden="true" />
-              Change Email
+              Change email or number
             </Button>
           )}
 
@@ -406,8 +431,10 @@ export const ForgotPasswordPage: React.FC = () => {
           title="Reset your password"
           description={
             isEmailLocked
-              ? "We will send a 6-digit code to the email on your account."
-              : "Enter the email on your account and we will send a 6-digit code."
+              ? isPhilippinePhone(email.trim())
+                ? "We will send a 6-digit SMS code to the mobile number on your account."
+                : "We will send a 6-digit code to the email on your account."
+              : "Enter the email or mobile number on your account and we will send a 6-digit code."
           }
         />
 
@@ -417,11 +444,11 @@ export const ForgotPasswordPage: React.FC = () => {
           <FieldGroup>
             <AuthTextField
               id="forgot-email"
-              label="Registered email address"
-              type="email"
-              autoComplete="email"
-              placeholder="name@example.com"
-              value={isEmailLocked ? maskEmail(email) : email}
+              label="Registered email address or mobile number"
+              type="text"
+              autoComplete="username"
+              placeholder="juan.delacruz@gmail.com or 09171234567"
+              value={isEmailLocked ? maskIdentifier(email) : email}
               readOnly={isEmailLocked}
               onChange={(e) => {
                 if (isEmailLocked) return;
@@ -431,7 +458,7 @@ export const ForgotPasswordPage: React.FC = () => {
                 }
               }}
               error={validationErrors.email}
-              hint={isEmailLocked ? "This email is fixed for this reset." : undefined}
+              hint={isEmailLocked ? "This account identifier is fixed for this reset." : undefined}
               className={isEmailLocked ? "cursor-not-allowed bg-muted text-muted-foreground" : undefined}
               required
             />

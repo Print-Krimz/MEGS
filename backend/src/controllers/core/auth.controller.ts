@@ -17,10 +17,11 @@ import {
 
 // POST /api/auth/register - Creates Supabase auth credentials, local User record (PENDING_VERIFICATION), and dispatches 6-digit OTP
 export const register = async (req: Request, res: Response): Promise<void> => {
-  const { email, password } = req.body;
+  const { email, identifier, password } = req.body;
+  const target = identifier || email;
 
   try {
-    const user = await registerUser(email, password);
+    const user = await registerUser(target, password);
     sendSuccess(res, user.message, user, 201);
   } catch (error: any) {
     const status = error.message.includes("already exists") ? 409 : 400;
@@ -30,10 +31,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
 // POST /api/auth/verify-otp - Validates 6-digit OTP for Registration or Password Reset
 export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
-  const { email, otp, purpose } = req.body;
+  const { email, identifier, otp, purpose } = req.body;
+  const target = identifier || email;
 
   try {
-    const result = await verifyOtpService(email, otp, purpose);
+    const result = await verifyOtpService(target, otp, purpose);
     sendSuccess(res, result.message, result);
   } catch (error: any) {
     const status = error.message.includes("not found") ? 404 : 400;
@@ -43,10 +45,11 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
 
 // POST /api/auth/resend-otp - Resends a new 6-digit OTP with 60-second cooldown protection
 export const resendOtp = async (req: Request, res: Response): Promise<void> => {
-  const { email, purpose } = req.body;
+  const { email, identifier, purpose } = req.body;
+  const target = identifier || email;
 
   try {
-    const result = await resendOtpService(email, purpose);
+    const result = await resendOtpService(target, purpose);
     sendSuccess(res, result.message, result);
   } catch (error: any) {
     const isCooldown = error.message.includes("Please wait");
@@ -57,13 +60,14 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
 
 // POST /api/auth/login - Authenticates via Supabase Auth and returns role from DB
 export const login = async (req: Request, res: Response): Promise<void> => {
-  const { email, password } = req.body;
+  const { email, identifier, password } = req.body;
+  const target = identifier || email;
 
   try {
-    const session = await loginUser(email, password, req.ip);
+    const session = await loginUser(target, password, req.ip);
     sendSuccess(res, "Login successful", session);
   } catch (error: any) {
-    const status = error.message.includes("verify your email") ? 403 : 401;
+    const status = error.message.includes("verify") ? 403 : 401;
     sendError(res, error.message, status);
   }
 };
@@ -86,12 +90,13 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-// POST /api/auth/forgot-password - Generates 6-digit numeric OTP & sends via email (generic response)
+// POST /api/auth/forgot-password - Generates 6-digit numeric OTP & sends via email/SMS (generic response)
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
-  const { email } = req.body;
+  const { email, identifier } = req.body;
+  const target = identifier || email;
 
   try {
-    const result = await requestPasswordReset(email);
+    const result = await requestPasswordReset(target);
     sendSuccess(res, result.message, result);
   } catch (error: any) {
     const isCooldown = error.message.includes("Please wait");

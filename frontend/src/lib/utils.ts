@@ -283,6 +283,41 @@ export function maskEmail(email?: string | null): string {
   return `${local.slice(0, 2)}${"*".repeat(maskedLength)}${domain}`;
 }
 
+export const PH_PHONE_REGEX = /^(?:\+63|0)?9\d{9}$/;
+
+export function isPhilippinePhone(val?: string | null): boolean {
+  if (!val || typeof val !== "string") return false;
+  const cleaned = val.replace(/[\s-]/g, "");
+  return PH_PHONE_REGEX.test(cleaned);
+}
+
+export function maskPhone(phone?: string | null): string {
+  if (!phone || typeof phone !== "string") return "";
+  const cleaned = phone.replace(/[\s-]/g, "");
+  if (cleaned.startsWith("+639") && cleaned.length === 13) {
+    return `+639${cleaned.slice(4, 6)}****${cleaned.slice(10)}`;
+  }
+  if (cleaned.startsWith("09") && cleaned.length === 11) {
+    return `${cleaned.slice(0, 4)}****${cleaned.slice(8)}`;
+  }
+  if (cleaned.length > 4) {
+    return `${cleaned.slice(0, 3)}****${cleaned.slice(-3)}`;
+  }
+  return cleaned;
+}
+
+export function maskIdentifier(identifier?: string | null): string {
+  if (!identifier) return "";
+  if (isPhilippinePhone(identifier)) {
+    return maskPhone(identifier);
+  }
+  if (identifier.endsWith("@applicant.megs.local")) {
+    const rawNumber = identifier.replace("@applicant.megs.local", "");
+    return maskPhone(rawNumber);
+  }
+  return maskEmail(identifier);
+}
+
 /**
  * Extracts a numeric document ID from internal document routes or raw IDs
  * e.g. "/api/documents/123/download" -> 123

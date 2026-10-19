@@ -3,6 +3,7 @@ import type { Role } from "./enums";
 export interface User {
   id: string;
   email: string;
+  phoneNumber?: string | null;
   role: Role;
   isActive: boolean;
   accountStatus: string;
@@ -30,7 +31,8 @@ export interface InvitationDetailsResponse {
 }
 
 export interface LoginRequest {
-  email: string;
+  email?: string;
+  identifier?: string;
   password: string;
 }
 
@@ -96,13 +98,15 @@ export interface MfaStatusResponse {
 
 
 export interface RegisterRequest {
-  email: string;
+  email?: string;
+  identifier?: string;
   password: string;
 }
 
 export interface RegisterResponse {
   id: string;
   email: string;
+  phoneNumber?: string | null;
   role: Role;
   accountStatus: string;
   message?: string;
@@ -111,7 +115,8 @@ export interface RegisterResponse {
 export type OtpPurpose = "REGISTRATION" | "PASSWORD_RESET";
 
 export interface VerifyOtpRequest {
-  email: string;
+  email?: string;
+  identifier?: string;
   otp: string;
   purpose: OtpPurpose;
 }
@@ -122,7 +127,8 @@ export interface VerifyOtpResponse {
 }
 
 export interface ResendOtpRequest {
-  email: string;
+  email?: string;
+  identifier?: string;
   purpose: OtpPurpose;
 }
 
@@ -131,7 +137,8 @@ export interface ResendOtpResponse {
 }
 
 export interface ForgotPasswordRequest {
-  email: string;
+  email?: string;
+  identifier?: string;
 }
 
 export interface ResetPasswordRequest {

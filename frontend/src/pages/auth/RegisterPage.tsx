@@ -12,13 +12,26 @@ import { authApi } from "../../lib/api/auth.api";
 import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
 import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
-import { maskEmail } from "../../lib/utils";
+import { maskIdentifier, isPhilippinePhone } from "../../lib/utils";
 import { useSecurityControls } from "../../hooks/useSecurityControls";
 import { isWithinPasswordByteLimit, PASSWORD_MAX_BYTES, PASSWORD_MAX_BYTES_MESSAGE } from "../../lib/password-strength";
 
+const isEmailOrPhone = (val: string) => {
+  const clean = val.trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(clean) || isPhilippinePhone(clean);
+};
+
 const registerSchema = z
   .object({
-    email: z.string().trim().toLowerCase().min(1, "Email is required").email("Please enter a valid email address"),
+    email: z
+      .string()
+      .trim()
+      .min(1, "Email or mobile number is required")
+      .refine(
+        isEmailOrPhone,
+        "Please enter a valid email address or Philippine mobile number (e.g. 09171234567)"
+      ),
     password: z.string().min(8, "Password must be at least 8 characters long").refine(isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE),
     confirmPassword: z.string().min(1, "Please confirm your password"),
   })
@@ -68,7 +81,13 @@ export const RegisterPage: React.FC = () => {
       setServerError(null);
       setStep("VERIFY_OTP");
       setCooldown(60);
-      notify.success("Verification code sent", "Check your inbox for the 6-digit code. It may take a minute.");
+      const isPhone = isPhilippinePhone(formData.email);
+      notify.success(
+        "Verification code sent",
+        isPhone
+          ? "Check your mobile phone SMS for the 6-digit code. It may take a few seconds."
+          : "Check your inbox for the 6-digit code. It may take a minute."
+      );
     },
     onError: (err) => {
       turnstileRef.current?.reset();
@@ -208,10 +227,10 @@ export const RegisterPage: React.FC = () => {
           </div>
           <AuthHeading
             focusOnMount
-            title="Email verified"
+            title={isPhilippinePhone(formData.email) ? "Account verified" : "Email verified"}
             description={
               <>
-                Your candidate account (<strong className="font-semibold text-foreground">{maskEmail(formData.email)}</strong>)
+                Your candidate account (<strong className="font-semibold text-foreground">{maskIdentifier(formData.email)}</strong>)
                 is active. Sign in to build your profile and apply for open roles.
               </>
             }
@@ -233,7 +252,7 @@ export const RegisterPage: React.FC = () => {
           title="Enter 6-digit code"
           description={
             <>
-              We sent a verification code to <strong className="font-semibold text-foreground">{maskEmail(formData.email)}</strong>.
+              We sent a verification code to <strong className="font-semibold text-foreground">{maskIdentifier(formData.email)}</strong>.
               Enter it below to activate your account.
             </>
           }
@@ -258,7 +277,7 @@ export const RegisterPage: React.FC = () => {
 
           {otpDisabled && (
             <div className="flex flex-col gap-3 rounded-lg border border-amber-300/70 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">
-              <p>Email OTP is temporarily disabled for this demo. An unexpired pending challenge is still required.</p>
+              <p>Email/SMS OTP is temporarily disabled for this demo. An unexpired pending challenge is still required.</p>
               <Button
                 type="button"
                 variant="outline"
@@ -289,7 +308,7 @@ export const RegisterPage: React.FC = () => {
             }}
           >
             <ArrowLeft data-icon="inline-start" aria-hidden="true" />
-            Edit email
+            {isPhilippinePhone(formData.email) ? "Edit mobile number" : "Edit email"}
           </Button>
 
           <Button
@@ -321,14 +340,14 @@ export const RegisterPage: React.FC = () => {
           <FieldGroup>
             <AuthTextField
               id="register-email"
-              label="Email address"
-              type="email"
-              autoComplete="email"
-              placeholder="name@example.com"
+              label="Email address or mobile number"
+              type="text"
+              autoComplete="username"
+              placeholder="juan.delacruz@gmail.com or 09171234567"
               value={formData.email}
               onChange={(e) => handleChange("email", e.target.value)}
               error={validationErrors.email}
-              hint="We will send a verification code to this email."
+              hint="We'll send a 6-digit code via email or SMS."
               required
             />
 
