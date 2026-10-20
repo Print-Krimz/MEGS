@@ -1,5 +1,5 @@
-import React, { useId } from "react";
-import { Search, X } from "lucide-react";
+import React, { useId, useState } from "react";
+import { ChevronDown, Search, SlidersHorizontal, X } from "lucide-react";
 import { Input } from "../ui/Input";
 import { ComboBox } from "../ui/ComboBox";
 import { cn } from "../../lib/utils";
@@ -44,6 +44,12 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
   className,
 }) => {
   const idPrefix = useId();
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilterCount = filters.filter((f) => {
+    const v = filterValues[f.key];
+    return Boolean(v) && v !== "ALL";
+  }).length;
+  const filtersId = `${idPrefix}-filters`;
   const hasActiveFilters =
     Boolean(searchValue) ||
     Object.values(filterValues).some((val) => val && val !== "ALL");
@@ -78,7 +84,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                     type="button"
                     onClick={() => onSearchChange("")}
                     aria-label={`Clear ${searchLabel.toLowerCase()}`}
-                    className="p-2 text-slate-500 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                    className="p-2 text-slate-500 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -88,7 +94,25 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
           </div>
         )}
 
-        {/* Custom Filter Dropdowns / Combo Boxes */}
+        {/* Below md the filters collapse behind a disclosure; the search box stays visible. */}
+        {filters.length > 0 && (
+          <button
+            type="button"
+            aria-expanded={filtersOpen}
+            aria-controls={filtersId}
+            onClick={() => setFiltersOpen((v) => !v)}
+            className="md:hidden inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-1"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+            {activeFilterCount > 0 ? `Filters (${activeFilterCount} active)` : "Filters"}
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", filtersOpen && "rotate-180")} aria-hidden="true" />
+          </button>
+        )}
+
+        <div
+          id={filtersId}
+          className={cn("w-full flex-wrap items-center gap-2.5 md:flex md:w-auto", filtersOpen ? "flex" : "hidden")}
+        >
         {filters.map((filter) => (
           <div key={filter.key} className="w-full sm:w-auto min-w-[150px]">
             <label htmlFor={`${idPrefix}-${filter.key}`} className="sr-only">
@@ -98,11 +122,11 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
               <ComboBox
                 id={`${idPrefix}-${filter.key}`}
                 size="sm"
-                placeholder={filter.placeholder || `All ${filter.label}s`}
+                placeholder={filter.placeholder || `${filter.label}: all`}
                 value={filterValues[filter.key] || ""}
                 onChange={(val) => onFilterChange?.(filter.key, val || "")}
                 options={[
-                  { value: "", label: filter.placeholder || `All ${filter.label}s` },
+                  { value: "", label: filter.placeholder || `${filter.label}: all` },
                   ...filter.options,
                 ]}
                 clearable={Boolean(filterValues[filter.key])}
@@ -112,13 +136,10 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                 id={`${idPrefix}-${filter.key}`}
                 value={filterValues[filter.key] || ""}
                 onChange={(e) => onFilterChange?.(filter.key, e.target.value)}
-                className="w-full min-h-11 md:min-h-10 px-3 py-2 text-sm border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-offset-1 focus:border-teal-700 transition-colors cursor-pointer"
+                className="w-full min-h-11 md:min-h-10 rounded-md px-3 py-2 text-sm font-sans border border-slate-300 bg-white text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-1 focus:border-navy transition-colors cursor-pointer"
               >
                 <option value="">
-                  {filter.placeholder ||
-                    (filter.label.endsWith("s")
-                      ? `All ${filter.label}`
-                      : `All ${filter.label}s`)}
+                  {filter.placeholder || `${filter.label}: all`}
                 </option>
                 {filter.options.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -129,6 +150,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
             )}
           </div>
         ))}
+        </div>
 
         {/* Clear Filters CTA */}
         {hasActiveFilters && onReset && (

@@ -7,6 +7,8 @@ export interface EmptyStateProps {
   title: string;
   description?: string;
   action?: React.ReactNode;
+  /** Drop the border and outer margin when already inside a framed container. */
+  bare?: boolean;
   className?: string;
 }
 
@@ -15,6 +17,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   title,
   description,
   action,
+  bare = false,
   className,
 }) => {
   const renderedIcon = React.isValidElement(icon)
@@ -26,7 +29,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center p-8 sm:p-10 text-center bg-white border border-slate-300 my-3",
+        "flex flex-col items-center justify-center p-8 sm:p-10 text-center",
+        bare ? "bg-transparent" : "bg-white border border-slate-300 my-3",
         className
       )}
     >

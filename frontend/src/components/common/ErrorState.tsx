@@ -9,6 +9,8 @@ export interface ErrorStateProps {
   error?: Error | ApiError | null;
   message?: string;
   onRetry?: () => void;
+  /** What failed to load, e.g. "applications" gives the title "Couldn't load applications". */
+  subject?: string;
   className?: string;
 }
 
@@ -16,9 +18,13 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   error,
   message,
   onRetry,
+  subject,
   className,
 }) => {
-  const displayMessage = message || (error ? formatErrorMessage(error) : "We couldn't load this information.");
+  const displayMessage =
+    message ||
+    (error ? formatErrorMessage(error) : subject ? "Check your connection and try again." : "We couldn't load this information.");
+  const title = subject ? `Couldn't load ${subject}` : "Unable to load this information";
 
   return (
     <div
@@ -33,9 +39,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
         <AlertTriangle className="w-6 h-6" />
       </div>
 
-      <h3 className="text-sm sm:text-base font-bold text-slate-900 mb-1">
-        Unable to load this information
-      </h3>
+      <h3 className="text-sm sm:text-base font-bold text-slate-900 mb-1">{title}</h3>
       <p className="text-xs sm:text-sm text-slate-600 max-w-md mb-5 leading-relaxed">
         {displayMessage}
       </p>
@@ -48,7 +52,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
           leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
           className="border-slate-300 hover:bg-white"
         >
-          Try Again
+          {subject ? "Try again" : "Try Again"}
         </Button>
       )}
     </div>

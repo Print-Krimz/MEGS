@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { cn } from "../../lib/utils";
 
 export interface TabItem {
@@ -17,8 +17,24 @@ interface TabsProps {
   className?: string;
 }
 
-/** Accessible, responsive tabs shared by the TA workspace. */
+/**
+ * Accessible tabs: a single horizontally scrollable row at every width.
+ * Selected = navy underline + semibold text; focus = a separate inset ring.
+ */
 export const Tabs: React.FC<TabsProps> = ({ items, value, onChange, ariaLabel, className }) => {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Keep the selected tab visible when it changes (keyboard, deep link).
+  useEffect(() => {
+    const list = listRef.current;
+    const selected = list?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (!list || !selected) return;
+    const left = selected.offsetLeft;
+    const right = left + selected.offsetWidth;
+    if (left < list.scrollLeft) list.scrollLeft = Math.max(0, left - 8);
+    else if (right > list.scrollLeft + list.clientWidth) list.scrollLeft = right - list.clientWidth + 8;
+  }, [value]);
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
@@ -38,9 +54,13 @@ export const Tabs: React.FC<TabsProps> = ({ items, value, onChange, ariaLabel, c
 
   return (
     <div
+      ref={listRef}
       role="tablist"
       aria-label={ariaLabel}
-      className={cn("grid grid-cols-2 md:flex items-stretch border-b border-slate-300 bg-slate-100", className)}
+      className={cn(
+        "flex flex-nowrap items-stretch overflow-x-auto overscroll-x-contain border-b border-slate-300 bg-slate-100 [scrollbar-width:thin]",
+        className
+      )}
     >
       {items.map((item) => {
         const Icon = item.icon;
@@ -56,23 +76,23 @@ export const Tabs: React.FC<TabsProps> = ({ items, value, onChange, ariaLabel, c
             onClick={() => onChange(item.id)}
             onKeyDown={handleKeyDown}
             className={cn(
-              "min-h-11 min-w-0 flex items-center justify-start md:justify-center gap-2 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700",
+              "flex min-h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy",
               selected
-                ? "bg-white text-teal-950 border-teal-800"
-                : "border-transparent text-slate-600 hover:text-slate-950 hover:bg-slate-200/60"
+                ? "border-navy bg-white font-semibold text-navy"
+                : "border-transparent font-medium text-slate-600 hover:bg-slate-200/60 hover:text-slate-950"
             )}
           >
-            {Icon && <Icon className={cn("w-4 h-4 shrink-0", selected ? "text-teal-700" : "text-slate-400")} />}
-            <span className="min-w-0 text-left leading-tight break-words whitespace-normal">{item.label}</span>
+            {Icon && <Icon className={cn("h-4 w-4 shrink-0", selected ? "text-navy" : "text-slate-400")} />}
+            <span>{item.label}</span>
             {item.badge && (
               <span
                 className={cn(
-                  "shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold border",
+                  "shrink-0 text-xs font-semibold tabular-nums",
                   item.badge.variant === "success"
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                    ? "text-emerald-700"
                     : item.badge.variant === "info"
-                    ? "bg-blue-50 text-blue-800 border-blue-200"
-                    : "bg-amber-50 text-amber-800 border-amber-200"
+                    ? "text-navy"
+                    : "text-amber-700"
                 )}
               >
                 {item.badge.text}

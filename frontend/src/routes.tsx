@@ -25,6 +25,7 @@ const ApplicantLayout = lazyRouteComponent(() => import("./layouts/ApplicantLayo
 const TALayout = lazyRouteComponent(() => import("./layouts/TALayout"), "TALayout");
 const AdminLayout = lazyRouteComponent(() => import("./layouts/AdminLayout"), "AdminLayout");
 
+const RouteErrorPage = lazyRouteComponent(() => import("./components/common/StatusPage"), "RouteErrorPage");
 const NotFoundPage = lazyRouteComponent(() => import("./pages/common/NotFoundPage"), "NotFoundPage");
 const ForbiddenPage = lazyRouteComponent(() => import("./pages/common/ForbiddenPage"), "ForbiddenPage");
 const ChangePasswordPage = lazyRouteComponent(() => import("./pages/common/ChangePasswordPage"), "ChangePasswordPage");
@@ -300,6 +301,8 @@ export const taLayoutRoute = createRoute({
     }
   },
   component: TALayout,
+  // Render 404s inside the TA shell (the layout's <Outlet /> shows this).
+  notFoundComponent: NotFoundPage,
 });
 
 export interface TAApplicationSearch {
@@ -636,6 +639,7 @@ export const router = createRouter({
     queryClient: undefined!,
   },
   defaultPendingComponent: RoutePending,
+  defaultErrorComponent: RouteErrorPage,
   defaultPreload: "intent",
 });
 

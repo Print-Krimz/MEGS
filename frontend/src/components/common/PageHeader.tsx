@@ -1,4 +1,5 @@
 import React from "react";
+import { cn } from "../../lib/utils";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
@@ -13,6 +14,8 @@ export interface PageHeaderProps {
   breadcrumbs?: BreadcrumbItem[];
   actions?: React.ReactNode;
   meta?: React.ReactNode;
+  /** Remove the bottom margin when the parent already spaces its children (space-y-*). */
+  flush?: boolean;
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({
@@ -21,12 +24,13 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   breadcrumbs,
   actions,
   meta,
+  flush = false,
 }) => {
   return (
-    <div className="mb-5 space-y-1.5 border-b border-slate-300 pb-3.5">
+    <div className={cn("space-y-1.5 border-b border-slate-300 pb-3.5", !flush && "mb-5")}>
       {/* Breadcrumbs */}
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm text-slate-600">
+        <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-x-1.5 text-sm text-slate-600">
           {breadcrumbs.map((item, index) => {
             const isLast = index === breadcrumbs.length - 1;
             return (
@@ -35,12 +39,12 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
                 {item.href && !isLast ? (
                   <Link
                     to={item.href}
-                    className="hover:text-slate-900 transition-colors truncate max-w-[150px]"
+                    className="inline-flex min-h-11 items-center shrink-0 whitespace-nowrap hover:text-slate-900 transition-colors max-w-[280px] md:min-h-0 md:py-0.5"
                   >
                     {item.label}
                   </Link>
                 ) : (
-                  <span aria-current={isLast ? "page" : undefined} className={isLast ? "text-slate-900 font-semibold truncate max-w-[200px]" : "truncate max-w-[150px]"}>
+                  <span aria-current={isLast ? "page" : undefined} className={isLast ? "text-slate-900 font-semibold truncate min-w-0 max-w-[200px] sm:max-w-[320px]" : "shrink-0 whitespace-nowrap max-w-[280px]"}>
                     {item.label}
                   </span>
                 )}
