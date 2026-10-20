@@ -30,6 +30,7 @@ import { documentsApi } from "../../lib/api/documents.api";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
+import { plural } from "../../lib/plural";
 
 type StatusFilter = "ALL" | "WAITING_CANDIDATE" | "WAITING_REVIEW" | "APPROVED" | "TO_FOLLOW";
 type SortField = "candidate" | "submitted";
@@ -452,27 +453,27 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
       case "WAITING_REVIEW":
         return {
           title: "Ready for review",
-          description: `Showing ${candidateMetrics.waitingReview} candidate(s) with documents needing verification`,
+          description: `Showing ${plural(candidateMetrics.waitingReview, "candidate")} with documents needing verification`,
         };
       case "WAITING_CANDIDATE":
         return {
           title: "Awaiting candidate submission",
-          description: `Showing ${candidateMetrics.waitingCandidate} candidate(s) (${candidateMetrics.pendingDocs} pending documents)`,
+          description: `Showing ${plural(candidateMetrics.waitingCandidate, "candidate")} (${plural(candidateMetrics.pendingDocs, "pending document")})`,
         };
       case "APPROVED":
         return {
           title: "Approved candidates",
-          description: `Showing ${candidateMetrics.fullyApproved} candidate(s) ready for deployment`,
+          description: `Showing ${plural(candidateMetrics.fullyApproved, "candidate")} ready for deployment`,
         };
       case "TO_FOLLOW":
         return {
           title: "Requirements to follow up",
-          description: `Showing ${candidateMetrics.toFollow} candidate(s) with documents pending follow-up`,
+          description: `Showing ${plural(candidateMetrics.toFollow, "candidate")} with documents pending follow-up`,
         };
       default:
         return {
           title: "Pre-employment compliance queue",
-          description: `Showing ${sortedApps.length} active candidate(s) in pre-employment verification`,
+          description: `Showing ${plural(sortedApps.length, "active candidate")} in pre-employment verification`,
         };
     }
   };

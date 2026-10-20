@@ -458,8 +458,8 @@ export const RedeploymentQueuePage: React.FC = () => {
             <div>
               {waitingDays === null ? "Waiting time not recorded" : `Waiting ${waitingDays} day${waitingDays === 1 ? "" : "s"}`}
               {" · "}
-              {targetSuggestions?.reusableDocuments.length
-                ? `${targetSuggestions.reusableDocuments.length} document${targetSuggestions.reusableDocuments.length === 1 ? "" : "s"} still valid`
+              {targetSuggestions?.reusableDocuments?.length
+                ? `${targetSuggestions?.reusableDocuments?.length} document${targetSuggestions?.reusableDocuments?.length === 1 ? "" : "s"} still valid`
                 : "no valid documents on file"}
             </div>
           </div>

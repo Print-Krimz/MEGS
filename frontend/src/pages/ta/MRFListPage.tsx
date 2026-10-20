@@ -22,6 +22,7 @@ import {
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 import { REFERENCE_QUERY_STALE_TIME_MS, SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { plural } from "../../lib/plural";
 
 export const MRFListPage: React.FC = () => {
   const [search, setSearch] = useState("");
@@ -252,7 +253,7 @@ export const MRFListPage: React.FC = () => {
 
                 <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between">
                   <span className="text-xs font-mono text-slate-500">
-                    Request #{mrf.id} • {mrf._count?.jobPostings || 0} job openings
+                    Request #{mrf.id} • {plural(mrf._count?.jobPostings || 0, "job opening")}
                   </span>
                   <Link
                     to="/ta/mrfs/$mrfId"

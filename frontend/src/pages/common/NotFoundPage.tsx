@@ -1,8 +1,12 @@
 import React from "react";
 import { Link } from "@tanstack/react-router";
 import { Compass, ArrowLeft } from "lucide-react";
+import { useAuth } from "../../hooks/useAuth";
+import { getHomePath } from "../../lib/home-path";
 
 export const NotFoundPage: React.FC = () => {
+  const { user } = useAuth();
+
   return (
     <div className="min-h-[70vh] flex items-center justify-center p-4">
       <div className="max-w-md w-full text-center bg-white border border-slate-300 p-6">
@@ -12,17 +16,17 @@ export const NotFoundPage: React.FC = () => {
         <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-widest mb-1">
           Error 404
         </div>
-        <h1 className="text-base font-bold font-mono uppercase text-slate-950 mb-2">Resource Not Found</h1>
+        <h1 className="text-base font-bold font-mono uppercase text-slate-950 mb-2">This page doesn't exist</h1>
         <p className="text-xs text-slate-600 mb-5 font-sans leading-normal">
-          The recruitment resource or target endpoint does not exist or has been relocated.
+          The link may be old or mistyped.
         </p>
         <div className="flex justify-center">
           <Link
-            to="/"
+            to={getHomePath(user)}
             className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-mono uppercase tracking-wider transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Return to Workspace</span>
+            <span>{user ? "Back to your workspace" : "Sign in"}</span>
           </Link>
         </div>
       </div>

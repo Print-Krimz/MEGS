@@ -146,7 +146,6 @@ export const JobPostingsPage: React.FC = () => {
       if (chosen) {
         setFormTitle(chosen.title || "");
         setFormLocation(chosen.location || "");
-        setFormDescription(chosen.description || "");
         const sections: string[] = [];
         if (chosen.requiredSkills) sections.push(`Required skills:\n${chosen.requiredSkills}`);
         if (chosen.requiredExperience) sections.push(`Required experience:\n${chosen.requiredExperience}`);

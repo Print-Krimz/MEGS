@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
-import { employeesApi } from "../../lib/api/employees.api";
+import { EndAssignmentDialog } from "../../components/ta/EndAssignmentDialog";
 import { getManilaToday } from "../../lib/field-limits";
 import { SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -40,9 +40,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
   const [statusNotes, setStatusNotes] = useState("");
   const [actualStart, setActualStart] = useState(getManilaToday());
   const [endModalDeployment, setEndModalDeployment] = useState<{ id: number; employeeName: string } | null>(null);
-  const [actualEnd, setActualEnd] = useState(getManilaToday());
-  const [endReason, setEndReason] = useState("");
-  const [endDisposition, setEndDisposition] = useState<"AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED">("NOT_CONFIRMED");
   const [reviewModalDeployment, setReviewModalDeployment] = useState<{ id: number; employeeName: string } | null>(null);
   const [nextReviewAt, setNextReviewAt] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
@@ -78,26 +75,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
     onError: (err: any) => {
       notify.error("Unable to update deployment status", err);
     },
-  });
-
-  const endAssignmentMutation = useMutation({
-    mutationFn: () => {
-      if (!endModalDeployment) throw new Error("Select an assignment first.");
-      return employeesApi.endEmployeeDeployment(endModalDeployment.id, {
-        actualEnd,
-        reason: endReason.trim(),
-        disposition: endDisposition,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "redeployment-queue"] });
-      setEndModalDeployment(null);
-      setEndReason("");
-      notify.success("Assignment ended", "The actual end date and employee status were recorded.");
-    },
-    onError: (err: any) => notify.error("Unable to end assignment", err?.message || err),
   });
 
   const recordReviewMutation = useMutation({
@@ -183,9 +160,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
           tone: "danger",
           onSelect: () => {
             setEndModalDeployment({ id: dep.id, employeeName });
-            setActualEnd(getManilaToday());
-            setEndReason("");
-            setEndDisposition("NOT_CONFIRMED");
           },
         }
       );
@@ -581,31 +555,12 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
         </div>
       </Dialog>
 
-      <Dialog
+      <EndAssignmentDialog
         open={Boolean(endModalDeployment)}
+        deploymentId={endModalDeployment?.id ?? 0}
+        employeeName={endModalDeployment?.employeeName ?? ""}
         onClose={() => setEndModalDeployment(null)}
-        title="End assignment"
-        description={endModalDeployment ? `Record the last working date and next step for ${endModalDeployment.employeeName}.` : undefined}
-      >
-        <div className="space-y-4">
-          <Input label="Actual last working date" type="date" value={actualEnd} max={getManilaToday()} onChange={(event) => setActualEnd(event.target.value)} required />
-          <Select
-            label="Worker’s next step"
-            value={endDisposition}
-            onChange={(event) => setEndDisposition(event.target.value as typeof endDisposition)}
-            options={[
-              { value: "AVAILABLE_FOR_REDEPLOYMENT", label: "Wants another assignment" },
-              { value: "NOT_CONFIRMED", label: "Not confirmed yet" },
-              { value: "SEPARATED", label: "Leaving the agency" },
-            ]}
-          />
-          <Textarea label="Reason for ending this assignment" value={endReason} onChange={(event) => setEndReason(event.target.value)} rows={3} required placeholder="For example: client assignment ended or worker requested a transfer" />
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-            <Button variant="outline" size="sm" onClick={() => setEndModalDeployment(null)}>Cancel</Button>
-            <Button variant="danger" size="sm" loading={endAssignmentMutation.isPending} disabled={!actualEnd || !endReason.trim()} onClick={() => endAssignmentMutation.mutate()}>End assignment</Button>
-          </div>
-        </div>
-      </Dialog>
+      />
     </div>
   );
 };

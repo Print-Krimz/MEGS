@@ -36,7 +36,7 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
 
   useEffect(() => {
     if (open) {
-      setSelectedJobId(initialTargetJobId || jobs[0]?.id || 0);
+      setSelectedJobId(initialTargetJobId || 0);
       setMessage(
         candidate
           ? `Hi ${candidate.firstName}, your background and skills match our opening for ${targetJobTitle || "this position"}. We invite you to apply!`
@@ -45,7 +45,7 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
       setExpiresInDays(7);
       setJobError(null);
     }
-  }, [open, initialTargetJobId, targetJobTitle, candidate, jobs]);
+  }, [open, initialTargetJobId, targetJobTitle, candidate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

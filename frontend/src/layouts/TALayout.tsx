@@ -16,6 +16,7 @@ import {
   X,
   ChevronDown,
   Shield,
+  UserSearch,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
@@ -182,8 +183,7 @@ export const TALayout: React.FC = () => {
     {
       label: "Candidates & clients",
       items: [
-        // Temporarily hidden - legacy talent pool implementation
-        // { to: "/ta/talent-pool", label: TA_COPY.navigation.candidatePool, icon: Users },
+        { to: "/ta/talent-pool", label: TA_COPY.navigation.candidatePool, icon: UserSearch },
         { to: "/ta/interviews", label: TA_COPY.navigation.interviews, icon: Calendar },
         { to: "/ta/clients", label: TA_COPY.navigation.clients, icon: Building2 },
       ],
@@ -264,7 +264,7 @@ export const TALayout: React.FC = () => {
                           className={`flex min-h-11 items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
                             isActive
                               ? "bg-teal-700 text-white font-medium border-l-2 border-teal-400"
-                              : "text-slate-200 hover:text-white hover:bg-slate-850"
+                              : "text-slate-200 hover:text-white hover:bg-slate-800"
                           }`}
                         >
                           <Icon className="w-4 h-4 shrink-0" />
@@ -332,7 +332,7 @@ export const TALayout: React.FC = () => {
                       className={`flex min-h-10 items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
                         isActive
                           ? "bg-teal-700 text-white font-medium border-l-2 border-teal-400"
-                          : "text-slate-200 hover:text-white hover:bg-slate-850"
+                          : "text-slate-200 hover:text-white hover:bg-slate-800"
                       }`}
                       title={collapsed ? item.label : undefined}
                     >

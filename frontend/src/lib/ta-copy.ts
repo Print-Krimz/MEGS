@@ -100,7 +100,7 @@ export const TA_COPY = {
     applications: "Applications",
     openings: "Job Openings",
     manpowerRequests: "Manpower Requests (MRF)",
-    candidatePool: "Candidate Pool",
+    candidatePool: "Candidate pool",
     interviews: "Interviews",
     clients: "Clients",
     workforce: "Workforce",

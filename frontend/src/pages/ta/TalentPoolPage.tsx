@@ -125,7 +125,7 @@ export const TalentPoolPage: React.FC = () => {
   const handleOpenContactModal = (c: TalentPoolCandidate) => {
     setContactMembershipId(c.membershipId || c.applicantProfileId || 0);
     setContactCandidateName(`${c.firstName} ${c.lastName}`);
-    setContactJobId(jobs[0]?.id || 0);
+    setContactJobId(selectedJobId || 0);
     setContactOutcome("INTERESTED");
     setContactNotes("");
     setContactJobError(null);

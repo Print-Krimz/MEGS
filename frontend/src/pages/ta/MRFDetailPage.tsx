@@ -42,6 +42,7 @@ import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 import { RequirementClarityNotice } from "../../components/ta/RequirementClarityNotice";
 import { FieldWarning } from "../../components/ta/FieldWarning";
+import { plural } from "../../lib/plural";
 import {
   LOCATION_HINT,
   LOCATION_UNCLEAR_WARNING,
@@ -710,7 +711,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             />
           </div>
           <div className="text-[11px] text-slate-500 mt-2 font-mono">
-             {fulfillmentRate}% • {remainingCount} positions remaining
+             {fulfillmentRate}% • {plural(remainingCount, "position")} remaining
           </div>
         </div>
 
@@ -1239,7 +1240,8 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                           <button
                             type="button"
                             onClick={() => setDeleteTemplateTarget({ id: tpl.id, label: tpl.documentLabel })}
-                            className="text-rose-600 hover:text-rose-800 focus:outline-none p-1"
+                            aria-label={`Remove ${tpl.documentLabel}`}
+                            className="inline-flex items-center justify-center min-h-11 min-w-11 md:min-h-8 md:min-w-8 rounded text-rose-600 hover:text-rose-800 focus-visible:ring-2 focus-visible:ring-rose-600"
                             title="Remove template"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

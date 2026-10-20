@@ -12,6 +12,7 @@ import {
 import { Button } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
+import { plural } from "../../lib/plural";
 import {
   Users,
   Briefcase,
@@ -135,10 +136,10 @@ export const TADashboard: React.FC = () => {
             <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
               <h4 className="text-xs font-mono font-bold text-amber-950 uppercase tracking-wide">
-                7-day interview deadline ({slaBreached} overdue, {slaWarning} due soon)
+                {plural(slaBreached, "interview")} overdue, {slaWarning} due soon
               </h4>
               <p className="text-xs text-amber-900 leading-normal">
-                Candidates must be screened and scheduled within 7 days of application receipt. Prompt action is required.
+                Interview results are due 7 days after the interview is scheduled.
               </p>
             </div>
           </div>
@@ -284,7 +285,7 @@ export const TADashboard: React.FC = () => {
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-slate-700" />
             <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
-              Applications needing action
+              Recent applications
             </h3>
           </div>
           <Link to="/ta/applications">
@@ -314,8 +315,8 @@ export const TADashboard: React.FC = () => {
               <div className="p-6">
                 <EmptyState
                   icon={<Users className="w-5 h-5" />}
-                  title="No pending candidates"
-                  description="The candidate intake pipeline is up to date."
+                  title="No open applications"
+                  description="New applications will appear here."
                 />
               </div>
             ) : (

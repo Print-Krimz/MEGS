@@ -2,17 +2,10 @@ import React from "react";
 import { Link } from "@tanstack/react-router";
 import { ShieldX, ArrowLeft } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
-import { Role } from "../../lib/types/enums";
+import { getHomePath } from "../../lib/home-path";
 
 export const ForbiddenPage: React.FC = () => {
   const { user } = useAuth();
-
-  const getHomePath = () => {
-    if (!user) return "/login";
-    if (user.role === Role.ADMINISTRATOR) return "/admin";
-    if (user.role === Role.TALENT_ACQUISITION) return "/ta";
-    return "/app";
-  };
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center p-4">
@@ -31,11 +24,11 @@ export const ForbiddenPage: React.FC = () => {
         </p>
         <div className="flex justify-center">
           <Link
-            to={getHomePath()}
+            to={getHomePath(user)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-sm font-medium rounded-md transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Return to Workspace</span>
+            <span>{user ? "Return to Workspace" : "Sign in"}</span>
           </Link>
         </div>
       </div>

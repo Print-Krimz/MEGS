@@ -4,6 +4,7 @@ import { CheckSquare, ArrowRight } from "lucide-react";
 import { formatDate } from "../../lib/utils";
 import type { TAPendingActionItem } from "../../lib/types/analytics.types";
 import { AnalyticsPanel } from "./AnalyticsPanel";
+import { plural } from "../../lib/plural";
 
 interface PendingActionsWidgetProps {
   actions?: TAPendingActionItem[];
@@ -80,7 +81,7 @@ export const PendingActionsWidget: React.FC<PendingActionsWidgetProps> = ({
                   {action.agingDays !== undefined && (
                     <>
                       <span className="text-slate-400" aria-hidden="true">•</span>
-                      <span className="text-amber-800 font-bold">{action.agingDays} days waiting</span>
+                      <span className="text-amber-800 font-bold">{plural(action.agingDays, "day")} waiting</span>
                     </>
                   )}
                   {action.deadline && (
