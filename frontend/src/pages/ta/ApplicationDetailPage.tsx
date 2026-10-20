@@ -90,7 +90,17 @@ const contractStartBounds = () => {
   };
 };
 // Signed contract scans: the types and size the service accepts.
-const CONTRACT_SCAN_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+const interviewOutcomeNextStep = (result: "PASS" | "FAIL" | "NO_SHOW", isFinalInterview: boolean) => {
+  if (result === "PASS") {
+    return isFinalInterview
+      ? "Next: move the candidate to requirements."
+      : "Next: send the candidate to the client, or skip to final interview.";
+  }
+  if (result === "FAIL") return "The candidate stays at this stage until you close the application.";
+  return "The application will be closed as backed out and archived.";
+};
+
+const CONTRACT_SCAN_TYPES =["application/pdf", "image/jpeg", "image/png", "image/webp"];
 const CONTRACT_SCAN_MAX_BYTES = 10 * 1024 * 1024;
 
 type TabKey = "evaluation" | "compliance" | "history";
@@ -192,8 +202,9 @@ export const ApplicationDetailPage: React.FC = () => {
   const [updateEndorsementModalOpen, setUpdateEndorsementModalOpen] = useState(false);
   const [selectedEndorsementId, setSelectedEndorsementId] = useState<number | null>(null);
   const [selectedEndorsementClientName, setSelectedEndorsementClientName] = useState("");
-  const [updateEndorsementOutcome, setUpdateEndorsementOutcome] = useState<"PENDING" | "APPROVED" | "DECLINED" | "ENDORSED">("APPROVED");
+  const [updateEndorsementOutcome, setUpdateEndorsementOutcome] = useState<"" | "PENDING" | "APPROVED" | "DECLINED">("");
   const [updateEndorsementNotes, setUpdateEndorsementNotes] = useState("");
+  const [updateEndorsementPriorNote, setUpdateEndorsementPriorNote] = useState<{ notes: string; date: string } | null>(null);
 
   const [complianceModalOpen, setComplianceModalOpen] = useState(false);
   const [complianceDocLabel, setComplianceDocLabel] = useState("");
@@ -259,6 +270,8 @@ export const ApplicationDetailPage: React.FC = () => {
   const [endorsementsExpanded, setEndorsementsExpanded] = useState(false);
   const [isInterviewHistoryExpanded, setIsInterviewHistoryExpanded] = useState(false);
   const [skipToFinalInterviewConfirmOpen, setSkipToFinalInterviewConfirmOpen] = useState(false);
+  const [skipReason, setSkipReason] = useState("");
+  const [skipReasonTouched, setSkipReasonTouched] = useState(false);
   const [fastTrackModalOpen, setFastTrackModalOpen] = useState(false);
   const [fastTrackTargetStage, setFastTrackTargetStage] = useState<"FINAL_INTERVIEW" | "COMPLIANCE">("COMPLIANCE");
 
@@ -495,7 +508,10 @@ export const ApplicationDetailPage: React.FC = () => {
       setInterviewOutcomeModalOpen(false);
       setSelectedInterviewForOutcome(null);
       setInterviewOutcomeNotes("");
-      const msg = `Interview outcome saved as ${vars.result === "PASS" ? "passed" : vars.result === "FAIL" ? "not passed" : "no show"}.`;
+      const msg = `Interview outcome saved as ${vars.result === "PASS" ? "passed" : vars.result === "FAIL" ? "not passed" : "no show"}. ${interviewOutcomeNextStep(
+        vars.result,
+        app?.status === ApplicationStatus.FINAL_INTERVIEW
+      )}`;
       setFeedback({
         type: "success",
         message: msg,
@@ -1393,7 +1409,11 @@ export const ApplicationDetailPage: React.FC = () => {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setSkipToFinalInterviewConfirmOpen(true)}
+                  onClick={() => {
+                    setSkipReason("");
+                    setSkipReasonTouched(false);
+                    setSkipToFinalInterviewConfirmOpen(true);
+                  }}
                 >
                   Skip to final interview
                 </Button>
@@ -1439,8 +1459,13 @@ export const ApplicationDetailPage: React.FC = () => {
                     onClick={() => {
                       setSelectedEndorsementId(latestEndorsement.id);
                       setSelectedEndorsementClientName(latestEndorsement.client?.name || linkedClientName);
-                      setUpdateEndorsementOutcome("APPROVED");
-                      setUpdateEndorsementNotes(latestEndorsement.notes || "");
+                      setUpdateEndorsementOutcome("");
+                      setUpdateEndorsementNotes("");
+                      setUpdateEndorsementPriorNote(
+                        latestEndorsement.notes
+                          ? { notes: latestEndorsement.notes, date: latestEndorsement.createdAt ? formatDate(latestEndorsement.createdAt) : "" }
+                          : null
+                      );
                       setUpdateEndorsementModalOpen(true);
                     }}
                   >
@@ -1455,8 +1480,9 @@ export const ApplicationDetailPage: React.FC = () => {
                     onClick={() => {
                       setSelectedEndorsementId(latestEndorsement.id);
                       setSelectedEndorsementClientName(latestEndorsement.client?.name || linkedClientName);
-                      setUpdateEndorsementOutcome(latestEndorsement.outcome as any);
+                      setUpdateEndorsementOutcome(latestEndorsement.outcome === "ENDORSED" ? "APPROVED" : (latestEndorsement.outcome as "PENDING" | "APPROVED" | "DECLINED"));
                       setUpdateEndorsementNotes(latestEndorsement.notes || "");
+                      setUpdateEndorsementPriorNote(null);
                       setUpdateEndorsementModalOpen(true);
                     }}
                   >
@@ -2721,7 +2747,7 @@ export const ApplicationDetailPage: React.FC = () => {
                           <Building2 className="w-4 h-4 text-teal-600" />
                       <h3 className="text-sm font-bold text-slate-900">Client review records</h3>
                           <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
-                            {app.clientEndorsements?.length || 0} records
+                            {app.clientEndorsements?.length || 0} {(app.clientEndorsements?.length || 0) === 1 ? "record" : "records"}
                           </span>
                         </div>
                         <p className="text-xs text-slate-500">
@@ -2793,8 +2819,9 @@ export const ApplicationDetailPage: React.FC = () => {
                                   onClick={() => {
                                     setSelectedEndorsementId(end.id);
                                     setSelectedEndorsementClientName(end.client?.name || "Client");
-                                    setUpdateEndorsementOutcome(end.outcome as any);
+                                    setUpdateEndorsementOutcome(end.outcome === "ENDORSED" ? "APPROVED" : (end.outcome as "PENDING" | "APPROVED" | "DECLINED"));
                                     setUpdateEndorsementNotes(end.notes || "");
+                                    setUpdateEndorsementPriorNote(null);
                                     setUpdateEndorsementModalOpen(true);
                                   }}
                                 >
@@ -3320,17 +3347,20 @@ export const ApplicationDetailPage: React.FC = () => {
             options={
               app?.status === ApplicationStatus.FINAL_INTERVIEW
                 ? [
-                    { value: "PASS", label: "Passed — client approved the candidate" },
-                    { value: "FAIL", label: "Not passed — client declined the candidate" },
-                    { value: "NO_SHOW", label: "No show — candidate missed the interview" },
+                    { value: "PASS", label: "Passed — client approved" },
+                    { value: "FAIL", label: "Not passed — client declined" },
+                    { value: "NO_SHOW", label: "No show" },
                   ]
                 : [
-                    { value: "PASS", label: "Passed — move to the next stage" },
-                    { value: "FAIL", label: "Not passed — do not advance" },
-                    { value: "NO_SHOW", label: "No show — archive this application" },
+                    { value: "PASS", label: "Passed" },
+                    { value: "FAIL", label: "Not passed" },
+                    { value: "NO_SHOW", label: "No show" },
                   ]
             }
           />
+          <p className="text-xs text-slate-500">
+            {interviewOutcomeNextStep(interviewOutcomeResult, app?.status === ApplicationStatus.FINAL_INTERVIEW)}
+          </p>
 
           <Textarea
             label={
@@ -3566,11 +3596,18 @@ export const ApplicationDetailPage: React.FC = () => {
             </div>
           </div>
 
+          {updateEndorsementPriorNote && (
+            <p className="text-xs text-slate-500">
+              Sent to client{updateEndorsementPriorNote.date ? ` on ${updateEndorsementPriorNote.date}` : ""}: {updateEndorsementPriorNote.notes}
+            </p>
+          )}
+
           <Select
             label="Client outcome"
             value={updateEndorsementOutcome}
-            onChange={(e) => setUpdateEndorsementOutcome(e.target.value as any)}
+            onChange={(e) => setUpdateEndorsementOutcome(e.target.value as "" | "PENDING" | "APPROVED" | "DECLINED")}
             options={[
+              { value: "", label: "Choose the client's decision" },
               { value: "PENDING", label: "Waiting for client review" },
               { value: "APPROVED", label: "Approved by client" },
               { value: "DECLINED", label: "Declined by client" },
@@ -3591,8 +3628,9 @@ export const ApplicationDetailPage: React.FC = () => {
               variant={updateEndorsementOutcome === "DECLINED" ? "danger" : "primary"}
               size="sm"
               loading={updateEndorsementMutation.isPending}
+              disabled={!updateEndorsementOutcome}
               onClick={() => {
-                if (selectedEndorsementId) {
+                if (selectedEndorsementId && updateEndorsementOutcome) {
                   updateEndorsementMutation.mutate({
                     endorsementId: selectedEndorsementId,
                     outcome: updateEndorsementOutcome,
@@ -4181,27 +4219,45 @@ export const ApplicationDetailPage: React.FC = () => {
       />
 
       {/* Skip Client Endorsement & Advance to Final Interview Confirmation */}
-      <ConfirmDialog
+      <Dialog
         open={skipToFinalInterviewConfirmOpen}
         onClose={() => setSkipToFinalInterviewConfirmOpen(false)}
-        onConfirm={() => {
-          updateStatusMutation.mutate(
-            {
-              status: ApplicationStatus.FINAL_INTERVIEW,
-              reason: "Advanced directly to Final Interview (skipping client endorsement review).",
-            },
-            {
-              onSettled: () => setSkipToFinalInterviewConfirmOpen(false),
-            }
-          );
-        }}
-        title="Advance to Final Interview?"
-        description={`Are you sure you want to advance ${candidateName} directly to Final Interview? This skips the client review step.`}
-        confirmLabel="Advance to Final Interview"
-        cancelLabel="Cancel"
-        variant="primary"
-        loading={updateStatusMutation.isPending}
-      />
+        title="Skip client review?"
+        description={`${candidateName} goes straight to final interview without a client decision.`}
+      >
+        <div className="space-y-4">
+          <Textarea
+            label="Client instruction or recruitment rule"
+            placeholder="Why can this candidate skip client review?"
+            value={skipReason}
+            onChange={(e) => {
+              setSkipReason(e.target.value);
+              setSkipReasonTouched(true);
+            }}
+            error={skipReasonTouched && !skipReason.trim() ? "Enter the instruction or rule that allows this skip." : undefined}
+            rows={3}
+          />
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setSkipToFinalInterviewConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={updateStatusMutation.isPending}
+              disabled={!skipReason.trim()}
+              onClick={() =>
+                updateStatusMutation.mutate(
+                  { status: ApplicationStatus.FINAL_INTERVIEW, reason: skipReason.trim() },
+                  { onSettled: () => setSkipToFinalInterviewConfirmOpen(false) }
+                )
+              }
+            >
+              Skip to final interview
+            </Button>
+          </div>
+        </div>
+      </Dialog>
 
       {/* Fast-Track Redeployment Modal */}
       <Dialog
@@ -4278,6 +4334,21 @@ export const ApplicationDetailPage: React.FC = () => {
         description={`Upload the signed contract of ${candidateName}. Saving it deploys the candidate.`}
       >
         <div className="space-y-5">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+            <dt className="text-slate-500">Client</dt>
+            <dd className="font-medium text-slate-900">
+              {linkedClientId ? linkedClientName || `Client #${linkedClientId}` : "Not set"}
+            </dd>
+            <dt className="text-slate-500">Site</dt>
+            <dd className="font-medium text-slate-900">
+              {app.jobPosting?.location || (app.jobPosting?.mrf as any)?.location || (linkedClient as any)?.address || "Not set"}
+            </dd>
+            <dt className="text-slate-500">Start date</dt>
+            <dd className="font-medium text-slate-900">{contractStartDate ? formatDate(contractStartDate) : "Not set"}</dd>
+          </dl>
+          {!linkedClientId && (
+            <p className="text-xs text-amber-700">Send the candidate to a client before deploying.</p>
+          )}
           <div className="space-y-3">
             <p className="text-xs text-slate-600">
               Take a clear photo or scan of the signed contract (with the employee&apos;s signature and right thumbmark). Only you and the admin can open it.
@@ -4347,7 +4418,7 @@ export const ApplicationDetailPage: React.FC = () => {
               variant="primary"
               size="sm"
               loading={uploadSignedContractMutation.isPending}
-              disabled={!signedContractFile || !contractStartDate}
+              disabled={!signedContractFile || !contractStartDate || !linkedClientId}
               onClick={() =>
                 signedContractFile &&
                 uploadSignedContractMutation.mutate({ file: signedContractFile, startDate: contractStartDate })

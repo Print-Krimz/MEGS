@@ -30,6 +30,17 @@ import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 type SortField = "candidate" | "position" | "scheduledAt" | "deadline";
 type SortDirection = "asc" | "desc";
 
+// Same wording as the interview outcome dialog on the application page.
+const interviewOutcomeNextStep = (result: "PASS" | "FAIL" | "NO_SHOW", isFinalInterview: boolean) => {
+  if (result === "PASS") {
+    return isFinalInterview
+      ? "Next: move the candidate to requirements."
+      : "Next: send the candidate to the client, or skip to final interview.";
+  }
+  if (result === "FAIL") return "The candidate stays at this stage until you close the application.";
+  return "The application will be closed as backed out and archived.";
+};
+
 export const InterviewsPage: React.FC = () => {
   const queryClient = useQueryClient();
 
@@ -48,6 +59,7 @@ export const InterviewsPage: React.FC = () => {
     id: number;
     applicationId: number;
     candidateName: string;
+    isFinalInterview: boolean;
   } | null>(null);
   const [interviewResult, setInterviewResult] = useState<"PASS" | "FAIL" | "NO_SHOW">("PASS");
   const [resultNotes, setResultNotes] = useState("");
@@ -94,7 +106,7 @@ export const InterviewsPage: React.FC = () => {
       setResultModalOpen(false);
       setTargetInterview(null);
       setResultNotes("");
-      notify.success("Interview outcome saved", `The interview was marked as ${vars.result === "PASS" ? "passed" : vars.result === "FAIL" ? "not passed" : "no show"}.`);
+      notify.success("Interview outcome saved", `The interview was marked as ${vars.result === "PASS" ? "passed" : vars.result === "FAIL" ? "not passed" : "no show"}. ${interviewOutcomeNextStep(vars.result, Boolean(targetInterview?.isFinalInterview))}`);
     },
     onError: (err: any) => {
       notify.error("Unable to save interview outcome", err);
@@ -430,7 +442,7 @@ export const InterviewsPage: React.FC = () => {
                       variant="primary"
                       size="sm"
                       onClick={() => {
-                        setTargetInterview({ id: row.interviewId, applicationId: row.applicationId, candidateName: row.candidateName });
+                        setTargetInterview({ id: row.interviewId, applicationId: row.applicationId, candidateName: row.candidateName, isFinalInterview: row.currentStage === "FINAL_INTERVIEW" });
                         setResultModalOpen(true);
                       }}
                     >
@@ -505,6 +517,7 @@ export const InterviewsPage: React.FC = () => {
                                 id: row.interviewId,
                                 applicationId: row.applicationId,
                                 candidateName: row.candidateName,
+                                isFinalInterview: row.currentStage === "FINAL_INTERVIEW",
                               });
                               setResultModalOpen(true);
                             }}
@@ -547,7 +560,7 @@ export const InterviewsPage: React.FC = () => {
         open={resultModalOpen}
         onClose={() => setResultModalOpen(false)}
         title="Record interview outcome"
-        description={`Record screening result for ${targetInterview?.candidateName}`}
+        description={`Record the ${targetInterview?.isFinalInterview ? "final interview" : "screening"} result for ${targetInterview?.candidateName}`}
       >
         <div className="space-y-4">
           <Select
@@ -555,11 +568,12 @@ export const InterviewsPage: React.FC = () => {
             value={interviewResult}
             onChange={(e) => setInterviewResult(e.target.value as any)}
             options={[
-              { value: "PASS", label: "Passed — move to the next stage" },
-              { value: "FAIL", label: "Not passed — do not advance" },
-              { value: "NO_SHOW", label: "No show — candidate missed the interview" },
+              { value: "PASS", label: "Passed" },
+              { value: "FAIL", label: "Not passed" },
+              { value: "NO_SHOW", label: "No show" },
             ]}
           />
+          <p className="text-xs text-slate-500">{interviewOutcomeNextStep(interviewResult, Boolean(targetInterview?.isFinalInterview))}</p>
           <Textarea
             label="Interview notes"
             placeholder="Record strengths, concerns, and recommended next steps..."

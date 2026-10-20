@@ -632,6 +632,12 @@ export const getTAApplication = async (id: number, options: { generateRequiremen
   };
 };
 
+/** Client for a new deployment: the manpower request's client, else the latest client the candidate was sent to. */
+export const resolveDeploymentClientId = (app: {
+  jobPosting?: { mrf?: { clientId?: number | null } | null } | null;
+  clientEndorsements?: { clientId: number }[] | null;
+}): number | null => app.jobPosting?.mrf?.clientId ?? app.clientEndorsements?.[0]?.clientId ?? null;
+
 /**
  * Authoritative Application State Transition Engine.
  * Enforces valid stage progression, pre-transition validation gates, and post-transition side effects.
@@ -761,10 +767,19 @@ export const updateTAApplicationStatus = async (
     }
     const appRecord = await prisma.application.findUnique({
       where: { id },
-      select: { contractSigned: true, contractDocumentId: true },
+      select: {
+        contractSigned: true,
+        contractDocumentId: true,
+        jobPosting: { select: { mrf: { select: { clientId: true } } } },
+        clientEndorsements: { orderBy: { createdAt: "desc" }, select: { clientId: true } },
+      },
     });
     if (!appRecord?.contractSigned || !appRecord.contractDocumentId) {
       throw new Error("Cannot deploy candidate. Upload the signed employment contract first.");
+    }
+    // Resolved before the status is written so a missing client never leaves a DEPLOYED application without a deployment.
+    if (!resolveDeploymentClientId(appRecord)) {
+      throw new Error("A client is required before deployment. Link the job to a manpower request or send the candidate to a client first.");
     }
   }
 
@@ -941,13 +956,13 @@ export const updateTAApplicationStatus = async (
                 mrf: { select: { clientId: true } },
               },
             },
+            clientEndorsements: { orderBy: { createdAt: "desc" }, select: { clientId: true } },
           },
         });
 
-        let clientId = appWithJob?.jobPosting?.mrf?.clientId;
+        const clientId = appWithJob ? resolveDeploymentClientId(appWithJob) : null;
         if (!clientId) {
-          const firstClient = await prisma.client.findFirst({ select: { id: true } });
-          clientId = firstClient?.id || 1;
+          throw new Error("A client is required before deployment. Link the job to a manpower request or send the candidate to a client first.");
         }
 
         const deployment = await prisma.deployment.create({
