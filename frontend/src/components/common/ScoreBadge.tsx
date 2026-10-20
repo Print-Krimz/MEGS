@@ -50,10 +50,10 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
         sizeStyles[size],
         className
       )}
-      title={`Job Match Score: ${formatScore(num)} / 100`}
+      title={`Match score: ${formatScore(num)} out of 100`}
     >
-      <span>{formatScore(num)}</span>
-      <span className="text-[9px] font-normal opacity-70 font-mono">/100</span>
+      <span>{Math.round(num)}</span>
+      <span className="text-[11px] font-normal opacity-70 font-mono">/100</span>
     </span>
   );
 };

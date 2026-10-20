@@ -129,8 +129,8 @@ export const AuthLayout: React.FC = () => {
               to={portalHome}
               className="mb-8 flex min-h-11 w-fit items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
             >
-              <img src="/images/canva-ref/megs-logo-480.jpg" alt="" width={480} height={348} className="h-12 w-auto" />
-              <span className="sr-only">MEGS Inc.</span>
+              <img src="/images/canva-ref/megs-logo-480.jpg" alt="" width={480} height={348} className="h-12 w-auto shrink-0 object-contain" />
+              <span className="text-base font-semibold text-foreground">MEGS Inc.</span>
             </Link>
             <Outlet />
           </main>

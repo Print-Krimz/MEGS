@@ -108,7 +108,7 @@ export const AuthPasswordField: React.FC<AuthPasswordFieldProps> = ({
           <InputGroupButton
             type="button"
             size="icon-xs"
-            className="size-10 text-muted-foreground hover:text-secondary"
+            className="size-10 pointer-coarse:size-11 text-muted-foreground hover:text-secondary"
             aria-label={visible ? "Hide password" : "Show password"}
             title={visible ? "Hide password" : "Show password"}
             onClick={() => setVisible((v) => !v)}
