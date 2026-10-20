@@ -9,37 +9,46 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
+  DataTable,
+  FilterTile,
+  FilterTileRow,
+  type DataTableColumn,
+  type DataTableSort,
 } from "../../components/common";
-import { Button, Dialog, Select, Textarea } from "../../components/ui";
-import { formatDate, formatDateTime } from "../../lib/utils";
+import { Button } from "../../components/ui";
+import { formatDate } from "../../lib/utils";
 import { formatInterviewDeadlineStatus, TA_COPY } from "../../lib/ta-copy";
-import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  ExternalLink,
-  ShieldAlert,
-} from "lucide-react";
 import { notify } from "../../lib/feedback";
 import { SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import {
+  InterviewOutcomeDialog,
+  interviewOutcomeNextStep,
+  interviewOutcomeWord,
+  type InterviewOutcomeResult,
+} from "../../components/ta/InterviewOutcomeDialog";
 
 type SortField = "candidate" | "position" | "scheduledAt" | "deadline";
-type SortDirection = "asc" | "desc";
 
-// Same wording as the interview outcome dialog on the application page.
-const interviewOutcomeNextStep = (result: "PASS" | "FAIL" | "NO_SHOW", isFinalInterview: boolean) => {
-  if (result === "PASS") {
-    return isFinalInterview
-      ? "Next: move the candidate to requirements."
-      : "Next: send the candidate to the client, or skip to final interview.";
-  }
-  if (result === "FAIL") return "The candidate stays at this stage until you close the application.";
-  return "The application will be closed as backed out and archived.";
+type InterviewRow = {
+  interviewId: number;
+  applicationId: number;
+  candidateName: string;
+  jobTitle: string;
+  currentStage: string;
+  scheduledAt: string;
+  deadline: string;
+  status: string;
 };
+
+const statusChipClass = (status: string) =>
+  status === "BREACHED"
+    ? "border-rose-200 bg-rose-50 text-rose-800"
+    : status === "WARNING"
+    ? "border-amber-200 bg-amber-50 text-amber-800"
+    : "border-emerald-200 bg-emerald-50 text-emerald-800";
+
+const stageLabel = (stage: string) => (stage === "FINAL_INTERVIEW" ? "Final interview" : "Initial screening");
 
 export const InterviewsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -48,21 +57,14 @@ export const InterviewsPage: React.FC = () => {
   const [stageFilter, setStageFilter] = useState("");
   const [positionFilter, setPositionFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  // The server orders by deadline. That puts Overdue first, then Due soon, then On track.
   const [sortField, setSortField] = useState<SortField>("deadline");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
   const pageSize = 8;
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
 
-  const [resultModalOpen, setResultModalOpen] = useState(false);
-  const [targetInterview, setTargetInterview] = useState<{
-    id: number;
-    applicationId: number;
-    candidateName: string;
-    isFinalInterview: boolean;
-  } | null>(null);
-  const [interviewResult, setInterviewResult] = useState<"PASS" | "FAIL" | "NO_SHOW">("PASS");
-  const [resultNotes, setResultNotes] = useState("");
+  const [targetInterview, setTargetInterview] = useState<InterviewRow | null>(null);
 
   const slaQuery = useQuery({
     queryKey: ["ta", "compliance", "interviews", "page", { page, pageSize, search: debouncedSearch, status: statusFilter, stage: stageFilter, position: positionFilter, sortField, sortDirection }],
@@ -89,8 +91,9 @@ export const InterviewsPage: React.FC = () => {
     }: {
       applicationId: number;
       interviewId: number;
-      result: "PASS" | "FAIL" | "NO_SHOW";
+      result: InterviewOutcomeResult;
       notes?: string;
+      isFinalInterview: boolean;
     }) =>
       taApi.updateInterviewStatus(applicationId, interviewId, {
         result,
@@ -103,10 +106,11 @@ export const InterviewsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
-      setResultModalOpen(false);
       setTargetInterview(null);
-      setResultNotes("");
-      notify.success("Interview outcome saved", `The interview was marked as ${vars.result === "PASS" ? "passed" : vars.result === "FAIL" ? "not passed" : "no show"}. ${interviewOutcomeNextStep(vars.result, Boolean(targetInterview?.isFinalInterview))}`);
+      notify.success(
+        "Interview outcome saved",
+        `The interview was marked as ${interviewOutcomeWord(vars.result)}. ${interviewOutcomeNextStep(vars.result, vars.isFinalInterview)}`,
+      );
     },
     onError: (err: any) => {
       notify.error("Unable to save interview outcome", err);
@@ -115,7 +119,7 @@ export const InterviewsPage: React.FC = () => {
 
   const slaData = slaQuery.data;
   const summary = slaData?.summary || { total: 0, breached: 0, warning: 0, healthy: 0 };
-  const paginatedItems = slaData?.items ?? [];
+  const paginatedItems = (slaData?.items ?? []) as InterviewRow[];
   const totalItems = slaData?.total ?? 0;
   const totalPages = Math.max(1, slaData?.totalPages ?? 1);
 
@@ -148,72 +152,29 @@ export const InterviewsPage: React.FC = () => {
     setPage(1);
   };
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
+  const selectStatus = (status: string) => {
+    setStatusFilter(status);
+    setPage(1);
   };
 
-  const getHeaderContent = () => {
-    switch (statusFilter) {
-      case "BREACHED":
-        return {
-          title: "Overdue interviews",
-          description: "Applications exceeding the 7-day SLA deadline",
-        };
-      case "WARNING":
-        return {
-          title: "Interviews due soon",
-          description: "Outcome needed within 48 hours",
-        };
-      case "HEALTHY":
-        return {
-          title: "On-track interviews",
-          description: "Deadlines within target limits",
-        };
-      default:
-        return {
-          title: "Interviews needing attention",
-          description:
-            "Applications that need an interviewer response before the 7-day deadline",
-        };
-    }
+  const handleSort = ({ key, direction }: DataTableSort) => {
+    setSortField(key as SortField);
+    setSortDirection(direction);
   };
 
-  const headerContent = getHeaderContent();
-
-  const renderSortHeader = (field: SortField, label: string) => {
-    const isActive = sortField === field;
-    return (
-      <th scope="col" className="px-4 py-3 font-semibold select-none">
-        <button
-          type="button"
-          onClick={() => handleSort(field)}
-          className="inline-flex items-center gap-1.5 hover:text-slate-900 transition-colors cursor-pointer group focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded"
-          aria-sort={isActive ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
-        >
-          <span>{label}</span>
-          {isActive ? (
-            sortDirection === "asc" ? (
-              <ArrowUp className="w-3.5 h-3.5 text-teal-700 shrink-0" aria-hidden="true" />
-            ) : (
-              <ArrowDown className="w-3.5 h-3.5 text-teal-700 shrink-0" aria-hidden="true" />
-            )
-          ) : (
-            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 shrink-0 opacity-60 group-hover:opacity-100" aria-hidden="true" />
-          )}
-        </button>
-      </th>
-    );
-  };
+  const description =
+    statusFilter === "BREACHED"
+      ? "Overdue: more than 7 days in this stage."
+      : statusFilter === "WARNING"
+      ? "Due soon: the 7-day deadline is within 48 hours."
+      : statusFilter === "HEALTHY"
+      ? "On track: within the 7-day deadline."
+      : "Record each outcome before the 7-day deadline. Overdue interviews come first.";
 
   if (slaQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Interview schedule" description="Loading interview deadlines..." />
+        <PageHeader title={TA_COPY.pageTitles.interviews} description="Loading interview deadlines..." />
         <LoadingState variant="table" rows={6} />
       </div>
     );
@@ -222,128 +183,88 @@ export const InterviewsPage: React.FC = () => {
   if (slaQuery.isError) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Interview schedule" description="Interview deadlines" />
-        <ErrorState error={slaQuery.error} onRetry={() => slaQuery.refetch()} />
+        <PageHeader title={TA_COPY.pageTitles.interviews} description="Interview deadlines" />
+        <ErrorState subject="interviews" error={slaQuery.error} onRetry={() => slaQuery.refetch()} />
       </div>
     );
   }
 
+  const recordButton = (row: InterviewRow) => (
+    <Button
+      variant="primary"
+      size="sm"
+      aria-label={`${TA_COPY.interviews.recordOutcome} for ${row.candidateName}`}
+      onClick={() => setTargetInterview(row)}
+    >
+      {TA_COPY.interviews.recordOutcome}
+    </Button>
+  );
+
+  const candidateLink = (row: InterviewRow) => (
+    <Link
+      to="/ta/applications/$applicationId"
+      params={{ applicationId: String(row.applicationId) }}
+      className="font-medium text-navy underline-offset-2 hover:underline focus-ring"
+    >
+      {row.candidateName}
+    </Link>
+  );
+
+  const statusChip = (row: InterviewRow) => (
+    <span className={`inline-flex whitespace-nowrap rounded border px-2 py-0.5 text-xs font-semibold ${statusChipClass(row.status)}`}>
+      {formatInterviewDeadlineStatus(row.status)}
+    </span>
+  );
+
+  const columns: DataTableColumn<InterviewRow>[] = [
+    { key: "candidate", header: "Candidate", sortable: true, primary: true, cell: candidateLink },
+    { key: "stage", header: "Interview type", cell: (row) => <span className="text-slate-700">{stageLabel(row.currentStage)}</span> },
+    { key: "position", header: "Job opening", sortable: true, cell: (row) => <span className="text-slate-900">{row.jobTitle}</span> },
+    { key: "scheduledAt", header: "Scheduled", sortable: true, cell: (row) => <span className="whitespace-nowrap text-slate-700">{formatDate(row.scheduledAt)}</span> },
+    { key: "deadline", header: "Deadline", sortable: true, cell: (row) => <span className="whitespace-nowrap text-slate-700">{formatDate(row.deadline)}</span> },
+    { key: "status", header: "Status", cell: statusChip },
+    { key: "actions", header: "Action", align: "right", cell: recordButton },
+  ];
+
+  const renderCard = (row: InterviewRow) => (
+    <article className="space-y-3 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="break-words">{candidateLink(row)}</h3>
+          <p className="mt-0.5 break-words text-sm text-slate-600">{row.jobTitle}</p>
+          <p className="text-sm text-slate-600">{stageLabel(row.currentStage)}</p>
+        </div>
+        {statusChip(row)}
+      </div>
+      <dl className="grid grid-cols-2 gap-3 text-sm">
+        <div><dt className="text-slate-600">Scheduled</dt><dd className="mt-0.5 whitespace-nowrap text-slate-800">{formatDate(row.scheduledAt)}</dd></div>
+        <div><dt className="text-slate-600">Deadline</dt><dd className="mt-0.5 whitespace-nowrap text-slate-800">{formatDate(row.deadline)}</dd></div>
+      </dl>
+      <div className="border-t border-slate-200 pt-3">{recordButton(row)}</div>
+    </article>
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Interview schedule"
+        title={TA_COPY.pageTitles.interviews}
         description="Track interview deadlines and record interview outcomes."
         breadcrumbs={[
           { label: TA_COPY.navigation.overview, href: "/ta" },
           { label: TA_COPY.navigation.interviews },
         ]}
+        flush
       />
 
-      {/* SLA Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <button
-          type="button"
-          aria-pressed={statusFilter === "ALL"}
-          onClick={() => {
-            setStatusFilter("ALL");
-            setPage(1);
-          }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
-            statusFilter === "ALL"
-              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
-              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
-          }`}
-        >
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Scheduled interviews
-          </div>
-          <div className="text-2xl font-bold font-mono text-slate-900 mt-1 tabular-nums">
-            {summary.total}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-mono">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <span>All upcoming</span>
-          </div>
-        </button>
+      <FilterTileRow columns={4}>
+        <FilterTile label="All interviews" value={summary.total} hint="Awaiting outcome" selected={statusFilter === "ALL"} onClick={() => selectStatus("ALL")} />
+        <FilterTile label="Overdue" value={summary.breached} hint="Immediate action" tone="danger" selected={statusFilter === "BREACHED"} onClick={() => selectStatus("BREACHED")} />
+        <FilterTile label="Due soon" value={summary.warning} hint="Within 48 hours" tone="warning" selected={statusFilter === "WARNING"} onClick={() => selectStatus("WARNING")} />
+        <FilterTile label="On track" value={summary.healthy} hint="Within the 7-day deadline" selected={statusFilter === "HEALTHY"} onClick={() => selectStatus("HEALTHY")} />
+      </FilterTileRow>
 
-        <button
-          type="button"
-          aria-pressed={statusFilter === "BREACHED"}
-          onClick={() => {
-            setStatusFilter("BREACHED");
-            setPage(1);
-          }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
-            statusFilter === "BREACHED"
-              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
-              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
-          }`}
-        >
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Overdue interviews
-          </div>
-          <div className="text-2xl font-bold font-mono text-rose-700 mt-1 tabular-nums">
-            {summary.breached}
-          </div>
-          <div className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-mono">
-            <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-            <span>Immediate action</span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          aria-pressed={statusFilter === "WARNING"}
-          onClick={() => {
-            setStatusFilter("WARNING");
-            setPage(1);
-          }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
-            statusFilter === "WARNING"
-              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
-              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
-          }`}
-        >
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Due within 48 hours
-          </div>
-          <div className="text-2xl font-bold font-mono text-amber-800 mt-1 tabular-nums">
-            {summary.warning}
-          </div>
-          <div className="text-[11px] text-amber-700 mt-1 flex items-center gap-1 font-mono">
-            <Clock className="w-3.5 h-3.5 text-amber-600" />
-            <span>Due soon</span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          aria-pressed={statusFilter === "HEALTHY"}
-          onClick={() => {
-            setStatusFilter("HEALTHY");
-            setPage(1);
-          }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
-            statusFilter === "HEALTHY"
-              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
-              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
-          }`}
-        >
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            On track
-          </div>
-          <div className="text-2xl font-bold font-mono text-emerald-800 mt-1 tabular-nums">
-            {summary.healthy}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-mono">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Within the 7-day deadline</span>
-          </div>
-        </button>
-      </div>
-
-      {/* Filter & Search Bar */}
       <SearchFilters
+        className="mb-0"
         searchPlaceholder="Search candidate name or position title..."
         searchValue={search}
         onSearchChange={handleSearchChange}
@@ -357,254 +278,86 @@ export const InterviewsPage: React.FC = () => {
         filters={[
           {
             key: "stage",
-            label: "Interview Stage",
-            placeholder: "All interview stages",
+            label: "Interview type",
+            placeholder: "All interview types",
             options: [
-              { value: "INITIAL_SCREENING", label: "Initial Screening" },
-              { value: "FINAL_INTERVIEW", label: "Final Interview" },
+              { value: "INITIAL_SCREENING", label: "Initial screening" },
+              { value: "FINAL_INTERVIEW", label: "Final interview" },
             ],
           },
           {
             key: "position",
-            label: "Target Position",
-            placeholder: "All target positions",
+            label: "Job opening",
+            placeholder: "All job openings",
             options: positionOptions,
           },
         ]}
       />
 
-      {/* SLA Details Queue Table */}
-      <div className="bg-white rounded-lg border border-[#D9E2EC] shadow-xs overflow-hidden">
-        <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
-          <div className="space-y-0.5">
-            <h3 className="text-sm font-semibold text-[#102A43] uppercase">{headerContent.title}</h3>
-            <p className="text-xs text-[#627D98] mt-0.5 font-mono">{headerContent.description}</p>
-          </div>
+      <section aria-labelledby="awaiting-outcome-heading" className="space-y-3">
+        <div>
+          <h2 id="awaiting-outcome-heading" className="text-base font-semibold text-slate-950">Awaiting outcome</h2>
+          <p className="text-sm text-slate-600">{description}</p>
         </div>
 
-        {summary.total === 0 ? (
-          <div className="p-8">
-            <EmptyState
-              icon={<CheckCircle2 className="w-6 h-6 text-emerald-600" />}
-              title="All interviews are on track"
-              description="There are no overdue or soon-due interview outcomes."
-            />
-          </div>
-        ) : totalItems === 0 ? (
-          <div className="p-8">
-            <EmptyState
-              title="No matching interviews"
-              description="No interviews match your current search, stage, or position filter criteria."
-              action={
-                <Button variant="outline" size="sm" onClick={handleReset}>
-                  Reset filters
-                </Button>
-              }
-            />
-          </div>
-        ) : (
-          <>
-            <div className="md:hidden divide-y divide-slate-200">
-              {paginatedItems.map((row) => (
-                <article key={row.interviewId} className="space-y-3 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-semibold text-slate-950 break-words">{row.candidateName}</h4>
-                        <span
-                          className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                            row.currentStage === "FINAL_INTERVIEW"
-                              ? "bg-purple-50 text-purple-700 border border-purple-200"
-                              : "bg-blue-50 text-blue-700 border border-blue-200"
-                          }`}
-                        >
-                          {row.currentStage === "FINAL_INTERVIEW" ? "Final Interview" : "Initial Screening"}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-sm text-slate-600 break-words">{row.jobTitle}</p>
-                    </div>
-                    <span className={`shrink-0 rounded border px-2 py-1 text-xs font-semibold ${
-                      row.status === "BREACHED"
-                        ? "bg-rose-50 text-rose-800 border-rose-200"
-                        : row.status === "WARNING"
-                        ? "bg-amber-50 text-amber-800 border-amber-200"
-                        : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                    }`}>
-                      {formatInterviewDeadlineStatus(row.status)}
-                    </span>
-                  </div>
-                  <dl className="grid grid-cols-2 gap-3 text-sm">
-                    <div><dt className="text-slate-500">Scheduled</dt><dd className="mt-0.5 text-slate-800">{formatDateTime(row.scheduledAt)}</dd></div>
-                    <div><dt className="text-slate-500">Deadline</dt><dd className="mt-0.5 text-slate-800">{formatDate(row.deadline)}</dd></div>
-                  </dl>
-                  <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => {
-                        setTargetInterview({ id: row.interviewId, applicationId: row.applicationId, candidateName: row.candidateName, isFinalInterview: row.currentStage === "FINAL_INTERVIEW" });
-                        setResultModalOpen(true);
-                      }}
-                    >
-                      Record outcome
-                    </Button>
-                    <Link to="/ta/applications/$applicationId" params={{ applicationId: String(row.applicationId) }}>
-                      <Button variant="outline" size="sm">View application</Button>
-                    </Link>
-                  </div>
-                </article>
-              ))}
-            </div>
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
-                  <tr>
-                    {renderSortHeader("candidate", "Candidate")}
-                    <th scope="col" className="px-4 py-3 font-semibold">Interview Type</th>
-                    {renderSortHeader("position", "Target Position")}
-                    {renderSortHeader("scheduledAt", "Scheduled Date")}
-                    {renderSortHeader("deadline", "Deadline")}
-                    <th scope="col" className="px-4 py-3 font-semibold text-center">Status</th>
-                    <th scope="col" className="px-4 py-3 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-mono">
-                  {paginatedItems.map((row) => (
-                    <tr key={row.interviewId} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-4 py-3 font-sans font-bold text-slate-900">
-                        {row.candidateName}
-                      </td>
-                      <td className="px-4 py-3 font-sans">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                            row.currentStage === "FINAL_INTERVIEW"
-                              ? "bg-purple-50 text-purple-700 border border-purple-200"
-                              : "bg-blue-50 text-blue-700 border border-blue-200"
-                          }`}
-                        >
-                          {row.currentStage === "FINAL_INTERVIEW" ? "Final Interview" : "Initial Screening"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-sans text-slate-700 font-medium">
-                        {row.jobTitle}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {formatDateTime(row.scheduledAt)}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {formatDate(row.deadline)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            row.status === "BREACHED"
-                              ? "bg-rose-50 text-rose-800 border border-rose-200"
-                              : row.status === "WARNING"
-                              ? "bg-amber-50 text-amber-800 border border-amber-200"
-                              : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                          }`}
-                        >
-                          {formatInterviewDeadlineStatus(row.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-sans">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setTargetInterview({
-                                id: row.interviewId,
-                                applicationId: row.applicationId,
-                                candidateName: row.candidateName,
-                                isFinalInterview: row.currentStage === "FINAL_INTERVIEW",
-                              });
-                              setResultModalOpen(true);
-                            }}
-                          >
-                            Record Outcome
-                          </Button>
-                          <Link
-                            to="/ta/applications/$applicationId"
-                            params={{ applicationId: String(row.applicationId) }}
-                          >
-                            <Button variant="ghost" size="sm" aria-label={`View application for ${row.candidateName}`}>
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </Button>
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            <div className="p-3 border-t border-slate-200 bg-slate-50">
-              <Pagination
-                currentPage={page}
-                totalPages={totalPages}
-                totalItems={totalItems}
-                pageSize={pageSize}
-                onPageChange={setPage}
-                itemLabel="interviews"
-              />
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Record Outcome Modal */}
-      <Dialog
-        open={resultModalOpen}
-        onClose={() => setResultModalOpen(false)}
-        title="Record interview outcome"
-        description={`Record the ${targetInterview?.isFinalInterview ? "final interview" : "screening"} result for ${targetInterview?.candidateName}`}
-      >
-        <div className="space-y-4">
-          <Select
-            label="Outcome"
-            value={interviewResult}
-            onChange={(e) => setInterviewResult(e.target.value as any)}
-            options={[
-              { value: "PASS", label: "Passed" },
-              { value: "FAIL", label: "Not passed" },
-              { value: "NO_SHOW", label: "No show" },
-            ]}
-          />
-          <p className="text-xs text-slate-500">{interviewOutcomeNextStep(interviewResult, Boolean(targetInterview?.isFinalInterview))}</p>
-          <Textarea
-            label="Interview notes"
-            placeholder="Record strengths, concerns, and recommended next steps..."
-            value={resultNotes}
-            onChange={(e) => setResultNotes(e.target.value)}
-            rows={3}
-          />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setResultModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              loading={updateResultMutation.isPending}
-              onClick={() => {
-                if (targetInterview) {
-                  updateResultMutation.mutate({
-                    applicationId: targetInterview.applicationId,
-                    interviewId: targetInterview.id,
-                    result: interviewResult,
-                    notes: resultNotes || undefined,
-                  });
+        <DataTable
+          caption="Interviews awaiting an outcome"
+          columns={columns}
+          rows={paginatedItems}
+          getRowId={(row) => String(row.interviewId)}
+          renderCard={renderCard}
+          sort={{ key: sortField, direction: sortDirection }}
+          onSortChange={handleSort}
+          isFetching={slaQuery.isFetching}
+          empty={
+            summary.total === 0 ? (
+              <EmptyState bare title="No interviews waiting for an outcome" />
+            ) : (
+              <EmptyState
+                bare
+                title="No matching interviews"
+                description="Change the search, interview type, or job opening filter."
+                action={
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    Reset filters
+                  </Button>
                 }
-              }}
-            >
-              Save Evaluation
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+              />
+            )
+          }
+          footer={
+            <Pagination
+              variant="inset"
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              itemLabel="interviews"
+            />
+          }
+        />
+      </section>
+
+      <InterviewOutcomeDialog
+        open={Boolean(targetInterview)}
+        onClose={() => setTargetInterview(null)}
+        candidateName={targetInterview?.candidateName ?? ""}
+        jobTitle={targetInterview?.jobTitle}
+        isFinalInterview={targetInterview?.currentStage === "FINAL_INTERVIEW"}
+        scheduledAt={targetInterview?.scheduledAt}
+        isSubmitting={updateResultMutation.isPending}
+        onSubmit={({ result, notes }) => {
+          if (!targetInterview) return;
+          updateResultMutation.mutate({
+            applicationId: targetInterview.applicationId,
+            interviewId: targetInterview.interviewId,
+            result,
+            notes: notes || undefined,
+            isFinalInterview: targetInterview.currentStage === "FINAL_INTERVIEW",
+          });
+        }}
+      />
     </div>
   );
 };

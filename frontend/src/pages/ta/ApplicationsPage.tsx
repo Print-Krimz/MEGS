@@ -11,6 +11,8 @@ import {
   LoadingState,
   ErrorState,
   EmptyState,
+  DataTable,
+  type DataTableColumn,
 } from "../../components/common";
 import { Button, Dialog, Textarea } from "../../components/ui";
 import { formatDate, getApplicationStatusMeta } from "../../lib/utils";
@@ -18,15 +20,8 @@ import {
   ApplicationStatus,
   PIPELINE_FILTER_STAGES,
 } from "../../lib/types/enums";
-import {
-  Users,
-  Eye,
-  Archive,
-  RotateCcw,
-  Undo2,
-} from "lucide-react";
 import { notify } from "../../lib/feedback";
-import type { ReturningWorkerInfo } from "../../lib/types/application.types";
+import type { ReturningWorkerInfo, TAApplicationSummary } from "../../lib/types/application.types";
 import type { TAApplicationSearch } from "../../routes";
 import { TA_COPY } from "../../lib/ta-copy";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -46,11 +41,10 @@ const ReturningBadge: React.FC<{ info?: ReturningWorkerInfo | null }> = ({ info 
   return (
     <span
       title={title}
-      className={`mt-1 inline-flex max-w-[18rem] items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
-        info.sameClient ? "border-teal-300 bg-teal-50 text-teal-800" : "border-slate-300 bg-slate-50 text-slate-700"
+      className={`mt-1 inline-flex max-w-[18rem] items-center rounded border px-1.5 py-0.5 text-xs font-medium ${
+        info.sameClient ? "border-navy-line bg-navy-soft text-navy" : "border-slate-300 bg-slate-50 text-slate-700"
       }`}
     >
-      <Undo2 className="h-3 w-3 shrink-0" aria-hidden="true" />
       <span className="truncate">
         {info.sameClient ? "Redeployment" : "Previously deployed"} · {info.clientName}
       </span>
@@ -61,12 +55,57 @@ const ReturningBadge: React.FC<{ info?: ReturningWorkerInfo | null }> = ({ info 
 const ScreeningSkippedNote: React.FC<{ info?: ReturningWorkerInfo | null }> = ({ info }) =>
   info?.sameClient ? (
     <div
-      className="mt-1 text-[10px] text-slate-500"
+      className="mt-1 text-xs text-slate-600"
       title="Prior placement at this client: screening and interview stages were skipped."
     >
       Screening skipped
     </div>
   ) : null;
+
+/** Records that are already closed (or archived) can be archived or restored from the list. Open records are closed from the detail page. */
+const CLOSED_STATUSES: ApplicationStatus[] = [
+  ApplicationStatus.REJECTED,
+  ApplicationStatus.BACKOUT,
+  ApplicationStatus.TALENT_POOL,
+  ApplicationStatus.ARCHIVED,
+];
+
+/** The next TA action, derived from the stage and the counts the list already returns. */
+const nextStepFor = (app: TAApplicationSummary): string => {
+  if (app.isArchived) return "None";
+  switch (app.status) {
+    case ApplicationStatus.SUBMITTED:
+    case ApplicationStatus.PARSING:
+    case ApplicationStatus.REVIEW:
+    case ApplicationStatus.NEEDS_ATTENTION:
+    case ApplicationStatus.MATCHED:
+      return "Review application";
+    case ApplicationStatus.INITIAL_SCREENING:
+      return app.interviewCount > 0 ? "Record screening outcome" : "Schedule screening";
+    case ApplicationStatus.CLIENT_ENDORSEMENT:
+      return "Record client decision";
+    case ApplicationStatus.FINAL_INTERVIEW:
+      return "Schedule final interview";
+    case ApplicationStatus.HIRED:
+      return "Start requirements";
+    case ApplicationStatus.COMPLIANCE:
+      return "Review documents";
+    case ApplicationStatus.ONBOARDING:
+    case ApplicationStatus.CONTRACT_SIGNING:
+      return "Upload signed contract";
+    default:
+      return "None";
+  }
+};
+
+const candidateNameOf = (app: TAApplicationSummary) => {
+  const p = app.user?.applicantProfile;
+  const name = p ? `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() : "";
+  return name || app.user?.email || "Candidate";
+};
+
+const isClosedRecord = (app: TAApplicationSummary) =>
+  Boolean(app.isArchived) || CLOSED_STATUSES.includes(app.status);
 
 const readApplicationSearch = (): TAApplicationSearch => {
   const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
@@ -94,7 +133,7 @@ export const ApplicationsPage: React.FC = () => {
   const routeSearch = readApplicationSearch();
 
   const [page, setPage] = useState(routeSearch.page || 1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState(routeSearch.q || "");
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
   const [filterValues, setFilterValues] = useState<Record<string, string>>(() => ({
@@ -292,82 +331,190 @@ export const ApplicationsPage: React.FC = () => {
       : jobs;
   }, [jobs, filterValues.clientId]);
 
+
+  const hasActiveFilters = Boolean(search) || returningOnly || Object.keys(filterValues).length > 0;
+
+  const resetFilters = () => {
+    setSearch("");
+    setFilterValues({});
+    setReturningOnly(false);
+    setPage(1);
+    updateListUrl({ returning: undefined, q: undefined, stage: undefined, clientId: undefined, jobId: undefined, page: undefined });
+  };
+
+  const openArchiveDialog = (app: TAApplicationSummary) =>
+    setArchiveModalApp({ id: app.id, name: candidateNameOf(app), isArchived: Boolean(app.isArchived) });
+
+  const detailLink = (app: TAApplicationSummary, className?: string) => (
+    <Link
+      to="/ta/applications/$applicationId"
+      params={{ applicationId: String(app.id) }}
+      search={listSearch}
+      className={className ?? "font-medium text-navy underline-offset-2 hover:underline focus-ring"}
+    >
+      {candidateNameOf(app)}
+    </Link>
+  );
+
+  const archiveAction = (app: TAApplicationSummary) =>
+    isClosedRecord(app) ? (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => openArchiveDialog(app)}
+        aria-label={`${app.isArchived ? "Restore" : "Archive"} application for ${candidateNameOf(app)}`}
+      >
+        {app.isArchived ? "Restore" : "Archive"}
+      </Button>
+    ) : null;
+
+  const columns: DataTableColumn<TAApplicationSummary>[] = [
+    {
+      key: "candidate",
+      header: "Candidate",
+      primary: true,
+      cell: (app) => (
+        <div className="min-w-0">
+          {detailLink(app)}
+          <div className="text-xs text-slate-600">{app.user?.email}</div>
+          <ReturningBadge info={app.returning} />
+        </div>
+      ),
+    },
+    {
+      key: "job",
+      header: "Job opening",
+      cell: (app) => (
+        <div className="min-w-0">
+          <div className="text-slate-900">{app.jobPosting?.title || "Job opening"}</div>
+          {app.jobPosting?.mrf?.client?.name && (
+            <div className="text-xs text-slate-600">{app.jobPosting.mrf.client.name}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "stage",
+      header: "Stage",
+      cell: (app) => (
+        <div>
+          <StatusBadge status={app.status} />
+          <ScreeningSkippedNote info={app.returning} />
+        </div>
+      ),
+    },
+    {
+      key: "next",
+      header: "Next step",
+      hideBelow: "lg",
+      cell: (app) => <span className="text-sm text-slate-700">{nextStepFor(app)}</span>,
+    },
+    {
+      key: "applied",
+      header: "Applied",
+      cell: (app) => <span className="whitespace-nowrap text-sm text-slate-700">{formatDate(app.createdAt)}</span>,
+    },
+    {
+      key: "score",
+      header: "Match score",
+      align: "center",
+      cell: (app) => {
+        const score = app.candidateFitScore ?? app.aiScore;
+        return <ScoreBadge score={score == null ? score : Math.round(score)} size="sm" />;
+      },
+    },
+    {
+      key: "actions",
+      header: "Action",
+      align: "right",
+      cell: (app) => archiveAction(app),
+    },
+  ];
+
+  const renderCard = (app: TAApplicationSummary) => (
+    <article className="space-y-3 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="break-words">{detailLink(app)}</h2>
+          <p className="mt-0.5 break-words text-sm text-slate-600">
+            {app.jobPosting?.title || "Job opening"}
+            {app.jobPosting?.mrf?.client?.name ? ` · ${app.jobPosting.mrf.client.name}` : ""}
+          </p>
+          <ReturningBadge info={app.returning} />
+        </div>
+        <div className="text-right">
+          <StatusBadge status={app.status} />
+          <ScreeningSkippedNote info={app.returning} />
+        </div>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+        <div>
+          <dt className="text-slate-600">Next step</dt>
+          <dd className="mt-0.5 text-slate-800">{nextStepFor(app)}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-600">Applied</dt>
+          <dd className="mt-0.5 text-slate-800">{formatDate(app.createdAt)}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-600">Match score</dt>
+          <dd className="mt-0.5">
+            <ScoreBadge
+              score={(app.candidateFitScore ?? app.aiScore) == null ? undefined : Math.round((app.candidateFitScore ?? app.aiScore) as number)}
+              size="sm"
+            />
+          </dd>
+        </div>
+      </dl>
+      {isClosedRecord(app) && <div className="border-t border-slate-200 pt-3">{archiveAction(app)}</div>}
+    </article>
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title={TA_COPY.navigation.applications}
+        title={TA_COPY.pageTitles.applications}
         description="Review applications, see their current stage, and continue the next hiring action."
         breadcrumbs={[
           { label: TA_COPY.navigation.overview, href: "/ta" },
           { label: TA_COPY.navigation.applications },
         ]}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant={returningOnly ? "primary" : "outline"}
-              size="sm"
-              leftIcon={<Undo2 className="w-3.5 h-3.5" />}
-              aria-pressed={returningOnly}
-              onClick={() => {
-                const next = !returningOnly;
-                setReturningOnly(next);
-                setPage(1);
-                updateListUrl({ returning: next || undefined, page: undefined });
-              }}
-            >
-              Returning workers only
-            </Button>
-            <Button
-              variant={showArchived ? "primary" : "outline"}
-              size="sm"
-              leftIcon={<Archive className="w-3.5 h-3.5" />}
-              onClick={() => {
-                const nextArchived = !showArchived;
-                setShowArchived(nextArchived);
-                setPage(1);
-                updateListUrl({ archived: nextArchived || undefined, page: undefined });
-              }}
-            >
-              {showArchived ? "Viewing archived" : "View archived"}
-            </Button>
-          </div>
-        }
+        flush
       />
 
       {feedback && (
         <div
           role={feedback.type === "error" ? "alert" : "status"}
           aria-live="polite"
-          className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
+          className={`flex items-center justify-between rounded-lg border p-3 text-sm ${
             feedback.type === "success"
-              ? "bg-teal-50 border-teal-200 text-teal-800"
-              : "bg-rose-50 border-rose-200 text-rose-800"
+              ? "border-navy-line bg-navy-soft text-navy"
+              : "border-rose-200 bg-rose-50 text-rose-800"
           }`}
         >
-          <div className="flex items-center gap-2">
-            <span>{feedback.message}</span>
-          </div>
+          <span>{feedback.message}</span>
           <button
             type="button"
             onClick={() => setFeedback(null)}
             aria-label="Dismiss message"
-            className="text-slate-400 hover:text-slate-600 font-bold ml-4"
+            className="ml-4 min-h-11 min-w-11 font-bold text-slate-600 hover:text-slate-900 focus-ring md:min-h-8 md:min-w-8"
           >
             ×
           </button>
         </div>
       )}
 
-      {/* Filters Bar */}
-      <SearchFilters
-        searchPlaceholder="Search applications by candidate, email, job title..."
-        searchValue={search}
+      <div>
+        <SearchFilters
+          className="mb-0"
+          searchPlaceholder="Search applications by candidate, email, job title..."
+          searchValue={search}
           onSearchChange={(v) => {
             setSearch(v);
             setPage(1);
             updateListUrl({ q: v || undefined, page: undefined });
           }}
-        filterValues={filterValues}
+          filterValues={filterValues}
           onFilterChange={(k, v) => {
             const nextValues = { ...filterValues };
             if (v) nextValues[k] = v;
@@ -386,259 +533,144 @@ export const ApplicationsPage: React.FC = () => {
               page: undefined,
             });
           }}
-        onReset={() => {
-          setSearch("");
-          setFilterValues({});
-          setReturningOnly(false);
-          setPage(1);
-          updateListUrl({ returning: undefined, q: undefined, stage: undefined, clientId: undefined, jobId: undefined, page: undefined });
-        }}
-        filters={[
-          {
-            key: "status",
-            label: "Application stage",
-            placeholder: "All application stages",
-            options: PIPELINE_FILTER_STAGES.map((s) => ({
-              value: s,
-              label: getApplicationStatusMeta(s).label,
-            })),
-          },
-          {
-            key: "clientId",
-            label: "Client account",
-            placeholder: "All client accounts",
-            searchable: true,
-            options: availableClients.map((c) => ({
-              value: String(c.id),
-              label: c.name,
-              subtitle: `${c.industry || "General"} • ${[c.address, c.barangay, c.city, c.province, c.postalCode].filter(Boolean).join(", ") || "Philippines"}`,
-            })),
-          },
-          {
-            key: "jobId",
-            label: "Job opening",
-            placeholder: "All job openings",
-            searchable: true,
-            options: filteredJobs.map((j) => ({
-              value: String(j.id),
-              label: j.title,
-              subtitle: `Reference ${j.id} • ${j.location || "Philippines"}`,
-            })),
-          },
-        ]}
-      />
+          onReset={resetFilters}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant={returningOnly ? "primary" : "outline"}
+                size="sm"
+                aria-pressed={returningOnly}
+                onClick={() => {
+                  const next = !returningOnly;
+                  setReturningOnly(next);
+                  setPage(1);
+                  updateListUrl({ returning: next || undefined, page: undefined });
+                }}
+              >
+                Returning workers only
+              </Button>
+              <Button
+                variant={showArchived ? "primary" : "outline"}
+                size="sm"
+                aria-pressed={showArchived}
+                onClick={() => {
+                  const nextArchived = !showArchived;
+                  setShowArchived(nextArchived);
+                  setPage(1);
+                  updateListUrl({ archived: nextArchived || undefined, page: undefined });
+                }}
+              >
+                {showArchived ? "View active" : "View archived"}
+              </Button>
+            </div>
+          }
+          filters={[
+            {
+              key: "status",
+              label: "Application stage",
+              placeholder: "All application stages",
+              options: PIPELINE_FILTER_STAGES.map((s) => ({
+                value: s,
+                label: getApplicationStatusMeta(s).label,
+              })),
+            },
+            {
+              key: "clientId",
+              label: "Client account",
+              placeholder: "All client accounts",
+              searchable: true,
+              options: availableClients.map((c) => ({
+                value: String(c.id),
+                label: c.name,
+                subtitle: `${c.industry || "General"} • ${[c.address, c.barangay, c.city, c.province, c.postalCode].filter(Boolean).join(", ") || "Philippines"}`,
+              })),
+            },
+            {
+              key: "jobId",
+              label: "Job opening",
+              placeholder: "All job openings",
+              searchable: true,
+              options: filteredJobs.map((j) => ({
+                value: String(j.id),
+                label: j.title,
+                subtitle: `Reference ${j.id} • ${j.location || "Philippines"}`,
+              })),
+            },
+          ]}
+        />
+      </div>
 
-      {/* Table Section */}
+      {showArchived && (
+        <p role="status" className="border border-navy-line bg-navy-soft px-3 py-2 text-sm font-medium text-navy">
+          Viewing archived applications. Restore a record to return it to the pipeline.
+        </p>
+      )}
+
       {applicationsQuery.isLoading ? (
         <LoadingState variant="table" rows={6} />
       ) : applicationsQuery.isError ? (
-        <ErrorState
-          error={applicationsQuery.error}
-          onRetry={() => applicationsQuery.refetch()}
-        />
-      ) : applications.length === 0 ? (
-        <div className="bg-white border border-slate-300 p-6">
-          <EmptyState
-            icon={<Users className="w-5 h-5" />}
-            title={showArchived ? "No archived applications" : "No candidates found in pipeline"}
-            description={
-              search || returningOnly || Object.keys(filterValues).length > 0
-                ? "No applications matched your search filters. Try clearing filters to see all records."
-                : "Candidate applications submitted through the applicant portal will appear here."
-            }
-            action={
-              (search || returningOnly || Object.keys(filterValues).length > 0) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSearch("");
-                    setFilterValues({});
-                    setReturningOnly(false);
-                    setPage(1);
-                    updateListUrl({ returning: undefined, q: undefined, stage: undefined, clientId: undefined, jobId: undefined, page: undefined });
-                  }}
-                >
-                  Reset All Filters
-                </Button>
-              )
-            }
+        <div className="space-y-3">
+          <ErrorState
+            subject="applications"
+            error={applicationsQuery.error}
+            onRetry={() => applicationsQuery.refetch()}
           />
+          {hasActiveFilters && (
+            <div className="flex justify-center">
+              <Button variant="outline" size="sm" onClick={resetFilters}>
+                Reset filters
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
-        <div className="bg-white border border-slate-300 overflow-hidden">
-          <div className="divide-y divide-slate-200 md:hidden">
-            {applications.map((app) => {
-              const p = app.user?.applicantProfile;
-              const candidateName = p
-                ? `${p.firstName} ${p.lastName}`
-                : app.user?.email || "Candidate";
-
-              return (
-                <article key={app.id} className="space-y-3 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="font-semibold text-slate-950">{candidateName}</h2>
-                      <p className="mt-0.5 break-words text-sm text-slate-600">{app.jobPosting?.title || "Job opening"}</p>
-                      <ReturningBadge info={app.returning} />
-                    </div>
-                    <div className="text-right">
-                      <StatusBadge status={app.status} />
-                      <ScreeningSkippedNote info={app.returning} />
-                    </div>
-                  </div>
-                  <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-                    <div>
-                      <dt className="text-slate-500">Match score</dt>
-                      <dd className="mt-0.5"><ScoreBadge score={app.candidateFitScore ?? app.aiScore} size="sm" /></dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-500">Applied</dt>
-                      <dd className="mt-0.5 text-slate-800">{formatDate(app.createdAt)}</dd>
-                    </div>
-                  </dl>
-                  <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-                    <Link
-                      to="/ta/applications/$applicationId"
-                      params={{ applicationId: String(app.id) }}
-                      search={listSearch}
-                      className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
-                    >
-                      View application
-                    </Link>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setArchiveModalApp({ id: app.id, name: candidateName, isArchived: Boolean(app.isArchived) })}
-                    >
-                      {app.isArchived ? "Restore" : "Archive"}
-                    </Button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-100 text-slate-700 font-mono uppercase text-[10px] border-b border-slate-300">
-                <tr>
-                  <th className="px-3.5 py-2.5 font-bold">Applicant</th>
-                  <th className="px-3.5 py-2.5 font-bold">Job opening</th>
-                  <th className="px-3.5 py-2.5 font-bold">Current stage</th>
-                  <th className="px-3.5 py-2.5 font-bold text-center">Match Score</th>
-                  <th className="px-3.5 py-2.5 font-bold">Submission Date</th>
-                  <th className="px-3.5 py-2.5 font-bold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {applications.map((app) => {
-                  const p = app.user?.applicantProfile;
-                  const candidateName = p
-                    ? `${p.firstName} ${p.lastName}`
-                    : app.user?.email || "Candidate";
-
-                  return (
-                    <tr key={app.id} className="hover:bg-slate-100/70 transition-colors">
-                      <td className="px-3.5 py-2.5">
-                        <div className="font-bold text-slate-950">{candidateName}</div>
-                        <div className="text-[10px] text-slate-500 font-mono">
-                          {app.user?.email} {p?.mobileNumber ? `• ${p.mobileNumber}` : ""}
-                        </div>
-                        <ReturningBadge info={app.returning} />
-                      </td>
-                      <td className="px-3.5 py-2.5">
-                        <div className="font-semibold text-slate-900">
-                          {app.jobPosting?.title || "Job opening"}
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-mono">
-                          {app.jobPosting?.location || "Philippines"}
-                        </div>
-                      </td>
-                      <td className="px-3.5 py-2.5">
-                        <StatusBadge status={app.status} />
-                        <ScreeningSkippedNote info={app.returning} />
-                      </td>
-                      <td className="px-3.5 py-2.5 text-center">
-                        <ScoreBadge
-                          score={app.candidateFitScore ?? app.aiScore}
-                          size="sm"
-                        />
-                      </td>
-                      <td className="px-3.5 py-2.5 font-mono text-slate-700 text-[11px]">
-                        {formatDate(app.createdAt)}
-                      </td>
-                      <td className="px-3.5 py-2.5 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Link
-                            to="/ta/applications/$applicationId"
-                            params={{ applicationId: String(app.id) }}
-                            search={listSearch}
-                          >
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              leftIcon={<Eye className="w-3.5 h-3.5" />}
-                            >
-                              View application
-                            </Button>
-                          </Link>
-                          {!app.isArchived ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                setArchiveModalApp({
-                                  id: app.id,
-                                  name: candidateName,
-                                  isArchived: false,
-                                })
-                              }
-                              title="Archive Application"
-                              className="text-slate-400 hover:text-slate-700"
-                            >
-                              <Archive className="w-3.5 h-3.5" />
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
-                              onClick={() =>
-                                setArchiveModalApp({
-                                  id: app.id,
-                                  name: candidateName,
-                                  isArchived: true,
-                                })
-                              }
-                              title="Restore Application"
-                            >
-                              Restore
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Footer */}
-          <div className="p-3 border-t border-slate-300 bg-slate-50">
+        <DataTable
+          caption="Applications"
+          columns={columns}
+          rows={applications}
+          getRowId={(app) => String(app.id)}
+          renderCard={renderCard}
+          isFetching={applicationsQuery.isFetching}
+          empty={
+            <EmptyState
+              bare
+              title={showArchived ? "No archived applications" : hasActiveFilters ? "No applications match" : "No applications yet"}
+              description={
+                hasActiveFilters
+                  ? "Change or clear the filters to see more records."
+                  : showArchived
+                  ? undefined
+                  : "Applications submitted through the applicant portal appear here."
+              }
+              action={
+                hasActiveFilters ? (
+                  <Button variant="outline" size="sm" onClick={resetFilters}>
+                    Reset filters
+                  </Button>
+                ) : undefined
+              }
+            />
+          }
+          footer={
             <Pagination
+              variant="inset"
               currentPage={page}
               totalPages={totalPages}
               totalItems={totalItems}
               pageSize={pageSize}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+                updateListUrl({ page: undefined });
+              }}
               onPageChange={(nextPage) => {
                 setPage(nextPage);
                 updateListUrl({ page: nextPage > 1 ? nextPage : undefined });
               }}
               itemLabel="applications"
             />
-          </div>
-        </div>
+          }
+        />
       )}
 
       {/* Archive / Restore Modal */}
