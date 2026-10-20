@@ -1,5 +1,5 @@
 import { ApplicationStatus, DeploymentStatus, EmploymentStatus } from "./types/enums";
-import { TA_COPY } from "./ta-copy";
+import { STAFF_STAGE_LABELS, TA_COPY } from "./ta-copy";
 
 /**
  * Merge class names safely
@@ -150,36 +150,38 @@ export function getApplicationStatusPresentation(
 
   switch (status) {
     case ApplicationStatus.SUBMITTED:
-      return { label: "Submitted", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
+      return { label: STAFF_STAGE_LABELS.SUBMITTED, badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
     case ApplicationStatus.PARSING:
-      return { label: "Resume review", badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
+      return { label: STAFF_STAGE_LABELS.PARSING, badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
     case ApplicationStatus.REVIEW:
-      return { label: "Under review", badgeClass: "bg-indigo-100 text-indigo-800 border-indigo-300" };
+      return { label: STAFF_STAGE_LABELS.REVIEW, badgeClass: "bg-indigo-100 text-indigo-800 border-indigo-300" };
     case ApplicationStatus.NEEDS_ATTENTION:
-      return { label: "Needs attention", badgeClass: "bg-amber-100 text-amber-800 border-amber-300" };
+      return { label: STAFF_STAGE_LABELS.NEEDS_ATTENTION, badgeClass: "bg-amber-100 text-amber-800 border-amber-300" };
     case ApplicationStatus.MATCHED:
-      return { label: "Match found", badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
+      return { label: STAFF_STAGE_LABELS.MATCHED, badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
     case ApplicationStatus.INITIAL_SCREENING:
-      return { label: TA_COPY.pipeline.initialScreening, badgeClass: "bg-blue-100 text-blue-800 border-blue-300" };
+      return { label: STAFF_STAGE_LABELS.INITIAL_SCREENING, badgeClass: "bg-blue-100 text-blue-800 border-blue-300" };
     case ApplicationStatus.CLIENT_ENDORSEMENT:
-      return { label: TA_COPY.pipeline.clientEndorsement, badgeClass: "bg-cyan-100 text-cyan-800 border-cyan-300" };
+      return { label: STAFF_STAGE_LABELS.CLIENT_ENDORSEMENT, badgeClass: "bg-cyan-100 text-cyan-800 border-cyan-300" };
     case ApplicationStatus.FINAL_INTERVIEW:
-      return { label: TA_COPY.pipeline.finalInterview, badgeClass: "bg-sky-100 text-sky-800 border-sky-300" };
+      return { label: STAFF_STAGE_LABELS.FINAL_INTERVIEW, badgeClass: "bg-sky-100 text-sky-800 border-sky-300" };
+    case ApplicationStatus.HIRED:
+      return { label: STAFF_STAGE_LABELS.HIRED, badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300" };
     case ApplicationStatus.COMPLIANCE:
-      return { label: "Requirements", badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
+      return { label: STAFF_STAGE_LABELS.COMPLIANCE, badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
     case ApplicationStatus.ONBOARDING:
     case ApplicationStatus.CONTRACT_SIGNING:
-      return { label: TA_COPY.pipeline.contractSigning, badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
+      return { label: STAFF_STAGE_LABELS.CONTRACT_SIGNING, badgeClass: "bg-purple-100 text-purple-800 border-purple-300" };
     case ApplicationStatus.DEPLOYED:
-      return { label: "Deployed", badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300" };
+      return { label: STAFF_STAGE_LABELS.DEPLOYED, badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300" };
     case ApplicationStatus.TALENT_POOL:
-      return { label: "Talent Pool", badgeClass: "bg-violet-100 text-violet-800 border-violet-300" };
+      return { label: STAFF_STAGE_LABELS.TALENT_POOL, badgeClass: "bg-violet-100 text-violet-800 border-violet-300" };
     case ApplicationStatus.BACKOUT:
-      return { label: "Withdrawn", badgeClass: "bg-rose-100 text-rose-800 border-rose-300" };
+      return { label: STAFF_STAGE_LABELS.BACKOUT, badgeClass: "bg-rose-100 text-rose-800 border-rose-300" };
     case ApplicationStatus.REJECTED:
-      return { label: "Rejected", badgeClass: "bg-rose-100 text-rose-800 border-rose-300" };
+      return { label: STAFF_STAGE_LABELS.REJECTED, badgeClass: "bg-rose-100 text-rose-800 border-rose-300" };
     case ApplicationStatus.ARCHIVED:
-      return { label: "Archived", badgeClass: "bg-gray-100 text-gray-600 border-gray-300" };
+      return { label: STAFF_STAGE_LABELS.ARCHIVED, badgeClass: "bg-gray-100 text-gray-600 border-gray-300" };
     default:
       return { label: status || "Unknown", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
   }
@@ -204,19 +206,19 @@ export function getDeploymentStatusMeta(
 } {
   switch (status) {
     case DeploymentStatus.READY_FOR_DEPLOYMENT:
-      return { label: "Scheduled for Site", badgeClass: "bg-blue-50 text-blue-800 border-blue-200" };
+      return { label: TA_COPY.deployment.readyToStart, badgeClass: "bg-blue-50 text-blue-800 border-blue-200" };
     case DeploymentStatus.ACTIVE:
-      return { label: "Active on Site", badgeClass: "bg-emerald-50 text-emerald-800 border-emerald-200" };
+      return { label: TA_COPY.deployment.active, badgeClass: "bg-emerald-50 text-emerald-800 border-emerald-200" };
     case DeploymentStatus.ENDED:
       if (employeeStatus === "AVAILABLE_FOR_REDEPLOYMENT") {
-        return { label: "Ended • Ready for Next Job", badgeClass: "bg-teal-50 text-teal-800 border-teal-200" };
+        return { label: TA_COPY.deployment.endedWantsAssignment, badgeClass: "bg-teal-50 text-teal-800 border-teal-200" };
       }
       if (employeeStatus === "SEPARATED") {
-        return { label: "Ended • Left Agency", badgeClass: "bg-slate-100 text-slate-600 border-slate-300" };
+        return { label: TA_COPY.deployment.endedLeftAgency, badgeClass: "bg-slate-100 text-slate-600 border-slate-300" };
       }
-      return { label: "Assignment Ended", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
+      return { label: TA_COPY.deployment.ended, badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
     case DeploymentStatus.CANCELLED:
-      return { label: "Did Not Start", badgeClass: "bg-slate-100 text-slate-600 border-slate-300" };
+      return { label: TA_COPY.deployment.cancelled, badgeClass: "bg-slate-100 text-slate-600 border-slate-300" };
     default:
       return { label: status || "Unknown", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
   }
@@ -231,13 +233,13 @@ export function getEmploymentStatusMeta(status?: string | null): {
 } {
   switch (status) {
     case EmploymentStatus.ACTIVE:
-      return { label: "Active Employee", badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300" };
+      return { label: "Active employee", badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300" };
     case EmploymentStatus.INACTIVE:
       return { label: "Inactive", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
     case EmploymentStatus.SEPARATED:
       return { label: "Separated", badgeClass: "bg-rose-100 text-rose-800 border-rose-300" };
     case EmploymentStatus.AVAILABLE_FOR_REDEPLOYMENT:
-      return { label: "Available for Redeployment", badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
+      return { label: "Available for redeployment", badgeClass: "bg-teal-100 text-teal-800 border-teal-300" };
     default:
       return { label: status || "Unknown", badgeClass: "bg-slate-100 text-slate-700 border-slate-300" };
   }
@@ -387,13 +389,13 @@ function formatAdminNotificationMessage(message: string): string {
     .replace(/reopened due to deployment cancellation/gi, "reopened after a placement was cancelled")
     .replace(/linked job opening\(s\) closed/gi, "linked job openings closed")
     .replace(/job\(s\) reopened/gi, "job openings reopened")
-    .replace(/INITIAL_SCREENING/g, "initial review")
+    .replace(/INITIAL_SCREENING/g, "initial screening")
     .replace(/CLIENT_ENDORSEMENT/g, "client review")
     .replace(/FINAL_INTERVIEW/g, "final interview")
     .replace(/CONTRACT_SIGNING/g, "contract signing")
     .replace(/COMPLIANCE/g, "requirements")
     .replace(/TALENT_POOL/g, "candidate pool")
-    .replace(/BACKOUT/g, "withdrawn")
+    .replace(/BACKOUT/g, "backed out")
     .replace(/\s+\d{10,}(?= is | reopened|$)/g, "")
     .replace(/\bquota\b/gi, "position limit");
 }
