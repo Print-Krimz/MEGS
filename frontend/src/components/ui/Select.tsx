@@ -56,11 +56,11 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             aria-invalid={Boolean(error)}
             aria-describedby={error ? errorId : helperText ? helperId : undefined}
             className={cn(
-              "block w-full min-h-11 md:min-h-10 appearance-none border text-sm text-slate-900 bg-white transition-colors cursor-pointer",
-              "focus:outline-none focus:ring-1 focus:ring-teal-700 focus:border-teal-700",
+              "block w-full min-h-11 md:min-h-10 appearance-none rounded-md border text-sm text-slate-900 bg-white transition-colors cursor-pointer",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus:border-focus",
               "pl-2.5 pr-8 py-1.5",
               error
-                ? "border-rose-400 text-rose-900 focus:ring-rose-600 focus:border-rose-600 bg-rose-50/20"
+                ? "border-rose-400 text-rose-900 focus-visible:ring-rose-600 focus:border-rose-600 bg-rose-50/20"
                 : "border-slate-300 hover:border-slate-400",
               disabled && "bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200",
               className

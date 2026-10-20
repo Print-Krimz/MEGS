@@ -547,11 +547,11 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
           onKeyDown={handleKeyDown}
           autoComplete="off"
           className={cn(
-            "w-full min-h-11 md:min-h-10 rounded-md bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 font-sans focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-1 focus:border-teal-700 transition-colors cursor-text text-left",
+            "w-full min-h-11 md:min-h-10 rounded-md bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 font-sans focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus:border-focus transition-colors cursor-text text-left",
             size === "sm" ? "px-3 py-2 text-sm" : "px-3 py-2 text-sm",
             leftIcon ? "pl-8" : undefined,
-            (clearable && hasValue) ? "pr-14" : "pr-8",
-            error && "border-rose-500 focus:ring-rose-500 focus:border-rose-500",
+            (clearable && hasValue) ? "pr-[5.5rem] md:pr-14" : "pr-12 md:pr-8",
+            error && "border-rose-500 focus-visible:ring-rose-500 focus:border-rose-500",
             disabled && "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
           )}
         />
@@ -559,7 +559,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
         {/* Action icons */}
         <div className="absolute inset-y-0 right-0 pr-2 flex items-center gap-1 pointer-events-none">
           {loading && (
-            <div className="p-1 text-teal-600 flex items-center justify-center pointer-events-none" aria-label={loadingText}>
+            <div className="p-1 text-navy flex items-center justify-center pointer-events-none" aria-label={loadingText}>
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             </div>
           )}
@@ -569,7 +569,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
               type="button"
               onClick={handleClear}
               aria-label="Clear selection"
-              className="p-2 text-slate-500 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 cursor-pointer pointer-events-auto"
+              className="inline-flex min-h-11 min-w-11 md:min-h-8 md:min-w-8 items-center justify-center text-slate-500 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus rounded-md cursor-pointer pointer-events-auto"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -592,7 +592,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                 }
               }}
               aria-label="Toggle options menu"
-              className="p-1 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer pointer-events-auto"
+              className="inline-flex min-h-11 min-w-11 md:min-h-8 md:min-w-6 items-center justify-center text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer pointer-events-auto"
             >
               <ChevronDown
                 className={cn(
@@ -648,13 +648,13 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                   className={cn(
                     "px-3 cursor-pointer flex items-center justify-between gap-2 transition-colors select-none",
                     useWindow ? "box-border overflow-hidden" : "py-2.5",
-                    isHighlighted ? "bg-teal-50 text-teal-950" : "text-slate-800 hover:bg-slate-50",
+                    isHighlighted ? "bg-navy-soft text-navy-hover" : "text-slate-800 hover:bg-slate-50",
                     opt.disabled && "opacity-50 cursor-not-allowed pointer-events-none"
                   )}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className={cn("truncate font-medium", isSelected && "font-bold text-teal-900")}>
+                      <span className={cn("truncate font-medium", isSelected && "font-bold text-navy")}>
                         {opt.label}
                       </span>
                       {opt.badge && (
@@ -680,7 +680,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                   </div>
 
                   {isSelected && (
-                    <Check className="w-3.5 h-3.5 text-teal-700 shrink-0" />
+                    <Check className="w-3.5 h-3.5 text-navy shrink-0" />
                   )}
                 </li>
                 </React.Fragment>
@@ -695,8 +695,8 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                 onMouseEnter={() => setHighlightedIndex(filteredOptions.length)}
                 onClick={() => handleCommitCustom(searchQuery)}
                 className={cn(
-                  "px-3 py-2.5 cursor-pointer flex items-center gap-2 text-teal-800 bg-teal-50/60 hover:bg-teal-100/80 transition-colors border-t border-teal-200",
-                  highlightedIndex === filteredOptions.length && "bg-teal-100"
+                  "px-3 py-2.5 cursor-pointer flex items-center gap-2 text-navy bg-navy-soft/60 hover:bg-navy-soft transition-colors border-t border-navy-line",
+                  highlightedIndex === filteredOptions.length && "bg-navy-soft"
                 )}
               >
                 <span className="text-sm">
@@ -708,7 +708,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
             {/* Loading state */}
             {loading && (
               <li className="px-3 py-4 text-center text-slate-500 italic flex items-center justify-center gap-2 select-none">
-                <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+                <Loader2 className="w-4 h-4 animate-spin text-navy" />
                 <span>{loadingText}</span>
               </li>
             )}

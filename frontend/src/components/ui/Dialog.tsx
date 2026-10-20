@@ -150,7 +150,7 @@ export const Dialog: React.FC<DialogProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-11 min-w-11 inline-flex items-center justify-center rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+              className="min-h-11 min-w-11 inline-flex items-center justify-center rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               aria-label="Close dialog"
               title="Close dialog"
             >
@@ -163,7 +163,7 @@ export const Dialog: React.FC<DialogProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-2 right-2 z-10 min-h-11 min-w-11 inline-flex items-center justify-center rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+            className="absolute top-2 right-2 z-10 min-h-11 min-w-11 inline-flex items-center justify-center rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             aria-label="Close dialog"
             title="Close dialog"
           >

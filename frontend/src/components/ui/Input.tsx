@@ -108,12 +108,12 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             maxLength={maxLength ?? defaultMaxLength}
             className={cn(
               "block w-full min-h-11 md:min-h-10 rounded-md border text-sm text-slate-900 bg-white placeholder-slate-400 transition-colors",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-1 focus:border-[#0B315D]",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus:border-focus",
               leftIcon ? "pl-8" : "pl-2.5",
               rightIcon ? "pr-8" : "pr-2.5",
               "py-2",
               effectiveError
-                ? "border-rose-400 text-rose-900 focus:ring-rose-600 focus:border-rose-600 bg-rose-50/20"
+                ? "border-rose-400 text-rose-900 focus-visible:ring-rose-600 focus:border-rose-600 bg-rose-50/20"
                 : "border-slate-300 hover:border-slate-400",
               disabled && "bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200",
               className

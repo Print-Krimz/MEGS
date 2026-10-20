@@ -17,16 +17,92 @@ import {
   ChevronDown,
   Shield,
   UserSearch,
+  type LucideIcon,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
 import { NotificationBell, RealtimeToastContainer, SignOutDialog } from "../components/common";
 import { getInitials } from "../lib/utils";
 import { Role } from "../lib/types/enums";
 import { TA_COPY } from "../lib/ta-copy";
+import { taApi } from "../lib/api/ta.api";
+import { employeesApi } from "../lib/api/employees.api";
+import { TAGlobalSearch } from "./TAGlobalSearch";
 
 const ChangePasswordModal = lazy(() =>
   import("../components/common/ChangePasswordModal").then((m) => ({ default: m.ChangePasswordModal })),
+);
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  /** Small count pill. Hidden when 0. `label` is read out by screen readers. */
+  badge?: { count: number; label: string };
+}
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+/** One nav list for the mobile drawer (size "lg", 44px rows) and the desktop sidebar (size "md"). */
+const NavList: React.FC<{
+  sections: NavSection[];
+  isActive: (to: string) => boolean;
+  size: "md" | "lg";
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}> = ({ sections, isActive, size, collapsed = false, onNavigate }) => (
+  <nav
+    aria-label="TA portal"
+    className={`flex-1 overflow-y-auto py-3 space-y-5 ${size === "lg" ? "px-3" : "px-2"}`}
+  >
+    {sections.map((section) => (
+      <div key={section.label} className="space-y-1">
+        {!collapsed && <div className="px-2 text-xs font-medium text-slate-400">{section.label}</div>}
+        <div className="space-y-0.5">
+          {section.items.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.to);
+            const count = item.badge?.count ?? 0;
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
+                title={collapsed ? item.label : undefined}
+                className={`focus-ring-dark relative flex items-center gap-2.5 border-l-[3px] px-3 py-2 text-sm transition-colors ${
+                  size === "lg" ? "min-h-11" : "min-h-10"
+                } ${
+                  active
+                    ? "border-navy-bar bg-navy-lift font-medium text-white"
+                    : "border-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
+                {collapsed ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
+                {count > 0 && (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className={`rounded-full bg-amber-300 px-1.5 text-xs font-semibold leading-5 text-slate-950 tabular-nums ${
+                        collapsed ? "absolute right-0.5 top-0.5 min-w-5 text-center text-[10px] leading-4" : "ml-auto"
+                      }`}
+                    >
+                      {count > 99 ? "99+" : count}
+                    </span>
+                    <span className="sr-only">{item.badge?.label}</span>
+                  </>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    ))}
+  </nav>
 );
 
 export const TALayout: React.FC = () => {
@@ -72,11 +148,17 @@ export const TALayout: React.FC = () => {
   const fullName = hasProfileName ? `${profile!.firstName} ${profile!.lastName}` : user?.email || "Recruiter";
   const initials = getInitials(profile?.firstName, profile?.lastName) || "TA";
 
+  // Every close path returns focus to the trigger so keyboard users never land on <body>.
+  const closeAccountMenu = () => {
+    setAccountMenuOpen(false);
+    accountButtonRef.current?.focus();
+  };
+
   // Close account menu on click outside
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
-        setAccountMenuOpen(false);
+        closeAccountMenu();
       }
     };
     if (accountMenuOpen) {
@@ -139,8 +221,7 @@ export const TALayout: React.FC = () => {
 
       if (e.key === "Escape") {
         e.preventDefault();
-        setAccountMenuOpen(false);
-        accountButtonRef.current?.focus();
+        closeAccountMenu();
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
         const items = menuItemsRef.current.filter(Boolean) as (HTMLAnchorElement | HTMLButtonElement)[];
@@ -170,7 +251,20 @@ export const TALayout: React.FC = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [accountMenuOpen]);
 
-  const navSections = [
+  const overdueInterviews = useQuery({
+    // Same key and fetcher as the dashboard interview SLA card, so the cache is shared.
+    queryKey: ["ta", "compliance", "interviews", "summary"],
+    queryFn: ({ signal }) => taApi.listInterviewCompliancePage({ page: 1, pageSize: 1 }, { signal }),
+    staleTime: 60_000,
+  }).data?.summary?.breached ?? 0;
+  const needsPlacement = useQuery({
+    // Same key and fetcher as the Workforce page summary.
+    queryKey: ["ta", "redeployment-queue", "summary"],
+    queryFn: ({ signal }) => employeesApi.getRedeploymentQueueSummary({ signal }),
+    staleTime: 60_000,
+  }).data?.stages.NEEDS_PLACEMENT ?? 0;
+
+  const navSections: NavSection[] = [
     {
       label: "Recruitment",
       items: [
@@ -184,14 +278,24 @@ export const TALayout: React.FC = () => {
       label: "Candidates & clients",
       items: [
         { to: "/ta/talent-pool", label: TA_COPY.navigation.candidatePool, icon: UserSearch },
-        { to: "/ta/interviews", label: TA_COPY.navigation.interviews, icon: Calendar },
+        {
+          to: "/ta/interviews",
+          label: TA_COPY.navigation.interviews,
+          icon: Calendar,
+          badge: { count: overdueInterviews, label: `${overdueInterviews} overdue ${overdueInterviews === 1 ? "interview" : "interviews"}` },
+        },
         { to: "/ta/clients", label: TA_COPY.navigation.clients, icon: Building2 },
       ],
     },
     {
       label: "Workforce",
       items: [
-        { to: "/ta/workforce", label: TA_COPY.navigation.workforce, icon: Send },
+        {
+          to: "/ta/workforce",
+          label: TA_COPY.navigation.workforce,
+          icon: Send,
+          badge: { count: needsPlacement, label: `${needsPlacement} ${needsPlacement === 1 ? "worker needs" : "workers need"} placement` },
+        },
       ],
     },
     {
@@ -202,13 +306,17 @@ export const TALayout: React.FC = () => {
     },
   ];
 
+  const currentSectionLabel =
+    navSections.flatMap((section) => section.items).find((item) => isNavItemActive(item.to))?.label ??
+    (location.pathname.startsWith("/ta/notifications") ? "Notifications" : "Talent Acquisition");
+
   return (
     <div className="ta-portal min-h-screen bg-slate-100 flex flex-col lg:flex-row overflow-x-hidden">
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
 
       <a
         href="#ta-main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-slate-900 focus:shadow-modal focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-slate-900 focus:shadow-modal focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
         Skip to main content
       </a>
@@ -238,7 +346,7 @@ export const TALayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="focus-ring-dark min-h-11 min-w-11 inline-flex items-center justify-center rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
                 aria-label="Close menu"
               >
                 <X className="w-5 h-5" />
@@ -246,36 +354,7 @@ export const TALayout: React.FC = () => {
             </div>
 
             {/* Mobile Navigation List */}
-            <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-5">
-              {navSections.map((section, idx) => (
-                <div key={idx} className="space-y-1">
-                      <div className="px-2 text-xs font-medium text-slate-400">
-                        {section.label}
-                  </div>
-                  <div className="space-y-0.5">
-                    {section.items.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = isNavItemActive(item.to);
-                      return (
-                        <Link
-                          key={item.to}
-                          to={item.to}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex min-h-11 items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
-                            isActive
-                              ? "bg-teal-700 text-white font-medium border-l-2 border-teal-400"
-                              : "text-slate-200 hover:text-white hover:bg-slate-800"
-                          }`}
-                        >
-                          <Icon className="w-4 h-4 shrink-0" />
-                          <span className="truncate">{item.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </nav>
+            <NavList sections={navSections} isActive={isNavItemActive} size="lg" onNavigate={() => setMobileMenuOpen(false)} />
           </aside>
         </div>
       )}
@@ -297,14 +376,14 @@ export const TALayout: React.FC = () => {
 
           {collapsed && (
             <div className="w-full flex justify-center">
-              <span className="font-mono font-bold text-sm text-teal-400">M</span>
+              <span className="font-mono font-bold text-sm text-navy-bar">M</span>
             </div>
           )}
 
           <button
             type="button"
             onClick={() => setCollapsed(!collapsed)}
-            className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="focus-ring-dark min-h-9 min-w-9 inline-flex items-center justify-center rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
           >
@@ -313,38 +392,7 @@ export const TALayout: React.FC = () => {
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-5">
-          {navSections.map((section, idx) => (
-            <div key={idx} className="space-y-1">
-              {!collapsed && (
-                <div className="px-2 text-xs font-medium text-slate-400">
-                  {section.label}
-                </div>
-              )}
-              <div className="space-y-0.5">
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = isNavItemActive(item.to);
-                  return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      className={`flex min-h-10 items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
-                        isActive
-                          ? "bg-teal-700 text-white font-medium border-l-2 border-teal-400"
-                          : "text-slate-200 hover:text-white hover:bg-slate-800"
-                      }`}
-                      title={collapsed ? item.label : undefined}
-                    >
-                      <Icon className="w-4 h-4 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
+        <NavList sections={navSections} isActive={isNavItemActive} size="md" collapsed={collapsed} />
       </aside>
 
       {/* Sign Out Warning Dialog */}
@@ -362,17 +410,18 @@ export const TALayout: React.FC = () => {
               ref={mobileMenuButtonRef}
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 border border-slate-300 hover:bg-slate-50 transition-colors rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+              className="lg:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 border border-slate-300 hover:bg-slate-50 transition-colors rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               aria-label="Open navigation menu"
               aria-expanded={mobileMenuOpen}
               aria-controls="ta-mobile-navigation"
             >
               <Menu className="w-4 h-4" />
             </button>
-            <div className="h-2 w-2 bg-teal-600 shrink-0" />
-            <span className="text-sm font-medium text-slate-700 truncate">
-              <span>MEGS Recruitment</span>
-            </span>
+            <h2 className="lg:hidden text-sm font-semibold text-slate-900 truncate">{currentSectionLabel}</h2>
+          </div>
+
+          <div className="flex flex-1 items-center justify-end md:justify-center min-w-0 px-2">
+            <TAGlobalSearch />
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
@@ -390,13 +439,13 @@ export const TALayout: React.FC = () => {
                 id="ta-account-button"
                 type="button"
                 onClick={() => setAccountMenuOpen((prev) => !prev)}
-                className="group min-h-11 flex items-center gap-2 sm:gap-2.5 p-1 sm:px-2 sm:py-1 rounded-md text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-1 cursor-pointer"
+                className="group min-h-11 flex items-center gap-2 sm:gap-2.5 p-1 sm:px-2 sm:py-1 rounded-md text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 cursor-pointer"
                 aria-label={`Account menu for ${fullName}`}
                 aria-haspopup="menu"
                 aria-expanded={accountMenuOpen}
                 aria-controls="ta-account-menu"
               >
-                <div className="w-7 h-7 bg-slate-800 text-teal-400 border border-slate-700 text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 bg-slate-800 text-navy-bar border border-slate-700 text-xs font-mono font-bold flex items-center justify-center shrink-0">
                   {initials}
                 </div>
                 <div className="hidden sm:block text-left leading-tight">
@@ -420,12 +469,15 @@ export const TALayout: React.FC = () => {
                   id="ta-account-menu"
                   role="menu"
                   aria-labelledby="ta-account-button"
+                  onKeyDown={(e) => {
+                    if (e.key === "Tab") closeAccountMenu();
+                  }}
                   className="absolute right-0 mt-1.5 w-64 bg-white shadow-modal border border-slate-300 z-50 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100"
                 >
                   {/* User Identity Context Card */}
                   <div className="p-3 bg-slate-50 border-b border-slate-200">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 bg-slate-800 text-teal-400 border border-slate-700 text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                      <div className="w-8 h-8 bg-slate-800 text-navy-bar border border-slate-700 text-xs font-mono font-bold flex items-center justify-center shrink-0">
                         {initials}
                       </div>
                       <div className="overflow-hidden min-w-0">
@@ -446,7 +498,7 @@ export const TALayout: React.FC = () => {
                       </div>
                     </div>
                     <div className="mt-2 flex items-center gap-1.5">
-                      <span className="px-1.5 py-0.5 bg-teal-50 text-teal-800 border border-teal-200 text-[10px] font-mono font-medium">
+                      <span className="px-1.5 py-0.5 bg-navy-soft text-navy border border-navy-line text-[10px] font-mono font-medium">
                         {user?.role === Role.ADMINISTRATOR ? "Admin & TA Portal" : "Talent Acquisition"}
                       </span>
                     </div>
@@ -460,10 +512,10 @@ export const TALayout: React.FC = () => {
                       tabIndex={0}
                       ref={(el) => { menuItemsRef.current[0] = el; }}
                       onClick={() => {
-                        setAccountMenuOpen(false);
+                        closeAccountMenu();
                         setShowChangePasswordModal(true);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700 text-left cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus text-left cursor-pointer"
                     >
                       <Shield className="w-4 h-4 text-slate-500 shrink-0" />
                       <span className="text-slate-900 font-medium">Change password</span>
@@ -478,10 +530,10 @@ export const TALayout: React.FC = () => {
                       tabIndex={0}
                       ref={(el) => { menuItemsRef.current[1] = el; }}
                       onClick={() => {
-                        setAccountMenuOpen(false);
+                        closeAccountMenu();
                         setShowSignOutConfirm(true);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 transition-colors focus-visible:outline-none focus-visible:bg-rose-50 focus-visible:text-rose-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700 text-left cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 transition-colors focus-visible:outline-none focus-visible:bg-rose-50 focus-visible:text-rose-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus text-left cursor-pointer"
                     >
                       <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
                       <span className="text-rose-900 font-medium">Sign out</span>

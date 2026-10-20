@@ -47,6 +47,21 @@
   --color-ring: #0B315D;
   --color-destructive: #DC2626;
   --color-megs-navy-900: #081D38;
+
+  /* Fixed navy brand tokens. Unlike --color-primary these are NOT overridden by
+     .theme-megs, so Button/Input/TA chrome stay navy on every surface.
+     Focus: add `focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2`
+     (or the shared `.focus-ring` class below) to any custom interactive element.
+     Use `ring-offset-0 ring-inset` variants on dark surfaces; on the dark sidebar use
+     `ring-focus-on-dark`. */
+  --color-navy: #0B315D;
+  --color-navy-hover: #082747;
+  --color-navy-soft: #EAF0F7;
+  --color-navy-line: #D9E2EC;
+  --color-navy-lift: #1A4A80;
+  --color-navy-bar: #8FBCEB;
+  --color-focus: #0B315D;
+  --color-focus-on-dark: #8FBCEB;
   --color-megs-red-tint: #FDF1F2;
 
   /* Typography */
@@ -127,6 +142,22 @@ body {
 /* Tabular numbers for all dense data */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Shared keyboard focus ring (navy). Use on custom links, buttons and rows:
+   <a className="focus-ring">. Add `focus-ring-inset` inside overflow-hidden lists,
+   and `focus-ring-dark` on dark surfaces such as the TA sidebar. */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-focus);
+}
+.focus-ring-inset:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-focus);
+}
+.focus-ring-dark:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-focus-on-dark);
 }
 
 /* Compact scrollbar */

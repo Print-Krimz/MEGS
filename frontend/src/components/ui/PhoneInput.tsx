@@ -107,7 +107,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
           aria-describedby={activeError ? errorId : helperText ? helperId : undefined}
           className={cn(
             "block w-full min-h-11 md:min-h-10 rounded-md border text-sm text-slate-900 bg-white placeholder-slate-400 font-mono transition-colors",
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-1 focus:border-teal-700",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus:border-focus",
             "pl-3 pr-9 py-2",
             activeError
               ? "border-rose-400 text-rose-900 focus:ring-rose-600 focus:border-rose-600 bg-rose-50/20"
