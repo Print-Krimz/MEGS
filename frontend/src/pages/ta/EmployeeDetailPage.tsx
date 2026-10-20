@@ -11,9 +11,13 @@ import {
   Tabs,
   DocumentPreviewModal,
   ActionMenu,
+  ActionMenuItem,
+  DataTable,
+  DataTableColumn,
+  MaskedId,
 } from "../../components/common";
 import { Button, ComboBox, Dialog, Input, PhoneInput, Select, Textarea } from "../../components/ui";
-import { formatDate, formatDateTime } from "../../lib/utils";
+import { cn, formatDate, formatDateTime } from "../../lib/utils";
 import { addManilaCalendarDays, getManilaToday } from "../../lib/field-limits";
 import { calculateUrgencyStatus } from "../../lib/compliance-queue";
 import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
@@ -36,17 +40,9 @@ import {
 import { EmploymentStatus } from "../../lib/types/enums";
 import { taApi } from "../../lib/api/ta.api";
 import { DocumentUpdateRequestDialog } from "../../components/ta/DocumentUpdateRequestDialog";
-import {
-  User,
-  Truck,
-  History,
-  ShieldCheck,
-  GraduationCap,
-  ArrowLeft,
-  Edit,
-  Pencil,
-} from "lucide-react";
-import { TA_COPY } from "../../lib/ta-copy";
+import { RequirementReviewDialog, type RequirementReviewValues } from "../../components/ta/RequirementReviewDialog";
+import { TA_COPY, TA_STATUS_TONE_CLASSES, getTaStatusTone } from "../../lib/ta-copy";
+import { employmentEventLabel, requirementStatusLabel } from "../../lib/labels";
 
 type TabKey =
   | "identity"
@@ -54,6 +50,91 @@ type TabKey =
   | "deployments"
   | "compliance"
   | "qualifications";
+
+const SECTION_HEADING = "text-base font-semibold text-slate-950";
+
+const DetailField: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="space-y-0.5">
+    <dt className="text-sm text-slate-600">{label}</dt>
+    <dd className="text-sm text-slate-900 break-words">{children}</dd>
+  </div>
+);
+
+/** One requirement status chip in the vault, worded by requirementStatusLabel. */
+const RequirementBadge: React.FC<{ status?: string | null }> = ({ status }) => (
+  <span
+    className={cn(
+      "inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-xs font-medium",
+      TA_STATUS_TONE_CLASSES[getTaStatusTone(status)]
+    )}
+  >
+    {requirementStatusLabel(status)}
+  </span>
+);
+
+const FollowUpTarget: React.FC<{ req: any }> = ({ req }) => {
+  const targetDate = req.updateRequestDeadline || req.toFollowExpectedAt || req.deadline;
+  if (!targetDate) return <span>—</span>;
+  const urgency = calculateUrgencyStatus(targetDate);
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <span>{formatDate(targetDate)}</span>
+      {urgency.category === "OVERDUE" && (
+        <span className="rounded-md border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-xs font-semibold text-rose-800">
+          {urgency.label}
+        </span>
+      )}
+      {urgency.category === "UPCOMING" && (
+        <span className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+          {urgency.label}
+        </span>
+      )}
+    </span>
+  );
+};
+
+const ValidityDates: React.FC<{ req: any }> = ({ req }) => (
+  <div className="text-sm text-slate-700">
+    {req.issuedAt && <div>Issued: {formatDate(req.issuedAt)}</div>}
+    {req.expiresAt && <div>Expires: {formatDate(req.expiresAt)}</div>}
+    {!req.issuedAt && !req.expiresAt && <span className="text-slate-600">Not recorded</span>}
+  </div>
+);
+
+const ValidityBadge: React.FC<{ req: any }> = ({ req }) =>
+  req.expiresAt && req.expiresAt.slice(0, 10) < getManilaToday() ? (
+    <StatusBadge status="Expired" type="raw" size="sm" />
+  ) : req.expiresAt && req.expiresAt.slice(0, 10) <= addManilaCalendarDays(getManilaToday(), 30) ? (
+    <StatusBadge status="Expiring soon" type="raw" size="sm" />
+  ) : req.validityStatus === "UNKNOWN" && !req.expiresAt ? (
+    <StatusBadge status="Validity unrecorded" type="raw" size="sm" />
+  ) : req.validityStatus === "NO_EXPIRY" ? (
+    <StatusBadge status="No expiry" type="raw" size="sm" />
+  ) : (
+    <StatusBadge status="Approved" type="raw" size="sm" />
+  );
+
+const DocumentVersions: React.FC<{ req: any; onPreview: (doc: { id: number; title: string }) => void }> = ({ req, onPreview }) =>
+  req.documentVersions?.length > 1 ? (
+    <details className="mt-1 text-sm">
+      <summary className="focus-ring cursor-pointer text-navy hover:underline">{req.documentVersions.length} versions</summary>
+      <div className="mt-1.5 space-y-1.5 border-l border-navy-line pl-2">
+        {req.documentVersions.map((version: any) => (
+          <div key={version.id} className="flex items-center justify-between gap-2 text-slate-700">
+            <span>Uploaded {formatDate(version.uploadedAt)} · {requirementStatusLabel(version.reviewStatus)}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onPreview({ id: version.documentId, title: `${req.documentLabel} (${formatDate(version.uploadedAt)})` })}
+            >
+              View
+            </Button>
+          </div>
+        ))}
+      </div>
+    </details>
+  ) : null;
+
 
 export const EmployeeDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -71,7 +152,8 @@ export const EmployeeDetailPage: React.FC = () => {
     if (typeof window !== "undefined") {
       const paramTab = new URLSearchParams(window.location.search).get("tab") as TabKey;
       if (paramTab && validTabs.includes(paramTab)) {
-        return paramTab;
+        // Skills now live on the identity tab; old ?tab=qualifications links still land there.
+        return paramTab === "qualifications" ? "identity" : paramTab;
       }
     }
     return "identity";
@@ -99,6 +181,7 @@ export const EmployeeDetailPage: React.FC = () => {
   const [targetJobId, setTargetJobId] = useState("");
   const [placementMessage, setPlacementMessage] = useState("");
 
+  const [reviewTarget, setReviewTarget] = useState<any | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
   const [editForm, setEditForm] = useState({
@@ -182,6 +265,17 @@ export const EmployeeDetailPage: React.FC = () => {
     onError: (err: any) => notify.error("Could not save document validity", err?.message || err),
   });
 
+  const reviewRequirementMutation = useMutation({
+    mutationFn: ({ id, values }: { id: number; values: RequirementReviewValues }) =>
+      taApi.reviewComplianceRequirement(id, values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "employee", employeeId, "201"] });
+      setReviewTarget(null);
+      notify.success("Review saved", "The document status was updated.");
+    },
+    onError: (err: any) => notify.error("Could not save review", err?.message || err),
+  });
+
   const inviteForPlacementMutation = useMutation({
     mutationFn: () => {
       if (!applicantProfileIdForPlacement || !targetJobId) throw new Error("Choose an open role first.");
@@ -196,15 +290,15 @@ export const EmployeeDetailPage: React.FC = () => {
       setPlacementDialogOpen(false);
       setTargetJobId("");
       setPlacementMessage("");
-      notify.success("Opportunity sent", "The applicant can review and accept it from their account.");
+      notify.success("Invitation sent", "The applicant can review and accept it from their account.");
     },
-    onError: (error: any) => notify.error("Could not send opportunity", error?.message || error),
+    onError: (error: any) => notify.error("Could not send invitation", error?.message || error),
   });
 
   if (digital201Query.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Employee record (201)" description="Loading employee details..." />
+        <PageHeader title="Employee record" description="Loading employee details..." flush />
         <LoadingState variant="detail" />
       </div>
     );
@@ -213,7 +307,7 @@ export const EmployeeDetailPage: React.FC = () => {
   if (digital201Query.isError || !digital201Query.data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Employee record (201)" description="Employee details" />
+        <PageHeader title="Employee record" description="Employee details" flush />
         <ErrorState error={digital201Query.error} onRetry={() => digital201Query.refetch()} />
       </div>
     );
@@ -238,10 +332,10 @@ export const EmployeeDetailPage: React.FC = () => {
           .map((s: any) => (typeof s === "string" ? s : s.skill?.name || s.name || ""))
           .filter(Boolean)
       : [];
-  const fullAddress = [cand.address, cand.barangay, cand.city, cand.province, cand.postalCode].filter(Boolean).join(", ") || "N/A";
+  const fullAddress = [cand.address, cand.barangay, cand.city, cand.province, cand.postalCode].filter(Boolean).join(", ") || "Not provided";
   const emergencyContactInfo = cand.emergencyContactName
     ? `${cand.emergencyContactName}${cand.emergencyContactRelationship ? ` (${cand.emergencyContactRelationship})` : ""}${cand.emergencyContactPhone ? ` • ${cand.emergencyContactPhone}` : ""}`
-    : "N/A";
+    : "Not provided";
 
   const handleOpenEditModal = () => {
     setEditFormErrors({});
@@ -371,11 +465,114 @@ export const EmployeeDetailPage: React.FC = () => {
     });
   };
 
+  const headerFindJob = emp.status === EmploymentStatus.AVAILABLE_FOR_REDEPLOYMENT && Boolean(applicantProfileIdForPlacement);
+  const headerMenuItems: ActionMenuItem[] = [
+    ...(headerFindJob ? [{ label: "Edit details", onSelect: handleOpenEditModal }] : []),
+    {
+      label: "Change employment status",
+      onSelect: () => {
+        setNewStatus(emp.status);
+        setStatusModalOpen(true);
+      },
+    },
+  ];
+
+  const openReview = (req: any) => setReviewTarget(req);
+
+  const documentActions = (req: any) => (
+    <div className="flex items-center justify-end gap-2">
+      {req.reviewStatus === "SUBMITTED" && (
+        <Button variant="primary" size="sm" onClick={() => openReview(req)}>
+          Review
+        </Button>
+      )}
+      {req.documentId ? (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setPreviewDocument({ id: req.documentId, title: req.documentLabel })}
+        >
+          View
+        </Button>
+      ) : (
+        req.reviewStatus !== "SUBMITTED" && <span className="text-sm text-slate-600">Waiting for upload</span>
+      )}
+    </div>
+  );
+
+  const followUpColumns: DataTableColumn<any>[] = [
+    { key: "document", header: "Document", cell: (req) => <span className="font-medium text-slate-900">{req.documentLabel}</span> },
+    {
+      key: "target",
+      header: "Target date",
+      cell: (req) => <FollowUpTarget req={req} />,
+    },
+    { key: "status", header: "Status", cell: (req) => <RequirementBadge status={req.reviewStatus} /> },
+    { key: "action", header: "Action", align: "right", cell: documentActions },
+  ];
+
+  const verifiedColumns: DataTableColumn<any>[] = [
+    {
+      key: "document",
+      header: "Document",
+      cell: (req) => (
+        <div>
+          <div className="font-medium text-slate-900">{req.documentLabel}</div>
+          <DocumentVersions req={req} onPreview={setPreviewDocument} />
+        </div>
+      ),
+    },
+    { key: "client", header: "Client", hideBelow: "md", cell: (req) => req.clientName || "—" },
+    { key: "dates", header: "Issued and expiry", cell: (req) => <ValidityDates req={req} /> },
+    { key: "status", header: "Status", cell: (req) => <ValidityBadge req={req} /> },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      cell: (req) => (
+        <div className="flex items-center justify-end gap-2">
+          {req.documentId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPreviewDocument({ id: req.documentId, title: req.documentLabel })}
+            >
+              View
+            </Button>
+          )}
+          {verifiedMenu(req)}
+        </div>
+      ),
+    },
+  ];
+
+  const verifiedMenu = (req: any) => (
+    <ActionMenu
+      label={`More actions for ${req.documentLabel}`}
+      items={[
+        {
+          label: "Record validity",
+          onSelect: () => {
+            setValidityTarget({ id: req.id, label: req.documentLabel });
+            setValidityStatus(req.expiresAt ? "HAS_EXPIRY" : req.validityStatus === "NO_EXPIRY" ? "NO_EXPIRY" : "UNKNOWN");
+            setIssuedAt(req.issuedAt?.slice(0, 10) || "");
+            setExpiresAt(req.expiresAt?.slice(0, 10) || "");
+          },
+        },
+        {
+          label: "Request updated copy",
+          onSelect: () => setUpdateRequestTarget({ id: req.id, label: req.documentLabel }),
+        },
+      ]}
+    />
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
+        flush
         title={empName}
-        description={`Employee no. ${emp.employeeNumber} • Hired ${formatDate(emp.hireDate)}`}
+        description={`Employee no. ${emp.employeeNumber}`}
         breadcrumbs={[
           { label: TA_COPY.navigation.overview, href: "/ta" },
           { label: TA_COPY.navigation.workforce, href: "/ta/workforce?tab=employees" },
@@ -383,416 +580,245 @@ export const EmployeeDetailPage: React.FC = () => {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <Link to="/ta/workforce" search={{ tab: "employees" }}>
-              <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                Back to employee records
+            {headerFindJob ? (
+              <Button variant="primary" size="sm" onClick={() => setPlacementDialogOpen(true)}>
+                {TA_COPY.workforce.actions.findJob}
               </Button>
-            </Link>
-            {emp.status === EmploymentStatus.AVAILABLE_FOR_REDEPLOYMENT && applicantProfileIdForPlacement && (
-              <Button variant="primary" size="sm" onClick={() => setPlacementDialogOpen(true)}>Find placement</Button>
+            ) : (
+              <Button variant="primary" size="sm" onClick={handleOpenEditModal}>
+                Edit details
+              </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<Pencil className="w-3.5 h-3.5" />}
-              onClick={handleOpenEditModal}
-            >
-              Edit employee details
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={<Edit className="w-3.5 h-3.5" />}
-              onClick={() => {
-                setNewStatus(emp.status);
-                setStatusModalOpen(true);
-              }}
-            >
-              Change employment status
-            </Button>
+            <ActionMenu label="More actions for this employee" items={headerMenuItems} />
           </div>
         }
       />
 
-      {/* Header Snapshot Card */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+      <div className="space-y-4 border border-slate-300 bg-white p-4 md:p-5">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-slate-600">Status</span>
+              <span className="text-sm font-medium text-slate-700">Status</span>
               <StatusBadge status={emp.status} type="employment" size="sm" />
             </div>
-            <div className="text-xs text-slate-500 font-mono">
-              Position: {emp.position || "General staff"} • Department: {emp.department || "Operations"}
-            </div>
+            <p className="text-sm text-slate-600">
+              {emp.position || "General staff"} · {emp.department || "Operations"}
+            </p>
           </div>
-
-          <div className="text-xs text-slate-600 font-mono text-right">
-            <div>Hire date: {formatDate(emp.hireDate)}</div>
-            <div>Total deployments: {deployments.length}</div>
-          </div>
+          <p className="text-sm text-slate-700">Hired {formatDate(emp.hireDate)}</p>
         </div>
 
-        {/* Tab Navigation */}
         <Tabs
           value={activeTab}
           onChange={(tab) => handleTabChange(tab as TabKey)}
           ariaLabel="Employee record sections"
           items={[
-            { id: "identity", label: "Identity and IDs", icon: User, panelId: "employee-identity" },
-            { id: "history", label: `History (${events.length})`, icon: History, panelId: "employee-history" },
-            { id: "deployments", label: `Deployments (${deployments.length})`, icon: Truck, panelId: "employee-deployments" },
-            { id: "compliance", label: `Clearance Vault (${compliance.length})`, icon: ShieldCheck, panelId: "employee-compliance" },
-            { id: "qualifications", label: "Qualifications", icon: GraduationCap, panelId: "employee-qualifications" },
+            { id: "identity", label: "Identity and IDs", panelId: "employee-identity" },
+            { id: "history", label: `History (${events.length})`, panelId: "employee-history" },
+            { id: "deployments", label: `Deployments (${deployments.length})`, panelId: "employee-deployments" },
+            { id: "compliance", label: `Clearance vault (${compliance.length})`, panelId: "employee-compliance" },
           ]}
           className="border-b-0"
         />
       </div>
 
-      {/* Tab Body */}
-      <div id={`employee-${activeTab}`} role="tabpanel" tabIndex={0} className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700">
-        {/* TAB 1: IDENTITY & STATUTORY */}
+      <div id={`employee-${activeTab}`} role="tabpanel" tabIndex={0} className="focus-ring border border-slate-300 bg-white p-4 md:p-5">
         {activeTab === "identity" && (
           <div className="space-y-6">
-            <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-              Government IDs and personal details
-            </h3>
+            <section className="space-y-3" aria-labelledby="emp-ids-heading">
+              <h2 id="emp-ids-heading" className={SECTION_HEADING}>Government IDs</h2>
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <DetailField label="SSS number"><MaskedId value={cand.sss} label="SSS number" /></DetailField>
+                <DetailField label="PhilHealth PIN"><MaskedId value={cand.philhealth} label="PhilHealth PIN" /></DetailField>
+                <DetailField label="Pag-IBIG MID"><MaskedId value={cand.pagibig} label="Pag-IBIG MID" /></DetailField>
+                <DetailField label="TIN"><MaskedId value={cand.tin} label="TIN" /></DetailField>
+              </dl>
+              <p className="text-sm text-slate-600">Full numbers are shown only on request. Edit details to correct a number.</p>
+            </section>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-xs">
-              <div className="space-y-2">
-                <span className="text-slate-500 block">SSS number</span>
-                <span className="font-bold font-mono text-slate-900">{cand.sss || "Pending Submission"}</span>
-              </div>
-              <div className="space-y-2">
-                <span className="text-slate-500 block">PhilHealth PIN</span>
-                <span className="font-bold font-mono text-slate-900">{cand.philhealth || "Pending Submission"}</span>
-              </div>
-              <div className="space-y-2">
-                <span className="text-slate-500 block">Pag-IBIG MID</span>
-                <span className="font-bold font-mono text-slate-900">{cand.pagibig || "Pending Submission"}</span>
-              </div>
-              <div className="space-y-2">
-                <span className="text-slate-500 block">TIN</span>
-                <span className="font-bold font-mono text-slate-900">{cand.tin || "Pending Submission"}</span>
-              </div>
-            </div>
+            <section className="space-y-3 border-t border-slate-200 pt-5" aria-labelledby="emp-personal-heading">
+              <h2 id="emp-personal-heading" className={SECTION_HEADING}>Personal details</h2>
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <DetailField label="Mobile number">{cand.mobileNumber || "Not provided"}</DetailField>
+                <DetailField label="Email">{cand.email || emp.user?.email || "Not provided"}</DetailField>
+                <DetailField label="Residential address">{fullAddress}</DetailField>
+                <DetailField label="Date of birth and gender">
+                  {`${cand.dateOfBirth ? formatDate(cand.dateOfBirth) : "Not provided"}${cand.gender ? ` · ${cand.gender}` : ""}`}
+                </DetailField>
+                <DetailField label="Civil status">{cand.civilStatus || "Not provided"}</DetailField>
+                <DetailField label="Emergency contact">{emergencyContactInfo}</DetailField>
+              </dl>
+            </section>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-xs pt-4 border-t border-slate-100">
-              <div className="space-y-2">
-                <span className="font-mono text-slate-400 block uppercase text-[10px]">Contact Mobile</span>
-                <span className="font-mono text-slate-800">{cand.mobileNumber || "N/A"}</span>
-              </div>
-              <div className="space-y-2">
-                <span className="font-mono text-slate-400 block uppercase text-[10px]">Email</span>
-                <span className="text-slate-800 font-mono">{cand.email || emp.user?.email || "N/A"}</span>
-              </div>
-              <div className="space-y-2">
-                <span className="font-mono text-slate-400 block uppercase text-[10px]">Residential Address</span>
-                <span className="text-slate-800">{fullAddress}</span>
-              </div>
-              <div className="space-y-2">
-                <span className="font-mono text-slate-400 block uppercase text-[10px]">Date of Birth & Gender</span>
-                <span className="text-slate-800">
-                  {`${cand.dateOfBirth ? formatDate(cand.dateOfBirth) : "N/A"}${cand.gender ? ` • ${cand.gender}` : ""}`}
-                </span>
-              </div>
-              <div className="space-y-2">
-                <span className="font-mono text-slate-400 block uppercase text-[10px]">Civil Status</span>
-                <span className="text-slate-800">{cand.civilStatus || "Unspecified"}</span>
-              </div>
-              <div className="space-y-2">
-                <span className="font-mono text-slate-400 block uppercase text-[10px]">Emergency Contact</span>
-                <span className="text-slate-800">{emergencyContactInfo}</span>
-              </div>
-            </div>
+            <section className="space-y-3 border-t border-slate-200 pt-5" aria-labelledby="emp-skills-heading">
+              <h2 id="emp-skills-heading" className={SECTION_HEADING}>Skills</h2>
+              {skillsList.length > 0 ? (
+                <ul className="flex flex-wrap gap-1.5">
+                  {skillsList.map((s, idx) => (
+                    <li key={idx} className="border border-slate-300 bg-slate-50 px-2.5 py-1 text-sm text-slate-800">
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-slate-600">No skills listed</p>
+              )}
+            </section>
           </div>
         )}
 
-        {/* TAB 2: EMPLOYMENT HISTORY & EVENTS */}
         {activeTab === "history" && (
           <div className="space-y-4">
-            <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-              Employment history
-            </h3>
+            <h2 className={SECTION_HEADING}>Employment history</h2>
             {events.length === 0 ? (
-              <p className="text-xs text-slate-400 py-4">No historical employment events recorded.</p>
+              <p className="py-2 text-sm text-slate-600">No employment events recorded.</p>
             ) : (
-              <div className="space-y-3">
+              <ul className="space-y-3">
                 {events.map((ev) => (
-                  <div key={ev.id} className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900 font-mono">{ev.eventType}</span>
-                      <span className="text-[11px] text-slate-400 font-mono">{formatDateTime(ev.effectiveDate)}</span>
+                  <li key={ev.id} className="space-y-1 border border-slate-200 bg-slate-50 p-3.5 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3">
+                      <span className="font-semibold text-slate-900">{employmentEventLabel(ev.eventType)}</span>
+                      <span className="text-xs text-slate-600">{formatDateTime(ev.effectiveDate)}</span>
                     </div>
                     <p className="text-slate-700">{ev.description}</p>
-                    {ev.actor && <div className="text-[10px] text-slate-400 font-mono">Logged by {ev.actor.email}</div>}
-                  </div>
+                    {ev.actor && <p className="text-xs text-slate-600">Recorded by {ev.actor.email}</p>}
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
         )}
 
-        {/* TAB 3: FIELD DEPLOYMENTS */}
         {activeTab === "deployments" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
-                Client site deployments ({deployments.length})
-              </h3>
-              <Link to="/ta/workforce" search={{ tab: "deployments" }}>
-                <span className="text-xs text-teal-700 hover:text-teal-900 font-semibold">
-                  View all deployments →
-                </span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className={SECTION_HEADING}>Deployments ({deployments.length})</h2>
+              <Link
+                to="/ta/workforce"
+                search={{ tab: "deployments" }}
+                className="focus-ring inline-flex min-h-11 items-center text-sm font-medium text-navy underline-offset-2 hover:underline md:min-h-0"
+              >
+                View all deployments
               </Link>
             </div>
             {deployments.length === 0 ? (
-              <p className="text-xs text-slate-400 py-4">No field deployments assigned.</p>
+              <p className="py-2 text-sm text-slate-600">No deployments yet.</p>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <ul className="divide-y divide-slate-200">
                 {deployments.map((dep) => (
-                  <div key={dep.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <li key={dep.id} className="flex flex-col justify-between gap-3 py-3 sm:flex-row sm:items-center">
                     <div className="space-y-0.5">
-                      <div className="font-bold text-slate-900">{dep.client?.name || "Client"}</div>
-                      <div className="text-[11px] text-slate-500 font-mono">
-                        Site: {dep.site || "General Facility"} • Schedule: {dep.contractStart ? formatDate(dep.contractStart) : "N/A"} to {dep.contractEnd ? formatDate(dep.contractEnd) : "Open"}
-                      </div>
+                      <p className="font-semibold text-slate-900">{dep.client?.name || "Client"}</p>
+                      <p className="text-sm text-slate-600">
+                        {dep.site || "Client site"} · {dep.contractStart ? formatDate(dep.contractStart) : "Not set"} to {dep.contractEnd ? formatDate(dep.contractEnd) : "open"}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <StatusBadge status={dep.status} type="deployment" />
-                      <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(dep.id) }}>
-                        <Button variant="outline" size="sm">
+                      <StatusBadge status={dep.status} employeeStatus={emp.status} type="deployment" />
+                      <Button asChild variant="outline" size="sm">
+                        <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(dep.id) }}>
                           View deployment
-                        </Button>
-                      </Link>
+                        </Link>
+                      </Button>
                     </div>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
         )}
 
-        {/* TAB 4: CLEARANCE VAULT */}
         {activeTab === "compliance" && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
-                201 Clearance Vault
-              </h3>
-              <span className="px-2 py-0.5 rounded text-xs font-mono bg-slate-100 text-slate-700 border border-slate-200">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className={SECTION_HEADING}>Clearance vault</h2>
+              <span className="text-sm text-slate-700">
                 {verifiedItems.length} of {compliance.length} verified
               </span>
             </div>
 
             {compliance.length === 0 ? (
-              <p className="text-xs text-slate-400 py-4">No compliance documents attached.</p>
+              <p className="py-2 text-sm text-slate-600">No compliance documents attached.</p>
             ) : (
               <div className="space-y-6">
                 {followUpItems.length > 0 && (
-                  <div className="space-y-3">
-                    <h4 className="text-xs font-mono font-bold uppercase text-slate-500">
-                      Pending follow-up items
-                    </h4>
-                    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-xs">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
-                          <tr>
-                            <th className="px-4 py-2.5 font-semibold">Document</th>
-                            <th className="px-4 py-2.5 font-semibold">Target date</th>
-                            <th className="px-4 py-2.5 font-semibold">Status</th>
-                            <th className="px-4 py-2.5 font-semibold text-right">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {followUpItems.map((req: any) => {
-                            const targetDate = req.updateRequestDeadline || req.toFollowExpectedAt || req.deadline;
-                            const urgency = calculateUrgencyStatus(targetDate);
-                            return (
-                              <tr key={req.id} className="hover:bg-slate-50/70 transition-colors">
-                                <td className="px-4 py-3 font-semibold text-slate-900">
-                                  {req.documentLabel}
-                                </td>
-                                <td className="px-4 py-3 font-mono text-[11px] text-slate-600">
-                                  {targetDate ? (
-                                    <div className="flex items-center gap-1.5">
-                                      <span>{formatDate(targetDate)}</span>
-                                      {urgency.category === "OVERDUE" && (
-                                        <span className="text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
-                                          {urgency.label}
-                                        </span>
-                                      )}
-                                      {urgency.category === "UPCOMING" && (
-                                        <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                                          {urgency.label}
-                                        </span>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    "—"
-                                  )}
-                                </td>
-                                <td className="px-4 py-3">
-                                  <StatusBadge status={req.reviewStatus} type="raw" size="sm" />
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <div className="flex items-center justify-end">
-                                    {req.documentId ? (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setPreviewDocument({ id: req.documentId, title: req.documentLabel })}
-                                      >
-                                        View
-                                      </Button>
-                                    ) : (
-                                      <span className="text-slate-500 text-[11px]">Waiting for upload</span>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                  <section className="space-y-3" aria-labelledby="emp-followup-heading">
+                    <h3 id="emp-followup-heading" className="text-sm font-semibold text-slate-900">Pending follow-up items</h3>
+                    <DataTable
+                      caption="Pending follow-up items"
+                      columns={followUpColumns}
+                      rows={followUpItems}
+                      getRowId={(req: any) => String(req.id)}
+                      renderCard={(req: any) => (
+                        <article className="space-y-2 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="font-medium text-slate-900 break-words">{req.documentLabel}</p>
+                            <RequirementBadge status={req.reviewStatus} />
+                          </div>
+                          <p className="text-sm text-slate-600">Target date: <FollowUpTarget req={req} /></p>
+                          <div className="pt-1">{documentActions(req)}</div>
+                        </article>
+                      )}
+                    />
+                  </section>
                 )}
 
-                <div className="space-y-3">
-                  <h4 className="text-xs font-mono font-bold uppercase text-slate-500">
-                    Verified 201 documents
-                  </h4>
+                <section className="space-y-3" aria-labelledby="emp-verified-heading">
+                  <h3 id="emp-verified-heading" className="text-sm font-semibold text-slate-900">Verified documents</h3>
                   {verifiedItems.length === 0 ? (
-                    <p className="text-xs text-slate-400 py-3">No verified documents on record yet.</p>
+                    <p className="py-1 text-sm text-slate-600">No verified documents on record yet.</p>
                   ) : (
-                    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-xs">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
-                          <tr>
-                            <th className="px-4 py-2.5 font-semibold">Document</th>
-                            <th className="px-4 py-2.5 font-semibold">Client</th>
-                            <th className="px-4 py-2.5 font-semibold">Issued / Expiry</th>
-                            <th className="px-4 py-2.5 font-semibold">Status</th>
-                            <th className="px-4 py-2.5 font-semibold text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {verifiedItems.map((req: any) => (
-                            <tr key={req.id} className="hover:bg-slate-50/70 transition-colors">
-                              <td className="px-4 py-3">
-                                <div className="font-semibold text-slate-900">{req.documentLabel}</div>
-                                {req.documentVersions?.length > 1 && (
-                                  <details className="mt-1 text-[11px]">
-                                    <summary className="cursor-pointer text-teal-700 hover:underline">
-                                      {req.documentVersions.length} versions
-                                    </summary>
-                                    <div className="mt-1.5 space-y-1.5 pl-2 border-l border-teal-200">
-                                      {req.documentVersions.map((version: any) => (
-                                        <div key={version.id} className="flex items-center justify-between gap-2 text-slate-600">
-                                          <span>Uploaded {formatDate(version.uploadedAt)} · {version.reviewStatus}</span>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => setPreviewDocument({ id: version.documentId, title: `${req.documentLabel} (${formatDate(version.uploadedAt)})` })}
-                                          >
-                                            View
-                                          </Button>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </details>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-slate-600">
-                                {req.clientName || "—"}
-                              </td>
-                              <td className="px-4 py-3 font-mono text-[11px] text-slate-600">
-                                {req.issuedAt && <div>Issued: {formatDate(req.issuedAt)}</div>}
-                                {req.expiresAt && <div>Expires: {formatDate(req.expiresAt)}</div>}
-                                {!req.issuedAt && !req.expiresAt && <span className="text-slate-400">Not recorded</span>}
-                              </td>
-                              <td className="px-4 py-3">
-                                {req.expiresAt && req.expiresAt.slice(0, 10) < getManilaToday() ? (
-                                  <StatusBadge status="Expired" type="raw" size="sm" />
-                                ) : req.expiresAt && req.expiresAt.slice(0, 10) <= addManilaCalendarDays(getManilaToday(), 30) ? (
-                                  <StatusBadge status="Expiring soon" type="raw" size="sm" />
-                                ) : req.validityStatus === "UNKNOWN" && !req.expiresAt ? (
-                                  <StatusBadge status="Validity unrecorded" type="raw" size="sm" />
-                                ) : req.validityStatus === "NO_EXPIRY" ? (
-                                  <StatusBadge status="No expiry" type="raw" size="sm" />
-                                ) : (
-                                  <StatusBadge status="Approved" type="raw" size="sm" />
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <div className="flex items-center justify-end gap-1.5 min-w-[100px]">
-                                  {req.documentId ? (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => setPreviewDocument({ id: req.documentId, title: req.documentLabel })}
-                                    >
-                                      View
-                                    </Button>
-                                  ) : (
-                                    <div className="w-14" />
-                                  )}
-                                  <ActionMenu
-                                    label={`Actions for ${req.documentLabel}`}
-                                    items={[
-                                      {
-                                        label: "Record validity",
-                                        onSelect: () => {
-                                          setValidityTarget({ id: req.id, label: req.documentLabel });
-                                          setValidityStatus(req.expiresAt ? "HAS_EXPIRY" : req.validityStatus === "NO_EXPIRY" ? "NO_EXPIRY" : "UNKNOWN");
-                                          setIssuedAt(req.issuedAt?.slice(0, 10) || "");
-                                          setExpiresAt(req.expiresAt?.slice(0, 10) || "");
-                                        },
-                                      },
-                                      {
-                                        label: "Request updated copy",
-                                        onSelect: () => setUpdateRequestTarget({ id: req.id, label: req.documentLabel }),
-                                      },
-                                    ]}
-                                  />
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <DataTable
+                      caption="Verified documents"
+                      columns={verifiedColumns}
+                      rows={verifiedItems}
+                      getRowId={(req: any) => String(req.id)}
+                      renderCard={(req: any) => (
+                        <article className="space-y-2 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-medium text-slate-900 break-words">{req.documentLabel}</p>
+                              {req.clientName && <p className="text-sm text-slate-600">{req.clientName}</p>}
+                            </div>
+                            <ValidityBadge req={req} />
+                          </div>
+                          <div className="text-sm text-slate-700"><ValidityDates req={req} /></div>
+                          <DocumentVersions req={req} onPreview={setPreviewDocument} />
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            {req.documentId && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => setPreviewDocument({ id: req.documentId, title: req.documentLabel })}
+                              >
+                                View
+                              </Button>
+                            )}
+                            {verifiedMenu(req)}
+                          </div>
+                        </article>
+                      )}
+                    />
                   )}
-                </div>
+                </section>
               </div>
             )}
           </div>
         )}
-
-        {/* TAB 5: QUALIFICATIONS */}
-        {activeTab === "qualifications" && (
-          <div className="space-y-4">
-            <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-              Qualifications on file
-            </h3>
-            <div className="space-y-2">
-              <span className="text-sm font-medium text-slate-600">Skills on record</span>
-              <div className="flex flex-wrap gap-1.5">
-                {skillsList.length > 0 ? (
-                  skillsList.map((s, idx) => (
-                    <span key={idx} className="px-2.5 py-1 rounded bg-slate-100 text-slate-800 text-[11px] font-semibold">
-                      {s}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-xs text-slate-400">No skills listed</span>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
+      <RequirementReviewDialog
+        open={Boolean(reviewTarget)}
+        onClose={() => setReviewTarget(null)}
+        title="Review document"
+        subtitle={reviewTarget ? `${empName} · ${reviewTarget.documentLabel}` : undefined}
+        requirements={reviewTarget ? [reviewTarget] : []}
+        mode="post"
+        onOpenDocument={(req) => req.documentId && setPreviewDocument({ id: req.documentId, title: req.documentLabel })}
+        isSubmitting={reviewRequirementMutation.isPending}
+        onSubmit={(values, req) => reviewRequirementMutation.mutate({ id: req.id, values })}
+      />
 
       {/* Change Status Modal */}
       <Dialog
@@ -862,12 +888,12 @@ export const EmployeeDetailPage: React.FC = () => {
       {updateRequestTarget && <DocumentUpdateRequestDialog key={updateRequestTarget.id} target={updateRequestTarget} onClose={() => setUpdateRequestTarget(null)} />}
       <DocumentPreviewModal open={Boolean(previewDocument)} documentId={previewDocument?.id} title={previewDocument?.title} onClose={() => setPreviewDocument(null)} />
 
-      <Dialog open={placementDialogOpen} onClose={() => setPlacementDialogOpen(false)} title="Find a placement" description={`Send an open role to ${empName}. They can accept it in their Applicant account.`}>
+      <Dialog open={placementDialogOpen} onClose={() => setPlacementDialogOpen(false)} title={TA_COPY.workforce.actions.findJob} description={`Choose an open role to invite ${empName} to. They accept it from their applicant account.`}>
         <div className="space-y-4">
           {openJobsQuery.isError ? <ErrorState error={openJobsQuery.error} onRetry={() => openJobsQuery.refetch()} /> : (
             <ComboBox
               label="Open role"
-              placeholder="Search open roles and clients..."
+              placeholder="Search open roles and clients"
               value={targetJobId}
               options={(openJobsQuery.data || []).map((job: any) => ({
                 value: String(job.id),
@@ -880,7 +906,7 @@ export const EmployeeDetailPage: React.FC = () => {
           <Textarea label="Message (optional)" value={placementMessage} onChange={(event) => setPlacementMessage(event.target.value)} rows={3} placeholder="Add a short note about the role or work site." />
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
             <Button variant="outline" size="sm" onClick={() => setPlacementDialogOpen(false)}>Cancel</Button>
-            <Button variant="primary" size="sm" disabled={!targetJobId || !applicantProfileIdForPlacement} loading={inviteForPlacementMutation.isPending} onClick={() => inviteForPlacementMutation.mutate()}>Send opportunity</Button>
+            <Button variant="primary" size="sm" disabled={!targetJobId || !applicantProfileIdForPlacement} loading={inviteForPlacementMutation.isPending} onClick={() => inviteForPlacementMutation.mutate()}>{TA_COPY.workforce.actions.sendInvitation}</Button>
           </div>
         </div>
       </Dialog>

@@ -12,16 +12,17 @@ import {
   Pagination,
   ActionMenu,
   ActionMenuItem,
+  DataTable,
+  DataTableColumn,
 } from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
-import { formatDate, getDeploymentStatusMeta } from "../../lib/utils";
+import { cn, formatDate, getDeploymentStatusMeta } from "../../lib/utils";
 import { DeploymentStatus, ALLOWED_DEPLOYMENT_TRANSITIONS } from "../../lib/types/enums";
-import {
-  Truck,
-} from "lucide-react";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { EndAssignmentDialog } from "../../components/ta/EndAssignmentDialog";
+import { RecordCheckInDialog } from "../../components/ta/RecordCheckInDialog";
+import { checkInDue } from "../../components/ta/check-in-due";
 import { getManilaToday } from "../../lib/field-limits";
 import { SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -32,7 +33,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
 
   const [statusModalDeployment, setStatusModalDeployment] = useState<{ id: number; currentStatus: DeploymentStatus } | null>(null);
@@ -41,8 +42,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
   const [actualStart, setActualStart] = useState(getManilaToday());
   const [endModalDeployment, setEndModalDeployment] = useState<{ id: number; employeeName: string } | null>(null);
   const [reviewModalDeployment, setReviewModalDeployment] = useState<{ id: number; employeeName: string } | null>(null);
-  const [nextReviewAt, setNextReviewAt] = useState("");
-  const [reviewNotes, setReviewNotes] = useState("");
 
   const deploymentsQuery = useQuery({
     queryKey: ["ta", "deployments", "page", { page, pageSize, search: debouncedSearch, filters: filterValues }],
@@ -77,20 +76,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
     },
   });
 
-  const recordReviewMutation = useMutation({
-    mutationFn: () => {
-      if (!reviewModalDeployment || !nextReviewAt) throw new Error("Choose the next check-in date.");
-      return taApi.recordDeploymentReview(reviewModalDeployment.id, { nextReviewAt, notes: reviewNotes.trim() || undefined });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
-      setReviewModalDeployment(null);
-      setReviewNotes("");
-      notify.success("Check-in recorded", "The next assignment review is scheduled.");
-    },
-    onError: (error: any) => notify.error("Could not record check-in", error?.message || error),
-  });
-
   const clients = clientsQuery.data || [];
 
   const paginatedDeployments = deploymentsQuery.data?.items ?? [];
@@ -118,10 +103,26 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
     setPage(1);
   };
 
-  const renderRowActions = (
-    dep: (typeof paginatedDeployments)[0],
-    employeeName: string
-  ) => {
+  type DeploymentRow = (typeof paginatedDeployments)[0];
+
+  const employeeNameOf = (dep: DeploymentRow) => {
+    const profile = dep.employee?.user?.applicantProfile;
+    return profile ? `${profile.firstName} ${profile.lastName}` : dep.employee?.employeeNumber || "Employee";
+  };
+
+  const detailHref = (dep: DeploymentRow) => `/ta/deployments/${dep.id}`;
+
+  const openConfirmStart = (dep: DeploymentRow) => {
+    setStatusModalDeployment({ id: dep.id, currentStatus: dep.status });
+    setNewStatus(DeploymentStatus.ACTIVE);
+    const defaultStart =
+      dep.contractStart && dep.contractStart.slice(0, 10) >= getManilaToday()
+        ? dep.contractStart.slice(0, 10)
+        : getManilaToday();
+    setActualStart(defaultStart);
+  };
+
+  const renderRowActions = (dep: DeploymentRow, employeeName: string, fullWidth = false) => {
     const isReady = dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT;
     const isActive = dep.status === DeploymentStatus.ACTIVE;
     const isRedeployable =
@@ -130,54 +131,24 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
     const empId = dep.employee?.id;
     const clientId = dep.client?.id;
 
-    const menuItems: ActionMenuItem[] = [];
-
-    // For Scheduled: primary button is "Confirm start", so "View details" belongs in menu
-    if (isReady) {
-      menuItems.push({
+    const menuItems: ActionMenuItem[] = [
+      {
         label: "View details",
         onSelect: () =>
           navigate({
             to: "/ta/deployments/$deploymentId",
             params: { deploymentId: String(dep.id) },
           }),
-      });
-    }
+      },
+    ];
 
-    // For Active: check-in and end assignment
-    if (isActive) {
-      menuItems.push(
-        {
-          label: "Record check-in",
-          onSelect: () => {
-            setReviewModalDeployment({ id: dep.id, employeeName });
-            setNextReviewAt("");
-            setReviewNotes("");
-          },
-        },
-        {
-          label: "End assignment",
-          tone: "danger",
-          onSelect: () => {
-            setEndModalDeployment({ id: dep.id, employeeName });
-          },
-        }
-      );
-    }
-
-    // Redeployment shortcut for workers ready for their next assignment
     if (isRedeployable) {
       menuItems.push({
         label: "View in redeployment queue",
-        onSelect: () =>
-          navigate({
-            to: "/ta/workforce",
-            search: { tab: "redeployment" },
-          }),
+        onSelect: () => navigate({ to: "/ta/workforce", search: { tab: "redeployment" } }),
       });
     }
 
-    // Quick links to 201 personnel record and client account
     if (empId) {
       menuItems.push({
         label: "View employee record",
@@ -200,70 +171,120 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
       });
     }
 
-    // Safety fallback so the menu is never empty even with partial data
-    if (!isReady && menuItems.length === 0) {
+    if (isActive) {
       menuItems.push({
-        label: "View details",
-        onSelect: () =>
-          navigate({
-            to: "/ta/deployments/$deploymentId",
-            params: { deploymentId: String(dep.id) },
-          }),
+        label: "End assignment",
+        tone: "danger",
+        onSelect: () => setEndModalDeployment({ id: dep.id, employeeName }),
       });
     }
 
     return (
-      <div className="flex items-center justify-end gap-1.5 min-w-[170px] ml-auto">
-        {isReady ? (
+      <div className={cn("flex items-center gap-2", fullWidth ? "w-full" : "justify-end")}>
+        {isReady && (
+          <Button variant="outline" size="sm" className={fullWidth ? "flex-1" : undefined} onClick={() => openConfirmStart(dep)}>
+            Confirm start
+          </Button>
+        )}
+        {isActive && (
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              setStatusModalDeployment({ id: dep.id, currentStatus: dep.status });
-              setNewStatus(DeploymentStatus.ACTIVE);
-              const defaultStart =
-                dep.contractStart && dep.contractStart.slice(0, 10) >= getManilaToday()
-                  ? dep.contractStart.slice(0, 10)
-                  : getManilaToday();
-              setActualStart(defaultStart);
-            }}
+            className={fullWidth ? "flex-1" : undefined}
+            onClick={() => setReviewModalDeployment({ id: dep.id, employeeName })}
           >
-            Confirm start
+            Record check-in
           </Button>
-        ) : (
-          <Link
-            to="/ta/deployments/$deploymentId"
-            params={{ deploymentId: String(dep.id) }}
-          >
-            <Button variant="outline" size="sm">
-              View details
-            </Button>
-          </Link>
         )}
-        <ActionMenu
-          label={`Actions for ${employeeName}`}
-          items={menuItems}
-        />
+        <ActionMenu label={`More actions for ${employeeName}`} items={menuItems} />
       </div>
     );
   };
+
+  const renderCheckIn = (dep: DeploymentRow) => {
+    if (dep.status !== DeploymentStatus.ACTIVE) return <span className="text-slate-600">Not applicable</span>;
+    const due = checkInDue(dep.nextReviewAt);
+    return (
+      <span className={cn("text-sm", due.overdue ? "font-semibold text-rose-700" : dep.nextReviewAt ? "text-slate-800" : "text-slate-600")}>
+        {due.label}
+      </span>
+    );
+  };
+
+  const planned = (dep: DeploymentRow) =>
+    `${dep.contractStart ? formatDate(dep.contractStart) : "Open"} to ${dep.contractEnd ? formatDate(dep.contractEnd) : "open"}`;
+  const actual = (dep: DeploymentRow) =>
+    dep.actualStart
+      ? `${formatDate(dep.actualStart)} to ${dep.actualEnd ? formatDate(dep.actualEnd) : dep.status === DeploymentStatus.ACTIVE ? "now" : "open"}`
+      : null;
+
+  const columns: DataTableColumn<DeploymentRow>[] = [
+    {
+      key: "employee",
+      header: "Employee",
+      primary: true,
+      cell: (dep) => employeeNameOf(dep),
+    },
+    {
+      key: "client",
+      header: "Client",
+      cell: (dep) =>
+        dep.client?.id ? (
+          <Link
+            to="/ta/clients/$clientId"
+            params={{ clientId: String(dep.client.id) }}
+            className="focus-ring text-slate-800 underline-offset-2 hover:underline"
+          >
+            {dep.client.name}
+          </Link>
+        ) : (
+          dep.client?.name || "Not recorded"
+        ),
+    },
+    { key: "site", header: "Site", hideBelow: "lg", cell: (dep) => dep.site || "Client site" },
+    {
+      key: "status",
+      header: "Status",
+      cell: (dep) => <StatusBadge status={dep.status} employeeStatus={dep.employee?.status} type="deployment" />,
+    },
+    {
+      key: "dates",
+      header: "Dates",
+      hideBelow: "lg",
+      cell: (dep) => (
+        <div className="space-y-0.5 text-xs text-slate-700">
+          <div>Planned: {planned(dep)}</div>
+          {actual(dep) && <div>Actual: {actual(dep)}</div>}
+        </div>
+      ),
+    },
+    { key: "checkin", header: "Check-in", cell: renderCheckIn },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      className: "whitespace-nowrap",
+      cell: (dep) => renderRowActions(dep, employeeNameOf(dep)),
+    },
+  ];
 
   return (
     <div className="space-y-6">
       {!hideHeader && (
         <PageHeader
-          title="Site deployments"
+          title={TA_COPY.pageTitles.deployments}
           description="Monitor employee assignments, client sites, and contract dates."
           breadcrumbs={[
             { label: TA_COPY.navigation.overview, href: "/ta" },
             { label: TA_COPY.navigation.workforce },
           ]}
+          flush
         />
       )}
 
-      {/* Filters Bar */}
       <SearchFilters
-        searchPlaceholder="Search employee, employee number, client, or site..."
+        searchLabel="Search deployments"
+        searchPlaceholder="Search employee, client, or site"
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
@@ -272,20 +293,20 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
         filters={[
           {
             key: "status",
-            label: "Deployment Status",
+            label: "Status",
             options: [
-              { value: DeploymentStatus.READY_FOR_DEPLOYMENT, label: "Scheduled for Site" },
-              { value: DeploymentStatus.ACTIVE, label: "Active on Site" },
-              { value: DeploymentStatus.ENDED, label: "Assignment Ended" },
-              { value: "ENDED_REDEPLOYMENT", label: "Ended • Ready for Next Job" },
-              { value: "ENDED_SEPARATED", label: "Ended • Left Agency" },
-              { value: DeploymentStatus.CANCELLED, label: "Did Not Start" },
+              { value: DeploymentStatus.READY_FOR_DEPLOYMENT, label: TA_COPY.deployment.readyToStart },
+              { value: DeploymentStatus.ACTIVE, label: TA_COPY.deployment.active },
+              { value: DeploymentStatus.ENDED, label: TA_COPY.deployment.ended },
+              { value: "ENDED_REDEPLOYMENT", label: TA_COPY.deployment.endedWantsAssignment },
+              { value: "ENDED_SEPARATED", label: TA_COPY.deployment.endedLeftAgency },
+              { value: DeploymentStatus.CANCELLED, label: TA_COPY.deployment.cancelled },
             ],
           },
           {
             key: "clientId",
-            label: "Client account",
-            placeholder: "All client accounts",
+            label: "Client",
+            placeholder: "All clients",
             searchable: true,
             options: clients.map((c) => ({
               value: String(c.id),
@@ -296,182 +317,88 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
         ]}
       />
 
-      {/* Deployments Table */}
       {deploymentsQuery.isLoading ? (
         <LoadingState variant="table" rows={6} />
       ) : deploymentsQuery.isError ? (
         <ErrorState error={deploymentsQuery.error} onRetry={() => deploymentsQuery.refetch()} />
-      ) : totalItems === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
-          <EmptyState
-            icon={<Truck className="w-6 h-6" />}
-            title="No site deployments found"
-            description="Employees assigned to client sites will appear here after deployment is activated."
-            action={
-              <Button variant="outline" size="sm" onClick={handleReset}>
-                Reset filters
-              </Button>
-            }
-          />
-        </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="md:hidden divide-y divide-slate-200">
-            {paginatedDeployments.map((dep) => {
-              const profile = dep.employee?.user?.applicantProfile;
-              const employeeName = profile
-                ? `${profile.firstName} ${profile.lastName}`
-                : dep.employee?.employeeNumber || "Employee";
-              return (
-                <article key={dep.id} className="space-y-3 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h4 className="font-semibold text-slate-950 break-words">{employeeName}</h4>
-                      <p className="mt-0.5 text-sm text-slate-600 break-words">{dep.client?.name || "Client not recorded"}</p>
-                    </div>
-                    <StatusBadge status={dep.status} employeeStatus={dep.employee?.status} type="deployment" size="sm" />
+        <DataTable
+          caption="Deployments"
+          columns={columns}
+          rows={paginatedDeployments}
+          getRowId={(dep) => String(dep.id)}
+          rowHref={detailHref}
+          cardsBelow="md"
+          isFetching={deploymentsQuery.isFetching}
+          empty={
+            <EmptyState
+              bare
+              title="No deployments found"
+              description="Employees assigned to client sites will appear here after deployment is activated."
+              action={
+                <Button variant="outline" size="sm" onClick={handleReset}>
+                  Reset filters
+                </Button>
+              }
+            />
+          }
+          renderCard={(dep) => {
+            const employeeName = employeeNameOf(dep);
+            const actualText = actual(dep);
+            return (
+              <article className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link
+                      to="/ta/deployments/$deploymentId"
+                      params={{ deploymentId: String(dep.id) }}
+                      className="focus-ring inline-flex min-h-11 items-center font-semibold text-navy underline-offset-2 hover:underline"
+                    >
+                      {employeeName}
+                    </Link>
+                    <p className="text-sm text-slate-600 break-words">{dep.client?.name || "Client not recorded"}</p>
                   </div>
-                  <dl className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <dt className="text-slate-500 text-xs">Site</dt>
-                      <dd className="mt-0.5 text-slate-800 break-words">{dep.site || "Client site"}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-500 text-xs">Planned</dt>
-                      <dd className="mt-0.5 text-slate-800 text-xs font-mono">
-                        {dep.contractStart ? formatDate(dep.contractStart) : "Open"}
-                        {dep.contractEnd ? ` → ${formatDate(dep.contractEnd)}` : " → Open"}
-                      </dd>
-                    </div>
-                    {dep.actualStart && (
-                      <div>
-                        <dt className="text-slate-500 text-xs">Actual</dt>
-                        <dd className="mt-0.5 text-slate-800 text-xs font-mono">
-                          {formatDate(dep.actualStart)}
-                          {dep.actualEnd ? ` → ${formatDate(dep.actualEnd)}` : dep.status === DeploymentStatus.ACTIVE ? " (Active)" : ""}
-                        </dd>
-                      </div>
-                    )}
-                    {dep.status === DeploymentStatus.ACTIVE && dep.nextReviewAt && (
-                      <div>
-                        <dt className="text-slate-500 text-xs">Next check-in</dt>
-                        <dd className="mt-0.5 text-teal-700 text-xs font-mono font-medium">
-                          {formatDate(dep.nextReviewAt)}
-                        </dd>
-                      </div>
-                    )}
-                  </dl>
-                  <div className="border-t border-slate-200 pt-3">
-                    {renderRowActions(dep, employeeName)}
+                  <StatusBadge status={dep.status} employeeStatus={dep.employee?.status} type="deployment" size="sm" />
+                </div>
+                <dl className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <dt className="text-xs text-slate-600">Site</dt>
+                    <dd className="mt-0.5 break-words text-slate-800">{dep.site || "Client site"}</dd>
                   </div>
-                </article>
-              );
-            })}
-          </div>
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Employee</th>
-                  <th className="px-4 py-3 font-semibold">Client</th>
-                  <th className="px-4 py-3 font-semibold">Site</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Planned / actual dates</th>
-                  <th className="px-4 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paginatedDeployments.map((dep) => {
-                  const emp = dep.employee;
-                  const profile = emp?.user?.applicantProfile;
-                  const empName = profile
-                    ? `${profile.firstName} ${profile.lastName}`
-                    : emp?.employeeNumber || "Employee";
-
-                  return (
-                    <tr key={dep.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-4 py-3">
-                        {emp?.id ? (
-                          <Link
-                            to="/ta/employees/$employeeId"
-                            params={{ employeeId: String(emp.id) }}
-                            className="font-bold text-slate-900 hover:text-teal-700 hover:underline block"
-                          >
-                            {empName}
-                          </Link>
-                        ) : (
-                          <div className="font-bold text-slate-900">{empName}</div>
-                        )}
-                        <div className="text-[11px] text-slate-400 font-mono">
-                          Employee no.: {emp?.employeeNumber || "Not recorded"}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {dep.client?.id ? (
-                          <Link
-                            to="/ta/clients/$clientId"
-                            params={{ clientId: String(dep.client.id) }}
-                            className="font-semibold text-slate-800 hover:text-teal-700 hover:underline block"
-                          >
-                            {dep.client.name}
-                          </Link>
-                        ) : (
-                          <div className="font-semibold text-slate-800">{dep.client?.name}</div>
-                        )}
-                        <div className="text-[11px] text-slate-400 font-mono">
-                          Request #{dep.mrfId || "Direct"}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700 font-medium">
-                        {dep.site || "General Client Site"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={dep.status} employeeStatus={dep.employee?.status} type="deployment" />
-                      </td>
-                      <td className="px-4 py-3 font-mono text-[11px] text-slate-700">
-                        <div className="space-y-0.5">
-                          <div>
-                            <span className="text-slate-400 font-sans mr-1 text-[10px]">Planned:</span>
-                            {dep.contractStart ? formatDate(dep.contractStart) : "Open"}
-                            {dep.contractEnd ? ` → ${formatDate(dep.contractEnd)}` : " → Open"}
-                          </div>
-                          {dep.actualStart && (
-                            <div>
-                              <span className="text-slate-400 font-sans mr-1 text-[10px]">Actual:</span>
-                              {formatDate(dep.actualStart)}
-                              {dep.actualEnd ? ` → ${formatDate(dep.actualEnd)}` : dep.status === DeploymentStatus.ACTIVE ? " (Active)" : ""}
-                            </div>
-                          )}
-                          {dep.status === DeploymentStatus.ACTIVE && dep.nextReviewAt && (
-                            <div className="text-teal-700 font-medium">
-                              <span className="text-slate-400 font-sans mr-1 text-[10px]">Next check-in:</span>
-                              {formatDate(dep.nextReviewAt)}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {renderRowActions(dep, empName)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="p-3 border-t border-slate-200 bg-slate-50">
+                  {dep.status === DeploymentStatus.ACTIVE && (
+                    <div>
+                      <dt className="text-xs text-slate-600">Check-in</dt>
+                      <dd className="mt-0.5">{renderCheckIn(dep)}</dd>
+                    </div>
+                  )}
+                  <div className="col-span-2">
+                    <dt className="text-xs text-slate-600">Dates</dt>
+                    <dd className="mt-0.5 text-slate-800">
+                      Planned: {planned(dep)}
+                      {actualText && <span className="block">Actual: {actualText}</span>}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="border-t border-slate-200 pt-3">{renderRowActions(dep, employeeName, true)}</div>
+              </article>
+            );
+          }}
+          footer={
             <Pagination
+              variant="inset"
               currentPage={page}
               totalPages={totalPages}
               totalItems={totalItems}
               pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
               itemLabel="deployments"
             />
-          </div>
-        </div>
+          }
+        />
       )}
 
       {/* Update Deployment Status Modal */}
@@ -483,8 +410,8 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
       >
         <div className="space-y-4">
           {statusModalDeployment && (
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex items-center justify-between">
-              <span className="text-slate-500 font-medium">Current status</span>
+            <div className="p-3 bg-slate-50 border border-slate-200 text-sm flex items-center justify-between">
+              <span className="text-slate-600 font-medium">Current status</span>
               <StatusBadge status={statusModalDeployment.currentStatus} type="deployment" />
             </div>
           )}
@@ -495,7 +422,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
               value={actualStart}
               min={getManilaToday()}
               onChange={(event) => setActualStart(event.target.value)}
-              helperText="Must be today or a future date."
+              helperText={actualStart ? `${formatDate(actualStart)}. Must be today or a future date.` : "Must be today or a future date."}
               required
             />
           ) : <Select
@@ -544,16 +471,12 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader
         </div>
       </Dialog>
 
-      <Dialog open={Boolean(reviewModalDeployment)} onClose={() => setReviewModalDeployment(null)} title="Record assignment check-in" description={reviewModalDeployment ? `Record a check-in for ${reviewModalDeployment.employeeName} and set the next review date.` : undefined}>
-        <div className="space-y-4">
-          <Input label="Next check-in date" type="date" value={nextReviewAt} min={getManilaToday()} onChange={(event) => setNextReviewAt(event.target.value)} required />
-          <Textarea label="Check-in notes (optional)" value={reviewNotes} onChange={(event) => setReviewNotes(event.target.value)} rows={3} placeholder="Record whether the worker and client expect the assignment to continue." />
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-            <Button variant="outline" size="sm" onClick={() => setReviewModalDeployment(null)}>Cancel</Button>
-            <Button variant="primary" size="sm" disabled={!nextReviewAt} loading={recordReviewMutation.isPending} onClick={() => recordReviewMutation.mutate()}>Save check-in</Button>
-          </div>
-        </div>
-      </Dialog>
+      <RecordCheckInDialog
+        open={Boolean(reviewModalDeployment)}
+        deploymentId={reviewModalDeployment?.id ?? 0}
+        employeeName={reviewModalDeployment?.employeeName ?? ""}
+        onClose={() => setReviewModalDeployment(null)}
+      />
 
       <EndAssignmentDialog
         open={Boolean(endModalDeployment)}

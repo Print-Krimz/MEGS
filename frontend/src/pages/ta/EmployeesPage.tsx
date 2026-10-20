@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { employeesApi } from "../../lib/api/employees.api";
 import {
@@ -10,23 +9,44 @@ import {
   EmptyState,
   Pagination,
   StatusBadge,
+  DataTable,
+  DataTableColumn,
 } from "../../components/common";
+import { Link } from "@tanstack/react-router";
 import { Button } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { EmploymentStatus } from "../../lib/types/enums";
 import { TA_COPY } from "../../lib/ta-copy";
-import {
-  Users,
-  FileCheck2,
-} from "lucide-react";
+import { employmentStatusLabel } from "../../lib/labels";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
+import type { Employee } from "../../lib/types/employee.types";
+
+const employeeName = (emp: Employee) => {
+  const p = emp.user?.applicantProfile;
+  return p ? `${p.firstName} ${p.lastName}` : emp.employeeNumber;
+};
+
+/** Current client and site, from the open deployment the list payload carries. */
+const currentAssignment = (emp: Employee): string | null => {
+  const dep = emp.deployments?.[0];
+  if (!dep) return null;
+  return [dep.client?.name, dep.site].filter(Boolean).join(" · ") || null;
+};
+
+/** A badge only for exceptions. Active employees read as plain text. */
+const StatusCell: React.FC<{ emp: Employee }> = ({ emp }) =>
+  emp.status === EmploymentStatus.ACTIVE ? (
+    <span className="text-sm text-slate-700">{employmentStatusLabel(emp.status)}</span>
+  ) : (
+    <StatusBadge status={emp.status} type="employment" size="sm" />
+  );
 
 export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
 
   const employeesQuery = useQuery({
@@ -66,23 +86,56 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
     setPage(1);
   };
 
+  const columns: DataTableColumn<Employee>[] = [
+    {
+      key: "employee",
+      header: "Employee",
+      primary: true,
+      cell: (emp) => employeeName(emp),
+    },
+    {
+      key: "employeeNumber",
+      header: "Employee number",
+      hideBelow: "lg",
+      cell: (emp) => <span className="font-mono text-xs tabular-nums text-slate-700">{emp.employeeNumber}</span>,
+    },
+    {
+      key: "position",
+      header: "Position and department",
+      hideBelow: "lg",
+      cell: (emp) => (
+        <div>
+          <div className="text-slate-800">{emp.position || "General staff"}</div>
+          <div className="text-xs text-slate-600">{emp.department || "Operations"}</div>
+        </div>
+      ),
+    },
+    {
+      key: "assignment",
+      header: "Current client and site",
+      cell: (emp) => currentAssignment(emp) ?? <span className="text-slate-600">Not on assignment</span>,
+    },
+    { key: "status", header: "Status", cell: (emp) => <StatusCell emp={emp} /> },
+    { key: "hireDate", header: "Hire date", cell: (emp) => <span className="text-slate-700">{formatDate(emp.hireDate)}</span> },
+  ];
+
   return (
     <div className="space-y-6">
       {!hideHeader && (
         <PageHeader
-          title="Employee records (201)"
+          title={TA_COPY.pageTitles.employeeRecords}
           description="View active employees, redeployment availability, and personnel history."
           breadcrumbs={[
             { label: TA_COPY.navigation.overview, href: "/ta" },
             { label: TA_COPY.navigation.workforce },
           ]}
+          flush
         />
       )}
 
-      {/* Filter Bar */}
       <SearchFilters
         searchLabel="Search employee records"
-        searchPlaceholder="Search employee name, number, or department..."
+        searchPlaceholder="Search name, number, or department"
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
@@ -91,7 +144,7 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
         filters={[
           {
             key: "status",
-            label: "Employment Status",
+            label: "Status",
             options: [
               { value: EmploymentStatus.ACTIVE, label: "Active" },
               {
@@ -105,137 +158,76 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
         ]}
       />
 
-      {/* Employees Table */}
       {employeesQuery.isLoading ? (
         <LoadingState variant="table" rows={6} />
       ) : employeesQuery.isError ? (
         <ErrorState error={employeesQuery.error} onRetry={() => employeesQuery.refetch()} />
-      ) : allEmployees.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
-          <EmptyState
-            icon={<Users className="w-6 h-6" />}
-            title="No employee records found"
-            description="Employee records will appear here after candidates are hired through the recruitment process."
-            action={
-              <Button variant="outline" size="sm" onClick={handleReset}>
-                Reset filters
-              </Button>
-            }
-          />
-        </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="md:hidden divide-y divide-slate-200">
-            {paginatedEmployees.map((emp) => {
-              const profile = emp.user?.applicantProfile;
-              const employeeName = profile ? `${profile.firstName} ${profile.lastName}` : emp.employeeNumber;
-              return (
-                <article key={emp.id} className="space-y-3 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h4 className="font-semibold text-slate-950 break-words">{employeeName}</h4>
-                      <p className="mt-0.5 text-sm text-slate-600 break-words">{emp.position || "General staff"}</p>
-                    </div>
-                    <StatusBadge status={emp.status} type="employment" size="sm" />
+        <DataTable
+          caption="Employee records"
+          columns={columns}
+          rows={paginatedEmployees}
+          getRowId={(emp) => String(emp.id)}
+          rowHref={(emp) => `/ta/employees/${emp.id}`}
+          isFetching={employeesQuery.isFetching}
+          empty={
+            <EmptyState
+              bare
+              title="No employee records found"
+              description="Employee records will appear here after candidates are hired through the recruitment process."
+              action={
+                <Button variant="outline" size="sm" onClick={handleReset}>
+                  Reset filters
+                </Button>
+              }
+            />
+          }
+          renderCard={(emp) => {
+            const assignment = currentAssignment(emp);
+            return (
+              <article className="space-y-2 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link
+                      to="/ta/employees/$employeeId"
+                      params={{ employeeId: String(emp.id) }}
+                      className="focus-ring inline-flex min-h-11 items-center font-semibold text-navy underline-offset-2 hover:underline"
+                    >
+                      {employeeName(emp)}
+                    </Link>
+                    <p className="text-sm text-slate-600 break-words">{emp.position || "General staff"}</p>
                   </div>
-                  <dl className="grid grid-cols-2 gap-3 text-sm">
-                    <div><dt className="text-slate-500">Employee number</dt><dd className="mt-0.5 text-slate-800">{emp.employeeNumber}</dd></div>
-                    <div><dt className="text-slate-500">Hire date</dt><dd className="mt-0.5 text-slate-800">{formatDate(emp.hireDate)}</dd></div>
-                  </dl>
-                  <Link
-                    to="/ta/employees/$employeeId"
-                    params={{ employeeId: String(emp.id) }}
-                    className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-[#0B315D] px-3 text-sm font-medium text-white hover:bg-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2"
-                  >
-                    View employee record
-                  </Link>
-                </article>
-              );
-            })}
-          </div>
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Employee number</th>
-                  <th className="px-4 py-3 font-semibold">Employee</th>
-                  <th className="px-4 py-3 font-semibold">Position & department</th>
-                  <th className="px-4 py-3 font-semibold">Hire date</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paginatedEmployees.map((emp) => {
-                  const p = emp.user?.applicantProfile;
-                  const empName = p
-                    ? `${p.firstName} ${p.lastName}`
-                    : emp.employeeNumber;
-
-                  return (
-                    <tr key={emp.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-4 py-3 font-mono font-bold text-slate-900">
-                        {emp.employeeNumber}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          to="/ta/employees/$employeeId"
-                          params={{ employeeId: String(emp.id) }}
-                          className="font-bold text-slate-900 hover:text-teal-700 hover:underline block"
-                        >
-                          {empName}
-                        </Link>
-                        <div className="text-[11px] text-slate-400 font-mono">
-                          {emp.user?.email || "No email on record"}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-slate-800">
-                          {emp.position || "General Staff"}
-                        </div>
-                        <div className="text-[11px] text-slate-500 font-mono">
-                          {emp.department || "Operations"}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-slate-600">
-                        {formatDate(emp.hireDate)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={emp.status} type="employment" size="sm" />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Link
-                          to="/ta/employees/$employeeId"
-                          params={{ employeeId: String(emp.id) }}
-                        >
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            leftIcon={<FileCheck2 className="w-3.5 h-3.5 text-teal-600" />}
-                          >
-                            View employee record
-                          </Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="p-3 border-t border-slate-200 bg-slate-50">
+                  {emp.status !== EmploymentStatus.ACTIVE && <StatusBadge status={emp.status} type="employment" size="sm" />}
+                </div>
+                <dl className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <dt className="text-xs text-slate-600">Current client and site</dt>
+                    <dd className="mt-0.5 break-words text-slate-800">{assignment ?? "Not on assignment"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-600">Hire date</dt>
+                    <dd className="mt-0.5 text-slate-800">{formatDate(emp.hireDate)}</dd>
+                  </div>
+                </dl>
+              </article>
+            );
+          }}
+          footer={
             <Pagination
+              variant="inset"
               currentPage={page}
               totalPages={totalPages}
               totalItems={allEmployees.length}
               pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
               itemLabel="employees"
             />
-          </div>
-        </div>
+          }
+        />
       )}
     </div>
   );

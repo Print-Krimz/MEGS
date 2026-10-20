@@ -1,8 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { LoadingState, ErrorState, EmptyState, Pagination } from "../../components/common";
+import {
+  LoadingState,
+  ErrorState,
+  EmptyState,
+  Pagination,
+  DataTable,
+  DataTableColumn,
+  FilterTile,
+  FilterTileRow,
+  SearchFilters,
+} from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
+import { TA_COPY } from "../../lib/ta-copy";
+import { applicationStatusLabel } from "../../lib/labels";
 import {
   employeesApi,
   type RedeploymentJobSuggestion,
@@ -10,7 +22,7 @@ import {
   type RedeploymentStage,
 } from "../../lib/api/employees.api";
 import { taApi } from "../../lib/api/ta.api";
-import { formatDate, getApplicationStatusMeta } from "../../lib/utils";
+import { cn, formatDate } from "../../lib/utils";
 import { notify } from "../../lib/feedback";
 import { REFERENCE_QUERY_STALE_TIME_MS, SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -29,10 +41,23 @@ const PAGE_SIZE = 10;
 const daysSince = (value: string | null) =>
   value ? Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000)) : null;
 
+const StageChip: React.FC<{ stage: RedeploymentStage }> = ({ stage }) => {
+  const label = STAGES.find((item) => item.id === stage)?.label ?? stage;
+  const tone =
+    stage === "NEEDS_PLACEMENT"
+      ? "border-amber-300 bg-amber-50 text-amber-900"
+      : stage === "WAITING_FOR_REPLY"
+        ? "border-blue-200 bg-blue-50 text-blue-800"
+        : "border-slate-300 bg-slate-100 text-slate-700";
+  return (
+    <span className={cn("inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-xs font-medium", tone)}>{label}</span>
+  );
+};
+
 const WaitingCell: React.FC<{ since: string | null }> = ({ since }) => {
   const days = daysSince(since);
   if (since === null || days === null) {
-    return <span className="text-slate-400" title="No end date on the previous placement">—</span>;
+    return <span className="text-slate-600" title="No end date on the previous placement">Not recorded</span>;
   }
   const tone =
     days >= LONG_WAIT_DAYS
@@ -43,12 +68,12 @@ const WaitingCell: React.FC<{ since: string | null }> = ({ since }) => {
   return (
     <div>
       <span
-        className={`inline-flex rounded px-1.5 py-0.5 font-semibold ${tone}`}
+        className={`inline-flex rounded-md px-1.5 py-0.5 font-semibold ${tone}`}
         title={days >= WARN_WAIT_DAYS ? `Waiting ${days} days. Prioritise this worker.` : undefined}
       >
         {days === 0 ? "Today" : `${days} day${days === 1 ? "" : "s"}`}
       </span>
-      <div className="mt-1 text-slate-500">Since {formatDate(since)}</div>
+      <div className="mt-1 text-slate-600">Since {formatDate(since)}</div>
     </div>
   );
 };
@@ -77,34 +102,34 @@ const SuggestedJobs: React.FC<{
   onRetry: () => void;
   onPick: (jobId?: number) => void;
 }> = ({ data, loading, failed, onRetry, onPick }) => {
-  if (loading) return <span className="text-slate-400">Finding matching jobs…</span>;
+  if (loading) return <span className="text-slate-600">Finding matching jobs…</span>;
   if (failed) {
     return (
-      <span className="text-slate-500">
+      <span className="text-slate-600">
         Could not load suggestions.{" "}
-        <button type="button" onClick={onRetry} className="font-medium text-teal-700 hover:underline">
+        <button type="button" onClick={onRetry} className="focus-ring inline-flex min-h-11 items-center font-medium text-navy hover:underline md:min-h-0">
           Retry
         </button>
       </span>
     );
   }
-  if (!data || data.total === 0) return <span className="text-slate-500">No matching open jobs</span>;
+  if (!data || data.total === 0) return <span className="text-slate-600">No matching open jobs</span>;
   const top = data.suggestions[0];
   return (
     <div className="space-y-1">
       <button
         type="button"
         onClick={() => onPick()}
-        className="font-semibold text-teal-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+        className="focus-ring inline-flex min-h-11 items-center text-left font-semibold text-navy hover:underline md:min-h-0"
       >
-        {data.total} job{data.total === 1 ? "" : "s"} fit · View matches
+        {data.total} {data.total === 1 ? "job fits" : "jobs fit"} · View matches
       </button>
       {top && (
         <button
           type="button"
           onClick={() => onPick(top.jobId)}
-          title={`Assign to ${top.title}: ${suggestionReason(top)}`}
-          className="block max-w-[16rem] truncate text-left text-slate-600 hover:text-slate-900 hover:underline"
+          title={`Invite to ${top.title}: ${suggestionReason(top)}`}
+          className="focus-ring block max-w-[16rem] truncate text-left text-slate-700 hover:text-slate-950 hover:underline"
         >
           Top: {top.title} · {suggestionTag(top)}
         </button>
@@ -182,13 +207,13 @@ export const RedeploymentQueuePage: React.FC = () => {
       setMessageEdited(false);
       setConfirmOpen(false);
       notify.success(
-        "Assignment sent",
+        "Invitation sent",
         "The worker can review and accept the open role from their portal."
       );
     },
     onError: (error: any) => {
       setConfirmOpen(false);
-      notify.error("Assignment failed", error?.message || error);
+      notify.error("Invitation failed", error?.message || error);
     },
   });
 
@@ -273,177 +298,190 @@ export const RedeploymentQueuePage: React.FC = () => {
 
   const counts: Record<RedeploymentStage, number> = query.data?.summary.stages ?? { NEEDS_PLACEMENT: 0, WAITING_FOR_REPLY: 0, IN_PROGRESS: 0 };
 
+  const findJobButton = (row: Row, fullWidth = false) =>
+    row.stage === "IN_PROGRESS" ? null : (
+      <Button
+        variant={row.stage === "NEEDS_PLACEMENT" ? "primary" : "outline"}
+        size="sm"
+        className={fullWidth ? "w-full" : undefined}
+        onClick={() => openAssignment(row)}
+      >
+        {TA_COPY.workforce.actions.findJob}
+        <span className="sr-only"> for {row.name}</span>
+      </Button>
+    );
+
+  const previousPlacement = (row: Row) =>
+    row.previousClient || row.previousRole ? (
+      <>
+        <span className="font-medium text-slate-900">{row.previousClient || "—"}</span>
+        <div className="mt-0.5 text-slate-600">{row.previousRole || "—"}</div>
+      </>
+    ) : (
+      <span className="text-slate-600" title="No previous placement on record">None on record</span>
+    );
+
+  const nextStep = (row: Row) => (
+    <div className="space-y-1">
+      <div className="font-medium text-slate-900">{row.nextAction}</div>
+      {row.pendingInvitation && <div className="text-slate-600">Invited to {row.pendingInvitation.title}</div>}
+      {row.applications.length > 0 && (
+        <div>
+          <span className="text-slate-600">Previous applications</span>
+          {row.applications.map((application) => (
+            <Link
+              key={application.id}
+              className="focus-ring block text-navy underline-offset-2 hover:underline"
+              to="/ta/applications/$applicationId"
+              params={{ applicationId: String(application.id) }}
+            >
+              {application.client || application.title} · {applicationStatusLabel(application.status)}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const suggestedJobs = (row: Row) =>
+    row.stage === "IN_PROGRESS" ? (
+      <span className="text-slate-600">Already applying</span>
+    ) : (
+      <SuggestedJobs
+        data={suggestionsQuery.data?.items[row.id]}
+        loading={suggestionsQuery.isPending}
+        failed={suggestionsQuery.isError}
+        onRetry={() => suggestionsQuery.refetch()}
+        onPick={(jobId) => openAssignment(row, jobId)}
+      />
+    );
+
+  const columns: DataTableColumn<Row>[] = [
+    { key: "employee", header: "Employee", primary: true, cell: (row) => row.name },
+    {
+      key: "employeeNumber",
+      header: "Employee number",
+      hideBelow: "lg",
+      cell: (row) => <span className="font-mono text-xs text-slate-700">{row.employeeNumber}</span>,
+    },
+    { key: "stage", header: "Stage", cell: (row) => <StageChip stage={row.stage} /> },
+    { key: "previous", header: "Previous placement", cell: previousPlacement },
+    { key: "waiting", header: "Waiting", cell: (row) => <WaitingCell since={row.waitingSince} /> },
+    { key: "jobs", header: "Suggested jobs", cell: suggestedJobs },
+    { key: "next", header: "Next step", cell: nextStep },
+    { key: "action", header: "Action", align: "right", className: "whitespace-nowrap", cell: (row) => findJobButton(row) },
+  ];
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label="Filter by redeployment stage">
+      <FilterTileRow columns={3}>
         {STAGES.map((stage) => {
           const active = stageFilter === stage.id;
-          const urgent = stage.id === "NEEDS_PLACEMENT" && counts[stage.id] > 0;
           return (
-            <button
+            <FilterTile
               key={stage.id}
-              type="button"
-              aria-pressed={active}
+              label={stage.label}
+              value={counts[stage.id]}
+              hint={active ? "Showing only this group. Select again to clear." : stage.hint}
+              tone={stage.id === "NEEDS_PLACEMENT" && counts[stage.id] > 0 ? "warning" : "neutral"}
+              selected={active}
+              ariaLabel={`${stage.label}: ${counts[stage.id]}`}
               onClick={() => {
                 setStageFilter(active ? null : stage.id);
                 setPage(1);
               }}
-              className={`rounded-lg border p-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
-                active
-                  ? "border-teal-700 bg-teal-50"
-                  : urgent
-                    ? "border-amber-300 bg-amber-50 hover:bg-amber-100"
-                    : "border-slate-200 bg-white hover:bg-slate-50"
-              }`}
-            >
-              <div className={`text-2xl font-bold ${urgent && !active ? "text-amber-800" : "text-slate-900"}`}>
-                {counts[stage.id]}
-              </div>
-              <div className="text-sm font-semibold text-slate-800">{stage.label}</div>
-              <div className="text-xs text-slate-500">
-                {active ? "Showing only this group. Click to clear." : stage.hint}
-              </div>
-            </button>
+            />
           );
         })}
-      </div>
-      <Input
-        label="Search redeployment queue"
-        placeholder="Employee, previous client, or role"
-        value={search}
-        onChange={(event) => {
-          setSearch(event.target.value);
+      </FilterTileRow>
+      <SearchFilters
+        searchLabel="Search redeployment queue"
+        searchPlaceholder="Search employee, previous client, or role"
+        searchValue={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
+        onReset={() => {
+          setSearch("");
+          setStageFilter(null);
           setPage(1);
         }}
       />
-      {!pageItems.length ? (
-        <EmptyState
-          title={stageFilter || search ? "No workers match this view" : "No workers waiting for redeployment"}
-          description={
-            stageFilter || search
-              ? "Clear the search or the selected group to see everyone in the queue."
-              : "Workers who confirm they want another assignment will appear here after their previous placement ends."
-          }
-        />
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-slate-200 bg-slate-50 font-mono text-[10px] uppercase text-slate-500">
-              <tr>
-                {["Employee", "Previous placement", "Waiting", "Suggested jobs", "Next action", "Actions"].map(
-                  (label) => (
-                    <th key={label} scope="col" className="p-3 font-semibold">
-                      {label}
-                    </th>
-                  )
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-900">
-              {pageItems.map((row, index) => (
-                <React.Fragment key={row.id}>
-                {pageItems[index - 1]?.stage !== row.stage && (
-                  <tr className="bg-slate-50">
-                    <th colSpan={6} scope="colgroup" className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-600">
-                      {STAGES.find((stage) => stage.id === row.stage)?.label} · {counts[row.stage]}
-                    </th>
-                  </tr>
-                )}
-                <tr>
-                  <td className="p-3">
-                    <Link
-                      className="font-bold text-slate-900 hover:underline"
-                      to="/ta/employees/$employeeId"
-                      params={{ employeeId: String(row.id) }}
-                    >
-                      {row.name}
-                    </Link>
-                    <div className="mt-1 font-mono text-[11px] text-slate-400">{row.employeeNumber}</div>
-                  </td>
-                  <td className="p-3">
-                    {row.previousClient || row.previousRole ? (
-                      <>
-                        <span className="font-semibold">{row.previousClient || "—"}</span>
-                        <div className="mt-1 text-slate-500">{row.previousRole || "—"}</div>
-                      </>
-                    ) : (
-                      <span className="text-slate-400" title="No previous placement on record">—</span>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <WaitingCell since={row.waitingSince} />
-                  </td>
-                  <td className="p-3">
-                    {row.stage === "IN_PROGRESS" ? (
-                      <span className="text-slate-400">Already applying</span>
-                    ) : (
-                      <SuggestedJobs
-                        data={suggestionsQuery.data?.items[row.id]}
-                        loading={suggestionsQuery.isPending}
-                        failed={suggestionsQuery.isError}
-                        onRetry={() => suggestionsQuery.refetch()}
-                        onPick={(jobId) => openAssignment(row, jobId)}
-                      />
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <div className="font-medium">{row.nextAction}</div>
-                    {row.pendingInvitation && (
-                      <div className="mt-1 text-slate-500">Invited to {row.pendingInvitation.title}</div>
-                    )}
-                    {row.applications.map((application) => (
-                      <Link
-                        key={application.id}
-                        className="mt-1 block text-teal-700 hover:underline"
-                        to="/ta/applications/$applicationId"
-                        params={{ applicationId: String(application.id) }}
-                      >
-                        {application.client || application.title} ·{" "}
-                        {getApplicationStatusMeta(application.status).label}
-                      </Link>
-                    ))}
-                  </td>
-                  <td className="p-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {row.stage !== "IN_PROGRESS" && (
-                        <Button
-                          variant={row.stage === "NEEDS_PLACEMENT" ? "primary" : "outline"}
-                          size="sm"
-                          onClick={() => openAssignment(row)}
-                        >
-                          Assign to Open Role
-                        </Button>
-                      )}
-                      <Link
-                        className="text-xs text-slate-500 hover:text-slate-800 hover:underline"
-                        to="/ta/employees/$employeeId"
-                        params={{ employeeId: String(row.id) }}
-                      >
-                        View 201
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {totalItems > PAGE_SIZE && (
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          onPageChange={setPage}
-          totalItems={totalItems}
-          pageSize={PAGE_SIZE}
-        />
-      )}
+      <DataTable
+        caption="Redeployment queue"
+        columns={columns}
+        rows={pageItems}
+        getRowId={(row) => String(row.id)}
+        rowHref={(row) => `/ta/employees/${row.id}`}
+        cardsBelow="lg"
+        isFetching={query.isFetching}
+        empty={
+          <EmptyState
+            bare
+            title={stageFilter || search ? "No workers match this view" : "No workers waiting for redeployment"}
+            description={
+              stageFilter || search
+                ? "Clear the search or the selected group to see everyone in the queue."
+                : "Workers who confirm they want another assignment will appear here after their previous placement ends."
+            }
+          />
+        }
+        renderCard={(row) => (
+          <article className="space-y-3 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <Link
+                  className="focus-ring inline-flex min-h-11 items-center font-semibold text-navy underline-offset-2 hover:underline"
+                  to="/ta/employees/$employeeId"
+                  params={{ employeeId: String(row.id) }}
+                >
+                  {row.name}
+                </Link>
+                <p className="font-mono text-xs text-slate-600">{row.employeeNumber}</p>
+              </div>
+              <StageChip stage={row.stage} />
+            </div>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <dt className="text-xs text-slate-600">Previous placement</dt>
+                <dd className="mt-0.5">{previousPlacement(row)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-600">Waiting</dt>
+                <dd className="mt-0.5"><WaitingCell since={row.waitingSince} /></dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-xs text-slate-600">Suggested jobs</dt>
+                <dd className="mt-0.5">{suggestedJobs(row)}</dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-xs text-slate-600">Next step</dt>
+                <dd className="mt-0.5">{nextStep(row)}</dd>
+              </div>
+            </dl>
+            {findJobButton(row, true)}
+          </article>
+        )}
+        footer={
+          totalItems > PAGE_SIZE ? (
+            <Pagination
+              variant="inset"
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              totalItems={totalItems}
+              pageSize={PAGE_SIZE}
+              itemLabel="workers"
+            />
+          ) : undefined
+        }
+      />
       <Dialog
         open={Boolean(assignmentTarget)}
         onClose={closeAssignment}
-        title="Assign to open role"
-        description={`Choose an open job to invite ${assignmentTarget?.name} to.`}
+        title={TA_COPY.workforce.actions.findJob}
+        description={`Choose an open job to invite ${assignmentTarget?.name} to. They accept it from their applicant account.`}
         size="xl"
       >
         <div className="space-y-4">
@@ -490,8 +528,8 @@ export const RedeploymentQueuePage: React.FC = () => {
                       role="tab"
                       aria-selected={effectiveView === tab.id}
                       onClick={() => setJobView(tab.id)}
-                      className={`rounded px-2.5 py-1 font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
-                        effectiveView === tab.id ? "bg-teal-700 text-white" : "text-slate-600 hover:bg-slate-100"
+                      className={`rounded px-2.5 py-1 font-medium focus-ring ${
+                        effectiveView === tab.id ? "bg-navy text-white" : "text-slate-700 hover:bg-navy-soft"
                       }`}
                     >
                       {tab.label}
@@ -509,18 +547,18 @@ export const RedeploymentQueuePage: React.FC = () => {
               </div>
             )}
             {openJobsQuery.isLoading ? (
-              <p className="text-xs text-slate-500">Loading open jobs…</p>
+              <p className="text-xs text-slate-600">Loading open jobs…</p>
             ) : openJobsQuery.isError ? (
               <p className="text-xs text-rose-700">Failed to load open jobs. Please try again.</p>
             ) : effectiveView === "suggested" && suggestedCards.length === 0 ? (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-600">
                 No suggested jobs for this worker.{" "}
-                <button type="button" onClick={() => setJobView("all")} className="font-medium text-teal-700 hover:underline">
+                <button type="button" onClick={() => setJobView("all")} className="font-medium text-navy hover:underline">
                   Browse all open jobs
                 </button>
               </p>
             ) : clientCards.length === 0 ? (
-              <p className="text-xs text-slate-500">No open jobs match your search or filter.</p>
+              <p className="text-xs text-slate-600">No open jobs match your search or filter.</p>
             ) : (
               <div className="max-h-72 space-y-3 overflow-y-auto rounded-md border border-slate-200 p-2 lg:max-h-[30rem]" role="radiogroup" aria-label="Open jobs">
                 {[
@@ -530,7 +568,7 @@ export const RedeploymentQueuePage: React.FC = () => {
                   cards.length === 0 ? null : (
                     <div key={heading || "all"} className="space-y-1.5">
                       {heading && (
-                        <div className="px-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">{heading}</div>
+                        <div className="px-1 text-xs font-bold uppercase tracking-wide text-slate-600">{heading}</div>
                       )}
                       {cards.map(({ job, suggestion, sameClient }) => {
                         const selected = String(job.id) === targetJobId;
@@ -541,9 +579,9 @@ export const RedeploymentQueuePage: React.FC = () => {
                             role="radio"
                             aria-checked={selected}
                             onClick={() => setTargetJobId(String(job.id))}
-                            className={`block w-full rounded-md border p-2.5 text-left text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
+                            className={`block w-full rounded-md border p-2.5 text-left text-xs transition-colors focus-ring ${
                               selected
-                                ? "border-teal-700 bg-teal-50"
+                                ? "border-navy bg-navy-soft"
                                 : sameClient
                                   ? "border-amber-300 bg-amber-50/60 hover:bg-amber-50"
                                   : "border-slate-200 bg-white hover:bg-slate-50"
@@ -553,7 +591,7 @@ export const RedeploymentQueuePage: React.FC = () => {
                               <span className="font-semibold text-slate-900">{job.title}</span>
                               {(sameClient || suggestion) && (
                                 <span
-                                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+                                  className={`shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold ${
                                     sameClient ? "border-amber-300 bg-amber-100 text-amber-900" : "border-slate-200 bg-slate-50 text-slate-700"
                                   }`}
                                 >
@@ -561,7 +599,7 @@ export const RedeploymentQueuePage: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                            <div className="mt-0.5 text-slate-500">
+                            <div className="mt-0.5 text-slate-600">
                               {job.mrf?.client?.name || "General Client"} · {job.location || "On-site"}
                             </div>
                             {(sameClient || suggestion) && (
@@ -581,7 +619,7 @@ export const RedeploymentQueuePage: React.FC = () => {
 
           <div className="space-y-4">
           {!selectedJob && (
-            <p className="rounded-md border border-dashed border-slate-300 p-3 text-xs text-slate-500">
+            <p className="rounded-md border border-dashed border-slate-300 p-3 text-xs text-slate-600">
               Pick a job to see its details and what happens to the worker's documents.
             </p>
           )}
@@ -643,19 +681,19 @@ export const RedeploymentQueuePage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setMessageEdited(false)}
-                className="text-xs font-medium text-teal-700 hover:underline"
+                className="text-xs font-medium text-navy hover:underline"
               >
                 Reset to template
               </button>
             )}
           </div>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-xs text-slate-600">
             The worker gets this invitation in their portal and can accept or decline it.
           </p>
           </div>
           </div>
           <div className="flex items-center justify-end gap-3">
-            {!targetJobId && <span className="text-[11px] text-slate-500">Pick a job first</span>}
+            {!targetJobId && <span className="text-xs text-slate-600">Pick a job first</span>}
             <Button variant="outline" onClick={closeAssignment}>
               Cancel
             </Button>
@@ -664,7 +702,7 @@ export const RedeploymentQueuePage: React.FC = () => {
               disabled={!targetJobId || !assignmentTarget?.applicantProfileId}
               onClick={() => setConfirmOpen(true)}
             >
-              Send opportunity
+              {TA_COPY.workforce.actions.sendInvitation}
             </Button>
           </div>
         </div>
@@ -672,7 +710,7 @@ export const RedeploymentQueuePage: React.FC = () => {
       <Dialog
         open={confirmOpen && Boolean(selectedJob)}
         onClose={() => setConfirmOpen(false)}
-        title="Send this opportunity?"
+        title="Send this invitation?"
         description={`${selectedJob?.title ?? "This job"}${selectedJob?.mrf?.client?.name ? ` (${selectedJob.mrf.client.name})` : ""} will be sent to ${assignmentTarget?.name}.`}
       >
         <div className="flex justify-end gap-2">
@@ -680,7 +718,7 @@ export const RedeploymentQueuePage: React.FC = () => {
             Back
           </Button>
           <Button variant="primary" loading={assignRole.isPending} onClick={() => assignRole.mutate()}>
-            Send opportunity
+            {TA_COPY.workforce.actions.sendInvitation}
           </Button>
         </div>
       </Dialog>
