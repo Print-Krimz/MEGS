@@ -12,7 +12,7 @@ const H = 150;
 const PAD = { top: 14, right: 8, bottom: 26, left: 28 };
 
 const SERIES = {
-  newStarts: { label: "New starts", fill: "#0d9488", swatch: "bg-teal-600" },
+  newStarts: { label: "New starts", fill: "#0B315D", swatch: "bg-navy" },
   redeployStarts: { label: "Redeployments", fill: "#0284c7", swatch: "bg-sky-600" },
   backouts: { label: "Backed out after client review", fill: "#e11d48", swatch: "bg-rose-600" },
   withdrawals: { label: "Withdrew before client review", fill: "#f59e0b", swatch: "bg-amber-500" },

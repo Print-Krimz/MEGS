@@ -44,7 +44,7 @@ export const InfoTip: React.FC<InfoTipProps> = ({ children, label, align = "left
         onClick={() => setPinned((p) => !p)}
         onFocus={() => setHovered(true)}
         onBlur={() => setHovered(false)}
-        className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-400 text-[11px] font-serif font-bold italic leading-none text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+        className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-400 text-[11px] font-serif font-bold italic leading-none text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
         i
       </button>

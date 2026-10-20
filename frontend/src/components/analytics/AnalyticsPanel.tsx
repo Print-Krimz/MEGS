@@ -24,10 +24,10 @@ export const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ id, title, subti
     <section id={id} className={`scroll-mt-4 border border-slate-300 bg-white ${className}`}>
       <div className="px-3.5 py-2.5 border-b border-slate-300 bg-slate-100 flex items-center justify-between gap-3">
         <div className="min-w-0 flex items-center gap-2">
-          <h2 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">{title}</h2>
+          <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
           {subtitle && <InfoTip label={title}>{subtitle}</InfoTip>}
         </div>
-        {aside && <div className="shrink-0 text-xs font-mono text-slate-600">{aside}</div>}
+        {aside && <div className="shrink-0 text-xs text-slate-600">{aside}</div>}
       </div>
       {children}
     </section>
@@ -41,7 +41,7 @@ interface PeriodTagProps {
 export const PeriodTag: React.FC<PeriodTagProps> = ({ kind }) => (
   <span
     className={`ml-1.5 px-1 py-px whitespace-nowrap text-[11px] font-mono font-medium rounded border align-middle ${
-      kind === "now" ? "bg-slate-100 text-slate-600 border-slate-300" : "bg-teal-50 text-teal-800 border-teal-200"
+      kind === "now" ? "bg-slate-100 text-slate-600 border-slate-300" : "bg-navy-soft text-navy border-navy-line"
     }`}
   >
     {kind === "now" ? "Now" : "In period"}

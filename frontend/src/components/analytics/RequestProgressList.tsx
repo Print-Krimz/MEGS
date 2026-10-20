@@ -26,7 +26,7 @@ export type RequestHealthFilter = "ALL" | "NONE" | "UNOWNED" | RequestRow["healt
 const HEALTH: Record<RequestRow["health"], { label: string; badge: string; bar: string }> = {
   OVERDUE: { label: "Overdue", badge: "bg-rose-50 text-rose-800 border-rose-300", bar: "bg-rose-600" },
   AT_RISK: { label: "At risk", badge: "bg-amber-50 text-amber-800 border-amber-300", bar: "bg-amber-500" },
-  ON_TRACK: { label: "On track", badge: "bg-emerald-50 text-emerald-800 border-emerald-300", bar: "bg-teal-600" },
+  ON_TRACK: { label: "On track", badge: "bg-emerald-50 text-emerald-800 border-emerald-300", bar: "bg-navy" },
   FILLED: { label: "Filled", badge: "bg-slate-100 text-slate-700 border-slate-300", bar: "bg-slate-500" },
 };
 
@@ -47,7 +47,7 @@ const slaText = (row: RequestRow): string => {
   return `Due in ${row.daysRemaining} days`;
 };
 
-const TH = "px-3 py-2 text-left text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap";
+const TH = "px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap";
 
 /** Open client requests, most urgent first, as one row each with a status filter, search and paging. */
 export const RequestProgressList = React.memo(function RequestProgressList({
@@ -126,7 +126,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                   setHealth(f.key);
                   setPage(1);
                 }}
-                className={`min-h-9 px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] ${
+                className={`min-h-9 px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                   health === f.key ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
                 }`}
               >
@@ -135,7 +135,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
             ))}
           </div>
           <label className="flex items-center gap-2 text-xs text-slate-700">
-            <span className="font-mono font-bold uppercase tracking-wider text-[11px] text-slate-500">Search</span>
+            <span className="text-xs font-semibold text-slate-600">Search</span>
             <input
               type="search"
               value={query}
@@ -144,7 +144,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                 setPage(1);
               }}
               placeholder={showOwner ? "Request, client or recruiter" : "Request or client"}
-              className="min-h-9 w-56 border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+              className="min-h-9 w-56 border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             />
           </label>
         </div>
@@ -180,7 +180,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                       <Link
                         to={linkTo}
                         params={{ mrfId: String(row.mrfId) }}
-                        className="block truncate text-sm font-semibold text-[#0B315D] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                        className="block truncate text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {row.title}
                       </Link>
@@ -228,7 +228,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                       {row.backoutsInPeriod > 0 && <span className="block text-rose-700 tabular-nums">{row.backoutsInPeriod} backed out</span>}
                     </td>
                     <td className="px-3 py-2 text-xs font-sans whitespace-nowrap" title={due}>
-                      <span className={`inline-block border px-1.5 py-0.5 text-[11px] font-mono font-bold uppercase ${style.badge}`}>{style.label}</span>
+                      <span className={`inline-block border px-1.5 py-0.5 text-xs font-semibold ${style.badge}`}>{style.label}</span>
                       <span className={`block mt-0.5 tabular-nums ${row.health === "OVERDUE" ? "text-rose-700 font-semibold" : "text-slate-600"}`}>{slaText(row)}</span>
                     </td>
                   </tr>

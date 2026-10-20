@@ -29,7 +29,7 @@ const URGENCY = {
 } as const;
 
 const SELECT =
-  "min-h-9 border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]";
+  "min-h-9 border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 /** Candidates past their stage limit, longest wait first, so a team leader can see who is holding them up. */
 export const StuckList = React.memo(function StuckList({
@@ -91,7 +91,7 @@ export const StuckList = React.memo(function StuckList({
                 type="button"
                 aria-pressed={urgency === key}
                 onClick={() => reset(() => setUrgency(key))}
-                className={`min-h-9 px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] ${
+                className={`min-h-9 px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                   urgency === key ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
                 }`}
               >
@@ -100,7 +100,7 @@ export const StuckList = React.memo(function StuckList({
             ))}
           </div>
           <label className="flex flex-col gap-0.5 text-xs text-slate-700">
-            <span className="font-mono font-bold uppercase tracking-wider text-[11px] text-slate-500">Stage</span>
+            <span className="text-xs font-semibold text-slate-600">Stage</span>
             <select value={stage} onChange={(e) => reset(() => setStage(e.target.value))} className={SELECT}>
               <option value="ALL">All stages</option>
               {stages.map(([key, label]) => (
@@ -112,7 +112,7 @@ export const StuckList = React.memo(function StuckList({
           </label>
           {admin && (
           <label className="flex flex-col gap-0.5 text-xs text-slate-700">
-            <span className="font-mono font-bold uppercase tracking-wider text-[11px] text-slate-500">Recruiter</span>
+            <span className="text-xs font-semibold text-slate-600">Recruiter</span>
             <select value={recruiter} onChange={(e) => reset(() => setRecruiter(e.target.value))} className={SELECT}>
               <option value="ALL">All recruiters</option>
               {recruiters.map(([id, name]) => (
@@ -138,12 +138,12 @@ export const StuckList = React.memo(function StuckList({
               <li key={r.applicationId} className="p-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`px-1.5 py-0.5 text-[11px] font-mono font-bold uppercase border ${style.badge}`}>{style.label}</span>
+                    <span className={`px-1.5 py-0.5 text-xs font-semibold border ${style.badge}`}>{style.label}</span>
                     {admin ? (
                       <Link
                         to="/admin/applications/$applicationId"
                         params={{ applicationId: String(r.applicationId) }}
-                        className="text-sm font-semibold text-[#0B315D] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                        className="text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {r.candidateName}
                       </Link>
@@ -151,7 +151,7 @@ export const StuckList = React.memo(function StuckList({
                       <Link
                         to="/ta/applications/$applicationId"
                         params={{ applicationId: String(r.applicationId) }}
-                        className="text-sm font-semibold text-[#0B315D] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                        className="text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {r.candidateName}
                       </Link>
@@ -166,7 +166,7 @@ export const StuckList = React.memo(function StuckList({
                         <Link
                           to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
                           params={{ mrfId: String(r.mrfId) }}
-                          className="text-[#0B315D] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                          className="text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                         >
                           View request
                         </Link>

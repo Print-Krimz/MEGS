@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { StageTableRow } from "../../lib/types/analytics.types";
 import type { ApplicationStatus } from "../../lib/types/enums";
+import { analyticsStageLabel } from "./stage-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 
 interface StagePipelineProps {
@@ -31,6 +32,9 @@ const CARD: Record<Pressure, string> = {
   bottleneck: "border-rose-400 bg-rose-50",
 };
 
+/** Stage names come from the shared TA glossary so Reports and Overview read the same. */
+const stageLabel = (row: StageTableRow) => analyticsStageLabel(row.stage, row.label);
+
 const limitText = (row: StageTableRow) =>
   row.stage === "DEPLOYED" ? "scheduled start, no limit" : row.stage === "CLIENT_ENDORSEMENT" ? "limit set per client" : `limit ${row.slaDays} days`;
 
@@ -47,7 +51,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
   return (
     <AnalyticsPanel
       id="stage-pipeline"
-      title="Where candidates are"
+      title="Candidates by stage"
       subtitle={`Current counts by stage, in order from application to start. A tinted stage has many candidates past its limit. Entered and backed out cover ${rangeLabel}.${
         hasEstimates ? ' "By age only" counts candidates past the limit with no recorded stage change. Their days run from the application date, so the real wait may be shorter.' : ""
       }`}
@@ -56,7 +60,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
           type="button"
           aria-pressed={details}
           onClick={() => setDetails((d) => !d)}
-          className="min-h-8 px-2 text-[11px] font-sans font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+          className="min-h-11 md:min-h-8 px-2 text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         >
           {details ? "Hide period details" : "Show period details"}
         </button>
@@ -69,11 +73,11 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
           {rows.map((row, index) => {
             const pressure = pressureOf(row);
             const late = row.overdue + row.overdueEstimated;
-            const tooltip = `${row.label}: ${row.inStageNow} in stage, ${row.overdue} overdue${row.overdueEstimated > 0 ? ` and ${row.overdueEstimated} more by age only` : ""}. ${row.entered} entered and ${row.backedOut} backed out in ${rangeLabel}. ${limitText(row)}.`;
+            const tooltip = `${stageLabel(row)}: ${row.inStageNow} in stage, ${row.overdue} overdue${row.overdueEstimated > 0 ? ` and ${row.overdueEstimated} more by age only` : ""}. ${row.entered} entered and ${row.backedOut} backed out in ${rangeLabel}. ${limitText(row)}.`;
             const content = (
               <>
                 <span className="flex items-start justify-between gap-1">
-                  <span className="text-xs font-semibold font-sans text-slate-900 leading-tight">{row.label}</span>
+                  <span className="text-xs font-semibold font-sans text-slate-900 leading-tight">{stageLabel(row)}</span>
                   <span className="text-[11px] font-mono text-slate-500 tabular-nums" aria-hidden="true">
                     {index + 1}
                   </span>
@@ -88,7 +92,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
                 </span>
                 <span className="block text-xs tabular-nums text-slate-600">{row.medianDaysInStage === null ? "No median yet" : `Median ${row.medianDaysInStage} days`}</span>
                 {pressure !== "none" && (
-                  <span className={`mt-1.5 inline-block border px-1.5 py-px text-[11px] font-mono font-bold uppercase ${pressure === "bottleneck" ? "border-rose-400 text-rose-800" : "border-amber-400 text-amber-900"}`}>
+                  <span className={`mt-1.5 inline-block border px-1.5 py-px text-xs font-semibold ${pressure === "bottleneck" ? "border-rose-400 text-rose-800" : "border-amber-400 text-amber-900"}`}>
                     {pressure === "bottleneck" ? "Bottleneck" : "Watch"}
                   </span>
                 )}
@@ -107,7 +111,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
                   <Link
                     to="/ta/applications"
                     search={{ stage: row.stage as ApplicationStatus }}
-                    className={`block h-full w-full border p-2.5 text-left hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] ${CARD[pressure]}`}
+                    className={`block h-full w-full border p-2.5 text-left hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${CARD[pressure]}`}
                   >
                     {content}
                   </Link>
@@ -115,7 +119,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
                   <button
                     type="button"
                     onClick={() => onSelectStage(row.stage)}
-                    className={`flex h-full w-full flex-col items-stretch justify-start border p-2.5 text-left hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] ${CARD[pressure]}`}
+                    className={`flex h-full w-full flex-col items-stretch justify-start border p-2.5 text-left hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${CARD[pressure]}`}
                   >
                     {content}
                   </button>

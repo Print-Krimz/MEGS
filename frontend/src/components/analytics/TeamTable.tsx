@@ -16,7 +16,7 @@ interface TeamTableProps {
   initialQuery?: string;
 }
 
-const TH = "px-3 py-2 text-right text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap";
+const TH = "px-3 py-2 text-right text-xs font-semibold text-slate-600 whitespace-nowrap";
 
 export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selectedRecruiterId, onSelectRecruiter, pageSize = 10, bare = false, initialQuery = "" }: TeamTableProps) {
   const [query, setQuery] = useState(initialQuery);
@@ -44,7 +44,7 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 px-3.5 py-2.5">
         <label className="flex items-center gap-2 text-xs text-slate-700">
-          <span className="font-mono font-bold uppercase tracking-wider text-[11px] text-slate-500">Search</span>
+          <span className="text-xs font-semibold text-slate-600">Search</span>
           <input
             type="search"
             value={query}
@@ -53,7 +53,7 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
               setPage(1);
             }}
             placeholder="Recruiter name"
-            className="min-h-9 w-52 border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+            className="min-h-9 w-52 border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           />
         </label>
       </div>
@@ -67,7 +67,7 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
           <table className="w-full min-w-[56rem] text-sm">
             <thead>
               <tr className="border-b border-slate-200">
-                <th scope="col" className="px-3 py-2 text-left text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 min-w-40">
+                <th scope="col" className="px-3 py-2 text-left text-xs font-semibold text-slate-600 min-w-40">
                   Recruiter
                 </th>
                 <th scope="col" className={TH}>
@@ -103,14 +103,14 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
               {pageRows.map((row) => {
                 const selected = row.recruiterId === selectedRecruiterId;
                 return (
-                  <tr key={row.recruiterId} className={selected ? "bg-teal-50" : undefined}>
+                  <tr key={row.recruiterId} className={selected ? "bg-navy-soft" : undefined}>
                     <th scope="row" className="px-3 py-2 text-left font-sans font-medium whitespace-nowrap">
                       <button
                           type="button"
                           aria-pressed={selected}
                           title={formatRecruiterName(row.name).full}
                           onClick={() => onSelectRecruiter(selected ? undefined : row.recruiterId)}
-                          className="text-[#0B315D] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] text-left"
+                          className="text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus text-left"
                         >
                           {formatRecruiterName(row.name).label}
                         </button>

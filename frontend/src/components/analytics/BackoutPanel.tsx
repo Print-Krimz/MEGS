@@ -4,6 +4,7 @@ import type { BackoutSummary, ClientDecisions } from "../../lib/types/analytics.
 import { BACKOUT_PARTY_LABELS, BACKOUT_REASON_LABELS } from "../../lib/backout";
 import { formatDate } from "../../lib/utils";
 import { AnalyticsPanel } from "./AnalyticsPanel";
+import { analyticsStageLabel } from "./stage-label";
 
 interface BackoutPanelProps {
   data: BackoutSummary;
@@ -46,15 +47,15 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
         <div className="p-3.5 space-y-3">
           <dl className="grid grid-cols-3 gap-3">
             <div title="Applicants who left before the client reviewed them">
-              <dt className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500">Before client review</dt>
+              <dt className="text-xs font-semibold text-slate-600">Before client review</dt>
               <dd className="text-2xl font-bold tabular-nums text-slate-950">{data.withdrawals}</dd>
             </div>
             <div title="Candidates who left once the client had reviewed them, up to their start date">
-              <dt className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500">After client review</dt>
+              <dt className="text-xs font-semibold text-slate-600">After client review</dt>
               <dd className="text-2xl font-bold tabular-nums text-rose-700">{data.backouts}</dd>
             </div>
             <div title="Recorded as no-show. Counted in the totals by stage, shown here on their own.">
-              <dt className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500">No-shows</dt>
+              <dt className="text-xs font-semibold text-slate-600">No-shows</dt>
               <dd className="text-2xl font-bold tabular-nums text-slate-950">{data.noShows}</dd>
             </div>
           </dl>
@@ -73,22 +74,22 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
 
           {compact ? (
             <details className="group">
-              <summary className="min-h-9 flex items-center text-xs font-semibold text-[#0B315D] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]">
+              <summary className="min-h-11 md:min-h-9 flex items-center text-sm font-semibold text-navy cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
                 Breakdown by stage, reason, client and request
               </summary>
               <div className="mt-3 space-y-5">
           <div className={showStageBars ? "grid grid-cols-1 gap-4 sm:grid-cols-2" : ""}>
           {showStageBars && (
             <div>
-              <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-2">By stage</h3>
+              <h3 className="text-xs font-semibold text-slate-600 mb-2">By stage</h3>
               <ul className="space-y-2">
                 {data.byStage.map((row) => (
                   <li
                     key={row.stage}
-                    aria-label={`${row.label}: ${row.APPLICANT} applicant, ${row.CLIENT} client, ${row.AGENCY} agency`}
+                    aria-label={`${analyticsStageLabel(row.stage, row.label)}: ${row.APPLICANT} applicant, ${row.CLIENT} client, ${row.AGENCY} agency`}
                   >
                     <div className="flex items-baseline justify-between text-xs">
-                      <span className="font-sans text-slate-900">{row.label}</span>
+                      <span className="font-sans text-slate-900">{analyticsStageLabel(row.stage, row.label)}</span>
                       <span className="font-mono tabular-nums text-slate-700">{row.total}</span>
                     </div>
                     <div className="mt-0.5 h-3 bg-slate-100">
@@ -112,7 +113,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
           )}
 
           <div>
-            <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-2">Top reasons</h3>
+            <h3 className="text-xs font-semibold text-slate-600 mb-2">Top reasons</h3>
             <ul className="space-y-1.5">
               {data.topReasons.map((r) => (
                 <li key={r.reason} className="text-xs">
@@ -132,7 +133,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
           {(data.byClient.length > 1 || data.byRequest.length > 0) && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-2">By client</h3>
+                <h3 className="text-xs font-semibold text-slate-600 mb-2">By client</h3>
                 <ul className="space-y-1 text-xs font-sans text-slate-900">
                   {data.byClient.map((c) => (
                     <li key={c.clientName} className="flex justify-between gap-3">
@@ -143,7 +144,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
                 </ul>
               </div>
               <div>
-                <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-2">By request</h3>
+                <h3 className="text-xs font-semibold text-slate-600 mb-2">By request</h3>
                 <ul className="space-y-1 text-xs font-sans text-slate-900">
                   {data.byRequest.map((r) => (
                     <li key={r.mrfId} className="flex justify-between gap-3">
@@ -163,15 +164,15 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
           <div className={showStageBars ? "grid grid-cols-1 gap-4 sm:grid-cols-2" : ""}>
           {showStageBars && (
             <div>
-              <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-2">By stage</h3>
+              <h3 className="text-xs font-semibold text-slate-600 mb-2">By stage</h3>
               <ul className="space-y-2">
                 {data.byStage.map((row) => (
                   <li
                     key={row.stage}
-                    aria-label={`${row.label}: ${row.APPLICANT} applicant, ${row.CLIENT} client, ${row.AGENCY} agency`}
+                    aria-label={`${analyticsStageLabel(row.stage, row.label)}: ${row.APPLICANT} applicant, ${row.CLIENT} client, ${row.AGENCY} agency`}
                   >
                     <div className="flex items-baseline justify-between text-xs">
-                      <span className="font-sans text-slate-900">{row.label}</span>
+                      <span className="font-sans text-slate-900">{analyticsStageLabel(row.stage, row.label)}</span>
                       <span className="font-mono tabular-nums text-slate-700">{row.total}</span>
                     </div>
                     <div className="mt-0.5 h-3 bg-slate-100">
@@ -195,7 +196,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
           )}
 
           <div>
-            <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-2">Top reasons</h3>
+            <h3 className="text-xs font-semibold text-slate-600 mb-2">Top reasons</h3>
             <ul className="space-y-1.5">
               {data.topReasons.map((r) => (
                 <li key={r.reason} className="text-xs">
@@ -215,7 +216,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
           {(data.byClient.length > 1 || data.byRequest.length > 0) && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-2">By client</h3>
+                <h3 className="text-xs font-semibold text-slate-600 mb-2">By client</h3>
                 <ul className="space-y-1 text-xs font-sans text-slate-900">
                   {data.byClient.map((c) => (
                     <li key={c.clientName} className="flex justify-between gap-3">
@@ -226,7 +227,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
                 </ul>
               </div>
               <div>
-                <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-2">By request</h3>
+                <h3 className="text-xs font-semibold text-slate-600 mb-2">By request</h3>
                 <ul className="space-y-1 text-xs font-sans text-slate-900">
                   {data.byRequest.map((r) => (
                     <li key={r.mrfId} className="flex justify-between gap-3">
@@ -244,13 +245,13 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
 
           {showRecent && data.recent.length > 0 && (
             <div className="overflow-x-auto">
-              <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-2">Latest</h3>
-              <table className="w-full min-w-[34rem] text-xs">
+              <h3 className="text-xs font-semibold text-slate-600 mb-2">Latest</h3>
+              <table className={`w-full text-xs ${compact ? "" : "min-w-[34rem]"}`}>
                 <thead>
-                  <tr className="text-left text-[11px] font-mono uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                  <tr className="text-left text-xs text-slate-600 border-b border-slate-200">
                     <th scope="col" className="py-1.5 pr-3 font-bold">Candidate</th>
-                    <th scope="col" className="py-1.5 pr-3 font-bold">Stage</th>
-                    <th scope="col" className="py-1.5 pr-3 font-bold">Who</th>
+                    {!compact && <th scope="col" className="py-1.5 pr-3 font-bold">Stage</th>}
+                    {!compact && <th scope="col" className="py-1.5 pr-3 font-bold">Who</th>}
                     <th scope="col" className="py-1.5 pr-3 font-bold">Reason</th>
                     <th scope="col" className="py-1.5 font-bold">Date</th>
                   </tr>
@@ -262,7 +263,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
                         <Link
                           to="/ta/applications/$applicationId"
                           params={{ applicationId: String(b.applicationId) }}
-                          className="font-semibold text-[#0B315D] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                          className="font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                         >
                           {b.candidateName}
                         </Link>
@@ -274,15 +275,22 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
                           <Link
                             to="/ta/mrfs/$mrfId"
                             params={{ mrfId: String(b.mrfId) }}
-                            className="text-xs text-[#0B315D] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                            className="text-xs text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                           >
                             View request
                           </Link>
                         )}
                       </td>
-                      <td className="py-1.5 pr-3 text-slate-700">{b.stage.replace(/_/g, " ").toLowerCase()}</td>
-                      <td className="py-1.5 pr-3 text-slate-700">{BACKOUT_PARTY_LABELS[b.party]}</td>
-                      <td className="py-1.5 pr-3 text-slate-700">{BACKOUT_REASON_LABELS[b.reason] ?? b.reason}</td>
+                      {!compact && <td className="py-1.5 pr-3 text-slate-700">{analyticsStageLabel(b.stage, b.stage.replace(/_/g, " ").toLowerCase())}</td>}
+                      {!compact && <td className="py-1.5 pr-3 text-slate-700">{BACKOUT_PARTY_LABELS[b.party]}</td>}
+                      <td className="py-1.5 pr-3 text-slate-700">
+                        {BACKOUT_REASON_LABELS[b.reason] ?? b.reason}
+                        {compact && (
+                          <span className="block text-xs text-slate-600">
+                            {analyticsStageLabel(b.stage, b.stage.replace(/_/g, " ").toLowerCase())} · {BACKOUT_PARTY_LABELS[b.party]}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-1.5 whitespace-nowrap text-slate-700">{formatDate(b.occurredAt)}</td>
                     </tr>
                   ))}

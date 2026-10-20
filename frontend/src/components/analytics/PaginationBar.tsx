@@ -16,7 +16,7 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({ page, pageSize, to
   const first = (page - 1) * pageSize + 1;
   const last = Math.min(total, page * pageSize);
   const buttonClass =
-    "min-h-9 px-3 text-xs font-medium border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]";
+    "min-h-9 px-3 text-xs font-medium border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
   return (
     <nav

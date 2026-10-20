@@ -1,6 +1,7 @@
 import React from "react";
 import type { DropOffRow } from "../../lib/types/analytics.types";
 import { AnalyticsPanel } from "./AnalyticsPanel";
+import { analyticsStageLabel } from "./stage-label";
 
 interface DropOffChartProps {
   rows: DropOffRow[];
@@ -8,7 +9,7 @@ interface DropOffChartProps {
 }
 
 const SEGMENTS = [
-  { key: "movedForward", label: "Moved on", className: "bg-teal-600" },
+  { key: "movedForward", label: "Moved on", className: "bg-navy" },
   { key: "inStage", label: "Waiting", className: "bg-slate-400" },
   { key: "backedOut", label: "Backed out", className: "bg-rose-600" },
   { key: "rejected", label: "Not selected", className: "bg-amber-500" },
@@ -20,7 +21,7 @@ export const DropOffChart: React.FC<DropOffChartProps> = ({ rows, rangeLabel }) 
 
   return (
     <AnalyticsPanel
-      title="What happens at each stage"
+      title="Stage progress"
       subtitle={`Applicants who applied ${rangeLabel}. Returning applicants count once.`}
     >
       <div className="p-3.5 space-y-3">
@@ -41,14 +42,14 @@ export const DropOffChart: React.FC<DropOffChartProps> = ({ rows, rangeLabel }) 
               const width = (row.reached / total) * 100;
               const previous = index > 0 ? rows[index - 1] : null;
               const conversion = previous && previous.reached > 0 ? Math.round((row.reached / previous.reached) * 100) : null;
-              const summary = `${row.label}: ${row.reached} reached${conversion === null ? "" : `, ${conversion}% of those who reached ${previous!.label}`}. ${row.movedForward} moved on, ${row.inStage} waiting, ${row.backedOut} backed out, ${row.rejected} not selected.`;
+              const summary = `${analyticsStageLabel(row.stage, row.label)}: ${row.reached} reached${conversion === null ? "" : `, ${conversion}% of those who reached ${analyticsStageLabel(previous!.stage, previous!.label)}`}. ${row.movedForward} moved on, ${row.inStage} waiting, ${row.backedOut} backed out, ${row.rejected} not selected.`;
               return (
                 <li key={row.stage} aria-label={summary}>
                   <div className="flex items-baseline justify-between gap-3 text-xs">
-                    <span className="font-sans font-medium text-slate-900">{row.label}</span>
+                    <span className="font-sans font-medium text-slate-900">{analyticsStageLabel(row.stage, row.label)}</span>
                     <span className="font-sans tabular-nums text-slate-700">
                       <strong>{row.reached}</strong> reached
-                      {conversion !== null && <span className="text-slate-600"> ({conversion}% of {previous!.label.toLowerCase()})</span>}
+                      {conversion !== null && <span className="text-slate-600"> ({conversion}% of {analyticsStageLabel(previous!.stage, previous!.label).toLowerCase()})</span>}
                     </span>
                   </div>
                   <div className="mt-1 h-3.5 bg-slate-100">

@@ -1,37 +1,19 @@
 import React from "react";
-import { Link } from "@tanstack/react-router";
-import { ShieldX, ArrowLeft } from "lucide-react";
+import { ShieldX } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { getHomePath } from "../../lib/home-path";
+import { StatusPage } from "../../components/common/StatusPage";
 
 export const ForbiddenPage: React.FC = () => {
   const { user } = useAuth();
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center p-4">
-      <div className="max-w-md w-full text-center bg-white border border-slate-300 p-6">
-        <div className="inline-flex items-center justify-center w-12 h-12 bg-rose-50 text-rose-700 mb-3 border border-rose-300">
-          <ShieldX className="w-6 h-6" />
-        </div>
-        <div className="text-xs font-semibold text-rose-800 uppercase tracking-wider mb-1">
-          Access Restricted
-        </div>
-        <h1 className="text-base font-semibold text-slate-900 mb-2">
-          You don't have permission to view this page
-        </h1>
-        <p className="text-sm text-slate-600 mb-5 leading-normal">
-          Your current account does not have authorization to view this area. If you believe this is an error, please contact your recruitment administrator.
-        </p>
-        <div className="flex justify-center">
-          <Link
-            to={getHomePath(user)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-sm font-medium rounded-md transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>{user ? "Return to Workspace" : "Sign in"}</span>
-          </Link>
-        </div>
-      </div>
-    </div>
+    <StatusPage
+      icon={ShieldX}
+      eyebrow="Error 403"
+      title="You don't have permission to view this page"
+      body="Your account can't open this area. If you think this is a mistake, contact your recruitment administrator."
+      primary={{ label: user ? "Back to your workspace" : "Sign in", to: getHomePath(user) }}
+    />
   );
 };

@@ -30,7 +30,7 @@ export const ClosurePanel: React.FC<ClosurePanelProps> = ({ data, rangeLabel }) 
         <div className="p-3.5 space-y-3">
           <table className="w-full text-xs font-sans tabular-nums">
             <thead>
-              <tr className="text-left text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500">
+              <tr className="text-left text-xs font-semibold text-slate-600">
                 <th className="py-1 pr-2 font-bold">Outcome</th>
                 <th className="py-1 px-2 text-right font-bold">Total</th>
                 <th className="py-1 px-2 text-right font-bold">Talent pool</th>
@@ -52,7 +52,7 @@ export const ClosurePanel: React.FC<ClosurePanelProps> = ({ data, rangeLabel }) 
           </table>
           {data.topRejectionReasons.length > 0 && (
             <div>
-              <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-1">Top rejection reasons</h3>
+              <h3 className="text-xs font-semibold text-slate-600 mb-1">Top rejection reasons</h3>
               <ul className="space-y-0.5 text-xs text-slate-800 font-sans">
                 {data.topRejectionReasons.map((r) => (
                   <li key={r.reason} className="flex justify-between gap-3">

@@ -20,12 +20,12 @@ interface AnalyticsKpiProps {
   onActivate?: () => void;
 }
 
-const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#0B315D]";
+const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus";
 
 export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail, definition, kind, tone = "default", to, anchor, onActivate }) => {
   const body = (
     <>
-      <div className="pr-6 text-[11px] font-mono font-bold text-slate-600 uppercase tracking-wider">{label}</div>
+      <div className="pr-6 text-xs font-semibold text-slate-700">{label}</div>
       <div className="mt-1 -ml-1.5">
         <PeriodTag kind={kind} />
       </div>

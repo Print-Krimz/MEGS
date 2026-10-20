@@ -2,26 +2,19 @@ import React from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
-import {
-  PageHeader,
-  StatusBadge,
-  ScoreBadge,
-  ErrorState,
-  EmptyState,
-} from "../../components/common";
+import { employeesApi } from "../../lib/api/employees.api";
+import { PageHeader, StatusBadge, ErrorState, EmptyState } from "../../components/common";
 import { Button } from "../../components/ui";
-import { formatDate } from "../../lib/utils";
+import { cn, formatDate } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
 import { plural } from "../../lib/plural";
-import {
-  Users,
-  Briefcase,
-  Calendar,
-  Truck,
-  AlertTriangle,
-  ArrowRight,
-  Plus,
-} from "lucide-react";
+import { STAFF_STAGE_LABELS } from "../../lib/ta-copy";
+import type { TAPendingActionItem } from "../../lib/types/analytics.types";
+import { ChevronRight, Plus } from "lucide-react";
+
+// One retry, so a failing section shows its error and retry control quickly instead of staying a skeleton.
+const PAGE_QUERY = { retry: 1, retryDelay: 800 } as const;
+const WORKLIST_TASK_LIMIT = 5;
 
 function SectionData<T>({
   query,
@@ -53,12 +46,12 @@ function MetricValue<T>({ query, children }: { query: UseQueryResult<T>; childre
   }
   if (query.isError) {
     return (
-      <div className="h-8 flex items-center gap-2">
-        <span className="text-2xl font-sans font-bold text-slate-400" aria-label="Unavailable">—</span>
+      <div className="flex h-8 items-center gap-2">
+        <span className="text-2xl font-semibold text-slate-400" aria-label="Unavailable">—</span>
         <button
           type="button"
           onClick={() => { void query.refetch(); }}
-          className="text-xs font-medium text-slate-900 underline hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+          className="focus-ring relative z-10 min-h-11 px-1 text-xs font-medium text-slate-900 underline hover:text-slate-950 md:min-h-0"
         >
           Try again
         </button>
@@ -68,177 +61,283 @@ function MetricValue<T>({ query, children }: { query: UseQueryResult<T>; childre
   return <>{children(query.data)}</>;
 }
 
+/** One headline number. The label is the link; it stretches over the whole tile, so there is one tab stop per tile. */
+const MetricTile: React.FC<{
+  label: string;
+  to: string;
+  search?: Record<string, string>;
+  caption: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ label, to, search, caption, children }) => (
+  <div className="relative bg-white p-3.5 transition-colors hover:bg-slate-50">
+    <Link
+      to={to}
+      search={search as never}
+      className="focus-ring-inset text-xs font-medium text-slate-600 after:absolute after:inset-0 after:content-['']"
+    >
+      {label}
+    </Link>
+    <div className="mt-0.5 text-2xl font-semibold tabular-nums text-slate-950">{children}</div>
+    <div className="mt-0.5 text-xs text-slate-600">{caption}</div>
+  </div>
+);
+
+const PanelHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ title, action }) => (
+  <div className="flex min-h-12 items-center justify-between gap-2 border-b border-slate-300 bg-slate-100 px-3.5 py-1.5">
+    <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
+    {action}
+  </div>
+);
+
+const WorkRow: React.FC<{
+  to: string;
+  search?: Record<string, string>;
+  title: React.ReactNode;
+  detail?: React.ReactNode;
+  tone?: "danger" | "warning" | "neutral";
+}> = ({ to, search, title, detail, tone = "neutral" }) => (
+  <li>
+    <Link
+      to={to}
+      search={search as never}
+      className="focus-ring-inset flex min-h-14 items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-slate-50"
+    >
+      <span className="min-w-0">
+        <span
+          className={cn(
+            "block text-sm font-semibold",
+            tone === "danger" ? "text-rose-700" : tone === "warning" ? "text-amber-800" : "text-slate-950"
+          )}
+        >
+          {title}
+        </span>
+        {detail && <span className="block break-words text-xs text-slate-600">{detail}</span>}
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+    </Link>
+  </li>
+);
+
+const taskDetail = (task: TAPendingActionItem) => {
+  const parts = [task.candidateName, task.jobTitle];
+  if (task.agingDays !== undefined && task.agingDays > 0) parts.push(`${plural(task.agingDays, "day")} waiting`);
+  return parts.join(" · ");
+};
+
+const STAGE_TILES = [
+  ApplicationStatus.SUBMITTED,
+  ApplicationStatus.INITIAL_SCREENING,
+  ApplicationStatus.CLIENT_ENDORSEMENT,
+  ApplicationStatus.FINAL_INTERVIEW,
+  ApplicationStatus.COMPLIANCE,
+  ApplicationStatus.CONTRACT_SIGNING,
+  ApplicationStatus.DEPLOYED,
+] as const;
+
 export const TADashboard: React.FC = () => {
   const pipelineStatsQuery = useQuery({
     queryKey: ["ta", "analytics", "pipeline"],
     queryFn: taApi.getPipelineAnalytics,
+    ...PAGE_QUERY,
   });
 
   const interviewSlaQuery = useQuery({
     // Only the summary is shown, so ask for a single-row page instead of every interview.
     queryKey: ["ta", "compliance", "interviews", "summary"],
     queryFn: ({ signal }) => taApi.listInterviewCompliancePage({ page: 1, pageSize: 1 }, { signal }),
+    ...PAGE_QUERY,
   });
 
   const recentAppsQuery = useQuery({
-    queryKey: ["ta", "applications", "recent", { page: 1, pageSize: 6, isArchived: false }],
-    queryFn: ({ signal }) => taApi.listApplicationsPage({ page: 1, limit: 6, isArchived: false }, { signal }),
+    queryKey: ["ta", "applications", "recent", { page: 1, pageSize: 5, isArchived: false }],
+    queryFn: ({ signal }) => taApi.listApplicationsPage({ page: 1, limit: 5, isArchived: false }, { signal }),
+    ...PAGE_QUERY,
   });
 
   const dashboardCountsQuery = useQuery({
     queryKey: ["ta", "jobs", "dashboard-counts"],
     queryFn: ({ signal }) => taApi.getDashboardCounts({ signal }),
+    ...PAGE_QUERY,
   });
 
-  const slaData = interviewSlaQuery.data;
-  const slaBreached = slaData?.summary?.breached || 0;
-  const slaWarning = slaData?.summary?.warning || 0;
+  // Same key and fetcher as the sidebar badge and the Workforce page summary, so the cache is shared.
+  const needsPlacementQuery = useQuery({
+    queryKey: ["ta", "redeployment-queue", "summary"],
+    queryFn: ({ signal }) => employeesApi.getRedeploymentQueueSummary({ signal }),
+    staleTime: 60_000,
+    ...PAGE_QUERY,
+  });
+
+  // Same key and default filter as the Reports page, so opening Reports straight after reuses this result.
+  const tasksQuery = useQuery({
+    queryKey: ["ta", "analytics", "dashboard", { range: "7d" }],
+    queryFn: ({ signal }) => taApi.getDashboardSummary({ range: "7d" }, signal),
+    staleTime: 60_000,
+    ...PAGE_QUERY,
+  });
+
+  const slaSummary = interviewSlaQuery.data?.summary;
+  const slaBreached = slaSummary?.breached ?? 0;
+  const slaWarning = slaSummary?.warning ?? 0;
+  const needsPlacement = needsPlacementQuery.data?.stages?.NEEDS_PLACEMENT ?? 0;
+  const tasks = tasksQuery.data?.pendingActions ?? [];
+  const tasksTotal = tasksQuery.data?.pendingActionsTotal ?? tasks.length;
+
+  const worklistQueries = [interviewSlaQuery, needsPlacementQuery, tasksQuery];
+  const worklistLoading = worklistQueries.some((q) => q.isPending && !q.isError);
+  const failedQueries = worklistQueries.filter((q) => q.isError && !q.isFetching);
+  const hasWork = slaBreached > 0 || slaWarning > 0 || needsPlacement > 0 || tasks.length > 0;
+
+  const latestUpdate = Math.max(0, ...[pipelineStatsQuery, interviewSlaQuery, dashboardCountsQuery, tasksQuery].map((q) => q.dataUpdatedAt));
+  const asOf = latestUpdate
+    ? `As of ${new Date(latestUpdate).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}`
+    : undefined;
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Recruitment overview"
-        description="See active applications, interviews that need attention, and current job openings."
-        breadcrumbs={[{ label: "Recruitment" }]}
+        title="Overview"
+        description={asOf}
+        flush
         actions={
-          <div className="flex items-center gap-2">
-            {/* Temporarily hidden - legacy talent pool implementation */}
-            {/* <Link to="/ta/talent-pool">
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<Users className="w-3.5 h-3.5 text-teal-700" />}
-              >
-                Talent Pool
-              </Button>
-            </Link> */}
+          <Button asChild variant="primary" size="sm">
             <Link to="/ta/mrfs/create">
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<Plus className="w-3.5 h-3.5" />}
-              >
-                New manpower request
-              </Button>
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              New manpower request
             </Link>
-          </div>
+          </Button>
         }
       />
 
-      {/* SLA Alert Banner if breached or warning. While the deadline check is pending,
-          an invisible copy holds its space so the sections below do not jump when it arrives. */}
-      {(interviewSlaQuery.isPending || slaBreached > 0 || slaWarning > 0) && (
-        <div
-          aria-hidden={interviewSlaQuery.isPending || undefined}
-          className={`p-3 bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3${interviewSlaQuery.isPending ? " invisible" : ""}`}
+      {/* Needs your action: the worklist, so the first screen says what to do next. */}
+      <section className="border border-slate-300 bg-white">
+        <PanelHeader title="Needs your action" />
+        {worklistLoading ? (
+          <div role="status" aria-label="Loading section" className="divide-y divide-slate-200 motion-safe:animate-pulse">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-14 space-y-1.5 px-3.5 py-3">
+                <div className="h-3.5 w-1/3 bg-slate-200" />
+                <div className="h-3 w-1/4 bg-slate-100" />
+              </div>
+            ))}
+            <span className="sr-only">Loading information</span>
+          </div>
+        ) : (
+          <>
+            {failedQueries.length > 0 && (
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-950">
+                <span>Some items could not be loaded, so this list may be incomplete.</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => failedQueries.forEach((q) => { void q.refetch(); })}
+                >
+                  Try again
+                </Button>
+              </div>
+            )}
+            {hasWork ? (
+              <ul className="divide-y divide-slate-200">
+                {slaBreached > 0 && (
+                  <WorkRow
+                    to="/ta/interviews"
+                    tone="danger"
+                    title={`${plural(slaBreached, "interview")} overdue`}
+                    detail="Results are due 7 days after the interview is scheduled."
+                  />
+                )}
+                {slaWarning > 0 && (
+                  <WorkRow to="/ta/interviews" tone="warning" title={`${plural(slaWarning, "interview")} due within 48 hours`} />
+                )}
+                {needsPlacement > 0 && (
+                  <WorkRow
+                    to="/ta/workforce"
+                    search={{ tab: "redeployment" }}
+                    title={`${plural(needsPlacement, "worker")} ${needsPlacement === 1 ? "needs" : "need"} placement`}
+                    detail="Ended assignments waiting for a new job."
+                  />
+                )}
+                {tasks.slice(0, WORKLIST_TASK_LIMIT).map((task) => (
+                  <WorkRow
+                    key={task.id}
+                    to={task.targetUrl}
+                    tone={task.urgency === "HIGH" ? "danger" : "neutral"}
+                    title={task.title}
+                    detail={taskDetail(task)}
+                  />
+                ))}
+              </ul>
+            ) : failedQueries.length === 0 ? (
+              <EmptyState
+                bare
+                title="Nothing needs your action"
+                description="No overdue interviews, document reviews, client answers or workers waiting for a placement."
+              />
+            ) : null}
+            {tasksTotal > Math.min(tasks.length, WORKLIST_TASK_LIMIT) && (
+              <div className="border-t border-slate-200 px-3.5 py-2">
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/ta/analytics">
+                    See all {plural(tasksTotal, "pending task")}
+                    <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      <div className="grid grid-cols-1 gap-px border border-slate-300 bg-slate-300 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricTile label="Active candidates" to="/ta/applications" caption="Still moving through the pipeline">
+          <MetricValue query={pipelineStatsQuery}>{(pipeline) => pipeline?.activeApplications || 0}</MetricValue>
+        </MetricTile>
+
+        <MetricTile label="Active job openings" to="/ta/jobs" caption="Open to applicants">
+          <MetricValue query={dashboardCountsQuery}>{(counts) => counts?.openJobs ?? 0}</MetricValue>
+        </MetricTile>
+
+        <MetricTile
+          label="Interview deadlines"
+          to="/ta/interviews"
+          caption={
+            interviewSlaQuery.data
+              ? `overdue, of ${plural(slaSummary?.total || 0, "open interview")}`
+              : interviewSlaQuery.isError
+                ? "Overdue count unavailable"
+                : "Checking deadlines"
+          }
         >
-          <div className="flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-            <div className="space-y-0.5">
-              <h4 className="text-xs font-mono font-bold text-amber-950 uppercase tracking-wide">
-                {plural(slaBreached, "interview")} overdue, {slaWarning} due soon
-              </h4>
-              <p className="text-xs text-amber-900 leading-normal">
-                Interview results are due 7 days after the interview is scheduled.
-              </p>
-            </div>
-          </div>
-          <Link to="/ta/interviews" className="shrink-0">
-            <Button variant="primary" size="sm">
-              View interview queue
-            </Button>
-          </Link>
-        </div>
-      )}
+          <MetricValue query={interviewSlaQuery}>
+            {() => <span className={slaBreached > 0 ? "text-rose-700" : undefined}>{slaBreached}</span>}
+          </MetricValue>
+        </MetricTile>
 
-      {/* Unified 4-Segment Operational Metrics Ribbon */}
-      <div className="border border-slate-300 bg-slate-300 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px">
-        <div className="p-3 sm:p-3.5 bg-white">
-          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-            Active Candidates
-          </div>
-          <div className="text-2xl font-sans font-bold text-slate-950 mt-0.5 tabular-nums">
-            <MetricValue query={pipelineStatsQuery}>{(pipeline) => pipeline?.activeApplications || 0}</MetricValue>
-          </div>
-          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-            <Users className="w-3 h-3 text-slate-400 shrink-0" />
-            <span>Still moving through the pipeline</span>
-          </div>
-        </div>
-
-        <div className="p-3 sm:p-3.5 bg-white">
-          <div className="text-[10px] font-mono font-bold text-teal-800 uppercase tracking-wider">
-            Active Job Openings
-          </div>
-          <div className="text-2xl font-sans font-bold text-teal-950 mt-0.5 tabular-nums">
-            <MetricValue query={dashboardCountsQuery}>{(counts) => counts?.openJobs ?? 0}</MetricValue>
-          </div>
-          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-            <Briefcase className="w-3 h-3 text-teal-700 shrink-0" />
-            <span>Active client job openings</span>
-          </div>
-        </div>
-
-        <div className="p-3 sm:p-3.5 bg-white">
-          <div className="text-[10px] font-mono font-bold text-blue-800 uppercase tracking-wider">
-            Interview deadlines
-          </div>
-          <div className="text-2xl font-sans font-bold text-blue-950 mt-0.5 tabular-nums">
-            <MetricValue query={interviewSlaQuery}>
-              {(sla) => (
-                <>
-                  {sla?.summary?.healthy || 0}
-                  <span className="text-xs text-slate-400 font-normal"> / {sla?.summary?.total || 0}</span>
-                </>
-              )}
-            </MetricValue>
-          </div>
-          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-            <Calendar className="w-3 h-3 text-blue-700 shrink-0" />
-            <span>{interviewSlaQuery.data ? `${slaBreached} overdue interviews` : interviewSlaQuery.isError ? "Overdue count unavailable" : "Checking deadlines"}</span>
-          </div>
-        </div>
-
-        <div className="p-3 sm:p-3.5 bg-white">
-          <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase tracking-wider">
-            Active Deployments
-          </div>
-          <div className="text-2xl font-sans font-bold text-emerald-950 mt-0.5 tabular-nums">
-            <MetricValue query={dashboardCountsQuery}>{(counts) => counts?.activeDeployments ?? 0}</MetricValue>
-          </div>
-          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-            <Truck className="w-3 h-3 text-emerald-700 shrink-0" />
-            <span>On-site client personnel</span>
-          </div>
-        </div>
+        <MetricTile label="Active deployments" to="/ta/workforce" search={{ tab: "deployments" }} caption="On-site client personnel">
+          <MetricValue query={dashboardCountsQuery}>{(counts) => counts?.activeDeployments ?? 0}</MetricValue>
+        </MetricTile>
       </div>
 
-      {/* Pipeline Stage Distribution Matrix */}
-      <div className="border border-slate-300 bg-white">
-        <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-teal-700" />
-            <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
-              Hiring pipeline
-            </h3>
-            <span className="text-xs text-slate-500 font-sans hidden sm:inline">
-              — Active candidates by hiring stage
-            </span>
-          </div>
-          <Link to="/ta/applications">
-            <Button variant="ghost" size="sm" rightIcon={<ArrowRight className="w-3 h-3" />}>
-              View all applications
+      <section className="border border-slate-300 bg-white">
+        <PanelHeader
+          title="Hiring pipeline"
+          action={
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/ta/applications">
+                View all applications
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
             </Button>
-          </Link>
-        </div>
+          }
+        />
 
         <SectionData
           query={pipelineStatsQuery}
           skeleton={
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-slate-300">
-              {Array.from({ length: 6 }).map((_, i) => (
+            <div className="grid grid-cols-2 gap-px bg-slate-300 sm:grid-cols-7">
+              {Array.from({ length: STAGE_TILES.length }).map((_, i) => (
                 // Same padding and line heights as the loaded stage tiles, so nothing moves when counts arrive.
-                <div key={i} className="p-2.5 sm:p-3 bg-white flex flex-col items-center">
+                <div key={i} className="flex min-h-[4.5rem] flex-col items-center bg-white p-2.5 sm:p-3">
                   <div className="h-7 w-8 bg-slate-200" />
                   <div className="mt-0.5 h-[15px] w-16 bg-slate-100" />
                 </div>
@@ -247,60 +346,47 @@ export const TADashboard: React.FC = () => {
           }
         >
           {(pipeline) => (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-slate-300">
-              {[
-                { label: "Submitted", status: ApplicationStatus.SUBMITTED },
-                { label: "Initial review", status: ApplicationStatus.INITIAL_SCREENING },
-                { label: "Client review", status: ApplicationStatus.CLIENT_ENDORSEMENT },
-                { label: "Final interview", status: ApplicationStatus.FINAL_INTERVIEW },
-                { label: "Requirements", status: ApplicationStatus.COMPLIANCE },
-                { label: "Deployed", status: ApplicationStatus.DEPLOYED },
-              ].map((stage) => {
-                const count = pipeline?.statusBreakdown?.[stage.status] || 0;
+            <div className="grid grid-cols-2 gap-px bg-slate-300 sm:grid-cols-7">
+              {STAGE_TILES.map((status) => {
+                const label = STAFF_STAGE_LABELS[status];
+                const count = pipeline?.statusBreakdown?.[status] || 0;
                 return (
                   <Link
-                    key={stage.status}
+                    key={status}
                     to="/ta/applications"
-                    className="p-2.5 sm:p-3 bg-white hover:bg-teal-50/60 transition-colors text-center block group"
-                    aria-label={`View ${stage.label} applications (${count})`}
-                    search={{ stage: stage.status }}
+                    search={{ stage: status }}
+                    aria-label={`View ${label} applications (${count})`}
+                    className="focus-ring-inset block min-h-[4.5rem] bg-white p-2.5 text-center max-sm:last:col-span-2 transition-colors hover:bg-slate-50 sm:p-3"
                   >
-                    <div className="text-xl font-sans font-bold text-slate-900 group-hover:text-teal-900 tabular-nums">
-                      {count}
-                    </div>
-                    <div className="text-[10px] font-mono text-slate-600 uppercase tracking-wider font-semibold mt-0.5">
-                      {stage.label}
-                    </div>
+                    <div className="text-xl font-semibold tabular-nums text-slate-950">{count}</div>
+                    <div className="mt-0.5 text-xs font-medium text-slate-600">{label}</div>
                   </Link>
                 );
               })}
             </div>
           )}
         </SectionData>
-      </div>
+      </section>
 
-      {/* Urgent Action Queue */}
-      <div className="w-full border border-slate-300 bg-white overflow-hidden">
-        <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-slate-700" />
-            <h3 className="text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
-              Recent applications
-            </h3>
-          </div>
-          <Link to="/ta/applications">
-            <Button variant="ghost" size="sm">
-              View all applications →
+      <section className="border border-slate-300 bg-white">
+        <PanelHeader
+          title="Recent applications"
+          action={
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/ta/applications">
+                View all
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
             </Button>
-          </Link>
-        </div>
+          }
+        />
 
         <SectionData
           query={recentAppsQuery}
           skeleton={
             <div className="divide-y divide-slate-200">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-[61px] px-3.5 py-2.5 space-y-1.5">
+                <div key={i} className="h-14 space-y-1.5 px-3.5 py-2.5">
                   <div className="h-3.5 w-1/3 bg-slate-200" />
                   <div className="h-3 w-1/4 bg-slate-100" />
                 </div>
@@ -310,117 +396,45 @@ export const TADashboard: React.FC = () => {
         >
           {(page) => {
             const recentApps = page?.items ?? [];
-            return (
-            recentApps.length === 0 ? (
-              <div className="p-6">
-                <EmptyState
-                  icon={<Users className="w-5 h-5" />}
-                  title="No open applications"
-                  description="New applications will appear here."
-                />
-              </div>
+            return recentApps.length === 0 ? (
+              <EmptyState
+                bare
+                title="No applications yet"
+                description="New applications will appear here."
+                action={
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/ta/mrfs/create">Create manpower request</Link>
+                  </Button>
+                }
+              />
             ) : (
-              <>
-              <div className="divide-y divide-slate-200 md:hidden">
+              <ul className="divide-y divide-slate-200">
                 {recentApps.map((app) => {
                   const profile = app.user?.applicantProfile;
-                  const candidateName = profile
-                    ? `${profile.firstName} ${profile.lastName}`
-                    : app.user?.email || "Candidate";
-                  const score = app.candidateFitScore ?? app.aiScore;
+                  const candidateName = profile ? `${profile.firstName} ${profile.lastName}` : app.user?.email || "Candidate";
                   return (
-                    <article key={app.id} className="space-y-3 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h4 className="font-semibold text-slate-950 break-words">{candidateName}</h4>
-                          <p className="mt-0.5 text-sm text-slate-600 break-words">{app.jobPosting?.title || "Job opening"}</p>
-                        </div>
-                        <StatusBadge status={app.status} size="sm" />
-                      </div>
-                      <dl className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <dt className="text-slate-500">Match score</dt>
-                          <dd className="mt-0.5"><ScoreBadge score={score} size="sm" /></dd>
-                        </div>
-                        <div>
-                          <dt className="text-slate-500">Applied</dt>
-                          <dd className="mt-0.5 text-slate-800">{formatDate(app.createdAt)}</dd>
-                        </div>
-                      </dl>
+                    <li key={app.id}>
                       <Link
                         to="/ta/applications/$applicationId"
                         params={{ applicationId: String(app.id) }}
-                        className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+                        className="focus-ring-inset flex min-h-14 items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-slate-50"
                       >
-                        View application
+                        <span className="min-w-0">
+                          <span className="block break-words text-sm font-semibold text-slate-950">{candidateName}</span>
+                          <span className="block break-words text-xs text-slate-600">
+                            {app.jobPosting?.title || "Job opening"} · Applied {formatDate(app.createdAt)}
+                          </span>
+                        </span>
+                        <StatusBadge status={app.status} size="sm" />
                       </Link>
-                    </article>
+                    </li>
                   );
                 })}
-              </div>
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-100 text-slate-700 font-mono uppercase text-[10px] border-b border-slate-300">
-                    <tr>
-                      <th className="px-3.5 py-2.5 font-bold">Candidate</th>
-                      <th className="px-3.5 py-2.5 font-bold">Job opening</th>
-                      <th className="px-3.5 py-2.5 font-bold">Status</th>
-                      <th className="px-3.5 py-2.5 font-bold text-center">Match Score</th>
-                      <th className="px-3.5 py-2.5 font-bold text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {recentApps.map((app) => {
-                      const profile = app.user?.applicantProfile;
-                      const candidateName = profile
-                        ? `${profile.firstName} ${profile.lastName}`
-                        : app.user?.email || "Candidate";
-                      const score = app.candidateFitScore ?? app.aiScore;
-
-                      return (
-                        <tr key={app.id} className="hover:bg-slate-100/70 transition-colors">
-                          <td className="px-3.5 py-2.5">
-                            <div className="font-bold text-slate-950">{candidateName}</div>
-                            <div className="text-[10px] text-slate-500 font-mono">
-                              Applied {formatDate(app.createdAt)}
-                            </div>
-                          </td>
-                          <td className="px-3.5 py-2.5">
-                            <div className="font-medium text-slate-900">
-                              {app.jobPosting?.title || "Job opening"}
-                            </div>
-                            <div className="text-[10px] text-slate-500 font-mono">
-                              {app.jobPosting?.location || "Philippines"}
-                            </div>
-                          </td>
-                          <td className="px-3.5 py-2.5">
-                            <StatusBadge status={app.status} />
-                          </td>
-                          <td className="px-3.5 py-2.5 text-center">
-                            <ScoreBadge score={score} size="sm" />
-                          </td>
-                          <td className="px-3.5 py-2.5 text-right">
-                            <Link
-                              to="/ta/applications/$applicationId"
-                              params={{ applicationId: String(app.id) }}
-                            >
-                              <Button variant="outline" size="sm">
-                                View application
-                              </Button>
-                            </Link>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              </>
-            )
+              </ul>
             );
           }}
         </SectionData>
-      </div>
+      </section>
     </div>
   );
 };

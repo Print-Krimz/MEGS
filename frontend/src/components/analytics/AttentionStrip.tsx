@@ -31,7 +31,7 @@ export const AttentionStrip: React.FC<AttentionStripProps> = ({ items }) => {
         <p className="text-xs text-slate-600 font-sans">Nothing needs attention right now: no critical waits, late requests or unassigned applicants.</p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-600">Needs attention</span>
+          <span className="text-xs font-semibold text-slate-700">Needs attention</span>
           {shown.map((item) => (
             <a
               key={item.id}
@@ -42,7 +42,7 @@ export const AttentionStrip: React.FC<AttentionStripProps> = ({ items }) => {
                 // Let a newly opened tab render before scrolling to it.
                 setTimeout(() => document.getElementById(item.target)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
               }}
-              className={`min-h-9 inline-flex items-center gap-1.5 border px-2.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] ${TONE[item.tone]}`}
+              className={`min-h-11 md:min-h-9 inline-flex items-center gap-1.5 border px-2.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${TONE[item.tone]}`}
             >
               <span className="tabular-nums text-sm">{item.count}</span>
               {item.count === 1 ? item.singular ?? item.label : item.label}

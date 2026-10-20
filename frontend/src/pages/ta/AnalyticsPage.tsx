@@ -50,10 +50,14 @@ export const AnalyticsPage: React.FC = () => {
     setTab("requests");
   };
 
+  const asOf = dashboardQuery.dataUpdatedAt
+    ? `As of ${new Date(dashboardQuery.dataUpdatedAt).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}`
+    : undefined;
+
   const header = (
     <PageHeader
-      title="Recruitment reports"
-      description="Where your candidates are, what is overdue, and who backed out."
+      title={TA_COPY.pageTitles.reports}
+      description={asOf}
       breadcrumbs={[{ label: TA_COPY.navigation.overview, href: "/ta" }, { label: TA_COPY.navigation.reports }]}
       actions={
         <ExportMenu
@@ -165,6 +169,7 @@ export const AnalyticsPage: React.FC = () => {
       <OperationsWorkspace<WorkspaceKey>
         active={tab}
         onChange={setTab}
+        showCounts={false}
         tabs={[
           {
             key: "pending",

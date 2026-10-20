@@ -55,7 +55,7 @@ export const TeamWorkloadChart: React.FC<TeamWorkloadChartProps> = ({ rows, sele
               type="button"
               aria-pressed={mode === m.key}
               onClick={() => setMode(m.key)}
-              className={`min-h-8 px-2 text-[11px] font-sans font-semibold border first:border-r-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] ${
+              className={`min-h-8 px-2 text-[11px] font-sans font-semibold border first:border-r-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                 mode === m.key ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
               }`}
             >
@@ -71,7 +71,7 @@ export const TeamWorkloadChart: React.FC<TeamWorkloadChartProps> = ({ rows, sele
         <div className="p-3.5">
           <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-sans text-slate-700" aria-label="Legend">
             <li className="flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 bg-teal-600" aria-hidden="true" />
+              <span className="inline-block h-2.5 w-2.5 bg-navy" aria-hidden="true" />
               Within limit
             </li>
             <li className="flex items-center gap-1.5">
@@ -94,20 +94,20 @@ export const TeamWorkloadChart: React.FC<TeamWorkloadChartProps> = ({ rows, sele
                 <li
                   key={row.recruiterId}
                   aria-label={summary}
-                  className={`grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_auto] items-center gap-x-3 py-1.5 ${selected ? "bg-teal-50 -mx-1.5 px-1.5" : ""}`}
+                  className={`grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_auto] items-center gap-x-3 py-1.5 ${selected ? "bg-navy-soft -mx-1.5 px-1.5" : ""}`}
                 >
                   <button
                     type="button"
                     aria-pressed={selected}
                     onClick={() => onSelectRecruiter(selected ? undefined : row.recruiterId)}
-                    className="truncate text-left text-xs font-semibold font-sans text-[#0B315D] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                    className="truncate text-left text-xs font-semibold font-sans text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     title={who.full ?? who.label}
                   >
                     {who.label}
                   </button>
                   <div className="h-3 bg-slate-100" aria-hidden="true">
                     <div className="flex h-full" style={{ width: `${(row.active / maxActive) * 100}%` }}>
-                      {onTime > 0 && <div className="bg-teal-600" style={{ width: `${(onTime / row.active) * 100}%` }} />}
+                      {onTime > 0 && <div className="bg-navy" style={{ width: `${(onTime / row.active) * 100}%` }} />}
                       {row.overdue > 0 && <div className="bg-rose-600" style={{ width: `${(row.overdue / row.active) * 100}%` }} />}
                       {row.overdueEstimated > 0 && <div className="bg-amber-400" style={{ width: `${(row.overdueEstimated / row.active) * 100}%` }} />}
                     </div>

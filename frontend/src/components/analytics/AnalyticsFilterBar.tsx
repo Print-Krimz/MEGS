@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useId, useMemo } from "react";
 import { formatRecruiterName } from "../../lib/recruiter-label";
-import { Filter, RotateCcw, Calendar as CalendarIcon, X, Check, SlidersHorizontal } from "lucide-react";
+import { Filter, RotateCcw, Calendar as CalendarIcon, X, SlidersHorizontal } from "lucide-react";
 import { Button, ComboBox } from "../ui";
 import type { ComboBoxOption } from "../ui/ComboBox";
 import type { AnalyticsFilterOptions, AnalyticsFilterState, AnalyticsDateRangePreset } from "../../lib/types/analytics.types";
@@ -34,13 +34,15 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
     setDraftFilters(filters);
   }, [filters]);
 
+  // A fixed preset applies at once. "Custom range" only opens the date fields; those wait for Apply.
   const handleRangePreset = (range: AnalyticsDateRangePreset) => {
-    setDraftFilters((prev) => ({
-      ...prev,
-      range,
-      startDate: undefined,
-      endDate: undefined,
-    }));
+    if (range === "custom") {
+      setDraftFilters((prev) => ({ ...prev, range, startDate: undefined, endDate: undefined }));
+      return;
+    }
+    const next: AnalyticsFilterState = { ...draftFilters, range, startDate: undefined, endDate: undefined };
+    setDraftFilters(next);
+    onChange(next);
   };
 
   const handleApply = () => {
@@ -155,9 +157,9 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
 
     if (filters.range && filters.range !== "7d") {
       const rangeLabels: Record<string, string> = {
-        "30d": "Last 30 Days",
-        "90d": "Last 90 Days",
-        custom: filters.startDate && filters.endDate ? `${filters.startDate} to ${filters.endDate}` : "Custom Range",
+        "30d": "Last 30 days",
+        "90d": "Last 90 days",
+        custom: filters.startDate && filters.endDate ? `${filters.startDate} to ${filters.endDate}` : "Custom range",
       };
       chips.push({ key: "range", label: "Date", value: rangeLabels[filters.range] || filters.range });
     }
@@ -190,17 +192,17 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
       {/* Top Row: Date Range Presets, Custom Pickers, & Action Buttons */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-slate-200">
         <div className="flex flex-wrap items-center gap-1.5">
-          <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase text-slate-700 mr-2">
-            <CalendarIcon className="w-3.5 h-3.5 text-slate-500" />
-            <span>Date range:</span>
+          <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 mr-2">
+            <CalendarIcon className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+            <span>Date range</span>
           </div>
 
           {(
             [
-              { key: "7d", label: "Last 7 Days" },
-              { key: "30d", label: "Last 30 Days" },
-              { key: "90d", label: "Last 90 Days" },
-              { key: "custom", label: "Custom Range" },
+              { key: "7d", label: "Last 7 days" },
+              { key: "30d", label: "Last 30 days" },
+              { key: "90d", label: "Last 90 days" },
+              { key: "custom", label: "Custom range" },
             ] as const
           ).map((preset) => {
             const isActive = draftFilters.range === preset.key;
@@ -210,7 +212,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
                 type="button"
                 onClick={() => handleRangePreset(preset.key)}
                  aria-pressed={isActive}
-                 className={`min-h-10 md:min-h-9 px-2.5 py-1 text-sm font-semibold border transition-colors cursor-pointer ${
+                 className={`min-h-11 md:min-h-9 px-2.5 py-1 text-sm font-semibold border transition-colors cursor-pointer ${
                   isActive
                     ? "bg-slate-900 text-white border-slate-900"
                     : "bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
@@ -230,22 +232,24 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               size="sm"
               onClick={handleClearAll}
               leftIcon={<RotateCcw className="w-3 h-3 text-slate-500" />}
-              className="text-slate-700 hover:text-slate-950 text-sm"
+              className="text-slate-700 hover:text-slate-950 text-sm max-md:min-h-11"
             >
               Clear filters
             </Button>
           )}
 
-          <Button
-            variant={hasUnappliedChanges ? "primary" : "secondary"}
-            size="sm"
-            onClick={handleApply}
-            disabled={customRangeError !== null}
-            leftIcon={hasUnappliedChanges ? <SlidersHorizontal className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
-             className="text-sm font-semibold"
-          >
-            {hasUnappliedChanges ? "Apply filters" : "Filters applied"}
-          </Button>
+          {hasUnappliedChanges && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleApply}
+              disabled={customRangeError !== null}
+              leftIcon={<SlidersHorizontal className="w-3.5 h-3.5" />}
+              className="text-sm font-semibold max-md:min-h-11"
+            >
+              Apply filters
+            </Button>
+          )}
           {options && (
             <Button
               variant="ghost"
@@ -253,7 +257,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               onClick={() => setShowMoreFilters((current) => !current)}
               aria-expanded={showMoreFilters}
               aria-controls={moreFiltersId}
-              className="text-sm"
+              className="text-sm max-md:min-h-11"
             >
               {showMoreFilters ? "Hide filters" : "More filters"}
             </Button>
@@ -275,7 +279,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               onChange={(e) =>
                 setDraftFilters({ ...draftFilters, range: "custom", startDate: e.target.value })
               }
-              className="border border-slate-300 bg-white px-2 py-1 text-xs font-mono text-slate-900 focus:outline-none focus:border-teal-700"
+              className="border border-slate-300 bg-white px-2 py-1 text-xs font-mono text-slate-900 focus:outline-none focus:border-navy"
             />
           </div>
 
@@ -290,7 +294,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               onChange={(e) =>
                 setDraftFilters({ ...draftFilters, range: "custom", endDate: e.target.value })
               }
-              className="border border-slate-300 bg-white px-2 py-1 text-xs font-mono text-slate-900 focus:outline-none focus:border-teal-700"
+              className="border border-slate-300 bg-white px-2 py-1 text-xs font-mono text-slate-900 focus:outline-none focus:border-navy"
             />
           </div>
           {customRangeError && (
@@ -399,10 +403,10 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
       {/* Active Filters Row with Chips and Direct Dismiss */}
       {hasActiveFilters && (
         <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-700 mr-1">
-            <Filter className="w-3.5 h-3.5 text-teal-800" />
-            <span>Filters applied:</span>
-            <span className="px-1.5 py-0.2 bg-teal-100 text-teal-900 text-[11px] border border-teal-300 font-mono font-bold">
+          <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 mr-1">
+            <Filter className="w-3.5 h-3.5 text-navy" />
+            <span>Filters applied</span>
+            <span className="px-1.5 py-0.2 bg-navy-soft text-navy text-xs border border-navy-line font-semibold">
               {activeChips.length}
             </span>
           </div>
@@ -413,7 +417,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               data-testid={`active-filter-chip-${chip.key}`}
               className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-300 text-xs font-mono"
             >
-              <span className="text-slate-500 font-bold uppercase text-[11px]">{chip.label}:</span>
+              <span className="text-slate-600 font-semibold text-xs">{chip.label}:</span>
               <span className="font-bold text-slate-900 max-w-[200px] truncate">{chip.value}</span>
               <button
                 type="button"
