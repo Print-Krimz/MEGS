@@ -10,7 +10,7 @@ export const PoolMatchScore: React.FC<{ result: TalentPoolMatchResult }> = ({ re
   if (typeof result.matchScore === "number") {
     return (
       <div className="text-right">
-        <div className="text-[10px] text-slate-500">Match score</div>
+        <div className="text-xs text-slate-600">Match score</div>
         <ScoreBadge score={result.matchScore} size="md" />
       </div>
     );
@@ -46,7 +46,7 @@ export const PoolMatchNotes: React.FC<{ result: TalentPoolMatchResult }> = ({ re
             <Link
               to="/ta/applications/$applicationId"
               params={{ applicationId: String(application.applicationId) }}
-              className="text-teal-800 underline underline-offset-2"
+              className="text-navy underline underline-offset-2 focus-ring rounded-sm"
             >
               {application.jobTitle || `job #${application.jobId}`}
             </Link>{" "}

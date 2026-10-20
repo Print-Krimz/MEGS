@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import React, { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
@@ -9,32 +9,29 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
-  JobImage,
   JobContentRenderer,
+  JobImage,
+  DataTable,
+  ConfirmDialog,
+  StatusBadge,
 } from "../../components/common";
+import type { DataTableColumn } from "../../components/common";
 import { Button, Dialog, Input, Textarea, ComboBox } from "../../components/ui";
 import { FieldWarning } from "../../components/ta/FieldWarning";
 import { LOCATION_HINT, LOCATION_UNCLEAR_WARNING, locationLooksUnclear } from "../../lib/requirement-hints";
-import { formatDate, formatSalaryRange, formatEmploymentType, cn } from "../../lib/utils";
+import { formatDate, cn } from "../../lib/utils";
 import { JobStatus } from "../../lib/types/enums";
-import {
-  Briefcase,
-  Plus,
-  MapPin,
-  Users,
-  FileSpreadsheet,
-  Edit,
-  Eye,
-  FileText,
-} from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { notify, fieldErrorsFrom } from "../../lib/feedback";
-import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
+import { TA_COPY } from "../../lib/ta-copy";
+import { plural } from "../../lib/plural";
 import {
   validateStandardText,
   validateProseText,
 } from "../../lib/statutory-validation";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { useDirtyGuard } from "../../hooks/useDirtyGuard";
 import {
   normalizeServerSearch,
   REFERENCE_QUERY_STALE_TIME_MS,
@@ -68,15 +65,23 @@ const EMPTY_LIST: any[] = [];
 // Backend fields that have an inline input on this form. Any other field's message goes in the toast.
 const JOB_INLINE_FIELDS = ["title", "location", "imageUrl", "description", "requirements", "mrfId"];
 
+type JobRow = any;
+
 export const JobPostingsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const urlSearch = useSearch({ strict: false }) as { mrfId?: number | string };
+  const prefillMrfId = Number(urlSearch?.mrfId) || null;
+  const prefilledFromUrl = useRef<number | null>(null);
+
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
-  const pageSize = 8;
+  const [pageSize, setPageSize] = useState(10);
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createModalTab, setCreateModalTab] = useState<"edit" | "preview">("edit");
+  const [templateConfirmOpen, setTemplateConfirmOpen] = useState(false);
 
   const [selectedMrfId, setSelectedMrfId] = useState<number | null>(null);
   const [formTitle, setFormTitle] = useState("");
@@ -85,6 +90,23 @@ export const JobPostingsPage: React.FC = () => {
   const [formDescription, setFormDescription] = useState("");
   const [formRequirements, setFormRequirements] = useState("");
   const [formIsEvergreen, setFormIsEvergreen] = useState(false);
+  // What the selected request filled in, so only edits on top of it count as unsaved work.
+  const [baseline, setBaseline] = useState({ title: "", location: "", requirements: "" });
+  const [justSavedJobId, setJustSavedJobId] = useState<number | null>(null);
+
+  const isFormDirty =
+    createModalOpen &&
+    justSavedJobId === null &&
+    (formTitle !== baseline.title ||
+      formLocation !== baseline.location ||
+      formRequirements !== baseline.requirements ||
+      formImageUrl.trim() !== "" ||
+      formDescription.trim() !== "" ||
+      formIsEvergreen);
+  const { confirmDiscard, discardDialog } = useDirtyGuard({
+    isDirty: isFormDirty,
+    message: "You have unsaved changes in this job opening.",
+  });
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
@@ -138,24 +160,6 @@ export const JobPostingsPage: React.FC = () => {
 
   const mrfs = mrfsQuery.data || [];
 
-  const handleSelectMRF = (val: string) => {
-    const id = Number(val) || null;
-    setSelectedMrfId(id);
-    if (id) {
-      const chosen = mrfs.find((m) => m.id === id);
-      if (chosen) {
-        setFormTitle(chosen.title || "");
-        setFormLocation(chosen.location || "");
-        const sections: string[] = [];
-        if (chosen.requiredSkills) sections.push(`Required skills:\n${chosen.requiredSkills}`);
-        if (chosen.requiredExperience) sections.push(`Required experience:\n${chosen.requiredExperience}`);
-        if (chosen.requiredEducation) sections.push(`Minimum education:\n${chosen.requiredEducation}`);
-        if (chosen.requiredCertifications) sections.push(`Certifications & licenses:\n${chosen.requiredCertifications}`);
-        setFormRequirements(sections.join("\n\n") || chosen.requiredSkills || "");
-      }
-    }
-  };
-
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const clearServerFieldError = (field: string) =>
     setServerFieldErrors((prev) => {
@@ -164,6 +168,80 @@ export const JobPostingsPage: React.FC = () => {
       delete next[field];
       return next;
     });
+
+  const handleSelectMRF = (val: string) => {
+    const id = Number(val) || null;
+    setSelectedMrfId(id);
+    if (id) {
+      const chosen = mrfs.find((m) => m.id === id);
+      if (chosen) {
+        const sections: string[] = [];
+        if (chosen.requiredSkills) sections.push(`Required skills:\n${chosen.requiredSkills}`);
+        if (chosen.requiredExperience) sections.push(`Required experience:\n${chosen.requiredExperience}`);
+        if (chosen.requiredEducation) sections.push(`Minimum education:\n${chosen.requiredEducation}`);
+        if (chosen.requiredCertifications) sections.push(`Certifications & licenses:\n${chosen.requiredCertifications}`);
+        const next = {
+          title: chosen.title || "",
+          location: chosen.location || "",
+          requirements: sections.join("\n\n") || chosen.requiredSkills || "",
+        };
+        setFormTitle(next.title);
+        setFormLocation(next.location);
+        setFormRequirements(next.requirements);
+        setBaseline(next);
+      }
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedMrfId(null);
+    setFormTitle("");
+    setFormLocation("");
+    setFormImageUrl("");
+    setFormDescription("");
+    setFormRequirements("");
+    setFormIsEvergreen(false);
+    setBaseline({ title: "", location: "", requirements: "" });
+    setCreateModalTab("edit");
+    setServerFieldErrors({});
+  };
+
+  const openCreateDialog = () => {
+    setJustSavedJobId(null);
+    setFormIsEvergreen(false);
+    setCreateModalTab("edit");
+    setCreateModalOpen(true);
+  };
+
+  const closeCreateDialog = async () => {
+    if (!(await confirmDiscard())) return;
+    setCreateModalOpen(false);
+    resetForm();
+  };
+
+  // Deep link from a manpower request: /ta/jobs?mrfId=12 opens the dialog with that request filled in.
+  useEffect(() => {
+    if (!prefillMrfId) {
+      prefilledFromUrl.current = null;
+      return;
+    }
+    if (prefilledFromUrl.current === prefillMrfId) return;
+    if (!createModalOpen) {
+      openCreateDialog();
+      return;
+    }
+    if (!mrfsQuery.data) return;
+    prefilledFromUrl.current = prefillMrfId;
+    if (mrfsQuery.data.some((m) => m.id === prefillMrfId)) handleSelectMRF(String(prefillMrfId));
+    navigate({ to: "/ta/jobs", search: {} as never, replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillMrfId, createModalOpen, mrfsQuery.data]);
+
+  // After a save the form is clean, so the router no longer blocks the jump to the new opening.
+  useEffect(() => {
+    if (justSavedJobId === null) return;
+    navigate({ to: "/ta/jobs/$jobId", params: { jobId: String(justSavedJobId) } });
+  }, [justSavedJobId, navigate]);
 
   const createJobMutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -177,20 +255,16 @@ export const JobPostingsPage: React.FC = () => {
       }
       return created;
     },
-    onSuccess: (newJob) => {
+    onSuccess: (newJob, payload) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "jobs"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
       setCreateModalOpen(false);
-      setSelectedMrfId(null);
-      setFormTitle("");
-      setFormLocation("");
-      setFormImageUrl("");
-      setFormDescription("");
-      setFormRequirements("");
-      setFormIsEvergreen(false);
-      setCreateModalTab("edit");
-      setServerFieldErrors({});
-      notify.success("Job opening created", `Job opening #${newJob?.id || ""} is ready.`);
+      resetForm();
+      notify.success(
+        payload?.status === JobStatus.DRAFT ? "Draft saved" : "Job opening published",
+        payload?.status === JobStatus.DRAFT ? "Publish it from the opening when it is ready." : undefined
+      );
+      if (newJob?.id) setJustSavedJobId(newJob.id);
     },
     onError: (err: any) => {
       const fieldErrors = fieldErrorsFrom(err);
@@ -205,14 +279,48 @@ export const JobPostingsPage: React.FC = () => {
     },
   });
 
-  const handleLoadTemplate = () => {
-    const hasExisting = Boolean(formDescription.trim() || formRequirements.trim());
-    if (
-      hasExisting &&
-      !window.confirm("Replace current description and requirements with the job template outline?")
-    ) {
+  const submitJob = (status: JobStatus) => {
+    const errors: Record<string, string> = {};
+    if (!selectedMrfId) errors.mrfId = "Choose the manpower request this opening is posted under.";
+    if (!formTitle.trim()) errors.title = "Enter a job opening title.";
+    else {
+      const titleErr = validateStandardText(formTitle, "Job opening title", { maxLength: 200 });
+      if (titleErr) errors.title = titleErr;
+    }
+    if (formLocation.trim()) {
+      const locErr = validateStandardText(formLocation, "Work site", { maxLength: 200 });
+      if (locErr) errors.location = locErr;
+    }
+    if (!formDescription.trim()) errors.description = "Describe the role and its responsibilities.";
+    else {
+      const descErr = validateProseText(formDescription, "Description and responsibilities", { maxLength: 10000 });
+      if (descErr) errors.description = descErr;
+    }
+    if (!formRequirements.trim()) errors.requirements = "List the required skills and qualifications.";
+    else {
+      const reqErr = validateProseText(formRequirements, "Required skills and qualifications", { maxLength: 10000 });
+      if (reqErr) errors.requirements = reqErr;
+    }
+    if (Object.keys(errors).length > 0) {
+      setServerFieldErrors(errors);
+      setCreateModalTab("edit");
+      notify.error("Check the highlighted fields", Object.values(errors)[0]);
       return;
     }
+
+    createJobMutation.mutate({
+      title: formTitle.trim(),
+      location: formLocation.trim() || undefined,
+      imageUrl: formImageUrl.trim() || undefined,
+      description: formDescription.trim(),
+      requirements: formRequirements.trim(),
+      mrfId: selectedMrfId || undefined,
+      isEvergreen: formIsEvergreen,
+      status,
+    });
+  };
+
+  const applyTemplate = () => {
     setFormDescription(JOB_TEMPLATE_DESCRIPTION);
     setFormRequirements(JOB_TEMPLATE_REQUIREMENTS);
     clearServerFieldError("description");
@@ -220,9 +328,16 @@ export const JobPostingsPage: React.FC = () => {
     notify.info("Template loaded", "Job posting outline inserted into description and requirements.");
   };
 
+  const handleLoadTemplate = () => {
+    if (formDescription.trim() || formRequirements.trim()) {
+      setTemplateConfirmOpen(true);
+      return;
+    }
+    applyTemplate();
+  };
+
   const totalItems = jobData?.total ?? 0;
   const totalPages = jobData?.totalPages ?? 1;
-  const paginatedJobs = jobs;
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -240,13 +355,104 @@ export const JobPostingsPage: React.FC = () => {
     setPage(1);
   };
 
+  const hasFilters = Boolean(debouncedSearch || filterValues.status || filterValues.clientId);
+
+  const poolLink = (job: JobRow, className?: string) =>
+    job.status === JobStatus.OPEN ? (
+      <Link
+        to="/ta/jobs/$jobId"
+        params={{ jobId: String(job.id) }}
+        search={{ tab: "talentPool" }}
+        className={cn(
+          "inline-flex min-h-11 items-center font-medium text-navy underline-offset-2 hover:underline focus-ring md:min-h-0",
+          className
+        )}
+      >
+        View matches
+      </Link>
+    ) : (
+      <span className="text-slate-600">None</span>
+    );
+
+  const columns: DataTableColumn<JobRow>[] = [
+    {
+      key: "title",
+      header: "Job opening",
+      primary: true,
+      cell: (job) => job.title,
+    },
+    {
+      key: "client",
+      header: "Client",
+      cell: (job) => job.mrf?.client?.name || "Not linked",
+    },
+    {
+      key: "site",
+      header: "Work site",
+      hideBelow: "lg",
+      cell: (job) => job.location || "Philippines",
+    },
+    {
+      key: "status",
+      header: "Status",
+      cell: (job) => (
+        <span className="inline-flex flex-col items-start gap-0.5">
+          <StatusBadge status={job.status} type="raw" size="sm" />
+          {job.isEvergreen && <span className="text-xs text-slate-600">Always open</span>}
+        </span>
+      ),
+    },
+    {
+      key: "applicants",
+      header: "Applicants",
+      align: "right",
+      cell: (job) => job._count?.applications || 0,
+    },
+    {
+      key: "pool",
+      header: "Pool matches",
+      cell: (job) => poolLink(job),
+    },
+    {
+      key: "posted",
+      header: "Posted",
+      cell: (job) => formatDate(job.createdAt),
+    },
+  ];
+
+  const renderCard = (job: JobRow) => (
+    <div className="space-y-2 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <Link
+          to="/ta/jobs/$jobId"
+          params={{ jobId: String(job.id) }}
+          className="inline-flex min-h-11 items-center text-sm font-semibold text-navy underline-offset-2 hover:underline focus-ring"
+        >
+          {job.title}
+        </Link>
+        <StatusBadge status={job.status} type="raw" size="sm" />
+      </div>
+      <p className="text-sm text-slate-600">
+        {[job.mrf?.client?.name, job.location || "Philippines"].filter(Boolean).join(" · ")}
+        {job.isEvergreen ? " · Always open" : ""}
+      </p>
+      <div className="flex items-center justify-between gap-3 text-sm text-slate-700">
+        <span>
+          {plural(job._count?.applications || 0, "applicant")} · Posted {formatDate(job.createdAt)}
+        </span>
+        {poolLink(job)}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
+        flush
         title="Job openings"
         description="Create openings, set requirements, and review incoming candidates."
         breadcrumbs={[
-          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
           { label: TA_COPY.navigation.openings },
         ]}
         actions={
@@ -254,11 +460,7 @@ export const JobPostingsPage: React.FC = () => {
             variant="primary"
             size="sm"
             leftIcon={<Plus className="w-3.5 h-3.5" />}
-            onClick={() => {
-              setFormIsEvergreen(false);
-              setCreateModalTab("edit");
-              setCreateModalOpen(true);
-            }}
+            onClick={openCreateDialog}
           >
             Create job opening
           </Button>
@@ -267,7 +469,9 @@ export const JobPostingsPage: React.FC = () => {
 
       {/* Filter Bar */}
       <SearchFilters
-        searchPlaceholder="Search job openings by title, location, or client..."
+        className="!mb-0"
+        searchLabel="Search job openings"
+        searchPlaceholder="Search by title, site, or client"
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
@@ -297,284 +501,127 @@ export const JobPostingsPage: React.FC = () => {
         ]}
       />
 
-      {/* Jobs Grid / Table */}
       {jobsQuery.isLoading ? (
-        <LoadingState variant="cards" />
+        <LoadingState variant="table" />
       ) : jobsQuery.isError ? (
-        <ErrorState error={jobsQuery.error} onRetry={() => jobsQuery.refetch()} />
-      ) : jobs.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
-          <EmptyState
-            icon={<Briefcase className="w-6 h-6" />}
-            title="No job openings found"
-            description="Create a job opening to begin receiving candidate applications."
-            action={
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<Plus className="w-3.5 h-3.5" />}
-                onClick={() => {
-                  setFormIsEvergreen(false);
-                  setCreateModalOpen(true);
-                }}
-              >
-                Create job opening
-              </Button>
-            }
-          />
-        </div>
+        <ErrorState subject="job openings" error={jobsQuery.error} onRetry={() => jobsQuery.refetch()} />
       ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {paginatedJobs.map((job) => (
-              <div
-                key={job.id}
-                className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-teal-300 transition-colors"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="md" />
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                          {job.title}
-                        </h3>
-                        <div className="text-[11px] text-slate-500 font-mono flex flex-wrap items-center gap-2 mt-1">
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-slate-400" />
-                            <span>{job.location || "Philippines"}</span>
-                          </span>
-                          {job.mrf?.client?.name && (
-                            <>
-                              <span>•</span>
-                              <span className="font-semibold text-slate-700">{job.mrf.client.name}</span>
-                            </>
-                          )}
-                          {job.mrf?.salaryRangeMin || job.mrf?.salaryRangeMax ? (
-                            <span className="font-medium text-[#047857] bg-[#ECFDF5] px-2 py-0.5 rounded text-[11px] border border-[#A7F3D0]">
-                              {formatSalaryRange(job.mrf.salaryRangeMin, job.mrf.salaryRangeMax)}
-                            </span>
-                          ) : null}
-                          {job.mrf?.employmentType && (
-                            <span className="text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded text-[10px] border border-slate-200">
-                              {formatEmploymentType(job.mrf.employmentType)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {job.isEvergreen && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-teal-50 text-teal-700 border border-teal-200">
-                          Always open
-                        </span>
-                      )}
-                      <span
-                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase ${
-                          job.status === JobStatus.OPEN
-                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                            : job.status === JobStatus.DRAFT
-                            ? "bg-amber-50 text-amber-800 border border-amber-200"
-                            : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        {formatTaStatus(job.status)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                    {job.description}
-                  </p>
-
-                  <div className="flex items-center justify-between text-xs text-slate-500 font-mono pt-1">
-                    <div className="flex items-center gap-4">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{job._count?.applications || 0} applicants</span>
-                      </span>
-                      <span>•</span>
-                      <span>Posted {formatDate(job.createdAt)}</span>
-                    </div>
-
-                    {job.status === JobStatus.OPEN && (
-                      <Link
-                        to="/ta/jobs/$jobId"
-                        params={{ jobId: String(job.id) }}
-                        search={{ tab: "talentPool" }}
-                        className="inline-flex items-center gap-1 text-[11px] text-teal-700 font-semibold hover:underline"
-                      >
-                        <Users className="w-3 h-3 text-teal-600" />
-                        <span>Pool Matches</span>
-                      </Link>
-                    )}
-                  </div>
-                </div>
-
-                <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs font-mono font-semibold text-slate-500">
-                    Job opening #{job.id}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <Link
-                      to="/ta/jobs/$jobId"
-                      params={{ jobId: String(job.id) }}
-                    >
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        leftIcon={<Briefcase className="w-3.5 h-3.5 text-teal-600" />}
-                      >
-                        View opening
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Pagination Footer */}
-          <div className="bg-white border border-slate-300 p-2">
+        <DataTable
+          caption="Job openings"
+          columns={columns}
+          rows={jobs}
+          getRowId={(job) => String(job.id)}
+          renderCard={renderCard}
+          cardsBelow="lg"
+          rowHref={(job) => `/ta/jobs/${job.id}`}
+          isFetching={jobsQuery.isFetching}
+          empty={
+            hasFilters ? (
+              <EmptyState
+                bare
+                title="No job openings match these filters"
+                description="Try a different search or clear the filters."
+                action={
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    Clear filters
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                bare
+                title="No job openings yet"
+                description="Create a job opening to start receiving candidate applications."
+                action={
+                  <Button variant="primary" size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={openCreateDialog}>
+                    Create job opening
+                  </Button>
+                }
+              />
+            )
+          }
+          footer={
             <Pagination
+              variant="inset"
               currentPage={page}
               totalPages={totalPages}
               totalItems={totalItems}
               pageSize={pageSize}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
               onPageChange={setPage}
               itemLabel="job openings"
             />
-          </div>
-        </div>
+          }
+        />
       )}
 
       {/* Create Job Modal */}
       <Dialog
         open={createModalOpen}
-        onClose={() => {
-          setCreateModalOpen(false);
-          setServerFieldErrors({});
-        }}
+        onClose={closeCreateDialog}
         title="Create job opening"
-        description="Publish an opening so applicants can apply."
+        description="Publish an opening so applicants can apply, or save it as a draft."
         size="xl"
       >
         <form
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            if (!formTitle.trim()) return;
-            if (!selectedMrfId) {
-              notify.error("Check the highlighted fields", "A job opening is posted under one of your manpower requests.");
-              return;
-            }
-
-            const titleErr = validateStandardText(formTitle, "Job opening title", { maxLength: 200 });
-            if (titleErr) {
-              notify.error("Check the highlighted fields", titleErr);
-              return;
-            }
-
-            if (formLocation.trim()) {
-              const locErr = validateStandardText(formLocation, "Work site", { maxLength: 200 });
-              if (locErr) {
-                notify.error("Check the highlighted fields", locErr);
-                return;
-              }
-            }
-
-            if (formDescription.trim()) {
-              const descErr = validateProseText(formDescription, "Description and responsibilities", { maxLength: 10000 });
-              if (descErr) {
-                notify.error("Check the highlighted fields", descErr);
-                return;
-              }
-            }
-
-            if (formRequirements.trim()) {
-              const reqErr = validateProseText(formRequirements, "Required skills and qualifications", { maxLength: 10000 });
-              if (reqErr) {
-                notify.error("Check the highlighted fields", reqErr);
-                return;
-              }
-            }
-
-            createJobMutation.mutate({
-              title: formTitle.trim(),
-              location: formLocation.trim() || undefined,
-              imageUrl: formImageUrl.trim() || undefined,
-              description: formDescription.trim(),
-              requirements: formRequirements.trim(),
-              mrfId: selectedMrfId || undefined,
-              isEvergreen: formIsEvergreen,
-              status: JobStatus.OPEN,
-            });
+            submitJob(JobStatus.OPEN);
           }}
           className="space-y-4"
         >
-          {/* Top Bar with View Tabs and Load Template */}
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3 mb-4">
-            <div className="inline-flex p-1 bg-slate-100 rounded-lg text-xs font-medium text-slate-600">
-              <button
-                type="button"
-                onClick={() => setCreateModalTab("edit")}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all",
-                  createModalTab === "edit"
-                    ? "bg-white text-slate-900 shadow-xs font-semibold"
-                    : "text-slate-600 hover:text-slate-900"
-                )}
-              >
-                <Edit className="w-3.5 h-3.5" />
-                <span>Edit Details</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setCreateModalTab("preview")}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all",
-                  createModalTab === "preview"
-                    ? "bg-white text-slate-900 shadow-xs font-semibold"
-                    : "text-slate-600 hover:text-slate-900"
-                )}
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Live Preview</span>
-              </button>
+            <div className="inline-flex gap-1 bg-slate-100 p-1 text-sm font-medium text-slate-700" role="group" aria-label="Form view">
+              {(
+                [
+                  ["edit", "Edit details"],
+                  ["preview", "Preview"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={createModalTab === id}
+                  onClick={() => setCreateModalTab(id)}
+                  className={cn(
+                    "min-h-11 px-3 py-1.5 transition-colors focus-ring md:min-h-9",
+                    createModalTab === id
+                      ? "bg-white font-semibold text-navy shadow-xs"
+                      : "text-slate-700 hover:text-slate-950"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              leftIcon={<FileText className="w-3.5 h-3.5 text-teal-600" />}
-              onClick={handleLoadTemplate}
-              title="Insert standard job posting structure"
-            >
-              Load Template
+            <Button type="button" variant="outline" size="sm" onClick={handleLoadTemplate}>
+              Load template
             </Button>
           </div>
 
           {createModalTab === "edit" ? (
             <div className="space-y-4">
-              {/* Optional MRF Auto-Population Selector */}
               <ComboBox
                 label="Manpower request"
-                placeholder="Search requests to fill this opening automatically..."
-                leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-slate-400" />}
+                placeholder="Search requests"
                 value={selectedMrfId ? String(selectedMrfId) : ""}
                 error={serverFieldErrors.mrfId}
                 onChange={(val) => {
-                  setServerFieldErrors({});
+                  clearServerFieldError("mrfId");
                   handleSelectMRF(val);
                 }}
                 options={mrfs.map((m) => ({
                   value: String(m.id),
                   label: `${m.title} (Request #${m.id})`,
-                  subtitle: `Client: ${m.client?.name || "Client"} • ${m.location || "Nationwide"} • ${m.headcount} positions`,
-                  badge: m.status,
+                  subtitle: `Client: ${m.client?.name || "Client"} • ${m.location || "Nationwide"} • ${plural(m.headcount, "position")}`,
+                  badge: formatStatusWord(m.status),
                 }))}
-                helperText="The opening is posted under this request. Selecting one fills the title, location, description, and skills."
+                helperText="The opening is posted under this request. Choosing one fills the title, work site, and skills."
                 required
                 emptyText="No open manpower requests found"
               />
@@ -617,7 +664,6 @@ export const JobPostingsPage: React.FC = () => {
                 />
               </div>
 
-
               <Textarea
                 label="Description and responsibilities"
                 placeholder="Describe role responsibilities..."
@@ -645,73 +691,56 @@ export const JobPostingsPage: React.FC = () => {
                 required
               />
 
-              {/* Keep Open After Fill Toggle */}
               <div className="pt-2 border-t border-slate-100">
-                <label className="flex items-start gap-2.5 cursor-pointer">
+                <label className="flex min-h-11 items-start gap-2.5 cursor-pointer">
                   <input
                     type="checkbox"
-                    className="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-navy focus-ring"
                     checked={formIsEvergreen}
                     onChange={(e) => setFormIsEvergreen(e.target.checked)}
                   />
-                  <div>
-                    <span className="text-xs font-semibold text-slate-800">Keep open after positions are filled</span>
-                    <p className="text-[11px] text-slate-500 leading-tight">
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-800">Keep open after positions are filled</span>
+                    <span className="block text-xs text-slate-600 leading-tight">
                       Leave this opening open for future applicants.
-                    </p>
-                  </div>
+                    </span>
+                  </span>
                 </label>
               </div>
             </div>
           ) : (
-            /* Live Preview Mode */
             <div className="space-y-4">
-              <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-lg space-y-4">
+              <div className="p-4 bg-slate-50 border border-slate-200 space-y-4">
                 <div className="flex items-start gap-3 pb-3 border-b border-slate-200">
-                  <JobImage src={formImageUrl} title={formTitle || "Job Title"} alt={formTitle || "Job Title"} size="md" />
+                  <JobImage src={formImageUrl} title={formTitle || "Job opening"} alt={formTitle || "Job opening"} size="md" />
                   <div className="space-y-1">
-                    <h3 className="text-base font-bold text-slate-900">{formTitle || "Untitled Job Opening"}</h3>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{formLocation || "Philippines"}</span>
-                      </span>
-                      <span>•</span>
-                      <span className="font-mono uppercase text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 font-semibold">
-                        Open
-                      </span>
-                      {formIsEvergreen && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-50 text-teal-700 border border-teal-200">
-                          Always open
-                        </span>
-                      )}
-                    </div>
+                    <h3 className="text-base font-semibold text-slate-900">{formTitle || "Untitled job opening"}</h3>
+                    <p className="text-sm text-slate-600">
+                      {formLocation || "Philippines"}
+                      {formIsEvergreen ? " · Always open" : ""}
+                    </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
                   <div className="md:col-span-7 space-y-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                      Role Description & Responsibilities
-                    </h4>
-                    <div className="p-4 bg-white rounded-lg border border-slate-200 min-h-[160px]">
+                    <h4 className="text-sm font-semibold text-slate-800">Description and responsibilities</h4>
+                    <div className="p-4 bg-white border border-slate-200 min-h-[160px]">
                       {formDescription ? (
                         <JobContentRenderer content={formDescription} variant="ta" />
                       ) : (
-                        <p className="text-xs text-slate-400 italic">No description entered yet.</p>
+                        <p className="text-sm text-slate-600 italic">No description entered yet.</p>
                       )}
                     </div>
                   </div>
 
                   <div className="md:col-span-5 space-y-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                      Required Skills & Qualifications
-                    </h4>
-                    <div className="p-4 bg-white rounded-lg border border-slate-200 min-h-[160px]">
+                    <h4 className="text-sm font-semibold text-slate-800">Required skills and qualifications</h4>
+                    <div className="p-4 bg-white border border-slate-200 min-h-[160px]">
                       {formRequirements ? (
                         <JobContentRenderer content={formRequirements} variant="ta" />
                       ) : (
-                        <p className="text-xs text-slate-400 italic">No requirements entered yet.</p>
+                        <p className="text-sm text-slate-600 italic">No requirements entered yet.</p>
                       )}
                     </div>
                   </div>
@@ -720,21 +749,45 @@ export const JobPostingsPage: React.FC = () => {
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setCreateModalOpen(false)}>
+          <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="ghost" size="sm" onClick={closeCreateDialog}>
               Cancel
             </Button>
             <Button
-              variant="primary"
+              variant="outline"
               size="sm"
-              type="submit"
-              loading={createJobMutation.isPending}
+              disabled={createJobMutation.isPending}
+              onClick={() => submitJob(JobStatus.DRAFT)}
             >
+              Save as draft
+            </Button>
+            <Button variant="primary" size="sm" type="submit" loading={createJobMutation.isPending}>
               Publish job opening
             </Button>
           </div>
         </form>
       </Dialog>
+
+      <ConfirmDialog
+        open={templateConfirmOpen}
+        onClose={() => setTemplateConfirmOpen(false)}
+        onConfirm={() => {
+          setTemplateConfirmOpen(false);
+          applyTemplate();
+        }}
+        title="Replace your text with the template?"
+        description="The description and requirements you typed will be replaced by the standard job posting outline."
+        confirmLabel="Replace with template"
+        variant="warning"
+      />
+
+      {discardDialog}
     </div>
   );
 };
+
+function formatStatusWord(status?: string | null): string | undefined {
+  if (!status) return undefined;
+  const text = status.replace(/_/g, " ").toLowerCase();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}

@@ -10,22 +10,15 @@ import {
   SearchFilters,
   Pagination,
   StatusBadge,
+  DataTable,
 } from "../../components/common";
+import type { DataTableColumn } from "../../components/common";
 import { Button, Dialog, Input, PhoneInput } from "../../components/ui";
 import { ComboBox } from "../../components/ui/ComboBox";
-import { formatDate } from "../../lib/utils";
+import { plural } from "../../lib/plural";
 import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
 import { PHILIPPINE_INDUSTRY_SECTORS } from "../../lib/industry-data";
-import {
-  Building2,
-  Plus,
-  ArrowRight,
-  Mail,
-  Phone,
-  Briefcase,
-  Truck,
-  MapPin,
-} from "lucide-react";
+import { Plus } from "lucide-react";
 import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
@@ -38,6 +31,7 @@ import { z } from "zod";
 import { FIELD_LIMITS } from "../../lib/field-limits";
 
 const EMPTY_LIST: any[] = [];
+type ClientRow = any;
 // First and last name are joined with a space; capping each part keeps the joined name within the backend limit.
 const CONTACT_NAME_PART_MAX = Math.floor((FIELD_LIMITS.name - 1) / 2);
 const CONTACT_EMAIL_MESSAGE = "Enter a valid email address.";
@@ -56,7 +50,7 @@ export const ClientsPage: React.FC = () => {
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
-  const pageSize = 6;
+  const [pageSize, setPageSize] = useState(10);
 
   const [name, setName] = useState("");
   const [tradeName, setTradeName] = useState("");
@@ -176,13 +170,71 @@ export const ClientsPage: React.FC = () => {
     setPage(1);
   };
 
+  const columns: DataTableColumn<ClientRow>[] = [
+    {
+      key: "name",
+      header: "Client",
+      primary: true,
+      cell: (c) => c.name,
+    },
+    { key: "industry", header: "Industry", cell: (c) => c.industry || "General commercial" },
+    {
+      key: "contact",
+      header: "Contact",
+      cell: (c) =>
+        c.contactName || c.contactEmail ? (
+          <span>
+            {c.contactName && <span className="block">{c.contactName}</span>}
+            {c.contactEmail && <span className="block break-all text-xs text-slate-600">{c.contactEmail}</span>}
+          </span>
+        ) : (
+          <span className="text-slate-600">No contact</span>
+        ),
+    },
+    { key: "requests", header: "Requests", align: "right", cell: (c) => c._count?.manpowerRequests || 0 },
+    { key: "deployed", header: "Deployed", align: "right", cell: (c) => c._count?.deployments || 0 },
+    {
+      key: "status",
+      header: "Status",
+      cell: (c) =>
+        c.isActive ? <span className="text-slate-700">Active</span> : <StatusBadge status="Inactive" type="raw" size="sm" />,
+    },
+  ];
+
+  const renderCard = (c: ClientRow) => (
+    <div className="space-y-1.5 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <Link
+          to="/ta/clients/$clientId"
+          params={{ clientId: String(c.id) }}
+          className="inline-flex min-h-11 items-center text-sm font-semibold text-navy underline-offset-2 hover:underline focus-ring"
+        >
+          {c.name}
+        </Link>
+        {!c.isActive && <StatusBadge status="Inactive" type="raw" size="sm" />}
+      </div>
+      <p className="text-sm text-slate-600">
+        {[c.tradeName ? `Brand: ${c.tradeName}` : null, c.industry || "General commercial"].filter(Boolean).join(" · ")}
+      </p>
+      {(c.contactName || c.contactEmail || c.contactPhone) && (
+        <p className="break-words text-sm text-slate-700">
+          {[c.contactName, c.contactEmail, c.contactPhone].filter(Boolean).join(" · ")}
+        </p>
+      )}
+      <p className="text-sm text-slate-700">
+        {plural(c._count?.manpowerRequests || 0, "request")} · {c._count?.deployments || 0} deployed
+      </p>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
+        flush
         title={TA_COPY.navigation.clients}
         description="Manage client companies, staffing requests, and site assignments."
         breadcrumbs={[
-          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
           { label: TA_COPY.navigation.clients },
         ]}
         actions={
@@ -197,9 +249,10 @@ export const ClientsPage: React.FC = () => {
         }
       />
 
-      {/* Filter Bar */}
       <SearchFilters
-        searchPlaceholder="Search clients by company, contact, or industry..."
+        className="!mb-0"
+        searchLabel="Search clients"
+        searchPlaceholder="Search clients"
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={filterValues}
@@ -209,170 +262,85 @@ export const ClientsPage: React.FC = () => {
           {
             key: "status",
             label: "Client status",
-            placeholder: "All account statuses",
+            placeholder: "All statuses",
+            searchable: true,
             options: [
-              { value: "ACTIVE", label: "Active partners" },
-              { value: "INACTIVE", label: "Inactive accounts" },
+              { value: "ACTIVE", label: "Active" },
+              { value: "INACTIVE", label: "Inactive" },
             ],
           },
-          ...(availableIndustries.length > 0
-            ? [
-                {
-                  key: "industry",
-                  label: "Industry Sector",
-                  placeholder: "All industry sectors",
-                  searchable: true,
-                  options: availableIndustries.map((ind) => ({
-                    value: ind,
-                    label: ind,
-                  })),
-                },
-              ]
-            : []),
+          {
+            key: "industry",
+            label: "Industry",
+            placeholder: "All industries",
+            searchable: true,
+            options: availableIndustries.map((ind) => ({
+              value: ind,
+              label: ind,
+            })),
+          },
         ]}
       />
 
       {clientsQuery.isLoading ? (
-        <LoadingState variant="cards" />
+        <LoadingState variant="table" />
       ) : clientsQuery.isError ? (
-        <ErrorState error={clientsQuery.error} onRetry={() => clientsQuery.refetch()} />
-      ) : clients.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
-          <EmptyState
-            icon={<Building2 className="w-6 h-6" />}
-            title="No clients registered"
-            description="Add a client to begin creating manpower requests and assigning employees to sites."
-            action={
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<Plus className="w-3.5 h-3.5" />}
-                onClick={() => setCreateModalOpen(true)}
-              >
-                Add client
-              </Button>
-            }
-          />
-        </div>
-      ) : filteredClients.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
-          <EmptyState
-            icon={<Building2 className="w-6 h-6" />}
-            title="No matching clients"
-            description="No clients matched your search and filters. Try clearing the filters."
-            action={
-              <Button variant="outline" size="sm" onClick={handleReset}>
-                Reset filters
-              </Button>
-            }
-          />
-        </div>
+        <ErrorState subject="clients" error={clientsQuery.error} onRetry={() => clientsQuery.refetch()} />
       ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {paginatedClients.map((c) => (
-              <div
-                key={c.id}
-                className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-teal-300 transition-colors"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-base font-bold text-slate-900">{c.name}</h3>
-                      {c.tradeName && (
-                        <div className="text-xs text-teal-700 font-mono font-medium">
-                          Brand: {c.tradeName}
-                        </div>
-                      )}
-                      <div className="text-xs text-slate-500 font-mono">
-                        Industry: {c.industry || "General commercial"}
-                      </div>
-                    </div>
-                    <StatusBadge status={c.isActive ? "Active client" : "Inactive"} type="raw" size="sm" />
-                  </div>
-
-                  <div className="space-y-1.5 text-xs text-slate-600">
-                    {c.contactName && (
-                      <div className="font-medium text-slate-800">
-                        Contact: {c.contactName}
-                      </div>
-                    )}
-                    {c.contactEmail && (
-                      <div className="flex items-center gap-1.5 text-slate-500 font-mono">
-                        <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span>{c.contactEmail}</span>
-                      </div>
-                    )}
-                    {c.contactPhone && (
-                      <div className="flex items-center gap-1.5 text-slate-500 font-mono">
-                        <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span>{c.contactPhone}</span>
-                      </div>
-                    )}
-                    {(c.street || c.barangay || c.city || c.province || c.postalCode || c.address) && (
-                      <div className="flex items-start gap-1.5 text-slate-600">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                        <span className="line-clamp-2">
-                          {c.street || c.city || c.province
-                            ? [c.street, c.barangay, c.city, c.province, c.postalCode].filter(Boolean).join(", ")
-                            : c.address}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-2 border-t border-slate-100">
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
-                      <Briefcase className="w-3.5 h-3.5 text-blue-600" />
-                      <div>
-                        <span className="font-bold text-slate-900">
-                          {c._count?.manpowerRequests || 0}
-                        </span>{" "}
-                        <span className="text-xs text-slate-500">Requests</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
-                      <Truck className="w-3.5 h-3.5 text-emerald-600" />
-                      <div>
-                        <span className="font-bold text-slate-900">
-                          {c._count?.deployments || 0}
-                        </span>{" "}
-                        <span className="text-xs text-slate-500">Deployed</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs font-mono text-slate-400">
-                    Registered {formatDate(c.createdAt)}
-                  </span>
-                  <Link
-                    to="/ta/clients/$clientId"
-                    params={{ clientId: String(c.id) }}
+        <DataTable
+          caption="Clients"
+          columns={columns}
+          rows={paginatedClients}
+          getRowId={(c) => String(c.id)}
+          renderCard={renderCard}
+          cardsBelow="md"
+          rowHref={(c) => `/ta/clients/${c.id}`}
+          empty={
+            clients.length === 0 ? (
+              <EmptyState
+                bare
+                title="No clients registered"
+                description="Add a client to begin creating manpower requests and assigning employees to sites."
+                action={
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Plus className="w-3.5 h-3.5" />}
+                    onClick={() => setCreateModalOpen(true)}
                   >
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                    >
-                      View client
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            totalItems={filteredClients.length}
-            pageSize={pageSize}
-            onPageChange={setPage}
-            itemLabel="clients"
-          />
-        </div>
+                    Add client
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                bare
+                title="No matching clients"
+                description="No clients matched your search and filters. Try clearing the filters."
+                action={
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    Reset filters
+                  </Button>
+                }
+              />
+            )
+          }
+          footer={
+            <Pagination
+              variant="inset"
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={filteredClients.length}
+              pageSize={pageSize}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+              onPageChange={setPage}
+              itemLabel="clients"
+            />
+          }
+        />
       )}
 
       {/* Add Client Modal */}

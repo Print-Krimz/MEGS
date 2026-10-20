@@ -1,10 +1,9 @@
-import React, { useState, useMemo } from "react";
-import { useNavigate, Link } from "@tanstack/react-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
-import { PageHeader } from "../../components/common";
+import { PageHeader, ConfirmDialog } from "../../components/common";
 import { Button, Input, Select, Textarea, ComboBox } from "../../components/ui";
-import { ArrowLeft, Send, Building2, Copy } from "lucide-react";
 import { notify, formatErrorMessage, fieldErrorsFrom } from "../../lib/feedback";
 import {
   EMPLOYMENT_TYPE_OPTIONS,
@@ -25,6 +24,7 @@ import {
   parseSkillsArray,
   formatSkillsList,
 } from "../../lib/mrf-presets";
+import { useDirtyGuard } from "../../hooks/useDirtyGuard";
 import { CloneMRFModal } from "../../components/ta/CloneMRFModal";
 import { FieldWarning } from "../../components/ta/FieldWarning";
 import {
@@ -38,11 +38,33 @@ import {
 } from "../../lib/requirement-hints";
 import type { ManpowerRequest } from "../../lib/types/ta.types";
 
+/** Form fields in the order they appear on the page, with the element id used to focus them. */
+const FIELD_ORDER: Array<[string, string]> = [
+  ["clientId", "mrf-client"],
+  ["title", "mrf-title"],
+  ["headcount", "mrf-headcount"],
+  ["location", "mrf-location"],
+  ["salaryRangeMin", "mrf-salary-min"],
+  ["salaryRangeMax", "mrf-salary-max"],
+  ["requiredSkills", "mrf-skills"],
+  ["requiredCertifications", "mrf-certifications"],
+  ["description", "mrf-notes"],
+  ["ageMin", "mrf-age-min"],
+  ["ageMax", "mrf-age-max"],
+];
+
+type PendingFill =
+  | { kind: "preset"; presetId: string }
+  | { kind: "clone"; mrf: ManpowerRequest; preserveClient: boolean };
+
 export const MRFCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const urlSearch = useSearch({ strict: false }) as { clientId?: number | string };
+  const presetClientId = Number(urlSearch?.clientId) || 0;
+  const presetClientApplied = useRef(false);
 
-  const [clientId, setClientId] = useState<number>(0);
+  const [clientId, setClientId] = useState<number>(presetClientId);
   const [title, setTitle] = useState("");
   const [headcount, setHeadcount] = useState<number | string>(1);
   const [priority, setPriority] = useState<"LOW" | "NORMAL" | "HIGH" | "URGENT">("NORMAL");
@@ -61,8 +83,11 @@ export const MRFCreatePage: React.FC = () => {
   const [ageMax, setAgeMax] = useState<string>("");
   const [genderPreference, setGenderPreference] = useState<string>("ANY");
   const [tattooPolicy, setTattooPolicy] = useState<string>("ALLOWED");
+  const [clientRequirementsOpen, setClientRequirementsOpen] = useState(false);
   const [cloneModalOpen, setCloneModalOpen] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [pendingFill, setPendingFill] = useState<PendingFill | null>(null);
+  const [createdId, setCreatedId] = useState<number | null>(null);
   const presetsByIndustry = useMemo(() => getPresetsByIndustry(), []);
 
   const clientsQuery = useQuery({
@@ -81,22 +106,47 @@ export const MRFCreatePage: React.FC = () => {
       return next;
     });
 
+  // Anything typed beyond the page defaults. A client chosen through ?clientId= is not typed work.
+  const hasSpecifications = Boolean(
+    title.trim() ||
+      requiredSkills.trim() ||
+      requiredExperience.trim() ||
+      requiredEducation.trim() ||
+      requiredCertifications.trim() ||
+      description.trim() ||
+      salaryMin ||
+      salaryMax
+  );
+  const isDirty =
+    createdId === null &&
+    (hasSpecifications ||
+      clientId !== presetClientId ||
+      location.trim() !== "" ||
+      targetFillDate !== "" ||
+      String(headcount) !== "1" ||
+      priority !== "NORMAL" ||
+      ageMin !== "" ||
+      ageMax !== "" ||
+      genderPreference !== "ANY" ||
+      tattooPolicy !== "ALLOWED");
+  const { discardDialog } = useDirtyGuard({
+    isDirty,
+    message: "You have unsaved changes in this manpower request.",
+  });
+
   const handleHeadcountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     clearServerFieldError("headcount");
-    const val = e.target.value;
-    setHeadcount(val);
+    setHeadcount(e.target.value);
   };
 
   const handleSalaryMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     clearServerFieldError("salaryRangeMin");
-    const val = e.target.value;
-    setSalaryMin(val);
+    setSalaryMin(e.target.value);
   };
 
   const handleSalaryMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     clearServerFieldError("salaryRangeMax");
-    const val = e.target.value;
-    setSalaryMax(val);
+    setSalaryMax(e.target.value);
   };
 
   const handleAgeMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,20 +181,32 @@ export const MRFCreatePage: React.FC = () => {
     ageMin && ageMax && parseInt(ageMin, 10) > parseInt(ageMax, 10)
   );
 
+  /** Show errors on their fields, open the internal-only block if one is inside it, and focus the first. */
+  const showFieldErrors = (errors: Record<string, string>) => {
+    setServerFieldErrors(errors);
+    const first = FIELD_ORDER.find(([key]) => errors[key]);
+    if (first && (first[0] === "ageMin" || first[0] === "ageMax")) setClientRequirementsOpen(true);
+    if (first) {
+      window.setTimeout(() => {
+        const el = document.getElementById(first[1]);
+        el?.scrollIntoView?.({ block: "center" });
+        el?.focus();
+      }, 0);
+    }
+  };
+
   const createMRFMutation = useMutation({
     mutationFn: taApi.createMRF,
     onSuccess: (newMRF) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
       notify.success("Manpower request created", `Request #${newMRF.id} (${newMRF.title}) is ready.`);
-      navigate({
-        to: "/ta/mrfs/$mrfId",
-        params: { mrfId: String(newMRF.id) },
-      });
+      setCreatedId(newMRF.id);
     },
     onError: (err: any) => {
       const fieldErrors = fieldErrorsFrom(err);
       if (Object.keys(fieldErrors).length > 0) {
-        setServerFieldErrors(fieldErrors);
+        showFieldErrors(fieldErrors);
+        setValidationError(`Check the highlighted ${Object.keys(fieldErrors).length === 1 ? "field" : "fields"} below.`);
         notify.error("Check the highlighted fields", Object.values(fieldErrors)[0]);
         return;
       }
@@ -153,6 +215,15 @@ export const MRFCreatePage: React.FC = () => {
       notify.error("Unable to create request", err);
     },
   });
+
+  // The form is clean once the request exists, so the leave guard lets the router go to its page.
+  useEffect(() => {
+    if (createdId === null) return;
+    navigate({
+      to: "/ta/mrfs/$mrfId",
+      params: { mrfId: String(createdId) },
+    });
+  }, [createdId, navigate]);
 
   const clients = clientsQuery.data || [];
 
@@ -172,10 +243,17 @@ export const MRFCreatePage: React.FC = () => {
     }
   };
 
-  const handleApplyPreset = (presetId: string) => {
-    setSelectedPresetId(presetId);
-    if (!presetId) return;
+  // Opened from a client page (?clientId=): fill the client's work site once, as if it was picked by hand.
+  useEffect(() => {
+    if (!presetClientId || presetClientApplied.current || clients.length === 0) return;
+    presetClientApplied.current = true;
+    const chosenClient = clients.find((c) => c.id === presetClientId);
+    const workLocation = chosenClient ? clientWorkLocation(chosenClient) : "";
+    if (workLocation) setLocation((current) => (!current || current === "Philippines" ? workLocation : current));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clients, presetClientId]);
 
+  const applyPreset = (presetId: string) => {
     const preset = getMRFPresetById(presetId);
     if (!preset) return;
 
@@ -191,10 +269,20 @@ export const MRFCreatePage: React.FC = () => {
     setEmploymentType(preset.employmentType);
     setWorkArrangement(preset.workArrangement);
 
-    notify.success("Template Applied", `Loaded "${preset.label}" specifications.`);
+    notify.success("Template applied", `Loaded "${preset.label}" specifications.`);
   };
 
-  const handleApplyClonedMRF = (mrf: ManpowerRequest, preserveClient: boolean) => {
+  const handleApplyPreset = (presetId: string) => {
+    setSelectedPresetId(presetId);
+    if (!presetId) return;
+    if (hasSpecifications) {
+      setPendingFill({ kind: "preset", presetId });
+      return;
+    }
+    applyPreset(presetId);
+  };
+
+  const applyClonedMRF = (mrf: ManpowerRequest, preserveClient: boolean) => {
     setServerFieldErrors({});
     setTitle(mrf.title || "");
     setHeadcount(mrf.headcount || 1);
@@ -231,8 +319,29 @@ export const MRFCreatePage: React.FC = () => {
     }
 
     setSelectedPresetId("");
+    notify.success("Request cloned", `Populated specifications from MRF #${mrf.id} (${mrf.title}).`);
+  };
+
+  const handleApplyClonedMRF = (mrf: ManpowerRequest, preserveClient: boolean) => {
     setCloneModalOpen(false);
-    notify.success("MRF Cloned", `Populated specifications from MRF #${mrf.id} (${mrf.title}).`);
+    if (hasSpecifications) {
+      setPendingFill({ kind: "clone", mrf, preserveClient });
+      return;
+    }
+    applyClonedMRF(mrf, preserveClient);
+  };
+
+  const confirmPendingFill = () => {
+    if (!pendingFill) return;
+    if (pendingFill.kind === "preset") applyPreset(pendingFill.presetId);
+    else applyClonedMRF(pendingFill.mrf, pendingFill.preserveClient);
+    setPendingFill(null);
+  };
+
+  const cancelPendingFill = () => {
+    // Put the template picker back where it was; nothing was replaced.
+    if (pendingFill?.kind === "preset") setSelectedPresetId("");
+    setPendingFill(null);
   };
 
   const activeSkillsList = useMemo(
@@ -245,54 +354,35 @@ export const MRFCreatePage: React.FC = () => {
     setRequiredSkills(updated.join(", "));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!clientId) {
-      setValidationError("Please select a client account before submitting.");
-      return;
-    }
+  const validate = (): { errors: Record<string, string>; parsedHeadcount: number } => {
+    const errors: Record<string, string> = {};
 
-    if (!title.trim()) {
-      setValidationError("Please enter a request title before submitting.");
-      return;
-    }
+    if (!clientId) errors.clientId = "Choose the client for this request.";
 
-    const titleErr = validateStandardText(title, "Request title", { maxLength: 200 });
-    if (titleErr) {
-      setValidationError(titleErr);
-      return;
+    if (!title.trim()) errors.title = "Enter a request title.";
+    else {
+      const titleErr = validateStandardText(title, "Request title", { maxLength: 200 });
+      if (titleErr) errors.title = titleErr;
     }
 
     if (location.trim()) {
       const locErr = validateStandardText(location, "Location", { maxLength: 200 });
-      if (locErr) {
-        setValidationError(locErr);
-        return;
-      }
+      if (locErr) errors.location = locErr;
     }
 
     if (requiredSkills.trim()) {
       const skillsErr = validateProseText(requiredSkills, "Required skills", { maxLength: 2000 });
-      if (skillsErr) {
-        setValidationError(skillsErr);
-        return;
-      }
+      if (skillsErr) errors.requiredSkills = skillsErr;
     }
 
     if (description.trim()) {
       const descErr = validateProseText(description, "Job description", { maxLength: 10000 });
-      if (descErr) {
-        setValidationError(descErr);
-        return;
-      }
+      if (descErr) errors.description = descErr;
     }
 
     if (requiredCertifications.trim()) {
       const certErr = validateProseText(requiredCertifications, "Required certifications", { maxLength: 2000 });
-      if (certErr) {
-        setValidationError(certErr);
-        return;
-      }
+      if (certErr) errors.requiredCertifications = certErr;
     }
 
     const parsedHeadcount = Number(headcount);
@@ -303,49 +393,47 @@ export const MRFCreatePage: React.FC = () => {
       parsedHeadcount < 1 ||
       parsedHeadcount > 1000
     ) {
-      setValidationError("Headcount must be an integer between 1 and 1,000.");
-      return;
+      errors.headcount = "Enter a whole number from 1 to 1,000.";
     }
 
     if (salaryMin !== "") {
       const min = parseFloat(salaryMin);
-      if (isNaN(min) || min < 0 || min > 1000000) {
-        setValidationError("Minimum monthly salary must be between 0 and 1,000,000 PHP.");
-        return;
-      }
+      if (isNaN(min) || min < 0 || min > 1000000) errors.salaryRangeMin = "Minimum monthly salary must be between 0 and 1,000,000 PHP.";
     }
 
     if (salaryMax !== "") {
       const max = parseFloat(salaryMax);
-      if (isNaN(max) || max < 0 || max > 1000000) {
-        setValidationError("Maximum monthly salary must be between 0 and 1,000,000 PHP.");
-        return;
-      }
+      if (isNaN(max) || max < 0 || max > 1000000) errors.salaryRangeMax = "Maximum monthly salary must be between 0 and 1,000,000 PHP.";
     }
 
-    if (salaryMin && salaryMax && parseFloat(salaryMin) > parseFloat(salaryMax)) {
-      setValidationError("Minimum monthly salary cannot exceed maximum monthly salary.");
-      return;
+    if (!errors.salaryRangeMin && !errors.salaryRangeMax && salaryMin && salaryMax && parseFloat(salaryMin) > parseFloat(salaryMax)) {
+      errors.salaryRangeMax = "Minimum monthly salary cannot exceed maximum monthly salary.";
     }
 
     if (ageMin !== "") {
       const min = parseInt(ageMin, 10);
-      if (isNaN(min) || min < 18 || min > 65) {
-        setValidationError("Minimum age must be an integer between 18 and 65.");
-        return;
-      }
+      if (isNaN(min) || min < 18 || min > 65) errors.ageMin = "Minimum age must be a whole number from 18 to 65.";
     }
 
     if (ageMax !== "") {
       const max = parseInt(ageMax, 10);
-      if (isNaN(max) || max < 18 || max > 65) {
-        setValidationError("Maximum age must be an integer between 18 and 65.");
-        return;
-      }
+      if (isNaN(max) || max < 18 || max > 65) errors.ageMax = "Maximum age must be a whole number from 18 to 65.";
     }
 
-    if (ageMin && ageMax && parseInt(ageMin, 10) > parseInt(ageMax, 10)) {
-      setValidationError("Minimum age cannot exceed maximum age.");
+    if (!errors.ageMin && !errors.ageMax && ageMin && ageMax && parseInt(ageMin, 10) > parseInt(ageMax, 10)) {
+      errors.ageMax = "Minimum age cannot exceed maximum age.";
+    }
+
+    return { errors, parsedHeadcount };
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const { errors, parsedHeadcount } = validate();
+    const count = Object.keys(errors).length;
+    if (count > 0) {
+      showFieldErrors(errors);
+      setValidationError(`Check the ${count === 1 ? "highlighted field" : `${count} highlighted fields`} below.`);
       return;
     }
 
@@ -373,93 +461,87 @@ export const MRFCreatePage: React.FC = () => {
     });
   };
 
+  // Leaving while the form is dirty is caught by the leave guard, which asks before discarding.
+  const handleCancel = () => navigate({ to: "/ta/mrfs" });
+
   const clientOptions = clients.map((c) => ({
     value: String(c.id),
     label: c.tradeName ? `${c.name} (${c.tradeName})` : c.name,
-    subtitle: `${c.industry || "General Industry"} • ${[c.city, c.province].filter(Boolean).join(", ") || c.address || "Philippines"}`,
-    badge: `ID #${c.id}`,
+    subtitle: `${c.industry || "General industry"} • ${[c.city, c.province].filter(Boolean).join(", ") || c.address || "Philippines"}`,
   }));
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Create manpower request (MRF)"
+        flush
+        title={TA_COPY.pageTitles.createManpowerRequest}
         description="Tell us how many workers the client needs and when they are needed."
         breadcrumbs={[
-          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
           { label: TA_COPY.navigation.manpowerRequests, href: "/ta/mrfs" },
           { label: "Create" },
         ]}
-        actions={
-          <Link to="/ta/mrfs">
-            <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-              Back to requests
-            </Button>
-          </Link>
-        }
       />
 
       {validationError && (
-        <div className="p-3 rounded-lg border bg-rose-50 border-rose-200 text-rose-800 text-xs font-mono flex items-center justify-between" role="alert" aria-live="assertive">
+        <div className="flex items-center justify-between rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800" role="alert" aria-live="assertive">
           <span>{validationError}</span>
           <button
             type="button"
             onClick={() => setValidationError(null)}
             aria-label="Dismiss error"
-            className="text-slate-400 hover:text-slate-600 font-bold ml-4"
+            className="ml-4 inline-flex min-h-11 min-w-11 items-center justify-center font-bold text-slate-600 hover:text-slate-900 focus-ring"
           >
             ×
           </button>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-6">
+      <form noValidate onSubmit={handleSubmit} className="space-y-6 border border-slate-300 bg-white p-4 sm:p-6">
         {/* Core Order Information */}
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-2">
-            <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
-              Request details
-            </h3>
+          <div className="flex flex-col justify-between gap-3 border-b border-slate-200 pb-2 sm:flex-row sm:items-center">
+            <h3 className="text-sm font-semibold text-slate-900">Request details</h3>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                leftIcon={<Copy className="w-3.5 h-3.5" />}
                 onClick={() => setCloneModalOpen(true)}
-                className="bg-white hover:bg-slate-50 shrink-0"
+                className="shrink-0"
               >
-                Clone from Past MRF
+                Clone from past MRF
               </Button>
 
-              <select
-                aria-label="Apply Role Template"
-                value={selectedPresetId}
-                onChange={(e) => handleApplyPreset(e.target.value)}
-                className="h-8 px-2.5 bg-white border border-slate-300 rounded text-xs font-sans text-slate-700 hover:border-slate-400 focus:outline-hidden focus:ring-2 focus:ring-slate-900 cursor-pointer"
-              >
-                <option value="">Apply Role Template...</option>
-                {Object.entries(presetsByIndustry).map(([industry, presets]) => (
-                  presets.length > 0 && (
-                    <optgroup key={industry} label={industry}>
-                      {presets.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )
-                ))}
-              </select>
+              <div className="sm:w-64">
+                <Select
+                  aria-label="Apply role template"
+                  value={selectedPresetId}
+                  onChange={(e) => handleApplyPreset(e.target.value)}
+                >
+                  <option value="">Apply role template…</option>
+                  {Object.entries(presetsByIndustry).map(([industry, presets]) => (
+                    presets.length > 0 && (
+                      <optgroup key={industry} label={industry}>
+                        {presets.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )
+                  ))}
+                </Select>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <ComboBox
+              id="mrf-client"
               label="Client"
               placeholder="Search or select client account..."
-              leftIcon={<Building2 className="w-3.5 h-3.5 text-slate-400" />}
               value={clientId ? String(clientId) : ""}
               error={serverFieldErrors.clientId}
               onChange={handleClientChange}
@@ -468,6 +550,7 @@ export const MRFCreatePage: React.FC = () => {
               required
             />
             <Input
+              id="mrf-title"
               label="Request title"
               placeholder="e.g. 50x Forklift Operators - Warehouse Expansion"
               value={title}
@@ -480,8 +563,9 @@ export const MRFCreatePage: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Input
+              id="mrf-headcount"
               label="Number of workers needed"
               type="number"
               min={1}
@@ -503,7 +587,7 @@ export const MRFCreatePage: React.FC = () => {
                 { value: "LOW", label: "Low" },
                 { value: "NORMAL", label: "Normal" },
                 { value: "HIGH", label: "High" },
-                { value: "URGENT", label: "Urgent — critical need" },
+                { value: "URGENT", label: "Urgent (critical need)" },
               ]}
             />
             <Input
@@ -519,9 +603,10 @@ export const MRFCreatePage: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1">
               <Input
+                id="mrf-location"
                 label="Work site"
                 placeholder="e.g. Calamba, Laguna"
                 helperText={LOCATION_HINT}
@@ -535,8 +620,8 @@ export const MRFCreatePage: React.FC = () => {
               <FieldWarning show={locationLooksUnclear(location)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
             </div>
             <ComboBox
-              label="Employment Type"
-              placeholder="Select employment type..."
+              label="Employment type"
+              placeholder="Select employment type"
               value={employmentType}
               error={serverFieldErrors.employmentType}
               onChange={(val) => {
@@ -548,8 +633,8 @@ export const MRFCreatePage: React.FC = () => {
               required
             />
             <ComboBox
-              label="Work Arrangement"
-              placeholder="Select arrangement..."
+              label="Work arrangement"
+              placeholder="Select arrangement"
               value={workArrangement}
               error={serverFieldErrors.workArrangement}
               onChange={(val) => {
@@ -561,16 +646,10 @@ export const MRFCreatePage: React.FC = () => {
               required
             />
           </div>
-        </div>
 
-        {/* Skills & Compensation */}
-        <div className="space-y-4 pt-4 border-t border-slate-100">
-          <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-            Skills and qualifications
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
+              id="mrf-salary-min"
               label="Minimum monthly salary (PHP)"
               type="number"
               min={0}
@@ -582,6 +661,7 @@ export const MRFCreatePage: React.FC = () => {
               onChange={handleSalaryMinChange}
             />
             <Input
+              id="mrf-salary-max"
               label="Maximum monthly salary (PHP)"
               type="number"
               min={0}
@@ -593,9 +673,17 @@ export const MRFCreatePage: React.FC = () => {
               error={serverFieldErrors.salaryRangeMax || (isSalaryRangeInvalid ? "Maximum salary cannot be less than minimum salary" : undefined)}
             />
           </div>
+        </div>
+
+        {/* Skills and qualifications */}
+        <div className="space-y-4 border-t border-slate-200 pt-4">
+          <h3 className="border-b border-slate-200 pb-2 text-sm font-semibold text-slate-900">
+            Skills and qualifications
+          </h3>
 
           <div className="space-y-1.5">
             <Input
+              id="mrf-skills"
               label="Required skills"
               placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
               helperText={SKILLS_HINT}
@@ -609,19 +697,19 @@ export const MRFCreatePage: React.FC = () => {
             <FieldWarning show={skillsLookLikeTraits(requiredSkills)}>{SKILLS_TRAITS_WARNING}</FieldWarning>
             {activeSkillsList.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                <span className="text-[11px] font-mono text-slate-500">
+                <span className="text-xs text-slate-600">
                   Skills ({activeSkillsList.length}):
                 </span>
                 {activeSkillsList.map((skill, idx) => (
                   <span
                     key={idx}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-xs text-slate-700"
+                    className="inline-flex items-center gap-1 border border-slate-200 bg-slate-100 py-0.5 pl-2 text-xs text-slate-700"
                   >
                     <span>{skill}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveSkill(skill)}
-                      className="text-slate-400 hover:text-rose-600 focus:outline-none cursor-pointer text-xs leading-none"
+                      className="inline-flex min-h-11 min-w-8 cursor-pointer items-center justify-center text-sm leading-none text-slate-600 hover:text-rose-700 focus-ring md:min-h-6"
                       aria-label={`Remove skill ${skill}`}
                     >
                       ×
@@ -632,10 +720,10 @@ export const MRFCreatePage: React.FC = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <ComboBox
               label="Required experience"
-              placeholder="Select or specify required experience..."
+              placeholder="Select or specify required experience"
               value={requiredExperience}
               error={serverFieldErrors.requiredExperience}
               onChange={(val) => {
@@ -647,7 +735,7 @@ export const MRFCreatePage: React.FC = () => {
             />
             <ComboBox
               label="Minimum education"
-              placeholder="Select minimum education..."
+              placeholder="Select minimum education"
               value={requiredEducation}
               error={serverFieldErrors.requiredEducation}
               onChange={(val) => {
@@ -660,6 +748,7 @@ export const MRFCreatePage: React.FC = () => {
           </div>
 
           <Input
+            id="mrf-certifications"
             label="Required certifications & licenses"
             placeholder="e.g. Professional Driver's License (Code 2/3), TESDA NC II Automotive Servicing, PRC License"
             value={requiredCertifications}
@@ -671,6 +760,7 @@ export const MRFCreatePage: React.FC = () => {
           />
 
           <Textarea
+            id="mrf-notes"
             label="Notes for this client"
             placeholder="Specify shift schedules, client site notes, uniform provisions..."
             value={description}
@@ -684,84 +774,92 @@ export const MRFCreatePage: React.FC = () => {
           />
         </div>
 
-        {/* Demographic & Physical Qualifications */}
-        <div className="space-y-4 pt-4 border-t border-slate-100">
-          <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
-            Demographic & physical qualifications
-          </h3>
+        {/* Internal-only client requirements */}
+        <details
+          className="group border-t border-slate-200 pt-4"
+          open={clientRequirementsOpen}
+          onToggle={(e) => setClientRequirementsOpen((e.currentTarget as HTMLDetailsElement).open)}
+        >
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-slate-900 focus-ring md:min-h-0 [&::-webkit-details-marker]:hidden">
+            <span>Client requirements (internal only)</span>
+            <span className="text-sm font-medium text-navy group-open:hidden">Show</span>
+            <span className="hidden text-sm font-medium text-navy group-open:inline">Hide</span>
+          </summary>
+          <div className="mt-3 space-y-4">
+            <p className="text-sm text-slate-600">These preferences are for your team only and are never shown on job postings.</p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Minimum age"
-              type="number"
-              min={18}
-              max={65}
-              placeholder="e.g. 21"
-              value={ageMin}
-              error={serverFieldErrors.ageMin}
-              onChange={handleAgeMinChange}
-              helperText="Must be between 18 and 65"
-            />
-            <Input
-              label="Maximum age"
-              type="number"
-              min={18}
-              max={65}
-              placeholder="e.g. 45"
-              value={ageMax}
-              onChange={handleAgeMaxChange}
-              error={serverFieldErrors.ageMax || (isAgeRangeInvalid ? "Maximum age cannot be less than minimum age" : undefined)}
-              helperText="Must be between 18 and 65"
-            />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input
+                id="mrf-age-min"
+                label="Minimum age"
+                type="number"
+                min={18}
+                max={65}
+                placeholder="e.g. 21"
+                value={ageMin}
+                error={serverFieldErrors.ageMin}
+                onChange={handleAgeMinChange}
+                helperText="Must be between 18 and 65"
+              />
+              <Input
+                id="mrf-age-max"
+                label="Maximum age"
+                type="number"
+                min={18}
+                max={65}
+                placeholder="e.g. 45"
+                value={ageMax}
+                onChange={handleAgeMaxChange}
+                error={serverFieldErrors.ageMax || (isAgeRangeInvalid ? "Maximum age cannot be less than minimum age" : undefined)}
+                helperText="Must be between 18 and 65"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Select
+                label="Gender preference"
+                value={genderPreference}
+                error={serverFieldErrors.genderPreference}
+                onChange={(e) => {
+                  setGenderPreference(e.target.value);
+                  clearServerFieldError("genderPreference");
+                }}
+                options={[
+                  { value: "ANY", label: "Any / No preference" },
+                  { value: "MALE", label: "Male preferred" },
+                  { value: "FEMALE", label: "Female preferred" },
+                ]}
+              />
+              <Select
+                label="Tattoo visibility policy"
+                value={tattooPolicy}
+                error={serverFieldErrors.tattooPolicy}
+                onChange={(e) => {
+                  setTattooPolicy(e.target.value);
+                  clearServerFieldError("tattooPolicy");
+                }}
+                options={[
+                  { value: "ALLOWED", label: "No restrictions / Allowed" },
+                  { value: "NO_VISIBLE", label: "No visible tattoos" },
+                  { value: "NONE", label: "No tattoos permitted" },
+                ]}
+              />
+            </div>
           </div>
+        </details>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Select
-              label="Gender preference"
-              value={genderPreference}
-              error={serverFieldErrors.genderPreference}
-              onChange={(e) => {
-                setGenderPreference(e.target.value);
-                clearServerFieldError("genderPreference");
-              }}
-              options={[
-                { value: "ANY", label: "Any / No preference" },
-                { value: "MALE", label: "Male preferred" },
-                { value: "FEMALE", label: "Female preferred" },
-              ]}
-            />
-            <Select
-              label="Tattoo visibility policy"
-              value={tattooPolicy}
-              error={serverFieldErrors.tattooPolicy}
-              onChange={(e) => {
-                setTattooPolicy(e.target.value);
-                clearServerFieldError("tattooPolicy");
-              }}
-              options={[
-                { value: "ALLOWED", label: "No restrictions / Allowed" },
-                { value: "NO_VISIBLE", label: "No visible tattoos" },
-                { value: "NONE", label: "No tattoos permitted" },
-              ]}
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4 border-t border-slate-100">
-          <Link to="/ta/mrfs" className="w-full sm:w-auto">
-            <Button variant="outline" size="sm" className="w-full sm:w-auto">
-              Cancel
-            </Button>
-          </Link>
+        <div className="flex flex-col-reverse justify-end gap-2 border-t border-slate-200 pt-4 sm:flex-row">
+          <Button variant="outline" size="sm" type="button" onClick={handleCancel} className="w-full sm:w-auto">
+            Cancel
+          </Button>
           <Button
             variant="primary"
             size="sm"
             type="submit"
             loading={createMRFMutation.isPending}
-            leftIcon={<Send className="w-3.5 h-3.5" />}
             className="w-full sm:w-auto"
           >
-              Create request
+            Create request
           </Button>
         </div>
       </form>
@@ -773,6 +871,19 @@ export const MRFCreatePage: React.FC = () => {
         currentClientId={clientId || undefined}
         currentClientName={clients.find((c) => c.id === clientId)?.name}
       />
+
+      <ConfirmDialog
+        open={pendingFill !== null}
+        onClose={cancelPendingFill}
+        onConfirm={confirmPendingFill}
+        title="Replace what you have filled in?"
+        description="This overwrites the title, skills, salary and notes you have entered with the selected specifications."
+        confirmLabel="Replace fields"
+        cancelLabel="Keep my entries"
+        variant="warning"
+      />
+
+      {discardDialog}
     </div>
   );
 };

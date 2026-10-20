@@ -1,17 +1,29 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import { Dialog, Button, Select } from "../ui";
-import { LoadingState, ErrorState, EmptyState, Pagination } from "../common";
-import { formatDate } from "../../lib/utils";
+import { LoadingState, ErrorState, EmptyState, Pagination, DataTable, ConfirmDialog } from "../common";
+import type { DataTableColumn } from "../common";
+import { formatDate, cn } from "../../lib/utils";
 import { notify } from "../../lib/feedback";
-import { Clock, CheckCircle2, XCircle, AlertTriangle, Trash2 } from "lucide-react";
+import { TA_COPY } from "../../lib/ta-copy";
+import type { TalentPoolInvitationRecord } from "../../lib/types/ta.types";
 
 export interface InvitationsTrackerDrawerProps {
   open: boolean;
   onClose: () => void;
   jobPostingId?: number;
 }
+
+const STATUS_STYLES: Record<string, { label: string; className: string }> = {
+  ACCEPTED: { label: "Accepted", className: "text-emerald-800" },
+  DECLINED: { label: "Declined", className: "text-rose-800" },
+  EXPIRED: { label: "Expired", className: "text-slate-700" },
+  CANCELLED: { label: "Cancelled", className: "text-slate-700" },
+  PENDING: { label: "Pending", className: "text-amber-800" },
+};
+
+type InvitationRow = TalentPoolInvitationRecord;
 
 export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> = ({
   open,
@@ -39,7 +51,7 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
     mutationFn: (id: number) => taApi.cancelTalentPoolInvitation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "talent-pool", "invitations"] });
-      notify.success("Invitation Cancelled", "The candidate invitation was cancelled.");
+      notify.success("Invitation cancelled", "The candidate can no longer accept it.");
     },
     onError: (err: any) => {
       notify.error("Unable to cancel invitation", err);
@@ -50,55 +62,61 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
   const items = data?.items || [];
   const totalPages = data?.totalPages || 1;
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "ACCEPTED":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-            <span>ACCEPTED</span>
+  const [invitationToCancel, setInvitationToCancel] = useState<InvitationRow | null>(null);
+
+  const statusText = (inv: InvitationRow) => {
+    const style = STATUS_STYLES[inv.status] ?? STATUS_STYLES.PENDING;
+    return (
+      <span>
+        <span className={cn("font-medium", style.className)}>{style.label}</span>
+        {inv.declineReason && (
+          <span className="block text-xs text-slate-600">
+            {inv.declineReason.replace(/_/g, " ").toLowerCase().replace(/^./, (ch: string) => ch.toUpperCase())}
           </span>
-        );
-      case "DECLINED":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-50 text-rose-800 border border-rose-200">
-            <XCircle className="w-3 h-3 text-rose-600" />
-            <span>DECLINED</span>
-          </span>
-        );
-      case "EXPIRED":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
-            <Clock className="w-3 h-3 text-slate-500" />
-            <span>EXPIRED</span>
-          </span>
-        );
-      case "CANCELLED":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 text-slate-500 border border-slate-200">
-            <span>CANCELLED</span>
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
-            <Clock className="w-3 h-3 text-amber-600" />
-            <span>PENDING</span>
-          </span>
-        );
-    }
+        )}
+      </span>
+    );
   };
+
+  const sentText = (inv: InvitationRow) => (
+    <span>
+      <span className="block">Sent {formatDate(inv.createdAt)}</span>
+      {inv.expiresAt && inv.status === "PENDING" && (
+        <span className="block text-xs text-amber-800">Expires {formatDate(inv.expiresAt)}</span>
+      )}
+    </span>
+  );
+
+  const cancelButton = (inv: InvitationRow) =>
+    inv.status === "PENDING" ? (
+      <Button variant="ghost" size="sm" onClick={() => setInvitationToCancel(inv)}>
+        Cancel invitation
+      </Button>
+    ) : null;
+
+  const columns: DataTableColumn<InvitationRow>[] = [
+    {
+      key: "candidate",
+      header: "Candidate",
+      cell: (inv) => (
+        <span>
+          <span className="block font-medium text-slate-900">{inv.candidateName}</span>
+          <span className="block break-all text-xs text-slate-600">{inv.candidateEmail}</span>
+        </span>
+      ),
+    },
+    { key: "job", header: "Job opening", cell: (inv) => inv.jobPostingTitle },
+    { key: "status", header: "Status", cell: statusText },
+    { key: "sent", header: "Sent", cell: sentText },
+    { key: "actions", header: "Action", align: "right", cell: cancelButton },
+  ];
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title="Sent invitations"
-      description={
-        jobPostingId
-          ? `Invitations for job opening #${jobPostingId}`
-          : "Review invitations sent to candidates"
-      }
+      title={TA_COPY.invitations.sent}
+      description={jobPostingId ? "Invitations for this job opening" : "Review invitations sent to candidates"}
       size="lg"
     >
       <div className="space-y-4">
@@ -122,8 +140,8 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
               ]}
             />
           </div>
-          <span className="text-xs font-mono text-slate-500 pt-5">
-            Total: {data?.total || 0}
+          <span className="pt-5 text-sm text-slate-600">
+            {data?.total || 0} total
           </span>
         </div>
 
@@ -134,68 +152,33 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
           <ErrorState error={invitationsQuery.error} onRetry={() => invitationsQuery.refetch()} />
         ) : items.length === 0 ? (
           <EmptyState
-            icon={<AlertTriangle className="w-6 h-6 text-slate-400" />}
-            title="No job invitations found"
-            description="Invitations sent to talent pool candidates will appear here with real-time response tracking."
+            title="No invitations yet"
+            description="Invitations you send to candidates appear here with their responses."
           />
         ) : (
           <div className="space-y-3">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
-                  <tr>
-                    <th className="px-3 py-2 font-semibold">Candidate</th>
-                    <th className="px-3 py-2 font-semibold">Job opening</th>
-                    <th className="px-3 py-2 font-semibold text-center">Status</th>
-                    <th className="px-3 py-2 font-semibold">Sent / Expires</th>
-                    <th className="px-3 py-2 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-mono">
-                  {items.map((inv) => (
-                    <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-3 py-2.5">
-                        <div className="font-bold text-slate-900 font-sans">{inv.candidateName}</div>
-                        <div className="text-[11px] text-slate-400">{inv.candidateEmail}</div>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <div className="font-medium text-slate-800 font-sans">{inv.jobPostingTitle}</div>
-                        <div className="text-xs text-slate-500">Job opening #{inv.jobPostingId}</div>
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        {getStatusBadge(inv.status)}
-                        {inv.declineReason && (
-                          <div className="text-[10px] text-rose-600 mt-0.5">
-                            {inv.declineReason.replace(/_/g, " ")}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-[11px] text-slate-500">
-                        <div>Sent: {formatDate(inv.createdAt)}</div>
-                        {inv.expiresAt && inv.status === "PENDING" && (
-                          <div className="text-amber-600 text-[10px]">
-                            Expires: {formatDate(inv.expiresAt)}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        {inv.status === "PENDING" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            loading={cancelMutation.isPending}
-                            onClick={() => cancelMutation.mutate(inv.id)}
-                            leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />}
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              caption="Sent invitations"
+              columns={columns}
+              rows={items}
+              getRowId={(inv) => String(inv.id)}
+              renderCard={(inv) => (
+                <div className="space-y-1.5 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <span>
+                      <span className="block font-medium text-slate-900">{inv.candidateName}</span>
+                      <span className="block break-all text-xs text-slate-600">{inv.candidateEmail}</span>
+                    </span>
+                    {statusText(inv)}
+                  </div>
+                  <p className="text-slate-700">{inv.jobPostingTitle}</p>
+                  <div className="flex items-center justify-between gap-3 text-slate-600">
+                    {sentText(inv)}
+                    {cancelButton(inv)}
+                  </div>
+                </div>
+              )}
+            />
 
             {/* Pagination */}
             {totalPages > 1 && (
@@ -218,6 +201,24 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
           </Button>
         </div>
       </div>
+      <ConfirmDialog
+        open={invitationToCancel !== null}
+        onClose={() => setInvitationToCancel(null)}
+        onConfirm={() => {
+          if (invitationToCancel) cancelMutation.mutate(invitationToCancel.id);
+          setInvitationToCancel(null);
+        }}
+        title="Cancel this invitation?"
+        description={
+          invitationToCancel
+            ? `${invitationToCancel.candidateName} will no longer be able to accept the invitation for ${invitationToCancel.jobPostingTitle}.`
+            : undefined
+        }
+        confirmLabel="Cancel invitation"
+        cancelLabel="Keep invitation"
+        variant="danger"
+        loading={cancelMutation.isPending}
+      />
     </Dialog>
   );
 };

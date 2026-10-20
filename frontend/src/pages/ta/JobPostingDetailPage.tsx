@@ -13,14 +13,24 @@ import {
   StatusBadge,
   Tabs,
   JobContentRenderer,
+  DataTable,
+  ConfirmDialog,
 } from "../../components/common";
+import type { DataTableColumn } from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
-import { PoolMatchNotes, PoolMatchScore } from "../../components/ta/PoolMatchDetails";
+import { PoolCandidateCard } from "../../components/ta/PoolCandidateCard";
 import { RequirementClarityNotice } from "../../components/ta/RequirementClarityNotice";
 import { FieldWarning } from "../../components/ta/FieldWarning";
 import { LOCATION_HINT, LOCATION_UNCLEAR_WARNING, locationLooksUnclear } from "../../lib/requirement-hints";
-import { formatDate, formatSalaryRange, formatEmploymentType, cn } from "../../lib/utils";
+import {
+  formatDate,
+  formatSalaryRange,
+  formatEmploymentType,
+  formatWorkArrangement,
+  cn,
+} from "../../lib/utils";
 import { ApplicationStatus, JobStatus } from "../../lib/types/enums";
+import { plural } from "../../lib/plural";
 
 const ACTIVE_STAGES: string[] = [
   ApplicationStatus.SUBMITTED,
@@ -39,24 +49,12 @@ const DEPLOYED_STAGES: string[] = [
   ApplicationStatus.DEPLOYED,
   ApplicationStatus.HIRED,
 ];
-import {
-  RefreshCw,
-  ArrowLeft,
-  MapPin,
-  Clock,
-  Edit,
-  ExternalLink,
-  Users,
-  Briefcase,
-  Send,
-  ListOrdered,
-  Eye,
-} from "lucide-react";
 import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
+import type { CandidateScore } from "../../lib/types/application.types";
 import { SendInvitationModal } from "../../components/ta/SendInvitationModal";
 import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTrackerDrawer";
-import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
+import { TA_COPY } from "../../lib/ta-copy";
 import { useJobCandidateQueries } from "../../hooks/useJobCandidateQueries";
 import {
   validateStandardText,
@@ -66,6 +64,10 @@ import { getInitialJobCandidateView } from "../../lib/job-candidate-query-policy
 
 // Backend fields that have an inline input on this form. Any other field's message goes in the toast.
 const JOB_INLINE_FIELDS = ["title", "location", "imageUrl", "status", "description", "requirements"];
+
+type ScoreRow = { score: CandidateScore; rank: number };
+
+const SEGMENT_FILTERS = ["active", "deployed", "all"] as const;
 
 export const JobPostingDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -84,6 +86,7 @@ export const JobPostingDetailPage: React.FC = () => {
   const [editStatus, setEditStatus] = useState<JobStatus>(JobStatus.OPEN);
   const [editIsEvergreen, setEditIsEvergreen] = useState(false);
   const [editModalTab, setEditModalTab] = useState<"edit" | "preview">("edit");
+  const [pendingClose, setPendingClose] = useState(false);
 
   // Invitation Modal & Tracker Drawer State
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
@@ -102,26 +105,18 @@ export const JobPostingDetailPage: React.FC = () => {
 
   const { rankedCandidatesQuery, talentPoolQuery } = useJobCandidateQueries(jobId, activeTab);
 
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
-
   const rankCandidatesMutation = useMutation({
     mutationFn: () => taApi.rankCandidates(jobId),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "job", jobId, "ranked"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "job", jobId, "talent-pool"] });
       const count = data?.rankedCount ?? 0;
-      const msg = `Candidate matches updated. Reviewed ${count} candidate profile${count === 1 ? "" : "s"}.`;
-      setFeedback({
-        type: "success",
-        message: msg,
-      });
-      notify.success("Candidate matches updated", msg);
+      notify.success(
+        "Candidate matches updated",
+        `Reviewed ${count} candidate profile${count === 1 ? "" : "s"}.`
+      );
     },
     onError: (err: any) => {
-      setFeedback({
-        type: "error",
-        message: "Unable to update candidate matches. Please try again.",
-      });
       notify.error("Unable to update candidate matches", err);
     },
   });
@@ -157,18 +152,27 @@ export const JobPostingDetailPage: React.FC = () => {
     },
   });
 
+  const statusMutation = useMutation({
+    mutationFn: (status: JobStatus) => taApi.updateJob(jobId, { status }),
+    onSuccess: (_data, status) => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "job", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "jobs"] });
+      notify.success("Opening status updated", `This opening is now ${status.toLowerCase()}.`);
+    },
+    onError: (err: any) => {
+      notify.error("Unable to change the opening status", err);
+    },
+  });
+
   const sendInvitationMutation = useMutation({
     mutationFn: taApi.sendTalentPoolInvitation,
     onSuccess: () => {
       setInviteModalOpen(false);
       setCandidateToInvite(null);
       queryClient.invalidateQueries({ queryKey: ["ta", "talent-pool", "invitations"] });
-      const msg = "Job invitation sent successfully via in-app notification and email.";
-      setFeedback({ type: "success", message: msg });
-      notify.success("Invitation Sent", msg);
+      notify.success("Invitation sent", "The candidate is notified in the app and by email.");
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to send this invitation. Please try again." });
       notify.error("Unable to send invitation", err);
     },
   });
@@ -198,6 +202,16 @@ export const JobPostingDetailPage: React.FC = () => {
     [talentPoolQuery.data]
   );
   const unsearchablePoolCount = talentPoolQuery.data?.unsearchableCount ?? 0;
+  // The pool is only requested when its tab opens. Until then the count is unknown, so none is shown.
+  const poolCountKnown = Boolean(talentPoolQuery.data) && !talentPoolQuery.isError;
+
+  const activeApplicantTotal = React.useMemo(
+    () =>
+      (job?.applications ?? []).filter(
+        (application) => !application.isArchived && ACTIVE_STAGES.includes(application.status)
+      ).length,
+    [job]
+  );
 
   const activeScores = React.useMemo(() => {
     return rankedScores.filter((s) => {
@@ -220,15 +234,24 @@ export const JobPostingDetailPage: React.FC = () => {
   }, [applicantFilter, activeScores, deployedScores, rankedScores]);
 
   const totalPages = Math.max(1, Math.ceil(filteredScores.length / candidatePageSize));
-  const paginatedScores = filteredScores.slice(
-    (candidatePage - 1) * candidatePageSize,
-    candidatePage * candidatePageSize
-  );
+  const pageRows: ScoreRow[] = filteredScores
+    .slice((candidatePage - 1) * candidatePageSize, candidatePage * candidatePageSize)
+    .map((score, idx) => ({ score, rank: (candidatePage - 1) * candidatePageSize + idx + 1 }));
+
+  const breadcrumbs = [
+    { label: TA_COPY.breadcrumbRoot, href: "/ta" },
+    { label: TA_COPY.navigation.openings, href: "/ta/jobs" },
+  ];
 
   if (jobQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title={TA_COPY.navigation.openings} description="Loading job opening details..." />
+        <PageHeader
+          flush
+          title="Job opening"
+          description="Loading job opening details..."
+          breadcrumbs={[...breadcrumbs, { label: "Job opening" }]}
+        />
         <LoadingState variant="detail" />
       </div>
     );
@@ -237,59 +260,123 @@ export const JobPostingDetailPage: React.FC = () => {
   if (jobQuery.isError || !job) {
     return (
       <div className="space-y-6">
-        <PageHeader title={TA_COPY.navigation.openings} description="Job opening details" />
-        <ErrorState error={jobQuery.error} onRetry={() => jobQuery.refetch()} />
+        <PageHeader flush title="Job opening" breadcrumbs={[...breadcrumbs, { label: "Job opening" }]} />
+        <ErrorState subject="this job opening" error={jobQuery.error} onRetry={() => jobQuery.refetch()} />
       </div>
     );
   }
 
+  const candidateLabel = (row: ScoreRow) => {
+    const candidate = row.score.candidate;
+    const fullName = [candidate?.firstName, candidate?.lastName].filter(Boolean).join(" ").trim();
+    return fullName || candidate?.email || `Application #${row.score.applicationId}`;
+  };
+
+  const percent = (value: unknown) => `${Number(value).toFixed(0)}%`;
+
+  const applicantColumns: DataTableColumn<ScoreRow>[] = [
+    { key: "rank", header: "Rank", align: "center", className: "w-14", cell: (row) => row.rank },
+    {
+      key: "candidate",
+      header: "Candidate",
+      primary: true,
+      cell: (row) => candidateLabel(row),
+    },
+    {
+      key: "status",
+      header: "Status",
+      cell: (row) => (
+        <StatusBadge
+          status={row.score.candidate?.applicationStatus || ApplicationStatus.SUBMITTED}
+          type="application"
+          size="sm"
+        />
+      ),
+    },
+    {
+      key: "match",
+      header: "Match score",
+      align: "center",
+      cell: (row) => <ScoreBadge score={row.score.finalFitScore} size="md" />,
+    },
+    { key: "skills", header: "Skills", align: "center", cell: (row) => percent(row.score.skillsScore) },
+    { key: "experience", header: "Experience", align: "center", cell: (row) => percent(row.score.experienceScore) },
+    { key: "location", header: "Location", align: "center", cell: (row) => percent(row.score.locationScore) },
+    { key: "documents", header: "Documents", align: "center", cell: (row) => percent(row.score.complianceScore) },
+  ];
+
+  const renderApplicantCard = (row: ScoreRow) => (
+    <div className="space-y-2 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <Link
+            to="/ta/applications/$applicationId"
+            params={{ applicationId: String(row.score.applicationId) }}
+            className="inline-flex min-h-11 items-center break-words text-sm font-semibold text-navy underline-offset-2 hover:underline focus-ring"
+          >
+            {row.rank}. {candidateLabel(row)}
+          </Link>
+          <p className="text-xs text-slate-600">Calculated {formatDate(row.score.calculatedAt)}</p>
+        </div>
+        <ScoreBadge score={row.score.finalFitScore} size="md" />
+      </div>
+      <StatusBadge
+        status={row.score.candidate?.applicationStatus || ApplicationStatus.SUBMITTED}
+        type="application"
+        size="sm"
+      />
+      <p className="text-sm text-slate-700">
+        Skills {percent(row.score.skillsScore)} · Experience {percent(row.score.experienceScore)} · Location{" "}
+        {percent(row.score.locationScore)} · Documents {percent(row.score.complianceScore)}
+      </p>
+    </div>
+  );
+
+  const openEditDialog = () => {
+    setEditTitle(job.title);
+    setEditLocation(job.location || "");
+    setEditImageUrl(job.imageUrl || "");
+    setEditDescription(job.description);
+    setEditRequirements(job.requirements);
+    setEditStatus(job.status);
+    setEditIsEvergreen(Boolean(job.isEvergreen));
+    setEditModalTab("edit");
+    setEditModalOpen(true);
+  };
+
+  const handleStatusChange = (next: JobStatus) => {
+    if (next === job.status) return;
+    if (next === JobStatus.CLOSED && activeApplicantTotal > 0) {
+      setPendingClose(true);
+      return;
+    }
+    statusMutation.mutate(next);
+  };
+
+  const hasSalary = Boolean(job.mrf?.salaryRangeMin || job.mrf?.salaryRangeMax);
+  const mrfId = job.mrf?.id ?? job.mrfId;
+
   return (
     <div className="space-y-6">
       <PageHeader
+        flush
         title={job.title}
-        description={`Job opening #${job.id} • Posted ${formatDate(job.createdAt)}`}
-        breadcrumbs={[
-          { label: TA_COPY.navigation.overview, href: "/ta" },
-          { label: TA_COPY.navigation.openings, href: "/ta/jobs" },
-          { label: job.title },
-        ]}
+        description={`Posted ${formatDate(job.createdAt)}`}
+        breadcrumbs={[...breadcrumbs, { label: job.title }]}
         actions={
-          <div className="flex items-center gap-2">
-            <Link to="/ta/jobs">
-              <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                Back to job openings
-              </Button>
-            </Link>
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<Edit className="w-3.5 h-3.5" />}
-              onClick={() => {
-                if (job) {
-                  setEditTitle(job.title);
-                  setEditLocation(job.location || "");
-                  setEditImageUrl(job.imageUrl || "");
-                  setEditDescription(job.description);
-                  setEditRequirements(job.requirements);
-                  setEditStatus(job.status);
-                  setEditIsEvergreen(Boolean(job.isEvergreen));
-                }
-                setEditModalTab("edit");
-                setEditModalOpen(true);
-              }}
-            >
+          <>
+            <Button variant="outline" size="sm" onClick={openEditDialog}>
               Edit job opening
             </Button>
             <Button
               variant="outline"
               size="sm"
-              leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
               loading={rankCandidatesMutation.isPending}
               onClick={() => rankCandidatesMutation.mutate()}
             >
               Recalculate match scores
             </Button>
-          </div>
+          </>
         }
       />
 
@@ -302,216 +389,108 @@ export const JobPostingDetailPage: React.FC = () => {
         }
       />
 
-      {feedback && (
-        <div
-          role={feedback.type === "error" ? "alert" : "status"}
-          aria-live="polite"
-          className={`p-3 rounded-lg border text-xs font-medium flex items-center justify-between ${
-            feedback.type === "success"
-              ? "bg-teal-50 border-teal-200 text-teal-800"
-              : "bg-rose-50 border-rose-200 text-rose-800"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <span>{feedback.message}</span>
+      {/* One summary strip. The narrative is collapsed so candidates sit in the first screen. */}
+      <section aria-label="Opening summary" className="space-y-4 border border-slate-300 bg-white p-4">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
+          <div>
+            <dt className="mb-1 text-xs font-semibold text-slate-700">Status</dt>
+            <dd>
+              <label className="sr-only" htmlFor="job-status-control">
+                Opening status
+              </label>
+              <select
+                id="job-status-control"
+                value={job.status}
+                disabled={statusMutation.isPending}
+                onChange={(e) => handleStatusChange(e.target.value as JobStatus)}
+                className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-medium text-slate-900 focus-ring md:min-h-9"
+              >
+                <option value={JobStatus.OPEN}>Open</option>
+                <option value={JobStatus.DRAFT}>Draft</option>
+                <option value={JobStatus.CLOSED}>Closed</option>
+              </select>
+              {job.isEvergreen && <span className="mt-1 block text-xs text-slate-600">Always open</span>}
+            </dd>
           </div>
-          <button
-            type="button"
-            onClick={() => setFeedback(null)}
-            aria-label="Dismiss message"
-            className="text-slate-400 hover:text-slate-600 font-bold ml-4"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Position Overview Card */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-          <div className="flex items-start gap-4">
-            <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="lg" />
-            <div className="space-y-1">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-slate-600">Status</span>
-                <div className="flex items-center gap-1.5">
-                  {job.isEvergreen && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-50 text-teal-700 border border-teal-200">
-                      Always open
-                    </span>
-                  )}
-                  <StatusBadge status={formatTaStatus(job.status)} type="raw" size="sm" />
-                </div>
-              </div>
-              <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2.5">
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{job.location || "Philippines"}</span>
-                </span>
-                {job.mrf?.client?.name && (
-                  <>
-                    <span>•</span>
-                    <span className="font-semibold text-slate-700">{job.mrf.client.name}</span>
-                  </>
-                )}
-                {job.mrf?.salaryRangeMin || job.mrf?.salaryRangeMax ? (
-                  <span className="font-medium text-[#047857] bg-[#ECFDF5] px-2 py-0.5 rounded text-[11px] border border-[#A7F3D0]">
-                    {formatSalaryRange(job.mrf.salaryRangeMin, job.mrf.salaryRangeMax)}
-                  </span>
-                ) : null}
-                {job.mrf?.employmentType && (
-                  <span className="text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded text-[10px] border border-slate-200">
-                    {formatEmploymentType(job.mrf.employmentType)}
-                  </span>
-                )}
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Created {formatDate(job.createdAt)}</span>
-                </span>
-              </div>
-            </div>
+          <div>
+            <dt className="text-xs text-slate-600">Client</dt>
+            <dd className="font-medium text-slate-900">{job.mrf?.client?.name || "Unassigned"}</dd>
           </div>
-        </div>
+          <div>
+            <dt className="text-xs text-slate-600">Work site</dt>
+            <dd className="font-medium text-slate-900">{job.location || "Philippines"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-600">Monthly pay</dt>
+            <dd className="font-medium text-slate-900">
+              {hasSalary ? formatSalaryRange(job.mrf?.salaryRangeMin, job.mrf?.salaryRangeMax) : "Not specified"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-600">Type and arrangement</dt>
+            <dd className="font-medium text-slate-900">
+              {job.mrf?.employmentType ? formatEmploymentType(job.mrf.employmentType) : "Not specified"}
+              {" · "}
+              {formatWorkArrangement(job.mrf?.workArrangement)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-600">Manpower request</dt>
+            <dd className="font-medium">
+              {mrfId ? (
+                <Link
+                  to="/ta/mrfs/$mrfId"
+                  params={{ mrfId: String(mrfId) }}
+                  className="inline-flex min-h-11 items-center text-navy underline-offset-2 hover:underline focus-ring md:min-h-0"
+                >
+                  Request #{mrfId}
+                </Link>
+              ) : (
+                <span className="text-slate-700">None (direct posting)</span>
+              )}
+            </dd>
+          </div>
+        </dl>
 
-        {/* ATS Multi-Column Content Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start pt-1">
-          {/* Main / Narrative Column (7 of 12) */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="border border-slate-200 rounded-lg p-5 bg-white shadow-xs">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">
-                Job Overview & Responsibilities
-              </h4>
+        <details className="group border-t border-slate-200 pt-3">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-medium text-navy focus-ring md:min-h-0 [&::-webkit-details-marker]:hidden">
+            <span className="group-open:hidden">Show description and requirements</span>
+            <span className="hidden group-open:inline">Hide description and requirements</span>
+          </summary>
+          <div className="mt-3 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div>
+              <h2 className="mb-2 text-sm font-semibold text-slate-900">Description and responsibilities</h2>
               <JobContentRenderer content={job.description} variant="ta" />
             </div>
-          </div>
-
-          {/* Sidebar / Auxiliary Column (5 of 12) */}
-          <div className="lg:col-span-5 space-y-4">
-            {/* Card 1: Required Skills & Qualifications */}
-            <div className="border border-slate-200 rounded-lg p-5 bg-slate-50/50 shadow-xs">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700 mb-3">
-                Required Skills & Qualifications
-              </h4>
+            <div>
+              <h2 className="mb-2 text-sm font-semibold text-slate-900">Required skills and qualifications</h2>
               <JobContentRenderer content={job.requirements} variant="ta" />
             </div>
-
-            {/* Card 2: Requisition Specifications */}
-            <div className="border border-slate-200 rounded-lg p-5 bg-white shadow-xs space-y-3">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700 pb-2 border-b border-slate-100">
-                Requisition Specifications
-              </h4>
-
-              <dl className="grid grid-cols-1 gap-2.5 text-xs">
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <dt className="text-slate-500 font-medium">Client</dt>
-                  <dd className="font-semibold text-slate-800 text-right">
-                    {job.mrf?.client?.name || "Unassigned"}
-                  </dd>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <dt className="text-slate-500 font-medium">Work site location</dt>
-                  <dd className="font-semibold text-slate-800 text-right">
-                    {job.location || "Philippines"}
-                  </dd>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <dt className="text-slate-500 font-medium">Monthly compensation</dt>
-                  <dd className="text-right">
-                    {job.mrf?.salaryRangeMin || job.mrf?.salaryRangeMax ? (
-                      <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-xs border border-emerald-200">
-                        {formatSalaryRange(job.mrf.salaryRangeMin, job.mrf.salaryRangeMax)}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 text-xs">Not specified</span>
-                    )}
-                  </dd>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <dt className="text-slate-500 font-medium">Employment type</dt>
-                  <dd className="font-semibold text-slate-800 text-right">
-                    {job.mrf?.employmentType ? formatEmploymentType(job.mrf.employmentType) : "Not specified"}
-                  </dd>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <dt className="text-slate-500 font-medium">Work arrangement</dt>
-                  <dd className="font-semibold text-slate-800 text-right">
-                    {job.mrf?.workArrangement || "On-site"}
-                  </dd>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <dt className="text-slate-500 font-medium">Evergreen status</dt>
-                  <dd className="text-right">
-                    {job.isEvergreen ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-teal-50 text-teal-700 border border-teal-200">
-                        Always open (Continuous recruitment)
-                      </span>
-                    ) : (
-                      <span className="text-slate-600 text-xs">Standard requisition</span>
-                    )}
-                  </dd>
-                </div>
-
-                <div className="flex items-center justify-between py-1">
-                  <dt className="text-slate-500 font-medium">Linked MRF reference</dt>
-                  <dd className="text-right">
-                    {job.mrf?.id ? (
-                      <Link
-                        to="/ta/mrfs/$mrfId"
-                        params={{ mrfId: String(job.mrf.id) }}
-                        className="inline-flex items-center gap-1 font-semibold text-teal-700 hover:text-teal-800 hover:underline"
-                      >
-                        <span>Request #{job.mrf.id}</span>
-                        <ExternalLink className="w-3 h-3 text-teal-600" />
-                      </Link>
-                    ) : job.mrfId ? (
-                      <Link
-                        to="/ta/mrfs/$mrfId"
-                        params={{ mrfId: String(job.mrfId) }}
-                        className="inline-flex items-center gap-1 font-semibold text-teal-700 hover:text-teal-800 hover:underline"
-                      >
-                        <span>Request #{job.mrfId}</span>
-                        <ExternalLink className="w-3 h-3 text-teal-600" />
-                      </Link>
-                    ) : (
-                      <span className="text-slate-400 text-xs">None (Direct posting)</span>
-                    )}
-                  </dd>
-                </div>
-              </dl>
-            </div>
           </div>
-        </div>
-      </div>
+        </details>
+      </section>
 
       {/* Candidate Sourcing & Matching Section */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden space-y-0">
-        {/* Navigation Tabs */}
-        <div className="border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="border border-slate-300 bg-white">
+        <div className="flex flex-col justify-between sm:flex-row sm:items-center">
           <Tabs
             value={activeTab}
             onChange={(tab) => setActiveTab(tab as "applicants" | "talentPool")}
             ariaLabel="Job opening candidate views"
             items={[
-              { id: "applicants", label: `Applicants (${applicantCount})`, icon: Users, panelId: "job-applicants" },
-              { id: "talentPool", label: talentPoolQuery.isError ? "Candidate pool matches" : `Candidate pool matches (${talentPoolMatches.length})`, icon: Users, panelId: "job-talent-pool" },
+              { id: "applicants", label: `Applicants (${applicantCount})`, panelId: "job-applicants" },
+              {
+                id: "talentPool",
+                label: poolCountKnown ? `Candidate pool matches (${talentPoolMatches.length})` : "Candidate pool matches",
+                panelId: "job-talent-pool",
+              },
             ]}
-            className="border-b-0 flex-1"
+            className="flex-1 border-b-0"
           />
 
-          <div className="flex items-center gap-2 px-4 pb-3 sm:pb-0">
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<ListOrdered className="w-3.5 h-3.5 text-slate-500" />}
-              onClick={() => setTrackerDrawerOpen(true)}
-            >
-              Sent invitations
+          <div className="border-b border-slate-300 bg-slate-100 px-4 py-2 sm:border-b-0 sm:py-0">
+            <Button variant="outline" size="sm" onClick={() => setTrackerDrawerOpen(true)}>
+              {TA_COPY.invitations.sent}
             </Button>
           </div>
         </div>
@@ -522,207 +501,110 @@ export const JobPostingDetailPage: React.FC = () => {
             {rankedCandidatesQuery.isLoading ? (
               <LoadingState variant="table" rows={4} />
             ) : rankedScores.length === 0 ? (
-              <div className="p-8">
-                <EmptyState
-                  icon={<Users className="w-6 h-6" />}
-                  title="No applicant matches yet"
-                  description="Recalculate match scores to compare applicants with this opening’s requirements."
-                  action={
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-                      loading={rankCandidatesMutation.isPending}
-                      onClick={() => rankCandidatesMutation.mutate()}
-                    >
-                      Recalculate match scores
-                    </Button>
-                  }
-                />
-              </div>
+              <EmptyState
+                bare
+                title="No applicant matches yet"
+                description="Recalculate match scores to compare applicants with this opening's requirements."
+                action={
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    loading={rankCandidatesMutation.isPending}
+                    onClick={() => rankCandidatesMutation.mutate()}
+                  >
+                    Recalculate match scores
+                  </Button>
+                }
+              />
             ) : (
               <>
-                {/* Segmented Pipeline Stage Filter */}
-                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-50/70 border-b border-slate-200">
-                  <div className="inline-flex items-center p-1 bg-slate-200/60 rounded-lg text-xs font-medium text-slate-600">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setApplicantFilter("active");
-                        setCandidatePage(1);
-                      }}
-                      className={cn(
-                        "px-3 py-1 rounded-md transition-all",
-                        applicantFilter === "active"
-                          ? "bg-white text-slate-900 shadow-xs font-semibold"
-                          : "text-slate-600 hover:text-slate-900"
-                      )}
-                    >
-                      {`Active (${activeScores.length})`}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setApplicantFilter("deployed");
-                        setCandidatePage(1);
-                      }}
-                      className={cn(
-                        "px-3 py-1 rounded-md transition-all",
-                        applicantFilter === "deployed"
-                          ? "bg-white text-slate-900 shadow-xs font-semibold"
-                          : "text-slate-600 hover:text-slate-900"
-                      )}
-                    >
-                      {`Deployed (${deployedScores.length})`}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setApplicantFilter("all");
-                        setCandidatePage(1);
-                      }}
-                      className={cn(
-                        "px-3 py-1 rounded-md transition-all",
-                        applicantFilter === "all"
-                          ? "bg-white text-slate-900 shadow-xs font-semibold"
-                          : "text-slate-600 hover:text-slate-900"
-                      )}
-                    >
-                      {`All (${rankedScores.length})`}
-                    </button>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+                  <div className="inline-flex gap-1 bg-slate-200/60 p-1 text-sm font-medium" role="group" aria-label="Applicant filter">
+                    {SEGMENT_FILTERS.map((id) => {
+                      const count = id === "active" ? activeScores.length : id === "deployed" ? deployedScores.length : rankedScores.length;
+                      const label = id === "active" ? "Active" : id === "deployed" ? "Deployed" : "All";
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          aria-pressed={applicantFilter === id}
+                          onClick={() => {
+                            setApplicantFilter(id);
+                            setCandidatePage(1);
+                          }}
+                          className={cn(
+                            "min-h-11 px-3 py-1 transition-colors focus-ring md:min-h-8",
+                            applicantFilter === id
+                              ? "bg-white font-semibold text-navy shadow-xs"
+                              : "text-slate-700 hover:text-slate-950"
+                          )}
+                        >
+                          {`${label} (${count})`}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div className="text-[11px] text-slate-500 font-mono">
-                    Showing {filteredScores.length} of {rankedScores.length} applicants
-                  </div>
+                  <p className="text-sm text-slate-600">
+                    Showing {filteredScores.length} of {rankedScores.length}
+                  </p>
                 </div>
 
                 {filteredScores.length === 0 ? (
-                  <div className="p-8">
-                    <EmptyState
-                      icon={<Users className="w-6 h-6 text-slate-400" />}
-                      title={
-                        applicantFilter === "active"
-                          ? "No active applicants in pipeline"
-                          : applicantFilter === "deployed"
-                          ? "No deployed personnel for this opening yet"
-                          : "No applicants found"
-                      }
-                      description={
-                        applicantFilter === "active" && deployedScores.length > 0
-                          ? `All ${deployedScores.length} applicant(s) have completed deployment. Switch to Deployed or All to view fulfilled applications.`
-                          : "Applicants will appear here once they apply or are matched."
-                      }
-                      action={
-                        applicantFilter === "active" && deployedScores.length > 0 ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setApplicantFilter("deployed");
-                              setCandidatePage(1);
-                            }}
-                          >
-                            {`View Deployed (${deployedScores.length})`}
-                          </Button>
-                        ) : undefined
-                      }
-                    />
-                  </div>
+                  <EmptyState
+                    bare
+                    title={
+                      applicantFilter === "active"
+                        ? "No active applicants in the pipeline"
+                        : applicantFilter === "deployed"
+                        ? "No one deployed from this opening yet"
+                        : "No applicants found"
+                    }
+                    description={
+                      applicantFilter === "active" && deployedScores.length > 0
+                        ? `All ${plural(deployedScores.length, "applicant")} ${deployedScores.length === 1 ? "has" : "have"} been deployed. Switch to Deployed or All to see them.`
+                        : "Applicants appear here once they apply or are matched."
+                    }
+                    action={
+                      applicantFilter === "active" && deployedScores.length > 0 ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setApplicantFilter("deployed");
+                            setCandidatePage(1);
+                          }}
+                        >
+                          {`View deployed (${deployedScores.length})`}
+                        </Button>
+                      ) : undefined
+                    }
+                  />
                 ) : (
                   <>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
-                          <tr>
-                            <th className="px-4 py-3 font-semibold text-center w-12">Rank</th>
-                            <th className="px-4 py-3 font-semibold">Candidate</th>
-                            <th className="px-4 py-3 font-semibold text-center">Status</th>
-                            <th className="px-4 py-3 font-semibold text-center">Match Score</th>
-                            <th className="px-4 py-3 font-semibold text-center">Skills</th>
-                            <th className="px-4 py-3 font-semibold text-center">Experience</th>
-                            <th className="px-4 py-3 font-semibold text-center">Location</th>
-                            <th className="px-4 py-3 font-semibold text-center">Requirements</th>
-                            <th className="px-4 py-3 font-semibold text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 font-mono">
-                          {paginatedScores.map((score, idx) => {
-                            const globalRank = (candidatePage - 1) * candidatePageSize + idx + 1;
-                            const candidate = score.candidate;
-                            const fullName = [candidate?.firstName, candidate?.lastName]
-                              .filter(Boolean)
-                              .join(" ")
-                              .trim();
-                            const displayName = fullName || candidate?.email || `Application #${score.applicationId}`;
-
-                            return (
-                              <tr key={score.id} className="hover:bg-slate-50/70 transition-colors">
-                                <td className="px-4 py-3 text-center font-bold text-slate-700">
-                                  #{globalRank}
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="font-bold text-slate-900 font-sans">
-                                    {displayName}
-                                  </div>
-                                  <div className="text-[11px] text-slate-500 font-mono">
-                                    {fullName ? `Application #${score.applicationId} • ` : ""}
-                                    Calculated {formatDate(score.calculatedAt)}
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <StatusBadge
-                                    status={candidate?.applicationStatus || ApplicationStatus.SUBMITTED}
-                                    type="application"
-                                    size="sm"
-                                  />
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <ScoreBadge score={score.finalFitScore} size="md" />
-                                </td>
-                                <td className="px-4 py-3 text-center text-slate-700">
-                                  {Number(score.skillsScore).toFixed(0)}%
-                                </td>
-                                <td className="px-4 py-3 text-center text-slate-700">
-                                  {Number(score.experienceScore).toFixed(0)}%
-                                </td>
-                                <td className="px-4 py-3 text-center text-slate-700">
-                                  {Number(score.locationScore).toFixed(0)}%
-                                </td>
-                                <td className="px-4 py-3 text-center text-slate-700">
-                                  {Number(score.complianceScore).toFixed(0)}%
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <Link
-                                    to="/ta/applications/$applicationId"
-                                    params={{ applicationId: String(score.applicationId) }}
-                                  >
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      rightIcon={<ExternalLink className="w-3 h-3" />}
-                                    >
-                                      View application
-                                    </Button>
-                                  </Link>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Pagination Footer */}
-                    <div className="p-3 border-t border-slate-200 bg-slate-50">
-                      <Pagination
-                        currentPage={candidatePage}
-                        totalPages={totalPages}
-                        totalItems={filteredScores.length}
-                        pageSize={candidatePageSize}
-                        onPageChange={setCandidatePage}
-                        itemLabel="candidates"
-                      />
-                    </div>
+                    <p className="px-4 pt-3 text-sm text-slate-600">
+                      Match score combines skills, experience, location and pre-employment documents.
+                    </p>
+                    <DataTable
+                      className="mt-3 border-0 border-t"
+                      caption="Applicants ranked by match score"
+                      columns={applicantColumns}
+                      rows={pageRows}
+                      getRowId={(row) => String(row.score.id)}
+                      renderCard={renderApplicantCard}
+                      cardsBelow="lg"
+                      rowHref={(row) => `/ta/applications/${row.score.applicationId}`}
+                      footer={
+                        <Pagination
+                          variant="inset"
+                          currentPage={candidatePage}
+                          totalPages={totalPages}
+                          totalItems={filteredScores.length}
+                          pageSize={candidatePageSize}
+                          onPageChange={setCandidatePage}
+                          itemLabel="candidates"
+                        />
+                      }
+                    />
                   </>
                 )}
               </>
@@ -734,130 +616,73 @@ export const JobPostingDetailPage: React.FC = () => {
         {activeTab === "talentPool" && (
           <div id="job-talent-pool" role="tabpanel" tabIndex={0}>
             {talentPoolMatches.length > 0 && (
-              <p className="px-4 pt-4 text-xs text-slate-600">
+              <p className="px-4 pt-4 text-sm text-slate-600">
                 Ranked by the same match score used for applications. Scores are a guide; you decide whom to invite.
-              </p>
-            )}
-            {talentPoolMatches.length > 0 && unsearchablePoolCount > 0 && (
-              <p className="px-4 pt-4 text-xs text-slate-600">
-                {unsearchablePoolCount} candidate pool {unsearchablePoolCount === 1 ? "member" : "members"} can't be matched yet and {unsearchablePoolCount === 1 ? "is" : "are"} not shown.
+                {unsearchablePoolCount > 0 &&
+                  ` ${plural(unsearchablePoolCount, "candidate pool member")} can't be matched yet and ${unsearchablePoolCount === 1 ? "is" : "are"} not shown.`}
               </p>
             )}
             {talentPoolQuery.isLoading ? (
               <LoadingState variant="cards" />
             ) : talentPoolQuery.isError ? (
               <div className="p-4">
-                <ErrorState error={talentPoolQuery.error} onRetry={() => talentPoolQuery.refetch()} />
+                <ErrorState subject="candidate pool matches" error={talentPoolQuery.error} onRetry={() => talentPoolQuery.refetch()} />
               </div>
             ) : talentPoolMatches.length === 0 ? (
-              <div className="p-8">
-                <EmptyState
-                  icon={<Users className="w-6 h-6 text-slate-400" />}
-                  title="No candidate pool matches for this opening"
-                  description={
-                    unsearchablePoolCount > 0
-                      ? `${unsearchablePoolCount} candidate pool ${unsearchablePoolCount === 1 ? "member" : "members"} can't be matched yet because ${unsearchablePoolCount === 1 ? "their profile is" : "their profiles are"} still being prepared for matching. Try again later.`
-                      : "No available candidate pool member is close enough to this opening."
-                  }
-                />
-              </div>
+              <EmptyState
+                bare
+                title="No candidate pool matches for this opening"
+                description={
+                  unsearchablePoolCount > 0
+                    ? `${plural(unsearchablePoolCount, "candidate pool member")} can't be matched yet because ${unsearchablePoolCount === 1 ? "their profile is" : "their profiles are"} still being prepared. Try again later.`
+                    : "No available pool member is close enough to this opening."
+                }
+              />
             ) : (
-              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
                 {talentPoolMatches.map((res) => {
                   const c = res.candidate;
+                  const isAlreadyInPipeline =
+                    rankedScores.some(
+                      (r: any) =>
+                        (Boolean(r.candidate?.id) && Boolean(c.id) && r.candidate?.id === c.id) ||
+                        (Boolean(r.candidate?.email) && Boolean(c.email) && r.candidate?.email?.toLowerCase() === c.email?.toLowerCase())
+                    ) ||
+                    Boolean(
+                      job?.applications?.some(
+                        (application) =>
+                          !application.isArchived &&
+                          application.status !== ApplicationStatus.ARCHIVED &&
+                          application.status !== ApplicationStatus.BACKOUT &&
+                          application.status !== ApplicationStatus.REJECTED &&
+                          (application.user?.id === c.id || application.user?.email?.toLowerCase() === c.email?.toLowerCase())
+                      )
+                    );
 
                   return (
-                    <div
+                    <PoolCandidateCard
                       key={c.id}
-                      className="p-4 rounded-xl border border-slate-200 hover:border-teal-300 transition-colors bg-white flex flex-col justify-between space-y-3 shadow-xs"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="text-sm font-bold text-slate-900">
-                                {c.firstName} {c.lastName}
-                              </h4>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
-                                {c.availability}
-                              </span>
-                            </div>
-                            <div className="text-xs text-slate-500 font-mono mt-0.5">
-                              {c.email}
-                            </div>
-                          </div>
-
-                          <PoolMatchScore result={res} />
-                        </div>
-
-                        {c.currentRole && (
-                          <div className="text-xs text-slate-700 font-medium flex items-center gap-1.5">
-                            <Briefcase className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{c.currentRole}</span>
-                          </div>
-                        )}
-
-                        {(c.city || c.province) && (
-                          <div className="text-xs text-slate-600 flex items-center gap-1.5 font-mono">
-                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{[c.city, c.province].filter(Boolean).join(", ")}</span>
-                          </div>
-                        )}
-
-                        <PoolMatchNotes result={res} />
-
-                        {c.skills && c.skills.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-1">
-                            {c.skills.slice(0, 5).map((s: any, idx) => (
-                              <span
-                                key={idx}
-                                className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold"
-                              >
-                                {typeof s === "string" ? s : s.name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
-                        {(() => {
-                          const isAlreadyInPipeline = rankedScores.some(
-                            (r: any) =>
-                              (Boolean(r.candidate?.id) && Boolean(c.id) && r.candidate?.id === c.id) ||
-                              (Boolean(r.candidate?.email) && Boolean(c.email) && r.candidate?.email?.toLowerCase() === c.email?.toLowerCase())
-                          ) || Boolean(job?.applications?.some((application) =>
-                            !application.isArchived &&
-                            application.status !== ApplicationStatus.ARCHIVED &&
-                            application.status !== ApplicationStatus.BACKOUT &&
-                            application.status !== ApplicationStatus.REJECTED &&
-                            (application.user?.id === c.id || application.user?.email?.toLowerCase() === c.email?.toLowerCase())
-                          ));
-
-                          if (isAlreadyInPipeline) {
-                            return (
-                              <span className="text-xs font-medium text-teal-800 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-200">
-                                In Active Pipeline
-                              </span>
-                            );
-                          }
-
-                          return (
+                      result={res}
+                      maxSkills={5}
+                      actions={
+                        <span className="ml-auto">
+                          {isAlreadyInPipeline ? (
+                            <span className="text-sm font-medium text-navy">In active pipeline</span>
+                          ) : (
                             <Button
-                              variant="primary"
+                              variant="outline"
                               size="sm"
-                              leftIcon={<Send className="w-3.5 h-3.5" />}
                               onClick={() => {
                                 setCandidateToInvite(c);
                                 setInviteModalOpen(true);
                               }}
                             >
-                              Invite to Apply
+                              {TA_COPY.invitations.inviteToApply}
                             </Button>
-                          );
-                        })()}
-                      </div>
-                    </div>
+                          )}
+                        </span>
+                      }
+                    />
                   );
                 })}
               </div>
@@ -865,6 +690,19 @@ export const JobPostingDetailPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={pendingClose}
+        onClose={() => setPendingClose(false)}
+        onConfirm={() => {
+          setPendingClose(false);
+          statusMutation.mutate(JobStatus.CLOSED);
+        }}
+        title="Close this opening?"
+        description={`${plural(activeApplicantTotal, "applicant")} ${activeApplicantTotal === 1 ? "is" : "are"} still in the pipeline. Close this opening anyway?`}
+        confirmLabel="Close opening"
+        variant="warning"
+      />
 
       {/* Edit Job Modal */}
       <Dialog
@@ -874,7 +712,7 @@ export const JobPostingDetailPage: React.FC = () => {
           setServerFieldErrors({});
         }}
         title="Edit job opening"
-        description={`Update job opening #${job.id}`}
+        description="Update the details applicants see."
         size="xl"
       >
         <form
@@ -924,40 +762,28 @@ export const JobPostingDetailPage: React.FC = () => {
           }}
           className="space-y-4"
         >
-          {/* View Tab Toggle */}
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
-            <div className="inline-flex p-1 bg-slate-100 rounded-lg text-xs font-medium text-slate-600">
-              <button
-                type="button"
-                onClick={() => setEditModalTab("edit")}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all",
-                  editModalTab === "edit"
-                    ? "bg-white text-slate-900 shadow-xs font-semibold"
-                    : "text-slate-600 hover:text-slate-900"
-                )}
-              >
-                <Edit className="w-3.5 h-3.5" />
-                <span>Edit Details</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditModalTab("preview")}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all",
-                  editModalTab === "preview"
-                    ? "bg-white text-slate-900 shadow-xs font-semibold"
-                    : "text-slate-600 hover:text-slate-900"
-                )}
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Live Preview</span>
-              </button>
+          <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
+            <div className="inline-flex gap-1 bg-slate-100 p-1 text-sm font-medium text-slate-700" role="group" aria-label="Form view">
+              {(
+                [
+                  ["edit", "Edit details"],
+                  ["preview", "Preview"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={editModalTab === id}
+                  onClick={() => setEditModalTab(id)}
+                  className={cn(
+                    "min-h-11 px-3 py-1.5 transition-colors focus-ring md:min-h-9",
+                    editModalTab === id ? "bg-white font-semibold text-navy shadow-xs" : "text-slate-700 hover:text-slate-950"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-
-            <span className="text-[11px] text-slate-500 hidden sm:inline font-mono">
-              {editModalTab === "edit" ? "Recruiter Editor" : "Candidate-Facing Preview"}
-            </span>
           </div>
 
           {editModalTab === "edit" ? (
@@ -975,7 +801,7 @@ export const JobPostingDetailPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Input
-                    label="Location"
+                    label="Work site"
                     helperText={LOCATION_HINT}
                     value={editLocation}
                     error={serverFieldErrors.location}
@@ -1014,7 +840,7 @@ export const JobPostingDetailPage: React.FC = () => {
 
 
               <Textarea
-                label="Description"
+                label="Description and responsibilities"
                 value={editDescription}
                 error={serverFieldErrors.description}
                 onChange={(e) => {
@@ -1026,7 +852,7 @@ export const JobPostingDetailPage: React.FC = () => {
                 required
               />
               <Textarea
-                label="Requirements"
+                label="Required skills and qualifications"
                 value={editRequirements}
                 error={serverFieldErrors.requirements}
                 onChange={(e) => {
@@ -1040,71 +866,55 @@ export const JobPostingDetailPage: React.FC = () => {
 
               {/* Keep Open After Fill Toggle */}
               <div className="pt-2 border-t border-slate-100">
-                <label className="flex items-start gap-2.5 cursor-pointer">
+                <label className="flex min-h-11 cursor-pointer items-start gap-2.5">
                   <input
                     type="checkbox"
-                    className="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-navy focus-ring"
                     checked={editIsEvergreen}
                     onChange={(e) => setEditIsEvergreen(e.target.checked)}
                   />
-                  <div>
-                    <span className="text-xs font-semibold text-slate-800">Keep open after positions are filled</span>
-                    <p className="text-[11px] text-slate-500 leading-tight">
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-800">Keep open after positions are filled</span>
+                    <span className="block text-xs leading-tight text-slate-600">
                       Leave this opening open for future applicants.
-                    </p>
-                  </div>
+                    </span>
+                  </span>
                 </label>
               </div>
             </div>
           ) : (
-            /* Live Preview Mode */
             <div className="space-y-4">
-              <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-lg space-y-4">
-                <div className="flex items-start gap-3 pb-3 border-b border-slate-200">
-                  <JobImage src={editImageUrl} title={editTitle || "Job Title"} alt={editTitle || "Job Title"} size="md" />
+              <div className="space-y-4 border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start gap-3 border-b border-slate-200 pb-3">
+                  <JobImage src={editImageUrl} title={editTitle || "Job opening"} alt={editTitle || "Job opening"} size="md" />
                   <div className="space-y-1">
-                    <h3 className="text-base font-bold text-slate-900">{editTitle || "Untitled Job Opening"}</h3>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{editLocation || "Philippines"}</span>
-                      </span>
-                      <span>•</span>
-                      <span className="font-mono uppercase text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">
-                        {editStatus}
-                      </span>
-                      {editIsEvergreen && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-50 text-teal-700 border border-teal-200">
-                          Always open
-                        </span>
-                      )}
-                    </div>
+                    <h3 className="text-base font-semibold text-slate-900">{editTitle || "Untitled job opening"}</h3>
+                    <p className="text-sm text-slate-600">
+                      {editLocation || "Philippines"} · {editStatus.charAt(0) + editStatus.slice(1).toLowerCase()}
+                      {editIsEvergreen ? " · Always open" : ""}
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-                  <div className="md:col-span-7 space-y-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                      Role Description & Responsibilities
-                    </h4>
-                    <div className="p-4 bg-white rounded-lg border border-slate-200 min-h-[160px]">
+                <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-12">
+                  <div className="space-y-2 md:col-span-7">
+                    <h4 className="text-sm font-semibold text-slate-800">Description and responsibilities</h4>
+                    <div className="min-h-[160px] border border-slate-200 bg-white p-4">
                       {editDescription ? (
                         <JobContentRenderer content={editDescription} variant="ta" />
                       ) : (
-                        <p className="text-xs text-slate-400 italic">No description entered yet.</p>
+                        <p className="text-sm italic text-slate-600">No description entered yet.</p>
                       )}
                     </div>
                   </div>
 
-                  <div className="md:col-span-5 space-y-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                      Required Skills & Qualifications
-                    </h4>
-                    <div className="p-4 bg-white rounded-lg border border-slate-200 min-h-[160px]">
+                  <div className="space-y-2 md:col-span-5">
+                    <h4 className="text-sm font-semibold text-slate-800">Required skills and qualifications</h4>
+                    <div className="min-h-[160px] border border-slate-200 bg-white p-4">
                       {editRequirements ? (
                         <JobContentRenderer content={editRequirements} variant="ta" />
                       ) : (
-                        <p className="text-xs text-slate-400 italic">No requirements entered yet.</p>
+                        <p className="text-sm italic text-slate-600">No requirements entered yet.</p>
                       )}
                     </div>
                   </div>

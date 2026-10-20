@@ -10,26 +10,63 @@ import {
   EmptyState,
   Pagination,
   StatusBadge,
+  DataTable,
 } from "../../components/common";
+import type { DataTableColumn } from "../../components/common";
 import { Button } from "../../components/ui";
-import { formatDate } from "../../lib/utils";
-import {
-  Briefcase,
-  Plus,
-  ArrowRight,
-  Building2,
-} from "lucide-react";
-import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
+import { formatDate, cn } from "../../lib/utils";
+import { Plus } from "lucide-react";
+import { TA_COPY } from "../../lib/ta-copy";
 import { REFERENCE_QUERY_STALE_TIME_MS, SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { plural } from "../../lib/plural";
+
+type MrfRow = any;
+
+/** A request is overdue when its target date has passed and it is still being worked. */
+function isOverdue(mrf: MrfRow): boolean {
+  if (!mrf.targetFillDate || mrf.status === "FILLED" || mrf.status === "CANCELLED") return false;
+  const date = new Date(mrf.targetFillDate);
+  return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
+}
+
+const TargetDate: React.FC<{ mrf: MrfRow }> = ({ mrf }) => {
+  if (!mrf.targetFillDate) return <span className="text-slate-600">No target date</span>;
+  const overdue = isOverdue(mrf);
+  return (
+    <span className={cn(overdue ? "font-medium text-rose-700" : "text-slate-800")}>
+      {formatDate(mrf.targetFillDate)}
+      {overdue && <span className="block text-xs font-semibold">Overdue</span>}
+    </span>
+  );
+};
+
+const FilledCell: React.FC<{ mrf: MrfRow }> = ({ mrf }) => {
+  const deployed = mrf.fulfillment?.deployedCount ?? mrf._count?.deployments ?? 0;
+  const calculatedRate = mrf.headcount > 0 ? Math.round((deployed / mrf.headcount) * 100) : 0;
+  const rate = mrf.fulfillment?.fulfillmentRate ?? calculatedRate;
+  const clampedRate = Math.min(100, Math.max(0, rate));
+  return (
+    <span className="block min-w-24">
+      <span className="block whitespace-nowrap font-medium text-slate-900">
+        {deployed} / {mrf.headcount} filled
+      </span>
+      <span className="mt-1 block h-1.5 w-full overflow-hidden bg-slate-200" aria-hidden="true">
+        <span
+          className={cn("block h-full", clampedRate >= 100 ? "bg-emerald-700" : "bg-navy")}
+          style={{ width: `${clampedRate}%` }}
+        />
+      </span>
+    </span>
+  );
+};
 
 export const MRFListPage: React.FC = () => {
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [sortBy, setSortBy] = useState<string>("created_desc");
   const [page, setPage] = useState(1);
-  const pageSize = 8;
+  const [pageSize, setPageSize] = useState(10);
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
 
   const mrfsQuery = useQuery({
@@ -81,208 +118,197 @@ export const MRFListPage: React.FC = () => {
     setPage(1);
   };
 
+  const hasFilters = Boolean(debouncedSearch || filterValues.status || filterValues.priority || filterValues.clientId);
+
+  const columns: DataTableColumn<MrfRow>[] = [
+    { key: "title", header: "Request", primary: true, cell: (mrf) => mrf.title },
+    { key: "client", header: "Client", cell: (mrf) => mrf.client?.name || "Client account" },
+    { key: "status", header: "Status", cell: (mrf) => <StatusBadge status={mrf.status} type="raw" size="sm" /> },
+    {
+      key: "priority",
+      header: "Priority",
+      cell: (mrf) => <StatusBadge status={mrf.priority} type="priority" size="sm" appearance="text" />,
+    },
+    { key: "filled", header: "Filled", cell: (mrf) => <FilledCell mrf={mrf} /> },
+    { key: "target", header: "Target date", cell: (mrf) => <TargetDate mrf={mrf} /> },
+    { key: "jobs", header: "Job openings", align: "right", cell: (mrf) => mrf._count?.jobPostings || 0 },
+  ];
+
+  const renderCard = (mrf: MrfRow) => (
+    <div className="space-y-2 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <Link
+          to="/ta/mrfs/$mrfId"
+          params={{ mrfId: String(mrf.id) }}
+          className="inline-flex min-h-11 items-center text-sm font-semibold text-navy underline-offset-2 hover:underline focus-ring"
+        >
+          {mrf.title}
+        </Link>
+        <StatusBadge status={mrf.status} type="raw" size="sm" />
+      </div>
+      <p className="text-sm text-slate-600">{mrf.client?.name || "Client account"}</p>
+      <FilledCell mrf={mrf} />
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm text-slate-700">
+        <span>
+          Priority <StatusBadge status={mrf.priority} type="priority" size="sm" appearance="text" />
+        </span>
+        <span>
+          Target <TargetDate mrf={mrf} />
+        </span>
+        <span>{plural(mrf._count?.jobPostings || 0, "job opening")}</span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title={TA_COPY.navigation.manpowerRequests}
-        description="Track client staffing requests, positions to fill, and required documents."
+        flush
+        title={TA_COPY.pageTitles.manpowerRequests}
+        description="Track client staffing requests (MRFs), positions to fill, and required documents."
         breadcrumbs={[
-          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
           { label: TA_COPY.navigation.manpowerRequests },
         ]}
         actions={
-          <Link to="/ta/mrfs/create">
-            <Button variant="primary" size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />}>
+          <Button asChild variant="primary" size="sm">
+            <Link to="/ta/mrfs/create">
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               New manpower request
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         }
       />
 
-      {/* Filter Bar */}
-      <SearchFilters
-        searchPlaceholder="Search requests by title or client name..."
-        searchValue={search}
-        onSearchChange={handleSearchChange}
-        filterValues={filterValues}
-        onFilterChange={handleFilterChange}
-        onReset={handleReset}
-        filters={[
-          {
-            key: "status",
-            label: "Request status",
-            placeholder: "All request statuses",
-            options: [
-              { value: "OPEN", label: "Open" },
-              { value: "IN_PROGRESS", label: "In progress" },
-              { value: "FILLED", label: "Filled" },
-              { value: "ON_HOLD", label: "On hold" },
-              { value: "CANCELLED", label: "Cancelled" },
-            ],
-          },
-          {
-            key: "priority",
-            label: "Priority",
-            placeholder: "All priorities",
-            options: [
-              { value: "URGENT", label: "Urgent" },
-              { value: "HIGH", label: "High" },
-              { value: "NORMAL", label: "Normal" },
-              { value: "LOW", label: "Low" },
-            ],
-          },
-          {
-            key: "clientId",
-            label: "Client",
-            placeholder: "All client accounts",
-            searchable: true,
-            options: clients.map((c) => ({
-              value: String(c.id),
-              label: c.name,
-              subtitle: `${c.industry || "General"} • ${c.address || "Philippines"}`,
-            })),
-          },
-        ]}
-        actions={
-          <div className="flex items-center gap-2">
-            <label htmlFor="mrf-sort-select" className="text-xs text-slate-600 font-medium shrink-0">
-              Sort by:
-            </label>
-            <select
-              id="mrf-sort-select"
-              value={sortBy}
-              onChange={(e) => {
-                setSortBy(e.target.value);
-                setPage(1);
-              }}
-              className="min-h-11 md:min-h-10 px-3 py-2 text-sm border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-offset-1 focus:border-teal-700 transition-colors cursor-pointer"
-            >
-              <option value="priority">Priority (Urgent & High first)</option>
-              <option value="created_desc">Newest created</option>
-              <option value="created_asc">Oldest created</option>
-              <option value="target_date">Target fill date (soonest)</option>
-            </select>
+      <div className="space-y-3">
+        <SearchFilters
+          className="!mb-0"
+          searchLabel="Search requests"
+          searchPlaceholder="Search by title or client"
+          searchValue={search}
+          onSearchChange={handleSearchChange}
+          filterValues={filterValues}
+          onFilterChange={handleFilterChange}
+          onReset={handleReset}
+          filters={[
+            {
+              key: "status",
+              label: "Request status",
+              placeholder: "All statuses",
+              options: [
+                { value: "OPEN", label: "Open" },
+                { value: "IN_PROGRESS", label: "In progress" },
+                { value: "FILLED", label: "Filled" },
+                { value: "ON_HOLD", label: "On hold" },
+                { value: "CANCELLED", label: "Cancelled" },
+              ],
+            },
+            {
+              key: "priority",
+              label: "Priority",
+              placeholder: "All priorities",
+              options: [
+                { value: "URGENT", label: "Urgent" },
+                { value: "HIGH", label: "High" },
+                { value: "NORMAL", label: "Normal" },
+                { value: "LOW", label: "Low" },
+              ],
+            },
+            {
+              key: "clientId",
+              label: "Client",
+              placeholder: "All clients",
+              searchable: true,
+              options: clients.map((c) => ({
+                value: String(c.id),
+                label: c.name,
+                subtitle: `${c.industry || "General"} • ${c.address || "Philippines"}`,
+              })),
+            },
+          ]}
+        />
+
+        {!mrfsQuery.isLoading && !mrfsQuery.isError && totalItems > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+            <span>{plural(totalItems, "request")}</span>
+            <div className="flex items-center gap-2">
+              <label htmlFor="mrf-sort-select" className="shrink-0 font-medium">
+                Sort by
+              </label>
+              <select
+                id="mrf-sort-select"
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  setPage(1);
+                }}
+                className="min-h-11 cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus-ring md:min-h-9"
+              >
+                <option value="priority">Priority (urgent and high first)</option>
+                <option value="created_desc">Newest created</option>
+                <option value="created_asc">Oldest created</option>
+                <option value="target_date">Target date (soonest)</option>
+              </select>
+            </div>
           </div>
-        }
-      />
+        )}
+      </div>
 
-      {/* MRF List */}
       {mrfsQuery.isLoading ? (
         <LoadingState variant="table" rows={5} />
       ) : mrfsQuery.isError ? (
-        <ErrorState error={mrfsQuery.error} onRetry={() => mrfsQuery.refetch()} />
-      ) : totalItems === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
-          <EmptyState
-            icon={<Briefcase className="w-6 h-6" />}
-            title="No manpower requests found"
-            description="Create a request for client staffing needs or reset your filters."
-            action={
-              <Button variant="outline" size="sm" onClick={handleReset}>
-                Reset filters
-              </Button>
-            }
-          />
-        </div>
+        <ErrorState subject="manpower requests" error={mrfsQuery.error} onRetry={() => mrfsQuery.refetch()} />
       ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {paginatedMrfs.map((mrf) => (
-              <div
-                key={mrf.id}
-                className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-teal-300 transition-colors"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-base font-bold text-slate-900 leading-snug">
-                        {mrf.title}
-                      </h3>
-                      <div className="flex items-center gap-2 text-xs text-slate-600 font-medium mt-0.5">
-                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{mrf.client?.name || "Client Account"}</span>
-                      </div>
-                    </div>
-                    <StatusBadge status={formatTaStatus(mrf.status)} type="raw" size="sm" />
-                  </div>
-
-                  {(() => {
-                    const deployed = mrf.fulfillment?.deployedCount ?? mrf._count?.deployments ?? 0;
-                    const calculatedRate =
-                      mrf.headcount > 0 ? Math.round((deployed / mrf.headcount) * 100) : 0;
-                    const rate = mrf.fulfillment?.fulfillmentRate ?? calculatedRate;
-                    const clampedRate = Math.min(100, Math.max(0, rate));
-                    const barColor =
-                      clampedRate >= 100
-                        ? "bg-emerald-600"
-                        : clampedRate > 0
-                        ? "bg-teal-600"
-                        : "bg-slate-300";
-
-                    return (
-                      <div className="grid grid-cols-3 gap-2 text-xs font-mono pt-1">
-                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 flex flex-col justify-between">
-                          <span className="text-xs text-slate-500 block">Positions filled</span>
-                          <span className="font-bold text-slate-900 truncate block my-0.5">
-                            {deployed} / {mrf.headcount} positions
-                          </span>
-                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-300 ${barColor}`}
-                              style={{ width: `${clampedRate}%` }}
-                            />
-                          </div>
-                        </div>
-                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 text-center flex flex-col justify-between">
-                          <span className="text-xs text-slate-500 block">Priority</span>
-                          <StatusBadge status={mrf.priority} type="priority" size="sm" appearance="text" />
-                        </div>
-                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 text-center flex flex-col justify-between">
-                          <span className="text-xs text-slate-500 block">Target date</span>
-                          <StatusBadge
-                            status={mrf.targetFillDate ? formatDate(mrf.targetFillDate) : undefined}
-                            type="targetDate"
-                            size="sm"
-                            appearance="text"
-                          />
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs font-mono text-slate-500">
-                    Request #{mrf.id} • {plural(mrf._count?.jobPostings || 0, "job opening")}
-                  </span>
-                  <Link
-                    to="/ta/mrfs/$mrfId"
-                    params={{ mrfId: String(mrf.id) }}
-                  >
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                    >
-                      View request
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Pagination */}
-          <div className="bg-white border border-slate-300 p-2">
+        <DataTable
+          caption="Manpower requests"
+          columns={columns}
+          rows={paginatedMrfs}
+          getRowId={(mrf) => String(mrf.id)}
+          renderCard={renderCard}
+          cardsBelow="lg"
+          rowHref={(mrf) => `/ta/mrfs/${mrf.id}`}
+          isFetching={mrfsQuery.isFetching}
+          empty={
+            hasFilters || totalItems > 0 ? (
+              <EmptyState
+                bare
+                title="No manpower requests match these filters"
+                description="Try a different search or reset the filters."
+                action={
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    Reset filters
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                bare
+                title="No manpower requests yet"
+                description="Create a request when a client needs staff."
+                action={
+                  <Button asChild variant="primary" size="sm">
+                    <Link to="/ta/mrfs/create">Create manpower request</Link>
+                  </Button>
+                }
+              />
+            )
+          }
+          footer={
             <Pagination
+              variant="inset"
               currentPage={page}
               totalPages={totalPages}
               totalItems={totalItems}
               pageSize={pageSize}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
               onPageChange={setPage}
+              itemLabel="requests"
             />
-          </div>
-        </div>
+          }
+        />
       )}
     </div>
   );

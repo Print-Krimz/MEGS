@@ -13,14 +13,10 @@ import { ComboBox } from "../../components/ui/ComboBox";
 import { formatDate } from "../../lib/utils";
 import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
 import { PHILIPPINE_INDUSTRY_SECTORS } from "../../lib/industry-data";
-import {
-  ArrowLeft,
-  Edit,
-  Plus,
-  MapPin,
-} from "lucide-react";
+import { MapPin } from "lucide-react";
 import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TA_COPY, formatPriority, formatTaStatus } from "../../lib/ta-copy";
+import { plural } from "../../lib/plural";
 import {
   validatePersonName,
   validateStandardText,
@@ -153,7 +149,16 @@ export const ClientDetailPage: React.FC = () => {
   if (clientQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Client details" description="Loading client information..." />
+        <PageHeader
+          flush
+          title="Client"
+          description="Loading client information..."
+          breadcrumbs={[
+            { label: TA_COPY.breadcrumbRoot, href: "/ta" },
+            { label: TA_COPY.navigation.clients, href: "/ta/clients" },
+            { label: "Client" },
+          ]}
+        />
         <LoadingState variant="detail" />
       </div>
     );
@@ -162,8 +167,16 @@ export const ClientDetailPage: React.FC = () => {
   if (clientQuery.isError || !client) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Client details" description="Account details" />
-        <ErrorState error={clientQuery.error} onRetry={() => clientQuery.refetch()} />
+        <PageHeader
+          flush
+          title="Client"
+          breadcrumbs={[
+            { label: TA_COPY.breadcrumbRoot, href: "/ta" },
+            { label: TA_COPY.navigation.clients, href: "/ta/clients" },
+            { label: "Client" },
+          ]}
+        />
+        <ErrorState subject="this client" error={clientQuery.error} onRetry={() => clientQuery.refetch()} />
       </div>
     );
   }
@@ -171,34 +184,25 @@ export const ClientDetailPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
+        flush
         title={client.name}
-        description={`Client #${client.id} • Registered ${formatDate(client.createdAt)}`}
-        meta={<StatusBadge status={client.isActive ? "Active client" : "Inactive"} type="raw" size="sm" />}
+        description={`Registered ${formatDate(client.createdAt)}`}
+        meta={client.isActive ? undefined : <StatusBadge status="Inactive" type="raw" size="sm" />}
         breadcrumbs={[
-          { label: TA_COPY.navigation.overview, href: "/ta" },
+          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
           { label: TA_COPY.navigation.clients, href: "/ta/clients" },
           { label: client.name },
         ]}
         actions={
-          <div className="flex items-center gap-2">
-            <Link to="/ta/clients">
-              <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                Back to clients
-              </Button>
-            </Link>
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<Edit className="w-3.5 h-3.5" />}
-              onClick={() => setEditModalOpen(true)}
-            >
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setEditModalOpen(true)}>
               Edit client
             </Button>
-            <Link to="/ta/mrfs/create">
-              <Button variant="primary" size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />}>
+            <Button asChild variant="primary" size="sm">
+              <Link to="/ta/mrfs/create" search={{ clientId: client.id }}>
                 Create manpower request
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         }
       />
@@ -210,9 +214,7 @@ export const ClientDetailPage: React.FC = () => {
             Company information
           </h3>
           {client.tradeName && (
-            <span className="text-xs font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 font-bold">
-              Brand: {client.tradeName}
-            </span>
+            <span className="text-sm font-medium text-slate-700">Brand: {client.tradeName}</span>
           )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
@@ -226,7 +228,7 @@ export const ClientDetailPage: React.FC = () => {
           </div>
           <div>
             <span className="text-slate-500 block">Email and phone</span>
-            <span className="text-slate-800 font-mono">
+            <span className="break-all text-slate-800">
               {client.contactEmail || "No email"} {client.contactPhone ? `• ${client.contactPhone}` : ""}
             </span>
           </div>
@@ -252,13 +254,9 @@ export const ClientDetailPage: React.FC = () => {
           <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
             Compliance & SLA settings
           </h3>
-          <button
-            type="button"
-            onClick={() => setEditModalOpen(true)}
-            className="text-xs text-teal-700 hover:text-teal-900 font-medium cursor-pointer"
-          >
+          <Button variant="ghost" size="sm" onClick={() => setEditModalOpen(true)}>
             Edit settings
-          </button>
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
@@ -294,15 +292,7 @@ export const ClientDetailPage: React.FC = () => {
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-slate-100 text-slate-800 border border-slate-200"
                 >
                   <span>{t.documentLabel}</span>
-                  {t.isRequired ? (
-                    <span className="text-[9px] font-mono font-bold text-rose-700 bg-rose-50 px-1 rounded border border-rose-200">
-                      Required
-                    </span>
-                  ) : (
-                    <span className="text-[9px] font-mono text-slate-500 bg-white px-1 rounded border border-slate-200">
-                      Optional
-                    </span>
-                  )}
+                  {!t.isRequired && <span className="text-xs text-slate-600">(optional)</span>}
                 </span>
               ))}
             </div>
@@ -326,16 +316,21 @@ export const ClientDetailPage: React.FC = () => {
               <h3 className="text-sm font-bold text-slate-900">Manpower requests ({mrfs.length})</h3>
               <p className="text-xs text-slate-500">Staffing requests for this client</p>
             </div>
-            <Link to="/ta/mrfs/create">
-              <Button variant="ghost" size="sm" leftIcon={<Plus className="w-3 h-3" />}>
-                New
-              </Button>
-            </Link>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/ta/mrfs/create" search={{ clientId: client.id }}>
+                New request
+              </Link>
+            </Button>
           </div>
 
           {mrfs.length === 0 ? (
-            <div className="p-6 text-center text-xs text-slate-400">
-              No manpower requests placed by this client.
+            <div className="space-y-3 p-6 text-center text-sm text-slate-600">
+              <p>No manpower requests placed by this client.</p>
+              <Button asChild variant="primary" size="sm">
+                <Link to="/ta/mrfs/create" search={{ clientId: client.id }}>
+                  Create the first request
+                </Link>
+              </Button>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -343,15 +338,15 @@ export const ClientDetailPage: React.FC = () => {
                 <div key={mrf.id} className="p-3.5 flex items-center justify-between gap-3 text-xs">
                   <div>
                     <div className="font-bold text-slate-900">{mrf.title}</div>
-                    <div className="text-[11px] text-slate-500 font-mono">
-                      {mrf.headcount} positions • Priority: {formatPriority(mrf.priority)} • {formatTaStatus(mrf.status)}
+                    <div className="text-xs text-slate-600">
+                      {plural(mrf.headcount, "position")} • Priority: {formatPriority(mrf.priority)} • {formatTaStatus(mrf.status)}
                     </div>
                   </div>
-                  <Link to="/ta/mrfs/$mrfId" params={{ mrfId: String(mrf.id) }}>
-                    <Button variant="outline" size="sm">
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/ta/mrfs/$mrfId" params={{ mrfId: String(mrf.id) }}>
                       View request
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 </div>
               ))}
             </div>
@@ -362,19 +357,24 @@ export const ClientDetailPage: React.FC = () => {
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <div className="space-y-0.5">
-              <h3 className="text-sm font-bold text-slate-900">Active site deployments ({deployments.length})</h3>
-              <p className="text-xs text-slate-500">Personnel currently dispatched on client sites</p>
+              <h3 className="text-sm font-bold text-slate-900">Deployments ({deployments.length})</h3>
+              <p className="text-xs text-slate-600">Personnel placed on this client's sites</p>
             </div>
-            <Link to="/ta/workforce" search={{ tab: "deployments" }}>
-              <Button variant="ghost" size="sm">
-                All
-              </Button>
-            </Link>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/ta/workforce" search={{ tab: "deployments" }}>
+                View all deployments
+              </Link>
+            </Button>
           </div>
 
           {deployments.length === 0 ? (
-            <div className="p-6 text-center text-xs text-slate-400">
-              No active personnel deployments recorded for this client.
+            <div className="space-y-3 p-6 text-center text-sm text-slate-600">
+              <p>No deployments recorded for this client yet.</p>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/ta/workforce" search={{ tab: "deployments" }}>
+                  View all deployments
+                </Link>
+              </Button>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -385,15 +385,15 @@ export const ClientDetailPage: React.FC = () => {
                       {dep.employee?.user?.applicantProfile?.firstName || "Employee"}{" "}
                       {dep.employee?.user?.applicantProfile?.lastName || ""}
                     </div>
-                    <div className="text-[11px] text-slate-500 font-mono">
+                    <div className="text-xs text-slate-600">
                       Site: {dep.site || "General facility"} • {formatTaStatus(dep.status)}
                     </div>
                   </div>
-                  <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(dep.id) }}>
-                    <Button variant="outline" size="sm">
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(dep.id) }}>
                       View deployment
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 </div>
               ))}
             </div>

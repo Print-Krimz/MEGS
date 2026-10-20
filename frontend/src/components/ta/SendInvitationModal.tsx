@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Dialog, Button, Textarea, Select, ComboBox } from "../ui";
-import { Send, Briefcase } from "lucide-react";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
+import { TA_COPY } from "../../lib/ta-copy";
+import { AvailabilityText } from "./PoolCandidateCard";
 
 export interface SendInvitationModalProps {
   open: boolean;
@@ -33,18 +34,23 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
   const [message, setMessage] = useState("");
   const [expiresInDays, setExpiresInDays] = useState<number>(7);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [messageEdited, setMessageEdited] = useState(false);
 
+  const draftMessage = (jobTitle?: string) =>
+    candidate
+      ? `Hi ${candidate.firstName}, your background and skills match our opening for ${jobTitle || "this position"}. We invite you to apply!`
+      : "";
+
+  // The job is never guessed: with no job passed in, the field starts empty and the TA must pick one.
   useEffect(() => {
     if (open) {
       setSelectedJobId(initialTargetJobId || 0);
-      setMessage(
-        candidate
-          ? `Hi ${candidate.firstName}, your background and skills match our opening for ${targetJobTitle || "this position"}. We invite you to apply!`
-          : ""
-      );
+      setMessage(draftMessage(targetJobTitle));
+      setMessageEdited(false);
       setExpiresInDays(7);
       setJobError(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialTargetJobId, targetJobTitle, candidate]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -71,53 +77,48 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      title="Invite candidate to apply"
+      title={TA_COPY.invitations.inviteToApply}
       description={`Send an invitation to ${candidate.firstName} ${candidate.lastName}.`}
       overflowVisible
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Candidate Profile Summary */}
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-slate-800">
+        <div className="space-y-1 border border-slate-200 bg-slate-50 p-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-semibold text-slate-900">
               {candidate.firstName} {candidate.lastName}
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              {candidate.availability}
-            </span>
+            <AvailabilityText availability={candidate.availability} />
           </div>
-          <div className="text-slate-500 font-mono">{candidate.email}</div>
-          {candidate.currentRole && (
-            <div className="text-slate-600">Current role: {candidate.currentRole}</div>
-          )}
+          <div className="break-all text-slate-600">{candidate.email}</div>
+          {candidate.currentRole && <div className="text-slate-700">Current role: {candidate.currentRole}</div>}
         </div>
 
-        {/* Target Job Selection */}
         {initialTargetJobId ? (
-          <div className="text-xs">
-            <label className="block text-slate-600 font-medium mb-1">Job opening</label>
-            <div className="p-2.5 bg-teal-50 border border-teal-200 rounded-lg text-teal-900 font-semibold flex items-center gap-2">
-              <Briefcase className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-              <span>#{initialTargetJobId} — {targetJobTitle}</span>
+          <div className="text-sm">
+            <span className="mb-1 block text-xs font-semibold text-slate-700">Job opening</span>
+            <div className="border border-navy-line bg-navy-soft p-2.5 font-semibold text-navy">
+              {targetJobTitle || `Job opening #${initialTargetJobId}`}
             </div>
           </div>
         ) : (
           <ComboBox
             label="Job opening"
-            placeholder="Search target job opening..."
+            placeholder="Search job openings"
             value={selectedJobId ? String(selectedJobId) : ""}
             error={jobError || undefined}
             onChange={(val) => {
-              setSelectedJobId(Number(val) || 0);
+              const id = Number(val) || 0;
+              setSelectedJobId(id);
+              if (!messageEdited) setMessage(draftMessage(jobs.find((j) => j.id === id)?.title));
               if (jobError) setJobError(null);
             }}
             options={jobs.map((j) => ({
               value: String(j.id),
               label: j.title,
-              subtitle: `Job opening #${j.id} • ${j.location || "Philippines"}`,
-              badge: j.status,
+              subtitle: j.location || "Philippines",
+              badge: j.status ? j.status.charAt(0) + j.status.slice(1).toLowerCase() : undefined,
             }))}
-            emptyText="No open job openings found"
+            emptyText="No job openings found"
             required
           />
         )}
@@ -127,7 +128,10 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
           label="Message to the candidate (optional)"
           placeholder="Explain why this opening may be a good fit..."
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => {
+            setMessage(e.target.value);
+            setMessageEdited(true);
+          }}
           rows={3}
         />
 
@@ -148,14 +152,8 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
           <Button variant="outline" size="sm" type="button" onClick={onClose} disabled={loading}>
             Cancel
           </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            type="submit"
-            loading={loading}
-            leftIcon={<Send className="w-3.5 h-3.5" />}
-          >
-            Send invitation
+          <Button variant="primary" size="sm" type="submit" loading={loading}>
+            {TA_COPY.workforce.actions.sendInvitation}
           </Button>
         </div>
       </form>

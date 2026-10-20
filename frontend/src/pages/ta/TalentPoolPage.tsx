@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
@@ -8,27 +9,34 @@ import {
   EmptyState,
 } from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea, ComboBox } from "../../components/ui";
-import {
-  Search,
-  PhoneCall,
-  MapPin,
-  Briefcase,
-  Clock,
-  Send,
-  ListOrdered,
-} from "lucide-react";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
+import { plural } from "../../lib/plural";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
 import { SendInvitationModal } from "../../components/ta/SendInvitationModal";
 import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTrackerDrawer";
-import { PoolMatchNotes, PoolMatchScore } from "../../components/ta/PoolMatchDetails";
+import { PoolCandidateCard } from "../../components/ta/PoolCandidateCard";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
+
+const SEARCH_LIMIT = 20;
+
+const CONTACT_OUTCOME_OPTIONS = [
+  { value: "INTERESTED", label: "Interested" },
+  { value: "NOT_INTERESTED", label: "Not interested" },
+  { value: "NO_RESPONSE", label: "No response" },
+  { value: "UNAVAILABLE", label: "Unavailable (working elsewhere)" },
+];
 
 export const TalentPoolPage: React.FC = () => {
   const queryClient = useQueryClient();
-  const [searchText, setSearchText] = useState("");
-  const [selectedJobId, setSelectedJobId] = useState<number>(0);
+  const navigate = useNavigate();
+  // The search lives in the address (?q= or ?jobId=) so a refresh or a shared link shows the same results.
+  const urlSearch = useSearch({ strict: false }) as { q?: string | number; jobId?: string | number };
+  const urlText = urlSearch?.q !== undefined ? String(urlSearch.q) : "";
+  const urlJobId = Number(urlSearch?.jobId) || 0;
+
+  const [searchText, setSearchText] = useState(urlJobId ? "" : urlText);
+  const [selectedJobId, setSelectedJobId] = useState<number>(urlJobId);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Contact Modal State
@@ -44,8 +52,6 @@ export const TalentPoolPage: React.FC = () => {
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [trackerDrawerOpen, setTrackerDrawerOpen] = useState(false);
   const [candidateToInvite, setCandidateToInvite] = useState<TalentPoolCandidate | null>(null);
-
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const jobsQuery = useQuery({
     queryKey: ["ta", "jobs", "dropdown"],
@@ -63,12 +69,9 @@ export const TalentPoolPage: React.FC = () => {
       setInviteModalOpen(false);
       setCandidateToInvite(null);
       queryClient.invalidateQueries({ queryKey: ["ta", "talent-pool", "invitations"] });
-      const msg = "Job invitation sent successfully via in-app notification and email.";
-      setFeedback({ type: "success", message: msg });
-      notify.success("Invitation Sent", msg);
+      notify.success("Invitation sent", "The candidate is notified in the app and by email.");
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to send this invitation. Please try again." });
       notify.error("Unable to send invitation", err);
     },
   });
@@ -80,26 +83,41 @@ export const TalentPoolPage: React.FC = () => {
       setContactNotes("");
       setContactJobError(null);
       queryClient.invalidateQueries({ queryKey: ["ta", "talent-pool"] });
-      const msg = "Candidate outreach log saved successfully.";
-      setFeedback({ type: "success", message: msg });
-      notify.success("Contact saved", msg);
+      notify.success("Contact saved", "The outreach was added to the candidate's record.");
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to save this contact record. Please try again." });
       notify.error("Unable to save contact", err);
     },
   });
 
+  const writeUrl = (text: string, jobId: number) => {
+    navigate({
+      to: "/ta/talent-pool",
+      search: (jobId ? { jobId } : text ? { q: text } : {}) as never,
+      replace: true,
+    });
+  };
+
   // A job search ranks by match score; a word search by profile similarity. One at a time.
-  const runSearch = () =>
-    searchMutation.mutate(selectedJobId ? { jobId: selectedJobId, k: 20 } : { text: searchText.trim(), k: 20 });
+  const runSearch = (text: string, jobId: number) =>
+    searchMutation.mutate(jobId ? { jobId, k: SEARCH_LIMIT } : { text, k: SEARCH_LIMIT });
+
+  // Opened from a link or refreshed with a search in the address: run it once.
+  const ranFromUrl = useRef(false);
+  useEffect(() => {
+    if (ranFromUrl.current) return;
+    ranFromUrl.current = true;
+    if (urlJobId) runSearch(urlJobId ? "" : urlText, urlJobId);
+    else if (urlText.trim().length >= 2) runSearch(urlText.trim(), 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const query = searchText.trim();
     if (!selectedJobId) {
       if (!query) {
-        setValidationError("Enter at least 2 search characters or choose a job opening.");
+        setValidationError("Enter at least 2 characters or choose a job opening.");
         return;
       }
       if (query.length < 2) {
@@ -108,7 +126,8 @@ export const TalentPoolPage: React.FC = () => {
       }
     }
     setValidationError(null);
-    runSearch();
+    writeUrl(query, selectedJobId);
+    runSearch(query, selectedJobId);
   };
 
   const handleReset = () => {
@@ -116,6 +135,7 @@ export const TalentPoolPage: React.FC = () => {
     setSelectedJobId(0);
     setValidationError(null);
     searchMutation.reset();
+    writeUrl("", 0);
   };
 
   const jobs = jobsQuery.data || [];
@@ -125,6 +145,7 @@ export const TalentPoolPage: React.FC = () => {
   const handleOpenContactModal = (c: TalentPoolCandidate) => {
     setContactMembershipId(c.membershipId || c.applicantProfileId || 0);
     setContactCandidateName(`${c.firstName} ${c.lastName}`);
+    // Only the job the TA is comparing against is suggested. Otherwise the job stays empty and must be chosen.
     setContactJobId(selectedJobId || 0);
     setContactOutcome("INTERESTED");
     setContactNotes("");
@@ -146,67 +167,35 @@ export const TalentPoolPage: React.FC = () => {
     });
   };
 
+  const jobOptions = jobs.map((j) => ({
+    value: String(j.id),
+    label: j.title,
+    subtitle: j.location || "Philippines",
+    badge: j.status ? j.status.charAt(0) + j.status.slice(1).toLowerCase() : undefined,
+  }));
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Candidate pool"
+        flush
+        title={TA_COPY.pageTitles.candidatePool}
         description="Find past applicants and available candidates by skills and experience."
         breadcrumbs={[
-          { label: "TA Portal", href: "/ta" },
+          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
           { label: TA_COPY.navigation.candidatePool },
         ]}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<ListOrdered className="w-3.5 h-3.5 text-slate-600" />}
-            onClick={() => setTrackerDrawerOpen(true)}
-          >
-            Outgoing Invitations
+          <Button variant="outline" size="sm" onClick={() => setTrackerDrawerOpen(true)}>
+            {TA_COPY.invitations.sent}
           </Button>
         }
       />
 
-      {feedback && (
-        <div
-          role={feedback.type === "error" ? "alert" : "status"}
-          aria-live="polite"
-          className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
-            feedback.type === "success"
-              ? "bg-teal-50 border-teal-200 text-teal-800"
-              : "bg-rose-50 border-rose-200 text-rose-800"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <span>{feedback.message}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setFeedback(null)}
-            aria-label="Dismiss message"
-            className="text-slate-400 hover:text-slate-600 font-bold ml-4"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Semantic Search Box */}
-      <form
-        onSubmit={handleSearch}
-        className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 shadow-xs space-y-4"
-      >
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-          <Search className="w-4 h-4 text-teal-600 shrink-0" />
-          <h3 className="text-xs font-mono font-bold uppercase text-slate-800">
-            Search candidate pool
-          </h3>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+      <form onSubmit={handleSearch} className="space-y-4 border border-slate-300 bg-white p-4 sm:p-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
           <div className="sm:col-span-7">
             <Input
-            label="Search skills, keywords, or qualifications"
+              label="Search skills, keywords, or qualifications"
               placeholder="e.g. Electrician with TESDA NC II, industrial machinery repair, Laguna area"
               value={searchText}
               disabled={selectedJobId > 0}
@@ -221,37 +210,23 @@ export const TalentPoolPage: React.FC = () => {
 
           <div className="sm:col-span-5">
             <ComboBox
-            label="Compare with a job opening (optional)"
-            placeholder="Search or select a job opening..."
+              label="Compare with a job opening (optional)"
+              placeholder="Search job openings"
               value={selectedJobId ? String(selectedJobId) : ""}
               onChange={(val) => {
                 setSelectedJobId(Number(val) || 0);
                 if (validationError) setValidationError(null);
               }}
-              options={[
-                { value: "", label: "All job categories (keyword search)" },
-                ...jobs.map((j) => ({
-                  value: String(j.id),
-                  label: j.title,
-                  subtitle: `Job opening #${j.id} • ${j.location || "Philippines"}`,
-                  badge: j.status,
-                })),
-              ]}
+              options={[{ value: "", label: "No job opening (search by words)" }, ...jobOptions]}
               clearable={Boolean(selectedJobId)}
             />
           </div>
         </div>
 
-        <div className="flex flex-wrap justify-end gap-2 pt-2">
+        <div className="flex flex-wrap justify-end gap-2">
           {(searchText || selectedJobId > 0 || searchMutation.isSuccess || searchMutation.isError) && (
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              onClick={handleReset}
-              className="w-full sm:w-auto"
-            >
-              Clear Filter
+            <Button variant="outline" size="sm" type="button" onClick={handleReset} className="w-full sm:w-auto">
+              Clear filters
             </Button>
           )}
           <Button
@@ -259,7 +234,6 @@ export const TalentPoolPage: React.FC = () => {
             size="sm"
             type="submit"
             loading={searchMutation.isPending}
-            leftIcon={<Search className="w-3.5 h-3.5" />}
             className="w-full sm:w-auto"
           >
             Search candidate pool
@@ -272,141 +246,71 @@ export const TalentPoolPage: React.FC = () => {
         <LoadingState variant="cards" />
       ) : searchMutation.isError ? (
         <ErrorState
+          subject="candidate pool results"
           error={searchMutation.error}
           onRetry={() => {
-            if (searchText.trim().length >= 2 || selectedJobId > 0) runSearch();
+            if (searchText.trim().length >= 2 || selectedJobId > 0) runSearch(searchText.trim(), selectedJobId);
             else searchMutation.reset();
           }}
         />
       ) : searchMutation.isSuccess && results.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
-          <EmptyState
-            icon={<Search className="w-6 h-6 text-slate-400" />}
-            title="No matching candidate profiles found"
-            description={
-              unsearchablePoolCount > 0
-                ? `${unsearchablePoolCount} candidate pool ${unsearchablePoolCount === 1 ? "member" : "members"} can't be searched yet because ${unsearchablePoolCount === 1 ? "their profile is" : "their profiles are"} still being prepared for matching. Try again later.`
-                : "Try modifying search keywords or searching against all job categories."
-            }
-          />
-        </div>
+        <EmptyState
+          title="No matching candidate profiles found"
+          description={
+            unsearchablePoolCount > 0
+              ? `${plural(unsearchablePoolCount, "pool member")} can't be searched yet because ${unsearchablePoolCount === 1 ? "their profile is" : "their profiles are"} still being prepared. Try again later.`
+              : "Try different keywords, or compare with a job opening."
+          }
+        />
       ) : results.length > 0 ? (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-            <span>Found {results.length} matching candidates</span>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+            <span>
+              {plural(results.length, "candidate")} found
+              {results.length >= SEARCH_LIMIT ? ` (showing the top ${SEARCH_LIMIT})` : ""}
+            </span>
             <span>{searchMutation.variables?.jobId ? "Sorted by match score" : "Sorted by profile similarity"}</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {results.map((res) => {
               const c = res.candidate;
-
-              const availabilityBadgeClass =
-                c.availability === "AVAILABLE"
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : c.availability === "UNAVAILABLE"
-                  ? "bg-slate-100 text-slate-600 border-slate-200"
-                  : "bg-amber-50 text-amber-700 border-amber-200";
+              const unavailable = c.availability === "UNAVAILABLE";
 
               return (
-                <div
+                <PoolCandidateCard
                   key={c.id}
-                  className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-teal-300 transition-colors space-y-4"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-slate-900">
-                            {c.firstName} {c.lastName}
-                          </h4>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${availabilityBadgeClass}`}
-                          >
-                            {c.availability}
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-500 font-mono flex items-center gap-2 mt-0.5">
-                          <span>{c.email || "No email"}</span>
-                        </div>
-                      </div>
-
-                      <PoolMatchScore result={res} />
-                    </div>
-
-                    {c.currentRole && (
-                      <div className="text-xs text-slate-700 font-medium flex items-center gap-1.5">
-                        <Briefcase className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{c.currentRole}</span>
-                      </div>
-                    )}
-
-                    {(c.city || c.province) && (
-                      <div className="text-xs text-slate-600 flex items-center gap-1.5 font-mono">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{[c.city, c.province].filter(Boolean).join(", ")}</span>
-                      </div>
-                    )}
-
-                    <PoolMatchNotes result={res} />
-
-                    {c.skills && c.skills.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {c.skills.slice(0, 6).map((s: any, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold"
-                          >
-                            {typeof s === "string" ? s : s.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {c.lastContactedAt && (
-                      <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-slate-400" />
-                        <span>Last contacted: {new Date(c.lastContactedAt).toLocaleDateString()}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<PhoneCall className="w-3.5 h-3.5 text-slate-600" />}
-                      onClick={() => handleOpenContactModal(c)}
-                    >
+                  result={res}
+                  actions={
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => handleOpenContactModal(c)}>
                         Log contact
-                    </Button>
+                      </Button>
 
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      leftIcon={<Send className="w-3.5 h-3.5" />}
-                      disabled={c.availability === "UNAVAILABLE"}
-                      onClick={() => {
-                        setCandidateToInvite(c);
-                        setInviteModalOpen(true);
-                      }}
-                    >
-                        Invite to apply
-                    </Button>
-                  </div>
-                </div>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={unavailable}
+                        title={unavailable ? "This candidate is marked unavailable" : undefined}
+                        onClick={() => {
+                          setCandidateToInvite(c);
+                          setInviteModalOpen(true);
+                        }}
+                      >
+                        {TA_COPY.invitations.inviteToApply}
+                      </Button>
+                    </>
+                  }
+                />
               );
             })}
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs text-center space-y-3">
-          <Search className="w-8 h-8 text-slate-400 mx-auto" />
-          <h4 className="text-sm font-bold text-slate-900">Search the candidate pool</h4>
-          <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-            Use the search fields above to find past applicants and pre-screened candidates.
-          </p>
-        </div>
+        <EmptyState
+          title="Search the candidate pool"
+          description="Enter skills or keywords, or compare the pool with a job opening, then choose Search."
+        />
       )}
 
       {/* Record Contact Log Modal */}
@@ -420,41 +324,31 @@ export const TalentPoolPage: React.FC = () => {
         <div className="space-y-4">
           <ComboBox
             label="Job opening"
-            placeholder="Search target job opening..."
+            placeholder="Search job openings"
             value={contactJobId ? String(contactJobId) : ""}
             error={contactJobError || undefined}
             onChange={(val) => {
               setContactJobId(Number(val) || 0);
               if (contactJobError) setContactJobError(null);
             }}
-            options={jobs.map((j) => ({
-              value: String(j.id),
-              label: j.title,
-              subtitle: `Job opening #${j.id} • ${j.location || "Philippines"}`,
-              badge: j.status,
-            }))}
+            options={jobOptions}
             emptyText="No matching job openings found"
             required
           />
           <Select
-            label="Candidate response or outcome"
+            label="Candidate response"
             value={contactOutcome}
             onChange={(e) => setContactOutcome(e.target.value)}
-            options={[
-              { value: "INTERESTED", label: "INTERESTED (Ready for Role)" },
-              { value: "NOT_INTERESTED", label: "NOT INTERESTED (Declined)" },
-              { value: "NO_RESPONSE", label: "NO RESPONSE (Unreachable)" },
-              { value: "UNAVAILABLE", label: "UNAVAILABLE (Employed elsewhere)" },
-            ]}
+            options={CONTACT_OUTCOME_OPTIONS}
           />
           <Textarea
             label="Contact notes"
-            placeholder="Document phone conversation notes, availability window, salary expectations..."
+            placeholder="Phone conversation notes, availability window, salary expectations..."
             value={contactNotes}
             onChange={(e) => setContactNotes(e.target.value)}
             rows={3}
           />
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
             <Button variant="outline" size="sm" onClick={() => setContactModalOpen(false)}>
               Cancel
             </Button>
@@ -485,7 +379,7 @@ export const TalentPoolPage: React.FC = () => {
         loading={sendInvitationMutation.isPending}
       />
 
-      {/* Outgoing Invitations Tracker Drawer */}
+      {/* Sent invitations drawer */}
       <InvitationsTrackerDrawer
         open={trackerDrawerOpen}
         onClose={() => setTrackerDrawerOpen(false)}
