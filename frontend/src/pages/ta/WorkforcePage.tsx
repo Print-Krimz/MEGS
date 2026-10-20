@@ -67,7 +67,7 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
     queryKey: ["ta", "redeployment-queue", "summary"],
     queryFn: ({ signal }) => employeesApi.getRedeploymentQueueSummary({ signal }),
   });
-  const needsPlacement = redeploymentSummary.data?.stages.NEEDS_PLACEMENT ?? 0;
+  const needsPlacement = redeploymentSummary.data?.stages?.NEEDS_PLACEMENT ?? 0;
 
   const activeTab = currentTab;
   const tabFallback = (

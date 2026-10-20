@@ -262,7 +262,7 @@ export const TALayout: React.FC = () => {
     queryKey: ["ta", "redeployment-queue", "summary"],
     queryFn: ({ signal }) => employeesApi.getRedeploymentQueueSummary({ signal }),
     staleTime: 60_000,
-  }).data?.stages.NEEDS_PLACEMENT ?? 0;
+  }).data?.stages?.NEEDS_PLACEMENT ?? 0;
 
   const navSections: NavSection[] = [
     {
