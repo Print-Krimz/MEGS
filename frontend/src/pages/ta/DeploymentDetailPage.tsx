@@ -1,3 +1,4 @@
+import { RecordBreadcrumb } from "../../components/ta/recruitment/RecordBreadcrumb";
 import React, { useState } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -173,10 +174,8 @@ export const DeploymentDetailPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        flush
-        title="Deployment"
-        breadcrumbs={[
+      <RecordBreadcrumb
+        items={[
           { label: TA_COPY.navigation.overview, href: "/ta" },
           { label: TA_COPY.navigation.workforce, href: "/ta/workforce?tab=deployments" },
           { label: `Deployment #${dep.id}` },
@@ -184,6 +183,7 @@ export const DeploymentDetailPage: React.FC = () => {
       />
 
       <RecordSummary
+        titleAs="h1"
         title={empName}
         subtitle={subtitle || undefined}
         avatarText={initialsOf(empName)}
