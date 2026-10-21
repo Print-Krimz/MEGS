@@ -27,7 +27,7 @@ export const MaskedId: React.FC<MaskedIdProps> = ({ value, label = "ID number", 
           aria-pressed={shown}
           aria-label={`${shown ? "Hide" : "Show"} full ${label}`}
           onClick={() => setShown((v) => !v)}
-          className="inline-flex min-h-6 items-center px-1 text-xs font-medium text-navy underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-navy"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center px-1 text-xs sm:min-h-6 sm:min-w-0 font-medium text-navy underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-navy"
         >
           {shown ? "Hide" : "Show"}
         </button>

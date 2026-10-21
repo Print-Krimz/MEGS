@@ -208,9 +208,9 @@ export const ClientDetailPage: React.FC = () => {
       />
 
       {/* Account Profile Card */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
+      <div className="bg-white border border-slate-200 p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
+          <h3 className="text-sm font-semibold text-slate-900">
             Company information
           </h3>
           {client.tradeName && (
@@ -249,9 +249,9 @@ export const ClientDetailPage: React.FC = () => {
       </div>
 
       {/* Compliance & SLA Settings Card */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
+      <div className="bg-white border border-slate-200 p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
+          <h3 className="text-sm font-semibold text-slate-900">
             Compliance & SLA settings
           </h3>
           <Button variant="ghost" size="sm" onClick={() => setEditModalOpen(true)}>
@@ -310,7 +310,7 @@ export const ClientDetailPage: React.FC = () => {
       {/* Grid: Active MRFs & Deployments */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Manpower Requests */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="bg-white border border-slate-200 overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <div className="space-y-0.5">
               <h3 className="text-sm font-bold text-slate-900">Manpower requests ({mrfs.length})</h3>
@@ -354,7 +354,7 @@ export const ClientDetailPage: React.FC = () => {
         </div>
 
         {/* Active Deployments */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="bg-white border border-slate-200 overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <div className="space-y-0.5">
               <h3 className="text-sm font-bold text-slate-900">Deployments ({deployments.length})</h3>
@@ -362,7 +362,7 @@ export const ClientDetailPage: React.FC = () => {
             </div>
             <Button asChild variant="ghost" size="sm">
               <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
-                View all deployments
+                Open in workforce
               </Link>
             </Button>
           </div>
@@ -372,7 +372,7 @@ export const ClientDetailPage: React.FC = () => {
               <p>No deployments recorded for this client yet.</p>
               <Button asChild variant="outline" size="sm">
                 <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
-                  View all deployments
+                  Open workforce deployments
                 </Link>
               </Button>
             </div>
@@ -588,7 +588,7 @@ export const ClientDetailPage: React.FC = () => {
           </div>
 
           <div className="pt-2 border-t border-slate-100 space-y-3">
-            <div className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
+            <div className="text-sm font-semibold text-slate-900">
               Facility address
             </div>
             <Input
@@ -616,8 +616,8 @@ export const ClientDetailPage: React.FC = () => {
           </div>
 
           <div className="pt-2 border-t border-slate-100 space-y-3">
-            <div className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
-              Compliance & SLA Configuration
+            <div className="text-sm font-semibold text-slate-900">
+              Compliance and SLA settings
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Input

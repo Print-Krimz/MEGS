@@ -71,7 +71,7 @@ export const EmployeeCredentialAlertsPage: React.FC = () => {
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-2">
                       {item.documentId && <Button variant="outline" size="sm" onClick={() => setPreview({ id: item.documentId!, title: item.documentLabel })}>View</Button>}
-                      <Link to="/ta/employees/$employeeId" params={{ employeeId: String(item.employeeId) }}><Button variant="outline" size="sm">Open record</Button></Link>
+                      <Button asChild variant="outline" size="sm"><Link to="/ta/employees/$employeeId" params={{ employeeId: String(item.employeeId) }}>Open record</Link></Button>
                     </div>
                   </td>
                 </tr>

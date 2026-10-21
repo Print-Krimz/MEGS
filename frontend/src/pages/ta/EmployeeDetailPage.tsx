@@ -922,7 +922,7 @@ export const EmployeeDetailPage: React.FC = () => {
         <form onSubmit={handleSaveEdit} className="space-y-6">
           {/* Section 1: Legal Name */}
           <div className="space-y-3">
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5">
+            <h4 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-1.5">
               Legal Name
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -965,7 +965,7 @@ export const EmployeeDetailPage: React.FC = () => {
 
           {/* Section 2: Contact & Location */}
           <div className="space-y-3">
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5">
+            <h4 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-1.5">
               Contact & Location
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1002,7 +1002,7 @@ export const EmployeeDetailPage: React.FC = () => {
 
           {/* Section 3: Statutory Identification */}
           <div className="space-y-3">
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5">
+            <h4 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-1.5">
               Statutory Identification
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1067,7 +1067,7 @@ export const EmployeeDetailPage: React.FC = () => {
 
           {/* Section 4: Emergency Contact */}
           <div className="space-y-3">
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5">
+            <h4 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-1.5">
               Emergency Contact
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1109,7 +1109,7 @@ export const EmployeeDetailPage: React.FC = () => {
 
           {/* Section 5: Job Assignment */}
           <div className="space-y-3">
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5">
+            <h4 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-1.5">
               Job Assignment
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -41,6 +41,7 @@ import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 import { RequirementClarityNotice } from "../../components/ta/RequirementClarityNotice";
 import { FieldWarning } from "../../components/ta/FieldWarning";
 import { plural } from "../../lib/plural";
+import { humanizeEnum } from "../../lib/labels";
 import {
   LOCATION_HINT,
   LOCATION_UNCLEAR_WARNING,
@@ -97,6 +98,16 @@ const formatGenderPreference = (preference?: string | null): string => {
       return "Any";
   }
 };
+
+/** Stored values are usually readable ("On-site"); legacy codes like ON_SITE get humanized, hyphenated words are kept. */
+const formatSpecValue = (value: string): string => (/^[A-Z0-9_]+$/.test(value) ? humanizeEnum(value).replace(/^On site$/, "On-site") : value);
+
+const SpecLabel: React.FC<{ readOnly: boolean; children: React.ReactNode }> = ({ readOnly, children }) =>
+  readOnly ? (
+    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">{children}:</span>
+  ) : (
+    <span className="text-sm font-medium text-slate-600">{children}</span>
+  );
 
 const formatTattooPolicy = (policy?: string | null): string => {
   switch (policy) {
@@ -522,11 +533,12 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 ]
           }
           actions={
-            <Link to={baseBackPath}>
-              <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
+            <Button asChild variant="outline" size="sm">
+              <Link to={baseBackPath}>
+                <ArrowLeft className="w-3.5 h-3.5" />
                 {readOnly ? "Back to notifications" : "Back to requests"}
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           }
         />
         <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
@@ -535,11 +547,12 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
              title={readOnly ? "This hiring request is no longer available" : "Manpower request not found"}
              description={readOnly ? "It may have been removed. Return to notifications to continue." : `Request #${mrfId} could not be found.`}
             action={
-              <Link to={baseBackPath}>
-                <Button variant="primary" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
+              <Button asChild variant="primary" size="sm">
+                <Link to={baseBackPath}>
+                  <ArrowLeft className="w-3.5 h-3.5" />
                   {readOnly ? "Return to notifications" : "Return to requests"}
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             }
           />
         </div>
@@ -661,11 +674,12 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {readOnly && (
-              <Link to={baseBackPath}>
-                <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
+              <Button asChild variant="outline" size="sm">
+                <Link to={baseBackPath}>
+                  <ArrowLeft className="w-3.5 h-3.5" />
                   Back to notifications
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             )}
             {!readOnly && (
               <>
@@ -730,8 +744,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             <span>Positions filled</span>
           </div>
           <div className="text-2xl font-bold font-sans text-slate-900 mt-1 tabular-nums">
-            {deployedCount} / <span>{mrf.headcount}</span>{" "}
-             {!readOnly && <span className="text-xs text-slate-400 font-normal">positions</span>}
+            {deployedCount} / <span>{mrf.headcount}</span>
           </div>
           <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-2">
             <div
@@ -973,7 +986,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
               </div>
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-xs text-slate-700">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-mono text-[11px] uppercase tracking-wider">
+                  <thead className={readOnly ? "bg-slate-50 border-b border-slate-200 text-slate-600 font-mono text-[11px] uppercase tracking-wider" : "bg-slate-50 border-b border-slate-200 text-slate-600 text-xs"}>
                     <tr>
                       <th className="px-4 py-3 font-semibold">Worker Name</th>
                       <th className="px-4 py-3 font-semibold">Employee ID</th>
@@ -1056,13 +1069,6 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
               </div>
               {!readOnly && (
                 <div className="flex flex-wrap items-center gap-2">
-                  {mrf.status !== "CANCELLED" && (
-                    <Button asChild variant="primary" size="sm">
-                      <Link to="/ta/jobs" search={{ mrfId: mrf.id }}>
-                        Create job opening
-                      </Link>
-                    </Button>
-                  )}
                   <Button variant="outline" size="sm" onClick={() => setLinkJobModalOpen(true)}>
                     Link existing
                   </Button>
@@ -1071,26 +1077,14 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             </div>
 
             {linkedJobs.length === 0 ? (
-              <div className="p-8 text-center space-y-3">
+              <div className="p-8 text-center">
                 <p className={readOnly ? "text-xs text-slate-400" : "text-sm text-slate-600"}>
                   {readOnly
                      ? "No job openings linked to this request yet."
-                     : "No job openings are linked to this request yet. Create one to start receiving applications."}
+                     : mrf.status !== "CANCELLED"
+                       ? "No job openings are linked to this request yet. Create one from the page header, or link an existing opening."
+                       : "No job openings are linked to this request."}
                 </p>
-                {!readOnly && (
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    {mrf.status !== "CANCELLED" && (
-                      <Button asChild variant="primary" size="sm">
-                        <Link to="/ta/jobs" search={{ mrfId: mrf.id }}>
-                          Create job opening
-                        </Link>
-                      </Button>
-                    )}
-                    <Button variant="outline" size="sm" onClick={() => setLinkJobModalOpen(true)}>
-                      Link existing
-                    </Button>
-                  </div>
-                )}
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
@@ -1151,7 +1145,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <h3 className="text-xs font-mono font-bold uppercase text-slate-500">
+                  <h3 className={readOnly ? "text-xs font-mono font-bold uppercase text-slate-500" : "text-sm font-semibold text-slate-900"}>
                     Request details and client criteria
                   </h3>
                 </div>
@@ -1161,28 +1155,22 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                   <div>
-                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                      Work site:
-                    </span>
+                    <SpecLabel readOnly={readOnly}>Work site</SpecLabel>
                     <p className="text-xs text-slate-800 font-semibold mt-0.5">
                       {mrf.location || "Not specified"}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                      Employment & Arrangement:
-                    </span>
+                    <SpecLabel readOnly={readOnly}>Employment & Arrangement</SpecLabel>
                     <p className="text-xs text-slate-800 font-semibold mt-0.5">
-                      {mrf.employmentType || "Contractual"} • {mrf.workArrangement || "On-site"}
+                      {readOnly ? `${mrf.employmentType || "Contractual"} • ${mrf.workArrangement || "On-site"}` : `${formatSpecValue(mrf.employmentType || "Contractual")} • ${formatSpecValue(mrf.workArrangement || "On-site")}`}
                     </p>
                   </div>
 
                   {(mrf.salaryRangeMin != null || mrf.salaryRangeMax != null) && (
                     <div className="md:col-span-2">
-                      <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                        Monthly salary range:
-                      </span>
+                      <SpecLabel readOnly={readOnly}>Monthly salary range</SpecLabel>
                       <p className="text-xs text-slate-800 font-semibold mt-0.5">
                         {mrf.salaryRangeMin != null ? `PHP ${mrf.salaryRangeMin.toLocaleString()}` : "PHP 0"} –{" "}
                         {mrf.salaryRangeMax != null ? `PHP ${mrf.salaryRangeMax.toLocaleString()}` : "Open"}
@@ -1191,63 +1179,49 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   )}
 
                   <div>
-                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                      Age limits:
-                    </span>
+                    <SpecLabel readOnly={readOnly}>Age limits</SpecLabel>
                     <p className="text-xs text-slate-800 font-semibold mt-0.5">
                       {formatAgeRange(mrf.ageMin, mrf.ageMax)}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                      Gender preference:
-                    </span>
+                    <SpecLabel readOnly={readOnly}>Gender preference</SpecLabel>
                     <p className="text-xs text-slate-800 font-semibold mt-0.5">
                       {formatGenderPreference(mrf.genderPreference)}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                      Tattoo visibility policy:
-                    </span>
+                    <SpecLabel readOnly={readOnly}>Tattoo visibility policy</SpecLabel>
                     <p className="text-xs text-slate-800 font-semibold mt-0.5">
                       {formatTattooPolicy(mrf.tattooPolicy)}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                      Required skills:
-                    </span>
+                    <SpecLabel readOnly={readOnly}>Required skills</SpecLabel>
                     <p className="text-xs text-slate-800 font-semibold mt-0.5">
                       {mrf.requiredSkills || "None specified"}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                      Required experience:
-                    </span>
+                    <SpecLabel readOnly={readOnly}>Required experience</SpecLabel>
                     <p className="text-xs text-slate-800 font-semibold mt-0.5">
                       {mrf.requiredExperience || "No experience required"}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                      Minimum education:
-                    </span>
+                    <SpecLabel readOnly={readOnly}>Minimum education</SpecLabel>
                     <p className="text-xs text-slate-800 font-semibold mt-0.5">
                       {mrf.requiredEducation || "None required"}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                      Required certifications & licenses:
-                    </span>
+                    <SpecLabel readOnly={readOnly}>Required certifications & licenses</SpecLabel>
                     <p className="text-xs text-slate-800 font-semibold mt-0.5">
                       {mrf.requiredCertifications || "None required"}
                     </p>
@@ -1260,20 +1234,20 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             <div className="space-y-6">
               {/* Client Account Box */}
               <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3">
-                <h3 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2">
+                <h3 className={readOnly ? "text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2" : "text-sm font-semibold text-slate-900 border-b border-slate-100 pb-2"}>
                   Client information
                 </h3>
                 <div className="space-y-2 text-xs">
                   <div className="font-bold text-slate-900">{mrf.client?.name || "Client"}</div>
                   <div className="text-slate-600">Industry: {mrf.client?.industry || "Commercial"}</div>
-                  <div className="text-slate-600 font-mono">Contact: {mrf.client?.contactEmail || "N/A"}</div>
+                  <div className={readOnly ? "text-slate-600 font-mono" : "text-slate-600"}>Contact: {mrf.client?.contactEmail || "N/A"}</div>
                 </div>
               </div>
 
               {/* Requirement templates */}
               <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-slate-700 uppercase">
+                  <div className={readOnly ? "flex items-center gap-1.5 font-mono text-xs font-bold text-slate-700 uppercase" : "flex items-center gap-1.5 text-sm font-semibold text-slate-900"}>
                     <ShieldCheck className="w-4 h-4 text-teal-600" />
                     <span>Required documents</span>
                   </div>
@@ -1317,7 +1291,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                           </button>
                           </span>
                         ) : (
-                          <span className="text-[10px] font-mono text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded">
+                          <span className="text-xs text-slate-600">
                             {tpl.isRequired ? "Mandatory" : "Optional"}
                           </span>
                         )}
@@ -1411,7 +1385,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   return (
                     <div key={group.id} className="space-y-2.5">
                       <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <span className="text-sm font-semibold text-slate-900">
                           {group.title} ({group.items.length})
                         </span>
                         {selectableItems.length > 0 ? (
@@ -1485,7 +1459,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 {/* Custom Requirement Entry */}
                 <div className="pt-3 border-t border-slate-200 space-y-3">
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    <span className="text-sm font-semibold text-slate-900">
                       Custom requirement
                     </span>
                     <p className="text-xs text-slate-500 mt-0.5">
@@ -1609,7 +1583,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             >
               {/* Section 1: Core Request Details */}
               <div className="space-y-3">
-                <h4 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-1.5">
+                <h4 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-1.5">
                   Request details
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1746,7 +1720,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
 
               {/* Section 2: Skills & Qualifications */}
               <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-1.5">
+                <h4 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-1.5">
                   Skills and qualifications
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1805,7 +1779,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
 
               {/* Section 3: Demographic & Physical Qualifications */}
               <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-1.5">
+                <h4 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-1.5">
                   Demographic & physical qualifications
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
