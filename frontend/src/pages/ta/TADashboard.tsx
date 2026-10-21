@@ -9,6 +9,7 @@ import { cn } from "../../lib/utils";
 import { getManilaToday } from "../../lib/field-limits";
 import { checkInDue } from "../../components/ta/check-in-due";
 import { stageColor } from "../../lib/chart-palette";
+import { ComingUp } from "../../components/ta/overview/ComingUp";
 import { ApplicationStatus, DeploymentStatus } from "../../lib/types/enums";
 import { plural } from "../../lib/plural";
 import { STAFF_STAGE_LABELS } from "../../lib/ta-copy";
@@ -153,11 +154,11 @@ const STAGE_TILES = [
 ] as const;
 
 /** Which worklist group a pending task belongs to, by its deadline in Manila calendar days. */
-const taskGroup = (task: TAPendingActionItem, today: string): "overdue" | "today" | "waiting" => {
-  if (!task.deadline) return "waiting";
+const taskGroup = (task: TAPendingActionItem, today: string): "overdue" | "today" | "todo" => {
+  if (!task.deadline) return "todo";
   const day = task.deadline.slice(0, 10);
   if (day < today) return "overdue";
-  return day === today ? "today" : "waiting";
+  return day === today ? "today" : "todo";
 };
 
 export const TADashboard: React.FC = () => {
@@ -224,19 +225,19 @@ export const TADashboard: React.FC = () => {
     { overdue: 0, today: 0 },
   );
 
-  const tasksIn = (group: "overdue" | "today" | "waiting") => shownTasks.filter((t) => taskGroup(t, today) === group);
+  const tasksIn = (group: "overdue" | "today" | "todo") => shownTasks.filter((t) => taskGroup(t, today) === group);
   const overdueTasks = tasksIn("overdue");
   const todayTasks = tasksIn("today");
-  const waitingTasks = tasksIn("waiting");
+  const todoTasks = tasksIn("todo");
 
   const overdueCount = slaBreached + checkInCounts.overdue + overdueTasks.length;
   const todayCount = slaWarning + checkInCounts.today + todayTasks.length;
-  const waitingCount = needsPlacement + waitingTasks.length;
+  const todoCount = needsPlacement + todoTasks.length;
 
   const worklistQueries = [interviewSlaQuery, needsPlacementQuery, tasksQuery, checkInsQuery];
   const worklistLoading = worklistQueries.some((q) => q.isPending && !q.isError);
   const failedQueries = worklistQueries.filter((q) => q.isError && !q.isFetching);
-  const hasWork = overdueCount + todayCount + waitingCount > 0;
+  const hasWork = overdueCount + todayCount + todoCount > 0;
   const moreTasks = tasksTotal > shownTasks.length;
 
   const latestUpdate = Math.max(0, ...[pipelineStatsQuery, interviewSlaQuery, dashboardCountsQuery, tasksQuery].map((q) => q.dataUpdatedAt));
@@ -271,8 +272,9 @@ export const TADashboard: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,13fr)_minmax(0,7fr)]">
-        {/* Needs your action: the worklist. On a phone it comes first; on a tablet the numbers lead. */}
-        <section aria-label="Needs your action" className="overflow-hidden rounded-md border border-slate-300 bg-white">
+        {/* Needs your action: the worklist. On a phone it comes first; on a tablet the numbers lead. Coming up spans both columns below. */}
+        <div className="max-lg:contents lg:space-y-5">
+        <section aria-label="Needs your action" className="overflow-hidden rounded-md border border-slate-300 bg-white max-lg:order-1 md:max-lg:order-2">
           <PanelHeader
             title="Needs your action"
             action={
@@ -340,7 +342,7 @@ export const TADashboard: React.FC = () => {
                     )}
                     {todayTasks.map(taskRow)}
                   </WorkGroup>
-                  <WorkGroup label="Waiting" count={waitingCount}>
+                  <WorkGroup label="To do" count={todoCount}>
                     {needsPlacement > 0 && (
                       <WorkRow
                         to="/ta/workforce"
@@ -349,22 +351,27 @@ export const TADashboard: React.FC = () => {
                         detail="Ended assignments waiting for a new job."
                       />
                     )}
-                    {waitingTasks.map(taskRow)}
+                    {todoTasks.map(taskRow)}
                   </WorkGroup>
                 </>
               ) : failedQueries.length === 0 ? (
                 <EmptyState
                   bare
-                  title="Nothing needs your action"
-                  description="No overdue interviews, document reviews, client answers or workers waiting for a placement."
+                  title="Nothing needs your action right now."
+                  action={
+                    <Button asChild variant="outline" size="sm">
+                      <Link to="/ta/applications">Open applications</Link>
+                    </Button>
+                  }
                 />
               ) : null}
             </>
           )}
         </section>
+        </div>
 
-        <div className="space-y-5 md:max-lg:order-first">
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300">
+        <div className="max-lg:contents lg:space-y-5">
+          <div className="grid grid-cols-2 gap-px max-lg:order-2 md:max-lg:order-1 overflow-hidden rounded-md border border-slate-300 bg-slate-300">
             <MetricTile label="Active candidates" to="/ta/applications" caption="In the pipeline">
               <MetricValue query={pipelineStatsQuery}>{(pipeline) => pipeline?.activeApplications || 0}</MetricValue>
             </MetricTile>
@@ -374,19 +381,19 @@ export const TADashboard: React.FC = () => {
             </MetricTile>
 
             <MetricTile
-              label="Interview deadlines"
-              to="/ta/interviews"
+              label="Seats to fill"
+              to="/ta/mrfs"
               caption={
-                interviewSlaQuery.data
-                  ? `overdue, of ${plural(slaSummary?.total || 0, "open interview")}`
-                  : interviewSlaQuery.isError
-                    ? "Overdue count unavailable"
-                    : "Checking deadlines"
+                tasksQuery.data
+                  ? tasksQuery.data.kpis.requestedSeats > 0
+                    ? `of ${tasksQuery.data.kpis.requestedSeats} requested`
+                    : "No open requests"
+                  : tasksQuery.isError
+                    ? "Seat count unavailable"
+                    : "Counting seats"
               }
             >
-              <MetricValue query={interviewSlaQuery}>
-                {() => <span className={slaBreached > 0 ? "text-rose-700" : undefined}>{slaBreached}</span>}
-              </MetricValue>
+              <MetricValue query={tasksQuery}>{(summary) => summary.kpis.openSeats}</MetricValue>
             </MetricTile>
 
             <MetricTile label="Active deployments" to="/ta/workforce" search={{ tab: "deployments" }} caption="On assignment">
@@ -394,7 +401,7 @@ export const TADashboard: React.FC = () => {
             </MetricTile>
           </div>
 
-          <section aria-label="Hiring pipeline" className="overflow-hidden rounded-md border border-slate-300 bg-white">
+          <section aria-label="Hiring pipeline" className="overflow-hidden rounded-md border border-slate-300 bg-white max-lg:order-4">
             <PanelHeader
               title="Hiring pipeline"
               action={
@@ -459,6 +466,10 @@ export const TADashboard: React.FC = () => {
               }}
             </SectionData>
           </section>
+        </div>
+
+        <div className="max-lg:order-3 lg:col-span-2">
+          <ComingUp deploymentsQuery={checkInsQuery} />
         </div>
       </div>
     </div>
