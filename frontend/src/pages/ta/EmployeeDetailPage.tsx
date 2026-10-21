@@ -695,7 +695,7 @@ export const EmployeeDetailPage: React.FC = () => {
               <h2 className={SECTION_HEADING}>Deployments ({deployments.length})</h2>
               <Link
                 to="/ta/workforce"
-                search={{ tab: "deployments" }}
+                search={{ tab: "deployments", q: empName }}
                 className="focus-ring inline-flex min-h-11 items-center text-sm font-medium text-navy underline-offset-2 hover:underline md:min-h-0"
               >
                 View all deployments

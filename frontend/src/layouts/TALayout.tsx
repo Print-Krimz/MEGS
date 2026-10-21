@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Shield,
   UserSearch,
+  FileCheck2,
   type LucideIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -117,9 +118,12 @@ export const TALayout: React.FC = () => {
       return (
         pathname.startsWith("/ta/workforce") ||
         pathname.startsWith("/ta/deployments") ||
-        pathname.startsWith("/ta/employees") ||
-        pathname.startsWith("/ta/compliance")
+        pathname.startsWith("/ta/employees")
       );
+    }
+    // /ta/compliance is the old address of the requirements queue.
+    if (itemTo === "/ta/requirements") {
+      return pathname.startsWith("/ta/requirements") || pathname.startsWith("/ta/compliance");
     }
     return pathname.startsWith(itemTo);
   };
@@ -257,6 +261,12 @@ export const TALayout: React.FC = () => {
     queryFn: ({ signal }) => taApi.listInterviewCompliancePage({ page: 1, pageSize: 1 }, { signal }),
     staleTime: 60_000,
   }).data?.summary?.breached ?? 0;
+  const documentsToReview = useQuery({
+    // Same key and fetcher the requirements queue used for its totals, so the cache is shared.
+    queryKey: ["ta", "analytics", "compliance", "COMPLIANCE"],
+    queryFn: () => taApi.getComplianceOverview({ stage: "COMPLIANCE" }),
+    staleTime: 60_000,
+  }).data?.statusBreakdown?.SUBMITTED ?? 0;
   const needsPlacement = useQuery({
     // Same key and fetcher as the Workforce page summary.
     queryKey: ["ta", "redeployment-queue", "summary"],
@@ -270,6 +280,12 @@ export const TALayout: React.FC = () => {
       items: [
         { to: "/ta", label: TA_COPY.navigation.overview, icon: LayoutDashboard },
         { to: "/ta/applications", label: TA_COPY.navigation.applications, icon: Users },
+        {
+          to: "/ta/requirements",
+          label: TA_COPY.navigation.requirements,
+          icon: FileCheck2,
+          badge: { count: documentsToReview, label: `${documentsToReview} ${documentsToReview === 1 ? "document" : "documents"} awaiting review` },
+        },
         { to: "/ta/jobs", label: TA_COPY.navigation.openings, icon: Briefcase },
         { to: "/ta/mrfs", label: TA_COPY.navigation.manpowerRequests, icon: ClipboardList },
       ],

@@ -361,7 +361,7 @@ export const ClientDetailPage: React.FC = () => {
               <p className="text-xs text-slate-600">Personnel placed on this client's sites</p>
             </div>
             <Button asChild variant="ghost" size="sm">
-              <Link to="/ta/workforce" search={{ tab: "deployments" }}>
+              <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
                 View all deployments
               </Link>
             </Button>
@@ -371,7 +371,7 @@ export const ClientDetailPage: React.FC = () => {
             <div className="space-y-3 p-6 text-center text-sm text-slate-600">
               <p>No deployments recorded for this client yet.</p>
               <Button asChild variant="outline" size="sm">
-                <Link to="/ta/workforce" search={{ tab: "deployments" }}>
+                <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
                   View all deployments
                 </Link>
               </Button>

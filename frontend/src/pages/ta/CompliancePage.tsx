@@ -1,40 +1,38 @@
 import React, { useState, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ShieldCheck } from "lucide-react";
 import { taApi } from "../../lib/api/ta.api";
+import { PageHeader, LoadingState, ErrorState, EmptyState, type DataTableColumn, type DataTableSort } from "../../components/common";
+import type { FilterConfig } from "../../components/common/SearchFilters";
+import { Button } from "../../components/ui";
 import {
-  PageHeader,
-  SearchFilters,
-  LoadingState,
-  ErrorState,
-  EmptyState,
-  Pagination,
-  DocumentPreviewModal,
-} from "../../components/common";
-import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
+  ComplianceQueue,
+  ComplianceReviewDialog,
+  openRequirementsOf,
+  useComplianceReviewSession,
+  type ComplianceTile,
+} from "../../components/ta/compliance";
+import type { RequirementReviewValues } from "../../components/ta/RequirementReviewDialog";
 import { formatDate } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
-import type { Application, ComplianceRequirement } from "../../lib/types";
-import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  ExternalLink,
-  Eye,
-  FileText,
-  Loader2,
-  Maximize2,
-  ShieldCheck,
-} from "lucide-react";
-import { documentsApi } from "../../lib/api/documents.api";
+import type { Application } from "../../lib/types";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
-import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { plural } from "../../lib/plural";
+import { calculateDaysOnSite } from "../../lib/compliance-queue";
 
 type StatusFilter = "ALL" | "WAITING_CANDIDATE" | "WAITING_REVIEW" | "APPROVED" | "TO_FOLLOW";
-type SortField = "candidate" | "submitted";
-type SortDirection = "asc" | "desc";
+
+/** One name per filter, used by the tile and by the select so the same filter never reads two ways. */
+const STATUS_LABELS = {
+  WAITING_CANDIDATE: "Awaiting submission",
+  WAITING_REVIEW: "Ready for review",
+  APPROVED: "Cleared",
+  TO_FOLLOW: "To follow up",
+} as const;
+
+const PAGE_SIZE = 8;
 
 interface ComplianceCounts {
   submittedCount: number;
@@ -50,124 +48,43 @@ const getComplianceCounts = (app: Application): ComplianceCounts => {
   const pendingCount = reqs.filter((r) => r.reviewStatus === "PENDING").length;
   const approvedCount = reqs.filter((r) => r.reviewStatus === "APPROVED").length;
   const toFollowCount = reqs.filter((r) => r.reviewStatus === "TO_FOLLOW").length;
-  const totalCount = reqs.length;
-  return { submittedCount, pendingCount, approvedCount, toFollowCount, totalCount };
+  return { submittedCount, pendingCount, approvedCount, toFollowCount, totalCount: reqs.length };
 };
 
-const RequirementDocumentPreview: React.FC<{
-  documentId: number;
-  documentLabel: string;
-  onExpand: () => void;
-}> = ({ documentId, documentLabel, onExpand }) => {
-  const { data: preview, isLoading, isError } = useQuery({
-    queryKey: ["document-preview", documentId],
-    queryFn: () => documentsApi.getPreview(documentId),
-    staleTime: 1000 * 60 * 4,
-  });
+const isCleared = (c: ComplianceCounts) => c.totalCount > 0 && c.approvedCount + c.toFollowCount === c.totalCount;
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-6 bg-slate-50 rounded-lg border border-slate-200 min-h-[140px]">
-        <div className="flex items-center gap-2 text-xs text-slate-500 font-sans">
-          <Loader2 className="w-4 h-4 animate-spin text-teal-700" />
-          <span>Loading document preview...</span>
-        </div>
-      </div>
-    );
+const candidateNameOf = (app: Application): string => {
+  const profile = app.user?.applicantProfile;
+  return profile ? `${profile.firstName} ${profile.lastName}` : app.user?.email || "Candidate";
+};
+
+/** How long the application has been in the queue, counted from its submitted date. */
+const waitingLabel = (app: Application): string => {
+  const days = calculateDaysOnSite(app.createdAt);
+  if (days === null) return "";
+  return days === 0 ? "Waiting since today" : `Waiting ${plural(days, "day")}`;
+};
+
+/** One plain sentence for where a candidate's documents stand. Amber only when the TA has work to do. */
+const progressOf = (app: Application): { text: string; className: string } => {
+  const c = getComplianceCounts(app);
+  if (c.submittedCount > 0) {
+    return { text: `${c.submittedCount} awaiting review`, className: "font-medium text-amber-800" };
   }
-
-  if (isError || !preview) {
-    return (
-      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
-        <div className="flex items-center gap-2 text-slate-600 truncate min-w-0">
-          <FileText className="w-4 h-4 text-slate-400 shrink-0" />
-          <span className="truncate">{documentLabel}</span>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onExpand}
-          leftIcon={<Maximize2 className="w-3.5 h-3.5" />}
-        >
-          Expand
-        </Button>
-      </div>
-    );
+  if (c.pendingCount > 0) {
+    return {
+      text: `${c.pendingCount} not submitted${c.toFollowCount > 0 ? ` · ${c.toFollowCount} to follow` : ""}`,
+      className: "text-slate-700",
+    };
   }
-
-  const resolvedUrl = preview.url;
-  const isImage =
-    preview.mimeType?.startsWith("image/") ||
-    (resolvedUrl
-      ? /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(resolvedUrl) ||
-        (!resolvedUrl.toLowerCase().includes(".pdf") && resolvedUrl.startsWith("http"))
-      : false);
-
-  if (isImage && resolvedUrl) {
-    return (
-      <div className="space-y-1.5">
-        <div className="relative group rounded-lg border border-slate-200 overflow-hidden bg-slate-900/5 flex items-center justify-center p-2 min-h-[140px] max-h-48">
-          <img
-            src={resolvedUrl}
-            alt={preview.originalName || documentLabel}
-            className="max-h-44 w-auto object-contain rounded"
-          />
-          <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={onExpand}
-              leftIcon={<Maximize2 className="w-3.5 h-3.5" />}
-            >
-              Expand preview
-            </Button>
-          </div>
-        </div>
-        <div className="flex items-center justify-between px-1 text-[11px] text-slate-500 font-sans">
-          <span className="truncate max-w-[220px]" title={preview.originalName}>
-            {preview.originalName}
-          </span>
-          <button
-            type="button"
-            onClick={onExpand}
-            className="inline-flex items-center gap-1 text-teal-700 hover:text-teal-900 font-semibold cursor-pointer shrink-0"
-          >
-            <Maximize2 className="w-3 h-3" />
-            <span>Expand</span>
-          </button>
-        </div>
-      </div>
-    );
+  if (isCleared(c)) {
+    return {
+      text: c.toFollowCount > 0 ? `Cleared · ${c.toFollowCount} to follow` : `All ${c.approvedCount} approved`,
+      className: "text-emerald-800",
+    };
   }
-
-  return (
-    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
-      <div className="flex items-center gap-2.5 min-w-0">
-        <div className="p-2 bg-white rounded border border-slate-200 text-teal-700 shrink-0">
-          <FileText className="w-4 h-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold text-slate-900 truncate" title={preview.originalName || documentLabel}>
-            {preview.originalName || documentLabel}
-          </p>
-          <p className="text-[11px] text-slate-500 font-mono">
-            {preview.mimeType} • {(preview.sizeBytes / 1024).toFixed(1)} KB
-          </p>
-        </div>
-      </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={onExpand}
-        leftIcon={<Eye className="w-3.5 h-3.5" />}
-      >
-        Preview document
-      </Button>
-    </div>
-  );
+  if (c.toFollowCount > 0) return { text: `${c.toFollowCount} to follow`, className: "text-amber-800" };
+  return { text: "No requirements", className: "text-slate-600" };
 };
 
 export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
@@ -176,126 +93,74 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   const [search, setSearch] = useState("");
   const [jobTitleFilter, setJobTitleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
-  const [sortField, setSortField] = useState<SortField>("submitted");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  // Oldest waiting first: the review queue starts with whoever has waited longest.
+  const [sort, setSort] = useState<DataTableSort>({ key: "submitted", direction: "asc" });
   const [queuePage, setQueuePage] = useState(1);
-  const queuePageSize = 8;
 
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
-
-  // Quick review modal state
-  const [quickReviewCandidate, setQuickReviewCandidate] = useState<Application | null>(null);
-  const [selectedReqId, setSelectedReqId] = useState<number | null>(null);
-  const [reviewStatus, setReviewStatus] = useState<"" | "APPROVED" | "REJECTED" | "TO_FOLLOW">("");
-  const [toFollowExpectedAt, setToFollowExpectedAt] = useState("");
-  const [reviewNotes, setReviewNotes] = useState("");
-  const [documentIssuedAt, setDocumentIssuedAt] = useState("");
-  const [documentExpiresAt, setDocumentExpiresAt] = useState("");
-  const [documentValidity, setDocumentValidity] = useState<"UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY">("UNKNOWN");
-  const [previewDocState, setPreviewDocState] = useState<{
-    open: boolean;
-    documentId?: number | null;
-    title?: string;
-  }>({ open: false });
-
-  const complianceAnalyticsQuery = useQuery({
-    queryKey: ["ta", "analytics", "compliance", "COMPLIANCE"],
-    queryFn: () => taApi.getComplianceOverview({ stage: "COMPLIANCE" }),
-  });
+  const review = useComplianceReviewSession("pre");
 
   const applicationsQuery = useQuery({
     queryKey: ["ta", "applications", "compliance-queue"],
     queryFn: () => taApi.listApplications({ status: ApplicationStatus.COMPLIANCE, limit: 100 }),
   });
 
-  const rawApps = Array.isArray(applicationsQuery.data)
-    ? applicationsQuery.data
-    : applicationsQuery.data?.data || [];
-
   const complianceApps = useMemo(() => {
-    return rawApps.filter((a) => a.status === ApplicationStatus.COMPLIANCE);
-  }, [rawApps]);
+    const data = applicationsQuery.data;
+    const raw = Array.isArray(data) ? data : data?.data || [];
+    return raw.filter((a) => a.status === ApplicationStatus.COMPLIANCE);
+  }, [applicationsQuery.data]);
 
-  const candidateMetrics = useMemo(() => {
+  const metrics = useMemo(() => {
     let waitingReview = 0;
     let waitingCandidate = 0;
     let fullyApproved = 0;
-    let toFollow = 0;
-
+    let totalDocs = 0;
     let pendingDocs = 0;
     let submittedDocs = 0;
-    let approvedDocs = 0;
-    let toFollowDocs = 0;
 
     for (const app of complianceApps) {
-      const { submittedCount, pendingCount, approvedCount, toFollowCount, totalCount } = getComplianceCounts(app);
-      if (submittedCount > 0) waitingReview++;
-      if (pendingCount > 0) waitingCandidate++;
-      if (totalCount > 0 && approvedCount + toFollowCount === totalCount) fullyApproved++;
-      if (toFollowCount > 0) toFollow++;
-
-      pendingDocs += pendingCount;
-      submittedDocs += submittedCount;
-      approvedDocs += approvedCount;
-      toFollowDocs += toFollowCount;
+      const c = getComplianceCounts(app);
+      if (c.submittedCount > 0) waitingReview++;
+      if (c.pendingCount > 0) waitingCandidate++;
+      if (isCleared(c)) fullyApproved++;
+      pendingDocs += c.pendingCount;
+      submittedDocs += c.submittedCount;
+      totalDocs += c.totalCount;
     }
-
-    return {
-      totalCandidates: complianceApps.length,
-      waitingReview,
-      waitingCandidate,
-      fullyApproved,
-      toFollow,
-      totalDocs: pendingDocs + submittedDocs + approvedDocs + toFollowDocs,
-      pendingDocs,
-      submittedDocs,
-      approvedDocs,
-      toFollowDocs,
-    };
+    return { total: complianceApps.length, waitingReview, waitingCandidate, fullyApproved, totalDocs, pendingDocs, submittedDocs };
   }, [complianceApps]);
 
-  const jobTitleOptions = useMemo(() => {
-    const titles = Array.from(
-      new Set(
-        complianceApps
-          .map((app) => app.jobPosting?.title)
-          .filter((title): title is string => Boolean(title && title.trim()))
+  const jobTitleOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          complianceApps
+            .map((app) => app.jobPosting?.title)
+            .filter((title): title is string => Boolean(title && title.trim()))
+        )
       )
-    ).sort((a, b) => a.localeCompare(b));
-
-    return titles.map((title) => ({
-      value: title,
-      label: title,
-    }));
-  }, [complianceApps]);
+        .sort((a, b) => a.localeCompare(b))
+        .map((title) => ({ value: title, label: title })),
+    [complianceApps]
+  );
 
   const filteredApps = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return complianceApps.filter((app) => {
-      const { submittedCount, pendingCount, approvedCount, toFollowCount, totalCount } = getComplianceCounts(app);
+      const c = getComplianceCounts(app);
 
       let matchesStatus = true;
-      if (statusFilter === "WAITING_REVIEW") {
-        matchesStatus = submittedCount > 0;
-      } else if (statusFilter === "WAITING_CANDIDATE") {
-        matchesStatus = pendingCount > 0;
-      } else if (statusFilter === "APPROVED") {
-        matchesStatus = totalCount > 0 && approvedCount + toFollowCount === totalCount;
-      } else if (statusFilter === "TO_FOLLOW") {
-        matchesStatus = toFollowCount > 0;
-      }
+      if (statusFilter === "WAITING_REVIEW") matchesStatus = c.submittedCount > 0;
+      else if (statusFilter === "WAITING_CANDIDATE") matchesStatus = c.pendingCount > 0;
+      else if (statusFilter === "APPROVED") matchesStatus = isCleared(c);
+      else if (statusFilter === "TO_FOLLOW") matchesStatus = c.toFollowCount > 0;
 
-      const q = search.trim().toLowerCase();
-      const profile = app.user?.applicantProfile;
-      const fullName = profile ? `${profile.firstName} ${profile.lastName}` : "";
-      const email = app.user?.email || "";
       const jobTitle = app.jobPosting?.title || "";
-
       const matchesSearch =
         !q ||
-        fullName.toLowerCase().includes(q) ||
-        email.toLowerCase().includes(q) ||
+        candidateNameOf(app).toLowerCase().includes(q) ||
+        (app.user?.email || "").toLowerCase().includes(q) ||
         jobTitle.toLowerCase().includes(q);
-
       const matchesJobTitle = !jobTitleFilter || jobTitle === jobTitleFilter;
 
       return matchesStatus && matchesSearch && matchesJobTitle;
@@ -303,44 +168,17 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   }, [complianceApps, statusFilter, search, jobTitleFilter]);
 
   const sortedApps = useMemo(() => {
+    const direction = sort.direction === "asc" ? 1 : -1;
     return [...filteredApps].sort((a, b) => {
-      let comparison = 0;
-      if (sortField === "candidate") {
-        const nameA = a.user?.applicantProfile
-          ? `${a.user.applicantProfile.firstName} ${a.user.applicantProfile.lastName}`
-          : a.user?.email || "";
-        const nameB = b.user?.applicantProfile
-          ? `${b.user.applicantProfile.firstName} ${b.user.applicantProfile.lastName}`
-          : b.user?.email || "";
-        comparison = nameA.localeCompare(nameB);
-      } else if (sortField === "submitted") {
-        const timeA = new Date(a.createdAt).getTime() || 0;
-        const timeB = new Date(b.createdAt).getTime() || 0;
-        comparison = timeA - timeB;
-      }
-      return sortDirection === "asc" ? comparison : -comparison;
+      const comparison =
+        sort.key === "candidate"
+          ? candidateNameOf(a).localeCompare(candidateNameOf(b))
+          : (new Date(a.createdAt).getTime() || 0) - (new Date(b.createdAt).getTime() || 0);
+      return comparison * direction;
     });
-  }, [filteredApps, sortField, sortDirection]);
+  }, [filteredApps, sort]);
 
-  const totalQueuePages = Math.max(1, Math.ceil(sortedApps.length / queuePageSize));
-  const paginatedApps = sortedApps.slice(
-    (queuePage - 1) * queuePageSize,
-    queuePage * queuePageSize
-  );
-
-  const handleSearchChange = (val: string) => {
-    setSearch(val);
-    setQueuePage(1);
-  };
-
-  const handleFilterChange = (key: string, value: string) => {
-    if (key === "jobTitle") {
-      setJobTitleFilter(value);
-    } else if (key === "requirementStatus") {
-      setStatusFilter((value as StatusFilter) || "ALL");
-    }
-    setQueuePage(1);
-  };
+  const pagedApps = sortedApps.slice((queuePage - 1) * PAGE_SIZE, queuePage * PAGE_SIZE);
 
   const handleReset = () => {
     setSearch("");
@@ -349,820 +187,235 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     setQueuePage(1);
   };
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
-    setQueuePage(1);
-  };
-
-  const handleOpenQuickReview = (app: Application) => {
-    setQuickReviewCandidate(app);
-    const reqs = app.complianceRequirements || [];
-    const defaultReq =
-      reqs.find((r) => r.reviewStatus === "SUBMITTED") ||
-      reqs.find((r) => r.reviewStatus === "PENDING") ||
-      reqs.find((r) => r.reviewStatus !== "APPROVED") ||
-      null;
-    setSelectedReqId(defaultReq ? defaultReq.id : null);
-    setReviewStatus(
-      defaultReq?.reviewStatus === "TO_FOLLOW"
-        ? "TO_FOLLOW"
-        : defaultReq?.reviewStatus === "REJECTED"
-        ? "REJECTED"
-        : defaultReq?.reviewStatus === "APPROVED"
-        ? "APPROVED"
-        : ""
-    );
-    setToFollowExpectedAt(
-      defaultReq?.toFollowExpectedAt
-        ? toManilaDateInput(defaultReq.toFollowExpectedAt)
-        : ""
-    );
-    setReviewNotes(defaultReq?.reviewNotes || "");
-    setDocumentIssuedAt(defaultReq?.issuedAt?.slice(0, 10) || "");
-    setDocumentExpiresAt(defaultReq?.expiresAt?.slice(0, 10) || "");
-    setDocumentValidity(defaultReq?.validityStatus || "UNKNOWN");
-  };
-
-  const reviewComplianceMutation = useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: number;
-      data: {
-        reviewStatus: "APPROVED" | "REJECTED" | "TO_FOLLOW";
-        reviewNotes?: string;
-        toFollowExpectedAt?: string | null;
-        validityStatus?: "UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY";
-        issuedAt?: string | null;
-        expiresAt?: string | null;
-      };
-    }) => taApi.reviewComplianceRequirement(id, data),
+  const reviewMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: RequirementReviewValues }) => taApi.reviewComplianceRequirement(id, data),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "analytics", "compliance"] });
+      review.applySaved(vars.id, vars.data);
 
-      setQuickReviewCandidate((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          complianceRequirements: prev.complianceRequirements?.map((r) =>
-            r.id === vars.id
-              ? {
-                  ...r,
-                  reviewStatus: vars.data.reviewStatus,
-                  reviewNotes: vars.data.reviewNotes ?? null,
-                  toFollowExpectedAt: vars.data.toFollowExpectedAt ?? null,
-                  reviewedAt: new Date().toISOString(),
-                }
-              : r
-          ),
-        };
-      });
-
-      if (vars.data.reviewStatus === "APPROVED") {
-        const next = quickReviewCandidate?.complianceRequirements?.find(
-          (r) => r.id !== vars.id && r.reviewStatus !== "APPROVED"
-        );
-        setSelectedReqId(next ? next.id : null);
-      }
-
-      const msg =
+      notify.success(
+        "Review saved",
         vars.data.reviewStatus === "APPROVED"
           ? "The requirement was approved."
           : vars.data.reviewStatus === "TO_FOLLOW"
           ? "The requirement was tagged to follow up."
-          : "The requirement was rejected and needs correction.";
-      setFeedback({ type: "success", message: msg });
-      notify.success("Review saved", msg);
+          : "The requirement was rejected and needs correction."
+      );
     },
-    onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to save this review. Please try again." });
+    onError: (err: unknown) => {
       notify.error("Review failed", err);
     },
   });
 
-  const getHeaderContent = () => {
-    switch (statusFilter) {
-      case "WAITING_REVIEW":
-        return {
-          title: "Ready for review",
-          description: `Showing ${plural(candidateMetrics.waitingReview, "candidate")} with documents needing verification`,
-        };
-      case "WAITING_CANDIDATE":
-        return {
-          title: "Awaiting candidate submission",
-          description: `Showing ${plural(candidateMetrics.waitingCandidate, "candidate")} (${plural(candidateMetrics.pendingDocs, "pending document")})`,
-        };
-      case "APPROVED":
-        return {
-          title: "Approved candidates",
-          description: `Showing ${plural(candidateMetrics.fullyApproved, "candidate")} ready for deployment`,
-        };
-      case "TO_FOLLOW":
-        return {
-          title: "Requirements to follow up",
-          description: `Showing ${plural(candidateMetrics.toFollow, "candidate")} with documents pending follow-up`,
-        };
-      default:
-        return {
-          title: "Pre-employment compliance queue",
-          description: `Showing ${plural(sortedApps.length, "active candidate")} in pre-employment verification`,
-        };
-    }
-  };
+  const reviewButton = (app: Application, className?: string) =>
+    openRequirementsOf(app).length > 0 ? (
+      <Button variant="outline" size="sm" className={className} onClick={() => review.open(app)}>
+        Review documents
+      </Button>
+    ) : null;
 
-  const headerContent = getHeaderContent();
+  const tiles: ComplianceTile[] = [
+    { id: "ALL", label: "In requirements", value: metrics.total, hint: `${plural(metrics.totalDocs, "document")} tracked` },
+    {
+      id: "WAITING_CANDIDATE",
+      label: STATUS_LABELS.WAITING_CANDIDATE,
+      value: metrics.waitingCandidate,
+      hint: `${plural(metrics.pendingDocs, "document")} not submitted`,
+      tone: "warning",
+    },
+    {
+      id: "WAITING_REVIEW",
+      label: STATUS_LABELS.WAITING_REVIEW,
+      value: metrics.waitingReview,
+      hint: `${plural(metrics.submittedDocs, "document")} to verify`,
+    },
+    { id: "APPROVED", label: STATUS_LABELS.APPROVED, value: metrics.fullyApproved, hint: "Ready for contract signing" },
+  ];
 
-  const renderSortHeader = (field: SortField, label: string) => {
-    const isActive = sortField === field;
+  const filters: FilterConfig[] = [
+    { key: "jobTitle", label: "Job opening", placeholder: "All job openings", options: jobTitleOptions },
+    {
+      key: "requirementStatus",
+      label: "Requirement status",
+      placeholder: "All statuses",
+      options: [
+        { value: "WAITING_REVIEW", label: STATUS_LABELS.WAITING_REVIEW },
+        { value: "WAITING_CANDIDATE", label: STATUS_LABELS.WAITING_CANDIDATE },
+        { value: "APPROVED", label: STATUS_LABELS.APPROVED },
+        { value: "TO_FOLLOW", label: STATUS_LABELS.TO_FOLLOW },
+      ],
+    },
+  ];
+
+  const columns: DataTableColumn<Application>[] = [
+    {
+      key: "candidate",
+      header: "Candidate",
+      sortable: true,
+      cell: (app) => (
+        <div>
+          <Link
+            to="/ta/applications/$applicationId"
+            params={{ applicationId: String(app.id) }}
+            className="focus-ring font-medium text-navy underline-offset-2 hover:underline"
+          >
+            {candidateNameOf(app)}
+          </Link>
+          <div className="text-xs text-slate-600">{app.user?.email}</div>
+        </div>
+      ),
+    },
+    {
+      key: "job",
+      header: "Job opening",
+      cell: (app) => (
+        <div>
+          <div className="text-slate-900">{app.jobPosting?.title || "Job opening"}</div>
+          <div className="text-xs text-slate-600">{app.jobPosting?.location || "Philippines"}</div>
+        </div>
+      ),
+    },
+    {
+      key: "progress",
+      header: "Documents",
+      cell: (app) => {
+        const progress = progressOf(app);
+        return <span className={progress.className}>{progress.text}</span>;
+      },
+    },
+    {
+      key: "submitted",
+      header: "Waiting",
+      sortable: true,
+      cell: (app) => (
+        <div>
+          <div className="text-slate-900">{waitingLabel(app)}</div>
+          <div className="text-xs text-slate-600">Since {formatDate(app.createdAt)}</div>
+        </div>
+      ),
+    },
+    { key: "actions", header: "Action", align: "right", className: "whitespace-nowrap", cell: (app) => reviewButton(app) },
+  ];
+
+  const renderCard = (app: Application) => {
+    const progress = progressOf(app);
     return (
-      <th scope="col" className="px-4 py-3 font-semibold select-none">
-        <button
-          type="button"
-          onClick={() => handleSort(field)}
-          className="inline-flex items-center gap-1.5 hover:text-slate-900 transition-colors cursor-pointer group focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded"
-          aria-sort={isActive ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
+      <article className="space-y-2 p-4">
+        <Link
+          to="/ta/applications/$applicationId"
+          params={{ applicationId: String(app.id) }}
+          className="focus-ring inline-flex min-h-11 items-center font-semibold text-navy underline-offset-2 hover:underline"
         >
-          <span>{label}</span>
-          {isActive ? (
-            sortDirection === "asc" ? (
-              <ArrowUp className="w-3.5 h-3.5 text-teal-700 shrink-0" aria-hidden="true" />
-            ) : (
-              <ArrowDown className="w-3.5 h-3.5 text-teal-700 shrink-0" aria-hidden="true" />
-            )
-          ) : (
-            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 shrink-0 opacity-60 group-hover:opacity-100" aria-hidden="true" />
-          )}
-        </button>
-      </th>
+          {candidateNameOf(app)}
+        </Link>
+        <p className="break-words text-sm text-slate-700">{app.jobPosting?.title || "Job opening"}</p>
+        <p className={`text-sm ${progress.className}`}>{progress.text}</p>
+        <p className="text-sm text-slate-600">
+          {waitingLabel(app)} · since {formatDate(app.createdAt)}
+        </p>
+        {reviewButton(app, "w-full")}
+      </article>
     );
   };
 
-  const renderComplianceProgressBadge = (app: Application) => {
-    const { submittedCount, pendingCount, approvedCount, toFollowCount, totalCount } = getComplianceCounts(app);
+  const header = !hideHeader && (
+    <PageHeader
+      title={TA_COPY.pageTitles.requirements}
+      description={TA_COPY.workforce.requirementsDescription}
+      breadcrumbs={[{ label: TA_COPY.navigation.overview, href: "/ta" }, { label: TA_COPY.navigation.requirements }]}
+      flush
+    />
+  );
 
-    if (submittedCount > 0) {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-          {submittedCount} awaiting review
-        </span>
-      );
-    }
-    if (pendingCount > 0) {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-          {pendingCount} pending submission{toFollowCount > 0 ? ` · ${toFollowCount} to follow` : ""}
-        </span>
-      );
-    }
-    if (totalCount > 0 && approvedCount + toFollowCount === totalCount) {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-          {toFollowCount > 0 ? `Ready · ${toFollowCount} to follow` : `All ${approvedCount} approved`}
-        </span>
-      );
-    }
-    if (toFollowCount > 0) {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-          {toFollowCount} to follow
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-50 text-slate-500 border border-slate-200">
-        No requirements
-      </span>
-    );
-  };
-
-  const renderReqStatusBadge = (status: ComplianceRequirement["reviewStatus"]) => {
-    switch (status) {
-      case "APPROVED":
-        return (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-            Approved
-          </span>
-        );
-      case "REJECTED":
-        return (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-800 border border-rose-200">
-            Rejected
-          </span>
-        );
-      case "SUBMITTED":
-        return (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
-            Submitted
-          </span>
-        );
-      case "TO_FOLLOW":
-        return (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-            To follow
-          </span>
-        );
-      case "PENDING":
-      default:
-        return (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-            Pending
-          </span>
-        );
-    }
-  };
-
-  if (complianceAnalyticsQuery.isLoading) {
+  if (applicationsQuery.isLoading) {
     return (
       <div className="space-y-6">
-        {!hideHeader && <PageHeader title={TA_COPY.navigation.workforce} description="Loading pre-employment requirements..." />}
+        {header}
         <LoadingState variant="table" rows={6} />
       </div>
     );
   }
 
-  if (complianceAnalyticsQuery.isError) {
+  if (applicationsQuery.isError) {
     return (
       <div className="space-y-6">
-        {!hideHeader && <PageHeader title={TA_COPY.navigation.workforce} description="Pre-employment requirements" />}
-        <ErrorState
-          error={complianceAnalyticsQuery.error}
-          onRetry={() => complianceAnalyticsQuery.refetch()}
-        />
+        {header}
+        <ErrorState error={applicationsQuery.error} onRetry={() => applicationsQuery.refetch()} subject="the requirements queue" />
       </div>
     );
   }
 
-  const selectedReq = quickReviewCandidate?.complianceRequirements?.find(
-    (r) => r.id === selectedReqId
-  );
-  // Approved documents are complete; the quick review only lists documents that still need action.
-  const openReviewReqs = (quickReviewCandidate?.complianceRequirements || []).filter(
-    (r) => r.reviewStatus !== "APPROVED"
-  );
-  const approvedReviewReqCount = (quickReviewCandidate?.complianceRequirements?.length || 0) - openReviewReqs.length;
-
   return (
     <div className="space-y-6">
-      {!hideHeader && (
-        <PageHeader
-          title="Pre-employment requirements"
-          description="Review required documents before a candidate starts at a client site."
-          breadcrumbs={[
-            { label: TA_COPY.navigation.overview, href: "/ta" },
-            { label: TA_COPY.navigation.workforce },
-          ]}
+      {header}
+
+      {complianceApps.length === 0 ? (
+        <EmptyState
+          icon={<ShieldCheck className="h-5 w-5" aria-hidden="true" />}
+          title="No candidates in the requirements stage"
+          description="Candidates appear here after they pass the final interview."
         />
-      )}
-
-      {feedback && (
-        <div
-          role={feedback.type === "error" ? "alert" : "status"}
-          aria-live="polite"
-          className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
-            feedback.type === "success"
-              ? "bg-teal-50 border-teal-200 text-teal-800"
-              : "bg-rose-50 border-rose-200 text-rose-800"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <span>{feedback.message}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setFeedback(null)}
-            aria-label="Dismiss message"
-            className="text-slate-400 hover:text-slate-600 font-bold ml-4 cursor-pointer"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Compliance Overview Metrics (Interactive Cards) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <button
-          type="button"
-          aria-pressed={statusFilter === "ALL"}
-          onClick={() => {
-            setStatusFilter("ALL");
+      ) : (
+        <ComplianceQueue
+          caption="Candidates in the requirements stage"
+          tiles={tiles}
+          selectedTile={statusFilter === "TO_FOLLOW" ? "" : statusFilter}
+          onTileChange={(id) => {
+            setStatusFilter(id as StatusFilter);
             setQueuePage(1);
           }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
-            statusFilter === "ALL"
-              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
-              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
-          }`}
-        >
-          <div className="text-xs font-semibold text-slate-600">
-            Candidates in compliance
-          </div>
-          <div className="text-2xl font-bold font-mono text-slate-900 mt-1 tabular-nums">
-            {candidateMetrics.totalCandidates}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 font-mono">
-            {candidateMetrics.totalDocs} requirements tracked
-          </div>
-        </button>
-
-        <button
-          type="button"
-          aria-pressed={statusFilter === "WAITING_CANDIDATE"}
-          onClick={() => {
-            setStatusFilter("WAITING_CANDIDATE");
+          searchLabel="Search candidates"
+          searchPlaceholder="Search candidate, email, or job opening"
+          search={search}
+          onSearchChange={(value) => {
+            setSearch(value);
             setQueuePage(1);
           }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
-            statusFilter === "WAITING_CANDIDATE"
-              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
-              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
-          }`}
-        >
-          <div className="text-xs font-semibold text-amber-800">
-            Awaiting submission
-          </div>
-          <div className="text-2xl font-bold font-mono text-amber-900 mt-1 tabular-nums">
-            {candidateMetrics.waitingCandidate}
-          </div>
-          <div className="text-[11px] text-amber-700 mt-1 font-mono">
-            {candidateMetrics.pendingDocs} pending documents
-          </div>
-        </button>
-
-        <button
-          type="button"
-          aria-pressed={statusFilter === "WAITING_REVIEW"}
-          onClick={() => {
-            setStatusFilter("WAITING_REVIEW");
+          filters={filters}
+          filterValues={{ jobTitle: jobTitleFilter, requirementStatus: statusFilter !== "ALL" ? statusFilter : "" }}
+          onFilterChange={(key, value) => {
+            if (key === "jobTitle") setJobTitleFilter(value);
+            else if (key === "requirementStatus") setStatusFilter((value as StatusFilter) || "ALL");
             setQueuePage(1);
           }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
-            statusFilter === "WAITING_REVIEW"
-              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
-              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
-          }`}
-        >
-          <div className="text-xs font-semibold text-blue-800">
-            Ready for review
-          </div>
-          <div className="text-2xl font-bold font-mono text-blue-900 mt-1 tabular-nums">
-            {candidateMetrics.waitingReview}
-          </div>
-          <div className="text-[11px] text-blue-700 mt-1 font-mono">
-            {candidateMetrics.submittedDocs} documents to verify
-          </div>
-        </button>
-
-        <button
-          type="button"
-          aria-pressed={statusFilter === "APPROVED"}
-          onClick={() => {
-            setStatusFilter("APPROVED");
+          onReset={handleReset}
+          columns={columns}
+          rows={pagedApps}
+          renderCard={renderCard}
+          sort={sort}
+          onSortChange={(next) => {
+            setSort(next);
             setQueuePage(1);
           }}
-          className={`text-left rounded-xl border p-4 shadow-xs transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
-            statusFilter === "APPROVED"
-              ? "border-slate-800 ring-2 ring-slate-800/20 bg-slate-50/60"
-              : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/40 bg-white"
-          }`}
-        >
-          <div className="text-xs font-semibold text-emerald-800">
-            Cleared candidates
-          </div>
-          <div className="text-2xl font-bold font-mono text-emerald-900 mt-1 tabular-nums">
-            {candidateMetrics.fullyApproved}
-          </div>
-          <div className="text-[11px] text-emerald-700 mt-1 font-mono">
-            Ready for contract signing
-          </div>
-        </button>
-      </div>
-
-      {/* Search and Filters Bar */}
-      <SearchFilters
-        searchPlaceholder="Search candidate, email, or job opening..."
-        searchValue={search}
-        onSearchChange={handleSearchChange}
-        filterValues={{
-          jobTitle: jobTitleFilter,
-          requirementStatus: statusFilter !== "ALL" ? statusFilter : "",
-        }}
-        onFilterChange={handleFilterChange}
-        onReset={handleReset}
-        filters={[
-          {
-            key: "jobTitle",
-            label: "Job Opening",
-            placeholder: "All job openings",
-            options: jobTitleOptions,
-          },
-          {
-            key: "requirementStatus",
-            label: "Requirement Status",
-            placeholder: "All requirement statuses",
-            options: [
-              { value: "WAITING_REVIEW", label: "Waiting for review" },
-              { value: "WAITING_CANDIDATE", label: "Waiting for candidate" },
-              { value: "APPROVED", label: "Approved" },
-              { value: "TO_FOLLOW", label: "To follow up" },
-            ],
-          },
-        ]}
-      />
-
-      {/* Active Compliance Verification Queue */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 font-mono uppercase">
-              {headerContent.title}
-            </h3>
-            <p className="text-xs text-slate-500 font-sans mt-0.5">
-              {headerContent.description}
-            </p>
-          </div>
-          <Link to="/ta/applications">
-            <Button variant="outline" size="sm">
-              View applications
-            </Button>
-          </Link>
-        </div>
-
-        {applicationsQuery.isLoading ? (
-          <LoadingState variant="table" rows={4} />
-        ) : complianceApps.length === 0 ? (
-          <div className="p-6">
+          isFetching={applicationsQuery.isFetching}
+          empty={
             <EmptyState
-              icon={<ShieldCheck className="w-5 h-5 text-emerald-600" />}
-              title="No requirements need review"
-              description="All active candidates are either waiting to submit documents or have already been reviewed."
-            />
-          </div>
-        ) : filteredApps.length === 0 ? (
-          <div className="p-8">
-            <EmptyState
+              bare
               title="No matching candidates"
-              description="No candidates match your current search, job opening, or status filter criteria."
+              description="No candidates match your search or filters."
               action={
                 <Button variant="outline" size="sm" onClick={handleReset}>
                   Reset filters
                 </Button>
               }
             />
-          </div>
-        ) : (
-          <>
-            {/* Mobile Card List View */}
-            <div className="md:hidden divide-y divide-slate-200">
-              {paginatedApps.map((app) => {
-                const profile = app.user?.applicantProfile;
-                const candidateName = profile
-                  ? `${profile.firstName} ${profile.lastName}`
-                  : app.user?.email || "Candidate";
-
-                return (
-                  <article key={app.id} className="space-y-3 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h4 className="font-semibold text-slate-950 break-words">{candidateName}</h4>
-                        <p className="mt-0.5 text-sm text-slate-600 break-words">{app.jobPosting?.title || "Job opening"}</p>
-                      </div>
-                      {renderComplianceProgressBadge(app)}
-                    </div>
-                    <p className="text-sm text-slate-600">Submitted {formatDate(app.createdAt)}</p>
-                    <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleOpenQuickReview(app)}
-                      >
-                        Quick review
-                      </Button>
-                      <Link
-                        to="/ta/applications/$applicationId"
-                        params={{ applicationId: String(app.id) }}
-                        className="inline-flex min-h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-medium text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
-                        aria-label={`View application for ${candidateName}`}
-                      >
-                        View application
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
-                  <tr>
-                    {renderSortHeader("candidate", "Candidate")}
-                    <th scope="col" className="px-4 py-3 font-semibold">Job opening</th>
-                    <th scope="col" className="px-4 py-3 font-semibold">Compliance progress</th>
-                    {renderSortHeader("submitted", "Submitted")}
-                    <th scope="col" className="px-4 py-3 font-semibold text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-mono">
-                  {paginatedApps.map((app) => {
-                    const p = app.user?.applicantProfile;
-                    const candidateName = p
-                      ? `${p.firstName} ${p.lastName}`
-                      : app.user?.email || "Candidate";
-
-                    return (
-                      <tr key={app.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="font-bold text-slate-900 font-sans">{candidateName}</div>
-                          <div className="text-xs text-slate-500">
-                            Application #{app.id} • {app.user?.email}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-slate-800 font-sans">
-                          <div className="font-semibold">{app.jobPosting?.title || "Job opening"}</div>
-                          <div className="text-[11px] text-slate-400 font-mono">
-                            {app.jobPosting?.location || "Philippines"}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {renderComplianceProgressBadge(app)}
-                        </td>
-                        <td className="px-4 py-3 text-slate-500 text-[11px]">
-                          {formatDate(app.createdAt)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-sans">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleOpenQuickReview(app)}
-                            >
-                              Quick review
-                            </Button>
-                            <Link
-                              to="/ta/applications/$applicationId"
-                              params={{ applicationId: String(app.id) }}
-                            >
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                aria-label={`View application for ${candidateName}`}
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                              </Button>
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-
-        {/* Queue Pagination */}
-        {sortedApps.length > queuePageSize && (
-          <div className="p-3 border-t border-slate-200 bg-slate-50">
-            <Pagination
-              currentPage={queuePage}
-              totalPages={totalQueuePages}
-              totalItems={sortedApps.length}
-              pageSize={queuePageSize}
-              onPageChange={setQueuePage}
-              itemLabel="candidates"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Quick Review Dialog */}
-      {quickReviewCandidate && (
-        <Dialog
-          open={Boolean(quickReviewCandidate)}
-          onClose={() => setQuickReviewCandidate(null)}
-          title="Quick compliance review"
-          description={`Review documents for ${
-            quickReviewCandidate.user?.applicantProfile
-              ? `${quickReviewCandidate.user.applicantProfile.firstName} ${quickReviewCandidate.user.applicantProfile.lastName}`
-              : quickReviewCandidate.user?.email || "Candidate"
-          } • ${quickReviewCandidate.jobPosting?.title || "Job opening"}`}
-          size="xl"
-        >
-          <div className="grid gap-5 lg:grid-cols-[20rem_minmax(0,1fr)]">
-            {/* Requirements List */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-700 block">
-                Documents to review ({openReviewReqs.length})
-                {approvedReviewReqCount > 0 && (
-                  <span className="ml-1 font-normal text-slate-500">· {approvedReviewReqCount} approved</span>
-                )}
-              </label>
-              {openReviewReqs.length === 0 ? (
-                <p className="text-xs text-slate-500 italic py-2">
-                  {quickReviewCandidate.complianceRequirements?.length
-                    ? "All required documents are approved."
-                    : "No requirements configured for this application."}
-                </p>
-              ) : (
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg max-h-48 overflow-y-auto lg:max-h-[28rem]">
-                  {openReviewReqs.map((req) => {
-                    const isSelected = req.id === selectedReqId;
-                    return (
-                      <button
-                        key={req.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedReqId(req.id);
-                          setReviewStatus(
-                            req.reviewStatus === "TO_FOLLOW"
-                              ? "TO_FOLLOW"
-                              : req.reviewStatus === "REJECTED"
-                              ? "REJECTED"
-                              : req.reviewStatus === "APPROVED"
-                              ? "APPROVED"
-                              : ""
-                          );
-                          setToFollowExpectedAt(
-                            req.toFollowExpectedAt
-                              ? toManilaDateInput(req.toFollowExpectedAt)
-                              : ""
-                          );
-                          setReviewNotes(req.reviewNotes || "");
-                          setDocumentIssuedAt(req.issuedAt?.slice(0, 10) || "");
-                          setDocumentExpiresAt(req.expiresAt?.slice(0, 10) || "");
-                          setDocumentValidity(req.validityStatus || "UNKNOWN");
-                        }}
-                        className={`w-full p-2.5 text-left flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer ${
-                          isSelected
-                            ? "bg-teal-50/70 text-teal-950 font-medium"
-                            : "hover:bg-slate-50 text-slate-700"
-                        }`}
-                      >
-                        <div className="min-w-0 flex items-center gap-2">
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                              isSelected ? "bg-teal-600" : "bg-transparent"
-                            }`}
-                          />
-                          <span className="truncate" title={req.documentLabel}>{req.documentLabel}</span>
-                        </div>
-                        <div className="shrink-0">
-                          {renderReqStatusBadge(req.reviewStatus)}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {selectedReq ? (
-              <div className="space-y-3 border-t border-slate-100 pt-3 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
-                <div className="text-xs font-semibold text-slate-800">
-                  Reviewing: <span className="font-bold text-teal-900">{selectedReq.documentLabel}</span>
-                </div>
-
-                {selectedReq.documentId ? (
-                  <RequirementDocumentPreview
-                    documentId={selectedReq.documentId}
-                    documentLabel={selectedReq.documentLabel}
-                    onExpand={() =>
-                      setPreviewDocState({
-                        open: true,
-                        documentId: selectedReq.documentId,
-                        title: selectedReq.documentLabel,
-                      })
-                    }
-                  />
-                ) : (
-                  <div className="p-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/50 text-center">
-                    <p className="text-xs text-slate-500">
-                      No document uploaded yet by applicant
-                    </p>
-                  </div>
-                )}
-
-                <Select
-                  label="Review decision"
-                  value={reviewStatus}
-                  onChange={(e) =>
-                    setReviewStatus(e.target.value as "" | "APPROVED" | "REJECTED" | "TO_FOLLOW")
-                  }
-                  options={[
-                    { value: "", label: "Select a decision…" },
-                    { value: "APPROVED", label: "Approve — document is valid" },
-                    { value: "TO_FOLLOW", label: "To follow up — allow deployment, follow up later" },
-                    { value: "REJECTED", label: "Reject — document needs correction" },
-                  ]}
-                />
-
-                {reviewStatus === "APPROVED" && (
-                  <>
-                    <Input label="Issue date (if shown)" type="date" value={documentIssuedAt} max={getManilaToday()} onChange={(event) => setDocumentIssuedAt(event.target.value)} />
-                    <Select label="Document validity" value={documentValidity} onChange={(event) => setDocumentValidity(event.target.value as typeof documentValidity)} options={[
-                      { value: "UNKNOWN", label: "Not verified" },
-                      { value: "HAS_EXPIRY", label: "Has an expiry date" },
-                      { value: "NO_EXPIRY", label: "No expiry" },
-                    ]} />
-                    {documentValidity === "HAS_EXPIRY" && <Input label="Expiry date" type="date" value={documentExpiresAt} onChange={(event) => setDocumentExpiresAt(event.target.value)} required />}
-                  </>
-                )}
-
-                {reviewStatus === "TO_FOLLOW" && (
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
-                      Target completion date (optional)
-                    </label>
-                    <input
-                      type="date"
-                      value={toFollowExpectedAt}
-                      onChange={(e) => setToFollowExpectedAt(e.target.value)}
-                      min={getManilaToday()}
-                      max="2100-12-31"
-                      className="w-full text-xs rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700"
-                    />
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Candidate can be deployed now; this document will be tracked until submitted.
-                    </p>
-                  </div>
-                )}
-
-                <Textarea
-                  label="Review notes (optional)"
-                  placeholder="Explain what was verified or what needs correction..."
-                  value={reviewNotes}
-                  onChange={(e) => setReviewNotes(e.target.value)}
-                  rows={2}
-                />
-
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setQuickReviewCandidate(null)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant={reviewStatus === "REJECTED" ? "danger" : "primary"}
-                    size="sm"
-                    loading={reviewComplianceMutation.isPending}
-                    disabled={reviewStatus === "" || reviewStatus === "APPROVED" && (documentValidity === "UNKNOWN" || (documentValidity === "HAS_EXPIRY" && !documentExpiresAt) || (/medical|fit\s+to\s+work|health/i.test(selectedReq.documentLabel) && !documentIssuedAt))}
-                    onClick={() => {
-                      if (selectedReqId && reviewStatus) {
-                        reviewComplianceMutation.mutate({
-                          id: selectedReqId,
-                          data: {
-                            reviewStatus,
-                            reviewNotes: reviewNotes.trim() || undefined,
-                            validityStatus: reviewStatus === "APPROVED" ? documentValidity : undefined,
-                            issuedAt: reviewStatus === "APPROVED" ? documentIssuedAt || null : undefined,
-                            expiresAt: reviewStatus === "APPROVED" ? (documentValidity === "NO_EXPIRY" ? null : documentExpiresAt || null) : undefined,
-                            toFollowExpectedAt:
-                              reviewStatus === "TO_FOLLOW" && toFollowExpectedAt
-                                ? toFollowExpectedAt
-                                : undefined,
-                          },
-                        });
-                      }
-                    }}
-                  >
-                    Save review
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex justify-end pt-3 border-t border-slate-100">
-                <Button variant="outline" size="sm" onClick={() => setQuickReviewCandidate(null)}>
-                  Close
-                </Button>
-              </div>
-            )}
-          </div>
-        </Dialog>
+          }
+          page={queuePage}
+          pageSize={PAGE_SIZE}
+          totalItems={sortedApps.length}
+          onPageChange={setQueuePage}
+          itemLabel="candidates"
+        />
       )}
 
-      {/* Document Full Preview Modal */}
-      <DocumentPreviewModal
-        open={previewDocState.open}
-        onClose={() => setPreviewDocState({ open: false })}
-        documentId={previewDocState.documentId}
-        title={previewDocState.title || "Document Preview"}
-        applicantName={
-          quickReviewCandidate?.user?.applicantProfile
-            ? `${quickReviewCandidate.user.applicantProfile.firstName} ${quickReviewCandidate.user.applicantProfile.lastName}`
-            : quickReviewCandidate?.user?.email
-        }
+      <ComplianceReviewDialog
+        session={review}
+        mode="pre"
+        personName={candidateNameOf}
+        isSubmitting={reviewMutation.isPending}
+        onSubmit={(values, requirement) => reviewMutation.mutate({ id: requirement.id, data: values })}
       />
     </div>
   );

@@ -102,6 +102,7 @@ export const TA_COPY = {
   navigation: {
     overview: "Overview",
     applications: "Applications",
+    requirements: "Requirements",
     openings: "Job openings",
     manpowerRequests: "Manpower requests",
     candidatePool: "Candidate pool",
@@ -124,8 +125,9 @@ export const TA_COPY = {
     reports: "Reports",
     deployments: "Deployments",
     employeeRecords: "Employee records",
+    requirements: "Requirements",
     preEmployment: "Pre-employment requirements",
-    followUps: "Post-deployment follow-ups",
+    followUps: "Follow-ups",
     redeployment: "Redeployment",
   },
   breadcrumbRoot: "Overview",
@@ -159,6 +161,15 @@ export const TA_COPY = {
    * Filters and badges for ended assignments use TA_COPY.deployment.endedWantsAssignment etc.
    */
   workforce: {
+    /** Workforce hub tab labels. Short so the tab row never wraps. */
+    tabs: {
+      deployments: "Deployments",
+      employees: "Employees",
+      followUps: "Follow-ups",
+      redeployment: "Redeployment",
+    },
+    /** One line under the Requirements page title. */
+    requirementsDescription: "Candidates in the requirements stage, oldest waiting first.",
     dispositions: {
       wantsAnother: "Wants another assignment",
       notConfirmed: "Not confirmed yet",
@@ -170,6 +181,14 @@ export const TA_COPY = {
       inviteToApply: "Invite to apply",
     },
     invitedOn: (formattedDate: string) => `Invited ${formattedDate}`,
+  },
+  /** Application detail tab names, shared with the application page. */
+  applicationDetail: {
+    tabs: {
+      profile: "Profile & interviews",
+      requirements: "Requirements & deployment",
+      activity: "Activity",
+    },
   },
   invitations: {
     sent: "Sent invitations",

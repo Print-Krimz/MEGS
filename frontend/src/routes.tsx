@@ -74,6 +74,7 @@ const ClientDetailPage = lazyRouteComponent(() => import("./pages/ta/ClientDetai
 const DeploymentDetailPage = lazyRouteComponent(() => import("./pages/ta/DeploymentDetailPage"), "DeploymentDetailPage");
 const EmployeeDetailPage = lazyRouteComponent(() => import("./pages/ta/EmployeeDetailPage"), "EmployeeDetailPage");
 const WorkforcePage = lazyRouteComponent(() => import("./pages/ta/WorkforcePage"), "WorkforcePage");
+const CompliancePage = lazyRouteComponent(() => import("./pages/ta/CompliancePage"), "CompliancePage");
 const AnalyticsPage = lazyRouteComponent(() => import("./pages/ta/AnalyticsPage"), "AnalyticsPage");
 
 export interface RouterContext {
@@ -421,14 +422,24 @@ export const taClientDetailRoute = createRoute({
 });
 
 export interface WorkforceSearch {
-  tab?: "deployments" | "employees" | "clearances" | "post_deployment" | "redeployment";
+  /** `clearances` is the old pre-employment tab; it redirects to /ta/requirements. */
+  tab?: "deployments" | "employees" | "follow-ups" | "redeployment" | "clearances";
+  /** Search text for the Deployments tab, used by "View all deployments" links. */
+  q?: string;
 }
+
+// Pre-employment requirements live in the Recruitment group; /ta/compliance was its old address.
+export const taRequirementsRoute = createRoute({
+  getParentRoute: () => taLayoutRoute,
+  path: "/ta/requirements",
+  component: CompliancePage,
+});
 
 export const taComplianceRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
   path: "/ta/compliance",
   beforeLoad: () => {
-    throw redirect({ to: "/ta/workforce", search: { tab: "clearances" } });
+    throw redirect({ to: "/ta/requirements" });
   },
   component: () => null,
 });
@@ -468,10 +479,17 @@ export const taWorkforceRoute = createRoute({
   path: "/ta/workforce",
   validateSearch: (search: Record<string, unknown>): WorkforceSearch => {
     const tab = search.tab;
-    if (tab === "employees" || tab === "clearances" || tab === "deployments" || tab === "post_deployment" || tab === "redeployment") {
-      return { tab };
+    const q = typeof search.q === "string" && search.q.trim() ? search.q.trim() : undefined;
+    const withQuery = <T extends WorkforceSearch>(value: T): T => (q ? { ...value, q } : value);
+    // post_deployment is the old name of the follow-ups tab.
+    if (tab === "post_deployment" || tab === "follow-ups") return withQuery({ tab: "follow-ups" });
+    if (tab === "employees" || tab === "clearances" || tab === "deployments" || tab === "redeployment") {
+      return withQuery({ tab });
     }
-    return { tab: "deployments" };
+    return withQuery({ tab: "deployments" });
+  },
+  beforeLoad: ({ search }) => {
+    if (search.tab === "clearances") throw redirect({ to: "/ta/requirements" });
   },
   component: WorkforcePage,
 });
@@ -609,6 +627,7 @@ const routeTree = rootRoute.addChildren([
     taInterviewsRoute,
     taClientsRoute,
     taClientDetailRoute,
+    taRequirementsRoute,
     taComplianceRoute,
     taDeploymentsRoute,
     taDeploymentDetailRoute,

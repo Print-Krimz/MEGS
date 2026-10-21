@@ -6,6 +6,8 @@ export interface TabItem {
   label: string;
   icon?: React.ComponentType<{ className?: string }>;
   panelId?: string;
+  /** Id for the tab button, so a panel can point at it with aria-labelledby. */
+  tabId?: string;
   badge?: { text: string; variant?: "success" | "warning" | "info" };
 }
 
@@ -69,6 +71,7 @@ export const Tabs: React.FC<TabsProps> = ({ items, value, onChange, ariaLabel, c
           <button
             key={item.id}
             type="button"
+            id={item.tabId}
             role="tab"
             aria-selected={selected}
             aria-controls={item.panelId}
