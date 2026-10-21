@@ -37,6 +37,10 @@ export interface DataTableProps<T> {
   rowHref?: (row: T) => string;
   footer?: React.ReactNode;
   caption?: string;
+  /** "compact" trims row height to 44px for dense lists. Default keeps the current rhythm. */
+  density?: "comfortable" | "compact";
+  /** Keep the header row visible while the table body scrolls inside a bounded height. */
+  stickyHeader?: boolean;
   className?: string;
 }
 
@@ -56,6 +60,8 @@ export function DataTable<T>({
   rowHref,
   footer,
   caption,
+  density = "comfortable",
+  stickyHeader = false,
   className,
 }: DataTableProps<T>) {
   const tableShow = cardsBelow === "lg" ? "hidden lg:block" : "hidden md:block";
@@ -69,7 +75,7 @@ export function DataTable<T>({
   };
 
   return (
-    <div className={cn("relative border border-slate-300 bg-white", className)} aria-busy={isFetching}>
+    <div className={cn("relative rounded-md border border-slate-300 bg-white", !stickyHeader && "overflow-hidden", className)} aria-busy={isFetching}>
       {isFetching && (
         <div className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-navy-soft" role="progressbar" aria-label="Refreshing">
           <div className="h-full w-1/3 animate-pulse bg-navy" />
@@ -80,11 +86,11 @@ export function DataTable<T>({
         (empty ?? null)
       ) : (
         <>
-          <div className={cn("overflow-x-auto", tableShow)}>
+          <div className={cn("overflow-x-auto", stickyHeader && "max-h-[70vh] overflow-y-auto", tableShow)}>
             <table className="w-full border-collapse text-sm">
               {caption && <caption className="sr-only">{caption}</caption>}
               <thead>
-                <tr className="border-b border-slate-300 bg-slate-50">
+                <tr className={cn("border-b border-slate-300 bg-slate-50", stickyHeader && "sticky top-0 z-[1]")}>
                   {columns.map((col) => {
                     const active = sort?.key === col.key;
                     const ariaSort = col.sortable
@@ -100,7 +106,8 @@ export function DataTable<T>({
                         scope="col"
                         aria-sort={ariaSort}
                         className={cn(
-                          "px-3 py-2.5 text-xs font-semibold text-slate-700",
+                          "px-3 py-2.5 text-xs font-medium text-slate-600",
+                          stickyHeader && "sticky top-0 z-[1] bg-slate-50 shadow-[inset_0_-1px_0_var(--color-ta-line)]",
                           alignClass[col.align ?? "left"],
                           col.hideBelow && hideClass[col.hideBelow],
                           col.className
@@ -146,7 +153,7 @@ export function DataTable<T>({
                           <td
                             key={col.key}
                             className={cn(
-                              "px-3 py-3 align-middle text-slate-800 tabular-nums",
+                              density === "compact" ? "px-3 py-2 align-middle text-slate-800 tabular-nums" : "px-3 py-3 align-middle text-slate-800 tabular-nums",
                               alignClass[col.align ?? "left"],
                               col.hideBelow && hideClass[col.hideBelow],
                               col.className
@@ -155,7 +162,7 @@ export function DataTable<T>({
                             {asLink ? (
                               <Link
                                 to={rowHref(row)}
-                                className="font-medium text-navy underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-navy"
+                                className="inline-flex items-center pointer-coarse:min-h-11 font-medium text-navy underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-navy"
                               >
                                 {content}
                               </Link>

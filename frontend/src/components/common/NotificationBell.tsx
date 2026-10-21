@@ -99,7 +99,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       >
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
-          <span className="absolute top-0.5 right-0.5 flex h-3.5 min-w-[14px] items-center justify-center bg-rose-600 px-1 text-[9px] font-mono font-bold text-white">
+          <span className="absolute top-0.5 right-0.5 flex h-3.5 min-w-[14px] items-center justify-center bg-rose-600 px-1 text-[9px] font-bold text-white">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}

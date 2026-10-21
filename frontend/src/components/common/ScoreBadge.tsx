@@ -20,7 +20,7 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
 
   if (score === undefined || score === null || score === "") {
     return (
-      <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-mono bg-slate-100 text-slate-500 border border-slate-300">
+      <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-xs bg-slate-100 text-slate-500 border border-slate-300">
         N/A
       </span>
     );
@@ -45,7 +45,7 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md gap-1 font-mono font-bold border tabular-nums select-none",
+        "inline-flex items-center rounded-md gap-1 font-bold border tabular-nums select-none",
         colorStyles,
         sizeStyles[size],
         className
@@ -53,7 +53,7 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
       title={`Match score: ${formatScore(num)} out of 100`}
     >
       <span>{Math.round(num)}</span>
-      <span className="text-[11px] font-normal opacity-70 font-mono">/100</span>
+      <span className="text-[11px] font-normal opacity-70">/100</span>
     </span>
   );
 };

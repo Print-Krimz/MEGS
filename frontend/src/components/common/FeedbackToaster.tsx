@@ -25,9 +25,9 @@ export const FeedbackToaster: React.FC = () => {
           title: "font-sans text-sm font-semibold text-slate-900",
           description: "text-sm text-slate-600 leading-normal font-sans mt-0.5",
           actionButton:
-            "px-2.5 py-1 bg-teal-700 hover:bg-teal-800 text-white font-mono text-[11px] font-semibold transition-colors",
+            "px-2.5 py-1 bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-semibold transition-colors",
           cancelButton:
-            "px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-[11px] font-medium transition-colors",
+            "px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium transition-colors",
           closeButton:
             "text-slate-500 hover:text-slate-900 p-1 rounded-md transition-colors",
           success: "border border-emerald-200 bg-emerald-50/40",

@@ -50,7 +50,7 @@ export const RealtimeToastContainer: React.FC<RealtimeToastContainerProps> = ({
               </div>
               <div className="space-y-0.5 min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold font-mono uppercase text-slate-100 truncate">
+                  <span className="text-xs font-semibold text-slate-100 truncate">
                     {toast.title}
                   </span>
                   {toast.link && <ArrowUpRight className="w-3 h-3 text-teal-400 shrink-0" />}

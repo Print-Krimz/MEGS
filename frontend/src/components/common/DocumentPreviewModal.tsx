@@ -111,7 +111,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 </h2>
                 {requirementStatus && (
                   <span
-                    className={`text-[9px] sm:text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                    className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
                       requirementStatus === "APPROVED"
                         ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                         : requirementStatus === "REJECTED"
@@ -136,7 +136,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 target="_blank"
                 rel="noreferrer"
                 download={preview?.originalName || "document"}
-                className="inline-flex items-center gap-1 min-h-11 text-xs font-mono font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 px-3 py-1.5 sm:px-3 rounded hover:bg-slate-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                className="inline-flex items-center gap-1 min-h-11 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 px-3 py-1.5 sm:px-3 rounded hover:bg-slate-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
                 title="Download original file"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -156,7 +156,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         </div>
 
         {/* Metadata sub-bar */}
-        <div className="px-4 py-2 sm:px-5 bg-slate-50 border-b border-slate-200 text-[11px] sm:text-xs text-slate-600 flex flex-wrap items-center justify-between gap-2 font-mono shrink-0">
+        <div className="px-4 py-2 sm:px-5 bg-slate-50 border-b border-slate-200 text-[11px] sm:text-xs text-slate-600 flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             {(applicantName || preview?.applicantName) && (
               <div className="flex items-center gap-1.5">
@@ -195,7 +195,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           ) : isLoading && !fileUrl ? (
             <div className="text-center p-8 space-y-3">
               <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
-              <p className="text-xs font-mono text-slate-600">
+              <p className="text-xs text-slate-600">
                 Fetching secure document preview...
               </p>
             </div>
@@ -284,14 +284,14 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           {rejectMode ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-rose-900 uppercase font-mono flex items-center gap-1.5">
+                <span className="text-xs font-bold text-rose-900 uppercase flex items-center gap-1.5">
                   <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                   <span>Specify Rejection Reason / Instructions</span>
                 </span>
                 <button
                   type="button"
                   onClick={() => setRejectMode(false)}
-                  className="text-xs font-mono text-slate-500 hover:text-slate-800 underline"
+                  className="text-xs text-slate-500 hover:text-slate-800 underline"
                 >
                   Cancel
                 </button>
@@ -324,7 +324,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             </div>
           ) : (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="text-[11px] sm:text-xs text-slate-500 font-mono">
+              <div className="text-[11px] sm:text-xs text-slate-500">
                 {documentId
                   ? "Previewing only. Viewing a document never changes its review status."
                   : "No action available."}

@@ -128,7 +128,7 @@ export const Dialog: React.FC<DialogProps> = ({
         ref={dialogRef}
         tabIndex={-1}
         className={cn(
-          "relative w-full bg-white border border-slate-400 transform transition-all shadow-modal mx-auto",
+          "relative w-full bg-white border border-slate-400 rounded-md transform transition-all shadow-modal mx-auto",
           overflowVisible ? "overflow-visible" : "overflow-hidden",
           sizeStyles[size],
           className

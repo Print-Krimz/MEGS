@@ -40,12 +40,29 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   /** Small count pill. Hidden when 0. `label` is read out by screen readers. */
-  badge?: { count: number; label: string };
+  badge?: { count: number; label: string; /** "action" (default) = needs TA work, red pill. "info" = grey. */ tone?: "action" | "info" };
 }
 interface NavSection {
   label: string;
   items: NavItem[];
 }
+
+const SEARCH_HINT =
+  typeof navigator !== "undefined" && /mac|iphone|ipad/i.test(navigator.platform ?? "") ? "\u2318 K" : "Ctrl K";
+
+/** MEGS logo plus the portal name. The artwork has a white ground, so it sits on a small white tile. */
+const BrandLockup: React.FC<{ compact?: boolean }> = ({ compact = false }) => (
+  <div className="flex min-w-0 items-center gap-2.5">
+    <img
+      src="/images/canva-ref/megs-logo-352.webp"
+      alt="MEGS"
+      width={352}
+      height={255}
+      className={`${compact ? "h-7" : "h-9"} w-auto shrink-0 rounded bg-white p-0.5`}
+    />
+    {!compact && <span className="truncate text-sm font-semibold leading-tight text-white">Talent Acquisition</span>}
+  </div>
+);
 
 /** One nav list for the mobile drawer (size "lg", 44px rows) and the desktop sidebar (size "md"). */
 const NavList: React.FC<{
@@ -61,7 +78,7 @@ const NavList: React.FC<{
   >
     {sections.map((section) => (
       <div key={section.label} className="space-y-1">
-        {!collapsed && <div className="px-2 text-xs font-medium text-slate-400">{section.label}</div>}
+        {!collapsed && <div className="px-3 text-[11px] font-medium uppercase tracking-wide text-white/55">{section.label}</div>}
         <div className="space-y-0.5">
           {section.items.map((item) => {
             const Icon = item.icon;
@@ -78,8 +95,8 @@ const NavList: React.FC<{
                   size === "lg" ? "min-h-11" : "min-h-10"
                 } ${
                   active
-                    ? "border-navy-bar bg-navy-lift font-medium text-white"
-                    : "border-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+                    ? "border-megs-red bg-white/5 font-medium text-white"
+                    : "border-transparent text-white/75 hover:bg-white/5 hover:text-white"
                 }`}
               >
                 <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
@@ -88,7 +105,7 @@ const NavList: React.FC<{
                   <>
                     <span
                       aria-hidden="true"
-                      className={`rounded-full bg-amber-300 px-1.5 text-xs font-semibold leading-5 text-slate-950 tabular-nums ${
+                      className={`rounded-full px-1.5 text-xs font-semibold leading-5 tabular-nums ${item.badge?.tone === "info" ? "bg-white/15 text-white" : "bg-white text-megs-red"} ${
                         collapsed ? "absolute right-0.5 top-0.5 min-w-5 text-center text-[10px] leading-4" : "ml-auto"
                       }`}
                     >
@@ -255,6 +272,20 @@ export const TALayout: React.FC = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [accountMenuOpen]);
 
+  // Ctrl/Cmd+K jumps to the global search.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+      const input = document.querySelector<HTMLInputElement>('header input[role="combobox"]');
+      if (!input || input.offsetParent === null) return;
+      e.preventDefault();
+      input.focus();
+      input.select();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const overdueInterviews = useQuery({
     // Same key and fetcher as the dashboard interview SLA card, so the cache is shared.
     queryKey: ["ta", "compliance", "interviews", "summary"],
@@ -327,7 +358,7 @@ export const TALayout: React.FC = () => {
     (location.pathname.startsWith("/ta/notifications") ? "Notifications" : "Talent Acquisition");
 
   return (
-    <div className="ta-portal min-h-screen bg-slate-100 flex flex-col lg:flex-row overflow-x-hidden">
+    <div className="ta-portal min-h-screen bg-ta-page flex flex-col lg:flex-row overflow-x-hidden">
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
 
       <a
@@ -351,18 +382,15 @@ export const TALayout: React.FC = () => {
             role="dialog"
             aria-modal="true"
             aria-label="TA portal navigation"
-            className="relative flex-1 flex flex-col max-w-xs w-full bg-slate-950 text-slate-300 border-r border-slate-800 shadow-2xl z-10 animate-in slide-in-from-left duration-200"
+            className="relative flex-1 flex flex-col max-w-xs w-full border-t-4 border-megs-red bg-megs-navy-900 text-white/75 border-r border-white/10 shadow-2xl z-10 animate-in slide-in-from-left duration-200"
           >
             {/* Drawer Header */}
-            <div className="h-14 flex items-center justify-between px-4 bg-slate-950 border-b border-slate-800">
-              <div className="leading-tight">
-                <div className="text-base font-bold font-mono tracking-tight text-white">MEGS</div>
-                <div className="text-xs text-slate-400">Talent Acquisition</div>
-              </div>
+            <div className="h-14 flex items-center justify-between px-4 border-b border-white/10">
+              <BrandLockup />
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="focus-ring-dark min-h-11 min-w-11 inline-flex items-center justify-center rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+                className="focus-ring-dark min-h-11 min-w-11 inline-flex items-center justify-center rounded-md text-white/75 hover:text-white hover:bg-white/5 transition-colors"
                 aria-label="Close menu"
               >
                 <X className="w-5 h-5" />
@@ -377,29 +405,18 @@ export const TALayout: React.FC = () => {
 
       {/* Desktop Persistent Sidebar */}
       <aside
-        className={`hidden lg:flex fixed inset-y-0 left-0 z-40 bg-slate-950 text-slate-300 flex-col border-r border-slate-800 transition-all duration-150 ${
+        className={`hidden lg:flex fixed inset-y-0 left-0 z-40 border-t-4 border-megs-red bg-megs-navy-900 text-white/75 flex-col border-r border-white/10 transition-all duration-150 ${
           collapsed ? "w-16" : "w-64"
         }`}
       >
         {/* Brand Header */}
-        <div className="h-14 flex items-center justify-between px-4 bg-slate-950 border-b border-slate-800">
-          {!collapsed && (
-            <div className="leading-tight">
-              <div className="text-base font-bold font-mono tracking-tight text-white">MEGS</div>
-                <div className="text-xs text-slate-400">Talent Acquisition</div>
-            </div>
-          )}
-
-          {collapsed && (
-            <div className="w-full flex justify-center">
-              <span className="font-mono font-bold text-sm text-navy-bar">M</span>
-            </div>
-          )}
+        <div className={`flex shrink-0 items-center border-b border-white/10 ${collapsed ? "flex-col justify-center gap-1.5 py-2" : "h-14 justify-between px-4"}`}>
+          <BrandLockup compact={collapsed} />
 
           <button
             type="button"
             onClick={() => setCollapsed(!collapsed)}
-            className="focus-ring-dark min-h-9 min-w-9 inline-flex items-center justify-center rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="focus-ring-dark min-h-9 min-w-9 inline-flex items-center justify-center rounded-md text-white/75 hover:text-white hover:bg-white/5 transition-colors"
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
           >
@@ -436,8 +453,16 @@ export const TALayout: React.FC = () => {
             <h2 className="lg:hidden text-sm font-semibold text-slate-900 truncate">{currentSectionLabel}</h2>
           </div>
 
-          <div className="flex flex-1 items-center justify-end md:justify-center min-w-0 px-2">
-            <TAGlobalSearch />
+          <div className="flex flex-1 items-center justify-end gap-2 md:justify-start min-w-0 px-2 md:px-4">
+            <div className="flex w-full min-w-0 items-center gap-2 md:max-w-[480px]">
+              <TAGlobalSearch />
+              <kbd
+                aria-hidden="true"
+                className="hidden shrink-0 select-none rounded border border-slate-300 bg-slate-50 font-sans px-1.5 py-0.5 text-[11px] font-medium text-slate-600 xl:inline-block"
+              >
+                {SEARCH_HINT}
+              </kbd>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
@@ -461,7 +486,7 @@ export const TALayout: React.FC = () => {
                 aria-expanded={accountMenuOpen}
                 aria-controls="ta-account-menu"
               >
-                <div className="w-7 h-7 bg-slate-800 text-navy-bar border border-slate-700 text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-md bg-navy text-white text-xs font-semibold flex items-center justify-center shrink-0">
                   {initials}
                 </div>
                 <div className="hidden sm:block text-left leading-tight">
@@ -488,12 +513,12 @@ export const TALayout: React.FC = () => {
                   onKeyDown={(e) => {
                     if (e.key === "Tab") closeAccountMenu();
                   }}
-                  className="absolute right-0 mt-1.5 w-64 bg-white shadow-modal border border-slate-300 z-50 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100"
+                  className="absolute right-0 mt-1.5 w-64 rounded-md bg-white shadow-modal border border-slate-300 z-50 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100"
                 >
                   {/* User Identity Context Card */}
                   <div className="p-3 bg-slate-50 border-b border-slate-200">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 bg-slate-800 text-navy-bar border border-slate-700 text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                      <div className="w-9 h-9 rounded-md bg-navy text-white text-xs font-semibold flex items-center justify-center shrink-0">
                         {initials}
                       </div>
                       <div className="overflow-hidden min-w-0">
@@ -502,19 +527,19 @@ export const TALayout: React.FC = () => {
                             <div className="text-xs font-bold text-slate-900 truncate">
                               {fullName}
                             </div>
-                            <div className="text-[11px] text-slate-500 font-mono truncate">
+                            <div className="text-[11px] text-slate-600 truncate">
                               {user?.email}
                             </div>
                           </>
                         ) : (
-                          <div className="text-xs font-semibold text-slate-900 font-mono truncate">
+                          <div className="text-xs font-semibold text-slate-900 truncate">
                             {user?.email}
                           </div>
                         )}
                       </div>
                     </div>
                     <div className="mt-2 flex items-center gap-1.5">
-                      <span className="px-1.5 py-0.5 bg-navy-soft text-navy border border-navy-line text-[10px] font-mono font-medium">
+                      <span className="px-1.5 py-0.5 rounded bg-navy-soft text-navy border border-navy-line text-xs font-medium">
                         {user?.role === Role.ADMINISTRATOR ? "Admin & TA Portal" : "Talent Acquisition"}
                       </span>
                     </div>

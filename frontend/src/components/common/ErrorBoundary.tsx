@@ -43,8 +43,8 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4 border border-rose-200">
               <AlertOctagon className="w-6 h-6" />
             </div>
-            <div className="text-xs font-mono font-bold uppercase text-rose-700 mb-1">
-              Application Runtime Error
+            <div className="text-xs font-medium text-rose-700 mb-1">
+              Application error
             </div>
             <h2 className="text-lg font-bold text-slate-900 mb-2">
               Something went wrong

@@ -65,11 +65,12 @@ export const Tabs: React.FC<TabsProps> = ({ items, value, onChange, ariaLabel, c
     const list = listRef.current;
     const selected = list?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
     if (!list || !selected) return;
+    // Scroll only the tab strip, never the page: nearest edge, same as scrollIntoView({ inline: "nearest" }).
     const left = selected.offsetLeft;
     const right = left + selected.offsetWidth;
     if (left < list.scrollLeft) list.scrollLeft = Math.max(0, left - 8);
     else if (right > list.scrollLeft + list.clientWidth) list.scrollLeft = right - list.clientWidth + 8;
-  }, [value]);
+  }, [value, items.length]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -95,7 +96,7 @@ export const Tabs: React.FC<TabsProps> = ({ items, value, onChange, ariaLabel, c
       aria-label={ariaLabel}
       style={fadeStyle}
       className={cn(
-        "flex flex-nowrap items-stretch overflow-x-auto overscroll-x-contain border-b border-slate-300 bg-slate-100 [scrollbar-width:thin]",
+        "flex flex-nowrap items-stretch overflow-x-auto overscroll-x-contain border-b border-slate-300 bg-slate-100 rounded-t-md [scrollbar-width:thin]",
         className
       )}
     >

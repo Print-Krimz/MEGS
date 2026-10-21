@@ -30,11 +30,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     <div
       className={cn(
         "flex flex-col items-center justify-center p-8 sm:p-10 text-center",
-        bare ? "bg-transparent" : "bg-white border border-slate-300 my-3",
+        bare ? "bg-transparent" : "bg-white border border-slate-300 rounded-md my-3",
         className
       )}
     >
-      <div className="w-10 h-10 bg-slate-100 border border-slate-300 text-slate-500 flex items-center justify-center mb-2.5">
+      <div className="w-10 h-10 bg-slate-100 border border-slate-300 rounded-md text-slate-500 flex items-center justify-center mb-2.5">
         {renderedIcon}
       </div>
       <h3 className="text-sm sm:text-base font-semibold text-slate-900 mb-1">{title}</h3>

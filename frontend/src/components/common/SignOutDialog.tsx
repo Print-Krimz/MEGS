@@ -39,14 +39,14 @@ export const SignOutDialog: React.FC<SignOutDialogProps> = ({
   return (
     <Dialog open={open} onClose={() => !loading && onClose()} size="sm">
       <div className="flex items-start gap-3.5">
-        <div className="p-2 bg-amber-100 border border-amber-300 shrink-0">
+        <div className="p-2 bg-amber-100 border border-amber-300 rounded-md shrink-0">
           <AlertTriangle className="w-5 h-5 text-amber-700" />
         </div>
         <div className="space-y-1 flex-1">
-          <h3 className="text-xs font-bold text-slate-950 font-mono uppercase tracking-wide">
+          <h3 className="text-base font-semibold text-slate-950">
             {title}
           </h3>
-          <p className="text-xs text-slate-600 leading-normal font-sans">
+          <p className="text-sm text-slate-600 leading-normal">
             {description}
           </p>
         </div>

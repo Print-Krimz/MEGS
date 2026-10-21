@@ -63,6 +63,9 @@
   --color-focus: #0B315D;
   --color-focus-on-dark: #8FBCEB;
   --color-megs-red-tint: #FDF1F2;
+  --color-megs-red: #C8102E;
+  --color-ta-page: #F6F7F9;
+  --color-ta-line: #DDE2E9;
 
   /* Typography */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -120,6 +123,28 @@
   font-stretch: 112%;
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+
+/*
+ * TA portal type and surface system. Archivo for everything, display titles in the
+ * wide cut, a calmer page ground and lighter panel borders. Form controls keep their
+ * stronger borders so inputs stay visible.
+ */
+.ta-portal {
+  --font-sans: "Archivo Variable", "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-sans);
+  background-color: var(--color-ta-page);
+}
+.ta-portal .font-display {
+  font-stretch: 112%;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.ta-portal .border-slate-300:not(input):not(select):not(textarea):not(button) {
+  border-color: var(--color-ta-line);
+}
+.ta-portal .divide-slate-300 > :not(:last-child) {
+  border-color: var(--color-ta-line);
 }
 
 /* Respect motion preferences for non-essential movement. */

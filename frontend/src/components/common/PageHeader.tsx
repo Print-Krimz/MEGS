@@ -27,7 +27,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   flush = false,
 }) => {
   return (
-    <div className={cn("space-y-1.5 border-b border-slate-300 pb-3.5", !flush && "mb-5")}>
+    <div className={cn("space-y-1.5 border-b border-slate-300 pb-4", !flush && "mb-5")}>
       {/* Breadcrumbs */}
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-x-1.5 text-sm text-slate-600">
@@ -55,10 +55,11 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       )}
 
       {/* Title & Actions Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="space-y-0.5 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-950 break-words">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div className="space-y-1 min-w-0">
+          <span aria-hidden="true" className="block h-[3px] w-10 bg-megs-red" />
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <h1 className="font-display text-2xl md:text-3xl leading-tight text-slate-950 break-words">
               {title}
             </h1>
             {meta}
@@ -71,7 +72,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         </div>
 
         {actions && (
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 sm:justify-end">
             {actions}
           </div>
         )}

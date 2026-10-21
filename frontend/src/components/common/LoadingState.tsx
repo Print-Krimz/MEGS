@@ -29,7 +29,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
         {Array.from({ length: rows }).map((_, idx) => (
           <div
             key={idx}
-            className="bg-white p-4 border border-slate-300 space-y-2.5 animate-pulse"
+            className="bg-white p-4 border border-slate-300 rounded-md space-y-2.5 animate-pulse"
           >
             <div className="flex items-center justify-between">
               <div className="h-3.5 bg-slate-200 w-1/2" />
@@ -51,7 +51,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
     return (
       <div className={cn("space-y-4 my-3 animate-pulse", className)}>
         {/* Header Skeleton */}
-        <div className="bg-white p-5 border border-slate-300 space-y-3">
+        <div className="bg-white p-5 border border-slate-300 rounded-md space-y-3">
           <div className="flex justify-between items-start">
             <div className="space-y-1.5 w-1/3">
               <div className="h-5 bg-slate-200 w-3/4" />
@@ -64,12 +64,12 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
 
         {/* Content Skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-white p-5 border border-slate-300 space-y-3">
+          <div className="lg:col-span-2 bg-white p-5 border border-slate-300 rounded-md space-y-3">
             <div className="h-4 bg-slate-200 w-1/4" />
             <div className="h-16 bg-slate-50 w-full border border-slate-200" />
             <div className="h-24 bg-slate-50 w-full border border-slate-200" />
           </div>
-          <div className="bg-white p-5 border border-slate-300 space-y-3">
+          <div className="bg-white p-5 border border-slate-300 rounded-md space-y-3">
             <div className="h-4 bg-slate-200 w-1/2" />
             <div className="h-3.5 bg-slate-100 w-full" />
             <div className="h-3.5 bg-slate-100 w-3/4" />
@@ -82,7 +82,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
 
   // Default: Table skeleton
   return (
-    <div className={cn("w-full bg-white border border-slate-300 overflow-hidden my-3 animate-pulse", className)} role="status" aria-live="polite">
+    <div className={cn("w-full bg-white border border-slate-300 rounded-md overflow-hidden my-3 animate-pulse", className)} role="status" aria-live="polite">
       <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-300 flex justify-between items-center">
         {message ? (
           <span className="text-xs text-slate-500 font-sans">{message}</span>
