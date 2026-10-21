@@ -32,6 +32,7 @@ import {
 } from "../../lib/statutory-validation";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useDirtyGuard } from "../../hooks/useDirtyGuard";
+import { buildJobDescriptionDraft } from "../../lib/job-description-draft";
 import {
   normalizeServerSearch,
   REFERENCE_QUERY_STALE_TIME_MS,
@@ -91,7 +92,7 @@ export const JobPostingsPage: React.FC = () => {
   const [formRequirements, setFormRequirements] = useState("");
   const [formIsEvergreen, setFormIsEvergreen] = useState(false);
   // What the selected request filled in, so only edits on top of it count as unsaved work.
-  const [baseline, setBaseline] = useState({ title: "", location: "", requirements: "" });
+  const [baseline, setBaseline] = useState({ title: "", location: "", requirements: "", description: "" });
   const [justSavedJobId, setJustSavedJobId] = useState<number | null>(null);
 
   const isFormDirty =
@@ -101,7 +102,7 @@ export const JobPostingsPage: React.FC = () => {
       formLocation !== baseline.location ||
       formRequirements !== baseline.requirements ||
       formImageUrl.trim() !== "" ||
-      formDescription.trim() !== "" ||
+      formDescription.trim() !== baseline.description.trim() ||
       formIsEvergreen);
   const { confirmDiscard, discardDialog } = useDirtyGuard({
     isDirty: isFormDirty,
@@ -184,11 +185,15 @@ export const JobPostingsPage: React.FC = () => {
           title: chosen.title || "",
           location: chosen.location || "",
           requirements: sections.join("\n\n") || chosen.requiredSkills || "",
+          // Role facts only. The request's client notes are internal and are never copied here.
+          description: buildJobDescriptionDraft(chosen),
         };
         setFormTitle(next.title);
         setFormLocation(next.location);
         setFormRequirements(next.requirements);
+        setFormDescription(next.description);
         setBaseline(next);
+        clearServerFieldError("description");
       }
     }
   };
@@ -201,7 +206,7 @@ export const JobPostingsPage: React.FC = () => {
     setFormDescription("");
     setFormRequirements("");
     setFormIsEvergreen(false);
-    setBaseline({ title: "", location: "", requirements: "" });
+    setBaseline({ title: "", location: "", requirements: "", description: "" });
     setCreateModalTab("edit");
     setServerFieldErrors({});
   };
@@ -292,7 +297,9 @@ export const JobPostingsPage: React.FC = () => {
       if (locErr) errors.location = locErr;
     }
     if (!formDescription.trim()) errors.description = "Describe the role and its responsibilities.";
-    else {
+    else if (status !== JobStatus.DRAFT && baseline.description && formDescription.trim() === baseline.description.trim()) {
+      errors.description = "Add the responsibilities for this role. The text so far only lists the request's details.";
+    } else {
       const descErr = validateProseText(formDescription, "Description and responsibilities", { maxLength: 10000 });
       if (descErr) errors.description = descErr;
     }
@@ -621,7 +628,7 @@ export const JobPostingsPage: React.FC = () => {
                   subtitle: `Client: ${m.client?.name || "Client"} • ${m.location || "Nationwide"} • ${plural(m.headcount, "position")}`,
                   badge: formatStatusWord(m.status),
                 }))}
-                helperText="The opening is posted under this request. Choosing one fills the title, work site, and skills."
+                helperText="The opening is posted under this request. Choosing one fills the title, work site, skills, and the start of the description."
                 required
                 emptyText="No open manpower requests found"
               />
@@ -675,6 +682,11 @@ export const JobPostingsPage: React.FC = () => {
                 }}
                 rows={4}
                 maxLength={10000}
+                helperText={
+                  baseline.description && formDescription.trim() === baseline.description.trim()
+                    ? "Drafted from the request's details. Add the day-to-day responsibilities before you publish."
+                    : undefined
+                }
                 required
               />
               <Textarea
