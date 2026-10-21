@@ -84,9 +84,10 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({
     // stays aligned with its row and scrolls within the remaining viewport
     // instead of being pushed upward over earlier records.
     // A side menu next to a row at the very bottom would hang below the
-    // viewport, so lift it just enough to fit.
+    // viewport, so lift it just enough to keep about two items in view.
     if (opensBeside) {
-      top = Math.min(top, Math.max(edge, window.innerHeight - menuRect.height - edge));
+      const minVisible = Math.min(menuRect.height, 88);
+      top = Math.min(top, Math.max(edge, window.innerHeight - minVisible - edge));
     }
     const maxHeight = opensBeside
       ? Math.max(44, window.innerHeight - top - edge)
