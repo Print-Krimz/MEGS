@@ -225,12 +225,14 @@ export const endEmployeeDeploymentHandler = async (req: Request, res: Response):
 
     sendSuccess(res, "Deployment ended successfully", ended);
   } catch (error: any) {
-    const statusCode = error.message.includes("not found")
+    // Rule checks in endEmployeeDeployment (dates, status) are the caller's to fix, so they are 400s.
+    const message = String(error?.message ?? "");
+    const statusCode = message.includes("not found")
       ? 404
-      : error.message.includes("already")
+      : /already|cannot|required|Cancel a scheduled/i.test(message)
       ? 400
       : 500;
-    sendError(res, error.message, statusCode);
+    sendError(res, message, statusCode);
   }
 };
 

@@ -41,7 +41,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
   const [newStatus, setNewStatus] = useState<DeploymentStatus>(DeploymentStatus.ACTIVE);
   const [statusNotes, setStatusNotes] = useState("");
   const [actualStart, setActualStart] = useState(getManilaToday());
-  const [endModalDeployment, setEndModalDeployment] = useState<{ id: number; employeeName: string } | null>(null);
+  const [endModalDeployment, setEndModalDeployment] = useState<{ id: number; employeeName: string; actualStart?: string | null } | null>(null);
   const [reviewModalDeployment, setReviewModalDeployment] = useState<{ id: number; employeeName: string } | null>(null);
 
   const deploymentsQuery = useQuery({
@@ -176,7 +176,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
       menuItems.push({
         label: "End assignment",
         tone: "danger",
-        onSelect: () => setEndModalDeployment({ id: dep.id, employeeName }),
+        onSelect: () => setEndModalDeployment({ id: dep.id, employeeName, actualStart: dep.actualStart }),
       });
     }
 
@@ -437,6 +437,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
         open={Boolean(endModalDeployment)}
         deploymentId={endModalDeployment?.id ?? 0}
         employeeName={endModalDeployment?.employeeName ?? ""}
+        actualStart={endModalDeployment?.actualStart}
         onClose={() => setEndModalDeployment(null)}
       />
     </div>

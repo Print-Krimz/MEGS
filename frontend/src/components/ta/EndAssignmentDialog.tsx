@@ -5,9 +5,10 @@ import { toast } from "sonner";
 import { Button, Dialog, Select, Textarea } from "../ui";
 import { DateField } from "../common/DateField";
 import { employeesApi } from "../../lib/api/employees.api";
-import { getManilaToday } from "../../lib/field-limits";
+import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
+import { formatDate } from "../../lib/utils";
 
 type Disposition = "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED";
 
@@ -23,7 +24,16 @@ const DISPOSITION_RESULT: Record<Disposition, string> = {
   SEPARATED: "Marked as separated.",
 };
 
-export const EndAssignmentDialog: React.FC<{ open: boolean; deploymentId: string | number; employeeName: string; onClose: () => void }> = ({ open, deploymentId, employeeName, onClose }) => {
+export const EndAssignmentDialog: React.FC<{
+  open: boolean;
+  deploymentId: string | number;
+  employeeName: string;
+  /** Recorded first working date. The last working date cannot be earlier. */
+  actualStart?: string | null;
+  onClose: () => void;
+}> = ({ open, deploymentId, employeeName, actualStart, onClose }) => {
+  const earliestEnd = toManilaDateInput(actualStart);
+  const startsLater = Boolean(earliestEnd) && earliestEnd > getManilaToday();
   const cache = useQueryClient();
   const navigate = useNavigate();
   const [actualEnd, setActualEnd] = useState(getManilaToday());
@@ -64,11 +74,17 @@ export const EndAssignmentDialog: React.FC<{ open: boolean; deploymentId: string
     onError: (error) => notify.error("Unable to end assignment", error),
   });
 
-  const missing = !actualEnd ? "Enter the last working date." : !reason.trim() ? "Add a reason." : !disposition ? "Choose what happens next." : "";
+  const missing = startsLater ? "This assignment has not started yet." : !actualEnd ? "Enter the last working date." : !reason.trim() ? "Add a reason." : !disposition ? "Choose what happens next." : "";
 
   return <Dialog open={open} onClose={onClose} title="End assignment" description={`Record the last working date and next step for ${employeeName}.`}>
     <div className="space-y-4">
-      <DateField label="Actual last working date" value={actualEnd} max={getManilaToday()} onChange={(event) => setActualEnd(event.target.value)} required />
+      {startsLater ? (
+        <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {employeeName || "This worker"} starts on {formatDate(earliestEnd)}. You can end the assignment from that date.
+        </p>
+      ) : (
+        <DateField label="Actual last working date" value={actualEnd} min={earliestEnd || undefined} max={getManilaToday()} onChange={(event) => setActualEnd(event.target.value)} required />
+      )}
       <div className="space-y-1">
         <Select label="Worker’s next step" value={disposition} onChange={(event) => setDisposition(event.target.value as Disposition | "")} options={[
           { value: "", label: "Choose what happens next" },

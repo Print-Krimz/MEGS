@@ -237,7 +237,7 @@ export const DeploymentDetailPage: React.FC = () => {
       </div>
 
       <RecordCheckInDialog open={checkInOpen} deploymentId={deploymentId} employeeName={empName} onClose={() => setCheckInOpen(false)} />
-      <EndAssignmentDialog open={endModalOpen} deploymentId={deploymentId} employeeName={empName} onClose={() => setEndModalOpen(false)} />
+      <EndAssignmentDialog open={endModalOpen} deploymentId={deploymentId} employeeName={empName} actualStart={dep.actualStart} onClose={() => setEndModalOpen(false)} />
 
       <Dialog
         open={statusModalOpen}
