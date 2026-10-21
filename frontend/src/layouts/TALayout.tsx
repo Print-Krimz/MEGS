@@ -50,19 +50,13 @@ interface NavSection {
 const SEARCH_HINT =
   typeof navigator !== "undefined" && /mac|iphone|ipad/i.test(navigator.platform ?? "") ? "\u2318 K" : "Ctrl K";
 
-/** MEGS logo plus the portal name. The artwork has a white ground, so it sits on a small white tile. */
-const BrandLockup: React.FC<{ compact?: boolean }> = ({ compact = false }) => (
-  <div className="flex min-w-0 items-center gap-2.5">
-    <img
-      src="/images/canva-ref/megs-logo-352.webp"
-      alt="MEGS"
-      width={352}
-      height={255}
-      className={`${compact ? "h-7" : "h-9"} w-auto shrink-0 rounded bg-white p-0.5`}
-    />
-    {!compact && <span className="truncate text-sm font-semibold leading-tight text-white">Talent Acquisition</span>}
-  </div>
-);
+/** The portal name. The collapsed rail shows nothing here, only its expand button. */
+const BrandLockup: React.FC<{ compact?: boolean }> = ({ compact = false }) =>
+  compact ? null : (
+    <div className="flex min-w-0 items-center">
+      <span className="truncate text-sm font-semibold leading-tight text-white">Talent Acquisition</span>
+    </div>
+  );
 
 /** One nav list for the mobile drawer (size "lg", 44px rows) and the desktop sidebar (size "md"). */
 const NavList: React.FC<{
