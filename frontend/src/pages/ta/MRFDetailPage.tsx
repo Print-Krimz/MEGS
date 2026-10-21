@@ -12,7 +12,12 @@ import {
   ConfirmDialog,
   StatusBadge,
   Tabs,
+  RecordSummary,
 } from "../../components/common";
+import { RecordBreadcrumb } from "../../components/ta/recruitment/RecordBreadcrumb";
+import { MRFOverviewTab } from "../../components/ta/recruitment/mrf/MRFOverviewTab";
+import { MRFLinkedJobsTab } from "../../components/ta/recruitment/mrf/MRFLinkedJobsTab";
+import { MRFHistoryTab } from "../../components/ta/recruitment/mrf/MRFHistoryTab";
 import { Button, Dialog, Select, ComboBox, Input, Textarea } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { AssignmentPanel } from "../../components/ta/AssignmentPanel";
@@ -25,23 +30,12 @@ import {
   EMPLOYMENT_TYPE_OPTIONS,
   WORK_ARRANGEMENT_OPTIONS,
 } from "../../lib/hr-constants";
-import {
-  ArrowLeft,
-  Trash2,
-  ShieldCheck,
-  CheckCircle2,
-  Users,
-  Briefcase,
-  FileText,
-  Search,
-  X,
-} from "lucide-react";
+import { ArrowLeft, Briefcase, CheckCircle2, X } from "lucide-react";
 import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 import { RequirementClarityNotice } from "../../components/ta/RequirementClarityNotice";
 import { FieldWarning } from "../../components/ta/FieldWarning";
 import { plural } from "../../lib/plural";
-import { humanizeEnum } from "../../lib/labels";
 import {
   LOCATION_HINT,
   LOCATION_UNCLEAR_WARNING,
@@ -55,7 +49,7 @@ import {
   validateProseText,
 } from "../../lib/statutory-validation";
 
-type MRFDetailTab = "deployments" | "jobs" | "specifications";
+type MRFDetailTab = "overview" | "jobs" | "history";
 
 // Manual status moves for a manpower request. Mirrors MRF_MANUAL_TRANSITIONS in backend/src/services/ta/ta.mrf.service.ts.
 // CANCELLED is final for manual edits.
@@ -74,53 +68,6 @@ const MRF_MANUAL_NEXT_STATUSES: Record<string, string[]> = {
   CANCELLED: [],
 };
 
-const formatAgeRange = (min?: number | null, max?: number | null): string => {
-  if (min != null && max != null) {
-    return `${min} - ${max} years old`;
-  }
-  if (min != null) {
-    return `At least ${min} years old`;
-  }
-  if (max != null) {
-    return `Up to ${max} years old`;
-  }
-  return "No age limit specified";
-};
-
-const formatGenderPreference = (preference?: string | null): string => {
-  switch (preference) {
-    case "MALE":
-      return "Male preferred";
-    case "FEMALE":
-      return "Female preferred";
-    case "ANY":
-    default:
-      return "Any";
-  }
-};
-
-/** Stored values are usually readable ("On-site"); legacy codes like ON_SITE get humanized, hyphenated words are kept. */
-const formatSpecValue = (value: string): string => (/^[A-Z0-9_]+$/.test(value) ? humanizeEnum(value).replace(/^On site$/, "On-site") : value);
-
-const SpecLabel: React.FC<{ readOnly: boolean; children: React.ReactNode }> = ({ readOnly, children }) =>
-  readOnly ? (
-    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">{children}:</span>
-  ) : (
-    <span className="text-sm font-medium text-slate-600">{children}</span>
-  );
-
-const formatTattooPolicy = (policy?: string | null): string => {
-  switch (policy) {
-    case "NO_VISIBLE":
-      return "No visible tattoos";
-    case "NONE":
-      return "No tattoos permitted";
-    case "ALLOWED":
-    default:
-      return "Allowed";
-  }
-};
-
 export interface MRFDetailPageProps {
   readOnly?: boolean;
   baseBackPath?: string;
@@ -135,21 +82,6 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
 
   // null until the TA picks a tab; then the default depends on whether anyone is deployed yet.
   const [selectedTab, setActiveTab] = useState<MRFDetailTab | null>(null);
-  const [personnelSearch, setPersonnelSearch] = useState("");
-  const tabOrder: MRFDetailTab[] = ["deployments", "jobs", "specifications"];
-
-  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, tab: MRFDetailTab) => {
-    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-    event.preventDefault();
-    const currentIndex = tabOrder.indexOf(tab);
-    const offset = event.key === "ArrowRight" ? 1 : -1;
-    const nextIndex = (currentIndex + offset + tabOrder.length) % tabOrder.length;
-    setActiveTab(tabOrder[nextIndex]);
-    event.currentTarget.parentElement
-      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-      [nextIndex]?.focus();
-  };
-
   const [linkJobModalOpen, setLinkJobModalOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<number>(0);
 
@@ -249,9 +181,9 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   });
 
   // TA default: a request with nobody deployed yet is still being sourced, so open on its job openings.
-  // Admin keeps the deployed-workers tab first.
+  // Everyone else starts on the overview.
   const defaultTab: MRFDetailTab =
-    !readOnly && mrfQuery.data && ((mrfQuery.data.deployments as any[]) || []).length === 0 ? "jobs" : "deployments";
+    !readOnly && mrfQuery.data && ((mrfQuery.data.deployments as any[]) || []).length === 0 ? "jobs" : "overview";
   const activeTab: MRFDetailTab = selectedTab ?? defaultTab;
 
   const jobsQuery = useQuery({
@@ -541,7 +473,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             </Button>
           }
         />
-        <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
+        <div className="rounded-md border border-slate-300 bg-white p-8">
           <EmptyState
             icon={<Briefcase className="w-6 h-6 text-slate-400" />}
              title={readOnly ? "This hiring request is no longer available" : "Manpower request not found"}
@@ -590,9 +522,6 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const templates = mrf.complianceTemplates || [];
   const deployments = (mrf.deployments as any[]) || [];
   const deployedCount = mrf.fulfillment?.deployedCount ?? deployments.length;
-  const fulfillmentRate =
-    mrf.fulfillment?.fulfillmentRate ??
-    (mrf.headcount > 0 ? Math.round((deployedCount / mrf.headcount) * 100) : 0);
   const remainingCount =
     mrf.fulfillment?.remainingCount ?? Math.max(0, mrf.headcount - deployedCount);
   const isFulfilled = mrf.status === "FILLED" || Boolean(mrf.fulfillment?.isFulfilled);
@@ -633,32 +562,13 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     (req) => !COMPLIANCE_201_PRESETS.some((p) => p.label.toLowerCase() === req.toLowerCase())
   );
 
-  // Filter deployments by personnel search query
-  const filteredDeployments = deployments.filter((d: any) => {
-    if (!personnelSearch.trim()) return true;
-    const query = personnelSearch.toLowerCase().trim();
-    const profile =
-      d.employee?.user?.applicantProfile || d.application?.user?.applicantProfile;
-    const workerName = profile
-      ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim()
-      : d.employee?.user?.email || "";
-    const empNumber = d.employee?.employeeNumber || "";
-    const site = d.site || mrf.location || "";
-    return (
-      workerName.toLowerCase().includes(query) ||
-      empNumber.toLowerCase().includes(query) ||
-      site.toLowerCase().includes(query)
-    );
-  });
+  const cancelled = mrf.status === "CANCELLED";
+  const statusLabel = formatTaStatus(readOnly ? formatAdminPipelineStage(mrf.status) : mrf.status);
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={mrf.title}
-        description={readOnly
-          ? `Request #${mrf.id} · Client: ${mrf.client?.name || "Client"} · View only`
-          : `Request #${mrf.id} · Client: ${mrf.client?.name || "Client"}`}
-        breadcrumbs={
+      <RecordBreadcrumb
+        items={
           readOnly
             ? [
                 { label: "Administration", href: "/admin" },
@@ -671,19 +581,46 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 { label: mrf.title },
               ]
         }
+      />
+
+      <RecordSummary
+        titleAs="h1"
+        title={mrf.title}
+        subtitle={readOnly ? `Request #${mrf.id} · View only` : `Request #${mrf.id}`}
+        chips={<StatusBadge status={statusLabel} type="raw" />}
+        progress={{ value: deployedCount, max: mrf.headcount, label: "Positions filled" }}
+        facts={[
+          { label: "Client", value: <span className="font-medium">{mrf.client?.name || "Client"}</span> },
+          {
+            label: "Target fill date",
+            value: (
+              <>
+                <StatusBadge
+                  status={mrf.targetFillDate ? formatDate(mrf.targetFillDate) : undefined}
+                  type="targetDate"
+                  appearance="text"
+                />
+                {!readOnly && isOverdue && <span className="ml-2 text-xs font-semibold text-rose-700">Overdue</span>}
+              </>
+            ),
+          },
+          { label: "Priority", value: <StatusBadge status={mrf.priority} type="priority" size="sm" appearance="text" /> },
+          { label: "Remaining", value: plural(remainingCount, "position") },
+          { label: "Created", value: formatDate(mrf.createdAt) },
+        ]}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <>
             {readOnly && (
               <Button asChild variant="outline" size="sm">
                 <Link to={baseBackPath}>
-                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
                   Back to notifications
                 </Link>
               </Button>
             )}
             {!readOnly && (
               <>
-                {mrf.status !== "CANCELLED" && (
+                {!cancelled && (
                   <Button asChild variant="primary" size="sm">
                     <Link to="/ta/jobs" search={{ mrfId: mrf.id }}>
                       Create job opening
@@ -708,7 +645,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 </Button>
               </>
             )}
-          </div>
+          </>
         }
       />
 
@@ -726,582 +663,69 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
         />
       )}
 
-      {/* Fulfillment Callout Banner */}
       {isFulfilled && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3 text-emerald-900 shadow-xs">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          <p className="text-xs text-emerald-900">
-             <strong className="font-bold">All positions filled.</strong> The target was reached and linked job openings have been closed.
+        <div className="flex items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
+          <p className="text-sm">
+            <strong className="font-semibold">All positions filled.</strong> The target was reached and linked job openings have been closed.
           </p>
         </div>
       )}
 
-      {/* Metrics & Overview Banner */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-          <div className={readOnly ? "flex items-center gap-1.5 text-[11px] font-mono font-bold text-slate-500 uppercase" : "flex items-center gap-1.5 text-xs font-medium text-slate-600"}>
-            {readOnly && <Users className="w-3.5 h-3.5 text-slate-400" />}
-            <span>Positions filled</span>
-          </div>
-          <div className="text-2xl font-bold font-sans text-slate-900 mt-1 tabular-nums">
-            {deployedCount} / <span>{mrf.headcount}</span>
-          </div>
-          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-2">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${
-                fulfillmentRate >= 100
-                  ? "bg-emerald-600"
-                  : fulfillmentRate > 0
-                  ? readOnly ? "bg-teal-600" : "bg-navy"
-                  : "bg-slate-300"
-              }`}
-              style={{ width: `${Math.min(100, Math.max(0, fulfillmentRate))}%` }}
-            />
-          </div>
-          <div className={readOnly ? "text-[11px] text-slate-500 mt-2 font-mono" : "mt-2 text-xs text-slate-600"}>
-             {fulfillmentRate}% • {plural(remainingCount, "position")} remaining
-          </div>
-        </div>
+      <Tabs
+        ariaLabel="Manpower request sections"
+        value={activeTab}
+        onChange={(id) => setActiveTab(id as MRFDetailTab)}
+        items={[
+          { id: "overview", label: "Overview", panelId: "mrf-tab-overview" },
+          {
+            id: "jobs",
+            label: "Linked jobs",
+            panelId: "mrf-tab-jobs",
+            badge: { text: String(linkedJobs.length), variant: "info" },
+          },
+          {
+            id: "history",
+            label: "History",
+            panelId: "mrf-tab-history",
+            badge: { text: `${deployments.length} of ${mrf.headcount}`, variant: "info" },
+          },
+        ]}
+      />
 
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-          <div className={readOnly ? "text-[11px] font-mono font-bold text-teal-700 uppercase" : "text-xs font-medium text-slate-600"}>
-             Request status
-          </div>
-          <div className="mt-1">
-            <StatusBadge status={formatTaStatus(readOnly ? formatAdminPipelineStage(mrf.status) : mrf.status)} type="raw" />
-          </div>
-          <div className={readOnly ? "flex flex-wrap items-center gap-2 text-[11px] text-slate-500 mt-2 font-mono" : "mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600"}>
-             <span>Priority:</span>
-             <StatusBadge status={mrf.priority} type="priority" size="sm" appearance="text" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-          <div className={readOnly ? "text-[11px] font-mono font-bold text-blue-700 uppercase" : "text-xs font-medium text-slate-600"}>
-            Target fill date
-          </div>
-          <div className="mt-1">
-            <StatusBadge
-              status={mrf.targetFillDate ? formatDate(mrf.targetFillDate) : undefined}
-              type="targetDate"
-              appearance="text"
-            />
-            {!readOnly && isOverdue && <span className="ml-2 text-xs font-semibold text-rose-700">Overdue</span>}
-          </div>
-          <div className={readOnly ? "text-[11px] text-slate-500 mt-1 font-mono" : "mt-1 text-xs text-slate-600"}>
-            Created {formatDate(mrf.createdAt)}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-          <div className={readOnly ? "text-[11px] font-mono font-bold text-emerald-700 uppercase" : "text-xs font-medium text-slate-600"}>
-            Client
-          </div>
-          <div className="text-sm font-bold text-slate-900 mt-1 truncate" title={mrf.client?.name || "Client"}>
-            {mrf.client?.name || "N/A"}
-          </div>
-          <div className={readOnly ? "text-[11px] text-slate-500 mt-1 truncate" : "mt-1 text-xs text-slate-600"}>
-            {mrf.client?.industry || "Commercial"}
-          </div>
-          <div className={readOnly ? "text-[11px] font-mono text-teal-700 mt-0.5 truncate" : "mt-0.5 break-all text-xs text-slate-600"}>
-            {mrf.client?.contactEmail || "No contact email"}
-          </div>
-        </div>
-      </div>
-
-      {/* Tab Navigation Bar */}
-      {readOnly ? (
-      <div className="grid grid-cols-2 md:flex items-stretch gap-0 border-b border-slate-200" role="tablist" aria-label="Manpower request sections">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "deployments"}
-          aria-controls="mrf-tab-deployments"
-          tabIndex={activeTab === "deployments" ? 0 : -1}
-          onKeyDown={(event) => handleTabKeyDown(event, "deployments")}
-          onClick={() => setActiveTab("deployments")}
-          className={`min-w-0 flex items-center justify-start gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700 ${
-            activeTab === "deployments"
-              ? "border-teal-600 text-teal-800 bg-teal-50/60 rounded-t-lg"
-              : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-t-lg"
-          }`}
-        >
-          <Users className="w-4 h-4 text-teal-600" />
-           <span>{readOnly ? "Placed workers" : "Deployed employees"}</span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-slate-100 text-slate-700">
-            {deployments.length} / {mrf.headcount}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "jobs"}
-          aria-controls="mrf-tab-jobs"
-          tabIndex={activeTab === "jobs" ? 0 : -1}
-          onKeyDown={(event) => handleTabKeyDown(event, "jobs")}
-          onClick={() => setActiveTab("jobs")}
-          className={`min-w-0 flex items-center justify-start gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700 ${
-            activeTab === "jobs"
-              ? "border-teal-600 text-teal-800 bg-teal-50/60 rounded-t-lg"
-              : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-t-lg"
-          }`}
-        >
-          <Briefcase className="w-4 h-4 text-teal-600" />
-           <span>Linked job openings</span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-slate-100 text-slate-700">
-            {linkedJobs.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "specifications"}
-          aria-controls="mrf-tab-specifications"
-          tabIndex={activeTab === "specifications" ? 0 : -1}
-          onKeyDown={(event) => handleTabKeyDown(event, "specifications")}
-          onClick={() => setActiveTab("specifications")}
-          className={`min-w-0 flex items-center justify-start gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700 ${
-            activeTab === "specifications"
-              ? "border-teal-600 text-teal-800 bg-teal-50/60 rounded-t-lg"
-              : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-t-lg"
-          }`}
-        >
-          <FileText className="w-4 h-4 text-teal-600" />
-           <span>Request details</span>
-          {templates.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-slate-100 text-slate-700">
-               {templates.length} requirements
-            </span>
-          )}
-        </button>
-      </div>
-      ) : (
-        <Tabs
-          ariaLabel="Manpower request sections"
-          value={activeTab}
-          onChange={(id) => setActiveTab(id as MRFDetailTab)}
-          items={[
-            {
-              id: "deployments",
-              label: "Deployed employees",
-              panelId: "mrf-tab-deployments",
-              badge: { text: `${deployments.length} / ${mrf.headcount}`, variant: "info" },
-            },
-            {
-              id: "jobs",
-              label: "Linked job openings",
-              panelId: "mrf-tab-jobs",
-              badge: { text: String(linkedJobs.length), variant: "info" },
-            },
-            {
-              id: "specifications",
-              label: "Request details",
-              panelId: "mrf-tab-specifications",
-              badge: templates.length > 0 ? { text: `${templates.length} requirements`, variant: "info" } : undefined,
-            },
-          ]}
-        />
-      )}
-
-      {/* Tab Panels with DOM Retention */}
       <div className="space-y-6">
-        {/* Tab 1: Deployed Personnel */}
-        <div
-          role="tabpanel"
-          id="mrf-tab-deployments"
-          aria-label="Deployed employees"
-          className={activeTab === "deployments" ? "block space-y-4" : "hidden"}
-        >
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="space-y-0.5">
-                <h3 className="text-sm font-bold text-slate-900">
-                  Deployed employees ({deployments.length} / {mrf.headcount})
-                </h3>
-                <p className="text-xs text-slate-500">
-                  {readOnly
-                     ? "Workers and sites assigned to this hiring request (view only)"
-                     : "Active workers and site assignments fulfilling this order"}
-                </p>
-              </div>
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={personnelSearch}
-                  onChange={(e) => setPersonnelSearch(e.target.value)}
-                  aria-label="Search deployed employees"
-                   placeholder={readOnly ? "Search workers by name, employee ID, or site..." : "Search deployed personnel by name, ID, or site..."}
-                  className="w-full pl-9 pr-8 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 bg-white"
-                />
-                {personnelSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setPersonnelSearch("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-                    title="Clear search"
-                    aria-label="Clear worker search"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {deployments.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-500">
-                No personnel deployed yet. Candidates become visible here once their deployment record is finalized.
-              </div>
-            ) : filteredDeployments.length === 0 ? (
-              <div className="p-8 text-center space-y-2">
-                <p className="text-xs text-slate-500">
-                  No deployed personnel matching &quot;{personnelSearch}&quot;.
-                </p>
-                <Button variant="outline" size="sm" onClick={() => setPersonnelSearch("")}>
-                  Clear Search
-                </Button>
-              </div>
-            ) : (
-              <>
-              <div className="md:hidden divide-y divide-slate-200">
-                {filteredDeployments.map((d: any) => {
-                  const profile = d.employee?.user?.applicantProfile || d.application?.user?.applicantProfile;
-                  const workerName = profile
-                    ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || "Unnamed worker"
-                    : d.employee?.user?.email || "Unnamed worker";
-                  return (
-                    <div key={d.id} className="p-4 space-y-2">
-                      <div className="font-semibold text-sm text-slate-900">{workerName}</div>
-                      <dl className="grid grid-cols-2 gap-2 text-sm">
-                        <div><dt className="text-xs text-slate-500">Employee ID</dt><dd>{d.employee?.employeeNumber || "Not assigned"}</dd></div>
-                        <div><dt className="text-xs text-slate-500">Site</dt><dd>{d.site || mrf.location || "Main site"}</dd></div>
-                        <div><dt className="text-xs text-slate-500">Contract</dt><dd>{d.contractStart ? formatDate(d.contractStart) : "Not set"} – {d.contractEnd ? formatDate(d.contractEnd) : "Ongoing"}</dd></div>
-                        <div><dt className="text-xs text-slate-500">Status</dt><dd><StatusBadge status={d.status} type="deployment" size="sm" /></dd></div>
-                      </dl>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-700">
-                  <thead className={readOnly ? "bg-slate-50 border-b border-slate-200 text-slate-600 font-mono text-[11px] uppercase tracking-wider" : "bg-slate-50 border-b border-slate-200 text-slate-600 text-xs"}>
-                    <tr>
-                      <th className="px-4 py-3 font-semibold">Worker Name</th>
-                      <th className="px-4 py-3 font-semibold">Employee ID</th>
-                      <th className="px-4 py-3 font-semibold">Deployment Site</th>
-                      <th className="px-4 py-3 font-semibold">Contract Period</th>
-                      <th className="px-4 py-3 font-semibold">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredDeployments.map((d: any) => {
-                      const profile =
-                        d.employee?.user?.applicantProfile || d.application?.user?.applicantProfile;
-                      const workerName = profile
-                        ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || "Unnamed Worker"
-                        : d.employee?.user?.email || "Unnamed Worker";
-
-                      const contractPeriod = `${d.contractStart ? formatDate(d.contractStart) : "N/A"} - ${
-                        d.contractEnd ? formatDate(d.contractEnd) : "Ongoing"
-                      }`;
-
-                      return (
-                        <tr key={d.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-4 py-3 font-medium text-slate-900">
-                            {d.employee?.id && !readOnly ? (
-                              <Link
-                                to="/ta/employees/$employeeId"
-                                params={{ employeeId: String(d.employee.id) }}
-                                className="font-semibold text-slate-900 hover:text-teal-700 hover:underline"
-                              >
-                                {workerName}
-                              </Link>
-                            ) : (
-                              <span className="font-semibold">{workerName}</span>
-                            )}
-                            {profile?.mobileNumber && (
-                              <div className="text-[11px] text-slate-400 font-mono">
-                                {profile.mobileNumber}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 font-mono text-slate-700">
-                            {d.employee?.employeeNumber || "N/A"}
-                          </td>
-                          <td className="px-4 py-3 text-slate-700 font-medium">
-                            {d.site || mrf.location || "Main Site"}
-                          </td>
-                          <td className="px-4 py-3 font-mono text-[11px] text-slate-700">
-                            {contractPeriod}
-                          </td>
-                          <td className="px-4 py-3">
-                            <StatusBadge status={d.status} type="deployment" size="sm" />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              </>
-            )}
-          </div>
+        <div role="tabpanel" id="mrf-tab-overview" aria-label="Overview" className={activeTab === "overview" ? "block" : "hidden"}>
+          <MRFOverviewTab
+            mrf={mrf}
+            templates={templates}
+            readOnly={readOnly}
+            onAddDocument={() => {
+              setSelectedReqs([]);
+              setCustomReqText("");
+              setTemplateModalOpen(true);
+            }}
+            onRemoveTemplate={setDeleteTemplateTarget}
+          />
         </div>
 
-        {/* Tab 2: Linked Job Openings */}
-        <div
-          role="tabpanel"
-          id="mrf-tab-jobs"
-          aria-label="Linked job openings"
-          className={activeTab === "jobs" ? "block space-y-4" : "hidden"}
-        >
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <div className="space-y-0.5">
-                <h3 className="text-sm font-bold text-slate-900">
-                    Job openings ({linkedJobs.length})
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Openings actively collecting candidate applications for this hiring request
-                </p>
-              </div>
-              {!readOnly && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setLinkJobModalOpen(true)}>
-                    Link existing
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {linkedJobs.length === 0 ? (
-              <div className="p-8 text-center">
-                <p className={readOnly ? "text-xs text-slate-400" : "text-sm text-slate-600"}>
-                  {readOnly
-                     ? "No job openings linked to this request yet."
-                     : mrf.status !== "CANCELLED"
-                       ? "No job openings are linked to this request yet. Create one from the page header, or link an existing opening."
-                       : "No job openings are linked to this request."}
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {linkedJobs.map((job: any) => (
-                  <div key={job.id} className="p-4 flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-slate-900 text-xs">{job.title}</span>
-                        {job.isEvergreen && (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                            Keep open after all positions are filled
-                          </span>
-                        )}
-                         {readOnly ? (
-                           <span className="px-2 py-0.5 text-xs border border-slate-300 text-slate-700 bg-slate-50">
-                             {String(job.status || "Unknown").replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
-                           </span>
-                         ) : <StatusBadge status={formatTaStatus(job.status)} type="raw" size="sm" />}
-                      </div>
-                      <div className={readOnly ? "text-[11px] text-slate-500 font-mono" : "text-sm text-slate-600"}>
-                         {readOnly
-                           ? `Job opening #${job.id} • ${job.location || "Philippines"}`
-                           : [
-                               job.location || "Philippines",
-                               job._count?.applications != null ? plural(job._count.applications, "applicant") : null,
-                             ]
-                               .filter(Boolean)
-                               .join(" · ")}
-                      </div>
-                    </div>
-                    {readOnly ? (
-                      <span className="px-2 py-1 bg-slate-100 border border-slate-200 rounded text-[11px] font-mono font-medium text-slate-700">
-                         Job opening #{job.id}
-                      </span>
-                    ) : (
-                      <Button asChild variant="outline" size="sm">
-                        <Link to="/ta/jobs/$jobId" params={{ jobId: String(job.id) }}>
-                          View opening
-                        </Link>
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        <div role="tabpanel" id="mrf-tab-jobs" aria-label="Linked jobs" className={activeTab === "jobs" ? "block" : "hidden"}>
+          <MRFLinkedJobsTab
+            jobs={linkedJobs}
+            readOnly={readOnly}
+            cancelled={cancelled}
+            onLinkExisting={() => setLinkJobModalOpen(true)}
+          />
         </div>
 
-        {/* Tab 3: Order Specifications */}
-        <div
-          role="tabpanel"
-          id="mrf-tab-specifications"
-          aria-label="Request details"
-          className={activeTab === "specifications" ? "block space-y-4" : "hidden"}
-        >
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left column (lg:col-span-2): Order Description & Competencies */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <h3 className={readOnly ? "text-xs font-mono font-bold uppercase text-slate-500" : "text-sm font-semibold text-slate-900"}>
-                    Request details and client criteria
-                  </h3>
-                </div>
-                <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                  {mrf.description || "No additional description provided for this order."}
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
-                  <div>
-                    <SpecLabel readOnly={readOnly}>Work site</SpecLabel>
-                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
-                      {mrf.location || "Not specified"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <SpecLabel readOnly={readOnly}>Employment & Arrangement</SpecLabel>
-                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
-                      {readOnly ? `${mrf.employmentType || "Contractual"} • ${mrf.workArrangement || "On-site"}` : `${formatSpecValue(mrf.employmentType || "Contractual")} • ${formatSpecValue(mrf.workArrangement || "On-site")}`}
-                    </p>
-                  </div>
-
-                  {(mrf.salaryRangeMin != null || mrf.salaryRangeMax != null) && (
-                    <div className="md:col-span-2">
-                      <SpecLabel readOnly={readOnly}>Monthly salary range</SpecLabel>
-                      <p className="text-xs text-slate-800 font-semibold mt-0.5">
-                        {mrf.salaryRangeMin != null ? `PHP ${mrf.salaryRangeMin.toLocaleString()}` : "PHP 0"} –{" "}
-                        {mrf.salaryRangeMax != null ? `PHP ${mrf.salaryRangeMax.toLocaleString()}` : "Open"}
-                      </p>
-                    </div>
-                  )}
-
-                  <div>
-                    <SpecLabel readOnly={readOnly}>Age limits</SpecLabel>
-                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
-                      {formatAgeRange(mrf.ageMin, mrf.ageMax)}
-                    </p>
-                  </div>
-
-                  <div>
-                    <SpecLabel readOnly={readOnly}>Gender preference</SpecLabel>
-                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
-                      {formatGenderPreference(mrf.genderPreference)}
-                    </p>
-                  </div>
-
-                  <div>
-                    <SpecLabel readOnly={readOnly}>Tattoo visibility policy</SpecLabel>
-                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
-                      {formatTattooPolicy(mrf.tattooPolicy)}
-                    </p>
-                  </div>
-
-                  <div>
-                    <SpecLabel readOnly={readOnly}>Required skills</SpecLabel>
-                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
-                      {mrf.requiredSkills || "None specified"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <SpecLabel readOnly={readOnly}>Required experience</SpecLabel>
-                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
-                      {mrf.requiredExperience || "No experience required"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <SpecLabel readOnly={readOnly}>Minimum education</SpecLabel>
-                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
-                      {mrf.requiredEducation || "None required"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <SpecLabel readOnly={readOnly}>Required certifications & licenses</SpecLabel>
-                    <p className="text-xs text-slate-800 font-semibold mt-0.5">
-                      {mrf.requiredCertifications || "None required"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right column: Client Account Information & Compliance Templates */}
-            <div className="space-y-6">
-              {/* Client Account Box */}
-              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3">
-                <h3 className={readOnly ? "text-xs font-mono font-bold uppercase text-slate-500 border-b border-slate-100 pb-2" : "text-sm font-semibold text-slate-900 border-b border-slate-100 pb-2"}>
-                  Client information
-                </h3>
-                <div className="space-y-2 text-xs">
-                  <div className="font-bold text-slate-900">{mrf.client?.name || "Client"}</div>
-                  <div className="text-slate-600">Industry: {mrf.client?.industry || "Commercial"}</div>
-                  <div className={readOnly ? "text-slate-600 font-mono" : "text-slate-600"}>Contact: {mrf.client?.contactEmail || "N/A"}</div>
-                </div>
-              </div>
-
-              {/* Requirement templates */}
-              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <div className={readOnly ? "flex items-center gap-1.5 font-mono text-xs font-bold text-slate-700 uppercase" : "flex items-center gap-1.5 text-sm font-semibold text-slate-900"}>
-                    <ShieldCheck className="w-4 h-4 text-teal-600" />
-                    <span>Required documents</span>
-                  </div>
-                  {!readOnly && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedReqs([]);
-                        setCustomReqText("");
-                        setTemplateModalOpen(true);
-                      }}
-                    >
-                      Add document
-                    </Button>
-                  )}
-                </div>
-
-                {templates.length === 0 ? (
-                  <p className={readOnly ? "text-xs text-slate-400" : "text-sm text-slate-600"}>
-                    {readOnly
-                       ? "No required documents assigned to this request."
-                       : "No required documents assigned. Add the document types candidates must provide."}
-                  </p>
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {templates.map((tpl: any) => (
-                      <div key={tpl.id} className="py-2 flex items-center justify-between gap-2 text-xs">
-                        <span className="font-medium text-slate-800">{tpl.documentLabel}</span>
-                        {!readOnly ? (
-                          <span className="flex items-center gap-2">
-                            <span className="text-xs text-slate-600">{tpl.isRequired ? "Mandatory" : "Optional"}</span>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTemplateTarget({ id: tpl.id, label: tpl.documentLabel })}
-                            aria-label={`Remove ${tpl.documentLabel}`}
-                            className="inline-flex items-center justify-center min-h-11 min-w-11 md:min-h-8 md:min-w-8 rounded text-rose-600 hover:text-rose-800 focus-ring"
-                            title="Remove template"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-600">
-                            {tpl.isRequired ? "Mandatory" : "Optional"}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+        <div role="tabpanel" id="mrf-tab-history" aria-label="History" className={activeTab === "history" ? "block" : "hidden"}>
+          <MRFHistoryTab
+            deployments={deployments}
+            headcount={mrf.headcount}
+            fallbackSite={mrf.location}
+            readOnly={readOnly}
+            createdAt={mrf.createdAt}
+            createdByEmail={mrf.createdBy?.email}
+          />
         </div>
       </div>
 

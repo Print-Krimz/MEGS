@@ -288,6 +288,7 @@ export const ClientsPage: React.FC = () => {
         <ErrorState subject="clients" error={clientsQuery.error} onRetry={() => clientsQuery.refetch()} />
       ) : (
         <DataTable
+          density="compact"
           caption="Clients"
           columns={columns}
           rows={paginatedClients}
@@ -526,7 +527,7 @@ export const ClientsPage: React.FC = () => {
           </div>
 
           <div className="pt-2 border-t border-slate-100 space-y-3">
-            <div className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
+            <div className="text-sm font-semibold text-slate-900">
               Facility address
             </div>
             <Input

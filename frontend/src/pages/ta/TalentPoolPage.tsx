@@ -191,7 +191,7 @@ export const TalentPoolPage: React.FC = () => {
         }
       />
 
-      <form onSubmit={handleSearch} className="space-y-4 border border-slate-300 bg-white p-4 sm:p-5">
+      <form onSubmit={handleSearch} className="space-y-4 rounded-md border border-slate-300 bg-white p-4 sm:p-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
           <div className="sm:col-span-7">
             <Input

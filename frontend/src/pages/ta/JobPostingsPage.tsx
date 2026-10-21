@@ -507,6 +507,7 @@ export const JobPostingsPage: React.FC = () => {
         <ErrorState subject="job openings" error={jobsQuery.error} onRetry={() => jobsQuery.refetch()} />
       ) : (
         <DataTable
+          density="compact"
           caption="Job openings"
           columns={columns}
           rows={jobs}
@@ -710,7 +711,7 @@ export const JobPostingsPage: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="p-4 bg-slate-50 border border-slate-200 space-y-4">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-md space-y-4">
                 <div className="flex items-start gap-3 pb-3 border-b border-slate-200">
                   <JobImage src={formImageUrl} title={formTitle || "Job opening"} alt={formTitle || "Job opening"} size="md" />
                   <div className="space-y-1">
@@ -725,7 +726,7 @@ export const JobPostingsPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
                   <div className="md:col-span-7 space-y-2">
                     <h4 className="text-sm font-semibold text-slate-800">Description and responsibilities</h4>
-                    <div className="p-4 bg-white border border-slate-200 min-h-[160px]">
+                    <div className="p-4 bg-white border border-slate-200 rounded-md min-h-[160px]">
                       {formDescription ? (
                         <JobContentRenderer content={formDescription} variant="ta" />
                       ) : (
@@ -736,7 +737,7 @@ export const JobPostingsPage: React.FC = () => {
 
                   <div className="md:col-span-5 space-y-2">
                     <h4 className="text-sm font-semibold text-slate-800">Required skills and qualifications</h4>
-                    <div className="p-4 bg-white border border-slate-200 min-h-[160px]">
+                    <div className="p-4 bg-white border border-slate-200 rounded-md min-h-[160px]">
                       {formRequirements ? (
                         <JobContentRenderer content={formRequirements} variant="ta" />
                       ) : (

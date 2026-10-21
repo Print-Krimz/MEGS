@@ -15,7 +15,11 @@ import {
   JobContentRenderer,
   DataTable,
   ConfirmDialog,
+  ActionMenu,
+  RecordSummary,
 } from "../../components/common";
+import { StageStrip, type StageStripItem } from "../../components/ta/recruitment/StageStrip";
+import { RecordBreadcrumb } from "../../components/ta/recruitment/RecordBreadcrumb";
 import type { DataTableColumn } from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
 import { PoolCandidateCard } from "../../components/ta/PoolCandidateCard";
@@ -31,6 +35,10 @@ import {
 } from "../../lib/utils";
 import { ApplicationStatus, JobStatus } from "../../lib/types/enums";
 import { plural } from "../../lib/plural";
+import { humanizeEnum } from "../../lib/labels";
+
+/** Legacy codes such as REGULAR read as "Regular"; already readable values are kept. */
+const humanizeCode = (value: string) => (/^[A-Z0-9_ ]+$/.test(value) ? humanizeEnum(value) : value);
 
 const ACTIVE_STAGES: string[] = [
   ApplicationStatus.SUBMITTED,
@@ -67,7 +75,15 @@ const JOB_INLINE_FIELDS = ["title", "location", "imageUrl", "status", "descripti
 
 type ScoreRow = { score: CandidateScore; rank: number };
 
-const SEGMENT_FILTERS = ["active", "deployed", "all"] as const;
+/** Applicant filter ids: "active", "all", "deployed", or the stage's ApplicationStatus. */
+const APPLICANT_STAGE_FILTERS: { id: string; label: string }[] = [
+  { id: ApplicationStatus.INITIAL_SCREENING, label: TA_COPY.pipeline.initialScreening },
+  { id: ApplicationStatus.CLIENT_ENDORSEMENT, label: TA_COPY.pipeline.clientEndorsement },
+  { id: ApplicationStatus.FINAL_INTERVIEW, label: TA_COPY.pipeline.finalInterview },
+  { id: ApplicationStatus.COMPLIANCE, label: TA_COPY.pipeline.requirements },
+  { id: ApplicationStatus.CONTRACT_SIGNING, label: TA_COPY.pipeline.contractSigning },
+  { id: "deployed", label: TA_COPY.pipeline.deployed },
+];
 
 export const JobPostingDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -95,7 +111,7 @@ export const JobPostingDetailPage: React.FC = () => {
 
   const [candidatePage, setCandidatePage] = useState(1);
   const candidatePageSize = 10;
-  const [applicantFilter, setApplicantFilter] = useState<"active" | "deployed" | "all">("active");
+  const [applicantFilter, setApplicantFilter] = useState<string>("active");
 
   const jobQuery = useQuery({
     queryKey: ["ta", "job", jobId],
@@ -230,8 +246,22 @@ export const JobPostingDetailPage: React.FC = () => {
   const filteredScores = React.useMemo(() => {
     if (applicantFilter === "active") return activeScores;
     if (applicantFilter === "deployed") return deployedScores;
-    return rankedScores;
+    if (applicantFilter === "all") return rankedScores;
+    return rankedScores.filter((s) => s.candidate?.applicationStatus === applicantFilter);
   }, [applicantFilter, activeScores, deployedScores, rankedScores]);
+
+  const applicantStripItems: StageStripItem[] = [
+    { value: "active", label: "Active", count: activeScores.length },
+    ...APPLICANT_STAGE_FILTERS.map(({ id, label }) => ({
+      value: id,
+      label,
+      count:
+        id === "deployed"
+          ? deployedScores.length
+          : rankedScores.filter((s) => s.candidate?.applicationStatus === id).length,
+    })),
+    { value: "all", label: "All", count: rankedScores.length },
+  ];
 
   const totalPages = Math.max(1, Math.ceil(filteredScores.length / candidatePageSize));
   const pageRows: ScoreRow[] = filteredScores
@@ -346,23 +376,52 @@ export const JobPostingDetailPage: React.FC = () => {
 
   const handleStatusChange = (next: JobStatus) => {
     if (next === job.status) return;
-    if (next === JobStatus.CLOSED && activeApplicantTotal > 0) {
+    if (next === JobStatus.CLOSED) {
       setPendingClose(true);
       return;
     }
     statusMutation.mutate(next);
   };
 
+  const invitationsButton = (
+    <Button variant="outline" size="sm" onClick={() => setTrackerDrawerOpen(true)}>
+      {TA_COPY.invitations.sent}
+    </Button>
+  );
+
   const hasSalary = Boolean(job.mrf?.salaryRangeMin || job.mrf?.salaryRangeMax);
   const mrfId = job.mrf?.id ?? job.mrfId;
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        flush
+      <RecordBreadcrumb
+        items={[
+          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
+          { label: TA_COPY.navigation.openings, href: "/ta/jobs" },
+          { label: job.title },
+        ]}
+      />
+
+      <RequirementClarityNotice
+        clarity={job.requirementClarity}
+        fixHint={
+          job.requirementClarity?.skillsAreTraits
+            ? "Edit the required skills on the client request, and the location here."
+            : "Edit the location here."
+        }
+      />
+
+      {/* One summary strip. The narrative is collapsed so candidates sit in the first screen. */}
+      <RecordSummary
+        titleAs="h1"
         title={job.title}
-        description={`Posted ${formatDate(job.createdAt)}`}
-        breadcrumbs={[...breadcrumbs, { label: job.title }]}
+        subtitle={`Posted ${formatDate(job.createdAt)}`}
+        chips={
+          <>
+            <StatusBadge type="raw" status={job.status} />
+            {job.isEvergreen && <span className="text-xs text-slate-600">Always open</span>}
+          </>
+        }
         actions={
           <>
             <Button variant="outline" size="sm" onClick={openEditDialog}>
@@ -376,83 +435,43 @@ export const JobPostingDetailPage: React.FC = () => {
             >
               Recalculate match scores
             </Button>
+            <ActionMenu
+              label="Change status"
+              items={[
+                { label: "Mark as open", onSelect: () => handleStatusChange(JobStatus.OPEN), disabled: job.status === JobStatus.OPEN || statusMutation.isPending },
+                { label: "Move to draft", onSelect: () => handleStatusChange(JobStatus.DRAFT), disabled: job.status === JobStatus.DRAFT || statusMutation.isPending },
+                { label: "Close opening", onSelect: () => handleStatusChange(JobStatus.CLOSED), disabled: job.status === JobStatus.CLOSED || statusMutation.isPending, tone: "danger" },
+              ]}
+            />
           </>
         }
-      />
-
-      <RequirementClarityNotice
-        clarity={job.requirementClarity}
-        fixHint={
-          job.requirementClarity?.skillsAreTraits
-            ? "Edit the required skills on the client request, and the location here."
-            : "Edit the location here."
-        }
-      />
-
-      {/* One summary strip. The narrative is collapsed so candidates sit in the first screen. */}
-      <section aria-label="Opening summary" className="space-y-4 border border-slate-300 bg-white p-4">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
-          <div>
-            <dt className="mb-1 text-xs font-semibold text-slate-700">Status</dt>
-            <dd>
-              <label className="sr-only" htmlFor="job-status-control">
-                Opening status
-              </label>
-              <select
-                id="job-status-control"
-                value={job.status}
-                disabled={statusMutation.isPending}
-                onChange={(e) => handleStatusChange(e.target.value as JobStatus)}
-                className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-medium text-slate-900 focus-ring md:min-h-9"
-              >
-                <option value={JobStatus.OPEN}>Open</option>
-                <option value={JobStatus.DRAFT}>Draft</option>
-                <option value={JobStatus.CLOSED}>Closed</option>
-              </select>
-              {job.isEvergreen && <span className="mt-1 block text-xs text-slate-600">Always open</span>}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-600">Client</dt>
-            <dd className="font-medium text-slate-900">{job.mrf?.client?.name || "Unassigned"}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-600">Work site</dt>
-            <dd className="font-medium text-slate-900">{job.location || "Philippines"}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-600">Monthly pay</dt>
-            <dd className="font-medium text-slate-900">
-              {hasSalary ? formatSalaryRange(job.mrf?.salaryRangeMin, job.mrf?.salaryRangeMax) : "Not specified"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-600">Type and arrangement</dt>
-            <dd className="font-medium text-slate-900">
-              {job.mrf?.employmentType ? formatEmploymentType(job.mrf.employmentType) : "Not specified"}
-              {" · "}
-              {formatWorkArrangement(job.mrf?.workArrangement)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-600">Manpower request</dt>
-            <dd className="font-medium">
-              {mrfId ? (
-                <Link
-                  to="/ta/mrfs/$mrfId"
-                  params={{ mrfId: String(mrfId) }}
-                  className="inline-flex min-h-11 items-center text-navy underline-offset-2 hover:underline focus-ring md:min-h-0"
-                >
-                  Request #{mrfId}
-                </Link>
-              ) : (
-                <span className="text-slate-700">None (direct posting)</span>
-              )}
-            </dd>
-          </div>
-        </dl>
-
-        <details className="group border-t border-slate-200 pt-3">
+        facts={[
+          { label: "Client", value: <span className="font-medium">{job.mrf?.client?.name || "Unassigned"}</span> },
+          { label: "Work site", value: <span className="font-medium">{job.location || "Philippines"}</span> },
+          {
+            label: "Monthly pay",
+            value: (
+              <span className="font-medium">
+                {hasSalary ? formatSalaryRange(job.mrf?.salaryRangeMin, job.mrf?.salaryRangeMax) : "Not specified"}
+              </span>
+            ),
+          },
+          {
+            label: "Type and arrangement",
+            value: (
+              <span className="font-medium">
+                {job.mrf?.employmentType ? humanizeCode(formatEmploymentType(job.mrf.employmentType)) : "Not specified"}
+                {" · "}
+                {formatWorkArrangement(job.mrf?.workArrangement)}
+              </span>
+            ),
+          },
+          mrfId
+            ? { label: "Manpower request", value: `Request #${mrfId}`, href: `/ta/mrfs/${mrfId}` }
+            : { label: "Manpower request", value: <span className="text-slate-700">None (direct posting)</span> },
+        ]}
+      >
+        <details className="group">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-medium text-navy focus-ring md:min-h-0 [&::-webkit-details-marker]:hidden">
             <span className="group-open:hidden">Show description and requirements</span>
             <span className="hidden group-open:inline">Hide description and requirements</span>
@@ -468,11 +487,11 @@ export const JobPostingDetailPage: React.FC = () => {
             </div>
           </div>
         </details>
-      </section>
+      </RecordSummary>
 
       {/* Candidate Sourcing & Matching Section */}
-      <div className="border border-slate-300 bg-white">
-        <div className="flex flex-col justify-between sm:flex-row sm:items-center">
+      <div className="rounded-md border border-slate-300 bg-white">
+        <div>
           <Tabs
             value={activeTab}
             onChange={(tab) => setActiveTab(tab as "applicants" | "talentPool")}
@@ -485,14 +504,7 @@ export const JobPostingDetailPage: React.FC = () => {
                 panelId: "job-talent-pool",
               },
             ]}
-            className="flex-1 border-b-0"
           />
-
-          <div className="border-b border-slate-300 bg-slate-100 px-4 py-2 sm:border-b-0 sm:py-0">
-            <Button variant="outline" size="sm" onClick={() => setTrackerDrawerOpen(true)}>
-              {TA_COPY.invitations.sent}
-            </Button>
-          </div>
         </div>
 
         {/* Tab 1: Direct Applicants */}
@@ -501,6 +513,8 @@ export const JobPostingDetailPage: React.FC = () => {
             {rankedCandidatesQuery.isLoading ? (
               <LoadingState variant="table" rows={4} />
             ) : rankedScores.length === 0 ? (
+              <>
+              <div className="flex justify-end border-b border-slate-200 bg-slate-50 px-4 py-2.5">{invitationsButton}</div>
               <EmptyState
                 bare
                 title="No applicant matches yet"
@@ -516,37 +530,26 @@ export const JobPostingDetailPage: React.FC = () => {
                   </Button>
                 }
               />
+              </>
             ) : (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
-                  <div className="inline-flex gap-1 bg-slate-200/60 p-1 text-sm font-medium" role="group" aria-label="Applicant filter">
-                    {SEGMENT_FILTERS.map((id) => {
-                      const count = id === "active" ? activeScores.length : id === "deployed" ? deployedScores.length : rankedScores.length;
-                      const label = id === "active" ? "Active" : id === "deployed" ? "Deployed" : "All";
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          aria-pressed={applicantFilter === id}
-                          onClick={() => {
-                            setApplicantFilter(id);
-                            setCandidatePage(1);
-                          }}
-                          className={cn(
-                            "min-h-11 px-3 py-1 transition-colors focus-ring md:min-h-8",
-                            applicantFilter === id
-                              ? "bg-white font-semibold text-navy shadow-xs"
-                              : "text-slate-700 hover:text-slate-950"
-                          )}
-                        >
-                          {`${label} (${count})`}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <StageStrip
+                    ariaLabel="Applicant stage"
+                    items={applicantStripItems}
+                    value={applicantFilter}
+                    onChange={(id) => {
+                      setApplicantFilter(id);
+                      setCandidatePage(1);
+                    }}
+                    className="min-w-0 max-w-full"
+                  />
+                  <div className="flex flex-wrap items-center gap-3">
                   <p className="text-sm text-slate-600">
                     Showing {filteredScores.length} of {rankedScores.length}
                   </p>
+                    {invitationsButton}
+                  </div>
                 </div>
 
                 {filteredScores.length === 0 ? (
@@ -557,7 +560,9 @@ export const JobPostingDetailPage: React.FC = () => {
                         ? "No active applicants in the pipeline"
                         : applicantFilter === "deployed"
                         ? "No one deployed from this opening yet"
-                        : "No applicants found"
+                        : applicantFilter === "all"
+                        ? "No applicants found"
+                        : "No applicants at this stage"
                     }
                     description={
                       applicantFilter === "active" && deployedScores.length > 0
@@ -581,11 +586,9 @@ export const JobPostingDetailPage: React.FC = () => {
                   />
                 ) : (
                   <>
-                    <p className="px-4 pt-3 text-sm text-slate-600">
-                      Match score combines skills, experience, location and pre-employment documents.
-                    </p>
                     <DataTable
-                      className="mt-3 border-0 border-t"
+                      density="compact"
+                      className="rounded-none border-0"
                       caption="Applicants ranked by match score"
                       columns={applicantColumns}
                       rows={pageRows}
@@ -615,6 +618,10 @@ export const JobPostingDetailPage: React.FC = () => {
         {/* Tab 2: Discovered Talent Pool Candidates */}
         {activeTab === "talentPool" && (
           <div id="job-talent-pool" role="tabpanel" tabIndex={0}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+              <p className="text-sm text-slate-600">Candidates from the pool who fit this opening.</p>
+              {invitationsButton}
+            </div>
             {talentPoolMatches.length > 0 && (
               <p className="px-4 pt-4 text-sm text-slate-600">
                 Ranked by the same match score used for applications. Scores are a guide; you decide whom to invite.
@@ -699,7 +706,11 @@ export const JobPostingDetailPage: React.FC = () => {
           statusMutation.mutate(JobStatus.CLOSED);
         }}
         title="Close this opening?"
-        description={`${plural(activeApplicantTotal, "applicant")} ${activeApplicantTotal === 1 ? "is" : "are"} still in the pipeline. Close this opening anyway?`}
+        description={
+          activeApplicantTotal > 0
+            ? `${plural(activeApplicantTotal, "applicant")} ${activeApplicantTotal === 1 ? "is" : "are"} still in the pipeline. Close this opening anyway?`
+            : "Applicants will no longer be able to apply. You can reopen it later."
+        }
         confirmLabel="Close opening"
         variant="warning"
       />

@@ -260,6 +260,7 @@ export const MRFListPage: React.FC = () => {
         <ErrorState subject="manpower requests" error={mrfsQuery.error} onRetry={() => mrfsQuery.refetch()} />
       ) : (
         <DataTable
+          density="compact"
           caption="Manpower requests"
           columns={columns}
           rows={paginatedMrfs}

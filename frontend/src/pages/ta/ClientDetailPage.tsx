@@ -7,10 +7,13 @@ import {
   LoadingState,
   ErrorState,
   StatusBadge,
+  Tabs,
+  RecordSummary,
 } from "../../components/common";
+import { RecordBreadcrumb } from "../../components/ta/recruitment/RecordBreadcrumb";
 import { Button, Dialog, Input, PhoneInput, Select } from "../../components/ui";
 import { ComboBox } from "../../components/ui/ComboBox";
-import { formatDate } from "../../lib/utils";
+import { cn, formatDate, getInitials } from "../../lib/utils";
 import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
 import { PHILIPPINE_INDUSTRY_SECTORS } from "../../lib/industry-data";
 import { MapPin } from "lucide-react";
@@ -46,7 +49,10 @@ const CLIENT_INLINE_FIELDS = [
   "medicalValidityMonths",
 ];
 
+type ClientTab = "overview" | "requests" | "deployments" | "settings";
+
 export const ClientDetailPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<ClientTab>("overview");
   const queryClient = useQueryClient();
   const { clientId } = useParams({ strict: false }) as { clientId: string };
 
@@ -181,20 +187,119 @@ export const ClientDetailPage: React.FC = () => {
     );
   }
 
+  const clientWords = client.name.trim().split(/\s+/);
+  const activeDeployments = deployments.filter((dep) => dep.status === "ACTIVE").length;
+  const hasAddress = Boolean(client.street || client.barangay || client.city || client.province || client.address);
+  const addressText =
+    client.street || client.barangay || client.city || client.province
+      ? [client.street, client.barangay, client.city, client.province, client.postalCode].filter(Boolean).join(", ")
+      : client.address;
+  const customTemplates: any[] = client.complianceTemplates ?? [];
+  const PREVIEW_COUNT = 3;
+
+  const panelClass = "rounded-md border border-slate-300 bg-white";
+  const panelTitleClass = "text-base font-semibold text-slate-950";
+
+  const requestRow = (mrf: (typeof mrfs)[number]) => (
+    <li key={mrf.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <div className="font-semibold text-slate-950">{mrf.title}</div>
+        <div className="text-sm text-slate-600">
+          {plural(mrf.headcount, "position")} · Priority: {formatPriority(mrf.priority)} · {formatTaStatus(mrf.status)}
+        </div>
+      </div>
+      <Button asChild variant="outline" size="sm">
+        <Link to="/ta/mrfs/$mrfId" params={{ mrfId: String(mrf.id) }}>
+          View request
+        </Link>
+      </Button>
+    </li>
+  );
+
+  const deploymentRow = (dep: (typeof deployments)[number]) => (
+    <li key={dep.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <div className="font-semibold text-slate-950">
+          {dep.employee?.user?.applicantProfile?.firstName || "Employee"}{" "}
+          {dep.employee?.user?.applicantProfile?.lastName || ""}
+        </div>
+        <div className="text-sm text-slate-600">
+          Site: {dep.site || "General facility"} · {formatTaStatus(dep.status)}
+        </div>
+      </div>
+      <Button asChild variant="outline" size="sm">
+        <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(dep.id) }}>
+          View deployment
+        </Link>
+      </Button>
+    </li>
+  );
+
+  const requestsEmpty = (
+    <div className="space-y-3 p-6 text-sm text-slate-600">
+      <p>No manpower requests placed by this client.</p>
+      <Button asChild variant="primary" size="sm">
+        <Link to="/ta/mrfs/create" search={{ clientId: client.id }}>
+          Create the first request
+        </Link>
+      </Button>
+    </div>
+  );
+
+  const deploymentsEmpty = (
+    <div className="space-y-3 p-6 text-sm text-slate-600">
+      <p>No deployments recorded for this client yet.</p>
+      <Button asChild variant="outline" size="sm">
+        <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
+          Open workforce deployments
+        </Link>
+      </Button>
+    </div>
+  );
+
+  const previewHeader = (title: string, total: number, tab: ClientTab) => (
+    <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
+      <h3 className={panelTitleClass}>
+        {title} ({total})
+      </h3>
+      {total > PREVIEW_COUNT && (
+        <Button variant="ghost" size="sm" onClick={() => setActiveTab(tab)}>
+          View all
+        </Button>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        flush
-        title={client.name}
-        description={`Registered ${formatDate(client.createdAt)}`}
-        meta={client.isActive ? undefined : <StatusBadge status="Inactive" type="raw" size="sm" />}
-        breadcrumbs={[
+      <RecordBreadcrumb
+        items={[
           { label: TA_COPY.breadcrumbRoot, href: "/ta" },
           { label: TA_COPY.navigation.clients, href: "/ta/clients" },
           { label: client.name },
         ]}
+      />
+
+      <RecordSummary
+        titleAs="h1"
+        title={client.name}
+        subtitle={client.tradeName ? `Brand: ${client.tradeName}` : `Registered ${formatDate(client.createdAt)}`}
+        avatarText={getInitials(clientWords[0], clientWords[1])}
+        chips={<StatusBadge status={client.isActive ? "Active" : "Inactive"} type="raw" size="sm" />}
+        facts={[
+          { label: "Industry", value: client.industry || "General Commercial" },
+          { label: "Review SLA", value: `${client.reviewThresholdDays ?? 5} days` },
+          { label: "Active deployments", value: String(activeDeployments) },
+          { label: "Open requests", value: String(mrfs.filter((m) => m.status !== "CANCELLED" && m.status !== "FILLED").length) },
+          { label: "Contact", value: client.contactName || "Not set" },
+        ]}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
+                Open in workforce
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setEditModalOpen(true)}>
               Edit client
             </Button>
@@ -203,202 +308,145 @@ export const ClientDetailPage: React.FC = () => {
                 Create manpower request
               </Link>
             </Button>
-          </div>
+          </>
         }
       />
 
-      {/* Account Profile Card */}
-      <div className="bg-white border border-slate-200 p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <h3 className="text-sm font-semibold text-slate-900">
-            Company information
-          </h3>
-          {client.tradeName && (
-            <span className="text-sm font-medium text-slate-700">Brand: {client.tradeName}</span>
-          )}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-          <div>
-            <span className="text-slate-500 block">Industry</span>
-            <span className="font-semibold text-slate-900">{client.industry || "General Commercial"}</span>
-          </div>
-          <div>
-            <span className="text-slate-500 block">Contact</span>
-            <span className="font-semibold text-slate-900">{client.contactName || "N/A"}</span>
-          </div>
-          <div>
-            <span className="text-slate-500 block">Email and phone</span>
-            <span className="break-all text-slate-800">
-              {client.contactEmail || "No email"} {client.contactPhone ? `• ${client.contactPhone}` : ""}
-            </span>
-          </div>
-        </div>
-        {(client.street || client.barangay || client.city || client.province || client.address) && (
-          <div className="pt-2 border-t border-slate-100 flex items-start gap-2 text-xs text-slate-700">
-            <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-            <div>
-              <span className="text-slate-500 block">Facility address</span>
-              <span>
-                {client.street || client.barangay || client.city || client.province
-                  ? [client.street, client.barangay, client.city, client.province, client.postalCode].filter(Boolean).join(", ")
-                  : client.address}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
+      <Tabs
+        ariaLabel="Client sections"
+        value={activeTab}
+        onChange={(id) => setActiveTab(id as ClientTab)}
+        items={[
+          { id: "overview", label: "Overview", panelId: "client-tab-panel" },
+          { id: "requests", label: "Requests", panelId: "client-tab-panel", badge: { text: String(mrfs.length), variant: "info" } },
+          { id: "deployments", label: "Deployments", panelId: "client-tab-panel", badge: { text: String(deployments.length), variant: "info" } },
+          { id: "settings", label: "Settings", panelId: "client-tab-panel" },
+        ]}
+      />
 
-      {/* Compliance & SLA Settings Card */}
-      <div className="bg-white border border-slate-200 p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <h3 className="text-sm font-semibold text-slate-900">
-            Compliance & SLA settings
-          </h3>
-          <Button variant="ghost" size="sm" onClick={() => setEditModalOpen(true)}>
-            Edit settings
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-          <div>
-            <span className="text-slate-500 block">Review SLA threshold</span>
-            <span className="font-semibold text-slate-900">
-              {client.reviewThresholdDays ?? 5} days
-            </span>
-          </div>
-          <div>
-            <span className="text-slate-500 block">Medical exam validity</span>
-            <span className="font-semibold text-slate-900">
-              {client.medicalValidityMonths ?? 6} months
-            </span>
-          </div>
-          <div>
-            <span className="text-slate-500 block">Pre-employment template</span>
-            <span className="text-slate-900 font-medium">
-              {client.complianceTemplates && client.complianceTemplates.length > 0
-                ? `${client.complianceTemplates.length} custom requirement${client.complianceTemplates.length === 1 ? "" : "s"}`
-                : "Default 201 checklist"}
-            </span>
-          </div>
-        </div>
-
-        {client.complianceTemplates && client.complianceTemplates.length > 0 ? (
-          <div className="pt-2 border-t border-slate-100 space-y-2 text-xs">
-            <span className="text-slate-500 block">Checklist requirements</span>
-            <div className="flex flex-wrap gap-1.5">
-              {client.complianceTemplates.map((t: any) => (
-                <span
-                  key={t.id}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-slate-100 text-slate-800 border border-slate-200"
-                >
-                  <span>{t.documentLabel}</span>
-                  {!t.isRequired && <span className="text-xs text-slate-600">(optional)</span>}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="pt-2 border-t border-slate-100 text-xs">
-            <span className="text-slate-500 block mb-1">Standard 201 requirements</span>
-            <p className="text-slate-700 leading-relaxed">
-              Government Issued ID, NBI Clearance, Fit to Work Medical Exam, SSS Document, PhilHealth Member Data Record, Pag-IBIG Member ID, Client NDA & Security Briefing
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Grid: Active MRFs & Deployments */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Manpower Requests */}
-        <div className="bg-white border border-slate-200 overflow-hidden">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <h3 className="text-sm font-bold text-slate-900">Manpower requests ({mrfs.length})</h3>
-              <p className="text-xs text-slate-500">Staffing requests for this client</p>
-            </div>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/ta/mrfs/create" search={{ clientId: client.id }}>
-                New request
-              </Link>
-            </Button>
-          </div>
-
-          {mrfs.length === 0 ? (
-            <div className="space-y-3 p-6 text-center text-sm text-slate-600">
-              <p>No manpower requests placed by this client.</p>
-              <Button asChild variant="primary" size="sm">
-                <Link to="/ta/mrfs/create" search={{ clientId: client.id }}>
-                  Create the first request
-                </Link>
-              </Button>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {mrfs.map((mrf) => (
-                <div key={mrf.id} className="p-3.5 flex items-center justify-between gap-3 text-xs">
-                  <div>
-                    <div className="font-bold text-slate-900">{mrf.title}</div>
-                    <div className="text-xs text-slate-600">
-                      {plural(mrf.headcount, "position")} • Priority: {formatPriority(mrf.priority)} • {formatTaStatus(mrf.status)}
-                    </div>
-                  </div>
-                  <Button asChild variant="outline" size="sm">
-                    <Link to="/ta/mrfs/$mrfId" params={{ mrfId: String(mrf.id) }}>
-                      View request
-                    </Link>
-                  </Button>
+      <div id="client-tab-panel" role="tabpanel" className="space-y-5">
+        {activeTab === "overview" && (
+          <>
+            <section className={cn(panelClass, "p-4 sm:p-5")}>
+              <h3 className={cn(panelTitleClass, "mb-3 border-b border-slate-200 pb-2.5")}>Company information</h3>
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
+                <div>
+                  <dt className="text-xs font-medium text-slate-600">Industry</dt>
+                  <dd className="text-slate-900">{client.industry || "General Commercial"}</dd>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <div>
+                  <dt className="text-xs font-medium text-slate-600">Contact</dt>
+                  <dd className="text-slate-900">{client.contactName || "Not set"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-slate-600">Email and phone</dt>
+                  <dd className="break-all text-slate-900">
+                    {client.contactEmail || "No email"}
+                    {client.contactPhone ? ` · ${client.contactPhone}` : ""}
+                  </dd>
+                </div>
+                {hasAddress && (
+                  <div className="sm:col-span-3">
+                    <dt className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                      <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                      Facility address
+                    </dt>
+                    <dd className="text-slate-900">{addressText}</dd>
+                  </div>
+                )}
+              </dl>
+            </section>
 
-        {/* Active Deployments */}
-        <div className="bg-white border border-slate-200 overflow-hidden">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <h3 className="text-sm font-bold text-slate-900">Deployments ({deployments.length})</h3>
-              <p className="text-xs text-slate-600">Personnel placed on this client's sites</p>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <section className={cn(panelClass, "overflow-hidden")}>
+                {previewHeader("Manpower requests", mrfs.length, "requests")}
+                {mrfs.length === 0 ? requestsEmpty : <ul className="divide-y divide-slate-200">{mrfs.slice(0, PREVIEW_COUNT).map(requestRow)}</ul>}
+              </section>
+              <section className={cn(panelClass, "overflow-hidden")}>
+                {previewHeader("Deployments", deployments.length, "deployments")}
+                {deployments.length === 0 ? deploymentsEmpty : <ul className="divide-y divide-slate-200">{deployments.slice(0, PREVIEW_COUNT).map(deploymentRow)}</ul>}
+              </section>
             </div>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
-                Open in workforce
-              </Link>
-            </Button>
-          </div>
+          </>
+        )}
 
-          {deployments.length === 0 ? (
-            <div className="space-y-3 p-6 text-center text-sm text-slate-600">
-              <p>No deployments recorded for this client yet.</p>
+        {activeTab === "requests" && (
+          <section className={cn(panelClass, "overflow-hidden")}>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
+              <h3 className={panelTitleClass}>Manpower requests ({mrfs.length})</h3>
               <Button asChild variant="outline" size="sm">
-                <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
-                  Open workforce deployments
+                <Link to="/ta/mrfs/create" search={{ clientId: client.id }}>
+                  New request
                 </Link>
               </Button>
             </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {deployments.map((dep) => (
-                <div key={dep.id} className="p-3.5 flex items-center justify-between gap-3 text-xs">
-                  <div>
-                    <div className="font-bold text-slate-900">
-                      {dep.employee?.user?.applicantProfile?.firstName || "Employee"}{" "}
-                      {dep.employee?.user?.applicantProfile?.lastName || ""}
-                    </div>
-                    <div className="text-xs text-slate-600">
-                      Site: {dep.site || "General facility"} • {formatTaStatus(dep.status)}
-                    </div>
-                  </div>
-                  <Button asChild variant="outline" size="sm">
-                    <Link to="/ta/deployments/$deploymentId" params={{ deploymentId: String(dep.id) }}>
-                      View deployment
-                    </Link>
-                  </Button>
-                </div>
-              ))}
+            {mrfs.length === 0 ? requestsEmpty : <ul className="divide-y divide-slate-200">{mrfs.map(requestRow)}</ul>}
+          </section>
+        )}
+
+        {activeTab === "deployments" && (
+          <section className={cn(panelClass, "overflow-hidden")}>
+            <div className="border-b border-slate-200 p-4">
+              <h3 className={panelTitleClass}>Deployments ({deployments.length})</h3>
+              <p className="text-sm text-slate-600">Personnel placed on this client&apos;s sites</p>
             </div>
-          )}
-        </div>
+            {deployments.length === 0 ? deploymentsEmpty : <ul className="divide-y divide-slate-200">{deployments.map(deploymentRow)}</ul>}
+          </section>
+        )}
+
+        {activeTab === "settings" && (
+          <section className={cn(panelClass, "p-4 sm:p-5")}>
+            <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-200 pb-2.5">
+              <h3 className={panelTitleClass}>Compliance and SLA settings</h3>
+              <Button variant="outline" size="sm" onClick={() => setEditModalOpen(true)}>
+                Edit settings
+              </Button>
+            </div>
+
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-xs font-medium text-slate-600">Review SLA threshold</dt>
+                <dd className="text-slate-900">{client.reviewThresholdDays ?? 5} days</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-slate-600">Medical exam validity</dt>
+                <dd className="text-slate-900">{client.medicalValidityMonths ?? 6} months</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-slate-600">Pre-employment template</dt>
+                <dd className="text-slate-900">
+                  {customTemplates.length > 0
+                    ? `${customTemplates.length} custom requirement${customTemplates.length === 1 ? "" : "s"}`
+                    : "Default 201 checklist"}
+                </dd>
+              </div>
+            </dl>
+
+            {customTemplates.length > 0 ? (
+              <div className="mt-4 space-y-2 border-t border-slate-200 pt-4 text-sm">
+                <p className="text-xs font-medium text-slate-600">Checklist requirements</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {customTemplates.map((t: any) => (
+                    <span
+                      key={t.id}
+                      className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs text-slate-800"
+                    >
+                      <span>{t.documentLabel}</span>
+                      {!t.isRequired && <span className="text-slate-600">(optional)</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 border-t border-slate-200 pt-4 text-sm">
+                <p className="mb-1 text-xs font-medium text-slate-600">Standard 201 requirements</p>
+                <p className="leading-relaxed text-slate-700">
+                  Government Issued ID, NBI Clearance, Fit to Work Medical Exam, SSS Document, PhilHealth Member Data Record, Pag-IBIG Member ID, Client NDA & Security Briefing
+                </p>
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {/* Edit Client Modal */}

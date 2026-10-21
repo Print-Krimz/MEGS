@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
   PageHeader,
@@ -16,6 +16,7 @@ import {
 } from "../../components/common";
 import { Button, Dialog, Textarea } from "../../components/ui";
 import { formatDate, getApplicationStatusMeta } from "../../lib/utils";
+import { StageStrip, STAGE_STRIP_STAGES, type StageStripItem } from "../../components/ta/recruitment/StageStrip";
 import {
   ApplicationStatus,
   PIPELINE_FILTER_STAGES,
@@ -228,6 +229,45 @@ export const ApplicationsPage: React.FC = () => {
     staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
 
+  // Counts for the stage strip honour every filter except the stage itself.
+  const stageStripValues = React.useMemo(() => {
+    const current = filterValues.status;
+    const known = (STAGE_STRIP_STAGES as readonly string[]).includes(current ?? "");
+    return ["", ...STAGE_STRIP_STAGES, ...(current && !known ? [current] : [])];
+  }, [filterValues.status]);
+  const stageCountQueries = useQueries({
+    queries: stageStripValues.map((stage) => ({
+      queryKey: ["ta", "applications", "stage-count", {
+        stage,
+        search: debouncedSearch,
+        clientId: filterValues.clientId || "",
+        jobId: filterValues.jobId || "",
+        returningOnly,
+      }],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        taApi
+          .listApplicationsPage({
+            page: 1,
+            limit: 1,
+            search: debouncedSearch || undefined,
+            status: (stage as ApplicationStatus) || undefined,
+            jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
+            clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
+            isArchived: false,
+            returning: returningOnly || undefined,
+            summary: true,
+          }, { signal })
+          .then((result) => result.total),
+      placeholderData: keepPreviousData,
+      staleTime: 30_000,
+    })),
+  });
+  const stageStripItems: StageStripItem[] = stageStripValues.map((stage, index) => ({
+    value: stage,
+    label: stage ? getApplicationStatusMeta(stage).label : "All",
+    count: stageCountQueries[index]?.data,
+  }));
+
   // Mutations
   const archiveMutation = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
@@ -333,6 +373,15 @@ export const ApplicationsPage: React.FC = () => {
 
 
   const hasActiveFilters = Boolean(search) || returningOnly || Object.keys(filterValues).length > 0;
+
+  const changeStage = (stage: string) => {
+    const nextValues = { ...filterValues };
+    if (stage) nextValues.status = stage;
+    else delete nextValues.status;
+    setFilterValues(nextValues);
+    setPage(1);
+    updateListUrl({ stage: (stage as ApplicationStatus) || undefined, page: undefined });
+  };
 
   const resetFilters = () => {
     setSearch("");
@@ -481,7 +530,7 @@ export const ApplicationsPage: React.FC = () => {
       <PageHeader
         title={TA_COPY.pageTitles.applications}
         description="Review applications, see their current stage, and continue the next hiring action."
-        breadcrumbs={[
+                breadcrumbs={[
           { label: TA_COPY.navigation.overview, href: "/ta" },
           { label: TA_COPY.navigation.applications },
         ]}
@@ -492,7 +541,7 @@ export const ApplicationsPage: React.FC = () => {
         <div
           role={feedback.type === "error" ? "alert" : "status"}
           aria-live="polite"
-          className={`flex items-center justify-between rounded-lg border p-3 text-sm ${
+          className={`flex items-center justify-between rounded-md border p-3 text-sm ${
             feedback.type === "success"
               ? "border-navy-line bg-navy-soft text-navy"
               : "border-rose-200 bg-rose-50 text-rose-800"
@@ -513,7 +562,7 @@ export const ApplicationsPage: React.FC = () => {
       <div>
         <SearchFilters
           className="mb-0"
-          searchPlaceholder="Search name, email or job"
+          searchPlaceholder="Search candidate, email or job"
           searchValue={search}
           onSearchChange={(v) => {
             setSearch(v);
@@ -572,15 +621,6 @@ export const ApplicationsPage: React.FC = () => {
           }
           filters={[
             {
-              key: "status",
-              label: "Application stage",
-              placeholder: "All application stages",
-              options: PIPELINE_FILTER_STAGES.map((s) => ({
-                value: s,
-                label: getApplicationStatusMeta(s).label,
-              })),
-            },
-            {
               key: "clientId",
               label: "Client account",
               placeholder: "All client accounts",
@@ -605,6 +645,15 @@ export const ApplicationsPage: React.FC = () => {
           ]}
         />
       </div>
+
+      {!showArchived && (
+        <StageStrip
+          ariaLabel="Application stage"
+          items={stageStripItems}
+          value={filterValues.status ?? ""}
+          onChange={changeStage}
+        />
+      )}
 
       {showArchived && (
         <p role="status" className="border border-navy-line bg-navy-soft px-3 py-2 text-sm font-medium text-navy">

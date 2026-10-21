@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
-import { PageHeader, ConfirmDialog } from "../../components/common";
+import { PageHeader, ConfirmDialog, DateField } from "../../components/common";
+import { MRFCreateSummary, MRFStepList, type MRFStep } from "../../components/ta/recruitment/MRFCreateSummary";
+import { cn } from "../../lib/utils";
 import { Button, Input, Select, Textarea, ComboBox } from "../../components/ui";
 import { notify, formatErrorMessage, fieldErrorsFrom } from "../../lib/feedback";
 import {
@@ -44,13 +46,13 @@ const FIELD_ORDER: Array<[string, string]> = [
   ["title", "mrf-title"],
   ["headcount", "mrf-headcount"],
   ["location", "mrf-location"],
-  ["salaryRangeMin", "mrf-salary-min"],
-  ["salaryRangeMax", "mrf-salary-max"],
   ["requiredSkills", "mrf-skills"],
   ["requiredCertifications", "mrf-certifications"],
   ["description", "mrf-notes"],
   ["ageMin", "mrf-age-min"],
   ["ageMax", "mrf-age-max"],
+  ["salaryRangeMin", "mrf-salary-min"],
+  ["salaryRangeMax", "mrf-salary-max"],
 ];
 
 type PendingFill =
@@ -470,6 +472,30 @@ export const MRFCreatePage: React.FC = () => {
     subtitle: `${c.industry || "General industry"} • ${[c.city, c.province].filter(Boolean).join(", ") || c.address || "Philippines"}`,
   }));
 
+  const selectedClient = clients.find((c) => c.id === clientId);
+  const steps: MRFStep[] = [
+    { id: "mrf-step-role", label: "Client & role", done: Boolean(clientId && title.trim() && Number(headcount) >= 1) },
+    { id: "mrf-step-requirements", label: "Requirements", done: Boolean(requiredSkills.trim()), optional: true },
+    { id: "mrf-step-terms", label: "Terms", done: Boolean(employmentType && workArrangement && (salaryMin || salaryMax)) },
+    { id: "mrf-step-review", label: "Review", done: false },
+  ];
+  const summaryValues = {
+    clientName: selectedClient?.name,
+    title,
+    headcount,
+    priority,
+    targetFillDate,
+    location,
+    employmentType,
+    workArrangement,
+    salaryMin,
+    salaryMax,
+    skillCount: activeSkillsList.length,
+  };
+
+  const sectionClass = "scroll-mt-24 space-y-4 rounded-md border border-slate-300 bg-white p-4 sm:p-5";
+  const sectionTitleClass = "text-lg font-semibold text-slate-950";
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -497,113 +523,114 @@ export const MRFCreatePage: React.FC = () => {
         </div>
       )}
 
-      <form noValidate onSubmit={handleSubmit} className="space-y-6 border border-slate-300 bg-white p-4 sm:p-6">
-        {/* Core Order Information */}
-        <div className="space-y-4">
-          <div className="flex flex-col justify-between gap-3 border-b border-slate-200 pb-2 sm:flex-row sm:items-center">
-            <h3 className="text-sm font-semibold text-slate-900">Request details</h3>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[12rem_minmax(0,1fr)] xl:grid-cols-[12rem_minmax(0,1fr)_18rem]">
+        <MRFStepList steps={steps} className="hidden self-start lg:sticky lg:top-4 lg:block" />
 
-            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setCloneModalOpen(true)}
-                className="shrink-0"
-              >
-                Clone from past MRF
-              </Button>
+        <form id="mrf-create-form" noValidate onSubmit={handleSubmit} className="min-w-0 space-y-5">
+          {/* Step 1: client and role */}
+          <section id="mrf-step-role" aria-labelledby="mrf-step-role-title" className={sectionClass}>
+            <div className="flex flex-col justify-between gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-center">
+              <h2 id="mrf-step-role-title" className={sectionTitleClass}>Client and role</h2>
 
-              <div className="sm:w-64">
-                <Select
-                  aria-label="Apply role template"
-                  value={selectedPresetId}
-                  onChange={(e) => handleApplyPreset(e.target.value)}
+              <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCloneModalOpen(true)}
+                  className="shrink-0"
                 >
-                  <option value="">Apply role template…</option>
-                  {Object.entries(presetsByIndustry).map(([industry, presets]) => (
-                    presets.length > 0 && (
-                      <optgroup key={industry} label={industry}>
-                        {presets.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )
-                  ))}
-                </Select>
+                  Clone from past MRF
+                </Button>
+
+                <div className="sm:w-64">
+                  <Select
+                    aria-label="Apply role template"
+                    value={selectedPresetId}
+                    onChange={(e) => handleApplyPreset(e.target.value)}
+                  >
+                    <option value="">Apply role template…</option>
+                    {Object.entries(presetsByIndustry).map(([industry, presets]) => (
+                      presets.length > 0 && (
+                        <optgroup key={industry} label={industry}>
+                          {presets.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )
+                    ))}
+                  </Select>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <ComboBox
-              id="mrf-client"
-              label="Client"
-              placeholder="Search or select client account..."
-              value={clientId ? String(clientId) : ""}
-              error={serverFieldErrors.clientId}
-              onChange={handleClientChange}
-              options={clientOptions}
-              emptyText="No client accounts match your search"
-              required
-            />
-            <Input
-              id="mrf-title"
-              label="Request title"
-              placeholder="e.g. 50x Forklift Operators - Warehouse Expansion"
-              value={title}
-              error={serverFieldErrors.title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                clearServerFieldError("title");
-              }}
-              required
-            />
-          </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <ComboBox
+                id="mrf-client"
+                label="Client"
+                placeholder="Search or select client account..."
+                value={clientId ? String(clientId) : ""}
+                error={serverFieldErrors.clientId}
+                onChange={handleClientChange}
+                options={clientOptions}
+                emptyText="No client accounts match your search"
+                required
+              />
+              <Input
+                id="mrf-title"
+                label="Request title"
+                placeholder="e.g. 50x Forklift Operators - Warehouse Expansion"
+                value={title}
+                error={serverFieldErrors.title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  clearServerFieldError("title");
+                }}
+                required
+              />
+            </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Input
-              id="mrf-headcount"
-              label="Number of workers needed"
-              type="number"
-              min={1}
-              max={1000}
-              value={headcount}
-              error={serverFieldErrors.headcount}
-              onChange={handleHeadcountChange}
-              required
-            />
-            <Select
-              label="Priority"
-              value={priority}
-              error={serverFieldErrors.priority}
-              onChange={(e) => {
-                setPriority(e.target.value as any);
-                clearServerFieldError("priority");
-              }}
-              options={[
-                { value: "LOW", label: "Low" },
-                { value: "NORMAL", label: "Normal" },
-                { value: "HIGH", label: "High" },
-                { value: "URGENT", label: "Urgent (critical need)" },
-              ]}
-            />
-            <Input
-              label="Target fill date"
-              type="date"
-              min={getManilaToday()}
-              value={targetFillDate}
-              error={serverFieldErrors.targetFillDate}
-              onChange={(e) => {
-                setTargetFillDate(e.target.value);
-                clearServerFieldError("targetFillDate");
-              }}
-            />
-          </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Input
+                id="mrf-headcount"
+                label="Number of workers needed"
+                type="number"
+                min={1}
+                max={1000}
+                value={headcount}
+                error={serverFieldErrors.headcount}
+                onChange={handleHeadcountChange}
+                required
+              />
+              <Select
+                label="Priority"
+                value={priority}
+                error={serverFieldErrors.priority}
+                onChange={(e) => {
+                  setPriority(e.target.value as any);
+                  clearServerFieldError("priority");
+                }}
+                options={[
+                  { value: "LOW", label: "Low" },
+                  { value: "NORMAL", label: "Normal" },
+                  { value: "HIGH", label: "High" },
+                  { value: "URGENT", label: "Urgent (critical need)" },
+                ]}
+              />
+              <DateField
+                label="Target fill date"
+                min={getManilaToday()}
+                value={targetFillDate}
+                error={serverFieldErrors.targetFillDate}
+                onChange={(e) => {
+                  setTargetFillDate(e.target.value);
+                  clearServerFieldError("targetFillDate");
+                }}
+              />
+            </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1">
               <Input
                 id="mrf-location"
@@ -619,257 +646,281 @@ export const MRFCreatePage: React.FC = () => {
               />
               <FieldWarning show={locationLooksUnclear(location)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
             </div>
-            <ComboBox
-              label="Employment type"
-              placeholder="Select employment type"
-              value={employmentType}
-              error={serverFieldErrors.employmentType}
-              onChange={(val) => {
-                setEmploymentType(val || "Contractual");
-                clearServerFieldError("employmentType");
-              }}
-              options={EMPLOYMENT_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
-              allowCustom
-              required
-            />
-            <ComboBox
-              label="Work arrangement"
-              placeholder="Select arrangement"
-              value={workArrangement}
-              error={serverFieldErrors.workArrangement}
-              onChange={(val) => {
-                setWorkArrangement(val || "On-site");
-                clearServerFieldError("workArrangement");
-              }}
-              options={WORK_ARRANGEMENT_OPTIONS.map((w) => ({ value: w, label: w }))}
-              allowCustom
-              required
-            />
-          </div>
+          </section>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Input
-              id="mrf-salary-min"
-              label="Minimum monthly salary (PHP)"
-              type="number"
-              min={0}
-              max={1000000}
-              step="0.01"
-              placeholder="e.g. 18000"
-              value={salaryMin}
-              error={serverFieldErrors.salaryRangeMin}
-              onChange={handleSalaryMinChange}
-            />
-            <Input
-              id="mrf-salary-max"
-              label="Maximum monthly salary (PHP)"
-              type="number"
-              min={0}
-              max={1000000}
-              step="0.01"
-              placeholder="e.g. 25000"
-              value={salaryMax}
-              onChange={handleSalaryMaxChange}
-              error={serverFieldErrors.salaryRangeMax || (isSalaryRangeInvalid ? "Maximum salary cannot be less than minimum salary" : undefined)}
-            />
-          </div>
-        </div>
+          {/* Step 2: skills and qualifications */}
+          <section id="mrf-step-requirements" aria-labelledby="mrf-step-requirements-title" className={sectionClass}>
+            <h2 id="mrf-step-requirements-title" className={cn(sectionTitleClass, "border-b border-slate-200 pb-3")}>
+              Skills and qualifications
+            </h2>
 
-        {/* Skills and qualifications */}
-        <div className="space-y-4 border-t border-slate-200 pt-4">
-          <h3 className="border-b border-slate-200 pb-2 text-sm font-semibold text-slate-900">
-            Skills and qualifications
-          </h3>
-
-          <div className="space-y-1.5">
-            <Input
-              id="mrf-skills"
-              label="Required skills"
-              placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
-              helperText={SKILLS_HINT}
-              value={requiredSkills}
-              error={serverFieldErrors.requiredSkills}
-              onChange={(e) => {
-                setRequiredSkills(e.target.value);
-                clearServerFieldError("requiredSkills");
-              }}
-            />
-            <FieldWarning show={skillsLookLikeTraits(requiredSkills)}>{SKILLS_TRAITS_WARNING}</FieldWarning>
-            {activeSkillsList.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                <span className="text-xs text-slate-600">
-                  Skills ({activeSkillsList.length}):
-                </span>
-                {activeSkillsList.map((skill, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 border border-slate-200 bg-slate-100 py-0.5 pl-2 text-xs text-slate-700"
-                  >
-                    <span>{skill}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSkill(skill)}
-                      className="inline-flex min-h-11 min-w-8 cursor-pointer items-center justify-center text-sm leading-none text-slate-600 hover:text-rose-700 focus-ring md:min-h-6"
-                      aria-label={`Remove skill ${skill}`}
-                    >
-                      ×
-                    </button>
+            <div className="space-y-1.5">
+              <Input
+                id="mrf-skills"
+                label="Required skills"
+                placeholder="e.g. Forklift Operation, Heavy Machinery, Safety Certified"
+                helperText={SKILLS_HINT}
+                value={requiredSkills}
+                error={serverFieldErrors.requiredSkills}
+                onChange={(e) => {
+                  setRequiredSkills(e.target.value);
+                  clearServerFieldError("requiredSkills");
+                }}
+              />
+              <FieldWarning show={skillsLookLikeTraits(requiredSkills)}>{SKILLS_TRAITS_WARNING}</FieldWarning>
+              {activeSkillsList.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <span className="text-xs text-slate-600">
+                    Skills ({activeSkillsList.length}):
                   </span>
-                ))}
+                  {activeSkillsList.map((skill, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-100 py-0.5 pl-2 text-xs text-slate-700"
+                    >
+                      <span>{skill}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSkill(skill)}
+                        className="inline-flex min-h-11 min-w-8 cursor-pointer items-center justify-center text-sm leading-none text-slate-600 hover:text-rose-700 focus-ring md:min-h-6"
+                        aria-label={`Remove skill ${skill}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <ComboBox
+                label="Required experience"
+                placeholder="Select or specify required experience"
+                value={requiredExperience}
+                error={serverFieldErrors.requiredExperience}
+                onChange={(val) => {
+                  setRequiredExperience(val || "");
+                  clearServerFieldError("requiredExperience");
+                }}
+                options={MRF_EXPERIENCE_OPTIONS.map((e) => ({ value: e, label: e }))}
+                allowCustom
+              />
+              <ComboBox
+                label="Minimum education"
+                placeholder="Select minimum education"
+                value={requiredEducation}
+                error={serverFieldErrors.requiredEducation}
+                onChange={(val) => {
+                  setRequiredEducation(val || "");
+                  clearServerFieldError("requiredEducation");
+                }}
+                options={MRF_EDUCATION_OPTIONS.map((ed) => ({ value: ed, label: ed }))}
+                allowCustom
+              />
+            </div>
+
+            <Input
+              id="mrf-certifications"
+              label="Required certifications & licenses"
+              placeholder="e.g. Professional Driver's License (Code 2/3), TESDA NC II Automotive Servicing, PRC License"
+              value={requiredCertifications}
+              error={serverFieldErrors.requiredCertifications}
+              onChange={(e) => {
+                setRequiredCertifications(e.target.value);
+                clearServerFieldError("requiredCertifications");
+              }}
+            />
+
+            <Textarea
+              id="mrf-notes"
+              label="Notes for this client"
+              placeholder="Specify shift schedules, client site notes, uniform provisions..."
+              value={description}
+              error={serverFieldErrors.description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                clearServerFieldError("description");
+              }}
+              rows={4}
+              maxLength={10000}
+            />
+
+            {/* Internal-only client requirements */}
+            <details
+              className="group border-t border-slate-200 pt-4"
+              open={clientRequirementsOpen}
+              onToggle={(e) => setClientRequirementsOpen((e.currentTarget as HTMLDetailsElement).open)}
+            >
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-slate-900 focus-ring md:min-h-0 [&::-webkit-details-marker]:hidden">
+                <span>Client requirements (internal only)</span>
+                <span className="text-sm font-medium text-navy group-open:hidden">Show</span>
+                <span className="hidden text-sm font-medium text-navy group-open:inline">Hide</span>
+              </summary>
+              <div className="mt-3 space-y-4">
+                <p className="text-sm text-slate-600">These preferences are for your team only and are never shown on job postings.</p>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Input
+                    id="mrf-age-min"
+                    label="Minimum age"
+                    type="number"
+                    min={18}
+                    max={65}
+                    placeholder="e.g. 21"
+                    value={ageMin}
+                    error={serverFieldErrors.ageMin}
+                    onChange={handleAgeMinChange}
+                    helperText="Must be between 18 and 65"
+                  />
+                  <Input
+                    id="mrf-age-max"
+                    label="Maximum age"
+                    type="number"
+                    min={18}
+                    max={65}
+                    placeholder="e.g. 45"
+                    value={ageMax}
+                    onChange={handleAgeMaxChange}
+                    error={serverFieldErrors.ageMax || (isAgeRangeInvalid ? "Maximum age cannot be less than minimum age" : undefined)}
+                    helperText="Must be between 18 and 65"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Select
+                    label="Gender preference"
+                    value={genderPreference}
+                    error={serverFieldErrors.genderPreference}
+                    onChange={(e) => {
+                      setGenderPreference(e.target.value);
+                      clearServerFieldError("genderPreference");
+                    }}
+                    options={[
+                      { value: "ANY", label: "Any / No preference" },
+                      { value: "MALE", label: "Male preferred" },
+                      { value: "FEMALE", label: "Female preferred" },
+                    ]}
+                  />
+                  <Select
+                    label="Tattoo visibility policy"
+                    value={tattooPolicy}
+                    error={serverFieldErrors.tattooPolicy}
+                    onChange={(e) => {
+                      setTattooPolicy(e.target.value);
+                      clearServerFieldError("tattooPolicy");
+                    }}
+                    options={[
+                      { value: "ALLOWED", label: "No restrictions / Allowed" },
+                      { value: "NO_VISIBLE", label: "No visible tattoos" },
+                      { value: "NONE", label: "No tattoos permitted" },
+                    ]}
+                  />
+                </div>
               </div>
-            )}
-          </div>
+            </details>
+          </section>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <ComboBox
-              label="Required experience"
-              placeholder="Select or specify required experience"
-              value={requiredExperience}
-              error={serverFieldErrors.requiredExperience}
-              onChange={(val) => {
-                setRequiredExperience(val || "");
-                clearServerFieldError("requiredExperience");
-              }}
-              options={MRF_EXPERIENCE_OPTIONS.map((e) => ({ value: e, label: e }))}
-              allowCustom
-            />
-            <ComboBox
-              label="Minimum education"
-              placeholder="Select minimum education"
-              value={requiredEducation}
-              error={serverFieldErrors.requiredEducation}
-              onChange={(val) => {
-                setRequiredEducation(val || "");
-                clearServerFieldError("requiredEducation");
-              }}
-              options={MRF_EDUCATION_OPTIONS.map((ed) => ({ value: ed, label: ed }))}
-              allowCustom
-            />
-          </div>
-
-          <Input
-            id="mrf-certifications"
-            label="Required certifications & licenses"
-            placeholder="e.g. Professional Driver's License (Code 2/3), TESDA NC II Automotive Servicing, PRC License"
-            value={requiredCertifications}
-            error={serverFieldErrors.requiredCertifications}
-            onChange={(e) => {
-              setRequiredCertifications(e.target.value);
-              clearServerFieldError("requiredCertifications");
-            }}
-          />
-
-          <Textarea
-            id="mrf-notes"
-            label="Notes for this client"
-            placeholder="Specify shift schedules, client site notes, uniform provisions..."
-            value={description}
-            error={serverFieldErrors.description}
-            onChange={(e) => {
-              setDescription(e.target.value);
-              clearServerFieldError("description");
-            }}
-            rows={4}
-            maxLength={10000}
-          />
-        </div>
-
-        {/* Internal-only client requirements */}
-        <details
-          className="group border-t border-slate-200 pt-4"
-          open={clientRequirementsOpen}
-          onToggle={(e) => setClientRequirementsOpen((e.currentTarget as HTMLDetailsElement).open)}
-        >
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-slate-900 focus-ring md:min-h-0 [&::-webkit-details-marker]:hidden">
-            <span>Client requirements (internal only)</span>
-            <span className="text-sm font-medium text-navy group-open:hidden">Show</span>
-            <span className="hidden text-sm font-medium text-navy group-open:inline">Hide</span>
-          </summary>
-          <div className="mt-3 space-y-4">
-            <p className="text-sm text-slate-600">These preferences are for your team only and are never shown on job postings.</p>
-
+          {/* Step 3: terms */}
+          <section id="mrf-step-terms" aria-labelledby="mrf-step-terms-title" className={sectionClass}>
+            <h2 id="mrf-step-terms-title" className={cn(sectionTitleClass, "border-b border-slate-200 pb-3")}>
+              Terms
+            </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input
-                id="mrf-age-min"
-                label="Minimum age"
-                type="number"
-                min={18}
-                max={65}
-                placeholder="e.g. 21"
-                value={ageMin}
-                error={serverFieldErrors.ageMin}
-                onChange={handleAgeMinChange}
-                helperText="Must be between 18 and 65"
+              <ComboBox
+                label="Employment type"
+                placeholder="Select employment type"
+                value={employmentType}
+                error={serverFieldErrors.employmentType}
+                onChange={(val) => {
+                  setEmploymentType(val || "Contractual");
+                  clearServerFieldError("employmentType");
+                }}
+                options={EMPLOYMENT_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
+                allowCustom
+                required
               />
-              <Input
-                id="mrf-age-max"
-                label="Maximum age"
-                type="number"
-                min={18}
-                max={65}
-                placeholder="e.g. 45"
-                value={ageMax}
-                onChange={handleAgeMaxChange}
-                error={serverFieldErrors.ageMax || (isAgeRangeInvalid ? "Maximum age cannot be less than minimum age" : undefined)}
-                helperText="Must be between 18 and 65"
+              <ComboBox
+                label="Work arrangement"
+                placeholder="Select arrangement"
+                value={workArrangement}
+                error={serverFieldErrors.workArrangement}
+                onChange={(val) => {
+                  setWorkArrangement(val || "On-site");
+                  clearServerFieldError("workArrangement");
+                }}
+                options={WORK_ARRANGEMENT_OPTIONS.map((w) => ({ value: w, label: w }))}
+                allowCustom
+                required
               />
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Select
-                label="Gender preference"
-                value={genderPreference}
-                error={serverFieldErrors.genderPreference}
-                onChange={(e) => {
-                  setGenderPreference(e.target.value);
-                  clearServerFieldError("genderPreference");
-                }}
-                options={[
-                  { value: "ANY", label: "Any / No preference" },
-                  { value: "MALE", label: "Male preferred" },
-                  { value: "FEMALE", label: "Female preferred" },
-                ]}
+              <Input
+                id="mrf-salary-min"
+                label="Minimum monthly salary (PHP)"
+                type="number"
+                min={0}
+                max={1000000}
+                step="0.01"
+                placeholder="e.g. 18000"
+                value={salaryMin}
+                error={serverFieldErrors.salaryRangeMin}
+                onChange={handleSalaryMinChange}
               />
-              <Select
-                label="Tattoo visibility policy"
-                value={tattooPolicy}
-                error={serverFieldErrors.tattooPolicy}
-                onChange={(e) => {
-                  setTattooPolicy(e.target.value);
-                  clearServerFieldError("tattooPolicy");
-                }}
-                options={[
-                  { value: "ALLOWED", label: "No restrictions / Allowed" },
-                  { value: "NO_VISIBLE", label: "No visible tattoos" },
-                  { value: "NONE", label: "No tattoos permitted" },
-                ]}
+              <Input
+                id="mrf-salary-max"
+                label="Maximum monthly salary (PHP)"
+                type="number"
+                min={0}
+                max={1000000}
+                step="0.01"
+                placeholder="e.g. 25000"
+                value={salaryMax}
+                onChange={handleSalaryMaxChange}
+                error={serverFieldErrors.salaryRangeMax || (isSalaryRangeInvalid ? "Maximum salary cannot be less than minimum salary" : undefined)}
               />
             </div>
-          </div>
-        </details>
+          </section>
 
-        <div className="flex flex-col-reverse justify-end gap-2 border-t border-slate-200 pt-4 sm:flex-row">
-          <Button variant="outline" size="sm" type="button" onClick={handleCancel} className="w-full sm:w-auto">
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            type="submit"
-            loading={createMRFMutation.isPending}
-            className="w-full sm:w-auto"
-          >
-            Create request
-          </Button>
-        </div>
-      </form>
+          {/* Step 4: review. At 1280px and wider the same summary sits beside the form. */}
+          <section id="mrf-step-review" aria-labelledby="mrf-step-review-title" className={cn(sectionClass, "xl:hidden")}>
+            <h2 id="mrf-step-review-title" className={cn(sectionTitleClass, "border-b border-slate-200 pb-3")}>
+              Review
+            </h2>
+            <MRFCreateSummary values={summaryValues} className="grid grid-cols-2 gap-x-4 sm:grid-cols-3 [&>div]:min-w-0" />
+          </section>
+
+          <div className="sticky bottom-0 z-10 -mx-4 flex flex-col-reverse justify-end gap-2 border-t border-slate-300 bg-white px-4 py-3 sm:mx-0 sm:flex-row sm:rounded-md sm:border">
+            <Button variant="outline" size="sm" type="button" onClick={handleCancel} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              type="submit"
+              loading={createMRFMutation.isPending}
+              className="w-full sm:w-auto"
+            >
+              Create request
+            </Button>
+          </div>
+        </form>
+
+        <aside aria-label="Request summary" className="hidden self-start xl:sticky xl:top-4 xl:block">
+          <div className="rounded-md border border-slate-300 bg-white p-4">
+            <h2 className="mb-3 text-base font-semibold text-slate-950">Request summary</h2>
+            <MRFCreateSummary values={summaryValues} />
+          </div>
+        </aside>
+      </div>
 
       <CloneMRFModal
         open={cloneModalOpen}
         onClose={() => setCloneModalOpen(false)}
         onSelectMRF={handleApplyClonedMRF}
         currentClientId={clientId || undefined}
-        currentClientName={clients.find((c) => c.id === clientId)?.name}
+        currentClientName={selectedClient?.name}
       />
 
       <ConfirmDialog
