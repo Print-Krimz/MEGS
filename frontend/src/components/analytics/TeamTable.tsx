@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import type { TeamRow } from "../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
+import { TEXT_LOSS, TEXT_AMBER } from "../../lib/chart-palette";
 import { PaginationBar } from "./PaginationBar";
 
 interface TeamTableProps {
@@ -116,10 +117,10 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
                         </button>
                     </th>
                     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap font-semibold text-slate-950">{row.active}</td>
-                    <td className={`px-3 py-2 text-right tabular-nums whitespace-nowrap ${row.overdue > 0 ? "font-bold text-rose-700" : "text-slate-500"}`}>
+                    <td className={`px-3 py-2 text-right tabular-nums whitespace-nowrap ${row.overdue > 0 ? `font-bold ${TEXT_LOSS}` : "text-slate-500"}`}>
                       {row.overdue}
                       {row.overdueEstimated > 0 && (
-                        <span className="block text-[11px] font-normal text-amber-800">+{row.overdueEstimated} by age only</span>
+                        <span className={`block text-[11px] font-normal ${TEXT_AMBER}`}>+{row.overdueEstimated} by age only</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-700">{row.openRequisitions}</td>
@@ -142,7 +143,7 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
                         </span>
                       )}
                     </td>
-                    <td className={`px-3 py-2 text-right tabular-nums whitespace-nowrap ${row.backouts > 0 ? "text-rose-700" : "text-slate-500"}`}>
+                    <td className={`px-3 py-2 text-right tabular-nums whitespace-nowrap ${row.backouts > 0 ? `${TEXT_LOSS}` : "text-slate-500"}`}>
                       {row.backouts}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-700">

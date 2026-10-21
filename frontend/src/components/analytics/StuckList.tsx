@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { StuckCandidate } from "../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
+import { HEALTH_CHIP, TEXT_AMBER, TEXT_LOSS } from "../../lib/chart-palette";
 import { PaginationBar } from "./PaginationBar";
 
 interface StuckListProps {
@@ -24,8 +25,8 @@ interface StuckListProps {
 }
 
 const URGENCY = {
-  critical: { label: "Critical", badge: "bg-rose-50 text-rose-800 border-rose-400" },
-  overdue: { label: "Overdue", badge: "bg-amber-50 text-amber-800 border-amber-300" },
+  critical: { label: "Critical", badge: HEALTH_CHIP.overdue.className },
+  overdue: { label: "Late", badge: HEALTH_CHIP.atRisk.className },
 } as const;
 
 const SELECT =
@@ -180,7 +181,7 @@ export const StuckList = React.memo(function StuckList({
                   )}
                 </div>
                 <div className="sm:shrink-0 sm:text-right">
-                  <p className={`text-xs font-semibold tabular-nums ${r.urgency === "critical" ? "text-rose-700" : "text-amber-800"}`}>
+                  <p className={`text-xs font-semibold tabular-nums ${r.urgency === "critical" ? `${TEXT_LOSS}` : `${TEXT_AMBER}`}`}>
                     {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over the limit
                   </p>
                   <p className="text-xs text-slate-600 font-sans tabular-nums">

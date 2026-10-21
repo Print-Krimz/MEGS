@@ -1,3 +1,4 @@
+import { HEALTH_CHIP } from "../../lib/chart-palette";
 import React from "react";
 
 export interface AttentionItem {
@@ -18,15 +19,15 @@ interface AttentionStripProps {
 }
 
 const TONE = {
-  alert: "border-rose-300 bg-rose-50 text-rose-900 hover:bg-rose-100",
-  warn: "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100",
+  alert: `${HEALTH_CHIP.overdue.className} hover:brightness-90`,
+  warn: `${HEALTH_CHIP.watch.className} hover:bg-navy-soft`,
 } as const;
 
 /** The few things a team leader should look at first. Each one scrolls to the section that lists the records. */
 export const AttentionStrip: React.FC<AttentionStripProps> = ({ items }) => {
   const shown = items.filter((i) => i.count > 0);
   return (
-    <section aria-label="Needs attention" className="border border-slate-300 bg-white px-3.5 py-2.5">
+    <section aria-label="Needs attention" className="border border-navy-line bg-white rounded-md px-3.5 py-2.5">
       {shown.length === 0 ? (
         <p className="text-xs text-slate-600 font-sans">Nothing needs attention right now: no critical waits, late requests or unassigned applicants.</p>
       ) : (

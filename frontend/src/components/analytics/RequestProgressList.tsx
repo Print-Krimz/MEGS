@@ -4,6 +4,7 @@ import type { RequestRow } from "../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { formatDate } from "../../lib/utils";
 import { AnalyticsPanel } from "./AnalyticsPanel";
+import { CHART_TRACK, HEALTH_CHIP, OUTCOME, TEXT_AMBER, TEXT_LOSS } from "../../lib/chart-palette";
 import { PaginationBar } from "./PaginationBar";
 
 interface RequestProgressListProps {
@@ -24,15 +25,15 @@ interface RequestProgressListProps {
 export type RequestHealthFilter = "ALL" | "NONE" | "UNOWNED" | RequestRow["health"];
 
 const HEALTH: Record<RequestRow["health"], { label: string; badge: string; bar: string }> = {
-  OVERDUE: { label: "Overdue", badge: "bg-rose-50 text-rose-800 border-rose-300", bar: "bg-rose-600" },
-  AT_RISK: { label: "At risk", badge: "bg-amber-50 text-amber-800 border-amber-300", bar: "bg-amber-500" },
-  ON_TRACK: { label: "On track", badge: "bg-emerald-50 text-emerald-800 border-emerald-300", bar: "bg-navy" },
-  FILLED: { label: "Filled", badge: "bg-slate-100 text-slate-700 border-slate-300", bar: "bg-slate-500" },
+  OVERDUE: { ...HEALTH_CHIP.overdue, badge: HEALTH_CHIP.overdue.className, bar: OUTCOME.backedOut },
+  AT_RISK: { ...HEALTH_CHIP.atRisk, badge: HEALTH_CHIP.atRisk.className, bar: OUTCOME.notSelected },
+  ON_TRACK: { ...HEALTH_CHIP.onTrack, badge: HEALTH_CHIP.onTrack.className, bar: OUTCOME.movedOn },
+  FILLED: { ...HEALTH_CHIP.filled, badge: HEALTH_CHIP.filled.className, bar: OUTCOME.movedOn },
 };
 
 const ATTENTION: Record<Exclude<RequestRow["attention"], null>, { label: string; badge: string }> = {
-  NO_OPENING: { label: "No opening posted", badge: "bg-amber-50 text-amber-900 border-amber-300" },
-  NO_APPLICANTS: { label: "No applicants yet", badge: "bg-amber-50 text-amber-900 border-amber-300" },
+  NO_OPENING: { label: "No opening posted", badge: HEALTH_CHIP.atRisk.className },
+  NO_APPLICANTS: { label: "No applicants yet", badge: HEALTH_CHIP.atRisk.className },
   FIRST_STAGE_ONLY: { label: "Nobody past first review", badge: "bg-slate-100 text-slate-800 border-slate-300" },
 };
 
@@ -127,7 +128,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                   setPage(1);
                 }}
                 className={`min-h-9 px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-                  health === f.key ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                  health === f.key ? "bg-navy text-white border-navy" : "bg-white text-slate-700 border-navy-line hover:bg-navy-soft"
                 }`}
               >
                 {f.label} <span className="tabular-nums font-normal">{counts[f.key]}</span>
@@ -194,7 +195,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                     </th>
                     {showOwner && (
                       <td className="hidden sm:table-cell px-3 py-2 text-xs font-sans text-slate-800 whitespace-nowrap" title={owner.full}>
-                        {row.ownerId === null ? <span className="font-semibold text-amber-800">No owner</span> : owner.label}
+                        {row.ownerId === null ? <span className={`font-semibold ${TEXT_AMBER}`}>No owner</span> : owner.label}
                       </td>
                     )}
                     <td className="px-3 py-2 min-w-32">
@@ -202,14 +203,14 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                         <strong>{row.filled}</strong> of <strong>{row.headcount}</strong> seats
                       </span>
                       <div
-                        className="mt-1 h-1.5 w-28 bg-slate-100"
+                        className="mt-1 h-2 w-28 overflow-hidden rounded-r-[3px]" style={{ backgroundColor: CHART_TRACK }}
                         role="progressbar"
                         aria-valuemin={0}
                         aria-valuemax={row.headcount}
                         aria-valuenow={Math.min(row.filled, row.headcount)}
                         aria-label={`${row.title}: ${row.filled} of ${row.headcount} seats filled`}
                       >
-                        <div className={`h-full ${style.bar}`} style={{ width: `${pct}%` }} />
+                        <div className="h-full rounded-r-[3px]" style={{ width: `${pct}%`, backgroundColor: style.bar }} />
                       </div>
                     </td>
                     <td className="hidden sm:table-cell px-3 py-2 text-xs font-sans text-slate-700">
@@ -221,15 +222,15 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                         </span>
                       )}
                       {row.overdueCandidates > 0 && (
-                        <span className="block text-rose-700 tabular-nums">
+                        <span className={`block ${TEXT_LOSS} tabular-nums`}>
                           {row.overdueCandidates} overdue {row.overdueCandidates === 1 ? "candidate" : "candidates"}
                         </span>
                       )}
-                      {row.backoutsInPeriod > 0 && <span className="block text-rose-700 tabular-nums">{row.backoutsInPeriod} backed out</span>}
+                      {row.backoutsInPeriod > 0 && <span className={`block ${TEXT_LOSS} tabular-nums`}>{row.backoutsInPeriod} backed out</span>}
                     </td>
                     <td className="px-3 py-2 text-xs font-sans whitespace-nowrap" title={due}>
                       <span className={`inline-block border px-1.5 py-0.5 text-xs font-semibold ${style.badge}`}>{style.label}</span>
-                      <span className={`block mt-0.5 tabular-nums ${row.health === "OVERDUE" ? "text-rose-700 font-semibold" : "text-slate-600"}`}>{slaText(row)}</span>
+                      <span className={`block mt-0.5 tabular-nums ${row.health === "OVERDUE" ? `${TEXT_LOSS} font-semibold` : "text-slate-600"}`}>{slaText(row)}</span>
                     </td>
                   </tr>
                 );

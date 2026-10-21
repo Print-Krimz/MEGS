@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "@tanstack/react-router";
 import { InfoTip } from "./InfoTip";
+import { TEXT_LOSS } from "../../lib/chart-palette";
 import { PeriodTag } from "./AnalyticsPanel";
 
 interface AnalyticsKpiProps {
@@ -29,7 +30,7 @@ export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail
       <div className="mt-1 -ml-1.5">
         <PeriodTag kind={kind} />
       </div>
-      <div className={`text-2xl font-sans font-bold mt-0.5 tabular-nums ${tone === "alert" ? "text-rose-700" : "text-slate-950"}`}>{value}</div>
+      <div className={`text-2xl font-sans font-bold mt-0.5 tabular-nums ${tone === "alert" ? TEXT_LOSS : "text-slate-950"}`}>{value}</div>
       {detail && <div className="text-xs text-slate-700 mt-0.5 font-sans">{detail}</div>}
       <span className="sr-only">{definition}</span>
     </>

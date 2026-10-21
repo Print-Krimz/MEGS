@@ -4,6 +4,7 @@ import { CheckSquare, ArrowRight } from "lucide-react";
 import { formatDate } from "../../lib/utils";
 import type { TAPendingActionItem } from "../../lib/types/analytics.types";
 import { AnalyticsPanel } from "./AnalyticsPanel";
+import { HEALTH_CHIP, TEXT_AMBER } from "../../lib/chart-palette";
 import { plural } from "../../lib/plural";
 
 interface PendingActionsWidgetProps {
@@ -67,7 +68,7 @@ export const PendingActionsWidget: React.FC<PendingActionsWidgetProps> = ({
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={`px-1.5 py-0.5 text-xs font-semibold border ${
-                      isHigh ? "bg-rose-50 text-rose-800 border-rose-300" : "bg-amber-50 text-amber-800 border-amber-300"
+                      isHigh ? HEALTH_CHIP.overdue.className : HEALTH_CHIP.atRisk.className
                     }`}
                   >
                     {URGENCY_LABEL[action.urgency]}
@@ -81,7 +82,7 @@ export const PendingActionsWidget: React.FC<PendingActionsWidgetProps> = ({
                   {action.agingDays !== undefined && (
                     <>
                       <span className="text-slate-400" aria-hidden="true">•</span>
-                      <span className="text-amber-800 font-bold">{plural(action.agingDays, "day")} waiting</span>
+                      <span className={`${TEXT_AMBER} font-bold`}>{plural(action.agingDays, "day")} waiting</span>
                     </>
                   )}
                   {action.deadline && (

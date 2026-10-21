@@ -1,6 +1,8 @@
 import React from "react";
 import type { Trend } from "../../lib/types/analytics.types";
+import { CHART_AXIS_TEXT, CHART_GRID, TEXT_LOSS, TREND } from "../../lib/chart-palette";
 import { AnalyticsPanel } from "./AnalyticsPanel";
+import { ChartLegend, DataTableToggle } from "./chart-primitives";
 
 interface PlacementTrendChartProps {
   trend: Trend;
@@ -12,10 +14,10 @@ const H = 150;
 const PAD = { top: 14, right: 8, bottom: 26, left: 28 };
 
 const SERIES = {
-  newStarts: { label: "New starts", fill: "#0B315D", swatch: "bg-navy" },
-  redeployStarts: { label: "Redeployments", fill: "#0284c7", swatch: "bg-sky-600" },
-  backouts: { label: "Backed out after client review", fill: "#e11d48", swatch: "bg-rose-600" },
-  withdrawals: { label: "Withdrew before client review", fill: "#f59e0b", swatch: "bg-amber-500" },
+  newStarts: { label: "New starts", fill: TREND.newStarts },
+  redeployStarts: { label: "Redeployments", fill: TREND.redeployStarts },
+  backouts: { label: "Backed out after client review", fill: TREND.backouts },
+  withdrawals: { label: "Withdrew before client review", fill: TREND.withdrawals },
 } as const;
 
 const GRANULARITY_TEXT = {
@@ -34,6 +36,7 @@ export const PlacementTrendChart: React.FC<PlacementTrendChartProps> = ({ trend,
   const redeployments = points.reduce((s, p) => s + p.redeployStarts, 0);
   const backouts = points.reduce((s, p) => s + p.backouts, 0);
   const withdrawals = points.reduce((s, p) => s + p.withdrawals, 0);
+  const totals = { newStarts: starts - redeployments, redeployStarts: redeployments, backouts, withdrawals };
   const isEmpty = starts + backouts + withdrawals === 0;
 
   const max = Math.max(4, ...points.flatMap((p) => [p.newStarts + p.redeployStarts, p.backouts + p.withdrawals]));
@@ -54,7 +57,7 @@ export const PlacementTrendChart: React.FC<PlacementTrendChartProps> = ({ trend,
       aside={
         <span>
           <span className="font-bold text-slate-950 tabular-nums">{starts}</span> started ·{" "}
-          <span className="font-bold text-rose-700 tabular-nums">{backouts + withdrawals}</span> left
+          <span className={`font-bold ${TEXT_LOSS} tabular-nums`}>{backouts + withdrawals}</span> left
         </span>
       }
     >
@@ -62,25 +65,21 @@ export const PlacementTrendChart: React.FC<PlacementTrendChartProps> = ({ trend,
         <p className="px-3.5 py-3 text-xs text-slate-500 font-sans">No starts, backouts or withdrawals in this period.</p>
       ) : (
         <div className="p-3.5">
-          <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-sans text-slate-700" aria-label="Legend">
-            {(Object.keys(SERIES) as (keyof typeof SERIES)[]).map((key) => (
-              <li key={key} className="flex items-center gap-1.5">
-                <span className={`inline-block h-2.5 w-2.5 ${SERIES[key].swatch}`} aria-hidden="true" />
-                {SERIES[key].label}
-              </li>
-            ))}
-          </ul>
+          <ChartLegend
+            className="mb-2"
+            items={(Object.keys(SERIES) as (keyof typeof SERIES)[]).map((key) => ({ key, label: SERIES[key].label, color: SERIES[key].fill, value: totals[key] }))}
+          />
           <div className="overflow-x-auto">
           <svg
             viewBox={`0 0 ${W} ${H}`}
             className="w-full min-w-[26rem] h-auto"
             role="img"
-            aria-label={`${starts} starts, ${redeployments} of them redeployments, ${backouts} backouts after client review and ${withdrawals} withdrawals before client review in ${rangeLabel}. The table below gives each ${granularity}.`}
+            aria-label={`${starts} starts, ${redeployments} of them redeployments, ${backouts} backouts after client review and ${withdrawals} withdrawals before client review in ${rangeLabel}. The table under the chart gives each ${granularity}.`}
           >
             {ticks.map((t) => (
               <g key={t}>
-                <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke="#e2e8f0" strokeWidth="1" />
-                <text x={PAD.left - 6} y={y(t) + 3} textAnchor="end" fontSize="11" fill="#64748b" className="tabular-nums">
+                <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke={CHART_GRID} strokeWidth="1" />
+                <text x={PAD.left - 6} y={y(t) + 3} textAnchor="end" fontSize="11" fill={CHART_AXIS_TEXT} className="tabular-nums">
                   {t}
                 </text>
               </g>
@@ -105,7 +104,7 @@ export const PlacementTrendChart: React.FC<PlacementTrendChartProps> = ({ trend,
                   <rect x={cx + 1} y={y(p.backouts)} width={barW} height={base - y(p.backouts)} fill={SERIES.backouts.fill} />
                   <rect x={cx + 1} y={y(leftTotal)} width={barW} height={y(p.backouts) - y(leftTotal)} fill={SERIES.withdrawals.fill} />
                   {i % labelEvery === 0 && (
-                    <text x={cx} y={H - 8} textAnchor="middle" fontSize="11" fill="#64748b">
+                    <text x={cx} y={H - 8} textAnchor="middle" fontSize="11" fill={CHART_AXIS_TEXT}>
                       {p.label}
                     </text>
                   )}
@@ -114,32 +113,11 @@ export const PlacementTrendChart: React.FC<PlacementTrendChartProps> = ({ trend,
             })}
           </svg>
           </div>
-          {/* A table ignores the 1px sr-only width, so the clipping lives on a wrapper. */}
-          <div className="sr-only">
-            <table>
-              <caption>Starts and people who left, by {granularity}</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Period</th>
-                  <th scope="col">New starts</th>
-                  <th scope="col">Redeployments</th>
-                  <th scope="col">Backed out after client review</th>
-                  <th scope="col">Withdrew before client review</th>
-                </tr>
-              </thead>
-              <tbody>
-                {points.map((p) => (
-                  <tr key={p.start}>
-                    <th scope="row">{p.label}</th>
-                    <td>{p.newStarts}</td>
-                    <td>{p.redeployStarts}</td>
-                    <td>{p.backouts}</td>
-                    <td>{p.withdrawals}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTableToggle
+            caption={`Starts and people who left, by ${granularity}`}
+            columns={["Period", "New starts", "Redeployments", "Backed out after client review", "Withdrew before client review"]}
+            rows={points.map((p) => ({ key: p.start, cells: [p.label, p.newStarts, p.redeployStarts, p.backouts, p.withdrawals] }))}
+          />
         </div>
       )}
     </AnalyticsPanel>

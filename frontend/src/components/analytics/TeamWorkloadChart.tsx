@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from "react";
 import type { TeamRow } from "../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../lib/recruiter-label";
+import { TEXT_LOSS, WORKLOAD } from "../../lib/chart-palette";
 import { AnalyticsPanel } from "./AnalyticsPanel";
+import { ChartLegend, DataTableToggle, StackedBar } from "./chart-primitives";
 
 interface TeamWorkloadChartProps {
   rows: TeamRow[];
@@ -56,7 +58,7 @@ export const TeamWorkloadChart: React.FC<TeamWorkloadChartProps> = ({ rows, sele
               aria-pressed={mode === m.key}
               onClick={() => setMode(m.key)}
               className={`min-h-8 px-2 text-[11px] font-sans font-semibold border first:border-r-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-                mode === m.key ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                mode === m.key ? "bg-navy text-white border-navy" : "bg-white text-slate-700 border-navy-line hover:bg-navy-soft"
               }`}
             >
               {m.label}
@@ -69,21 +71,15 @@ export const TeamWorkloadChart: React.FC<TeamWorkloadChartProps> = ({ rows, sele
         <p className="p-6 text-center text-xs text-slate-500 font-sans">No recruiter has candidates or open requests in this view.</p>
       ) : (
         <div className="p-3.5">
-          <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-sans text-slate-700" aria-label="Legend">
-            <li className="flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 bg-navy" aria-hidden="true" />
-              Within limit
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 bg-rose-600" aria-hidden="true" />
-              Overdue
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 bg-amber-400" aria-hidden="true" />
-              Overdue by age only
-            </li>
-          </ul>
-          <ul className="divide-y divide-slate-100">
+          <ChartLegend
+            className="mb-2"
+            items={[
+              { key: "ok", label: "Within limit", color: WORKLOAD.withinLimit },
+              { key: "late", label: "Overdue", color: WORKLOAD.overdue },
+              { key: "est", label: "Overdue by age only (estimate)", color: WORKLOAD.estimated, hatched: true },
+            ]}
+          />
+          <ul className="divide-y divide-navy-line">
             {shown.map((row) => {
               const onTime = Math.max(0, row.active - row.overdue - row.overdueEstimated);
               const selected = row.recruiterId === selectedRecruiterId;
@@ -105,22 +101,30 @@ export const TeamWorkloadChart: React.FC<TeamWorkloadChartProps> = ({ rows, sele
                   >
                     {who.label}
                   </button>
-                  <div className="h-3 bg-slate-100" aria-hidden="true">
-                    <div className="flex h-full" style={{ width: `${(row.active / maxActive) * 100}%` }}>
-                      {onTime > 0 && <div className="bg-navy" style={{ width: `${(onTime / row.active) * 100}%` }} />}
-                      {row.overdue > 0 && <div className="bg-rose-600" style={{ width: `${(row.overdue / row.active) * 100}%` }} />}
-                      {row.overdueEstimated > 0 && <div className="bg-amber-400" style={{ width: `${(row.overdueEstimated / row.active) * 100}%` }} />}
-                    </div>
+                  <div style={{ width: `${(row.active / maxActive) * 100}%`, minWidth: row.active > 0 ? 6 : 0 }}>
+                    <StackedBar
+                      label={who.label}
+                      segments={[
+                        { key: "ok", label: "within limit", value: onTime, color: WORKLOAD.withinLimit },
+                        { key: "late", label: "overdue", value: row.overdue, color: WORKLOAD.overdue },
+                        { key: "est", label: "overdue by age only", value: row.overdueEstimated, color: WORKLOAD.estimated, hatched: true },
+                      ]}
+                    />
                   </div>
                   <span className="text-xs text-slate-700 font-sans tabular-nums text-right whitespace-nowrap">
                     <strong>{row.active}</strong> active
-                    {row.overdue > 0 && <span className="text-rose-700 font-semibold"> · {row.overdue} overdue</span>}
+                    {row.overdue > 0 && <span className={`font-semibold ${TEXT_LOSS}`}> · {row.overdue} overdue</span>}
                     <span className="hidden sm:inline text-slate-600"> · {seats}</span>
                   </span>
                 </li>
               );
             })}
           </ul>
+          <DataTableToggle
+            caption="Workload by recruiter"
+            columns={["Recruiter", "Active", "Overdue", "By age only", "Seats filled", "Seats requested"]}
+            rows={shown.map((r) => ({ key: r.recruiterId, cells: [formatRecruiterName(r.name).label, r.active, r.overdue, r.overdueEstimated, r.filledSeats, r.requestedSeats] }))}
+          />
           <p className="mt-2 text-xs text-slate-500 font-sans tabular-nums">
             {mode === "load" ? "Most overloaded" : "Most available"} {shown.length} of {rows.length}. The All recruiters tab lists everyone.
           </p>

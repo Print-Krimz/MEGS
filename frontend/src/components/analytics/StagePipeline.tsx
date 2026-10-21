@@ -2,7 +2,10 @@ import React, { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { StageTableRow } from "../../lib/types/analytics.types";
 import type { ApplicationStatus } from "../../lib/types/enums";
+import { AlertTriangle, Eye } from "lucide-react";
+import { HEALTH_CHIP, TEXT_LOSS, TEXT_AMBER, hatchStyle, stageColor } from "../../lib/chart-palette";
 import { analyticsStageLabel } from "./stage-label";
+import { BarMark, DataTableToggle } from "./chart-primitives";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 
 interface StagePipelineProps {
@@ -26,12 +29,6 @@ const pressureOf = (row: StageTableRow): Pressure => {
   return share >= 0.15 ? "watch" : "none";
 };
 
-const CARD: Record<Pressure, string> = {
-  none: "border-slate-300 bg-white",
-  watch: "border-amber-400 bg-amber-50",
-  bottleneck: "border-rose-400 bg-rose-50",
-};
-
 /** Stage names come from the shared TA glossary so Reports and Overview read the same. */
 const stageLabel = (row: StageTableRow) => analyticsStageLabel(row.stage, row.label);
 
@@ -46,13 +43,14 @@ const limitText = (row: StageTableRow) =>
 export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, onSelectStage, linkStages = false }) => {
   const [details, setDetails] = useState(false);
   const empty = rows.every((r) => r.inStageNow === 0 && r.entered === 0 && r.backedOut === 0);
+  const maxEntered = Math.max(1, ...rows.map((r) => r.entered));
   const hasEstimates = rows.some((r) => r.overdueEstimated > 0);
 
   return (
     <AnalyticsPanel
       id="stage-pipeline"
       title="Candidates by stage"
-      subtitle={`Current counts by stage, in order from application to start. A tinted stage has many candidates past its limit. Entered and backed out cover ${rangeLabel}.${
+      subtitle={`Current counts by stage, in order from application to start. Each bar shows how many reached the stage, with the share of the previous step. Entered and backed out cover ${rangeLabel}.${
         hasEstimates ? ' "By age only" counts candidates past the limit with no recorded stage change. Their days run from the application date, so the real wait may be shorter.' : ""
       }`}
       aside={
@@ -60,7 +58,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
           type="button"
           aria-pressed={details}
           onClick={() => setDetails((d) => !d)}
-          className="min-h-11 md:min-h-8 px-2 text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          className="min-h-11 md:min-h-8 px-2 text-xs font-semibold border border-navy-line bg-white text-slate-700 hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         >
           {details ? "Hide period details" : "Show period details"}
         </button>
@@ -69,67 +67,93 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
       {empty ? (
         <p className="p-4 text-center text-xs text-slate-500 font-sans">No candidates are in the pipeline and none moved in this period.</p>
       ) : (
-        <ol className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4 xl:grid-cols-7">
-          {rows.map((row, index) => {
-            const pressure = pressureOf(row);
-            const late = row.overdue + row.overdueEstimated;
-            const tooltip = `${stageLabel(row)}: ${row.inStageNow} in stage, ${row.overdue} overdue${row.overdueEstimated > 0 ? ` and ${row.overdueEstimated} more by age only` : ""}. ${row.entered} entered and ${row.backedOut} backed out in ${rangeLabel}. ${limitText(row)}.`;
-            const content = (
-              <>
-                <span className="flex items-start justify-between gap-1">
-                  <span className="text-xs font-semibold font-sans text-slate-900 leading-tight">{stageLabel(row)}</span>
-                  <span className="text-[11px] font-mono text-slate-500 tabular-nums" aria-hidden="true">
-                    {index + 1}
+        <div className="p-3">
+          <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            {rows.map((row, index) => {
+              const pressure = pressureOf(row);
+              const late = row.overdue + row.overdueEstimated;
+              const previous = index > 0 ? rows[index - 1] : null;
+              const conversion = previous && previous.entered > 0 ? Math.round((row.entered / previous.entered) * 100) : null;
+              const color = stageColor(row.stage);
+              const tooltip = `${stageLabel(row)}: ${row.inStageNow} in stage, ${row.overdue} overdue${row.overdueEstimated > 0 ? ` and ${row.overdueEstimated} more by age only` : ""}. ${row.entered} entered and ${row.backedOut} backed out in ${rangeLabel}. ${limitText(row)}.`;
+              const content = (
+                <>
+                  <span className="flex items-start justify-between gap-1">
+                    <span className="text-xs font-semibold font-sans text-slate-900 leading-tight">{stageLabel(row)}</span>
+                    <span className="text-[11px] tabular-nums text-slate-600 font-sans" aria-hidden="true">
+                      {conversion === null ? "" : `${conversion}%`}
+                    </span>
                   </span>
-                </span>
-                <span className="mt-1.5 block text-2xl font-bold tabular-nums text-slate-950">
-                  {row.inStageNow}
-                  <span className="ml-1 text-[11px] font-sans font-normal text-slate-600">in stage</span>
-                </span>
-                <span className={`mt-0.5 block text-xs tabular-nums ${late > 0 && row.stage !== "DEPLOYED" ? "font-semibold text-rose-700" : "text-slate-500"}`}>
-                  {row.stage === "DEPLOYED" ? "No limit" : `${row.overdue} overdue`}
-                  {row.overdueEstimated > 0 && <span className="font-normal text-amber-800"> +{row.overdueEstimated} by age only</span>}
-                </span>
-                <span className="block text-xs tabular-nums text-slate-600">{row.medianDaysInStage === null ? "No median yet" : `Median ${row.medianDaysInStage} days`}</span>
-                {pressure !== "none" && (
-                  <span className={`mt-1.5 inline-block border px-1.5 py-px text-xs font-semibold ${pressure === "bottleneck" ? "border-rose-400 text-rose-800" : "border-amber-400 text-amber-900"}`}>
-                    {pressure === "bottleneck" ? "Bottleneck" : "Watch"}
+                  <span className="mt-1.5 block text-2xl font-bold tabular-nums text-slate-950">
+                    {row.entered}
+                    <span className="ml-1 text-[11px] font-sans font-normal text-slate-600">reached</span>
                   </span>
-                )}
-                {details && (
-                  <span className="mt-1.5 block border-t border-slate-300/70 pt-1.5 text-[11px] font-sans text-slate-700 tabular-nums">
-                    <span className="block">{row.entered} entered</span>
-                    <span className={`block ${row.backedOut > 0 ? "text-rose-700" : ""}`}>{row.backedOut} backed out</span>
-                    <span className="block text-slate-500">{limitText(row)}</span>
+                  <span className="mt-1 block">
+                    <BarMark label={`${stageLabel(row)} reached`} value={row.entered} max={maxEntered} color={color} pct={conversion === null ? "first step" : `${conversion}% of the previous step`} heightClass="h-2.5" />
                   </span>
-                )}
-              </>
-            );
-            return (
-              <li key={row.stage} aria-label={tooltip} title={tooltip} className="min-w-0 last:col-span-2 xl:last:col-span-1">
-                {linkStages && row.stage !== "APPLIED" && row.stage !== "DEPLOYED" ? (
-                  <Link
-                    to="/ta/applications"
-                    search={{ stage: row.stage as ApplicationStatus }}
-                    className={`block h-full w-full border p-2.5 text-left hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${CARD[pressure]}`}
-                  >
-                    {content}
-                  </Link>
-                ) : onSelectStage && row.stage !== "DEPLOYED" && late > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => onSelectStage(row.stage)}
-                    className={`flex h-full w-full flex-col items-stretch justify-start border p-2.5 text-left hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${CARD[pressure]}`}
-                  >
-                    {content}
-                  </button>
-                ) : (
-                  <div className={`h-full border p-2.5 ${CARD[pressure]}`}>{content}</div>
-                )}
-              </li>
-            );
-          })}
-        </ol>
+                  <span className="mt-1.5 block text-xs tabular-nums text-slate-700">{row.inStageNow} in stage now</span>
+                  <span className={`block text-xs tabular-nums ${late > 0 && row.stage !== "DEPLOYED" ? `font-semibold ${TEXT_LOSS}` : "text-slate-500"}`}>
+                    {row.stage === "DEPLOYED" ? "No limit" : `${row.overdue} overdue`}
+                    {row.overdueEstimated > 0 && (
+                      <span className={`font-normal ${TEXT_AMBER}`}>
+                        {" "}
+                        <span className="mr-0.5 inline-block h-2 w-2 align-baseline" style={hatchStyle("#9A5B00")} aria-hidden="true" />+{row.overdueEstimated} by age only
+                      </span>
+                    )}
+                  </span>
+                  <span className="block text-xs tabular-nums text-slate-600">{row.medianDaysInStage === null ? "No median yet" : `Median ${row.medianDaysInStage} days`}</span>
+                  {pressure !== "none" && (
+                    <span className={`mt-1.5 inline-flex items-center gap-1 border px-1.5 py-px text-xs font-semibold ${HEALTH_CHIP[pressure].className}`}>
+                      {pressure === "bottleneck" ? <AlertTriangle className="h-3 w-3" aria-hidden="true" /> : <Eye className="h-3 w-3" aria-hidden="true" />}
+                      {HEALTH_CHIP[pressure].label}
+                    </span>
+                  )}
+                  {details && (
+                    <span className="mt-1.5 block border-t border-navy-line pt-1.5 text-[11px] font-sans text-slate-700 tabular-nums">
+                      <span className="block">{row.entered} entered</span>
+                      <span className={`block ${row.backedOut > 0 ? TEXT_LOSS : ""}`}>{row.backedOut} backed out</span>
+                      <span className="block text-slate-500">{limitText(row)}</span>
+                    </span>
+                  )}
+                </>
+              );
+              const frame = "block h-full w-full rounded-md border border-navy-line bg-white p-2.5 text-left";
+              const topRule = { borderTop: `3px solid ${color}` };
+              return (
+                <li key={row.stage} aria-label={tooltip} title={tooltip} className="min-w-0">
+                  {linkStages && row.stage !== "APPLIED" && row.stage !== "DEPLOYED" ? (
+                    <Link
+                      to="/ta/applications"
+                      search={{ stage: row.stage as ApplicationStatus }}
+                      style={topRule}
+                      className={`${frame} hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus`}
+                    >
+                      {content}
+                    </Link>
+                  ) : onSelectStage && row.stage !== "DEPLOYED" && late > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => onSelectStage(row.stage)}
+                      style={topRule}
+                      className={`${frame} hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus`}
+                    >
+                      {content}
+                    </button>
+                  ) : (
+                    <div style={topRule} className={frame}>
+                      {content}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+          <DataTableToggle
+            caption={`Candidates by stage, with entered and backed out in ${rangeLabel}`}
+            columns={["Stage", "Reached", "In stage now", "Overdue", "By age only", "Backed out"]}
+            rows={rows.map((r) => ({ key: r.stage, cells: [stageLabel(r), r.entered, r.inStageNow, r.overdue, r.overdueEstimated, r.backedOut] }))}
+          />
+        </div>
       )}
     </AnalyticsPanel>
   );

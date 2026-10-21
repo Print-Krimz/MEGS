@@ -16,3 +16,4 @@ export * from "./AttentionStrip";
 export * from "./InfoTip";
 export * from "./OperationsWorkspace";
 export * from "./StagePipeline";
+export * from "./chart-primitives";
