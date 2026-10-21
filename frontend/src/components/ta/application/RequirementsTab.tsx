@@ -43,21 +43,22 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
 }) => {
   // The list opens while work remains and folds away once everything is approved; the recruiter can override it.
   const [manualExpanded, setManualExpanded] = useState<boolean | null>(null);
+  // Before compliance a waiting decision is already the stage bar's action, so the row would only repeat it.
+  const hideClientReview = Boolean(clientReview.stageBarOwnsDecision) && !clientReview.isPastClientReview && clientReview.endorsements.length <= 1;
   const expanded = manualExpanded !== null ? manualExpanded : !isAllApproved;
 
   return (
     <div className="space-y-8">
-      <ClientReviewSummary {...clientReview} />
+      {!hideClientReview && <ClientReviewSummary {...clientReview} />}
 
       <section id="compliance-checklist-section" aria-labelledby="requirements-heading" className="space-y-3">
         <div className="flex flex-col justify-between gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-center">
           <div className="space-y-0.5">
             <h3 id="requirements-heading" className="text-base font-semibold text-slate-900">
-              {isDeployed ? "Requirements" : "Pre-employment requirements"}
+              Requirements
             </h3>
-            <p className="text-sm text-slate-600">Statutory clearances (NBI, SSS, PhilHealth, Pag-IBIG, medical, contract) needed before deployment.</p>
           </div>
-          <Button variant="outline" size="sm" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={onAdd}>
+          <Button variant="outline" size="sm" className="whitespace-nowrap" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={onAdd}>
             Add requirement
           </Button>
         </div>

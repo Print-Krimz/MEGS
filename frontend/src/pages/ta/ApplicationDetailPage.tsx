@@ -377,7 +377,9 @@ export const ApplicationDetailPage: React.FC = () => {
     setPreviewDocState({ open: true, documentId: extractDocumentId(resumeUrl), fileUrl: resumeUrl, title: "Application Resume (CV)" });
   };
   // The resume sits beside Profile, Interviews and Requirements. Activity has nothing to compare it with.
-  const resumeTabActive = activeTab !== "activity";
+  // With no resume, only Profile keeps the rail, so its empty state is not repeated on every tab.
+  const hasResume = Boolean(resumeUrl?.trim());
+  const resumeTabActive = activeTab !== "activity" && (hasResume || activeTab === "profile");
   const showResumeRail = isDesktop && isResumeOpen && resumeTabActive;
   const showResumeDock = isDesktop && !isResumeOpen && resumeTabActive;
   const railTop = 56 + stageBarHeight + 8;

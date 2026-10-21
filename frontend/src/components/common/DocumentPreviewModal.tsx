@@ -112,7 +112,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 </h2>
                 {requirementStatus && (
                   <span
-                    className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${
                       requirementStatus === "APPROVED"
                         ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                         : requirementStatus === "REJECTED"
@@ -279,9 +279,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           {rejectMode ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-rose-900 uppercase flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-rose-900 flex items-center gap-1.5">
                   <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                  <span>Specify Rejection Reason / Instructions</span>
+                  <span>Specify rejection reason / instructions</span>
                 </span>
                 <button
                   type="button"

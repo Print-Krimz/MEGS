@@ -66,10 +66,7 @@ export const StageBar: React.FC<StageBarProps> = ({
       >
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <span className="shrink-0 text-sm font-semibold text-slate-950">
-              <span className="sr-only">Current stage: </span>
-              {label}
-            </span>
+            <span className="sr-only">Current stage: {label}</span>
             <div aria-live="polite" className="min-w-0">
               {next.text && (
                 <motion.p

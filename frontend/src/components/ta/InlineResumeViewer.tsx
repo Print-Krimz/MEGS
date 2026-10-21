@@ -101,21 +101,22 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
             <button type="button" className={toolButton} onClick={zoomOut} disabled={zoom !== null && zoom <= ZOOM_STEPS[0]} aria-label="Zoom out" title="Zoom out (-)">
               <Minus className="h-4 w-4" aria-hidden="true" />
             </button>
-            <span role="status" aria-label="Zoom level" className="min-w-11 text-center text-xs font-medium tabular-nums text-slate-800">
-              {zoom === null ? "Fit" : `${zoom}%`}
+            <span
+              role="status"
+              aria-label="Zoom level"
+              title={kind === "pdf" ? "Zoom works in Chrome and Edge. Other browsers use their own PDF controls." : undefined}
+              className="min-w-11 px-1 text-center text-xs font-medium tabular-nums text-slate-800"
+            >
+              {zoom === null ? "Fit width" : `${zoom}%`}
             </span>
             <button type="button" className={toolButton} onClick={zoomIn} disabled={zoom !== null && zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]} aria-label="Zoom in" title="Zoom in (+)">
               <Plus className="h-4 w-4" aria-hidden="true" />
             </button>
-            <button
-              type="button"
-              className={cn(toolButton, "px-2", zoom === null && "bg-white text-navy ring-1 ring-inset ring-slate-300")}
-              onClick={fitWidth}
-              aria-pressed={zoom === null}
-              title="Fit to width (0)"
-            >
-              Fit width
-            </button>
+            {zoom !== null && (
+              <button type="button" className={cn(toolButton, "px-2")} onClick={fitWidth} title="Fit to width (0)">
+                Fit width
+              </button>
+            )}
           </>
         )}
         <span className="ml-auto flex items-center gap-0.5">

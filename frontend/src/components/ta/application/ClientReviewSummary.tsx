@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Building2 } from "lucide-react";
 import { cn, formatDate } from "../../../lib/utils";
-import { plural } from "../../../lib/plural";
 
 export interface EndorsementData {
   id: number;
@@ -34,7 +33,7 @@ const wordClass = (outcome?: string | null) =>
   outcome === "APPROVED" || outcome === "ENDORSED" ? "text-emerald-800" : outcome === "DECLINED" ? "text-rose-800" : "text-amber-900";
 
 const linkButton =
-  "focus-ring inline-flex min-h-11 items-center px-1 text-sm font-medium text-navy underline-offset-2 hover:underline md:min-h-6";
+  "focus-ring inline-flex whitespace-nowrap min-h-11 items-center px-1 text-sm font-medium text-navy underline-offset-2 hover:underline md:min-h-6";
 
 /** The client's answer in one row. The full history opens under it. */
 export const ClientReviewSummary: React.FC<ClientReviewSummaryProps> = ({
@@ -71,7 +70,7 @@ export const ClientReviewSummary: React.FC<ClientReviewSummaryProps> = ({
         <div className="flex flex-wrap items-center gap-x-3">
           {latest && (
             <button type="button" className={linkButton} aria-expanded={open} aria-controls="client-review-history" onClick={() => setOpen((v) => !v)}>
-              {open ? "Hide history" : `History (${plural(endorsements.length, "record")})`}
+              {open ? "Hide history" : `History (${endorsements.length})`}
             </button>
           )}
           {latest && canRecordDecision && !(stageBarOwnsDecision && latest.outcome === "PENDING") && (

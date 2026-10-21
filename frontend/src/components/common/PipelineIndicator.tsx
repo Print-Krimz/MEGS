@@ -195,7 +195,7 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
                   <span className={cn("text-[9px] leading-[1.1] sm:text-xs sm:leading-tight block font-medium break-words hyphens-auto", labelClass)}>
                     {stage.label}
                   </span>
-                  {isSkipped && <span className="block text-[9px] sm:text-[10px] uppercase tracking-wide text-amber-700">Skipped</span>}
+                  {isSkipped && <span className="block text-xs text-amber-700">Skipped</span>}
                 </div>
               </div>
             );

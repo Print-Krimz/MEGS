@@ -110,10 +110,7 @@ export const InterviewsTab: React.FC<InterviewsTabProps> = ({ interviews, now, s
   const HeroIcon = hero ? typeIcon(hero.type) : null;
 
   return (
-    <section aria-labelledby="interviews-heading" className="space-y-4">
-      <h3 id="interviews-heading" className="border-b border-slate-200 pb-2 text-base font-semibold text-slate-900">
-        Interviews
-      </h3>
+    <section aria-label="Interviews" className="space-y-4">
 
       {hero && heroState && HeroIcon && (
         <div className="rounded-md border border-navy bg-navy-soft/40 p-4">
