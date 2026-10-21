@@ -241,6 +241,8 @@ export const applicantSchema = {
   listSavedJobsQuery: z.object({
     search: boundedText(FIELD_LIMITS.search).optional(),
     location: boundedText(FIELD_LIMITS.shortText).optional(),
+    salaryMin: finiteNumber({ min: 0, max: 10_000_000, decimals: 2 }).optional(),
+    salaryMax: finiteNumber({ min: 0, max: 10_000_000, decimals: 2 }).optional(),
     department: boundedText(FIELD_LIMITS.shortText).optional(),
     page: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional(),
     limit: boundedPageSize.optional(),

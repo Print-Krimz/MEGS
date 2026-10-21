@@ -24,6 +24,7 @@ export interface JobPosting {
     id: number;
     title: string;
     clientId: number;
+    location?: string | null;
     salaryRangeMin?: number | null;
     salaryRangeMax?: number | null;
     employmentType?: string | null;

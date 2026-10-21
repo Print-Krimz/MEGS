@@ -11,13 +11,10 @@ import {
   processResumeExtractionService,
   applyExtractedProfileService,
 } from './applicant.service.js';
+import { buildApplicantJobWhere, type ApplicantJobFilters } from './job-filter.service.js';
 
-export const fetchOpenJobs = async (filters?: { search?: string; location?: string; page?: number; limit?: number }) => {
-  const where: any = { status: "OPEN" };
-
-  if (filters?.location && filters.location.trim()) {
-    where.location = { contains: filters.location.trim(), mode: "insensitive" };
-  }
+export const fetchOpenJobs = async (filters?: ApplicantJobFilters & { page?: number; limit?: number }) => {
+  const where: any = { status: "OPEN", ...(await buildApplicantJobWhere(filters)) };
 
   if (filters?.search && filters.search.trim()) {
     const term = filters.search.trim();
@@ -49,6 +46,7 @@ export const fetchOpenJobs = async (filters?: { search?: string; location?: stri
       _count: { select: { applications: true } },
       mrf: {
         select: {
+          location: true,
           client: {
             select: {
               id: true,

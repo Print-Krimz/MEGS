@@ -124,7 +124,7 @@ export const ApplicantLayout: React.FC = () => {
   }, [accountMenuOpen]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-slate-900 selection:text-white">
+    <div className="applicant-portal min-h-screen bg-ta-page text-slate-900 flex flex-col font-sans selection:bg-slate-900 selection:text-white">
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
 
       {/* Top Navigation Header */}
@@ -148,7 +148,7 @@ export const ApplicantLayout: React.FC = () => {
                 className="flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 rounded-sm py-1 group shrink-0"
                 aria-label="MEGS Candidate Portal Home"
               >
-                <span className="font-black text-xl tracking-tight text-slate-900 font-sans leading-none">
+                <span className="font-display text-xl text-megs-red leading-none">
                   MEGS
                 </span>
                 <span className="text-[10px] font-semibold text-slate-500 tracking-wider uppercase mt-1">

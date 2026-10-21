@@ -1,4 +1,5 @@
 import prisma from "../../utils/prisma.js";
+import { buildApplicantJobWhere } from "./job-filter.service.js";
 
 /**
  * Save / bookmark a job posting for an applicant.
@@ -48,6 +49,8 @@ export const unsaveJobService = async (userId: string, jobPostingId: number) => 
 export interface ListSavedJobsFilters {
   search?: string;
   location?: string;
+  salaryMin?: number;
+  salaryMax?: number;
   department?: string;
   page?: number;
   limit?: number;
@@ -73,12 +76,7 @@ export const listSavedJobsService = async (
     ];
   }
 
-  if (filters?.location?.trim()) {
-    jobPostingWhere.location = {
-      contains: filters.location.trim(),
-      mode: "insensitive",
-    };
-  }
+  Object.assign(jobPostingWhere, await buildApplicantJobWhere(filters));
 
   const where: any = {
     userId,

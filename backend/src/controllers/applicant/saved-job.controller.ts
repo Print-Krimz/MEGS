@@ -47,6 +47,8 @@ export const listSavedJobsHandler = async (req: Request, res: Response): Promise
     const userId = req.user!.id;
     const search = typeof req.query.search === "string" ? req.query.search : undefined;
     const location = typeof req.query.location === "string" ? req.query.location : undefined;
+    const salaryMin = req.query.salaryMin !== undefined && req.query.salaryMin !== "" ? req.query.salaryMin : undefined;
+    const salaryMax = req.query.salaryMax !== undefined && req.query.salaryMax !== "" ? req.query.salaryMax : undefined;
     const department = typeof req.query.department === "string" ? req.query.department : undefined;
     const rawPage = req.query.page;
     const rawLimit = req.query.limit;
@@ -56,6 +58,8 @@ export const listSavedJobsHandler = async (req: Request, res: Response): Promise
     const validated = applicantSchema.listSavedJobsQuery.parse({
       search,
       location,
+      salaryMin,
+      salaryMax,
       department,
       page,
       limit,

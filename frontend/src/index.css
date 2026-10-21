@@ -126,24 +126,28 @@
 }
 
 /*
- * TA portal type and surface system. Archivo for everything, display titles in the
+ * TA and applicant portal type and surface system. Archivo for everything, display titles in the
  * wide cut, a calmer page ground and lighter panel borders. Form controls keep their
  * stronger borders so inputs stay visible.
  */
-.ta-portal {
+.ta-portal,
+.applicant-portal {
   --font-sans: "Archivo Variable", "Segoe UI", system-ui, sans-serif;
   font-family: var(--font-sans);
   background-color: var(--color-ta-page);
 }
-.ta-portal .font-display {
+.ta-portal .font-display,
+.applicant-portal .font-display {
   font-stretch: 112%;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
-.ta-portal .border-slate-300:not(input):not(select):not(textarea):not(button) {
+.ta-portal .border-slate-300:not(input):not(select):not(textarea):not(button),
+.applicant-portal .border-slate-300:not(input):not(select):not(textarea):not(button) {
   border-color: var(--color-ta-line);
 }
-.ta-portal .divide-slate-300 > :not(:last-child) {
+.ta-portal .divide-slate-300 > :not(:last-child),
+.applicant-portal .divide-slate-300 > :not(:last-child) {
   border-color: var(--color-ta-line);
 }
 
@@ -206,7 +210,10 @@ body {
 @media (max-width: 767px) {
   .ta-portal input,
   .ta-portal select,
-  .ta-portal textarea {
+  .ta-portal textarea,
+  .applicant-portal input,
+  .applicant-portal select,
+  .applicant-portal textarea {
     font-size: 16px;
   }
 }

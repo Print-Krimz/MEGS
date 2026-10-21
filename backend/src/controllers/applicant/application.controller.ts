@@ -59,6 +59,8 @@ export const getOpenJobs = async (req: Request, res: Response): Promise<void> =>
     const jobs = await fetchOpenJobs({
       search,
       location,
+      salaryMin: req.query.salaryMin as number | undefined,
+      salaryMax: req.query.salaryMax as number | undefined,
       page: req.query.page as number | undefined,
       limit: req.query.limit as number | undefined,
     });

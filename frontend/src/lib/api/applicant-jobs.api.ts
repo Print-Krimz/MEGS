@@ -60,6 +60,9 @@ export interface JobPosting extends BaseJobPosting {
 export interface JobQueryFilters {
   search?: string;
   location?: string;
+  /** Monthly salary range in pesos. */
+  salaryMin?: number;
+  salaryMax?: number;
   department?: string;
 }
 
@@ -104,6 +107,8 @@ export const applicantJobsApi = {
     const search = filters.search?.trim();
     if (search) params.append("search", search);
     if (filters.location) params.append("location", filters.location);
+    if (filters.salaryMin) params.append("salaryMin", String(filters.salaryMin));
+    if (filters.salaryMax) params.append("salaryMax", String(filters.salaryMax));
     if (filters.department) params.append("department", filters.department);
     if (filters.page) params.append("page", String(filters.page));
     if (filters.limit) params.append("limit", String(filters.limit));
@@ -180,6 +185,8 @@ export const applicantJobsApi = {
     const search = filters.search?.trim();
     if (search) params.append("search", search);
     if (filters.location) params.append("location", filters.location);
+    if (filters.salaryMin) params.append("salaryMin", String(filters.salaryMin));
+    if (filters.salaryMax) params.append("salaryMax", String(filters.salaryMax));
     if (filters.department) params.append("department", filters.department);
     if (filters.page) params.append("page", String(filters.page));
     if (filters.limit) params.append("limit", String(filters.limit));

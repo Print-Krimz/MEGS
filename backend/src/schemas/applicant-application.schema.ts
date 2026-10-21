@@ -12,9 +12,14 @@ export const applicantApplicationSchema = {
     query: z.object({
       search: boundedText(FIELD_LIMITS.search).optional(),
       location: boundedText(FIELD_LIMITS.shortText).optional(),
+      salaryMin: finiteNumber({ min: 0, max: 10_000_000, decimals: 2 }).optional(),
+      salaryMax: finiteNumber({ min: 0, max: 10_000_000, decimals: 2 }).optional(),
       page: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional(),
       limit: boundedPageSize.optional(),
-    }).strict(),
+    }).strict().refine(
+      (query) => query.salaryMin === undefined || query.salaryMax === undefined || query.salaryMin <= query.salaryMax,
+      { message: "Minimum salary cannot be higher than maximum salary", path: ["salaryMin"] },
+    ),
   }),
   employerSummary: z.object({ query: z.object({}).strict() }),
   myApplications: z.object({
