@@ -12,6 +12,7 @@ import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.servi
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 import { ownedWhere, type Actor } from "./ownership.js";
 import { syncMRFFulfillmentStatus } from "./ta.mrf.service.js";
+import { stageEnteredAt } from "../analytics/metric-definitions.js";
 
 import { ALLOWED_TRANSITIONS, SKIPPABLE_STAGES, stagesBetween, type TransitionType } from "./pipeline-rules.js";
 export { ALLOWED_TRANSITIONS };
@@ -30,7 +31,55 @@ export interface ListTAApplicationsOptions {
   currentUserId?: string;
   postedById?: string;
   summary?: boolean;
+  /** Summary list order. "match" (default) keeps the score ordering. */
+  sort?: ApplicationListSort;
+  /** Only applications where the TA has a pending step. */
+  needsAction?: boolean;
 }
+
+export type ApplicationListSort = "match" | "newest" | "oldest" | "waiting";
+
+/** Most rows a "waiting" sort ranks in memory; beyond this the oldest-created rows win the cut. */
+const WAITING_SORT_CAP = 5000;
+const CLOSED_STATUSES = ["BACKOUT", "REJECTED", "ARCHIVED", "TALENT_POOL", "HIRED"] as const;
+
+/** Mirrors analytics pendingActionScope: the application has a step waiting on the TA. */
+const needsActionWhere = () => ({
+  isArchived: false,
+  status: { notIn: [...CLOSED_STATUSES] },
+  OR: [
+    { status: "SUBMITTED" },
+    { status: "CONTRACT_SIGNING" },
+    { interviews: { some: { type: { in: ["INITIAL_SCREENING", "FINAL_INTERVIEW"] }, isActive: true, OR: [{ result: "PENDING" }, { result: null }] } } },
+    { clientEndorsements: { some: { outcome: "PENDING" } } },
+    { complianceRequirements: { some: { reviewStatus: "SUBMITTED" } } },
+    { deployments: { some: { status: "READY_FOR_DEPLOYMENT" } } },
+  ],
+});
+
+const MS_PER_DAY = 86_400_000;
+
+type StageEntryRow = { applicationId: number; toStatus: string; createdAt: Date };
+
+/** Latest non-reverted move into each status, one aggregate query for any number of applications. */
+const loadStageEntries = async (ids: number[]): Promise<StageEntryRow[]> => {
+  if (ids.length === 0) return [];
+  const grouped = await prisma.recruiterDecision.groupBy({
+    by: ["applicationId", "toStatus"],
+    where: { applicationId: { in: ids }, isReverted: false },
+    _max: { createdAt: true },
+  });
+  return grouped.flatMap((row) =>
+    row._max.createdAt ? [{ applicationId: row.applicationId, toStatus: String(row.toStatus), createdAt: row._max.createdAt }] : []
+  );
+};
+
+const entryFor = (entries: StageEntryRow[], applicationId: number, status: string, createdAt: Date): Date =>
+  stageEnteredAt(
+    entries.filter((entry) => entry.applicationId === applicationId).map((entry) => ({ fromStatus: "", toStatus: entry.toStatus, createdAt: entry.createdAt, isReverted: false })),
+    status,
+    createdAt
+  );
 
 export interface ReturningWorkerInfo {
   /** True when the worker was previously placed at the same client as this job opening. */
@@ -139,7 +188,7 @@ export const listTAApplications = async (
           jobPostingId: legacyJobPostingId,
         };
 
-  const { status, jobPostingId, clientId, search, isArchived, page, limit, mineOnly, returningOnly, currentUserId, postedById, summary, actor } = options;
+  const { status, jobPostingId, clientId, search, isArchived, page, limit, mineOnly, returningOnly, currentUserId, postedById, summary, actor, sort, needsAction } = options;
   const dynamicScoring = scoringFlags.dynamicCandidateScoringEnabled();
   const configuration = dynamicScoring ? await getActiveScoringConfiguration() : null;
 
@@ -177,6 +226,10 @@ export const listTAApplications = async (
   if (returningOnly) {
     const parsedJobId = jobPostingId ? parseInt(String(jobPostingId), 10) : NaN;
     andConditions.push({ id: { in: await findReturningApplicationIds(actor, isNaN(parsedJobId) ? undefined : parsedJobId) } });
+  }
+
+  if (needsAction) {
+    andConditions.push(needsActionWhere());
   }
 
   if (isArchived !== undefined) {
@@ -222,44 +275,74 @@ export const listTAApplications = async (
   if (summary) {
     const resolvedPage = page ?? 1;
     const resolvedLimit = limit ?? 25;
-    const [total, applications] = await Promise.all([
-      prisma.application.count({ where }),
-      prisma.application.findMany({
-        where,
-        skip: (resolvedPage - 1) * resolvedLimit,
-        take: resolvedLimit,
-        // id breaks createdAt ties so rows never repeat or vanish between pages.
-        orderBy: dynamicScoring ? [{ createdAt: "desc" }, { id: "desc" }] : [
-          { aiScore: { sort: "desc", nulls: "last" } },
-          { createdAt: "desc" },
-          { id: "desc" },
-        ],
+    const sortMode: ApplicationListSort = sort ?? "match";
+    const summarySelect = {
+      id: true,
+      status: true,
+      aiScore: true,
+      isArchived: true,
+      createdAt: true,
+      jobPosting: {
         select: {
           id: true,
-          status: true,
-          aiScore: true,
-          isArchived: true,
-          createdAt: true,
-          jobPosting: {
-            select: {
-              id: true,
-              title: true,
-              location: true,
-              mrf: { select: { id: true, title: true, clientId: true, client: { select: { id: true, name: true } } } },
-            },
-          },
-          user: {
-            select: {
-              id: true,
-              email: true,
-              applicantProfile: { select: { firstName: true, lastName: true, mobileNumber: true } },
-            },
-          },
-          _count: { select: { interviews: true, recruiterDecisions: true, complianceRequirements: true } },
+          title: true,
+          location: true,
+          mrf: { select: { id: true, title: true, clientId: true, client: { select: { id: true, name: true } } } },
         },
-      }),
-    ]);
+      },
+      user: {
+        select: {
+          id: true,
+          email: true,
+          applicantProfile: { select: { firstName: true, lastName: true, mobileNumber: true } },
+        },
+      },
+      _count: { select: { interviews: true, recruiterDecisions: true, complianceRequirements: true } },
+    } as const;
+    const skip = (resolvedPage - 1) * resolvedLimit;
+    // id breaks createdAt ties so rows never repeat or vanish between pages.
+    const orderBy: any = sortMode === "newest"
+      ? [{ createdAt: "desc" }, { id: "desc" }]
+      : sortMode === "oldest"
+        ? [{ createdAt: "asc" }, { id: "asc" }]
+        : dynamicScoring ? [{ createdAt: "desc" }, { id: "desc" }] : [
+            { aiScore: { sort: "desc", nulls: "last" } },
+            { createdAt: "desc" },
+            { id: "desc" },
+          ];
 
+    const total = await prisma.application.count({ where });
+    let applications: Awaited<ReturnType<typeof prisma.application.findMany<{ select: typeof summarySelect }>>>;
+    let entryByApplication: Map<number, Date> | null = null;
+
+    if (sortMode === "waiting") {
+      // Time in stage is not a column, so rank the whole filtered set (capped) in memory, then load only the page.
+      const candidates = await prisma.application.findMany({
+        where,
+        take: WAITING_SORT_CAP,
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: { id: true, status: true, createdAt: true },
+      });
+      const entries = await loadStageEntries(candidates.map((c) => c.id));
+      entryByApplication = new Map(candidates.map((c) => [c.id, entryFor(entries, c.id, c.status, c.createdAt)]));
+      const rankedIds = candidates
+        .map((c) => c.id)
+        .sort((a, b) => entryByApplication!.get(a)!.getTime() - entryByApplication!.get(b)!.getTime() || a - b)
+        .slice(skip, skip + resolvedLimit);
+      const rows = rankedIds.length === 0
+        ? []
+        : await prisma.application.findMany({ where: { id: { in: rankedIds } }, select: summarySelect });
+      const rowById = new Map(rows.map((row) => [row.id, row]));
+      applications = rankedIds.map((id) => rowById.get(id)).filter((row): row is NonNullable<typeof row> => Boolean(row));
+    } else {
+      applications = await prisma.application.findMany({ where, skip, take: resolvedLimit, orderBy, select: summarySelect });
+    }
+
+    const pageEntries = entryByApplication
+      ? null
+      : await loadStageEntries(applications.map((application) => application.id));
+    const stageEntryOf = (application: { id: number; status: string; createdAt: Date }) =>
+      entryByApplication?.get(application.id) ?? entryFor(pageEntries ?? [], application.id, application.status, application.createdAt);
 
     const scoreRows = applications.length === 0
       ? []
@@ -278,15 +361,20 @@ export const listTAApplications = async (
     const items = (await attachReturningInfo(applications)).map((application) => {
         const score = scoresByApplication.get(application.id);
         const { _count, ...row } = application;
+        const enteredAt = stageEntryOf(application);
         return {
           ...row,
+          stageEnteredAt: enteredAt.toISOString(),
+          daysInStage: Math.max(0, Math.floor((Date.now() - enteredAt.getTime()) / MS_PER_DAY)),
           candidateFitScore: score ? Number(score.finalFitScore) : null,
           candidateFitScoreCalculatedAt: score?.calculatedAt ?? null,
           candidateScoringConfigurationVersion: configuration?.version ?? null,
           interviewCount: _count.interviews,
           recruiterDecisionCount: _count.recruiterDecisions,
         };
-      }).sort((left, right) => {
+      });
+    // Other sorts already come back in the requested order; only "match" re-ranks by score.
+    if (sortMode === "match") items.sort((left, right) => {
         if (dynamicScoring) {
           return (right.candidateFitScore ?? -1) - (left.candidateFitScore ?? -1)
             || right.createdAt.getTime() - left.createdAt.getTime();

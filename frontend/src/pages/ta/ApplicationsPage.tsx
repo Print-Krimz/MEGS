@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { ChevronRight, X } from "lucide-react";
 import { keepPreviousData, useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
@@ -11,10 +12,11 @@ import {
   LoadingState,
   ErrorState,
   EmptyState,
+  ActionMenu,
   DataTable,
   type DataTableColumn,
 } from "../../components/common";
-import { Button, Dialog, Textarea } from "../../components/ui";
+import { Button, ComboBox, Dialog, Textarea } from "../../components/ui";
 import { formatDate, getApplicationStatusMeta } from "../../lib/utils";
 import { StageStrip, STAGE_STRIP_STAGES, type StageStripItem } from "../../components/ta/recruitment/StageStrip";
 import {
@@ -99,6 +101,20 @@ const nextStepFor = (app: TAApplicationSummary): string => {
   }
 };
 
+type ListSort = NonNullable<TAApplicationSearch["sort"]>;
+const SORT_OPTIONS = [
+  { value: "match", label: "Sort: Best match" },
+  { value: "newest", label: "Sort: Newest first" },
+  { value: "oldest", label: "Sort: Oldest first" },
+  { value: "waiting", label: "Sort: Longest in stage" },
+];
+
+const daysInStageLabel = (days?: number) => {
+  if (days == null) return "-";
+  if (days <= 0) return "Today";
+  return days === 1 ? "1 day" : `${days} days`;
+};
+
 const candidateNameOf = (app: TAApplicationSummary) => {
   const p = app.user?.applicantProfile;
   const name = p ? `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() : "";
@@ -111,6 +127,7 @@ const isClosedRecord = (app: TAApplicationSummary) =>
 const readApplicationSearch = (): TAApplicationSearch => {
   const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
   const stage = params.get("stage");
+  const sortParam = params.get("sort");
   const number = (value: string | null) => {
     const parsed = Number(value);
     return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
@@ -122,6 +139,8 @@ const readApplicationSearch = (): TAApplicationSearch => {
     jobId: number(params.get("jobId")),
     archived: params.get("archived") === "true" || params.get("archived") === "1" ? true : undefined,
     returning: params.get("returning") === "true" || params.get("returning") === "1" ? true : undefined,
+    sort: sortParam === "newest" || sortParam === "oldest" || sortParam === "waiting" ? sortParam : undefined,
+    needsAction: params.get("needsAction") === "true" || params.get("needsAction") === "1" ? true : undefined,
     page: number(params.get("page")),
   };
 };
@@ -144,6 +163,8 @@ export const ApplicationsPage: React.FC = () => {
   }));
   const [showArchived, setShowArchived] = useState(Boolean(routeSearch.archived));
   const [returningOnly, setReturningOnly] = useState(Boolean(routeSearch.returning));
+  const [sort, setSort] = useState<ListSort | undefined>(routeSearch.sort);
+  const [needsAction, setNeedsAction] = useState(Boolean(routeSearch.needsAction));
 
   useEffect(() => {
     setPage(routeSearch.page || 1);
@@ -155,7 +176,9 @@ export const ApplicationsPage: React.FC = () => {
     });
     setShowArchived(Boolean(routeSearch.archived));
     setReturningOnly(Boolean(routeSearch.returning));
-  }, [routeSearch.page, routeSearch.q, routeSearch.stage, routeSearch.clientId, routeSearch.jobId, routeSearch.archived, routeSearch.returning]);
+    setSort(routeSearch.sort);
+    setNeedsAction(Boolean(routeSearch.needsAction));
+  }, [routeSearch.page, routeSearch.q, routeSearch.stage, routeSearch.clientId, routeSearch.jobId, routeSearch.archived, routeSearch.returning, routeSearch.sort, routeSearch.needsAction]);
 
   const updateListUrl = (next: Partial<TAApplicationSearch>) => {
     const valueFor = <K extends keyof TAApplicationSearch>(key: K, fallback: TAApplicationSearch[K]) =>
@@ -169,6 +192,8 @@ export const ApplicationsPage: React.FC = () => {
         jobId: valueFor("jobId", filterValues.jobId ? Number(filterValues.jobId) : undefined),
         archived: valueFor("archived", showArchived || undefined),
         returning: valueFor("returning", returningOnly || undefined),
+        sort: valueFor("sort", sort),
+        needsAction: valueFor("needsAction", needsAction || undefined),
         page: valueFor("page", page > 1 ? page : undefined),
       },
       replace: true,
@@ -182,6 +207,8 @@ export const ApplicationsPage: React.FC = () => {
     jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
     archived: showArchived || undefined,
     returning: returningOnly || undefined,
+    sort,
+    needsAction: needsAction || undefined,
     page: page > 1 ? page : undefined,
   };
 
@@ -201,6 +228,8 @@ export const ApplicationsPage: React.FC = () => {
       jobId: filterValues.jobId || "",
       showArchived,
       returningOnly,
+      sort: sort ?? "match",
+      needsAction,
     }],
     queryFn: ({ signal }) =>
       taApi.listApplicationsPage({
@@ -212,6 +241,8 @@ export const ApplicationsPage: React.FC = () => {
         clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
         isArchived: showArchived,
         returning: returningOnly || undefined,
+        sort,
+        needsAction: needsAction || undefined,
         summary: true,
       }, { signal }),
     placeholderData: keepPreviousData,
@@ -243,6 +274,7 @@ export const ApplicationsPage: React.FC = () => {
         clientId: filterValues.clientId || "",
         jobId: filterValues.jobId || "",
         returningOnly,
+        needsAction,
       }],
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         taApi
@@ -255,6 +287,7 @@ export const ApplicationsPage: React.FC = () => {
             clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
             isArchived: false,
             returning: returningOnly || undefined,
+            needsAction: needsAction || undefined,
             summary: true,
           }, { signal })
           .then((result) => result.total),
@@ -372,7 +405,12 @@ export const ApplicationsPage: React.FC = () => {
   }, [jobs, filterValues.clientId]);
 
 
-  const hasActiveFilters = Boolean(search) || returningOnly || Object.keys(filterValues).length > 0;
+  const hasListFilters = Boolean(search) || returningOnly || Object.keys(filterValues).length > 0;
+  const activeFilterCount =
+    (search ? 1 : 0) + (returningOnly ? 1 : 0) + (needsAction ? 1 : 0) + (sort ? 1 : 0) + Object.keys(filterValues).length;
+  const hasActiveFilters = activeFilterCount > 0;
+  // Only "Needs action" is hiding rows, so the empty state can say so directly.
+  const onlyNeedsActionActive = needsAction && !hasListFilters;
 
   const changeStage = (stage: string) => {
     const nextValues = { ...filterValues };
@@ -387,35 +425,78 @@ export const ApplicationsPage: React.FC = () => {
     setSearch("");
     setFilterValues({});
     setReturningOnly(false);
+    setNeedsAction(false);
+    setSort(undefined);
     setPage(1);
-    updateListUrl({ returning: undefined, q: undefined, stage: undefined, clientId: undefined, jobId: undefined, page: undefined });
+    updateListUrl({
+      returning: undefined,
+      q: undefined,
+      stage: undefined,
+      clientId: undefined,
+      jobId: undefined,
+      sort: undefined,
+      needsAction: undefined,
+      page: undefined,
+    });
   };
 
   const openArchiveDialog = (app: TAApplicationSummary) =>
     setArchiveModalApp({ id: app.id, name: candidateNameOf(app), isArchived: Boolean(app.isArchived) });
 
-  const detailLink = (app: TAApplicationSummary, className?: string) => (
+  const detailLink = (app: TAApplicationSummary) => (
     <Link
       to="/ta/applications/$applicationId"
       params={{ applicationId: String(app.id) }}
       search={listSearch}
-      className={className ?? "font-medium text-navy underline-offset-2 hover:underline focus-ring"}
+      className="inline-flex items-center gap-0.5 font-semibold text-navy underline underline-offset-2 hover:text-navy-hover focus-ring pointer-coarse:min-h-11"
     >
       {candidateNameOf(app)}
+      <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
     </Link>
   );
 
-  const archiveAction = (app: TAApplicationSummary) =>
-    isClosedRecord(app) ? (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => openArchiveDialog(app)}
-        aria-label={`${app.isArchived ? "Restore" : "Archive"} application for ${candidateNameOf(app)}`}
+  const copyEmail = async (email: string) => {
+    try {
+      await navigator.clipboard.writeText(email);
+      notify.success("Email copied", email);
+    } catch {
+      notify.error("Unable to copy email", "Copy it from the candidate record instead.");
+    }
+  };
+
+  const viewButton = (app: TAApplicationSummary, className?: string) => (
+    <Button asChild variant="outline" size="sm" className={`whitespace-nowrap ${className ?? ""}`}>
+      <Link
+        to="/ta/applications/$applicationId"
+        params={{ applicationId: String(app.id) }}
+        search={listSearch}
+        aria-label={`View application for ${candidateNameOf(app)}`}
       >
-        {app.isArchived ? "Restore" : "Archive"}
-      </Button>
-    ) : null;
+        View application
+      </Link>
+    </Button>
+  );
+
+  const rowMenu = (app: TAApplicationSummary) => {
+    const email = app.user?.email;
+    const jobId = app.jobPosting?.id;
+    return (
+      <ActionMenu
+        label={`More actions for ${candidateNameOf(app)}`}
+        items={[
+          {
+            label: "Open job opening",
+            disabled: jobId == null,
+            onSelect: () => void navigate({ to: "/ta/jobs/$jobId", params: { jobId: String(jobId) } }),
+          },
+          { label: "Copy email", disabled: !email, onSelect: () => void copyEmail(email ?? "") },
+          ...(isClosedRecord(app)
+            ? [{ label: app.isArchived ? "Restore" : "Archive", onSelect: () => openArchiveDialog(app) }]
+            : []),
+        ]}
+      />
+    );
+  };
 
   const columns: DataTableColumn<TAApplicationSummary>[] = [
     {
@@ -459,6 +540,16 @@ export const ApplicationsPage: React.FC = () => {
       cell: (app) => <span className="text-sm text-slate-700">{nextStepFor(app)}</span>,
     },
     {
+      key: "inStage",
+      header: "In stage",
+      hideBelow: "md",
+      cell: (app) => (
+        <span className={`whitespace-nowrap text-sm ${sort === "waiting" ? "font-medium text-slate-950" : "text-slate-700"}`}>
+          {daysInStageLabel(app.daysInStage)}
+        </span>
+      ),
+    },
+    {
       key: "applied",
       header: "Applied",
       cell: (app) => <span className="whitespace-nowrap text-sm text-slate-700">{formatDate(app.createdAt)}</span>,
@@ -472,16 +563,17 @@ export const ApplicationsPage: React.FC = () => {
         return <ScoreBadge score={score == null ? score : Math.round(score)} size="sm" />;
       },
     },
-    ...(showArchived || applications.some(isClosedRecord)
-      ? [
-          {
-            key: "actions",
-            header: "Action",
-            align: "right" as const,
-            cell: (app: TAApplicationSummary) => archiveAction(app),
-          },
-        ]
-      : []),
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      cell: (app) => (
+        <div className="flex items-center justify-end gap-2">
+          {viewButton(app)}
+          {rowMenu(app)}
+        </div>
+      ),
+    },
   ];
 
   const renderCard = (app: TAApplicationSummary) => (
@@ -489,7 +581,7 @@ export const ApplicationsPage: React.FC = () => {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="break-words">
-            {detailLink(app, "inline-flex min-h-11 items-center font-medium text-navy underline-offset-2 hover:underline focus-ring")}
+            {detailLink(app)}
           </h2>
           <p className="mt-0.5 break-words text-sm text-slate-600">
             {app.jobPosting?.title || "Job opening"}
@@ -503,6 +595,10 @@ export const ApplicationsPage: React.FC = () => {
         </div>
       </div>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+        <div>
+          <dt className="text-slate-600">In stage</dt>
+          <dd className={`mt-0.5 text-slate-800 ${sort === "waiting" ? "font-medium" : ""}`}>{daysInStageLabel(app.daysInStage)}</dd>
+        </div>
         <div>
           <dt className="text-slate-600">Next step</dt>
           <dd className="mt-0.5 text-slate-800">{nextStepFor(app)}</dd>
@@ -521,7 +617,10 @@ export const ApplicationsPage: React.FC = () => {
           </dd>
         </div>
       </dl>
-      {isClosedRecord(app) && <div className="border-t border-slate-200 pt-3">{archiveAction(app)}</div>}
+      <div className="flex items-center gap-2 border-t border-slate-200 pt-3">
+        {viewButton(app, "min-h-11 flex-1")}
+        {rowMenu(app)}
+      </div>
     </article>
   );
 
@@ -587,9 +686,41 @@ export const ApplicationsPage: React.FC = () => {
               page: undefined,
             });
           }}
-          onReset={resetFilters}
+          layout="stacked"
+          trailing={
+              <div className="w-full sm:w-48">
+                <label htmlFor="applications-sort" className="sr-only">Sort by</label>
+                <ComboBox
+                  id="applications-sort"
+                  size="sm"
+                  placeholder="Sort by"
+                  value={sort ?? "match"}
+                  options={SORT_OPTIONS}
+                  clearable={false}
+                  onChange={(v) => {
+                    const next = v === "newest" || v === "oldest" || v === "waiting" ? v : undefined;
+                    setSort(next);
+                    setPage(1);
+                    updateListUrl({ sort: next, page: undefined });
+                  }}
+                />
+              </div>
+          }
           actions={
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2">
+              <Button
+                variant={needsAction ? "primary" : "outline"}
+                size="sm"
+                aria-pressed={needsAction}
+                onClick={() => {
+                  const next = !needsAction;
+                  setNeedsAction(next);
+                  setPage(1);
+                  updateListUrl({ needsAction: next || undefined, page: undefined });
+                }}
+              >
+                Needs action
+              </Button>
               <Button
                 variant={returningOnly ? "primary" : "outline"}
                 size="sm"
@@ -616,6 +747,12 @@ export const ApplicationsPage: React.FC = () => {
               >
                 {showArchived ? "View active" : "View archived"}
               </Button>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={resetFilters} className="ml-auto text-rose-700 hover:text-rose-900">
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  Clear filters ({activeFilterCount})
+                </Button>
+              )}
             </div>
           }
           filters={[
@@ -672,7 +809,7 @@ export const ApplicationsPage: React.FC = () => {
           {hasActiveFilters && (
             <div className="flex justify-center">
               <Button variant="outline" size="sm" onClick={resetFilters}>
-                Reset filters
+                Clear filters
               </Button>
             </div>
           )}
@@ -688,9 +825,19 @@ export const ApplicationsPage: React.FC = () => {
           empty={
             <EmptyState
               bare
-              title={showArchived ? "No archived applications" : hasActiveFilters ? "No applications match" : "No applications yet"}
+              title={
+                showArchived
+                  ? "No archived applications"
+                  : onlyNeedsActionActive
+                  ? "No applications need action"
+                  : hasActiveFilters
+                  ? "No applications match"
+                  : "No applications yet"
+              }
               description={
-                hasActiveFilters
+                onlyNeedsActionActive
+                  ? "Nothing is waiting on you right now."
+                  : hasActiveFilters
                   ? "Change or clear the filters to see more records."
                   : showArchived
                   ? undefined
@@ -699,7 +846,7 @@ export const ApplicationsPage: React.FC = () => {
               action={
                 hasActiveFilters ? (
                   <Button variant="outline" size="sm" onClick={resetFilters}>
-                    Reset filters
+                    Clear filters
                   </Button>
                 ) : showArchived ? undefined : (
                   <Button asChild variant="outline" size="sm">

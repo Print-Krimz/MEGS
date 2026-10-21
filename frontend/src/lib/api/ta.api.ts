@@ -77,6 +77,9 @@ export interface ApplicationQueryFilters {
   search?: string;
   isArchived?: boolean;
   returning?: boolean;
+  /** Summary list order; omitted means best match. */
+  sort?: "match" | "newest" | "oldest" | "waiting";
+  needsAction?: boolean;
   page?: number;
   limit?: number;
   summary?: boolean;
@@ -142,6 +145,8 @@ export const taApi = {
     if (search) params.append("search", search);
     if (filters.isArchived !== undefined) params.append("isArchived", String(filters.isArchived));
     if (filters.returning) params.append("returning", "true");
+    if (filters.sort && filters.sort !== "match") params.append("sort", filters.sort);
+    if (filters.needsAction) params.append("needsAction", "true");
     params.append("page", String(filters.page));
     params.append("limit", String(filters.limit));
     params.append("summary", "true");

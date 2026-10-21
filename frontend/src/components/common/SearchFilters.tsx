@@ -29,6 +29,13 @@ export interface SearchFiltersProps {
   onReset?: () => void;
   actions?: React.ReactNode;
   className?: string;
+  /**
+   * "stacked" puts search, filters and `trailing` on one full-width row and the
+   * actions on a second row, so wide toolbars do not leave a gap in the middle.
+   */
+  layout?: "inline" | "stacked";
+  /** Rendered at the end of the search row in the stacked layout (e.g. a sort control). */
+  trailing?: React.ReactNode;
 }
 
 export const SearchFilters: React.FC<SearchFiltersProps> = ({
@@ -42,7 +49,10 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
   onReset,
   actions,
   className,
+  layout = "inline",
+  trailing,
 }) => {
+  const stacked = layout === "stacked";
   const idPrefix = useId();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount = filters.filter((f) => {
@@ -59,7 +69,9 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
       role="search"
       aria-label="Search and filter records"
       className={cn(
-        "bg-white p-3 border border-slate-300 mb-4 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3",
+        stacked
+          ? "bg-white p-3 border border-slate-300 mb-4 flex flex-col gap-2.5"
+          : "bg-white p-3 border border-slate-300 mb-4 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3",
         className
       )}
     >
@@ -67,7 +79,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
       <div className="flex flex-1 flex-wrap items-center gap-2.5">
         {/* Search Bar */}
         {onSearchChange && (
-          <div className="w-full sm:w-72 md:w-96">
+          <div className={stacked ? "w-full sm:min-w-64 sm:flex-1" : "w-full sm:w-72 md:w-96"}>
             <label htmlFor={`${idPrefix}-search`} className="sr-only">
               {searchLabel}
             </label>
@@ -114,7 +126,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
           className={cn("w-full flex-wrap items-center gap-2.5 md:flex md:w-auto", filtersOpen ? "flex" : "hidden")}
         >
         {filters.map((filter) => (
-          <div key={filter.key} className="w-full sm:w-auto min-w-[150px]">
+          <div key={filter.key} className={stacked ? "w-full sm:w-auto sm:min-w-52" : "w-full sm:w-auto min-w-[150px]"}>
             <label htmlFor={`${idPrefix}-${filter.key}`} className="sr-only">
               {filter.label}
             </label>
@@ -152,6 +164,8 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
         ))}
         </div>
 
+        {stacked && trailing}
+
         {/* Clear Filters CTA */}
         {hasActiveFilters && onReset && (
           <button
@@ -167,7 +181,13 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
 
       {/* Extra Action Buttons slot */}
       {actions && (
-        <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto justify-end sm:justify-start lg:self-center">
+        <div
+          className={
+            stacked
+              ? "flex flex-wrap items-center gap-2 w-full"
+              : "flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto justify-end sm:justify-start lg:self-center"
+          }
+        >
           {actions}
         </div>
       )}

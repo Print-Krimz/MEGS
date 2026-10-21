@@ -313,6 +313,9 @@ export interface TAApplicationSearch {
   jobId?: number;
   archived?: boolean;
   returning?: boolean;
+  /** Applications list order; omitted means best match. */
+  sort?: "newest" | "oldest" | "waiting";
+  needsAction?: boolean;
   page?: number;
   tab?: string;
 }
@@ -342,6 +345,8 @@ const parseTAApplicationSearch = (
     jobId: parsePositiveNumber(search.jobId),
     archived: parseBoolean(search.archived),
     returning: parseBoolean(search.returning),
+    sort: search.sort === "newest" || search.sort === "oldest" || search.sort === "waiting" ? search.sort : undefined,
+    needsAction: parseBoolean(search.needsAction),
     page: parsePositiveNumber(search.page),
     tab: includeTab && typeof search.tab === "string" ? search.tab : undefined,
   };

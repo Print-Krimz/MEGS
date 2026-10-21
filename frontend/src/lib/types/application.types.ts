@@ -249,6 +249,10 @@ export interface TAApplicationSummary {
   candidateFitScore?: number | null;
   candidateFitScoreCalculatedAt?: string | null;
   candidateScoringConfigurationVersion?: number | null;
+  /** When the application entered its current stage (ISO). */
+  stageEnteredAt?: string;
+  /** Whole days spent in the current stage. */
+  daysInStage?: number;
   interviewCount: number;
   recruiterDecisionCount: number;
   user?: {
