@@ -66,7 +66,7 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
             </p>
             <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
               <div
-                className="h-full rounded-full bg-navy transition-[width] duration-300 motion-reduce:transition-none"
+                className="h-full rounded-full bg-emerald-600 transition-[width] duration-300 motion-reduce:transition-none"
                 style={{ width: `${((activeIndex + (finished ? 1 : 0.5)) / total) * 100}%` }}
               />
             </div>
@@ -84,7 +84,7 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
               <li key={stage.id} className="relative flex min-w-0 flex-1 flex-col items-center">
                 {idx < total - 1 && (
                   <div
-                    className={cn("absolute left-1/2 top-3 h-0.5 w-full -translate-y-1/2", activeIndex > idx ? "bg-navy" : "bg-slate-200")}
+                    className={cn("absolute left-1/2 top-3 h-0.5 w-full -translate-y-1/2", activeIndex > idx ? "bg-emerald-600" : "bg-slate-200")}
                     aria-hidden="true"
                   />
                 )}
@@ -94,9 +94,9 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
                     isSkipped
                       ? "border-amber-500 bg-amber-50 text-amber-800"
                       : done
-                      ? "border-navy bg-navy text-white"
+                      ? "border-emerald-700 bg-emerald-700 text-white"
                       : isCurrent
-                      ? "border-2 border-navy bg-white text-navy"
+                      ? "border-2 border-navy bg-white text-navy ring-4 ring-navy-soft"
                       : "border-slate-300 bg-white text-slate-600"
                   )}
                   aria-current={isCurrent ? "step" : undefined}
