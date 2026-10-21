@@ -55,6 +55,18 @@ const FIELD_ORDER: Array<[string, string]> = [
   ["salaryRangeMax", "mrf-salary-max"],
 ];
 
+/** Optional fields kept inside the "More details" disclosure. */
+const MORE_DETAILS_FIELDS = [
+  "requiredExperience",
+  "requiredEducation",
+  "requiredCertifications",
+  "description",
+  "ageMin",
+  "ageMax",
+  "genderPreference",
+  "tattooPolicy",
+];
+
 type PendingFill =
   | { kind: "preset"; presetId: string }
   | { kind: "clone"; mrf: ManpowerRequest; preserveClient: boolean };
@@ -86,6 +98,7 @@ export const MRFCreatePage: React.FC = () => {
   const [genderPreference, setGenderPreference] = useState<string>("ANY");
   const [tattooPolicy, setTattooPolicy] = useState<string>("ALLOWED");
   const [clientRequirementsOpen, setClientRequirementsOpen] = useState(false);
+  const [moreDetailsOpen, setMoreDetailsOpen] = useState(false);
   const [cloneModalOpen, setCloneModalOpen] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [pendingFill, setPendingFill] = useState<PendingFill | null>(null);
@@ -187,6 +200,7 @@ export const MRFCreatePage: React.FC = () => {
   const showFieldErrors = (errors: Record<string, string>) => {
     setServerFieldErrors(errors);
     const first = FIELD_ORDER.find(([key]) => errors[key]);
+    if (MORE_DETAILS_FIELDS.some((key) => errors[key])) setMoreDetailsOpen(true);
     if (first && (first[0] === "ageMin" || first[0] === "ageMax")) setClientRequirementsOpen(true);
     if (first) {
       window.setTimeout(() => {
@@ -693,6 +707,17 @@ export const MRFCreatePage: React.FC = () => {
               )}
             </div>
 
+            <details
+              className="group border-t border-slate-200 pt-4"
+              open={moreDetailsOpen}
+              onToggle={(e) => setMoreDetailsOpen((e.currentTarget as HTMLDetailsElement).open)}
+            >
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-slate-900 focus-ring md:min-h-0 [&::-webkit-details-marker]:hidden">
+                <span>More details</span>
+                <span className="text-sm font-medium text-navy group-open:hidden">Show</span>
+                <span className="hidden text-sm font-medium text-navy group-open:inline">Hide</span>
+              </summary>
+              <div className="mt-3 space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <ComboBox
                 label="Required experience"
@@ -817,6 +842,8 @@ export const MRFCreatePage: React.FC = () => {
                     ]}
                   />
                 </div>
+              </div>
+            </details>
               </div>
             </details>
           </section>

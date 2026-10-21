@@ -6,12 +6,11 @@ import { DetailField, SECTION_HEADING } from "./shared";
 export interface IdentityTabProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   candidate: any;
-  employeeEmail?: string | null;
   skills: string[];
 }
 
 /** Government IDs, personal details and skills. */
-export const IdentityTab: React.FC<IdentityTabProps> = ({ candidate: cand, employeeEmail, skills }) => {
+export const IdentityTab: React.FC<IdentityTabProps> = ({ candidate: cand, skills }) => {
   const fullAddress =
     [cand.address, cand.barangay, cand.city, cand.province, cand.postalCode].filter(Boolean).join(", ") || "Not provided";
   const emergencyContact = cand.emergencyContactName
@@ -34,8 +33,6 @@ export const IdentityTab: React.FC<IdentityTabProps> = ({ candidate: cand, emplo
       <section className="space-y-3 border-t border-slate-200 pt-5" aria-labelledby="emp-personal-heading">
         <h2 id="emp-personal-heading" className={SECTION_HEADING}>Personal details</h2>
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <DetailField label="Mobile number">{cand.mobileNumber || "Not provided"}</DetailField>
-          <DetailField label="Email">{cand.email || employeeEmail || "Not provided"}</DetailField>
           <DetailField label="Residential address">{fullAddress}</DetailField>
           <DetailField label="Date of birth and gender">
             {`${cand.dateOfBirth ? formatDate(cand.dateOfBirth) : "Not provided"}${cand.gender ? ` · ${cand.gender}` : ""}`}

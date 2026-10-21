@@ -449,19 +449,19 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     return (
       <div className="space-y-6">
         <PageHeader
-          title={readOnly ? "Hiring request not found" : "Manpower Request Not Found"}
+          title={readOnly ? "Hiring request not found" : "Manpower request not found"}
                 description={`Request #${mrfId || "unknown"}`}
           breadcrumbs={
             readOnly
               ? [
                   { label: "Administration", href: "/admin" },
                   { label: "Notifications", href: baseBackPath },
-                  { label: "Record Not Found" },
+                  { label: "Record not found" },
                 ]
               : [
                   { label: TA_COPY.breadcrumbRoot, href: "/ta" },
                   { label: TA_COPY.navigation.manpowerRequests, href: baseBackPath },
-                  { label: "Record Not Found" },
+                  { label: "Record not found" },
                 ]
           }
           actions={

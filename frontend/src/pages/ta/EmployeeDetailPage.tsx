@@ -160,7 +160,7 @@ export const EmployeeDetailPage: React.FC = () => {
         items={[
           { label: TA_COPY.navigation.overview, href: "/ta" },
           { label: TA_COPY.navigation.workforce, href: "/ta/workforce?tab=employees" },
-          { label: emp.employeeNumber },
+          { label: empName },
         ]}
       />
 
@@ -213,7 +213,7 @@ export const EmployeeDetailPage: React.FC = () => {
           tabIndex={0}
           className="focus-ring rounded-md border border-slate-300 bg-white p-4 md:p-5"
         >
-          {activeTab === "identity" && <IdentityTab candidate={cand} employeeEmail={emp.user?.email} skills={skillsList} />}
+          {activeTab === "identity" && <IdentityTab candidate={cand} skills={skillsList} />}
           {activeTab === "history" && <HistoryTab events={events} />}
           {activeTab === "deployments" && (
             <DeploymentsTab deployments={deployments} employeeStatus={emp.status} employeeName={empName} />

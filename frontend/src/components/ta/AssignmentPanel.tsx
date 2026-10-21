@@ -60,7 +60,7 @@ export const AssignmentPanel: React.FC<AssignmentPanelProps> = ({ mrfId, mrfOwne
 
   return (
     <section aria-label="Ownership" className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-      <h3 className="text-[11px] font-mono font-bold text-slate-500 uppercase">Ownership</h3>
+      <h3 className="text-xs font-medium text-slate-600">Ownership</h3>
       <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="flex items-end gap-2">
           <Select

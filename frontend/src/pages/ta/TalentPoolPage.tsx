@@ -179,7 +179,6 @@ export const TalentPoolPage: React.FC = () => {
       <PageHeader
         flush
         title={TA_COPY.pageTitles.candidatePool}
-        description="Find past applicants and available candidates by skills and experience."
         breadcrumbs={[
           { label: TA_COPY.breadcrumbRoot, href: "/ta" },
           { label: TA_COPY.navigation.candidatePool },

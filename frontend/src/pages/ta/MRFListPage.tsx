@@ -165,7 +165,6 @@ export const MRFListPage: React.FC = () => {
       <PageHeader
         flush
         title={TA_COPY.pageTitles.manpowerRequests}
-        description="Track client staffing requests (MRFs), positions to fill, and required documents."
         breadcrumbs={[
           { label: TA_COPY.breadcrumbRoot, href: "/ta" },
           { label: TA_COPY.navigation.manpowerRequests },

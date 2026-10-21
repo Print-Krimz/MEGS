@@ -232,7 +232,6 @@ export const ClientsPage: React.FC = () => {
       <PageHeader
         flush
         title={TA_COPY.navigation.clients}
-        description="Manage client companies, staffing requests, and site assignments."
         breadcrumbs={[
           { label: TA_COPY.breadcrumbRoot, href: "/ta" },
           { label: TA_COPY.navigation.clients },

@@ -231,7 +231,7 @@ export const RedeploymentQueuePage: React.FC = () => {
       ) : null
     ) : (
       <Button
-        variant={row.stage === "NEEDS_PLACEMENT" ? "primary" : "outline"}
+        variant={row.stage === "NEEDS_PLACEMENT" && selectedRow?.id === row.id ? "primary" : "outline"}
         size="sm"
         className={fullWidth ? "w-full" : undefined}
         onClick={() => openAssignment(row)}
@@ -466,7 +466,7 @@ export const RedeploymentQueuePage: React.FC = () => {
                   cards.length === 0 ? null : (
                     <div key={heading || "all"} className="space-y-1.5">
                       {heading && (
-                        <div className="px-1 text-xs font-bold uppercase tracking-wide text-slate-600">{heading}</div>
+                        <div className="px-1 text-xs font-bold tracking-wide text-slate-600">{heading}</div>
                       )}
                       {cards.map(({ job, suggestion, sameClient }) => {
                         const selected = String(job.id) === targetJobId;

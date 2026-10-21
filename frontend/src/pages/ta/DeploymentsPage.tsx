@@ -255,7 +255,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
       {!hideHeader && (
         <PageHeader
           title={TA_COPY.pageTitles.deployments}
-          description="Monitor employee assignments, client sites, and contract dates."
           breadcrumbs={[
             { label: TA_COPY.navigation.overview, href: "/ta" },
             { label: TA_COPY.navigation.workforce },
@@ -276,6 +275,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
           {
             key: "status",
             label: "Status",
+            searchable: true,
             options: [
               { value: DeploymentStatus.READY_FOR_DEPLOYMENT, label: TA_COPY.deployment.readyToStart },
               { value: DeploymentStatus.ACTIVE, label: TA_COPY.deployment.active },

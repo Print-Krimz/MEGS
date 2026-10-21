@@ -221,7 +221,7 @@ export const CloneMRFModal: React.FC<CloneMRFModalProps> = ({
                           </Badge>
                         ))}
                         {skillTags.length > 6 && (
-                          <span className="text-[10px] text-slate-500 font-mono">
+                          <span className="text-xs text-slate-600">
                             +{skillTags.length - 6} more
                           </span>
                         )}
@@ -232,7 +232,7 @@ export const CloneMRFModal: React.FC<CloneMRFModalProps> = ({
 
                 {/* Action Footer: Employment Type & Clone Button */}
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-500 font-mono">
+                  <span className="text-xs text-slate-600">
                     {mrf.employmentType || "Standard Requisition"}
                   </span>
                   <Button

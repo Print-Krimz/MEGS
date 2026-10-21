@@ -329,10 +329,9 @@ export const InterviewsPage: React.FC = () => {
         ]}
       />
 
-      <section aria-labelledby="awaiting-outcome-heading" className="space-y-3">
+      <section aria-label="Awaiting outcome" className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 id="awaiting-outcome-heading" className="text-lg font-semibold text-slate-950">Awaiting outcome</h2>
             <p className="text-sm text-slate-600">{description}</p>
           </div>
           <div role="group" aria-label="Interview view" className="inline-flex rounded-md border border-slate-300 bg-white p-0.5">

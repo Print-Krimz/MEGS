@@ -135,7 +135,7 @@ export const MRFOverviewTab: React.FC<MRFOverviewTabProps> = ({ mrf, templates, 
                       onClick={() => onRemoveTemplate({ id: tpl.id, label: tpl.documentLabel })}
                       aria-label={`Remove ${tpl.documentLabel}`}
                       title="Remove template"
-                      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded text-rose-600 hover:text-rose-800 focus-ring md:min-h-8 md:min-w-8"
+                      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded text-slate-500 hover:bg-rose-50 hover:text-rose-700 focus-visible:text-rose-700 focus-ring md:min-h-8 md:min-w-8"
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>

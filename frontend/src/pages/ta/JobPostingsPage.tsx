@@ -450,7 +450,6 @@ export const JobPostingsPage: React.FC = () => {
       <PageHeader
         flush
         title="Job openings"
-        description="Create openings, set requirements, and review incoming candidates."
         breadcrumbs={[
           { label: TA_COPY.breadcrumbRoot, href: "/ta" },
           { label: TA_COPY.navigation.openings },

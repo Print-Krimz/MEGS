@@ -133,7 +133,6 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
       {!hideHeader && (
         <PageHeader
           title={TA_COPY.pageTitles.employeeRecords}
-          description="View active employees, redeployment availability, and personnel history."
           breadcrumbs={[
             { label: TA_COPY.navigation.overview, href: "/ta" },
             { label: TA_COPY.navigation.workforce },
@@ -154,6 +153,7 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
           {
             key: "status",
             label: "Status",
+            searchable: true,
             options: [
               { value: EmploymentStatus.ACTIVE, label: "Active" },
               {
@@ -198,7 +198,6 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
               name={employeeName(emp)}
               context={assignmentParts(emp) ?? ["Not on assignment"]}
               status={statusCell(emp)}
-              details={[emp.position || "General staff", emp.department].filter(Boolean).join(" · ")}
               action={recordAction(emp, true)}
             />
           )}

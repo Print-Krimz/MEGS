@@ -1,10 +1,53 @@
 import React, { useMemo, useState } from "react";
-import { ArrowRightLeft, ClipboardCheck, FileText } from "lucide-react";
-import { Timeline, type TimelineItem } from "../../common";
+import { ArrowRightLeft, ClipboardCheck, FileText, type LucideIcon } from "lucide-react";
 import type { Deployment } from "../../../lib/types/employee.types";
 import { formatDate, formatDateTime } from "../../../lib/utils";
 import { deploymentHistoryLabel, deploymentStatusLabel } from "../../../lib/labels";
 import { cn } from "../../../lib/utils";
+
+interface ActivityItem {
+  id: string;
+  icon: LucideIcon;
+  title: React.ReactNode;
+  meta?: { label: string; value: React.ReactNode }[];
+  body?: React.ReactNode;
+}
+
+/** Dated rail. The icon and title already name the event, so there is no separate type chip. */
+const ActivityList: React.FC<{ items: ActivityItem[]; ariaLabel: string }> = ({ items, ariaLabel }) => (
+  <ol aria-label={ariaLabel} className="relative">
+    {items.map((item, index) => {
+      const Node = item.icon;
+      return (
+        <li key={item.id} className="relative flex gap-3 pb-4 last:pb-0">
+          {index < items.length - 1 && (
+            <span aria-hidden="true" className="absolute bottom-0 left-[13px] top-7 w-px bg-slate-300" />
+          )}
+          <span
+            aria-hidden="true"
+            className="relative z-[1] mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700"
+          >
+            <Node className="h-3.5 w-3.5" />
+          </span>
+          <div className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white p-3">
+            <div className="text-sm font-semibold text-slate-950">{item.title}</div>
+            {item.meta && item.meta.length > 0 && (
+              <dl className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                {item.meta.map((m) => (
+                  <div key={m.label} className="flex min-w-0 gap-1.5">
+                    <dt className="text-slate-600">{m.label}</dt>
+                    <dd className="min-w-0 break-words text-slate-900">{m.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {item.body ? <div className="mt-2 text-sm text-slate-800">{item.body}</div> : null}
+          </div>
+        </li>
+      );
+    })}
+  </ol>
+);
 
 type ActivityKind = "checkin" | "status" | "agreement";
 type Filter = "all" | ActivityKind;
@@ -24,7 +67,7 @@ export const DeploymentActivity: React.FC<{ deployment: Deployment }> = ({ deplo
   const [filter, setFilter] = useState<Filter>("all");
 
   const entries = useMemo(() => {
-    const list: Array<{ kind: ActivityKind; at: string; item: TimelineItem }> = [];
+    const list: Array<{ kind: ActivityKind; at: string; item: ActivityItem }> = [];
     for (const review of deployment.reviews ?? []) {
       list.push({
         kind: "checkin",
@@ -33,7 +76,6 @@ export const DeploymentActivity: React.FC<{ deployment: Deployment }> = ({ deplo
           id: `checkin-${review.id}`,
           icon: ClipboardCheck,
           title: "Check-in recorded",
-          status: { label: "Check-in", tone: "success" },
           meta: [
             { label: "Date", value: formatDateTime(review.reviewedAt) },
             ...(review.reviewedBy?.email ? [{ label: "By", value: review.reviewedBy.email }] : []),
@@ -51,7 +93,6 @@ export const DeploymentActivity: React.FC<{ deployment: Deployment }> = ({ deplo
           id: `status-${change.id}`,
           icon: ArrowRightLeft,
           title: `${deploymentHistoryLabel(change.fromStatus)} → ${deploymentStatusLabel(change.toStatus)}`,
-          status: { label: "Status change", tone: "info" },
           meta: [{ label: "Date", value: formatDateTime(change.createdAt) }],
           body: change.reason ? `“${change.reason}”` : undefined,
         },
@@ -65,7 +106,6 @@ export const DeploymentActivity: React.FC<{ deployment: Deployment }> = ({ deplo
           id: `agreement-${version.id}`,
           icon: FileText,
           title: "Agreement version recorded",
-          status: { label: "Agreement", tone: "neutral" },
           meta: [
             { label: "Date", value: formatDateTime(version.recordedAt) },
             { label: "Dates", value: agreementDates(version.contractStart, version.contractEnd) },
@@ -109,7 +149,7 @@ export const DeploymentActivity: React.FC<{ deployment: Deployment }> = ({ deplo
             : "Nothing of this type yet."}
         </p>
       ) : (
-        <Timeline ariaLabel="Deployment activity" items={visible.map((entry) => entry.item)} />
+        <ActivityList ariaLabel="Deployment activity" items={visible.map((entry) => entry.item)} />
       )}
     </section>
   );

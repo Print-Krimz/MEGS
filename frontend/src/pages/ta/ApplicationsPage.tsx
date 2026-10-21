@@ -529,7 +529,6 @@ export const ApplicationsPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title={TA_COPY.pageTitles.applications}
-        description="Review applications, see their current stage, and continue the next hiring action."
                 breadcrumbs={[
           { label: TA_COPY.navigation.overview, href: "/ta" },
           { label: TA_COPY.navigation.applications },
