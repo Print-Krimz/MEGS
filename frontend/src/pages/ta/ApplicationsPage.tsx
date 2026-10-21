@@ -423,19 +423,25 @@ export const ApplicationsPage: React.FC = () => {
         return <ScoreBadge score={score == null ? score : Math.round(score)} size="sm" />;
       },
     },
-    {
-      key: "actions",
-      header: "Action",
-      align: "right",
-      cell: (app) => archiveAction(app),
-    },
+    ...(showArchived || applications.some(isClosedRecord)
+      ? [
+          {
+            key: "actions",
+            header: "Action",
+            align: "right" as const,
+            cell: (app: TAApplicationSummary) => archiveAction(app),
+          },
+        ]
+      : []),
   ];
 
   const renderCard = (app: TAApplicationSummary) => (
     <article className="space-y-3 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="break-words">{detailLink(app)}</h2>
+          <h2 className="break-words">
+            {detailLink(app, "inline-flex min-h-11 items-center font-medium text-navy underline-offset-2 hover:underline focus-ring")}
+          </h2>
           <p className="mt-0.5 break-words text-sm text-slate-600">
             {app.jobPosting?.title || "Job opening"}
             {app.jobPosting?.mrf?.client?.name ? ` · ${app.jobPosting.mrf.client.name}` : ""}
@@ -507,7 +513,7 @@ export const ApplicationsPage: React.FC = () => {
       <div>
         <SearchFilters
           className="mb-0"
-          searchPlaceholder="Search applications by candidate, email, job title..."
+          searchPlaceholder="Search name, email or job"
           searchValue={search}
           onSearchChange={(v) => {
             setSearch(v);
@@ -647,7 +653,11 @@ export const ApplicationsPage: React.FC = () => {
                   <Button variant="outline" size="sm" onClick={resetFilters}>
                     Reset filters
                   </Button>
-                ) : undefined
+                ) : showArchived ? undefined : (
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/ta/jobs">Open job openings</Link>
+                  </Button>
+                )
               }
             />
           }

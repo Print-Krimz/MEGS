@@ -217,7 +217,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
       value: metrics.readyForReviewCount,
       hint: `${plural(metrics.readyForReviewDocs, "document")} to verify`,
     },
-    { id: "UPCOMING", label: URGENCY_LABELS.UPCOMING, value: metrics.dueSoonCount, tone: "warning" },
+    { id: "UPCOMING", label: URGENCY_LABELS.UPCOMING, value: metrics.dueSoonCount, hint: "Next due date within 7 days", tone: "warning" },
     { id: "OVERDUE", label: URGENCY_LABELS.OVERDUE, value: metrics.overdueCount, hint: "Past the target date", tone: "danger" },
   ];
 

@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useRef } from "react";
 import { cn } from "../../lib/utils";
+import { useScrollFade } from "./Tabs";
 
 export interface FilterTileProps {
   label: string;
@@ -59,22 +60,28 @@ export const FilterTile: React.FC<FilterTileProps> = ({
   );
 };
 
-/** Grid on md+, horizontally scrolling chip row below md. */
+/** Grid on md+, horizontally scrolling chip row below md (fades at the overflowing edge). */
 export const FilterTileRow: React.FC<{
   children: React.ReactNode;
   className?: string;
   columns?: 2 | 3 | 4 | 5;
-}> = ({ children, className, columns = 4 }) => (
-  <div
-    className={cn(
-      "-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:grid md:overflow-visible md:px-0 md:pb-0 [scrollbar-width:thin]",
-      columns === 2 && "md:grid-cols-2",
-      columns === 3 && "md:grid-cols-3",
-      columns === 4 && "md:grid-cols-2 lg:grid-cols-4",
-      columns === 5 && "md:grid-cols-3 lg:grid-cols-5",
-      className
-    )}
-  >
-    {children}
-  </div>
-);
+}> = ({ children, className, columns = 4 }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const fadeStyle = useScrollFade(ref, [React.Children.count(children)]);
+  return (
+    <div
+      ref={ref}
+      style={fadeStyle}
+      className={cn(
+        "-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:grid md:overflow-visible md:px-0 md:pb-0 [scrollbar-width:thin]",
+        columns === 2 && "md:grid-cols-2",
+        columns === 3 && "md:grid-cols-3",
+        columns === 4 && "md:grid-cols-2 lg:grid-cols-4",
+        columns === 5 && "md:grid-cols-3 lg:grid-cols-5",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+};

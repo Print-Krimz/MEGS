@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
 
 export interface TabItem {
@@ -9,6 +9,39 @@ export interface TabItem {
   /** Id for the tab button, so a panel can point at it with aria-labelledby. */
   tabId?: string;
   badge?: { text: string; variant?: "success" | "warning" | "info" };
+}
+
+/**
+ * Tracks whether a horizontal scroller has more content on either side and returns a
+ * mask style that fades only the overflowing edge(s). The mask never blocks clicks.
+ */
+// oxlint-disable-next-line react/only-export-components
+export function useScrollFade<T extends HTMLElement>(ref: React.RefObject<T | null>, deps: React.DependencyList = []) {
+  const [edges, setEdges] = useState({ start: false, end: false });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const start = el.scrollLeft > 4;
+      const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+      setEdges((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      observer?.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  if (!edges.start && !edges.end) return undefined;
+  const fade = "2rem";
+  const gradient = `linear-gradient(to right, ${edges.start ? "transparent" : "#000"} 0, #000 ${edges.start ? fade : "0"}, #000 calc(100% - ${edges.end ? fade : "0px"}), ${edges.end ? "transparent" : "#000"} 100%)`;
+  return { maskImage: gradient, WebkitMaskImage: gradient } as React.CSSProperties;
 }
 
 interface TabsProps {
@@ -25,6 +58,7 @@ interface TabsProps {
  */
 export const Tabs: React.FC<TabsProps> = ({ items, value, onChange, ariaLabel, className }) => {
   const listRef = useRef<HTMLDivElement>(null);
+  const fadeStyle = useScrollFade(listRef, [items.length]);
 
   // Keep the selected tab visible when it changes (keyboard, deep link).
   useEffect(() => {
@@ -59,6 +93,7 @@ export const Tabs: React.FC<TabsProps> = ({ items, value, onChange, ariaLabel, c
       ref={listRef}
       role="tablist"
       aria-label={ariaLabel}
+      style={fadeStyle}
       className={cn(
         "flex flex-nowrap items-stretch overflow-x-auto overscroll-x-contain border-b border-slate-300 bg-slate-100 [scrollbar-width:thin]",
         className

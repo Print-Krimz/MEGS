@@ -52,7 +52,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
           leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
           className="border-slate-300 hover:bg-white"
         >
-          {subject ? "Try again" : "Try Again"}
+          Try again
         </Button>
       )}
     </div>

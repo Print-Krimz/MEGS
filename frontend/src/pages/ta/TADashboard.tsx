@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import { employeesApi } from "../../lib/api/employees.api";
-import { PageHeader, StatusBadge, ErrorState, EmptyState } from "../../components/common";
+import { PageHeader, StatusBadge, EmptyState } from "../../components/common";
 import { Button } from "../../components/ui";
 import { cn, formatDate } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
@@ -19,14 +19,24 @@ const WORKLIST_TASK_LIMIT = 5;
 function SectionData<T>({
   query,
   skeleton,
+  subject,
   children,
 }: {
   query: UseQueryResult<T>;
   skeleton: React.ReactNode;
+  /** What failed to load; the error shows as one inline row, like the worklist banner. */
+  subject: string;
   children: (data: T) => React.ReactNode;
 }) {
   if (query.isError && !query.isFetching) {
-    return <ErrorState className="my-0 border-0" error={query.error} onRetry={() => { void query.refetch(); }} />;
+    return (
+      <div role="alert" className="flex flex-wrap items-center justify-between gap-2 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-950">
+        <span>Couldn't load {subject}.</span>
+        <Button variant="outline" size="sm" onClick={() => { void query.refetch(); }}>
+          Try again
+        </Button>
+      </div>
+    );
   }
   if (query.isPending || query.isError) {
     return (
@@ -333,6 +343,7 @@ export const TADashboard: React.FC = () => {
 
         <SectionData
           query={pipelineStatsQuery}
+          subject="the hiring pipeline"
           skeleton={
             <div className="grid grid-cols-2 gap-px bg-slate-300 sm:grid-cols-7">
               {Array.from({ length: STAGE_TILES.length }).map((_, i) => (
@@ -383,6 +394,7 @@ export const TADashboard: React.FC = () => {
 
         <SectionData
           query={recentAppsQuery}
+          subject="recent applications"
           skeleton={
             <div className="divide-y divide-slate-200">
               {Array.from({ length: 4 }).map((_, i) => (

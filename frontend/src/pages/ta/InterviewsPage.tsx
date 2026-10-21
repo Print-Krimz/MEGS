@@ -200,11 +200,11 @@ export const InterviewsPage: React.FC = () => {
     </Button>
   );
 
-  const candidateLink = (row: InterviewRow) => (
+  const candidateLink = (row: InterviewRow, className = "font-medium text-navy underline-offset-2 hover:underline focus-ring") => (
     <Link
       to="/ta/applications/$applicationId"
       params={{ applicationId: String(row.applicationId) }}
-      className="font-medium text-navy underline-offset-2 hover:underline focus-ring"
+      className={className}
     >
       {row.candidateName}
     </Link>
@@ -217,7 +217,7 @@ export const InterviewsPage: React.FC = () => {
   );
 
   const columns: DataTableColumn<InterviewRow>[] = [
-    { key: "candidate", header: "Candidate", sortable: true, primary: true, cell: candidateLink },
+    { key: "candidate", header: "Candidate", sortable: true, primary: true, cell: (row) => candidateLink(row) },
     { key: "stage", header: "Interview type", cell: (row) => <span className="text-slate-700">{stageLabel(row.currentStage)}</span> },
     { key: "position", header: "Job opening", sortable: true, cell: (row) => <span className="text-slate-900">{row.jobTitle}</span> },
     { key: "scheduledAt", header: "Scheduled", sortable: true, cell: (row) => <span className="whitespace-nowrap text-slate-700">{formatDate(row.scheduledAt)}</span> },
@@ -230,7 +230,7 @@ export const InterviewsPage: React.FC = () => {
     <article className="space-y-3 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="break-words">{candidateLink(row)}</h3>
+          <h3 className="break-words">{candidateLink(row, "inline-flex min-h-11 items-center font-medium text-navy underline-offset-2 hover:underline focus-ring")}</h3>
           <p className="mt-0.5 break-words text-sm text-slate-600">{row.jobTitle}</p>
           <p className="text-sm text-slate-600">{stageLabel(row.currentStage)}</p>
         </div>

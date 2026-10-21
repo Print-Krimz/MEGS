@@ -129,7 +129,7 @@ const SuggestedJobs: React.FC<{
           type="button"
           onClick={() => onPick(top.jobId)}
           title={`Invite to ${top.title}: ${suggestionReason(top)}`}
-          className="focus-ring block max-w-[16rem] truncate text-left text-slate-700 hover:text-slate-950 hover:underline"
+          className="focus-ring block max-w-[16rem] text-left text-slate-700 hover:text-slate-950 hover:underline max-md:min-h-11 max-md:max-w-none max-md:py-2.5 max-md:line-clamp-2 md:truncate"
         >
           Top: {top.title} · {suggestionTag(top)}
         </button>
@@ -331,7 +331,7 @@ export const RedeploymentQueuePage: React.FC = () => {
           {row.applications.map((application) => (
             <Link
               key={application.id}
-              className="focus-ring block text-navy underline-offset-2 hover:underline"
+              className="focus-ring block text-navy underline-offset-2 hover:underline max-md:flex max-md:min-h-11 max-md:items-center"
               to="/ta/applications/$applicationId"
               params={{ applicationId: String(application.id) }}
             >
