@@ -75,7 +75,7 @@ export function DataTable<T>({
   };
 
   return (
-    <div className={cn("relative rounded-md border border-slate-300 bg-white", !stickyHeader && "overflow-hidden", className)} aria-busy={isFetching}>
+    <div className={cn("relative rounded-md border border-slate-300 bg-white", className)} aria-busy={isFetching}>
       {isFetching && (
         <div className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-navy-soft" role="progressbar" aria-label="Refreshing">
           <div className="h-full w-1/3 animate-pulse bg-navy" />

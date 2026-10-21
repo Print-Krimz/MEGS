@@ -73,7 +73,7 @@ const CopyButton: React.FC<{ label: string; text: string }> = ({ label, text }) 
 };
 
 const FactValue: React.FC<{ fact: RecordSummaryFact }> = ({ fact }) => {
-  const linkClass = "rounded-sm font-medium text-navy underline-offset-2 hover:underline focus-ring";
+  const linkClass = "inline-flex items-center rounded-sm font-medium text-navy underline-offset-2 hover:underline focus-ring pointer-coarse:min-h-11";
   let content = fact.value;
   if (fact.href) {
     content = /^(\/|#)/.test(fact.href) ? (

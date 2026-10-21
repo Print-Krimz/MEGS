@@ -83,6 +83,11 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({
     // or the browser window is shorter than the menu. A side-positioned menu
     // stays aligned with its row and scrolls within the remaining viewport
     // instead of being pushed upward over earlier records.
+    // A side menu next to a row at the very bottom would hang below the
+    // viewport, so lift it just enough to fit.
+    if (opensBeside) {
+      top = Math.min(top, Math.max(edge, window.innerHeight - menuRect.height - edge));
+    }
     const maxHeight = opensBeside
       ? Math.max(44, window.innerHeight - top - edge)
       : undefined;
