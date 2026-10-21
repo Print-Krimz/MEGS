@@ -16,6 +16,9 @@ export interface InlineResumeViewerProps {
   onOpenFullscreen?: () => void;
   onInspectPhoto?: () => void;
   onCollapse?: () => void;
+  /** Replaces the default viewer height (for a sticky column or a drawer). */
+  bodyClassName?: string;
+  className?: string;
 }
 
 export const InlineResumeViewer: React.FC<InlineResumeViewerProps> = ({
@@ -23,6 +26,8 @@ export const InlineResumeViewer: React.FC<InlineResumeViewerProps> = ({
   candidateName,
   onOpenFullscreen,
   onCollapse,
+  bodyClassName,
+  className,
 }) => {
 
   const hasResume = Boolean(resumeUrl && resumeUrl.trim().length > 0);
@@ -30,7 +35,7 @@ export const InlineResumeViewer: React.FC<InlineResumeViewerProps> = ({
   const isPdf = hasResume && (/\.pdf(\?.*)?$/i.test(resumeUrl!) || (!isImage && resumeUrl!.startsWith("http")));
 
   return (
-    <div className="border border-slate-300 bg-white rounded-lg shadow-xs flex flex-col overflow-hidden">
+    <div className={`border border-slate-300 bg-white rounded-lg shadow-xs flex flex-col overflow-hidden ${className ?? ""}`}>
       {/* Viewer Header */}
       <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
@@ -91,14 +96,14 @@ export const InlineResumeViewer: React.FC<InlineResumeViewerProps> = ({
 
       {/* Viewer Body */}
       <div className={`relative bg-slate-100 flex items-center justify-center overflow-hidden ${
-        hasResume ? "min-h-[460px] h-[calc(100vh-300px)] max-h-[740px]" : "py-10 px-6 min-h-[220px]"
+        hasResume ? bodyClassName ?? "min-h-[460px] h-[calc(100vh-300px)] max-h-[740px]" : "py-10 px-6 min-h-[220px]"
       }`}>
         {!hasResume ? (
           <div className="text-center p-6 bg-white border border-dashed border-slate-300 rounded-lg max-w-sm mx-4 space-y-2">
             <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
             <h4 className="text-sm font-bold text-slate-900">No resume attached</h4>
             <p className="text-xs text-slate-500 leading-relaxed">
-              This applicant has not uploaded a resume. Profile details are shown on the left.
+              This applicant has not uploaded a resume.
             </p>
           </div>
         ) : isPdf ? (
@@ -127,7 +132,7 @@ export const InlineResumeViewer: React.FC<InlineResumeViewerProps> = ({
               target="_blank"
               rel="noreferrer"
               download
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-700 text-white rounded text-xs font-semibold hover:bg-teal-800 shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-navy text-white rounded text-sm font-semibold hover:bg-navy-hover shadow-xs min-h-11 md:min-h-9"
             >
               <Download className="w-3.5 h-3.5" />
               Download document

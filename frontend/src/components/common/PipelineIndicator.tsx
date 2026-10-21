@@ -3,7 +3,7 @@ import { Check, AlertCircle } from "lucide-react";
 import { ApplicationStatus } from "../../lib/types/enums";
 import { ApplicationStatusAudience, cn, getApplicationStatusPresentation } from "../../lib/utils";
 import { getPipelineStageIndex } from "../../lib/pipeline-stages";
-import { TA_COPY } from "../../lib/ta-copy";
+import { TA_COPY, STAFF_STAGE_LABELS } from "../../lib/ta-copy";
 
 export interface PipelineIndicatorProps {
   currentStatus: string;
@@ -12,6 +12,13 @@ export interface PipelineIndicatorProps {
   hideTerminalAlert?: boolean;
   /** Stages bypassed by an authorised skip (never shown as Completed/Passed). */
   skippedStages?: { stage: string; reason?: string | null; actorEmail?: string | null; at?: string | null }[];
+  /**
+   * "compact" is the staff record's stage bar: list semantics, 12px labels from sm up, and
+   * "Step 3 of 7: Client review" with a thin progress bar on phones. The default is unchanged (applicant pages).
+   */
+  variant?: "default" | "compact";
+  /** Compact only: replaces the label of the current step, so it matches the stage chip next to it. */
+  currentLabel?: string;
 }
 
 const CANONICAL_STAGES = [
@@ -37,10 +44,86 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
   className,
   hideTerminalAlert = false,
   skippedStages = [],
+  variant = "default",
+  currentLabel,
 }) => {
   const isTerminal = TERMINAL_STATUSES.includes(currentStatus);
 
   const activeIndex = getPipelineStageIndex(currentStatus);
+
+  if (variant === "compact") {
+    const total = CANONICAL_STAGES.length;
+    // Staff vocabulary: the same names as the stage chip, filters and history.
+    const labelFor = (idx: number) =>
+      idx === activeIndex && currentLabel ? currentLabel : STAFF_STAGE_LABELS[CANONICAL_STAGES[idx].id as ApplicationStatus];
+    const finished = activeIndex === total - 1;
+    return (
+      <div className={cn("w-full", className)}>
+        {activeIndex >= 0 && (
+          <div className="sm:hidden">
+            <p className="text-sm font-medium text-slate-900">
+              {`Step ${activeIndex + 1} of ${total}: ${labelFor(activeIndex)}`}
+            </p>
+            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+              <div
+                className="h-full rounded-full bg-navy transition-[width] duration-300 motion-reduce:transition-none"
+                style={{ width: `${((activeIndex + (finished ? 1 : 0.5)) / total) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+        <ol className="hidden w-full items-start sm:flex" aria-label="Hiring stages">
+          {CANONICAL_STAGES.map((stage, idx) => {
+            const skipped = skippedStages.find((entry) => entry.stage === stage.id);
+            const isSkipped = Boolean(skipped) && activeIndex > idx;
+            const isCompleted = activeIndex > idx && !isSkipped;
+            const isFinalDeployed = stage.id === ApplicationStatus.DEPLOYED && activeIndex === idx;
+            const isCurrent = activeIndex === idx && !isTerminal && !isFinalDeployed;
+            const done = isCompleted || isFinalDeployed;
+            return (
+              <li key={stage.id} className="relative flex min-w-0 flex-1 flex-col items-center">
+                {idx < total - 1 && (
+                  <div
+                    className={cn("absolute left-1/2 top-3 h-0.5 w-full -translate-y-1/2", activeIndex > idx ? "bg-navy" : "bg-slate-200")}
+                    aria-hidden="true"
+                  />
+                )}
+                <div
+                  className={cn(
+                    "relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
+                    isSkipped
+                      ? "border-amber-500 bg-amber-50 text-amber-800"
+                      : done
+                      ? "border-navy bg-navy text-white"
+                      : isCurrent
+                      ? "border-2 border-navy bg-white text-navy"
+                      : "border-slate-300 bg-white text-slate-600"
+                  )}
+                  aria-current={isCurrent ? "step" : undefined}
+                  title={
+                    isSkipped
+                      ? `Skipped${skipped?.reason ? `: ${skipped.reason}` : ""}${skipped?.actorEmail ? ` - ${skipped.actorEmail}` : ""}${skipped?.at ? ` (${new Date(skipped.at).toLocaleString()})` : ""}`
+                      : undefined
+                  }
+                >
+                  {isSkipped ? <span aria-hidden="true">-</span> : done ? <Check className="h-3.5 w-3.5 stroke-[2.5]" aria-hidden="true" /> : <span>{idx + 1}</span>}
+                </div>
+                <span className={cn("mt-1.5 block w-full px-0.5 text-center text-xs leading-tight", isCurrent ? "font-semibold text-slate-950" : done ? "font-medium text-slate-700" : isSkipped ? "font-medium text-amber-800" : "text-slate-600")}>
+                  {labelFor(idx)}
+                </span>
+                <span className="sr-only">{isSkipped ? "skipped" : done ? "completed" : isCurrent ? "current step" : "upcoming"}</span>
+              </li>
+            );
+          })}
+        </ol>
+        {isTerminal && !hideTerminalAlert && (
+          <p className="mt-2 text-sm text-amber-900">
+            Current status: <strong>{getApplicationStatusPresentation(currentStatus, audience).label}</strong>
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={cn("w-full py-2 space-y-2", className)}>

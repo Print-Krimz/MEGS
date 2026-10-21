@@ -95,7 +95,7 @@ export const CandidateAssessmentPanel: React.FC<{ assessment: CandidateAssessmen
             <NoteList
               title={hasChecklist ? "Other strengths" : "Strengths"}
               items={assessment.strengths}
-              dotClassName="bg-teal-600"
+              dotClassName="bg-navy"
             />
             <NoteList
               title={hasChecklist ? "Other concerns" : "Concerns"}
