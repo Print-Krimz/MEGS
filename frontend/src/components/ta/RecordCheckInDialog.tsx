@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, Input, Textarea } from "../ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Dialog, Textarea } from "../ui";
+import { DateField } from "../common/DateField";
 import { taApi } from "../../lib/api/ta.api";
 import { getManilaToday } from "../../lib/field-limits";
 import { formatDate } from "../../lib/utils";
@@ -21,6 +22,15 @@ export const RecordCheckInDialog: React.FC<{
     setNextReviewAt("");
     setNotes("");
   }, [open]);
+
+  // Same key as the deployment page, so an open record shares its cache. Failing to load only hides the last check-in.
+  const deploymentQuery = useQuery({
+    queryKey: ["ta", "deployment", String(deploymentId)],
+    queryFn: () => taApi.getDeploymentDetails(deploymentId),
+    enabled: open && Boolean(deploymentId),
+  });
+  const reviews = deploymentQuery.data?.reviews ?? [];
+  const lastCheckIn = [...reviews].sort((a, b) => b.reviewedAt.localeCompare(a.reviewedAt))[0];
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -44,13 +54,20 @@ export const RecordCheckInDialog: React.FC<{
       description={`Record a check-in for ${employeeName} and set the next review date.`}
     >
       <div className="space-y-4">
-        <Input
+        {lastCheckIn ? (
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+            <p className="font-medium text-slate-900">Last check-in {formatDate(lastCheckIn.reviewedAt)}</p>
+            {lastCheckIn.notes ? <p className="mt-0.5 line-clamp-3 text-slate-700">{lastCheckIn.notes}</p> : <p className="mt-0.5 text-slate-600">No notes recorded.</p>}
+          </div>
+        ) : deploymentQuery.isSuccess ? (
+          <p className="text-sm text-slate-600">No earlier check-ins on record.</p>
+        ) : null}
+        <DateField
           label="Next check-in date"
-          type="date"
           value={nextReviewAt}
           min={getManilaToday()}
           onChange={(event) => setNextReviewAt(event.target.value)}
-          helperText={nextReviewAt ? formatDate(nextReviewAt) : "Choose today or a later date."}
+          help={nextReviewAt ? undefined : "Choose today or a later date."}
           required
         />
         <Textarea

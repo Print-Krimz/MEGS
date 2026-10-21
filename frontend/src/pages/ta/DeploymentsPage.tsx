@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
@@ -23,6 +23,7 @@ import { TA_COPY } from "../../lib/ta-copy";
 import { EndAssignmentDialog } from "../../components/ta/EndAssignmentDialog";
 import { RecordCheckInDialog } from "../../components/ta/RecordCheckInDialog";
 import { checkInDue } from "../../components/ta/check-in-due";
+import { PersonCell, StatusWithAge, WorkforceCard } from "../../components/ta/workforce/WorkforceRow";
 import { getManilaToday } from "../../lib/field-limits";
 import { SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -201,64 +202,45 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
     );
   };
 
-  const renderCheckIn = (dep: DeploymentRow) => {
-    if (dep.status !== DeploymentStatus.ACTIVE) return <span className="text-slate-600">Not applicable</span>;
-    const due = checkInDue(dep.nextReviewAt);
+  /** The line under the status chip: what is due next for this assignment. */
+  const ageOf = (dep: DeploymentRow): { text: string; tone: "normal" | "urgent" | "warning" } | null => {
+    if (dep.status === DeploymentStatus.ACTIVE) {
+      const due = checkInDue(dep.nextReviewAt);
+      const text = `Check-in ${due.label.charAt(0).toLowerCase()}${due.label.slice(1)}`;
+      return { text, tone: due.overdue ? "urgent" : "normal" };
+    }
+    if (dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT) {
+      return { text: dep.contractStart ? `Starts ${formatDate(dep.contractStart)}` : "Start date not set", tone: "normal" };
+    }
+    if (dep.status === DeploymentStatus.ENDED && dep.actualEnd) {
+      return { text: `Ended ${formatDate(dep.actualEnd)}`, tone: "normal" };
+    }
+    return null;
+  };
+
+  const statusCell = (dep: DeploymentRow) => {
+    const age = ageOf(dep);
     return (
-      <span className={cn("text-sm", due.overdue ? "font-semibold text-rose-700" : dep.nextReviewAt ? "text-slate-800" : "text-slate-600")}>
-        {due.label}
-      </span>
+      <StatusWithAge
+        chip={<StatusBadge status={dep.status} employeeStatus={dep.employee?.status} type="deployment" size="sm" />}
+        age={age?.text}
+        ageTone={age?.tone}
+      />
     );
   };
 
-  const planned = (dep: DeploymentRow) =>
+  const contract = (dep: DeploymentRow) =>
     `${dep.contractStart ? formatDate(dep.contractStart) : "Open"} to ${dep.contractEnd ? formatDate(dep.contractEnd) : "open"}`;
-  const actual = (dep: DeploymentRow) =>
-    dep.actualStart
-      ? `${formatDate(dep.actualStart)} to ${dep.actualEnd ? formatDate(dep.actualEnd) : dep.status === DeploymentStatus.ACTIVE ? "now" : "open"}`
-      : null;
 
   const columns: DataTableColumn<DeploymentRow>[] = [
     {
       key: "employee",
       header: "Employee",
       primary: true,
-      cell: (dep) => employeeNameOf(dep),
+      cell: (dep) => <PersonCell name={employeeNameOf(dep)} context={[dep.client?.name || "Client not recorded", dep.site || "Client site"]} />,
     },
-    {
-      key: "client",
-      header: "Client",
-      cell: (dep) =>
-        dep.client?.id ? (
-          <Link
-            to="/ta/clients/$clientId"
-            params={{ clientId: String(dep.client.id) }}
-            className="focus-ring text-slate-800 underline-offset-2 hover:underline"
-          >
-            {dep.client.name}
-          </Link>
-        ) : (
-          dep.client?.name || "Not recorded"
-        ),
-    },
-    { key: "site", header: "Site", hideBelow: "lg", cell: (dep) => dep.site || "Client site" },
-    {
-      key: "status",
-      header: "Status",
-      cell: (dep) => <StatusBadge status={dep.status} employeeStatus={dep.employee?.status} type="deployment" />,
-    },
-    {
-      key: "dates",
-      header: "Dates",
-      hideBelow: "lg",
-      cell: (dep) => (
-        <div className="space-y-0.5 text-xs text-slate-700">
-          <div>Planned: {planned(dep)}</div>
-          {actual(dep) && <div>Actual: {actual(dep)}</div>}
-        </div>
-      ),
-    },
-    { key: "checkin", header: "Check-in", cell: renderCheckIn },
+    { key: "status", header: "Status", cell: statusCell },
+    { key: "dates", header: "Contract", hideBelow: "lg", cell: (dep) => <span className="text-xs text-slate-700">{contract(dep)}</span> },
     {
       key: "actions",
       header: "Actions",
@@ -329,6 +311,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
           getRowId={(dep) => String(dep.id)}
           rowHref={detailHref}
           cardsBelow="md"
+          density="compact"
           isFetching={deploymentsQuery.isFetching}
           empty={
             <EmptyState
@@ -344,43 +327,15 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
           }
           renderCard={(dep) => {
             const employeeName = employeeNameOf(dep);
-            const actualText = actual(dep);
             return (
-              <article className="space-y-3 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <Link
-                      to="/ta/deployments/$deploymentId"
-                      params={{ deploymentId: String(dep.id) }}
-                      className="focus-ring inline-flex min-h-11 items-center font-semibold text-navy underline-offset-2 hover:underline"
-                    >
-                      {employeeName}
-                    </Link>
-                    <p className="text-sm text-slate-600 break-words">{dep.client?.name || "Client not recorded"}</p>
-                  </div>
-                  <StatusBadge status={dep.status} employeeStatus={dep.employee?.status} type="deployment" size="sm" />
-                </div>
-                <dl className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <dt className="text-xs text-slate-600">Site</dt>
-                    <dd className="mt-0.5 break-words text-slate-800">{dep.site || "Client site"}</dd>
-                  </div>
-                  {dep.status === DeploymentStatus.ACTIVE && (
-                    <div>
-                      <dt className="text-xs text-slate-600">Check-in</dt>
-                      <dd className="mt-0.5">{renderCheckIn(dep)}</dd>
-                    </div>
-                  )}
-                  <div className="col-span-2">
-                    <dt className="text-xs text-slate-600">Dates</dt>
-                    <dd className="mt-0.5 text-slate-800">
-                      Planned: {planned(dep)}
-                      {actualText && <span className="block">Actual: {actualText}</span>}
-                    </dd>
-                  </div>
-                </dl>
-                <div className="border-t border-slate-200 pt-3">{renderRowActions(dep, employeeName, true)}</div>
-              </article>
+              <WorkforceCard
+                href={detailHref(dep)}
+                name={employeeName}
+                context={[dep.client?.name || "Client not recorded", dep.site || "Client site"]}
+                status={statusCell(dep)}
+                details={<span className="text-xs text-slate-600">Contract {contract(dep)}</span>}
+                action={renderRowActions(dep, employeeName, true)}
+              />
             );
           }}
           footer={

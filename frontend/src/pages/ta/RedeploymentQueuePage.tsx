@@ -6,136 +6,52 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
-  DataTable,
-  DataTableColumn,
   FilterTile,
   FilterTileRow,
   SearchFilters,
 } from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
 import { TA_COPY } from "../../lib/ta-copy";
-import { applicationStatusLabel } from "../../lib/labels";
-import {
-  employeesApi,
-  type RedeploymentJobSuggestion,
-  type RedeploymentQueuePageResponse,
-  type RedeploymentStage,
-} from "../../lib/api/employees.api";
+import { employeesApi, type RedeploymentJobSuggestion, type RedeploymentStage } from "../../lib/api/employees.api";
 import { taApi } from "../../lib/api/ta.api";
 import { cn, formatDate } from "../../lib/utils";
 import { notify } from "../../lib/feedback";
 import { REFERENCE_QUERY_STALE_TIME_MS, SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { PersonCell, StatusWithAge } from "../../components/ta/workforce/WorkforceRow";
+import { RedeploymentDetail, StageChip } from "../../components/ta/workforce/RedeploymentDetail";
+import {
+  REDEPLOYMENT_STAGES as STAGES,
+  daysSince,
+  suggestionReason,
+  suggestionTag,
+  waitingAge,
+  type RedeploymentRow,
+} from "../../components/ta/workforce/redeployment-helpers";
 
-type Row = RedeploymentQueuePageResponse["items"][number];
+type Row = RedeploymentRow;
 
-const STAGES: Array<{ id: RedeploymentStage; label: string; hint: string }> = [
-  { id: "NEEDS_PLACEMENT", label: "Needs placement", hint: "No application or invitation yet" },
-  { id: "WAITING_FOR_REPLY", label: "Waiting for reply", hint: "Invited, worker has not answered" },
-  { id: "IN_PROGRESS", label: "Already applying", hint: "In a hiring pipeline" },
-];
-const WARN_WAIT_DAYS = 7;
-const LONG_WAIT_DAYS = 14;
 const PAGE_SIZE = 10;
+const WIDE_QUERY = "(min-width: 1280px)";
 
-const daysSince = (value: string | null) =>
-  value ? Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000)) : null;
-
-const StageChip: React.FC<{ stage: RedeploymentStage }> = ({ stage }) => {
-  const label = STAGES.find((item) => item.id === stage)?.label ?? stage;
-  const tone =
-    stage === "NEEDS_PLACEMENT"
-      ? "border-amber-300 bg-amber-50 text-amber-900"
-      : stage === "WAITING_FOR_REPLY"
-        ? "border-blue-200 bg-blue-50 text-blue-800"
-        : "border-slate-300 bg-slate-100 text-slate-700";
-  return (
-    <span className={cn("inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-xs font-medium", tone)}>{label}</span>
-  );
-};
-
-const WaitingCell: React.FC<{ since: string | null }> = ({ since }) => {
-  const days = daysSince(since);
-  if (since === null || days === null) {
-    return <span className="text-slate-600" title="No end date on the previous placement">Not recorded</span>;
-  }
-  const tone =
-    days >= LONG_WAIT_DAYS
-      ? "border border-rose-300 bg-rose-50 text-rose-800"
-      : days >= WARN_WAIT_DAYS
-        ? "border border-amber-300 bg-amber-50 text-amber-800"
-        : "text-slate-800";
-  return (
-    <div>
-      <span
-        className={`inline-flex rounded-md px-1.5 py-0.5 font-semibold ${tone}`}
-        title={days >= WARN_WAIT_DAYS ? `Waiting ${days} days. Prioritise this worker.` : undefined}
-      >
-        {days === 0 ? "Today" : `${days} day${days === 1 ? "" : "s"}`}
-      </span>
-      <div className="mt-1 text-slate-600">Since {formatDate(since)}</div>
-    </div>
-  );
-};
-
-// Short tag for the job picker; the full reason is shown on the row.
-const suggestionTag = (suggestion: RedeploymentJobSuggestion) =>
-  suggestion.sameClient
-    ? "Same client"
-    : suggestion.matchPercent !== null
-      ? `${suggestion.matchPercent}% match`
-      : "Related experience";
-
-const suggestionReason = (suggestion: RedeploymentJobSuggestion) => {
-  if (suggestion.sameClient) return "Same client, skips screening";
-  const shared = suggestion.sharedKeywords?.length ? `shares ${suggestion.sharedKeywords.join(", ")}` : "";
-  if (suggestion.matchPercent !== null) {
-    return shared ? `${suggestion.matchPercent}% profile match, ${shared}` : `${suggestion.matchPercent}% profile match`;
-  }
-  return shared ? `Matches previous role or skills: ${shared}` : "Matches previous role or skills";
-};
-
-const SuggestedJobs: React.FC<{
-  data?: { total: number; suggestions: RedeploymentJobSuggestion[] };
-  loading: boolean;
-  failed: boolean;
-  onRetry: () => void;
-  onPick: (jobId?: number) => void;
-}> = ({ data, loading, failed, onRetry, onPick }) => {
-  if (loading) return <span className="text-slate-600">Finding matching jobs…</span>;
-  if (failed) {
-    return (
-      <span className="text-slate-600">
-        Could not load suggestions.{" "}
-        <button type="button" onClick={onRetry} className="focus-ring inline-flex min-h-11 items-center font-medium text-navy hover:underline md:min-h-0">
-          Retry
-        </button>
-      </span>
-    );
-  }
-  if (!data || data.total === 0) return <span className="text-slate-600">No matching open jobs</span>;
-  const top = data.suggestions[0];
-  return (
-    <div className="space-y-1">
-      <button
-        type="button"
-        onClick={() => onPick()}
-        className="focus-ring inline-flex min-h-11 items-center text-left font-semibold text-navy hover:underline md:min-h-0"
-      >
-        {data.total} {data.total === 1 ? "job fits" : "jobs fit"} · View matches
-      </button>
-      {top && (
-        <button
-          type="button"
-          onClick={() => onPick(top.jobId)}
-          title={`Invite to ${top.title}: ${suggestionReason(top)}`}
-          className="focus-ring block max-w-[16rem] text-left text-slate-700 hover:text-slate-950 hover:underline max-md:min-h-11 max-md:max-w-none max-md:py-2.5 max-md:line-clamp-2 md:truncate"
-        >
-          Top: {top.title} · {suggestionTag(top)}
-        </button>
-      )}
-    </div>
-  );
+/** True from 1280px, where the detail pane sits beside the list. Below it a row opens a drill-down. */
+const useWideLayout = (): boolean => {
+  const read = () =>
+    typeof window === "undefined"
+      ? false
+      : typeof window.matchMedia === "function"
+        ? window.matchMedia(WIDE_QUERY).matches
+        : window.innerWidth >= 1280;
+  const [wide, setWide] = useState(read);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia(WIDE_QUERY);
+    const onChange = () => setWide(query.matches);
+    onChange();
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  return wide;
 };
 
 export const RedeploymentQueuePage: React.FC = () => {
@@ -153,6 +69,9 @@ export const RedeploymentQueuePage: React.FC = () => {
   const [jobView, setJobView] = useState<"suggested" | "all" | null>(null);
   const [clientFilter, setClientFilter] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [drillOpen, setDrillOpen] = useState(false);
+  const wide = useWideLayout();
 
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
 
@@ -298,8 +217,19 @@ export const RedeploymentQueuePage: React.FC = () => {
 
   const counts: Record<RedeploymentStage, number> = query.data?.summary.stages ?? { NEEDS_PLACEMENT: 0, WAITING_FOR_REPLY: 0, IN_PROGRESS: 0 };
 
-  const findJobButton = (row: Row, fullWidth = false) =>
-    row.stage === "IN_PROGRESS" ? null : (
+  const selectedRow = pageItems.find((row) => row.id === selectedId) ?? pageItems[0] ?? null;
+
+  const rowAction = (row: Row, fullWidth = false) =>
+    row.stage === "IN_PROGRESS" ? (
+      row.applications[0] ? (
+        <Button asChild variant="outline" size="sm" className={fullWidth ? "w-full" : undefined}>
+          <Link to="/ta/applications/$applicationId" params={{ applicationId: String(row.applications[0].id) }}>
+            Open application
+            <span className="sr-only"> for {row.name}</span>
+          </Link>
+        </Button>
+      ) : null
+    ) : (
       <Button
         variant={row.stage === "NEEDS_PLACEMENT" ? "primary" : "outline"}
         size="sm"
@@ -311,66 +241,36 @@ export const RedeploymentQueuePage: React.FC = () => {
       </Button>
     );
 
-  const previousPlacement = (row: Row) =>
-    row.previousClient || row.previousRole ? (
-      <>
-        <span className="font-medium text-slate-900">{row.previousClient || "—"}</span>
-        <div className="mt-0.5 text-slate-600">{row.previousRole || "—"}</div>
-      </>
-    ) : (
-      <span className="text-slate-600" title="No previous placement on record">None on record</span>
-    );
+  const selectRow = (row: Row) => {
+    setSelectedId(row.id);
+    if (!wide) setDrillOpen(true);
+  };
 
-  const nextStep = (row: Row) => (
-    <div className="space-y-1">
-      <div className="font-medium text-slate-900">{row.nextAction}</div>
-      {row.pendingInvitation && <div className="text-slate-600">Invited to {row.pendingInvitation.title}</div>}
-      {row.applications.length > 0 && (
-        <div>
-          <span className="text-slate-600">Previous applications</span>
-          {row.applications.map((application) => (
-            <Link
-              key={application.id}
-              className="focus-ring block text-navy underline-offset-2 hover:underline max-md:flex max-md:min-h-11 max-md:items-center"
-              to="/ta/applications/$applicationId"
-              params={{ applicationId: String(application.id) }}
-            >
-              {application.client || application.title} · {applicationStatusLabel(application.status)}
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
+  const detailFor = (row: Row) => (
+    <RedeploymentDetail
+      row={row}
+      suggestions={suggestionsQuery.data?.items[row.id]}
+      suggestionsLoading={suggestionsQuery.isPending}
+      suggestionsFailed={suggestionsQuery.isError}
+      onRetrySuggestions={() => suggestionsQuery.refetch()}
+      onFindJob={(jobId) => {
+        setDrillOpen(false);
+        openAssignment(row, jobId);
+      }}
+    />
   );
 
-  const suggestedJobs = (row: Row) =>
-    row.stage === "IN_PROGRESS" ? (
-      <span className="text-slate-600">Already applying</span>
-    ) : (
-      <SuggestedJobs
-        data={suggestionsQuery.data?.items[row.id]}
-        loading={suggestionsQuery.isPending}
-        failed={suggestionsQuery.isError}
-        onRetry={() => suggestionsQuery.refetch()}
-        onPick={(jobId) => openAssignment(row, jobId)}
-      />
-    );
-
-  const columns: DataTableColumn<Row>[] = [
-    { key: "employee", header: "Employee", primary: true, cell: (row) => row.name },
-    {
-      key: "employeeNumber",
-      header: "Employee number",
-      hideBelow: "lg",
-      cell: (row) => <span className="font-mono text-xs text-slate-700">{row.employeeNumber}</span>,
-    },
-    { key: "stage", header: "Stage", cell: (row) => <StageChip stage={row.stage} /> },
-    { key: "previous", header: "Previous placement", cell: previousPlacement },
-    { key: "waiting", header: "Waiting", cell: (row) => <WaitingCell since={row.waitingSince} /> },
-    { key: "jobs", header: "Suggested jobs", cell: suggestedJobs },
-    { key: "next", header: "Next step", cell: nextStep },
-    { key: "action", header: "Action", align: "right", className: "whitespace-nowrap", cell: (row) => findJobButton(row) },
-  ];
+  const emptyState = (
+    <EmptyState
+      bare
+      title={stageFilter || search ? "No workers match this view" : "No workers waiting for redeployment"}
+      description={
+        stageFilter || search
+          ? "Clear the search or the selected group to see everyone in the queue."
+          : "Workers who confirm they want another assignment will appear here after their previous placement ends."
+      }
+    />
+  );
 
   return (
     <div className="space-y-4">
@@ -408,75 +308,73 @@ export const RedeploymentQueuePage: React.FC = () => {
           setPage(1);
         }}
       />
-      <DataTable
-        caption="Redeployment queue"
-        columns={columns}
-        rows={pageItems}
-        getRowId={(row) => String(row.id)}
-        rowHref={(row) => `/ta/employees/${row.id}`}
-        cardsBelow="lg"
-        isFetching={query.isFetching}
-        empty={
-          <EmptyState
-            bare
-            title={stageFilter || search ? "No workers match this view" : "No workers waiting for redeployment"}
-            description={
-              stageFilter || search
-                ? "Clear the search or the selected group to see everyone in the queue."
-                : "Workers who confirm they want another assignment will appear here after their previous placement ends."
-            }
-          />
-        }
-        renderCard={(row) => (
-          <article className="space-y-3 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <Link
-                  className="focus-ring inline-flex min-h-11 items-center font-semibold text-navy underline-offset-2 hover:underline"
-                  to="/ta/employees/$employeeId"
-                  params={{ employeeId: String(row.id) }}
-                >
-                  {row.name}
-                </Link>
-                <p className="font-mono text-xs text-slate-600">{row.employeeNumber}</p>
-              </div>
-              <StageChip stage={row.stage} />
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <section
+          aria-label="Redeployment queue"
+          aria-busy={query.isFetching}
+          className="overflow-hidden rounded-md border border-slate-300 bg-white"
+        >
+          {pageItems.length === 0 ? (
+            emptyState
+          ) : (
+            <ul className="divide-y divide-slate-200">
+              {pageItems.map((row) => {
+                const selected = wide && selectedRow?.id === row.id;
+                const wait = waitingAge(row.waitingSince);
+                return (
+                  <li
+                    key={row.id}
+                    className={cn(
+                      "flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center",
+                      selected ? "bg-navy-soft shadow-[inset_3px_0_0_var(--color-navy)]" : "hover:bg-slate-50",
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => selectRow(row)}
+                      aria-current={selected ? "true" : undefined}
+                      className="focus-ring flex min-h-11 min-w-0 flex-1 flex-col items-start gap-2 rounded-md text-left text-slate-950 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                    >
+                      <PersonCell name={row.name} context={[row.previousRole, row.previousClient]} />
+                      <StatusWithAge chip={<StageChip stage={row.stage} />} age={wait.text} ageTone={wait.tone} />
+                    </button>
+                    <div className="shrink-0 sm:w-36 sm:text-right [&>*]:w-full">{rowAction(row)}</div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {totalItems > PAGE_SIZE && (
+            <div className="border-t border-slate-300">
+              <Pagination
+                variant="inset"
+                currentPage={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                totalItems={totalItems}
+                pageSize={PAGE_SIZE}
+                itemLabel="workers"
+              />
             </div>
-            <dl className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <dt className="text-xs text-slate-600">Previous placement</dt>
-                <dd className="mt-0.5">{previousPlacement(row)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-slate-600">Waiting</dt>
-                <dd className="mt-0.5"><WaitingCell since={row.waitingSince} /></dd>
-              </div>
-              <div className="col-span-2">
-                <dt className="text-xs text-slate-600">Suggested jobs</dt>
-                <dd className="mt-0.5">{suggestedJobs(row)}</dd>
-              </div>
-              <div className="col-span-2">
-                <dt className="text-xs text-slate-600">Next step</dt>
-                <dd className="mt-0.5">{nextStep(row)}</dd>
-              </div>
-            </dl>
-            {findJobButton(row, true)}
-          </article>
+          )}
+        </section>
+        {wide && selectedRow && (
+          <aside
+            aria-label={`${selectedRow.name} redeployment details`}
+            className="sticky top-4 rounded-md border border-slate-300 bg-white p-5"
+          >
+            {detailFor(selectedRow)}
+          </aside>
         )}
-        footer={
-          totalItems > PAGE_SIZE ? (
-            <Pagination
-              variant="inset"
-              currentPage={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-              totalItems={totalItems}
-              pageSize={PAGE_SIZE}
-              itemLabel="workers"
-            />
-          ) : undefined
-        }
-      />
+      </div>
+      <Dialog
+        open={drillOpen && !wide && Boolean(selectedRow)}
+        onClose={() => setDrillOpen(false)}
+        title="Redeployment details"
+        size="lg"
+      >
+        {selectedRow && detailFor(selectedRow)}
+      </Dialog>
       <Dialog
         open={Boolean(assignmentTarget)}
         onClose={closeAssignment}

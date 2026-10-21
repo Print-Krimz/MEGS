@@ -14,10 +14,10 @@ import {
 } from "../../components/common";
 import { Link } from "@tanstack/react-router";
 import { Button } from "../../components/ui";
+import { PersonCell, StatusWithAge, WorkforceCard } from "../../components/ta/workforce/WorkforceRow";
 import { formatDate } from "../../lib/utils";
 import { EmploymentStatus } from "../../lib/types/enums";
 import { TA_COPY } from "../../lib/ta-copy";
-import { employmentStatusLabel } from "../../lib/labels";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
 import type { Employee } from "../../lib/types/employee.types";
@@ -28,19 +28,28 @@ const employeeName = (emp: Employee) => {
 };
 
 /** Current client and site, from the open deployment the list payload carries. */
-const currentAssignment = (emp: Employee): string | null => {
+const assignmentParts = (emp: Employee): string[] | null => {
   const dep = emp.deployments?.[0];
   if (!dep) return null;
-  return [dep.client?.name, dep.site].filter(Boolean).join(" · ") || null;
+  const parts = [dep.client?.name, dep.site].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts : null;
 };
 
-/** A badge only for exceptions. Active employees read as plain text. */
-const StatusCell: React.FC<{ emp: Employee }> = ({ emp }) =>
-  emp.status === EmploymentStatus.ACTIVE ? (
-    <span className="text-sm text-slate-700">{employmentStatusLabel(emp.status)}</span>
-  ) : (
-    <StatusBadge status={emp.status} type="employment" size="sm" />
-  );
+const statusCell = (emp: Employee) => (
+  <StatusWithAge
+    chip={<StatusBadge status={emp.status} type="employment" size="sm" />}
+    age={`Hired ${formatDate(emp.hireDate)}`}
+  />
+);
+
+const recordAction = (emp: Employee, fullWidth = false) => (
+  <Button asChild variant="outline" size="sm" className={fullWidth ? "w-full" : undefined}>
+    <Link to="/ta/employees/$employeeId" params={{ employeeId: String(emp.id) }}>
+      View record
+      <span className="sr-only"> for {employeeName(emp)}</span>
+    </Link>
+  </Button>
+);
 
 export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
   const [search, setSearch] = useState("");
@@ -91,14 +100,14 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
       key: "employee",
       header: "Employee",
       primary: true,
-      cell: (emp) => employeeName(emp),
+      cell: (emp) => (
+        <PersonCell
+          name={employeeName(emp)}
+          context={assignmentParts(emp) ?? ["Not on assignment"]}
+        />
+      ),
     },
-    {
-      key: "employeeNumber",
-      header: "Employee number",
-      hideBelow: "lg",
-      cell: (emp) => <span className="font-mono text-xs tabular-nums text-slate-700">{emp.employeeNumber}</span>,
-    },
+    { key: "status", header: "Status", cell: statusCell },
     {
       key: "position",
       header: "Position and department",
@@ -111,12 +120,12 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
       ),
     },
     {
-      key: "assignment",
-      header: "Current client and site",
-      cell: (emp) => currentAssignment(emp) ?? <span className="text-slate-600">Not on assignment</span>,
+      key: "employeeNumber",
+      header: "Employee number",
+      hideBelow: "lg",
+      cell: (emp) => <span className="font-mono text-xs tabular-nums text-slate-700">{emp.employeeNumber}</span>,
     },
-    { key: "status", header: "Status", cell: (emp) => <StatusCell emp={emp} /> },
-    { key: "hireDate", header: "Hire date", cell: (emp) => <span className="text-slate-700">{formatDate(emp.hireDate)}</span> },
+    { key: "action", header: "Action", align: "right", className: "whitespace-nowrap", cell: (emp) => recordAction(emp) },
   ];
 
   return (
@@ -169,6 +178,7 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
           rows={paginatedEmployees}
           getRowId={(emp) => String(emp.id)}
           rowHref={(emp) => `/ta/employees/${emp.id}`}
+          density="compact"
           isFetching={employeesQuery.isFetching}
           empty={
             <EmptyState
@@ -182,36 +192,16 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
               }
             />
           }
-          renderCard={(emp) => {
-            const assignment = currentAssignment(emp);
-            return (
-              <article className="space-y-2 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <Link
-                      to="/ta/employees/$employeeId"
-                      params={{ employeeId: String(emp.id) }}
-                      className="focus-ring inline-flex min-h-11 items-center font-semibold text-navy underline-offset-2 hover:underline"
-                    >
-                      {employeeName(emp)}
-                    </Link>
-                    <p className="text-sm text-slate-600 break-words">{emp.position || "General staff"}</p>
-                  </div>
-                  {emp.status !== EmploymentStatus.ACTIVE && <StatusBadge status={emp.status} type="employment" size="sm" />}
-                </div>
-                <dl className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <dt className="text-xs text-slate-600">Current client and site</dt>
-                    <dd className="mt-0.5 break-words text-slate-800">{assignment ?? "Not on assignment"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-slate-600">Hire date</dt>
-                    <dd className="mt-0.5 text-slate-800">{formatDate(emp.hireDate)}</dd>
-                  </div>
-                </dl>
-              </article>
-            );
-          }}
+          renderCard={(emp) => (
+            <WorkforceCard
+              href={`/ta/employees/${emp.id}`}
+              name={employeeName(emp)}
+              context={assignmentParts(emp) ?? ["Not on assignment"]}
+              status={statusCell(emp)}
+              details={[emp.position || "General staff", emp.department].filter(Boolean).join(" · ")}
+              action={recordAction(emp, true)}
+            />
+          )}
           footer={
             <Pagination
               variant="inset"

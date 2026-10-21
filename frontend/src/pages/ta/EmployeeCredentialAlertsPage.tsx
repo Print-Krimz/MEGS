@@ -43,26 +43,26 @@ export const EmployeeCredentialAlertsPage: React.FC = () => {
       {visible.length === 0 ? (
         <EmptyState title="No matching documents" description="Choose another alert type to see more records." />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase text-slate-500">
+        <div className="overflow-x-auto rounded-md border border-slate-300 bg-white">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-slate-300 bg-slate-50 text-xs font-medium text-slate-600">
               <tr><th className="px-4 py-3">Employee</th><th className="px-4 py-3">Document</th><th className="px-4 py-3">Client / role</th><th className="px-4 py-3">Validity</th><th className="px-4 py-3 text-right">Action</th></tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-200">
               {visible.map((item) => (
                 <tr key={item.requirementId}>
                   <td className="px-4 py-3">
-                    <Link to="/ta/employees/$employeeId" params={{ employeeId: String(item.employeeId) }} className="font-semibold text-slate-900 hover:underline">{item.employeeName}</Link>
-                    <div className="mt-0.5 font-mono text-[10px] text-slate-500">{item.employeeNumber}</div>
+                    <Link to="/ta/employees/$employeeId" params={{ employeeId: String(item.employeeId) }} className="focus-ring inline-flex font-semibold text-slate-900 hover:underline pointer-coarse:min-h-11 pointer-coarse:items-center">{item.employeeName}</Link>
+                    <div className="mt-0.5 font-mono text-xs text-slate-600">{item.employeeNumber}</div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="font-medium text-slate-900">{item.documentLabel}</div>
-                    <div className="mt-0.5 text-slate-500">{alertLabel[item.alertType]}</div>
-                    {item.updateRequestDeadline && <div className="mt-0.5 text-slate-500">Updated copy due {formatDate(item.updateRequestDeadline)}</div>}
+                    <div className="mt-0.5 text-slate-600">{alertLabel[item.alertType]}</div>
+                    {item.updateRequestDeadline && <div className="mt-0.5 text-slate-600">Updated copy due {formatDate(item.updateRequestDeadline)}</div>}
                   </td>
                   <td className="px-4 py-3 text-slate-700">
                     <div>{item.clientName}</div>
-                    <div className="mt-0.5 text-slate-500">{item.jobTitle}</div>
+                    <div className="mt-0.5 text-slate-600">{item.jobTitle}</div>
                   </td>
                   <td className="px-4 py-3 text-slate-700">
                     {item.issuedAt && <div>Issued {formatDate(item.issuedAt)}</div>}

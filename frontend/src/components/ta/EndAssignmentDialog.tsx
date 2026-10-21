@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, Input, Select, Textarea } from "../ui";
+import { toast } from "sonner";
+import { Button, Dialog, Select, Textarea } from "../ui";
+import { DateField } from "../common/DateField";
 import { employeesApi } from "../../lib/api/employees.api";
 import { getManilaToday } from "../../lib/field-limits";
 import { notify } from "../../lib/feedback";
-import { formatDate } from "../../lib/utils";
 import { TA_COPY } from "../../lib/ta-copy";
 
 type Disposition = "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED";
@@ -23,6 +25,7 @@ const DISPOSITION_RESULT: Record<Disposition, string> = {
 
 export const EndAssignmentDialog: React.FC<{ open: boolean; deploymentId: string | number; employeeName: string; onClose: () => void }> = ({ open, deploymentId, employeeName, onClose }) => {
   const cache = useQueryClient();
+  const navigate = useNavigate();
   const [actualEnd, setActualEnd] = useState(getManilaToday());
   const [reason, setReason] = useState("");
   const [disposition, setDisposition] = useState<Disposition | "">("");
@@ -44,7 +47,19 @@ export const EndAssignmentDialog: React.FC<{ open: boolean; deploymentId: string
       void cache.invalidateQueries({ queryKey: ["employees"] });
       void cache.invalidateQueries({ queryKey: ["ta", "redeployment-queue"] });
       onClose();
-      notify.success("Assignment ended", disposition ? DISPOSITION_RESULT[disposition] : undefined);
+      const description = disposition ? DISPOSITION_RESULT[disposition] : undefined;
+      if (disposition === "AVAILABLE_FOR_REDEPLOYMENT") {
+        // notify.* has no action slot, so this one toast goes straight to sonner.
+        toast.success("Assignment ended", {
+          description,
+          action: {
+            label: TA_COPY.workforce.actions.findJob,
+            onClick: () => void navigate({ to: "/ta/workforce", search: { tab: "redeployment" } }),
+          },
+        });
+      } else {
+        notify.success("Assignment ended", description);
+      }
     },
     onError: (error) => notify.error("Unable to end assignment", error),
   });
@@ -53,7 +68,7 @@ export const EndAssignmentDialog: React.FC<{ open: boolean; deploymentId: string
 
   return <Dialog open={open} onClose={onClose} title="End assignment" description={`Record the last working date and next step for ${employeeName}.`}>
     <div className="space-y-4">
-      <Input label="Actual last working date" type="date" value={actualEnd} max={getManilaToday()} onChange={(event) => setActualEnd(event.target.value)} helperText={actualEnd ? formatDate(actualEnd) : undefined} required />
+      <DateField label="Actual last working date" value={actualEnd} max={getManilaToday()} onChange={(event) => setActualEnd(event.target.value)} required />
       <div className="space-y-1">
         <Select label="Worker’s next step" value={disposition} onChange={(event) => setDisposition(event.target.value as Disposition | "")} options={[
           { value: "", label: "Choose what happens next" },

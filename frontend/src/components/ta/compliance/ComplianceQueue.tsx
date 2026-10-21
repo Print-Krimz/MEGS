@@ -112,6 +112,7 @@ export const ComplianceQueue: React.FC<ComplianceQueueProps> = ({
       rows={rows}
       getRowId={(app) => String(app.id)}
       renderCard={renderCard}
+      density="compact"
       sort={sort}
       onSortChange={onSortChange}
       isFetching={isFetching}

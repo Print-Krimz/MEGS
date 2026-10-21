@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from "react";
-import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, FileCheck2 } from "lucide-react";
 import { taApi } from "../../lib/api/ta.api";
@@ -17,12 +16,12 @@ import {
   type FollowUpUrgency,
 } from "../../components/ta/compliance";
 import type { RequirementReviewValues } from "../../components/ta/RequirementReviewDialog";
-import { formatDate } from "../../lib/utils";
 import type { Application } from "../../lib/types";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { plural } from "../../lib/plural";
 import { calculateUrgencyStatus, getFollowUpTargetDate, getWorkerUrgencyCategory } from "../../lib/compliance-queue";
+import { PersonCell, StatusWithAge, ToneChip, WorkforceCard } from "../../components/ta/workforce/WorkforceRow";
 
 export interface PostDeploymentCompliancePageProps {
   hideHeader?: boolean;
@@ -50,22 +49,19 @@ const workerNameOf = (app: Application): string => {
 const clientNameOf = (app: Application): string =>
   app.jobPosting?.mrf?.client?.name || app.deployments?.[0]?.client?.name || "Client not recorded";
 
-const urgencyClass = (tone: FollowUpUrgency["tone"]): string =>
-  tone === "overdue"
-    ? "font-medium text-rose-700"
-    : tone === "upcoming"
-    ? "font-medium text-amber-800"
-    : "text-slate-700";
+const URGENCY_TONE = { overdue: "danger", upcoming: "warning", later: "neutral", none: "neutral" } as const;
 
-/** The single urgency line: red text and an icon for overdue, plain amber or slate otherwise. */
-const UrgencyLine: React.FC<{ urgency: FollowUpUrgency }> = ({ urgency }) => (
-  <div>
-    <div className={`inline-flex items-start gap-1.5 text-sm ${urgencyClass(urgency.tone)}`}>
-      {urgency.tone === "overdue" && <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
-      <span>{urgency.text}</span>
-    </div>
-    {urgency.nextDue && <div className="text-xs text-slate-600">Next due {urgency.nextDue}</div>}
-  </div>
+/** One chip for the worst open follow-up, with the next due date underneath. */
+const UrgencyStatus: React.FC<{ urgency: FollowUpUrgency }> = ({ urgency }) => (
+  <StatusWithAge
+    chip={
+      <ToneChip tone={URGENCY_TONE[urgency.tone]}>
+        {urgency.tone === "overdue" && <AlertCircle className="mr-1 h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+        {urgency.text}
+      </ToneChip>
+    }
+    age={urgency.nextDue ? `Next due ${urgency.nextDue}` : undefined}
+  />
 );
 
 /** First two document names, then "+n more". The full list is in the review dialog. */
@@ -82,18 +78,6 @@ const DocumentNames: React.FC<{ app: Application }> = ({ app }) => {
         {extra > 0 && <span className="whitespace-nowrap text-slate-600"> +{extra} more</span>}
       </div>
       {submitted > 0 && <div className="text-xs font-medium text-amber-800">{submitted} awaiting review</div>}
-    </div>
-  );
-};
-
-/** Where the worker is posted, with the client start date when there is a deployment. */
-const SiteCell: React.FC<{ app: Application }> = ({ app }) => {
-  const deployment = app.deployments?.[0];
-  return (
-    <div>
-      <div className="text-slate-900">{app.jobPosting?.title || "Job opening"}</div>
-      <div className="text-xs text-slate-600">{clientNameOf(app)}</div>
-      {deployment?.contractStart && <div className="text-xs text-slate-600">Since {formatDate(deployment.contractStart)}</div>}
     </div>
   );
 };
@@ -217,7 +201,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
       value: metrics.readyForReviewCount,
       hint: `${plural(metrics.readyForReviewDocs, "document")} to verify`,
     },
-    { id: "UPCOMING", label: URGENCY_LABELS.UPCOMING, value: metrics.dueSoonCount, hint: "Next due date within 7 days", tone: "warning" },
+    { id: "UPCOMING", label: URGENCY_LABELS.UPCOMING, value: metrics.dueSoonCount, hint: "Next due within 7 days", tone: "warning" },
     { id: "OVERDUE", label: URGENCY_LABELS.OVERDUE, value: metrics.overdueCount, hint: "Past the target date", tone: "danger" },
   ];
 
@@ -235,54 +219,33 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
     },
   ];
 
+  const contextOf = (app: Application) => [app.jobPosting?.title || "Job opening", clientNameOf(app)];
+
   const columns: DataTableColumn<Application>[] = [
     {
       key: "worker",
       header: "Worker",
-      cell: (app) => {
-        const employeeNumber = app.user?.employee?.employeeNumber || app.hiredEmployee?.employeeNumber;
-        return (
-          <div>
-            <Link
-              to="/ta/applications/$applicationId"
-              params={{ applicationId: String(app.id) }}
-              className="focus-ring font-medium text-navy underline-offset-2 hover:underline"
-            >
-              {workerNameOf(app)}
-            </Link>
-            <div className="text-xs text-slate-600">{app.user?.email}</div>
-            {employeeNumber && <div className="font-mono text-xs text-slate-600">{employeeNumber}</div>}
-          </div>
-        );
-      },
+      cell: (app) => <PersonCell name={workerNameOf(app)} context={contextOf(app)} href={`/ta/applications/${app.id}`} />,
     },
-    { key: "site", header: "Site", cell: (app) => <SiteCell app={app} /> },
-    { key: "documents", header: "Open documents", className: "min-w-[14rem]", cell: (app) => <DocumentNames app={app} /> },
     {
       key: "urgency",
       header: "Urgency",
       className: "min-w-[13rem]",
-      cell: (app) => <UrgencyLine urgency={summarizeFollowUpUrgency(app.complianceRequirements || [])} />,
+      cell: (app) => <UrgencyStatus urgency={summarizeFollowUpUrgency(app.complianceRequirements || [])} />,
     },
+    { key: "documents", header: "Open documents", hideBelow: "lg", className: "min-w-[14rem]", cell: (app) => <DocumentNames app={app} /> },
     { key: "actions", header: "Action", align: "right", className: "whitespace-nowrap", cell: (app) => reviewButton(app) },
   ];
 
   const renderCard = (app: Application) => (
-    <article className="space-y-2 p-4">
-      <Link
-        to="/ta/applications/$applicationId"
-        params={{ applicationId: String(app.id) }}
-        className="focus-ring inline-flex min-h-11 items-center font-semibold text-navy underline-offset-2 hover:underline"
-      >
-        {workerNameOf(app)}
-      </Link>
-      <SiteCell app={app} />
-      <UrgencyLine urgency={summarizeFollowUpUrgency(app.complianceRequirements || [])} />
-      <div className="text-sm">
-        <DocumentNames app={app} />
-      </div>
-      {reviewButton(app, "w-full")}
-    </article>
+    <WorkforceCard
+      href={`/ta/applications/${app.id}`}
+      name={workerNameOf(app)}
+      context={contextOf(app)}
+      status={<UrgencyStatus urgency={summarizeFollowUpUrgency(app.complianceRequirements || [])} />}
+      details={<DocumentNames app={app} />}
+      action={reviewButton(app, "w-full")}
+    />
   );
 
   const header = !hideHeader && (

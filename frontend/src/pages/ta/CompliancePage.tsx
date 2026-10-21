@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from "react";
-import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
 import { taApi } from "../../lib/api/ta.api";
@@ -21,6 +20,8 @@ import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { plural } from "../../lib/plural";
 import { calculateDaysOnSite } from "../../lib/compliance-queue";
+import { PersonCell, StatusWithAge, ToneChip, WorkforceCard } from "../../components/ta/workforce/WorkforceRow";
+import type { TAStatusTone } from "../../lib/ta-copy";
 
 type StatusFilter = "ALL" | "WAITING_CANDIDATE" | "WAITING_REVIEW" | "APPROVED" | "TO_FOLLOW";
 
@@ -66,25 +67,27 @@ const waitingLabel = (app: Application): string => {
 };
 
 /** One plain sentence for where a candidate's documents stand. Amber only when the TA has work to do. */
-const progressOf = (app: Application): { text: string; className: string } => {
+const progressOf = (app: Application): { text: string; className: string; tone: TAStatusTone } => {
   const c = getComplianceCounts(app);
   if (c.submittedCount > 0) {
-    return { text: `${c.submittedCount} awaiting review`, className: "font-medium text-amber-800" };
+    return { text: `${c.submittedCount} awaiting review`, className: "font-medium text-amber-800", tone: "warning" };
   }
   if (c.pendingCount > 0) {
     return {
       text: `${c.pendingCount} not submitted${c.toFollowCount > 0 ? ` · ${c.toFollowCount} to follow` : ""}`,
       className: "text-slate-700",
+      tone: "neutral",
     };
   }
   if (isCleared(c)) {
     return {
       text: c.toFollowCount > 0 ? `Cleared · ${c.toFollowCount} to follow` : `All ${c.approvedCount} approved`,
       className: "text-emerald-800",
+      tone: "success",
     };
   }
-  if (c.toFollowCount > 0) return { text: `${c.toFollowCount} to follow`, className: "text-amber-800" };
-  return { text: "No requirements", className: "text-slate-600" };
+  if (c.toFollowCount > 0) return { text: `${c.toFollowCount} to follow`, className: "text-amber-800", tone: "warning" };
+  return { text: "No requirements", className: "text-slate-600", tone: "neutral" };
 };
 
 export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
@@ -249,76 +252,40 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     },
   ];
 
+  const contextOf = (app: Application) => [app.jobPosting?.title || "Job opening", app.jobPosting?.mrf?.client?.name];
+
+  const statusCell = (app: Application) => {
+    const progress = progressOf(app);
+    return <StatusWithAge chip={<ToneChip tone={progress.tone}>{progress.text}</ToneChip>} age={waitingLabel(app)} />;
+  };
+
   const columns: DataTableColumn<Application>[] = [
     {
       key: "candidate",
       header: "Candidate",
       sortable: true,
-      cell: (app) => (
-        <div>
-          <Link
-            to="/ta/applications/$applicationId"
-            params={{ applicationId: String(app.id) }}
-            className="focus-ring font-medium text-navy underline-offset-2 hover:underline"
-          >
-            {candidateNameOf(app)}
-          </Link>
-          <div className="text-xs text-slate-600">{app.user?.email}</div>
-        </div>
-      ),
+      cell: (app) => <PersonCell name={candidateNameOf(app)} context={contextOf(app)} href={`/ta/applications/${app.id}`} />,
     },
-    {
-      key: "job",
-      header: "Job opening",
-      cell: (app) => (
-        <div>
-          <div className="text-slate-900">{app.jobPosting?.title || "Job opening"}</div>
-          <div className="text-xs text-slate-600">{app.jobPosting?.location || "Philippines"}</div>
-        </div>
-      ),
-    },
-    {
-      key: "progress",
-      header: "Documents",
-      cell: (app) => {
-        const progress = progressOf(app);
-        return <span className={progress.className}>{progress.text}</span>;
-      },
-    },
+    { key: "progress", header: "Documents", cell: statusCell },
     {
       key: "submitted",
       header: "Waiting",
       sortable: true,
-      cell: (app) => (
-        <div>
-          <div className="text-slate-900">{waitingLabel(app)}</div>
-          <div className="text-xs text-slate-600">Since {formatDate(app.createdAt)}</div>
-        </div>
-      ),
+      hideBelow: "lg",
+      cell: (app) => <span className="text-xs text-slate-700">Since {formatDate(app.createdAt)}</span>,
     },
     { key: "actions", header: "Action", align: "right", className: "whitespace-nowrap", cell: (app) => reviewButton(app) },
   ];
 
-  const renderCard = (app: Application) => {
-    const progress = progressOf(app);
-    return (
-      <article className="space-y-2 p-4">
-        <Link
-          to="/ta/applications/$applicationId"
-          params={{ applicationId: String(app.id) }}
-          className="focus-ring inline-flex min-h-11 items-center font-semibold text-navy underline-offset-2 hover:underline"
-        >
-          {candidateNameOf(app)}
-        </Link>
-        <p className="break-words text-sm text-slate-700">{app.jobPosting?.title || "Job opening"}</p>
-        <p className={`text-sm ${progress.className}`}>{progress.text}</p>
-        <p className="text-sm text-slate-600">
-          {waitingLabel(app)} · since {formatDate(app.createdAt)}
-        </p>
-        {reviewButton(app, "w-full")}
-      </article>
-    );
-  };
+  const renderCard = (app: Application) => (
+    <WorkforceCard
+      href={`/ta/applications/${app.id}`}
+      name={candidateNameOf(app)}
+      context={contextOf(app)}
+      status={statusCell(app)}
+      action={reviewButton(app, "w-full")}
+    />
+  );
 
   const header = !hideHeader && (
     <PageHeader
