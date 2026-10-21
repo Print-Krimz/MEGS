@@ -3,10 +3,13 @@ import { Link } from "@tanstack/react-router";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import { employeesApi } from "../../lib/api/employees.api";
-import { PageHeader, StatusBadge, EmptyState } from "../../components/common";
+import { PageHeader, EmptyState, ErrorState } from "../../components/common";
 import { Button } from "../../components/ui";
-import { cn, formatDate } from "../../lib/utils";
-import { ApplicationStatus } from "../../lib/types/enums";
+import { cn } from "../../lib/utils";
+import { getManilaToday } from "../../lib/field-limits";
+import { checkInDue } from "../../components/ta/check-in-due";
+import { stageColor } from "../../lib/chart-palette";
+import { ApplicationStatus, DeploymentStatus } from "../../lib/types/enums";
 import { plural } from "../../lib/plural";
 import { STAFF_STAGE_LABELS } from "../../lib/ta-copy";
 import type { TAPendingActionItem } from "../../lib/types/analytics.types";
@@ -29,14 +32,7 @@ function SectionData<T>({
   children: (data: T) => React.ReactNode;
 }) {
   if (query.isError && !query.isFetching) {
-    return (
-      <div role="alert" className="flex flex-wrap items-center justify-between gap-2 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-950">
-        <span>Couldn't load {subject}.</span>
-        <Button variant="outline" size="sm" onClick={() => { void query.refetch(); }}>
-          Try again
-        </Button>
-      </div>
-    );
+    return <ErrorState compact subject={subject} error={query.error as Error} onRetry={() => { void query.refetch(); }} />;
   }
   if (query.isPending || query.isError) {
     return (
@@ -87,8 +83,8 @@ const MetricTile: React.FC<{
     >
       {label}
     </Link>
-    <div className="mt-0.5 text-2xl font-semibold tabular-nums text-slate-950">{children}</div>
-    <div className="mt-0.5 text-xs text-slate-600">{caption}</div>
+    <div className="mt-1 font-display text-[2rem] font-semibold leading-9 tabular-nums text-slate-950">{children}</div>
+    <div className="mt-1 text-xs text-slate-600">{caption}</div>
   </div>
 );
 
@@ -128,6 +124,18 @@ const WorkRow: React.FC<{
   </li>
 );
 
+/** A labelled run of worklist rows. Empty groups are not drawn. */
+const WorkGroup: React.FC<{ label: string; count: number; children: React.ReactNode }> = ({ label, count, children }) =>
+  count === 0 ? null : (
+    <div>
+      <h3 className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-semibold text-slate-700">
+        {label}
+        <span className="tabular-nums text-slate-500">{count}</span>
+      </h3>
+      <ul className="divide-y divide-slate-200 border-b border-slate-200 last:border-b-0">{children}</ul>
+    </div>
+  );
+
 const taskDetail = (task: TAPendingActionItem) => {
   const parts = [task.candidateName, task.jobTitle];
   if (task.agingDays !== undefined && task.agingDays > 0) parts.push(`${plural(task.agingDays, "day")} waiting`);
@@ -144,6 +152,14 @@ const STAGE_TILES = [
   ApplicationStatus.DEPLOYED,
 ] as const;
 
+/** Which worklist group a pending task belongs to, by its deadline in Manila calendar days. */
+const taskGroup = (task: TAPendingActionItem, today: string): "overdue" | "today" | "waiting" => {
+  if (!task.deadline) return "waiting";
+  const day = task.deadline.slice(0, 10);
+  if (day < today) return "overdue";
+  return day === today ? "today" : "waiting";
+};
+
 export const TADashboard: React.FC = () => {
   const pipelineStatsQuery = useQuery({
     queryKey: ["ta", "analytics", "pipeline"],
@@ -155,12 +171,6 @@ export const TADashboard: React.FC = () => {
     // Only the summary is shown, so ask for a single-row page instead of every interview.
     queryKey: ["ta", "compliance", "interviews", "summary"],
     queryFn: ({ signal }) => taApi.listInterviewCompliancePage({ page: 1, pageSize: 1 }, { signal }),
-    ...PAGE_QUERY,
-  });
-
-  const recentAppsQuery = useQuery({
-    queryKey: ["ta", "applications", "recent", { page: 1, pageSize: 5, isArchived: false }],
-    queryFn: ({ signal }) => taApi.listApplicationsPage({ page: 1, limit: 5, isArchived: false }, { signal }),
     ...PAGE_QUERY,
   });
 
@@ -186,22 +196,63 @@ export const TADashboard: React.FC = () => {
     ...PAGE_QUERY,
   });
 
+  // Active deployments carry the next check-in date. The "ta/deployments" prefix is refreshed whenever one changes.
+  const checkInsQuery = useQuery({
+    queryKey: ["ta", "deployments", "active-check-ins"],
+    queryFn: () => taApi.listDeployments({ status: DeploymentStatus.ACTIVE }),
+    staleTime: 60_000,
+    ...PAGE_QUERY,
+  });
+
   const slaSummary = interviewSlaQuery.data?.summary;
   const slaBreached = slaSummary?.breached ?? 0;
   const slaWarning = slaSummary?.warning ?? 0;
   const needsPlacement = needsPlacementQuery.data?.stages?.NEEDS_PLACEMENT ?? 0;
   const tasks = tasksQuery.data?.pendingActions ?? [];
   const tasksTotal = tasksQuery.data?.pendingActionsTotal ?? tasks.length;
+  const shownTasks = tasks.slice(0, WORKLIST_TASK_LIMIT);
 
-  const worklistQueries = [interviewSlaQuery, needsPlacementQuery, tasksQuery];
+  const today = getManilaToday();
+  const checkInCounts = (checkInsQuery.data ?? []).reduce(
+    (acc, dep) => {
+      if (!dep.nextReviewAt) return acc;
+      const due = checkInDue(dep.nextReviewAt);
+      if (due.overdue) acc.overdue += 1;
+      else if (due.label === "Due today") acc.today += 1;
+      return acc;
+    },
+    { overdue: 0, today: 0 },
+  );
+
+  const tasksIn = (group: "overdue" | "today" | "waiting") => shownTasks.filter((t) => taskGroup(t, today) === group);
+  const overdueTasks = tasksIn("overdue");
+  const todayTasks = tasksIn("today");
+  const waitingTasks = tasksIn("waiting");
+
+  const overdueCount = (slaBreached > 0 ? 1 : 0) + (checkInCounts.overdue > 0 ? 1 : 0) + overdueTasks.length;
+  const todayCount = (slaWarning > 0 ? 1 : 0) + (checkInCounts.today > 0 ? 1 : 0) + todayTasks.length;
+  const waitingCount = (needsPlacement > 0 ? 1 : 0) + waitingTasks.length;
+
+  const worklistQueries = [interviewSlaQuery, needsPlacementQuery, tasksQuery, checkInsQuery];
   const worklistLoading = worklistQueries.some((q) => q.isPending && !q.isError);
   const failedQueries = worklistQueries.filter((q) => q.isError && !q.isFetching);
-  const hasWork = slaBreached > 0 || slaWarning > 0 || needsPlacement > 0 || tasks.length > 0;
+  const hasWork = overdueCount + todayCount + waitingCount > 0;
+  const moreTasks = tasksTotal > shownTasks.length;
 
   const latestUpdate = Math.max(0, ...[pipelineStatsQuery, interviewSlaQuery, dashboardCountsQuery, tasksQuery].map((q) => q.dataUpdatedAt));
   const asOf = latestUpdate
     ? `As of ${new Date(latestUpdate).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}`
     : undefined;
+
+  const taskRow = (task: TAPendingActionItem) => (
+    <WorkRow
+      key={task.id}
+      to={task.targetUrl}
+      tone={task.urgency === "HIGH" ? "danger" : "neutral"}
+      title={task.title}
+      detail={taskDetail(task)}
+    />
+  );
 
   return (
     <div className="space-y-5">
@@ -219,234 +270,197 @@ export const TADashboard: React.FC = () => {
         }
       />
 
-      {/* Needs your action: the worklist, so the first screen says what to do next. */}
-      <section className="border border-slate-300 bg-white">
-        <PanelHeader title="Needs your action" />
-        {worklistLoading ? (
-          <div role="status" aria-label="Loading section" className="divide-y divide-slate-200 motion-safe:animate-pulse">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-14 space-y-1.5 px-3.5 py-3">
-                <div className="h-3.5 w-1/3 bg-slate-200" />
-                <div className="h-3 w-1/4 bg-slate-100" />
-              </div>
-            ))}
-            <span className="sr-only">Loading information</span>
-          </div>
-        ) : (
-          <>
-            {failedQueries.length > 0 && (
-              <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-950">
-                <span>Some items could not be loaded, so this list may be incomplete.</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => failedQueries.forEach((q) => { void q.refetch(); })}
-                >
-                  Try again
-                </Button>
-              </div>
-            )}
-            {hasWork ? (
-              <ul className="divide-y divide-slate-200">
-                {slaBreached > 0 && (
-                  <WorkRow
-                    to="/ta/interviews"
-                    tone="danger"
-                    title={`${plural(slaBreached, "interview")} overdue`}
-                    detail="Results are due 7 days after the interview is scheduled."
-                  />
-                )}
-                {slaWarning > 0 && (
-                  <WorkRow to="/ta/interviews" tone="warning" title={`${plural(slaWarning, "interview")} due within 48 hours`} />
-                )}
-                {needsPlacement > 0 && (
-                  <WorkRow
-                    to="/ta/workforce"
-                    search={{ tab: "redeployment" }}
-                    title={`${plural(needsPlacement, "worker")} ${needsPlacement === 1 ? "needs" : "need"} placement`}
-                    detail="Ended assignments waiting for a new job."
-                  />
-                )}
-                {tasks.slice(0, WORKLIST_TASK_LIMIT).map((task) => (
-                  <WorkRow
-                    key={task.id}
-                    to={task.targetUrl}
-                    tone={task.urgency === "HIGH" ? "danger" : "neutral"}
-                    title={task.title}
-                    detail={taskDetail(task)}
-                  />
-                ))}
-              </ul>
-            ) : failedQueries.length === 0 ? (
-              <EmptyState
-                bare
-                title="Nothing needs your action"
-                description="No overdue interviews, document reviews, client answers or workers waiting for a placement."
-              />
-            ) : null}
-            {tasksTotal > Math.min(tasks.length, WORKLIST_TASK_LIMIT) && (
-              <div className="border-t border-slate-200 px-3.5 py-2">
-                <Button asChild variant="ghost" size="sm">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,13fr)_minmax(0,7fr)]">
+        {/* Needs your action: the worklist. On a phone it comes first; on a tablet the numbers lead. */}
+        <section aria-label="Needs your action" className="overflow-hidden rounded-md border border-slate-300 bg-white">
+          <PanelHeader
+            title="Needs your action"
+            action={
+              moreTasks ? (
+                <Button asChild variant="ghost" size="sm" className="max-md:min-h-11">
                   <Link to="/ta/analytics">
                     See all {plural(tasksTotal, "pending task")}
                     <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
                   </Link>
                 </Button>
-              </div>
-            )}
-          </>
-        )}
-      </section>
-
-      <div className="grid grid-cols-1 gap-px border border-slate-300 bg-slate-300 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricTile label="Active candidates" to="/ta/applications" caption="Still moving through the pipeline">
-          <MetricValue query={pipelineStatsQuery}>{(pipeline) => pipeline?.activeApplications || 0}</MetricValue>
-        </MetricTile>
-
-        <MetricTile label="Active job openings" to="/ta/jobs" caption="Open to applicants">
-          <MetricValue query={dashboardCountsQuery}>{(counts) => counts?.openJobs ?? 0}</MetricValue>
-        </MetricTile>
-
-        <MetricTile
-          label="Interview deadlines"
-          to="/ta/interviews"
-          caption={
-            interviewSlaQuery.data
-              ? `overdue, of ${plural(slaSummary?.total || 0, "open interview")}`
-              : interviewSlaQuery.isError
-                ? "Overdue count unavailable"
-                : "Checking deadlines"
-          }
-        >
-          <MetricValue query={interviewSlaQuery}>
-            {() => <span className={slaBreached > 0 ? "text-rose-700" : undefined}>{slaBreached}</span>}
-          </MetricValue>
-        </MetricTile>
-
-        <MetricTile label="Active deployments" to="/ta/workforce" search={{ tab: "deployments" }} caption="On-site client personnel">
-          <MetricValue query={dashboardCountsQuery}>{(counts) => counts?.activeDeployments ?? 0}</MetricValue>
-        </MetricTile>
-      </div>
-
-      <section className="border border-slate-300 bg-white">
-        <PanelHeader
-          title="Hiring pipeline"
-          action={
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/ta/applications">
-                View all applications
-                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </Link>
-            </Button>
-          }
-        />
-
-        <SectionData
-          query={pipelineStatsQuery}
-          subject="the hiring pipeline"
-          skeleton={
-            <div className="grid grid-cols-2 gap-px bg-slate-300 sm:grid-cols-7">
-              {Array.from({ length: STAGE_TILES.length }).map((_, i) => (
-                // Same padding and line heights as the loaded stage tiles, so nothing moves when counts arrive.
-                <div key={i} className="flex min-h-[4.5rem] flex-col items-center bg-white p-2.5 sm:p-3">
-                  <div className="h-7 w-8 bg-slate-200" />
-                  <div className="mt-0.5 h-[15px] w-16 bg-slate-100" />
-                </div>
-              ))}
-            </div>
-          }
-        >
-          {(pipeline) => (
-            <div className="grid grid-cols-2 gap-px bg-slate-300 sm:grid-cols-7">
-              {STAGE_TILES.map((status) => {
-                const label = STAFF_STAGE_LABELS[status];
-                const count = pipeline?.statusBreakdown?.[status] || 0;
-                return (
-                  <Link
-                    key={status}
-                    to="/ta/applications"
-                    search={{ stage: status }}
-                    aria-label={`View ${label} applications (${count})`}
-                    className="focus-ring-inset block min-h-[4.5rem] bg-white p-2.5 text-center max-sm:last:col-span-2 transition-colors hover:bg-slate-50 sm:p-3"
-                  >
-                    <div className="text-xl font-semibold tabular-nums text-slate-950">{count}</div>
-                    <div className="mt-0.5 text-xs font-medium text-slate-600">{label}</div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </SectionData>
-      </section>
-
-      <section className="border border-slate-300 bg-white">
-        <PanelHeader
-          title="Recent applications"
-          action={
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/ta/applications">
-                View all
-                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </Link>
-            </Button>
-          }
-        />
-
-        <SectionData
-          query={recentAppsQuery}
-          subject="recent applications"
-          skeleton={
-            <div className="divide-y divide-slate-200">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-14 space-y-1.5 px-3.5 py-2.5">
+              ) : undefined
+            }
+          />
+          {worklistLoading ? (
+            <div role="status" aria-label="Loading section" className="divide-y divide-slate-200 motion-safe:animate-pulse">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-14 space-y-1.5 px-3.5 py-3">
                   <div className="h-3.5 w-1/3 bg-slate-200" />
                   <div className="h-3 w-1/4 bg-slate-100" />
                 </div>
               ))}
+              <span className="sr-only">Loading information</span>
             </div>
-          }
-        >
-          {(page) => {
-            const recentApps = page?.items ?? [];
-            return recentApps.length === 0 ? (
-              <EmptyState
-                bare
-                title="No applications yet"
-                description="New applications will appear here."
-                action={
-                  <Button asChild variant="outline" size="sm">
-                    <Link to="/ta/mrfs/create">Create manpower request</Link>
+          ) : (
+            <>
+              {failedQueries.length > 0 && (
+                <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-950">
+                  <span>Some items could not be loaded, so this list may be incomplete.</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => failedQueries.forEach((q) => { void q.refetch(); })}
+                  >
+                    Try again
                   </Button>
-                }
-              />
-            ) : (
-              <ul className="divide-y divide-slate-200">
-                {recentApps.map((app) => {
-                  const profile = app.user?.applicantProfile;
-                  const candidateName = profile ? `${profile.firstName} ${profile.lastName}` : app.user?.email || "Candidate";
-                  return (
-                    <li key={app.id}>
-                      <Link
-                        to="/ta/applications/$applicationId"
-                        params={{ applicationId: String(app.id) }}
-                        className="focus-ring-inset flex min-h-14 items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-slate-50"
-                      >
-                        <span className="min-w-0">
-                          <span className="block break-words text-sm font-semibold text-slate-950">{candidateName}</span>
-                          <span className="block break-words text-xs text-slate-600">
-                            {app.jobPosting?.title || "Job opening"} · Applied {formatDate(app.createdAt)}
-                          </span>
-                        </span>
-                        <StatusBadge status={app.status} size="sm" />
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            );
-          }}
-        </SectionData>
-      </section>
+                </div>
+              )}
+              {hasWork ? (
+                <>
+                  <WorkGroup label="Overdue" count={overdueCount}>
+                    {slaBreached > 0 && (
+                      <WorkRow to="/ta/interviews" tone="danger" title={`${plural(slaBreached, "interview")} overdue`} detail="Results are due 7 days after the interview is scheduled." />
+                    )}
+                    {checkInCounts.overdue > 0 && (
+                      <WorkRow
+                        to="/ta/workforce"
+                        search={{ tab: "deployments" }}
+                        tone="danger"
+                        title={`${plural(checkInCounts.overdue, "check-in")} overdue`}
+                        detail="Active deployments past their next check-in date."
+                      />
+                    )}
+                    {overdueTasks.map(taskRow)}
+                  </WorkGroup>
+                  <WorkGroup label="Due today" count={todayCount}>
+                    {slaWarning > 0 && (
+                      <WorkRow to="/ta/interviews" tone="warning" title={`${plural(slaWarning, "interview")} due within 48 hours`} />
+                    )}
+                    {checkInCounts.today > 0 && (
+                      <WorkRow
+                        to="/ta/workforce"
+                        search={{ tab: "deployments" }}
+                        title={`${plural(checkInCounts.today, "check-in")} due today`}
+                      />
+                    )}
+                    {todayTasks.map(taskRow)}
+                  </WorkGroup>
+                  <WorkGroup label="Waiting" count={waitingCount}>
+                    {needsPlacement > 0 && (
+                      <WorkRow
+                        to="/ta/workforce"
+                        search={{ tab: "redeployment" }}
+                        title={`${plural(needsPlacement, "worker")} ${needsPlacement === 1 ? "needs" : "need"} placement`}
+                        detail="Ended assignments waiting for a new job."
+                      />
+                    )}
+                    {waitingTasks.map(taskRow)}
+                  </WorkGroup>
+                </>
+              ) : failedQueries.length === 0 ? (
+                <EmptyState
+                  bare
+                  title="Nothing needs your action"
+                  description="No overdue interviews, document reviews, client answers or workers waiting for a placement."
+                />
+              ) : null}
+            </>
+          )}
+        </section>
+
+        <div className="space-y-5 md:max-lg:order-first">
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300">
+            <MetricTile label="Active candidates" to="/ta/applications" caption="In the pipeline">
+              <MetricValue query={pipelineStatsQuery}>{(pipeline) => pipeline?.activeApplications || 0}</MetricValue>
+            </MetricTile>
+
+            <MetricTile label="Active job openings" to="/ta/jobs" caption="Open to applicants">
+              <MetricValue query={dashboardCountsQuery}>{(counts) => counts?.openJobs ?? 0}</MetricValue>
+            </MetricTile>
+
+            <MetricTile
+              label="Interview deadlines"
+              to="/ta/interviews"
+              caption={
+                interviewSlaQuery.data
+                  ? `overdue, of ${plural(slaSummary?.total || 0, "open interview")}`
+                  : interviewSlaQuery.isError
+                    ? "Overdue count unavailable"
+                    : "Checking deadlines"
+              }
+            >
+              <MetricValue query={interviewSlaQuery}>
+                {() => <span className={slaBreached > 0 ? "text-rose-700" : undefined}>{slaBreached}</span>}
+              </MetricValue>
+            </MetricTile>
+
+            <MetricTile label="Active deployments" to="/ta/workforce" search={{ tab: "deployments" }} caption="On assignment">
+              <MetricValue query={dashboardCountsQuery}>{(counts) => counts?.activeDeployments ?? 0}</MetricValue>
+            </MetricTile>
+          </div>
+
+          <section aria-label="Hiring pipeline" className="overflow-hidden rounded-md border border-slate-300 bg-white">
+            <PanelHeader
+              title="Hiring pipeline"
+              action={
+                <Button asChild variant="ghost" size="sm" className="max-md:min-h-11">
+                  <Link to="/ta/applications">
+                    All applications
+                    <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Link>
+                </Button>
+              }
+            />
+
+            <SectionData
+              query={pipelineStatsQuery}
+              subject="the hiring pipeline"
+              skeleton={
+                <div className="divide-y divide-slate-200">
+                  {Array.from({ length: STAGE_TILES.length }).map((_, i) => (
+                    <div key={i} className="flex min-h-11 items-center justify-between px-3.5">
+                      <div className="h-3.5 w-24 bg-slate-100" />
+                      <div className="h-4 w-6 bg-slate-200" />
+                    </div>
+                  ))}
+                </div>
+              }
+            >
+              {(pipeline) => {
+                const counts = STAGE_TILES.map((status) => pipeline?.statusBreakdown?.[status] || 0);
+                const max = Math.max(1, ...counts);
+                return (
+                  <ul className="divide-y divide-slate-200">
+                    {STAGE_TILES.map((status, i) => {
+                      const label = STAFF_STAGE_LABELS[status];
+                      const count = counts[i];
+                      return (
+                        <li key={status}>
+                          <Link
+                            to="/ta/applications"
+                            search={{ stage: status }}
+                            aria-label={`View ${label} applications (${count})`}
+                            className="focus-ring-inset block min-h-11 px-3.5 py-2 transition-colors hover:bg-slate-50"
+                          >
+                            <span className="flex items-center justify-between gap-3 text-sm">
+                              <span className="flex min-w-0 items-center gap-2 font-medium text-slate-800">
+                                <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: stageColor(status) }} />
+                                {label}
+                              </span>
+                              <span className="font-semibold tabular-nums text-slate-950">{count}</span>
+                            </span>
+                            <span aria-hidden="true" className="mt-1.5 block h-1 rounded-full bg-slate-100">
+                              <span
+                                className="block h-1 rounded-full"
+                                style={{ width: `${(count / max) * 100}%`, backgroundColor: stageColor(status) }}
+                              />
+                            </span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                );
+              }}
+            </SectionData>
+          </section>
+        </div>
+      </div>
     </div>
   );
 };

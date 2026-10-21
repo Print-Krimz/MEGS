@@ -17,6 +17,7 @@ import {
   StagePipeline,
   StuckList,
 } from "../../components/analytics";
+import { PhoneCollapse } from "../../components/ta/overview/PhoneCollapse";
 import type { RequestHealthFilter } from "../../components/analytics";
 import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
 import { formatDate } from "../../lib/utils";
@@ -87,7 +88,7 @@ export const AnalyticsPage: React.FC = () => {
       <div className="space-y-5">
         {header}
         <AnalyticsFilterBar filters={filters} onChange={setFilters} showClientFilter />
-        <ErrorState error={dashboardQuery.error} onRetry={() => dashboardQuery.refetch()} />
+        <ErrorState compact subject="the reports" error={dashboardQuery.error} onRetry={() => dashboardQuery.refetch()} />
       </div>
     );
   }
@@ -166,6 +167,23 @@ export const AnalyticsPage: React.FC = () => {
         ]}
       />
 
+      <StagePipeline rows={data.stageTable} rangeLabel={label} linkStages />
+
+      <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-12">
+        <PhoneCollapse title="Stage progress" className="md:col-span-12 lg:col-span-7">
+          <DropOffChart rows={data.dropOff} rangeLabel={label} />
+        </PhoneCollapse>
+        <PhoneCollapse title="Withdrawals and backouts" targetId="backouts" className="md:col-span-12 lg:col-span-5">
+          <BackoutPanel data={data.backouts} clientDecisions={data.clientDecisions} rangeLabel={label} showRecent compact />
+        </PhoneCollapse>
+      </div>
+
+      {data.closures && (
+        <PhoneCollapse title="Closed applications">
+          <ClosurePanel data={data.closures} rangeLabel={label} />
+        </PhoneCollapse>
+      )}
+
       <OperationsWorkspace<WorkspaceKey>
         active={tab}
         onChange={setTab}
@@ -194,15 +212,6 @@ export const AnalyticsPage: React.FC = () => {
           },
         ]}
       />
-
-      <StagePipeline rows={data.stageTable} rangeLabel={label} linkStages />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
-        <DropOffChart rows={data.dropOff} rangeLabel={label} />
-        <BackoutPanel data={data.backouts} clientDecisions={data.clientDecisions} rangeLabel={label} showRecent compact />
-      </div>
-
-      {data.closures && <ClosurePanel data={data.closures} rangeLabel={label} />}
     </div>
   );
 };

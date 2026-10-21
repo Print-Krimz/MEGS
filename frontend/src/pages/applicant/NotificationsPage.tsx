@@ -175,7 +175,7 @@ export const NotificationsPage: React.FC = () => {
           flush
         />
 
-        <div className="border border-slate-300 bg-white">
+        <div className="overflow-hidden rounded-md border border-slate-300 bg-white">
           <Tabs
             ariaLabel="Notification filter"
             value={filterUnread ? "unread" : "all"}
@@ -193,7 +193,7 @@ export const NotificationsPage: React.FC = () => {
           {notificationsQuery.isLoading ? (
             <LoadingState variant="table" rows={4} />
           ) : notificationsQuery.isError ? (
-            <ErrorState className="my-0 border-0" error={notificationsQuery.error} onRetry={() => notificationsQuery.refetch()} />
+            <ErrorState compact subject="notifications" className="m-3" error={notificationsQuery.error} onRetry={() => notificationsQuery.refetch()} />
           ) : notifications.length === 0 ? (
             <div className="p-8">
               <EmptyState
