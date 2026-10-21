@@ -30,6 +30,8 @@ export interface RecordSummaryProps {
   actions?: React.ReactNode;
   children?: React.ReactNode;
   className?: string;
+  /** Use "h1" when the summary is the page's main heading (detail pages). */
+  titleAs?: "h1" | "h2";
 }
 
 const CopyButton: React.FC<{ label: string; text: string }> = ({ label, text }) => {
@@ -106,6 +108,7 @@ export const RecordSummary: React.FC<RecordSummaryProps> = ({
   actions,
   children,
   className,
+  titleAs: TitleTag = "h2",
 }) => {
   const pct = progress && progress.max > 0 ? Math.min(100, Math.max(0, (progress.value / progress.max) * 100)) : 0;
 
@@ -123,7 +126,7 @@ export const RecordSummary: React.FC<RecordSummaryProps> = ({
           ) : null}
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-              <h2 className="font-display text-xl leading-tight text-slate-950 break-words md:text-2xl">{title}</h2>
+              <TitleTag className="font-display text-xl leading-tight text-slate-950 break-words md:text-2xl">{title}</TitleTag>
               {chips}
             </div>
             {subtitle ? <p className="text-sm text-slate-600">{subtitle}</p> : null}

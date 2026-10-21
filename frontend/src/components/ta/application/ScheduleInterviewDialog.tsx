@@ -8,6 +8,9 @@ export interface ScheduleInterviewDialogProps {
   open: boolean;
   onClose: () => void;
   candidateName: string;
+  /** Shown so the recruiter can agree a time with the candidate without leaving the dialog. */
+  candidateEmail?: string | null;
+  candidateMobile?: string | null;
   type: InterviewType;
   /** True when an open interview of this type is being moved. */
   isReschedule: boolean;
@@ -22,6 +25,8 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
   open,
   onClose,
   candidateName,
+  candidateEmail,
+  candidateMobile,
   type,
   isReschedule,
   initialDate = "",
@@ -43,7 +48,16 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
 
   const isInitial = type === InterviewType.INITIAL_SCREENING;
   const scheduledAt = date ? dateTimeLocalToManilaIso(date) : "";
-  const invalid = !date || !scheduledAt || Date.parse(scheduledAt) <= Date.now() || !isWorkingHoursIso(date);
+  // The first reason Save is off, shown next to the button so a disabled button is never a mystery.
+  const blockReason = !date || !scheduledAt
+    ? "Choose a date and time."
+    : Date.parse(scheduledAt) <= Date.now()
+    ? "Choose a time that has not passed."
+    : !isWorkingHoursIso(date)
+    ? "Interviews run from 9:00 AM to 5:00 PM."
+    : null;
+  const invalid = blockReason !== null;
+  const contact = [candidateEmail, candidateMobile].filter(Boolean);
 
   const handleSave = () => {
     if (!scheduledAt || Date.parse(scheduledAt) <= Date.now()) {
@@ -73,6 +87,14 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
       }
     >
       <div className="space-y-4">
+        {contact.length > 0 && (
+          <p className="text-sm text-slate-700">
+            <span className="text-slate-600">Contact: </span>
+            {candidateEmail && <span>{candidateEmail}</span>}
+            {candidateEmail && candidateMobile && <span className="text-slate-400"> · </span>}
+            {candidateMobile && <span className="tabular-nums">{candidateMobile}</span>}
+          </p>
+        )}
         <div className="space-y-1 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
           <span className="block font-medium text-slate-600">Interview type</span>
           <div className="flex items-center gap-1.5 font-semibold text-slate-900">
@@ -97,7 +119,12 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
         />
-        <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          {blockReason && (
+            <p className="mr-auto text-sm text-slate-600" role="status">
+              {blockReason}
+            </p>
+          )}
           <Button variant="outline" size="sm" onClick={onClose}>
             Cancel
           </Button>

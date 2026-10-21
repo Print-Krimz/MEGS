@@ -185,7 +185,8 @@ export const TA_COPY = {
   /** Application detail tab names, shared with the application page. */
   applicationDetail: {
     tabs: {
-      profile: "Profile & interviews",
+      profile: "Profile",
+      interviews: "Interviews",
       requirements: "Requirements & deployment",
       activity: "Activity",
     },

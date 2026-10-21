@@ -1,28 +1,22 @@
 import React from "react";
 import { BackgroundSection, type BackgroundSectionProps } from "./BackgroundSection";
-import { InterviewList, type InterviewListProps } from "./InterviewList";
 import { MatchBreakdown, type MatchBreakdownProps } from "./MatchBreakdown";
+import { CandidateAssessmentPanel, type CandidateAssessment } from "../CandidateAssessmentPanel";
 
 export interface ProfileTabProps {
+  /** Personal and contact details, first: the recruiter checks who the candidate is before the score. */
+  personal: React.ReactNode;
   match: MatchBreakdownProps;
-  interviews: InterviewListProps;
+  assessment: CandidateAssessment | null;
   background: BackgroundSectionProps;
-  /** "View resume" control, shown when the resume is not beside the content. */
-  resumeAction?: React.ReactNode;
-  /** The verify form. Shown first while the recruiter edits, so it sits beside the resume. */
-  editForm?: React.ReactNode;
-  /** Personal details, when they are not in the resume column. */
-  personal?: React.ReactNode;
 }
 
-/** Profile and interviews, in the order a recruiter decides: score and reasons, interviews, then background. */
-export const ProfileTab: React.FC<ProfileTabProps> = ({ match, interviews, background, resumeAction, editForm, personal }) => (
+/** Who, how well they match, what the assessment found, then the work and education history. */
+export const ProfileTab: React.FC<ProfileTabProps> = ({ personal, match, assessment, background }) => (
   <div className="space-y-8">
-    {resumeAction}
-    {editForm}
-    <MatchBreakdown {...match} />
-    <InterviewList {...interviews} />
-    <BackgroundSection {...background} />
     {personal}
+    <MatchBreakdown {...match} />
+    {assessment && <CandidateAssessmentPanel assessment={assessment} />}
+    <BackgroundSection {...background} />
   </div>
 );

@@ -15,6 +15,7 @@ import { documentsApi } from "../../lib/api/documents.api";
 import { Button } from "../ui/Button";
 import { Textarea } from "../ui/Textarea";
 import { formatDate } from "../../lib/utils";
+import { DocumentViewer } from "../ta/InlineResumeViewer";
 
 export interface DocumentPreviewModalProps {
   open: boolean;
@@ -226,22 +227,16 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 )}
               </div>
             </div>
-          ) : isImage && resolvedUrl ? (
-            <div className="max-w-full max-h-full flex items-center justify-center p-2 bg-white rounded border border-slate-300 shadow-inner">
-              <img
-                src={resolvedUrl}
-                alt={preview?.originalName || title}
-                className="max-h-[58vh] max-w-full object-contain rounded"
-              />
-            </div>
-          ) : isPdf && resolvedUrl ? (
-            <div className="w-full h-[58vh] bg-white rounded border border-slate-300 overflow-hidden shadow-inner">
-              <iframe
-                src={resolvedUrl}
-                title={preview?.originalName || title}
-                className="w-full h-full border-none"
-              />
-            </div>
+          ) : (isImage || isPdf) && resolvedUrl ? (
+            // The same viewer as the resume rail: zoom, fit width and drag-to-pan. Download and Close stay in the header.
+            <DocumentViewer
+              url={resolvedUrl}
+              kind={isImage ? "image" : "pdf"}
+              title={preview?.originalName || title}
+              showDownload={false}
+              className="w-full"
+              bodyClassName="h-[56vh] flex-none"
+            />
           ) : resolvedUrl ? (
             <div className="text-center p-6 sm:p-8 bg-white border border-slate-300 rounded-lg max-w-md space-y-3">
               <FileText className="w-12 h-12 text-slate-500 mx-auto" />

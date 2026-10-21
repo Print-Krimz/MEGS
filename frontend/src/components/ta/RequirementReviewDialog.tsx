@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { Button, Dialog, Input, Select, Textarea } from "../ui";
+import { Button, Dialog, Select, Textarea } from "../ui";
+import { DateField } from "../common/DateField";
 import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { requirementStatusLabel } from "../../lib/labels";
 
@@ -203,9 +204,8 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
 
       {decision === "APPROVED" && (
         <>
-          <Input
+          <DateField
             label="Issue date (if shown)"
-            type="date"
             value={issuedAt}
             max={getManilaToday()}
             onChange={(e) => setIssuedAt(e.target.value)}
@@ -222,9 +222,8 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
             ]}
           />
           {validity === "HAS_EXPIRY" && (
-            <Input
+            <DateField
               label="Expiry date"
-              type="date"
               value={expiresAt}
               min={issuedAt || undefined}
               onChange={(e) => setExpiresAt(e.target.value)}
@@ -235,14 +234,13 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
       )}
 
       {decision === "TO_FOLLOW" && (
-        <Input
+        <DateField
           label="Target completion date (optional)"
-          type="date"
           value={followDate}
           min={getManilaToday()}
           max="2100-12-31"
           onChange={(e) => setFollowDate(e.target.value)}
-          helperText={
+          help={
             mode === "post"
               ? "Keep this date updated until the worker submits the final file."
               : "The candidate can be deployed now. This document stays on the follow-up list until it is submitted."

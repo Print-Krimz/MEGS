@@ -43,14 +43,15 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
   onSubmit,
   isSubmitting = false,
 }) => {
-  const [result, setResult] = useState<InterviewOutcomeResult>("PASS");
+  // No outcome is preselected: pressing Enter on a fresh dialog must never record a pass.
+  const [result, setResult] = useState<InterviewOutcomeResult | "">("");
   const [notes, setNotes] = useState(defaultNotes);
   const [showNotesError, setShowNotesError] = useState(false);
 
   // Start clean every time the dialog opens, so a reopened dialog never keeps the last outcome.
   useEffect(() => {
     if (open) {
-      setResult("PASS");
+      setResult("");
       setNotes(defaultNotes);
       setShowNotesError(false);
     }
@@ -64,19 +65,23 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
     ? "Add a note explaining why the candidate did not pass."
     : undefined;
 
+  const choose = { value: "", label: "Choose an outcome" };
   const options = isFinalInterview
     ? [
+        choose,
         { value: "PASS", label: "Passed — client approved" },
         { value: "FAIL", label: "Not passed — client declined" },
         { value: "NO_SHOW", label: "No show" },
       ]
     : [
+        choose,
         { value: "PASS", label: "Passed" },
         { value: "FAIL", label: "Not passed" },
         { value: "NO_SHOW", label: "No show" },
       ];
 
   const handleSave = () => {
+    if (!result) return;
     if (notesRequired && !notes.trim()) {
       setShowNotesError(true);
       return;
@@ -109,12 +114,14 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
         <Select
           label={isFinalInterview ? "Client outcome" : "Outcome"}
           value={result}
-          onChange={(e) => setResult(e.target.value as InterviewOutcomeResult)}
+          onChange={(e) => setResult(e.target.value as InterviewOutcomeResult | "")}
           options={options}
         />
-        <p className="text-sm text-slate-600" data-testid="outcome-next-step">
-          {interviewOutcomeNextStep(result, isFinalInterview)}
-        </p>
+        {result && (
+          <p className="text-sm text-slate-600" data-testid="outcome-next-step">
+            {interviewOutcomeNextStep(result, isFinalInterview)}
+          </p>
+        )}
 
         <Textarea
           label={isFinalInterview ? "Client notes" : "Interview notes"}
@@ -134,7 +141,7 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
           <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button variant="primary" size="sm" loading={isSubmitting} onClick={handleSave}>
+          <Button variant="primary" size="sm" loading={isSubmitting} disabled={!result} onClick={handleSave}>
             {TA_COPY.interviews.saveOutcome}
           </Button>
         </div>

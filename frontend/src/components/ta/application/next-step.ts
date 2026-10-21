@@ -50,7 +50,12 @@ export function getNextStep(app: Application, flags: ApplicationFlags): NextStep
 
   if (flags.isClientEndorsementStage) {
     if (!flags.latestEndorsement) return { text: "Next: send the candidate to the client.", needsTa: true };
-    if (flags.isPendingClientReview) return { text: "Waiting for the client. Record their decision when you hear back.", needsTa: true };
+    if (flags.isPendingClientReview) {
+      // Name the client and the send date so the recruiter does not have to open the requirements tab.
+      const clientName = flags.latestEndorsement?.client?.name || app.jobPosting?.mrf?.client?.name;
+      const sent = flags.latestEndorsement?.createdAt ? ` since ${formatDate(flags.latestEndorsement.createdAt)}` : "";
+      return { text: `Waiting for ${clientName || "the client"}${sent}. Record their decision when you hear back.`, needsTa: true };
+    }
     if (flags.isClientDeclined) return { text: "The client declined. Update the decision or close the application.", needsTa: true };
     if (flags.canScheduleFinalFromClientReview) return { text: "Client approved. Next: schedule the final interview.", needsTa: true };
     return { text: "Client approved.", needsTa: false };

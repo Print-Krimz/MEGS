@@ -1,6 +1,4 @@
 import React from "react";
-import { ScoreBadge } from "../../common";
-import { CandidateAssessmentPanel, type CandidateAssessment } from "../CandidateAssessmentPanel";
 import { ScoreReasons } from "../ScoreReasons";
 import type { DimensionExplanation } from "../../../lib/types/ta.types";
 
@@ -21,11 +19,9 @@ export interface MatchBreakdownProps {
     educationCertificationScore?: number | string | null;
   } | null;
   explanation: ScoreExplanation | null;
-  assessment: CandidateAssessment | null;
-  fitScore?: number | string | null;
   /**
    * Requirement progress once the application reached the requirements stage.
-   * Null before that: the score then says "Pending onboarding".
+   * Null before that: the score then says "Not yet".
    */
   requirementsResult: { approved: number; total: number } | null;
 }
@@ -38,18 +34,20 @@ const DIMENSIONS = [
   { key: "EDUCATION_CERTIFICATIONS", label: "Education / certs", scoreKey: "educationCertificationScore" },
 ] as const;
 
-/** The score once, with the reasons behind it and the assessment notes. */
-export const MatchBreakdown: React.FC<MatchBreakdownProps> = ({ scores, explanation, assessment, fitScore, requirementsResult }) => (
-  <section id="eval-qualifications" aria-labelledby="match-heading" className="space-y-4">
-    <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
-      <div className="space-y-0.5">
-        <h3 id="match-heading" className="text-base font-semibold text-slate-900">
-          Match score
-        </h3>
-        <p className="text-sm text-slate-600">Based on skills, work experience, location, requirements and education.</p>
-      </div>
-      <ScoreBadge score={fitScore} size="lg" />
-    </div>
+const toPercent = (value: number | string | null | undefined) => {
+  const n = Number(value);
+  return value === null || value === undefined || value === "" || !Number.isFinite(n) ? undefined : n;
+};
+
+/**
+ * The five scores in one row, then the reasons behind the weakest ones. The overall score is in the
+ * summary above, so it is not repeated here.
+ */
+export const MatchBreakdown: React.FC<MatchBreakdownProps> = ({ scores, explanation, requirementsResult }) => (
+  <section id="eval-qualifications" aria-labelledby="match-heading" className="space-y-3">
+    <h3 id="match-heading" className="border-b border-slate-200 pb-2 text-base font-semibold text-slate-900">
+      Match
+    </h3>
 
     {scores ? (
       <div className="grid grid-cols-2 divide-x divide-y divide-slate-300 overflow-hidden rounded-md border border-slate-300 bg-white sm:grid-cols-5 sm:divide-y-0">
@@ -100,12 +98,11 @@ export const MatchBreakdown: React.FC<MatchBreakdownProps> = ({ scores, explanat
                   <div className="mt-0.5 text-xs leading-tight text-slate-600">Documents reviewed so far</div>
                 </>
               ) : isPendingOnboarding ? (
-                <>
-                  <div className="mt-1 text-sm font-semibold text-amber-800">Pending onboarding</div>
-                  <div className="mt-0.5 text-xs leading-tight text-slate-600">Collected at requirements stage</div>
-                </>
+                <div className="mt-1 text-sm font-semibold text-slate-600" title="Checked once the candidate reaches the requirements stage">
+                  Not yet
+                </div>
               ) : (
-                <div className="mt-0.5 font-mono text-xl font-bold tabular-nums text-slate-950">
+                <div className="mt-0.5 text-xl font-semibold tabular-nums text-slate-950">
                   {Number(scores[dim.scoreKey] ?? 0).toFixed(0)}%
                 </div>
               )}
@@ -125,9 +122,17 @@ export const MatchBreakdown: React.FC<MatchBreakdownProps> = ({ scores, explanat
       </div>
     )}
 
-    {scores && <ScoreReasons statuses={explanation?.dimensionStatuses} explanations={explanation?.dimensionExplanations} />}
-
-    {/* Candidate assessment: identity warning, summary, requirement checklist, other notes */}
-    {assessment && <CandidateAssessmentPanel assessment={assessment} />}
+    {scores && (
+      <ScoreReasons
+        statuses={explanation?.dimensionStatuses}
+        explanations={explanation?.dimensionExplanations}
+        scores={{
+          SKILLS: toPercent(scores.skillsScore),
+          EXPERIENCE: toPercent(scores.experienceScore),
+          LOCATION: toPercent(scores.locationScore),
+          EDUCATION_CERTIFICATIONS: toPercent(scores.educationCertificationScore),
+        }}
+      />
+    )}
   </section>
 );

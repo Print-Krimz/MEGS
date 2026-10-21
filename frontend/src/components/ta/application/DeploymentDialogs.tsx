@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Building2 } from "lucide-react";
-import { Button, ComboBox, Dialog, Input, Textarea } from "../../ui";
+import { Button, ComboBox, Dialog, Textarea } from "../../ui";
+import { DateField } from "../../common/DateField";
 import { documentsApi } from "../../../lib/api/documents.api";
 import { notify } from "../../../lib/feedback";
 import { addManilaCalendarDays, getManilaToday } from "../../../lib/field-limits";
@@ -116,14 +117,13 @@ export const ActivateDeploymentDialog: React.FC<ActivateDeploymentDialogProps> =
         />
 
         <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
-          <Input label="Contract start date" type="date" value={start} onChange={(e) => setStart(e.target.value)} min={getManilaToday()} helperText={start ? formatDate(start) : undefined} required />
-          <Input
+          <DateField label="Contract start date" value={start} onChange={(e) => setStart(e.target.value)} min={getManilaToday()} required />
+          <DateField
             label="Contract end date"
-            type="date"
             value={end}
             onChange={(e) => setEnd(e.target.value)}
             min={start || getManilaToday()}
-            helperText={end ? formatDate(end) : "Optional for rolling contracts"}
+            help={end ? undefined : "Optional for rolling contracts"}
             error={datesInvalid ? "Must be on or after start date" : undefined}
           />
         </div>
@@ -290,14 +290,12 @@ export const SignedContractDialog: React.FC<SignedContractDialogProps> = ({
           </div>
         </div>
 
-        <Input
+        <DateField
           label="Work assignment effective date"
           min={bounds.min}
           max={bounds.max}
-          type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
-          helperText={startDate ? formatDate(startDate) : undefined}
           required
         />
 

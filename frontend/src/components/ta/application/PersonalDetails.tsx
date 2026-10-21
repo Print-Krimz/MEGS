@@ -9,14 +9,15 @@ export interface PersonalDetailsProps {
   profile: any;
   candidateName: string;
   candidateInitials: string;
+  email?: string | null;
   onVerify: () => void;
   onOpenPhoto: () => void;
 }
 
-const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3 sm:grid-cols-[9rem_minmax(0,1fr)]">
-    <dt className="text-slate-600">{label}</dt>
-    <dd className="min-w-0 text-slate-900">{children}</dd>
+const Row: React.FC<{ label: string; children: React.ReactNode; wide?: boolean }> = ({ label, children, wide }) => (
+  <div className={wide ? "min-w-0 sm:col-span-2" : "min-w-0"}>
+    <dt className="text-xs font-medium text-slate-600">{label}</dt>
+    <dd className="mt-0.5 min-w-0 break-words text-sm text-slate-900">{children}</dd>
   </div>
 );
 
@@ -24,17 +25,17 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
  * Read-only personal and contact details. Government IDs show the last four digits;
  * the full value is shown on request here and in full in the verify form.
  */
-export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, candidateName, candidateInitials, onVerify, onOpenPhoto }) => {
+export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, candidateName, candidateInitials, email, onVerify, onOpenPhoto }) => {
   const [photoImgError, setPhotoImgError] = useState(false);
   const address = [profile?.address, profile?.barangay, profile?.city, profile?.province, profile?.postalCode].filter(Boolean).join(", ");
 
   return (
-    <section aria-labelledby="personal-details-heading" className="space-y-3 border border-slate-300 bg-white p-4">
+    <section aria-labelledby="personal-details-heading" className="space-y-3">
       <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
-        <h3 id="personal-details-heading" className="text-sm font-semibold text-slate-900">
-          Personal & contact details
+        <h3 id="personal-details-heading" className="text-base font-semibold text-slate-900">
+          Personal &amp; contact
         </h3>
-        <Button variant="outline" size="sm" type="button" onClick={onVerify} aria-label="Verify Profile Details" title="Verify candidate profile side-by-side with resume">
+        <Button variant="outline" size="sm" type="button" onClick={onVerify} aria-label="Verify Profile Details" title="Check these details against the resume and correct them">
           Verify details
         </Button>
       </div>
@@ -46,31 +47,30 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, candi
               <img
                 src={profile.photoUrl}
                 alt="Profile"
-                className="h-16 w-16 rounded-md border border-slate-300 object-cover"
+                className="h-14 w-14 rounded-md border border-slate-300 object-cover"
                 onError={() => setPhotoImgError(true)}
               />
             </button>
           ) : (
-            <div aria-hidden="true" className="flex h-16 w-16 items-center justify-center rounded-md bg-navy-soft text-base font-semibold text-navy ring-1 ring-inset ring-navy-line">
+            <div aria-hidden="true" className="flex h-14 w-14 items-center justify-center rounded-md bg-navy-soft text-base font-semibold text-navy ring-1 ring-inset ring-navy-line">
               {candidateInitials}
             </div>
           )}
         </div>
 
-        <dl className="w-full min-w-0 flex-1 space-y-1.5 text-sm">
+        <dl className="grid min-w-0 flex-1 grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
           <Row label="Full name">
             <span className="font-semibold">{candidateName}</span>
           </Row>
+          <Row label="Email">{email || "Not provided"}</Row>
           <Row label="Mobile">
             <span className="tabular-nums">{profile?.mobileNumber || "Not provided"}</span>
           </Row>
           <Row label="Date of birth">{profile?.dateOfBirth ? formatDate(profile.dateOfBirth) : "Not provided"}</Row>
           <Row label="Gender">{profile?.gender || "Unspecified"}</Row>
           <Row label="City">{profile?.city ? `${profile.city}, ${profile.province || ""}` : profile?.province || "Philippines"}</Row>
-          <Row label="Address">
-            <span className="break-words" title={address || undefined}>
-              {address || "Not provided"}
-            </span>
+          <Row label="Address" wide>
+            <span title={address || undefined}>{address || "Not provided"}</span>
           </Row>
           <Row label="SSS number">
             <MaskedId value={profile?.sss ? formatSSSNumber(profile.sss) : null} label="SSS number" />

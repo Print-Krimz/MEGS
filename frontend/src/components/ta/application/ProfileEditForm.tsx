@@ -198,8 +198,8 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candi
           )}
         </div>
         <div className="text-xs text-slate-600">
-          <p className="font-semibold text-slate-700">Side-by-Side Field Verification</p>
-          <p className="text-xs text-slate-600">Review against the resume document and update profile fields.</p>
+          <p className="font-semibold text-slate-700">Check against the resume</p>
+          <p className="text-xs text-slate-600">Correct any field that differs from the resume, then save.</p>
         </div>
       </div>
     

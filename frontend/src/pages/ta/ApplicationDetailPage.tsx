@@ -2,7 +2,8 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
-import { PageHeader, LoadingState, ErrorState, DocumentPreviewModal, Tabs, ConfirmDialog } from "../../components/common";
+import { PageHeader, LoadingState, ErrorState, DocumentPreviewModal, Tabs, ConfirmDialog, DetailLayout } from "../../components/common";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "../../components/shadcn/sheet";
 import type { ActionMenuItem } from "../../components/common";
 import { Button, manilaIsoToDateTimeLocal } from "../../components/ui";
 import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
@@ -11,15 +12,20 @@ import { parseCandidateAssessment } from "../../components/ta/CandidateAssessmen
 import { CloseApplicationDialog } from "../../components/ta/CloseApplicationDialog";
 import { InterviewOutcomeDialog } from "../../components/ta/InterviewOutcomeDialog";
 import { RequirementReviewDialog } from "../../components/ta/RequirementReviewDialog";
+import { RequirementDocumentPreview } from "../../components/ta/compliance/RequirementDocumentPreview";
 import { DocumentUpdateRequestDialog } from "../../components/ta/DocumentUpdateRequestDialog";
-import { CaseHeader } from "../../components/ta/application/CaseHeader";
+import { ApplicationSummary } from "../../components/ta/application/ApplicationSummary";
+import { InterviewsTab } from "../../components/ta/application/InterviewsTab";
 import { StageBar } from "../../components/ta/application/StageBar";
 import { ProfileTab } from "../../components/ta/application/ProfileTab";
 import { RequirementsTab } from "../../components/ta/application/RequirementsTab";
 import { ActivityTab } from "../../components/ta/application/ActivityTab";
 import { PersonalDetails } from "../../components/ta/application/PersonalDetails";
 import { ProfileEditForm } from "../../components/ta/application/ProfileEditForm";
-import { ResumeColumn, ResumeDrawerButton } from "../../components/ta/application/ResumePanel";
+import { ResumeRail, ResumeDockTab, ResumeDrawerButton } from "../../components/ta/application/ResumePanel";
+import { PipelineIndicator } from "../../components/common/PipelineIndicator";
+import { APPLICATION_TAB_LABELS, defaultApplicationTab, normalizeApplicationTab, type ApplicationTab } from "../../components/ta/application/tabs";
+import { daysInStage, overdueInterviewCount, summarizeInterview } from "../../components/ta/application/summary";
 import { useIsDesktop } from "../../components/ta/application/useIsDesktop";
 import { ScheduleInterviewDialog } from "../../components/ta/application/ScheduleInterviewDialog";
 import { SendToClientDialog, ClientDecisionDialog } from "../../components/ta/application/ClientReviewDialogs";
@@ -41,43 +47,6 @@ import { notify } from "../../lib/feedback";
 import type { TAApplicationSearch } from "../../routes";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 import { addManilaCalendarDays, getManilaToday } from "../../lib/field-limits";
-
-type TabKey = "evaluation" | "compliance" | "history";
-
-/** Old links and notifications use several names for the same three tabs. */
-const normalizeTab = (tab: string | null): TabKey | null => {
-  if (!tab) return null;
-  switch (tab) {
-    case "evaluation":
-    case "overview":
-    case "ai-score":
-    case "interviews":
-    case "similar":
-      return "evaluation";
-    case "compliance":
-    case "endorsements":
-    case "hiring":
-      return "compliance";
-    case "history":
-    case "timeline":
-    case "decisions":
-    case "audit":
-    case "activity":
-      return "history";
-    default:
-      return "evaluation";
-  }
-};
-
-/** From requirements onward the useful content is on the requirements tab. */
-const defaultTabForStatus = (status?: string): TabKey =>
-  status === ApplicationStatus.COMPLIANCE ||
-  status === ApplicationStatus.CONTRACT_SIGNING ||
-  status === ApplicationStatus.ONBOARDING ||
-  status === ApplicationStatus.HIRED ||
-  status === ApplicationStatus.DEPLOYED
-    ? "compliance"
-    : "evaluation";
 
 type DialogState =
   | null
@@ -134,12 +103,12 @@ export const ApplicationDetailPage: React.FC = () => {
     return query ? `/ta/applications?${query}` : "/ta/applications";
   })();
 
-  // The tab from ?tab= wins; otherwise the stage picks it (see defaultTabForStatus).
-  const [tabOverride, setTabOverride] = useState<TabKey | null>(() =>
-    typeof window === "undefined" ? null : normalizeTab(new URLSearchParams(window.location.search).get("tab"))
+  // The tab from ?tab= wins; otherwise the stage and open interviews pick it (see defaultApplicationTab).
+  const [tabOverride, setTabOverride] = useState<ApplicationTab | null>(() =>
+    typeof window === "undefined" ? null : normalizeApplicationTab(new URLSearchParams(window.location.search).get("tab"))
   );
 
-  const handleTabChange = (tab: TabKey) => {
+  const handleTabChange = (tab: ApplicationTab) => {
     setTabOverride(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -282,7 +251,8 @@ export const ApplicationDetailPage: React.FC = () => {
   const defaultSite = app.jobPosting?.location || mrfLocation || (linkedClient as any)?.address || "";
   const isFinalInterviewStage = app.status === ApplicationStatus.FINAL_INTERVIEW;
 
-  const activeTab: TabKey = tabOverride ?? defaultTabForStatus(app.status);
+  const activeTab: ApplicationTab = tabOverride ?? defaultApplicationTab(app.status, Boolean(flags.pendingScreeningInterview || flags.pendingFinalInterview));
+  const now = Date.now();
 
   const requirements = (app.complianceRequirements || []) as RequirementRowData[];
   const requirementCounts = {
@@ -356,7 +326,7 @@ export const ApplicationDetailPage: React.FC = () => {
       case "activate-deployment":
         return setDialog({ kind: "deploy" });
       case "manage-contract-signing":
-        return handleTabChange("compliance");
+        return handleTabChange("requirements");
       default:
         return undefined;
     }
@@ -377,12 +347,7 @@ export const ApplicationDetailPage: React.FC = () => {
   ];
 
   // ---- tabs ------------------------------------------------------------------------------------
-  const profileBadge =
-    flags.pendingScreeningInterview || flags.pendingFinalInterview
-      ? "1 interview"
-      : flags.isPreScreeningOrScreening && !flags.hasPassedScreening
-      ? "Decide next step"
-      : undefined;
+  const overdueInterviews = overdueInterviewCount(app.interviews || [], now);
   // One count: the items that wait for the recruiter's review.
   const requirementsBadge = flags.canDeployCandidate
     ? "Ready to deploy"
@@ -390,37 +355,40 @@ export const ApplicationDetailPage: React.FC = () => {
     ? `${flags.submittedCompReqs} to review`
     : undefined;
 
-  const tabs = [
+  const tabs: { id: ApplicationTab; label: string; badge?: { text: string; variant: "success" | "warning" | "info" } }[] = [
+    { id: "profile", label: APPLICATION_TAB_LABELS.profile },
     {
-      id: "evaluation" as TabKey,
-      label: TA_COPY.applicationDetail.tabs.profile,
-      badge: profileBadge ? { text: profileBadge, variant: (profileBadge === "1 interview" ? "info" : "warning") as "info" | "warning" } : undefined,
+      id: "interviews",
+      label: APPLICATION_TAB_LABELS.interviews,
+      badge: overdueInterviews > 0 ? { text: `${overdueInterviews} overdue`, variant: "warning" } : undefined,
     },
     {
-      id: "compliance" as TabKey,
-      label: TA_COPY.applicationDetail.tabs.requirements,
-      badge: requirementsBadge ? { text: requirementsBadge, variant: (flags.canDeployCandidate ? "success" : "info") as "success" | "info" } : undefined,
+      id: "requirements",
+      label: APPLICATION_TAB_LABELS.requirements,
+      badge: requirementsBadge ? { text: requirementsBadge, variant: flags.canDeployCandidate ? "success" : "info" } : undefined,
     },
-    { id: "history" as TabKey, label: TA_COPY.applicationDetail.tabs.activity },
+    { id: "activity", label: APPLICATION_TAB_LABELS.activity },
   ];
 
-  // ---- profile tab -----------------------------------------------------------------------------
-  const startEditingProfile = () => {
-    if (!profile) return;
-    if (!isResumeOpen) toggleResume(true);
-    setIsEditingProfile(true);
-  };
+  // ---- resume ----------------------------------------------------------------------------------
   const resumeUrl = profile?.resumeUrl || app.resumeUrl;
-  const openResumeFullscreen = () =>
+  const openResumeFullscreen = () => {
+    setResumeDrawerOpen(false);
     setPreviewDocState({ open: true, documentId: extractDocumentId(resumeUrl), fileUrl: resumeUrl, title: "Application Resume (CV)" });
+  };
+  // The resume sits beside Profile, Interviews and Requirements. Activity has nothing to compare it with.
+  const resumeTabActive = activeTab !== "activity";
+  const showResumeRail = isDesktop && isResumeOpen && resumeTabActive;
+  const showResumeDock = isDesktop && !isResumeOpen && resumeTabActive;
+  const railTop = 56 + stageBarHeight + 8;
 
-  const resumeBesideContent = isDesktop && isResumeOpen && activeTab === "evaluation";
   const personalDetails = (
     <PersonalDetails
       profile={profile}
       candidateName={candidateName}
       candidateInitials={candidateInitials}
-      onVerify={startEditingProfile}
+      email={app.user?.email}
+      onVerify={() => setIsEditingProfile(true)}
       onOpenPhoto={() =>
         setPreviewDocState({
           open: true,
@@ -431,26 +399,6 @@ export const ApplicationDetailPage: React.FC = () => {
       }
     />
   );
-
-  const resumeAction = !resumeBesideContent ? (
-    <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
-      <span className="text-sm font-semibold text-slate-700">Candidate profile</span>
-      {isDesktop ? (
-        <Button variant="outline" size="sm" onClick={() => toggleResume(true)} aria-label="View Resume" title="Show resume panel side-by-side">
-          View resume
-        </Button>
-      ) : (
-        <ResumeDrawerButton
-          open={resumeDrawerOpen}
-          onOpenChange={setResumeDrawerOpen}
-          resumeUrl={resumeUrl}
-          candidateName={candidateName}
-          candidateInitials={candidateInitials}
-          onFullscreen={openResumeFullscreen}
-        />
-      )}
-    </div>
-  ) : null;
 
   const requirementsResult =
     [ApplicationStatus.COMPLIANCE, ApplicationStatus.CONTRACT_SIGNING, ApplicationStatus.ONBOARDING, ApplicationStatus.DEPLOYED, ApplicationStatus.HIRED].includes(
@@ -473,34 +421,70 @@ export const ApplicationDetailPage: React.FC = () => {
   const dlg = dialog;
   const outcomeDialog = dlg?.kind === "outcome" ? dlg : null;
   const reviewRequirement = dlg?.kind === "review" ? requirements.find((r) => r.id === dlg.requirementId) : undefined;
+  // The review dialog lists every document that still needs action, like the requirements queue does,
+  // so one pass covers them all. The document that was opened stays in the list even if it is already approved.
+  const reviewList = (app.complianceRequirements || []).filter(
+    (r) => r.reviewStatus !== "APPROVED" || (dlg?.kind === "review" && r.id === dlg.requirementId)
+  );
   const deadlineRequirement = dlg?.kind === "editDeadline" ? app.complianceRequirements?.find((r) => r.id === dlg.requirementId) ?? null : null;
-  const reviewable = reviewRequirement as any;
   const feedback = m.feedback;
   const jobTitle = app.jobPosting?.title;
+  const closure = (app.closures ?? [])[0];
+  const deployment = app.deployments?.[0];
+  const showDeploymentLink = Boolean(deployment?.id) && (app.status === ApplicationStatus.DEPLOYED || flags.isContractSigned);
+  const contractSignedOnly = app.status === ApplicationStatus.DEPLOYED && deployment?.status === "READY_FOR_DEPLOYMENT";
+
+  const resumeDrawer = !isDesktop ? (
+    <ResumeDrawerButton
+      open={resumeDrawerOpen}
+      onOpenChange={setResumeDrawerOpen}
+      resumeUrl={resumeUrl}
+      candidateName={candidateName}
+      candidateInitials={candidateInitials}
+      onFullscreen={openResumeFullscreen}
+    />
+  ) : null;
 
   return (
-    <div className="space-y-4">
-      <CaseHeader
+    <div className="space-y-3">
+      <ApplicationSummary
         candidateName={candidateName}
+        candidateInitials={candidateInitials}
         applicationId={app.id}
+        jobId={app.jobPosting?.id}
         jobTitle={jobTitle}
         email={app.user?.email}
         mobileNumber={profile?.mobileNumber}
+        city={[profile?.city, profile?.province].filter(Boolean).join(", ")}
         submittedAt={app.createdAt}
+        daysInStage={daysInStage(app, decisions, now)}
+        interviewText={summarizeInterview(app.interviews || [], now)}
         score={fitScore}
+        status={app.status}
+        contractSignedOnly={contractSignedOnly}
         listHref={applicationListHref}
         menuItems={menuItems}
+        resumeAction={resumeDrawer}
+        stepper={
+          <PipelineIndicator
+            variant="compact"
+            currentStatus={app.status}
+            hideTerminalAlert
+            currentLabel={formatTaStatus(app.status)}
+            skippedStages={skippedStages}
+          />
+        }
       />
 
-      {(app.closures ?? [])[0] && (
+      {closure && (
         <div role="status" className="space-y-0.5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
           <p className="font-semibold">
-            {CLOSURE_OUTCOME_LABELS[(app.closures ?? [])[0].outcome]} · {closureReasonLabel((app.closures ?? [])[0].reasonCode)}
-            {(app.closures ?? [])[0].disposition ? ` · ${CLOSURE_DISPOSITION_LABELS[(app.closures ?? [])[0].disposition!]}` : ""}
+            {CLOSURE_OUTCOME_LABELS[closure.outcome]} · {closureReasonLabel(closure.reasonCode)}
+            {closure.disposition ? ` · ${CLOSURE_DISPOSITION_LABELS[closure.disposition]}` : ""}
           </p>
           <p>
-            At {formatTaStatus((app.closures ?? [])[0].stage)} on {formatDate((app.closures ?? [])[0].occurredAt)}
-            {(app.closures ?? [])[0].notes ? ` — ${(app.closures ?? [])[0].notes}` : ""}
+            At {formatTaStatus(closure.stage)} on {formatDate(closure.occurredAt)}
+            {closure.notes ? ` — ${closure.notes}` : ""}
           </p>
         </div>
       )}
@@ -527,71 +511,80 @@ export const ApplicationDetailPage: React.FC = () => {
 
       <StageBar
         status={app.status}
+        stageLabel={contractSignedOnly ? "Contract signed" : undefined}
         next={next}
         primary={primary}
         secondary={secondary}
         pendingActionId={pendingActionId}
         onAction={(action) => runStageAction(action.id)}
-        skippedStages={skippedStages}
+        deploymentId={showDeploymentLink ? deployment?.id : null}
+        extraAction={
+          flags.isClientDeclined && flags.canReject
+            ? { label: "Reject applicant", onClick: () => setDialog({ kind: "close", outcome: "REJECTED" }) }
+            : null
+        }
         onHeightChange={setStageBarHeight}
       />
 
-      <div className={resumeBesideContent ? "grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,44%)]" : ""}>
-        <div className="min-w-0 border border-slate-300 bg-white">
-          <Tabs
-            value={activeTab}
-            onChange={(tab) => handleTabChange(tab as TabKey)}
-            ariaLabel="Candidate record sections"
-            items={tabs.map((tab) => ({ ...tab, panelId: `application-tabpanel-${tab.id}` }))}
-          />
+      <Tabs
+        value={activeTab}
+        onChange={(tab) => handleTabChange(tab as ApplicationTab)}
+        ariaLabel="Candidate record sections"
+        className="rounded-md border border-slate-300"
+        items={tabs.map((tab) => ({ ...tab, panelId: `application-tabpanel-${tab.id}`, tabId: `application-tab-${tab.id}` }))}
+      />
 
+      <DetailLayout
+        className="[&>aside]:self-stretch"
+        railLabel="Resume"
+        resizable
+        storageKey="megs_ta_resume_rail"
+        rail={
+          showResumeRail ? (
+            <ResumeRail
+              resumeUrl={resumeUrl}
+              candidateName={candidateName}
+              candidateInitials={candidateInitials}
+              onFullscreen={openResumeFullscreen}
+              onHide={() => toggleResume(false)}
+              topOffset={railTop}
+            />
+          ) : undefined
+        }
+        main={
           <div
             id={`application-tabpanel-${activeTab}`}
             role="tabpanel"
             tabIndex={0}
-            aria-label={tabs.find((tab) => tab.id === activeTab)?.label}
-            className="focus-ring-inset p-3.5 sm:p-6"
+            aria-labelledby={`application-tab-${activeTab}`}
+            className="focus-ring-inset rounded-md border border-slate-300 bg-white p-4 sm:p-6"
           >
-            {activeTab === "evaluation" && (
+            {activeTab === "profile" && (
               <ProfileTab
-                resumeAction={resumeAction}
-                editForm={
-                  isEditingProfile && profile ? (
-                    <ProfileEditForm
-                      profile={profile}
-                      candidateInitials={candidateInitials}
-                      isSaving={updateCandidateMutation.isPending}
-                      onCancel={() => setIsEditingProfile(false)}
-                      onSave={(dto) => updateCandidateMutation.mutate(dto)}
-                    />
-                  ) : null
-                }
+                personal={personalDetails}
                 match={{
                   scores,
                   explanation: scoreExplanation,
-                  assessment: parsedAiAssessment,
-                  fitScore,
                   requirementsResult,
                 }}
-                interviews={{
-                  interviews: app.interviews || [],
-                  scheduleOffer,
-                  onSchedule: (type) => openSchedule(type === "FINAL_INTERVIEW" ? InterviewType.FINAL_INTERVIEW : InterviewType.INITIAL_SCREENING),
-                  onRecordResult: (interview) => openOutcome(interview, interview.type),
-                  onMarkPassed: (interview) =>
-                    m.updateInterviewStatus.mutate({
-                      interviewId: interview.id,
-                      result: "PASS",
-                      notes: interview.notes || "Passed interview assessment",
-                    }),
-                  isMarkingPassed: m.updateInterviewStatus.isPending,
-                }}
+                assessment={parsedAiAssessment}
                 background={{ profile, jobPosting: app.jobPosting }}
-                personal={!isEditingProfile ? personalDetails : null}
               />
             )}
 
-            {activeTab === "compliance" && (
+            {activeTab === "interviews" && (
+              <InterviewsTab
+                interviews={app.interviews || []}
+                now={now}
+                scheduleOffer={scheduleOffer}
+                onSchedule={(type) => openSchedule(type === "FINAL_INTERVIEW" ? InterviewType.FINAL_INTERVIEW : InterviewType.INITIAL_SCREENING)}
+                onRecordOutcome={(interview) => openOutcome(interview, interview.type)}
+                onReschedule={(interview) => openSchedule(interview.type, interview)}
+                heroActionsInBar={barActionIds.includes("record-initial-outcome") || barActionIds.includes("record-final-outcome")}
+              />
+            )}
+
+            {activeTab === "requirements" && (
               <RequirementsTab
                 clientReview={{
                   endorsements: (app.clientEndorsements || []) as any,
@@ -664,21 +657,30 @@ export const ApplicationDetailPage: React.FC = () => {
               />
             )}
 
-            {activeTab === "history" && <ActivityTab events={buildActivity(app, decisions)} isLoading={decisionsQuery.isLoading} />}
+            {activeTab === "activity" && <ActivityTab events={buildActivity(app, decisions)} isLoading={decisionsQuery.isLoading} />}
           </div>
-        </div>
+        }
+      />
 
-        {resumeBesideContent && (
-          <ResumeColumn
-            resumeUrl={resumeUrl}
-            candidateName={candidateName}
-            candidateInitials={candidateInitials}
-            onFullscreen={openResumeFullscreen}
-            onHide={() => toggleResume(false)}
-            topOffset={56 + stageBarHeight + 12}
-          />
-        )}
-      </div>
+      {showResumeDock && <ResumeDockTab onShow={() => toggleResume(true)} />}
+
+      <Sheet open={isEditingProfile && Boolean(profile)} onOpenChange={setIsEditingProfile}>
+        <SheetContent side="left" className="w-full gap-0 overflow-y-auto bg-white p-0 sm:max-w-xl">
+          <SheetTitle className="border-b border-slate-200 px-4 py-3 pr-12 text-base">Verify details</SheetTitle>
+          <SheetDescription className="sr-only">Check the candidate details against the resume and correct anything that differs.</SheetDescription>
+          <div className="p-4">
+            {profile && (
+              <ProfileEditForm
+                profile={profile}
+                candidateInitials={candidateInitials}
+                isSaving={updateCandidateMutation.isPending}
+                onCancel={() => setIsEditingProfile(false)}
+                onSave={(dto) => updateCandidateMutation.mutate(dto)}
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Dialogs */}
       <InterviewOutcomeDialog
@@ -702,6 +704,8 @@ export const ApplicationDetailPage: React.FC = () => {
         open={dlg?.kind === "schedule"}
         onClose={closeDialog}
         candidateName={candidateName}
+        candidateEmail={app.user?.email}
+        candidateMobile={profile?.mobileNumber}
         type={dlg?.kind === "schedule" ? dlg.type : InterviewType.INITIAL_SCREENING}
         isReschedule={dlg?.kind === "schedule" ? dlg.isReschedule : false}
         initialDate={dlg?.kind === "schedule" ? dlg.initialDate : ""}
@@ -763,8 +767,25 @@ export const ApplicationDetailPage: React.FC = () => {
         onClose={closeDialog}
         mode="pre"
         subtitle={[candidateName, jobTitle].filter(Boolean).join(" · ")}
-        requirements={reviewable ? [reviewable] : []}
+        requirements={reviewList}
         initialRequirementId={dlg?.kind === "review" ? dlg.requirementId : null}
+        renderDocumentPreview={(req) =>
+          req.documentId ? (
+            <RequirementDocumentPreview
+              documentId={req.documentId}
+              documentLabel={req.documentLabel}
+              onExpand={() =>
+                setPreviewDocState({
+                  open: true,
+                  documentId: req.documentId,
+                  requirementId: req.id,
+                  title: req.documentLabel,
+                  requirementStatus: req.reviewStatus,
+                })
+              }
+            />
+          ) : null
+        }
         isSubmitting={m.reviewRequirement.isPending}
         onOpenDocument={(req) =>
           setPreviewDocState({

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Button, ComboBox, Dialog, Input } from "../../ui";
+import { Button, ComboBox, Dialog } from "../../ui";
+import { DateField } from "../../common/DateField";
 import { COMPLIANCE_201_PRESETS } from "../../../lib/hr-constants";
 import { addManilaCalendarDays, getManilaToday } from "../../../lib/field-limits";
 import { formatDate } from "../../../lib/utils";
@@ -104,13 +105,11 @@ export const AddRequirementDialog: React.FC<AddRequirementDialogProps> = ({
           ) : null}
         </div>
 
-        <Input
+        <DateField
           label="Submission deadline (optional)"
-          type="date"
           value={deadline}
           onChange={(e) => setDeadline(e.target.value)}
           min={getManilaToday()}
-          helperText={deadline ? formatDate(deadline) : undefined}
         />
 
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
@@ -173,12 +172,10 @@ export const EditDeadlineDialog: React.FC<EditDeadlineDialogProps> = ({
           )}
         </div>
 
-        <Input
+        <DateField
           label="Submission deadline"
-          type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          helperText={date ? formatDate(date) : undefined}
           min={date && date < getManilaToday() ? date : getManilaToday()}
           required
         />
