@@ -1,7 +1,7 @@
 /**
  * One semantic colour system for every Reports chart (TA and Admin).
  *
- * Rules: colour carries one meaning across charts; red means "lost / backed out" and nothing else; navy fills
+ * Rules: colour carries one meaning across charts; red means "backed out" or "overdue" and nothing else (agency responsibility is slate, not red); navy fills
  * are only for the final "Deployed" stage and primary actions; every mark is also named by text (label, value,
  * legend or table), so colour is never the only channel.
  *
@@ -15,6 +15,9 @@
  *   fixed by the brand and by the "red = lost" rule, so they ALWAYS ship with a legend, a direct value label and a
  *   "View as table" alternative, and segments are separated by a 2px surface gap. Never rely on hue alone.
  *   Violet vs blue (applicant vs moved on) never share a chart.
+ * - Responsibility: AGENCY slate #3B4A63 is 8.35:1 vs surface, and sits between amber CLIENT and violet APPLICANT in
+ *   stacks (violet vs slate is 1.46:1 by lightness, so the 2px gap, legend and table carry the split, as for every pair here).
+ * - Stage chips: text on tint >= 4.5:1 (5.9 to 9.0, asserted in tests); Deployed is white on navy 13.2:1.
  * - Text on solid fills: white on BOTTLENECK >= 4.5:1; watch and at-risk chips use dark amber text on a light
  *   fill, >= 4.5:1 (asserted in tests).
  * - Neutral grey is exempt from the chroma floor by design (it means "waiting / not a decision").
@@ -50,6 +53,24 @@ export const STAGE_COLORS: Record<string, string> = Object.fromEntries(STAGE_RAM
 /** Stage colour by enum. Unknown stages fall back to neutral grey so a new enum value never crashes a chart. */
 export const stageColor = (stage: string): string => STAGE_COLORS[STAGE_ALIASES[stage] ?? stage] ?? OUTCOME.waiting;
 
+/**
+ * Stage chips share the STAGE_RAMP hue family: tinted fill, ramp-hued dark text, Deployed solid navy.
+ * Class strings are literal so Tailwind sees them. Keyed by the same enum as STAGE_RAMP.
+ */
+export const STAGE_CHIP: Record<string, { text: string; bg: string; border: string; className: string }> = {
+  APPLIED: { text: "#2F5C8F", bg: "#E8EFF7", border: "#C5D5E8", className: "border-[#C5D5E8] bg-[#E8EFF7] text-[#2F5C8F]" },
+  INITIAL_SCREENING: { text: "#2A5A8C", bg: "#E3ECF6", border: "#BCD0E6", className: "border-[#BCD0E6] bg-[#E3ECF6] text-[#2A5A8C]" },
+  CLIENT_ENDORSEMENT: { text: "#1E5F82", bg: "#E0EEF4", border: "#B7D6E4", className: "border-[#B7D6E4] bg-[#E0EEF4] text-[#1E5F82]" },
+  FINAL_INTERVIEW: { text: "#00596A", bg: "#DDEFF1", border: "#B0D6DB", className: "border-[#B0D6DB] bg-[#DDEFF1] text-[#00596A]" },
+  COMPLIANCE: { text: "#004D50", bg: "#DCEEEE", border: "#AED3D3", className: "border-[#AED3D3] bg-[#DCEEEE] text-[#004D50]" },
+  CONTRACT_SIGNING: { text: "#00414F", bg: "#DAE9ED", border: "#A9CBD4", className: "border-[#A9CBD4] bg-[#DAE9ED] text-[#00414F]" },
+  DEPLOYED: { text: "#FFFFFF", bg: "#0D305A", border: "#0D305A", className: "border-[#0D305A] bg-[#0D305A] text-white" },
+};
+
+/** Chip classes for an application status that is a pipeline stage, else undefined. */
+export const stageChipClass = (status?: string | null): string | undefined =>
+  status ? STAGE_CHIP[STAGE_ALIASES[status] ?? status]?.className : undefined;
+
 /** What happened to people who reached a stage. */
 export const OUTCOME = {
   movedOn: "#1A55C4",
@@ -62,7 +83,7 @@ export const OUTCOME = {
 export const RESPONSIBILITY = {
   APPLICANT: "#6D4FB5",
   CLIENT: "#9A5B00",
-  AGENCY: "#C8102E",
+  AGENCY: "#3B4A63",
 } as const;
 
 /** Workload split: within limit is neutral, overdue is red, overdue by age only is amber and hatched (an estimate). */

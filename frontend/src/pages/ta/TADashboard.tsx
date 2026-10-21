@@ -229,9 +229,9 @@ export const TADashboard: React.FC = () => {
   const todayTasks = tasksIn("today");
   const waitingTasks = tasksIn("waiting");
 
-  const overdueCount = (slaBreached > 0 ? 1 : 0) + (checkInCounts.overdue > 0 ? 1 : 0) + overdueTasks.length;
-  const todayCount = (slaWarning > 0 ? 1 : 0) + (checkInCounts.today > 0 ? 1 : 0) + todayTasks.length;
-  const waitingCount = (needsPlacement > 0 ? 1 : 0) + waitingTasks.length;
+  const overdueCount = slaBreached + checkInCounts.overdue + overdueTasks.length;
+  const todayCount = slaWarning + checkInCounts.today + todayTasks.length;
+  const waitingCount = needsPlacement + waitingTasks.length;
 
   const worklistQueries = [interviewSlaQuery, needsPlacementQuery, tasksQuery, checkInsQuery];
   const worklistLoading = worklistQueries.some((q) => q.isPending && !q.isError);
@@ -327,7 +327,7 @@ export const TADashboard: React.FC = () => {
                     )}
                     {overdueTasks.map(taskRow)}
                   </WorkGroup>
-                  <WorkGroup label="Due today" count={todayCount}>
+                  <WorkGroup label="Due soon" count={todayCount}>
                     {slaWarning > 0 && (
                       <WorkRow to="/ta/interviews" tone="warning" title={`${plural(slaWarning, "interview")} due within 48 hours`} />
                     )}

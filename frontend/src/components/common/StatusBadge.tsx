@@ -13,6 +13,7 @@ import {
   getTargetDateTone,
   getTaStatusTone,
 } from "../../lib/ta-copy";
+import { stageChipClass } from "../../lib/chart-palette";
 
 export interface StatusBadgeProps {
   status?: string | null;
@@ -40,6 +41,9 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
 
   if (type === "application") {
     meta = getApplicationStatusPresentation(status, audience);
+    // Staff stage chips share the stage ramp used by Reports; applicant chips keep their own palette.
+    const stageClass = audience === "staff" ? stageChipClass(status) : undefined;
+    if (stageClass) meta = { ...meta, badgeClass: stageClass };
   } else if (type === "deployment") {
     meta = getDeploymentStatusMeta(status, employeeStatus);
   } else if (type === "employment") {

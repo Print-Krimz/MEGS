@@ -40,7 +40,7 @@ interface PeriodTagProps {
 /** Marks whether a number is a snapshot of today or counts events inside the selected date range. */
 export const PeriodTag: React.FC<PeriodTagProps> = ({ kind }) => (
   <span
-    className={`ml-1.5 px-1 py-px whitespace-nowrap text-[11px] font-mono font-medium rounded border align-middle ${
+    className={`ml-1.5 px-1 py-px whitespace-nowrap text-[11px] font-medium rounded border align-middle ${
       kind === "now" ? "bg-slate-100 text-slate-600 border-slate-300" : "bg-navy-soft text-navy border-navy-line"
     }`}
   >

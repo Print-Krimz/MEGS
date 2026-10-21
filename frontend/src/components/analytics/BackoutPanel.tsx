@@ -41,7 +41,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
                   >
                     <div className="flex items-baseline justify-between text-xs">
                       <span className="font-sans text-slate-900">{analyticsStageLabel(row.stage, row.label)}</span>
-                      <span className="font-mono tabular-nums text-slate-700">{row.total}</span>
+                      <span className="tabular-nums text-slate-700">{row.total}</span>
                     </div>
                     <div className="mt-0.5">
                       <StackedBar
@@ -64,7 +64,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
                 <li key={r.reason} className="text-xs">
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="font-sans text-slate-900">{BACKOUT_REASON_LABELS[r.reason] ?? r.reason}</span>
-                    <span className="font-mono tabular-nums text-slate-700">{r.count}</span>
+                    <span className="tabular-nums text-slate-700">{r.count}</span>
                   </div>
                   <div className="mt-0.5">
                     <BarMark label={BACKOUT_REASON_LABELS[r.reason] ?? r.reason} value={r.count} max={maxReason} pct={`${Math.round((r.count / total) * 100)}% of all`} color={NEUTRAL_MARK} heightClass="h-2" focusable />
@@ -83,7 +83,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
                   {data.byClient.map((c) => (
                     <li key={c.clientName} className="flex justify-between gap-3">
                       <span className="truncate">{c.clientName}</span>
-                      <span className="font-mono tabular-nums text-slate-700">{c.count}</span>
+                      <span className="tabular-nums text-slate-700">{c.count}</span>
                     </li>
                   ))}
                 </ul>
@@ -94,7 +94,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
                   {data.byRequest.map((r) => (
                     <li key={r.mrfId} className="flex justify-between gap-3">
                       <span className="truncate" title={r.clientName ?? undefined}>{r.title}</span>
-                      <span className="font-mono tabular-nums text-slate-700">{r.count}</span>
+                      <span className="tabular-nums text-slate-700">{r.count}</span>
                     </li>
                   ))}
                 </ul>
