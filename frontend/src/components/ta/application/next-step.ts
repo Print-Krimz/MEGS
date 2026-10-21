@@ -2,8 +2,20 @@ import type { Application } from "../../../lib/types";
 import { ApplicationStatus } from "../../../lib/types/enums";
 import { formatDate } from "../../../lib/utils";
 import { deploymentStatusLabel } from "../../../lib/labels";
+import { plural } from "../../../lib/plural";
 import { deploymentStartsOn } from "../../../lib/ta-copy";
 import type { ApplicationFlags } from "./stage-actions";
+
+/**
+ * The one definition of "what is left" in the requirements list. Used by the next-step line, the
+ * readiness card and (through the same flags) the tab badge: documents to review are the submitted ones.
+ */
+export function describeRequirementProgress(submitted: number, notSubmitted: number): string {
+  const parts: string[] = [];
+  if (submitted > 0) parts.push(`${plural(submitted, "document")} to review`);
+  if (notSubmitted > 0) parts.push(`${notSubmitted} not yet submitted`);
+  return parts.join(". ");
+}
 
 export interface NextStep {
   text: string;
@@ -54,11 +66,10 @@ export function getNextStep(app: Application, flags: ApplicationFlags): NextStep
     if (flags.canAdvanceToContractSigning) {
       return { text: "All required documents are approved. Next: move the candidate to contract signing.", needsTa: true };
     }
-    const pending = Math.max(0, flags.totalCompReqs - flags.approvedCompReqs);
     const detail =
       flags.totalCompReqs === 0
         ? "The requirements list is not ready yet."
-        : `${pending} of ${flags.totalCompReqs} documents still need review.`;
+        : (describeRequirementProgress(flags.submittedCompReqs, flags.missingCompReqs) || "Waiting on the remaining requirements") + ".";
     return { text: `Required items still pending. ${detail}`, needsTa: true };
   }
 

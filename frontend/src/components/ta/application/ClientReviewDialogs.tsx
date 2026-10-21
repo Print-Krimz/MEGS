@@ -192,7 +192,7 @@ export const ClientDecisionDialog: React.FC<ClientDecisionDialogProps> = ({
 
         {priorNote && (
           <p className="text-xs text-slate-600">
-            Sent to client{priorNote.date ? ` on ${priorNote.date}` : ""}: {priorNote.notes}
+            {/^sent to client/i.test(priorNote.notes) ? priorNote.notes : `Sent to client${priorNote.date ? ` on ${priorNote.date}` : ""}: ${priorNote.notes}`}
           </p>
         )}
 

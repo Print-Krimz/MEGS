@@ -62,7 +62,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, candi
             <span className="font-semibold">{candidateName}</span>
           </Row>
           <Row label="Mobile">
-            <span className="font-mono tabular-nums">{profile?.mobileNumber || "Not provided"}</span>
+            <span className="tabular-nums">{profile?.mobileNumber || "Not provided"}</span>
           </Row>
           <Row label="Date of birth">{profile?.dateOfBirth ? formatDate(profile.dateOfBirth) : "Not provided"}</Row>
           <Row label="Gender">{profile?.gender || "Unspecified"}</Row>
@@ -89,7 +89,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, candi
               <span>
                 {profile.emergencyContactName || "Contact"}
                 {profile.emergencyContactPhone && (
-                  <span className="ml-1.5 inline-block font-mono text-xs tabular-nums text-slate-600">({profile.emergencyContactPhone})</span>
+                  <span className="ml-1.5 inline-block text-xs tabular-nums text-slate-600">({profile.emergencyContactPhone})</span>
                 )}
               </span>
             ) : (

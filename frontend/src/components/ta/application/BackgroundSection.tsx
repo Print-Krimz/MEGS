@@ -67,7 +67,7 @@ export const BackgroundSection: React.FC<BackgroundSectionProps> = ({ profile, j
                 {jobs.map((exp) => (
                   <div key={exp.id} className="py-2">
                     <span className="font-semibold text-slate-900">{exp.roleTitle}</span> at <span className="font-medium text-slate-800">{exp.company}</span>
-                    <div className="font-mono text-xs tabular-nums text-slate-600">
+                    <div className="text-xs tabular-nums text-slate-600">
                       {formatDate(exp.startDate)} — {exp.isCurrent ? "Present" : exp.endDate ? formatDate(exp.endDate) : "N/A"}
                     </div>
                     {exp.summary && <p className="mt-1 text-slate-700">{exp.summary}</p>}

@@ -587,7 +587,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   isMarkingPassed: m.updateInterviewStatus.isPending,
                 }}
                 background={{ profile, jobPosting: app.jobPosting }}
-                personal={!resumeBesideContent && !isEditingProfile ? personalDetails : null}
+                personal={!isEditingProfile ? personalDetails : null}
               />
             )}
 
@@ -598,6 +598,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   fallbackClientName: linkedClientName,
                   isPastClientReview: flags.isPastClientReview,
                   canRecordDecision: flags.canRecordClientReview,
+                  stageBarOwnsDecision: flags.isClientEndorsementStage && flags.isPendingClientReview,
                   onRecordDecision: (end) => {
                     const real = (app.clientEndorsements || []).find((e) => e.id === end.id);
                     if (real) openClientDecision(real, real.outcome === "PENDING");
@@ -607,6 +608,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 isDeployed={app.status === ApplicationStatus.DEPLOYED}
                 requirements={requirements}
                 counts={requirementCounts}
+                showReadiness={flags.isComplianceStage || flags.isContractSigningStage || flags.isTerminal || app.status === ApplicationStatus.DEPLOYED}
                 isAllApproved={flags.isAllClearancesApproved}
                 canRemove={!["CONTRACT_SIGNING", "DEPLOYED"].includes(String(app.status))}
                 onAdd={() => setDialog({ kind: "addRequirement" })}
@@ -634,6 +636,8 @@ export const ApplicationDetailPage: React.FC = () => {
                     app={app}
                     totalCompReqs={flags.totalCompReqs}
                     approvedCompReqs={flags.approvedCompReqs}
+                    submittedCompReqs={flags.submittedCompReqs}
+                    missingCompReqs={flags.missingCompReqs}
                     hasUnapprovedMandatoryCompliance={flags.hasUnapprovedMandatoryCompliance}
                     isComplianceStage={flags.isComplianceStage}
                     canAdvanceToContractSigning={flags.canAdvanceToContractSigning}
@@ -672,9 +676,7 @@ export const ApplicationDetailPage: React.FC = () => {
             onFullscreen={openResumeFullscreen}
             onHide={() => toggleResume(false)}
             topOffset={56 + stageBarHeight + 12}
-          >
-            {!isEditingProfile && personalDetails}
-          </ResumeColumn>
+          />
         )}
       </div>
 

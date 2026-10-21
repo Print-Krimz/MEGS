@@ -7,11 +7,16 @@ import { ApplicationStatus } from "../../lib/types";
 import { cn, formatDate as formatAppDate } from "../../lib/utils";
 import { deploymentStatusLabel } from "../../lib/labels";
 import { deploymentStartsOn } from "../../lib/ta-copy";
+import { describeRequirementProgress } from "./application/next-step";
 
 export interface OnboardingDeploymentStepperProps {
   app: Application;
   totalCompReqs: number;
   approvedCompReqs: number;
+  /** Requirements with a document waiting for review. Same count as the tab badge. */
+  submittedCompReqs?: number;
+  /** Requirements with no document yet (excluding "to follow"). */
+  missingCompReqs?: number;
   hasUnapprovedMandatoryCompliance: boolean;
   isComplianceStage: boolean;
   canAdvanceToContractSigning: boolean;
@@ -68,6 +73,8 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
   app,
   totalCompReqs,
   approvedCompReqs,
+  submittedCompReqs = 0,
+  missingCompReqs = 0,
   hasUnapprovedMandatoryCompliance,
   isComplianceStage,
   canAdvanceToContractSigning: _canAdvanceToContractSigning,
@@ -244,7 +251,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
         <div className="w-full shrink-0 space-y-1.5 sm:w-52">
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-slate-900">{completedMilestonesCount} of 3 steps complete</span>
-            <span className="font-mono tabular-nums text-slate-700">{progressPercent}%</span>
+            <span className="tabular-nums text-slate-700">{progressPercent}%</span>
           </div>
           <div
             className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200"
@@ -277,7 +284,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                     ? "All required documents approved"
                     : totalCompReqs === 0
                     ? "No requirements configured yet"
-                    : `${totalCompReqs - approvedCompReqs} documents still need review`}
+                    : describeRequirementProgress(submittedCompReqs, missingCompReqs) || "Waiting on the remaining requirements"}
                 </span>
               </p>
             </div>
@@ -316,9 +323,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                 Update contract
               </Button>
             ) : isContractSigningStage && isStep1Complete ? (
-              <Button variant="ghost" size="sm" leftIcon={<FileSignature className="h-3.5 w-3.5" />} onClick={onRecordContract}>
-                Upload signed contract
-              </Button>
+              <span className="px-1 text-sm text-slate-600">Use the button in the bar above</span>
             ) : (
               <span className="px-1 text-sm text-slate-600">Not available yet</span>
             )}

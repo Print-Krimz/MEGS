@@ -56,7 +56,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ events, isLoading }) =
                         <span className="sr-only">{KIND_LABEL[event.kind]}: </span>
                         {event.title}
                       </p>
-                      <time dateTime={event.at} className="font-mono text-xs tabular-nums text-slate-600">
+                      <time dateTime={event.at} className="text-xs tabular-nums text-slate-600">
                         {formatDateTime(event.at)}
                       </time>
                     </div>

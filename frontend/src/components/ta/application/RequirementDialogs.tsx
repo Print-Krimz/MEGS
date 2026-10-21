@@ -110,6 +110,7 @@ export const AddRequirementDialog: React.FC<AddRequirementDialogProps> = ({
           value={deadline}
           onChange={(e) => setDeadline(e.target.value)}
           min={getManilaToday()}
+          helperText={deadline ? formatDate(deadline) : undefined}
         />
 
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
@@ -177,6 +178,7 @@ export const EditDeadlineDialog: React.FC<EditDeadlineDialogProps> = ({
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
+          helperText={date ? formatDate(date) : undefined}
           min={date && date < getManilaToday() ? date : getManilaToday()}
           required
         />

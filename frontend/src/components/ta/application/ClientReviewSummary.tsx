@@ -18,6 +18,8 @@ export interface ClientReviewSummaryProps {
   /** The application is past the client review stage (a decision can still be written down, never sent). */
   isPastClientReview: boolean;
   canRecordDecision: boolean;
+  /** The stage bar already offers "Record client decision" for a waiting decision, so the row does not repeat it. */
+  stageBarOwnsDecision?: boolean;
   /** Opens the decision dialog for an existing record. */
   onRecordDecision: (endorsement: EndorsementData) => void;
   /** Opens the dialog that writes down a decision that was never entered. */
@@ -40,6 +42,7 @@ export const ClientReviewSummary: React.FC<ClientReviewSummaryProps> = ({
   fallbackClientName,
   isPastClientReview,
   canRecordDecision,
+  stageBarOwnsDecision = false,
   onRecordDecision,
   onRecordMissing,
 }) => {
@@ -71,7 +74,7 @@ export const ClientReviewSummary: React.FC<ClientReviewSummaryProps> = ({
               {open ? "Hide history" : `History (${plural(endorsements.length, "record")})`}
             </button>
           )}
-          {latest && canRecordDecision && (
+          {latest && canRecordDecision && !(stageBarOwnsDecision && latest.outcome === "PENDING") && (
             <button type="button" className={linkButton} onClick={() => onRecordDecision(latest)}>
               {latest.outcome === "PENDING" ? "Record client decision" : "Change decision"}
             </button>

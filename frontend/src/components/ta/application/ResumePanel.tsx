@@ -11,24 +11,24 @@ interface ViewerProps {
   onFullscreen: () => void;
 }
 
-/** Sticky right-hand column from 1024px. It scrolls on its own, so the profile content can scroll beside it. */
-export const ResumeColumn: React.FC<
-  ViewerProps & { onHide: () => void; topOffset: number; children?: React.ReactNode }
-> = ({ resumeUrl, candidateName, candidateInitials, onFullscreen, onHide, topOffset, children }) => (
-  <aside
-    aria-label="Resume"
-    className="space-y-4 lg:sticky lg:overflow-y-auto lg:overscroll-contain"
-    style={{ top: topOffset, maxHeight: `calc(100vh - ${topOffset}px - 1rem)` }}
-  >
+/** Sticky right-hand column from 1024px. It holds the resume only, so it never needs its own scroll. */
+export const ResumeColumn: React.FC<ViewerProps & { onHide: () => void; topOffset: number }> = ({
+  resumeUrl,
+  candidateName,
+  candidateInitials,
+  onFullscreen,
+  onHide,
+  topOffset,
+}) => (
+  <aside aria-label="Resume" className="lg:sticky" style={{ top: topOffset }}>
     <InlineResumeViewer
       resumeUrl={resumeUrl}
       candidateName={candidateName}
       candidateInitials={candidateInitials}
       onOpenFullscreen={onFullscreen}
       onCollapse={onHide}
-      bodyClassName="min-h-[280px] h-[calc(100vh-27rem)] max-h-[720px]"
+      bodyClassName="min-h-[280px] h-[calc(100vh-16rem)] max-h-[800px]"
     />
-    {children}
   </aside>
 );
 

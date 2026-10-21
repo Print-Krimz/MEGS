@@ -91,12 +91,12 @@ export const InterviewList: React.FC<InterviewListProps> = ({ interviews, schedu
                   <div className="flex items-center gap-2 text-sm text-slate-700">
                     <Clock className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
                     <span>
-                      Scheduled: <span className="font-mono tabular-nums">{formatDateTime(int.scheduledAt || int.createdAt)}</span>
+                      Scheduled: <span className="tabular-nums">{formatDateTime(int.scheduledAt || int.createdAt)}</span>
                     </span>
                   </div>
                   {int.conductedAt && (
                     <div className="text-sm text-slate-600">
-                      Conducted: <span className="font-mono tabular-nums">{formatDateTime(int.conductedAt)}</span>
+                      Conducted: <span className="tabular-nums">{formatDateTime(int.conductedAt)}</span>
                     </div>
                   )}
                   {int.notes && (

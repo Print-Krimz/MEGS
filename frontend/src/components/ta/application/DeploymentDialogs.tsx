@@ -116,14 +116,14 @@ export const ActivateDeploymentDialog: React.FC<ActivateDeploymentDialogProps> =
         />
 
         <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
-          <Input label="Contract start date" type="date" value={start} onChange={(e) => setStart(e.target.value)} min={getManilaToday()} required />
+          <Input label="Contract start date" type="date" value={start} onChange={(e) => setStart(e.target.value)} min={getManilaToday()} helperText={start ? formatDate(start) : undefined} required />
           <Input
             label="Contract end date"
             type="date"
             value={end}
             onChange={(e) => setEnd(e.target.value)}
             min={start || getManilaToday()}
-            helperText="Optional for rolling contracts"
+            helperText={end ? formatDate(end) : "Optional for rolling contracts"}
             error={datesInvalid ? "Must be on or after start date" : undefined}
           />
         </div>
@@ -297,6 +297,7 @@ export const SignedContractDialog: React.FC<SignedContractDialogProps> = ({
           type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
+          helperText={startDate ? formatDate(startDate) : undefined}
           required
         />
 

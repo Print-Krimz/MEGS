@@ -18,6 +18,8 @@ export interface RequirementsTabProps {
   onRequestCopy: (req: RequirementRowData) => void;
   onEditDeadline: (req: RequirementRowData) => void;
   onRemove: (req: RequirementRowData) => void;
+  /** Contract signing opens once requirements are approved. Before that the section is one line. */
+  showReadiness: boolean;
   /** Contract and deployment steps (the readiness list). */
   readiness: React.ReactNode;
 }
@@ -36,6 +38,7 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
   onRequestCopy,
   onEditDeadline,
   onRemove,
+  showReadiness,
   readiness,
 }) => {
   // The list opens while work remains and folds away once everything is approved; the recruiter can override it.
@@ -117,9 +120,15 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
           <h3 id="contract-heading" className="text-base font-semibold text-slate-900">
             Contract signing & deployment
           </h3>
-          <p className="text-sm text-slate-600">Prepare the MEGS contract, upload the signed copy, and confirm the employee&apos;s first day on site.</p>
+          <p className="text-sm text-slate-600">
+            {isDeployed
+              ? "Deployment record."
+              : showReadiness
+              ? "Prepare the MEGS contract, upload the signed copy, and confirm the employee’s first day on site."
+              : "Contract signing opens after requirements are approved."}
+          </p>
         </div>
-        {readiness}
+        {showReadiness && readiness}
       </section>
     </div>
   );
