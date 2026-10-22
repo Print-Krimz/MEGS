@@ -129,7 +129,7 @@ export const CheckInsPanel: React.FC<CheckInsPanelProps> = ({ onConfirmed }) => 
         </ul>
       )}
 
-      <EncodeWalkInDialog open={Boolean(detail)} checkIn={detail} onClose={() => setDetail(null)} onCreated={onConfirmed} />
+      {detail && <EncodeWalkInDialog open checkIn={detail} onClose={() => setDetail(null)} onCreated={onConfirmed} />}
 
       <Dialog
         open={Boolean(dismissing)}

@@ -3,7 +3,7 @@ import prisma from "../../utils/prisma.js";
 import { displayEmail } from "../../utils/display-email.js";
 import { maskPhoneNumber, sendSmsViaTextBee } from "../../utils/sms.js";
 import { assertOwns } from "./ownership.js";
-import { buildTrackingCode, generateTrackingToken } from "./walk-in.service.js";
+import { buildTrackingCode, generateTrackingToken } from "./walk-in-tokens.js";
 import { sendNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
 import { calculateAndPersistCandidateScore } from "../scoring/candidate-scoring.service.js";

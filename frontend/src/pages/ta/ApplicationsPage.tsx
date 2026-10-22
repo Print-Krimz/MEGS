@@ -669,9 +669,10 @@ export const ApplicationsPage: React.FC = () => {
         flush
       />
 
-      <EncodeWalkInDialog open={encodeOpen} onClose={() => setEncodeOpen(false)} onCreated={setWalkInSlip} />
-      <WalkInSlipDialog slip={walkInSlip} onClose={() => setWalkInSlip(null)} />
-      <CheckInPosterDialog open={posterOpen} onClose={() => setPosterOpen(false)} />
+      {/* Mounted only while open: the encode form's unsaved-changes guard should not run on every page view. */}
+      {encodeOpen && <EncodeWalkInDialog open onClose={() => setEncodeOpen(false)} onCreated={setWalkInSlip} />}
+      {walkInSlip && <WalkInSlipDialog slip={walkInSlip} onClose={() => setWalkInSlip(null)} />}
+      {posterOpen && <CheckInPosterDialog open onClose={() => setPosterOpen(false)} />}
 
       {feedback && (
         <div
