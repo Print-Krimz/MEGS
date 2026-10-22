@@ -251,3 +251,36 @@ body {
     transform: translate(-50%, -50%);
   }
 }
+
+/* Walk-in slip: print only the slip, on 80 mm receipt paper. */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  .print-slip,
+  .print-slip * {
+    visibility: visible !important;
+  }
+  .print-slip {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    padding: 4mm;
+    color: #000 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+  .print-slip * {
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+  .print-slip .no-print {
+    display: none !important;
+  }
+}

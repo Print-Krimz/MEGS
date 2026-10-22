@@ -11,6 +11,7 @@ import { OtpCodeField } from "../../components/auth/OtpCodeField";
 import { authApi } from "../../lib/api/auth.api";
 import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
 import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
+import { ApiError } from "../../lib/api/client";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { maskIdentifier, isPhilippinePhone } from "../../lib/utils";
 import { useSecurityControls } from "../../hooks/useSecurityControls";
@@ -60,6 +61,7 @@ export const RegisterPage: React.FC = () => {
   const [step, setStep] = useState<"REGISTER" | "VERIFY_OTP" | "SUCCESS">("REGISTER");
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
+  const [claimable, setClaimable] = useState(false);
   const [cooldown, setCooldown] = useState(60);
 
   useEffect(() => { if (rateLimitDisabled) setCooldown(0); }, [rateLimitDisabled, cooldown]);
@@ -92,6 +94,12 @@ export const RegisterPage: React.FC = () => {
     onError: (err) => {
       turnstileRef.current?.reset();
       setTurnstileToken("");
+      const details = err instanceof ApiError ? (err.details as { code?: string } | undefined) : undefined;
+      if (details && !Array.isArray(details) && details.code === "ACCOUNT_CLAIMABLE") {
+        setClaimable(true);
+        setServerError(null);
+        return;
+      }
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
     },
@@ -137,6 +145,7 @@ export const RegisterPage: React.FC = () => {
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setServerError(null);
+    setClaimable(false);
 
     const result = registerSchema.safeParse(formData);
     if (!result.success) {
@@ -335,6 +344,15 @@ export const RegisterPage: React.FC = () => {
         />
 
         <AuthError message={serverError} />
+        {claimable && (
+          <p role="alert" className="rounded-lg border border-border bg-muted p-4 text-base text-foreground">
+            A MEGS office already set up an account for this number.{" "}
+            <Link to="/claim" className="font-semibold text-accent underline underline-offset-4">
+              Set up your account
+            </Link>{" "}
+            to choose a password.
+          </p>
+        )}
 
         <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-6" noValidate>
           <FieldGroup>

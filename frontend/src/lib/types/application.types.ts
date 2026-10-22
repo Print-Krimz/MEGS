@@ -167,8 +167,37 @@ export interface CandidateScore {
   } | null;
 }
 
+export type ApplicationSource = "ONLINE" | "WALK_IN";
+
+export interface WalkInMatch {
+  userId: string;
+  fullName: string;
+  /** For example "0917 ••• 4521". */
+  maskedPhone: string | null;
+  hasPortalAccess: boolean;
+  isWalkIn: boolean;
+  latestApplication: { jobTitle: string; status: ApplicationStatus } | null;
+}
+
+export interface WalkInSlip {
+  applicationId: number;
+  trackingCode: string;
+  /** Raw token. Shown once, so it only lives on the printed slip. */
+  trackingToken: string;
+  /** `/t/${trackingCode}?token=${trackingToken}` */
+  trackPath: string;
+  applicantName: string;
+  jobTitle: string;
+  clientName: string | null;
+  location: string | null;
+  createdAt: string;
+}
+
 export interface Application {
   id: number;
+  source?: ApplicationSource;
+  trackingCode?: string | null;
+  hasPortalAccess?: boolean;
   userId: string;
   jobPostingId: number;
   status: ApplicationStatus;
@@ -242,6 +271,9 @@ export interface ReturningWorkerInfo {
 
 export interface TAApplicationSummary {
   id: number;
+  source?: ApplicationSource;
+  trackingCode?: string | null;
+  hasPortalAccess?: boolean;
   status: ApplicationStatus;
   isArchived: boolean;
   returning?: ReturningWorkerInfo | null;

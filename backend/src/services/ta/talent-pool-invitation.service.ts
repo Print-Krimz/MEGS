@@ -1,4 +1,9 @@
+import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import prisma from "../../utils/prisma.js";
+import { displayEmail } from "../../utils/display-email.js";
+import { maskPhoneNumber, sendSmsViaTextBee } from "../../utils/sms.js";
+import { assertOwns } from "./ownership.js";
+import { buildTrackingCode, generateTrackingToken } from "./walk-in.service.js";
 import { sendNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
 import { calculateAndPersistCandidateScore } from "../scoring/candidate-scoring.service.js";
@@ -21,8 +26,23 @@ export interface BatchSendInvitationsInput {
   expiresInDays?: number;
 }
 
+export type InvitationActor =
+  | { kind: "APPLICANT"; userId: string }
+  | { kind: "ASSISTED"; taId: string; channel: "ASSISTED_PHONE" | "IN_PERSON" }
+  | { kind: "MAGIC_LINK" };
+
+export type DeclineReason = "SALARY_MISMATCH" | "UNAVAILABLE_EMPLOYED" | "LOCATION_COMMUTE" | "NOT_INTERESTED" | "OTHER";
+
+/** Carries an HTTP status so controllers can answer 404, 409 or 502 without string matching. */
+export class InvitationActionError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "InvitationActionError";
+  }
+}
+
 export interface RespondInvitationInput {
-  userId: string;
+  actor: InvitationActor;
   invitationId: number;
   decision: "ACCEPT" | "DECLINE";
   declineReason?: "SALARY_MISMATCH" | "UNAVAILABLE_EMPLOYED" | "LOCATION_COMMUTE" | "NOT_INTERESTED" | "OTHER";
@@ -243,7 +263,8 @@ export const listOutgoingInvitations = async (options: ListInvitationsQuery = {}
             id: true,
             firstName: true,
             lastName: true,
-            user: { select: { id: true, email: true } },
+            mobileNumber: true,
+            user: { select: { id: true, email: true, accountStatus: true, phoneNumber: true } },
           },
         },
         invitedBy: {
@@ -267,7 +288,14 @@ export const listOutgoingInvitations = async (options: ListInvitationsQuery = {}
       candidateName: inv.applicantProfile
         ? `${inv.applicantProfile.firstName || ""} ${inv.applicantProfile.lastName || ""}`.trim() || "Candidate"
         : "Candidate",
-      candidateEmail: inv.applicantProfile?.user?.email || "No email",
+      candidateEmail: displayEmail(inv.applicantProfile?.user?.email) || "No email",
+      hasPortalAccess: inv.applicantProfile?.user?.accountStatus === "ACTIVE",
+      hasMobile: Boolean(inv.applicantProfile?.user?.phoneNumber || inv.applicantProfile?.mobileNumber),
+      responseChannel: inv.responseChannel,
+      maskedMobile: (() => {
+        const mobile = inv.applicantProfile?.user?.phoneNumber || inv.applicantProfile?.mobileNumber;
+        return mobile ? maskPhoneNumber(mobile) : null;
+      })(),
       status: inv.status,
       message: inv.message,
       declineReason: inv.declineReason,
@@ -361,13 +389,13 @@ export const getMyJobInvitations = async (userId: string) => {
 };
 
 export const respondToJobInvitation = async (input: RespondInvitationInput) => {
-  const { userId, invitationId, decision, declineReason, notes } = input;
+  const { actor, invitationId, decision, declineReason, notes } = input;
 
   const invitation = await prisma.talentPoolInvitation.findUnique({
     where: { id: invitationId },
     include: {
       applicantProfile: {
-        select: { id: true, userId: true, firstName: true, lastName: true, resumeUrl: true },
+        select: { id: true, userId: true, firstName: true, lastName: true, resumeUrl: true, user: { select: { accountStatus: true } } },
       },
       jobPosting: { include: { mrf: { select: { clientId: true } } } },
     },
@@ -378,9 +406,21 @@ export const respondToJobInvitation = async (input: RespondInvitationInput) => {
   }
 
   const applicantProfile = invitation.applicantProfile ?? (invitation as any).membership?.applicantProfile;
-  if (!applicantProfile || applicantProfile.userId !== userId) {
+  if (!applicantProfile) {
+    throw new InvalidKnnRequestError("Invitation not found");
+  }
+  // Only the applicant's own login is checked against the profile; staff and link replies were authorised upstream.
+  if (actor.kind === "APPLICANT" && applicantProfile.userId !== actor.userId) {
     throw new InvalidKnnRequestError("Unauthorized to respond to this invitation.");
   }
+  const userId = applicantProfile.userId;
+  const channel = actor.kind === "APPLICANT" ? "PORTAL" : actor.kind === "ASSISTED" ? actor.channel : "SMS_MAGIC_LINK";
+  const channelData = {
+    responseChannel: channel,
+    assistedById: actor.kind === "ASSISTED" ? actor.taId : null,
+    responseTokenHash: null,
+  } as const;
+  const auditActorId = actor.kind === "ASSISTED" ? actor.taId : userId;
 
   if (invitation.status !== "PENDING") {
     throw new InvalidKnnRequestError(`Invitation is no longer pending (current status: ${invitation.status}).`);
@@ -432,24 +472,40 @@ export const respondToJobInvitation = async (input: RespondInvitationInput) => {
     const applicationStatus = priorSameClientDeployment ? "COMPLIANCE" : "SUBMITTED";
 
     const result = await prisma.$transaction(async (tx) => {
-      const updatedInv = await tx.talentPoolInvitation.update({
-        where: { id: invitationId },
+      // Claim the pending invitation first so overlapping taps cannot both create an application.
+      const claimed = await tx.talentPoolInvitation.updateMany({
+        where: { id: invitationId, status: "PENDING" },
         data: {
           status: "ACCEPTED",
           responseNotes: notes || null,
           respondedAt: new Date(),
+          ...channelData,
         },
       });
+      if (claimed.count !== 1) throw new InvalidKnnRequestError("Invitation is no longer pending.");
+      const updatedInv = (await tx.talentPoolInvitation.findUnique({ where: { id: invitationId } }))!;
 
-      const newApplication = await tx.application.create({
+      // A walk-in who accepts keeps a walk-in application so the TA can print a tracking slip.
+      const isWalkIn = (applicantProfile as any).user?.accountStatus === "WALK_IN";
+      let newApplication = await tx.application.create({
         data: {
           userId,
           jobPostingId: invitation.jobPostingId,
           attemptNumber,
           status: applicationStatus,
           resumeUrl: applicantProfile.resumeUrl,
+          ...(isWalkIn ? { source: "WALK_IN" as const } : {}),
         },
       });
+      if (isWalkIn) {
+        newApplication = await tx.application.update({
+          where: { id: newApplication.id },
+          data: {
+            trackingCode: buildTrackingCode("WALK_IN", newApplication.id, new Date().getFullYear()),
+            trackingTokenHash: generateTrackingToken().hash,
+          },
+        });
+      }
 
       await tx.recruiterDecision.create({
         data: {
@@ -497,9 +553,10 @@ export const respondToJobInvitation = async (input: RespondInvitationInput) => {
       `/ta/applications/${result.application.id}`
     );
 
-    void logAudit(userId, "TALENT_POOL_INVITATION_ACCEPTED", "Application", result.application.id, {
+    void logAudit(auditActorId, "TALENT_POOL_INVITATION_ACCEPTED", "Application", result.application.id, {
       invitationId,
       jobPostingId: invitation.jobPostingId,
+      channel,
     });
 
     return {
@@ -511,15 +568,18 @@ export const respondToJobInvitation = async (input: RespondInvitationInput) => {
   } else {
     // Decline
     const updatedInv = await prisma.$transaction(async (tx) => {
-      const inv = await tx.talentPoolInvitation.update({
-        where: { id: invitationId },
+      const claimed = await tx.talentPoolInvitation.updateMany({
+        where: { id: invitationId, status: "PENDING" },
         data: {
           status: "DECLINED",
           declineReason: declineReason || "NOT_INTERESTED",
           responseNotes: notes || null,
           respondedAt: new Date(),
+          ...channelData,
         },
       });
+      if (claimed.count !== 1) throw new InvalidKnnRequestError("Invitation is no longer pending.");
+      const inv = (await tx.talentPoolInvitation.findUnique({ where: { id: invitationId } }))!;
 
       if (invitation.membershipId && declineReason === "UNAVAILABLE_EMPLOYED") {
         await tx.talentPoolMembership.update({
@@ -551,10 +611,11 @@ export const respondToJobInvitation = async (input: RespondInvitationInput) => {
       `/ta/jobs/${invitation.jobPostingId}`
     );
 
-    void logAudit(userId, "TALENT_POOL_INVITATION_DECLINED", "JobPosting", invitation.jobPostingId, {
+    void logAudit(auditActorId, "TALENT_POOL_INVITATION_DECLINED", "JobPosting", invitation.jobPostingId, {
       invitationId,
       declineReason,
       notes,
+      channel,
     });
 
     return {
@@ -609,4 +670,143 @@ export const expirePendingInvitationsWorker = async () => {
   }
 
   return { expiredCount: count };
+};
+
+// ---------------------------------------------------------------------------
+// Offer replies without the portal: TA-recorded replies and one-time SMS links.
+// ---------------------------------------------------------------------------
+
+const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+
+const tokenMatches = (token: string, storedHash: string | null | undefined): boolean => {
+  if (!storedHash || typeof token !== "string" || !token) return false;
+  const a = Buffer.from(sha256(token), "hex");
+  const b = Buffer.from(storedHash, "hex");
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+
+const offerLinkBaseUrl = () => (process.env.APP_URL || process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+
+const loadOwnedInvitation = async (invitationId: number, taId: string) => {
+  const invitation = await prisma.talentPoolInvitation.findUnique({
+    where: { id: invitationId },
+    include: {
+      jobPosting: { select: { id: true, title: true } },
+      applicantProfile: { select: { mobileNumber: true, user: { select: { phoneNumber: true } } } },
+    },
+  });
+  if (!invitation) throw new InvitationActionError("Invitation not found", 404);
+  try {
+    await assertOwns("job", invitation.jobPostingId, { id: taId, role: "TALENT_ACQUISITION" });
+  } catch {
+    throw new InvitationActionError("Invitation not found", 404);
+  }
+  return invitation;
+};
+
+export interface AssistedResponseInput {
+  invitationId: number;
+  taId: string;
+  decision: "ACCEPT" | "DECLINE";
+  channel: "ASSISTED_PHONE" | "IN_PERSON";
+  declineReason?: DeclineReason;
+  notes?: string;
+}
+
+/** A TA records an answer the applicant gave by phone or in person. */
+export const recordAssistedResponse = async (input: AssistedResponseInput) => {
+  const { invitationId, taId, decision, channel, declineReason, notes } = input;
+  await loadOwnedInvitation(invitationId, taId);
+  const result = await respondToJobInvitation({
+    actor: { kind: "ASSISTED", taId, channel },
+    invitationId,
+    decision,
+    declineReason,
+    notes,
+  });
+  return {
+    status: result.invitation.status as "ACCEPTED" | "DECLINED",
+    ...("application" in result && result.application ? { applicationId: result.application.id } : {}),
+  };
+};
+
+/** Texts the applicant a one-time Accept/Decline link. */
+export const sendOfferSmsLink = async (input: { invitationId: number; taId: string }) => {
+  const { invitationId, taId } = input;
+  const invitation = await loadOwnedInvitation(invitationId, taId);
+  if (invitation.status !== "PENDING") {
+    throw new InvitationActionError(`Invitation is no longer pending (current status: ${invitation.status}).`, 409);
+  }
+  const mobile = invitation.applicantProfile?.user?.phoneNumber || invitation.applicantProfile?.mobileNumber;
+  if (!mobile) throw new InvitationActionError("This applicant has no mobile number on file.", 409);
+
+  const token = randomBytes(16).toString("base64url");
+
+  const url = `${offerLinkBaseUrl()}/offer/${invitationId}?token=${token}`;
+  const sent = await sendSmsViaTextBee(
+    mobile,
+    `MEGS: You have a job offer for ${invitation.jobPosting.title}. Open ${url} to accept or decline.`
+  );
+  if (!sent.success) {
+    // The previous link, if any, stays valid.
+    throw new InvitationActionError("The text message could not be sent. Try again.", 502);
+  }
+  await prisma.talentPoolInvitation.update({
+    where: { id: invitationId },
+    data: { responseTokenHash: sha256(token) },
+  });
+
+  void logAudit(taId, "TALENT_POOL_OFFER_LINK_SENT", "JobPosting", invitation.jobPostingId, { invitationId });
+
+  return { sentTo: maskPhoneNumber(mobile), expiresAt: invitation.expiresAt ? invitation.expiresAt.toISOString() : null };
+};
+
+const notFound = () => new InvitationActionError("Not found", 404);
+
+const loadInvitationForLink = async (invitationId: number, token: string) => {
+  const invitation = await prisma.talentPoolInvitation.findUnique({
+    where: { id: invitationId },
+    include: {
+      applicantProfile: { select: { firstName: true } },
+      jobPosting: { select: { title: true, location: true, mrf: { select: { client: { select: { name: true } } } } } },
+    },
+  });
+  if (!invitation || !tokenMatches(token, invitation.responseTokenHash)) throw notFound();
+  if (invitation.status !== "PENDING") throw notFound();
+  if (invitation.expiresAt && invitation.expiresAt.getTime() < Date.now()) throw notFound();
+  return invitation;
+};
+
+/** Public offer details for a valid, unused link. Every failure is the same not-found error. */
+export const getOfferByToken = async (invitationId: number, token: string) => {
+  const inv = await loadInvitationForLink(invitationId, token);
+  return {
+    invitationId: inv.id,
+    status: inv.status,
+    applicantFirstName: inv.applicantProfile?.firstName || "",
+    jobTitle: inv.jobPosting.title,
+    clientName: inv.jobPosting.mrf?.client?.name ?? null,
+    location: inv.jobPosting.location ?? null,
+    message: inv.message,
+    expiresAt: inv.expiresAt ? inv.expiresAt.toISOString() : null,
+  };
+};
+
+/** Accept or decline through the link. The token works once; any failure is a not-found error. */
+export const respondViaOfferLink = async (
+  invitationId: number,
+  token: string,
+  decision: "ACCEPT" | "DECLINE",
+  declineReason?: DeclineReason
+) => {
+  await loadInvitationForLink(invitationId, token);
+  try {
+    const result = await respondToJobInvitation({ actor: { kind: "MAGIC_LINK" }, invitationId, decision, declineReason });
+    return {
+      status: result.invitation.status as "ACCEPTED" | "DECLINED",
+      ...("application" in result && result.application ? { applicationId: result.application.id } : {}),
+    };
+  } catch {
+    throw notFound();
+  }
 };

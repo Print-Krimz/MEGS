@@ -51,7 +51,10 @@ const endorsement = requirement;
 const template = (a: Actor): Where =>
   restricted(a) ? { OR: [{ mrf: { is: mrf(a) } }, { mrfId: null, client: { is: client(a) } }] } : {};
 
-export const ownedWhere = { mrf, client, job, application, deployment, employee, employeePool, requirement, interview, endorsement, template };
+// A Talent Pool or Redeployment offer follows the job it offers.
+const invitation = (a: Actor): Where => (restricted(a) ? { jobPosting: { is: job(a) } } : {});
+
+export const ownedWhere = { mrf, client, job, application, deployment, employee, employeePool, requirement, interview, endorsement, template, invitation };
 
 type Kind = keyof typeof ownedWhere | "candidate";
 
@@ -67,6 +70,7 @@ const LABEL: Record<Kind, string> = {
   interview: "Interview",
   endorsement: "Endorsement",
   template: "Compliance template",
+  invitation: "Invitation",
   candidate: "Candidate",
 };
 
@@ -83,6 +87,7 @@ const count = (kind: Exclude<Kind, "candidate">, where: Where): Promise<number> 
     case "interview": return prisma.interview.count({ where: where as any });
     case "endorsement": return prisma.clientEndorsement.count({ where: where as any });
     case "template": return prisma.mRFComplianceTemplate.count({ where: where as any });
+    case "invitation": return prisma.talentPoolInvitation.count({ where: where as any });
   }
 };
 

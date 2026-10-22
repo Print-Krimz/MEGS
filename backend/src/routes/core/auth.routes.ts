@@ -10,6 +10,10 @@ import {
   changePassword,
   setupAccount,
   getInvitationDetails,
+  claimStart,
+  claimVerify,
+  claimEmailCode,
+  claimComplete,
 } from '../../controllers/core/auth.controller.js';
 import {
   enrollMfaHandler,
@@ -21,6 +25,7 @@ import {
 import { authenticateJWT } from '../../middleware/auth.middleware.js';
 import { validate } from '../../middleware/validate.middleware.js';
 import { authSchema } from '../../schemas/auth.schema.js';
+import { claimSchema } from '../../schemas/claim.schema.js';
 import {
   authLimiter,
   forgotPasswordLimiter,
@@ -51,6 +56,12 @@ router.post(
 router.post("/reset-password", authLimiter, validate(authSchema.resetPassword), resetPassword);
 router.get("/invitation-details", authLimiter, validate(authSchema.getInvitationDetails), getInvitationDetails);
 router.post("/setup-account", authLimiter, validate(authSchema.setupAccount), setupAccount);
+
+// Walk-in account claim (SMS code -> claim token -> optional email code -> password)
+router.post("/claim/start", authLimiter, verifyTurnstile, validate(claimSchema.start), claimStart);
+router.post("/claim/verify", authLimiter, validate(claimSchema.verify), claimVerify);
+router.post("/claim/email-code", authLimiter, validate(claimSchema.emailCode), claimEmailCode);
+router.post("/claim/complete", authLimiter, validate(claimSchema.complete), claimComplete);
 
 // MFA Endpoints (TOTP & Recovery)
 router.post("/mfa/enroll", authLimiter, validate(authSchema.enrollMfa), enrollMfaHandler);

@@ -95,6 +95,9 @@ app.use("/api/auth", authRoutes);
 
 import configRoutes from "./src/routes/core/config.routes.js";
 app.use("/api/config", configRoutes);
+
+import publicRoutes from "./src/routes/public/public.routes.js";
+app.use("/api/public", publicRoutes);
 // Auth verification endpoint: GET /api/me (Bearer <token>)
 app.get("/api/me", authenticateJWT, (req, res) => {
   sendSuccess(res, "Token is valid", { user: req.user });

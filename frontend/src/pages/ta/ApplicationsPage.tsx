@@ -24,8 +24,11 @@ import {
   PIPELINE_FILTER_STAGES,
 } from "../../lib/types/enums";
 import { notify } from "../../lib/feedback";
-import type { ReturningWorkerInfo, TAApplicationSummary } from "../../lib/types/application.types";
-import type { TAApplicationSearch } from "../../routes";
+import type { ReturningWorkerInfo, TAApplicationSummary, WalkInSlip } from "../../lib/types/application.types";
+import type { ApplicationSourceFilter, TAApplicationSearch } from "../../routes";
+import { SourceChip, APPLICATION_SOURCE_LABELS } from "../../components/ta/walk-in/SourceChip";
+import { EncodeWalkInDialog } from "../../components/ta/walk-in/EncodeWalkInDialog";
+import { WalkInSlipDialog } from "../../components/ta/walk-in/WalkInSlipDialog";
 import { TA_COPY } from "../../lib/ta-copy";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import {
@@ -44,7 +47,7 @@ const ReturningBadge: React.FC<{ info?: ReturningWorkerInfo | null }> = ({ info 
   return (
     <span
       title={title}
-      className={`mt-1 inline-flex max-w-[18rem] items-center rounded border px-1.5 py-0.5 text-xs font-medium ${
+      className={`inline-flex max-w-[18rem] items-center rounded border px-1.5 py-0.5 text-xs font-medium ${
         info.sameClient ? "border-navy-line bg-navy-soft text-navy" : "border-slate-300 bg-slate-50 text-slate-700"
       }`}
     >
@@ -160,6 +163,7 @@ export const ApplicationsPage: React.FC = () => {
     ...(routeSearch.stage ? { status: routeSearch.stage } : {}),
     ...(routeSearch.clientId ? { clientId: String(routeSearch.clientId) } : {}),
     ...(routeSearch.jobId ? { jobId: String(routeSearch.jobId) } : {}),
+    ...(routeSearch.source ? { source: routeSearch.source } : {}),
   }));
   const [showArchived, setShowArchived] = useState(Boolean(routeSearch.archived));
   const [returningOnly, setReturningOnly] = useState(Boolean(routeSearch.returning));
@@ -173,12 +177,13 @@ export const ApplicationsPage: React.FC = () => {
       ...(routeSearch.stage ? { status: routeSearch.stage } : {}),
       ...(routeSearch.clientId ? { clientId: String(routeSearch.clientId) } : {}),
       ...(routeSearch.jobId ? { jobId: String(routeSearch.jobId) } : {}),
+      ...(routeSearch.source ? { source: routeSearch.source } : {}),
     });
     setShowArchived(Boolean(routeSearch.archived));
     setReturningOnly(Boolean(routeSearch.returning));
     setSort(routeSearch.sort);
     setNeedsAction(Boolean(routeSearch.needsAction));
-  }, [routeSearch.page, routeSearch.q, routeSearch.stage, routeSearch.clientId, routeSearch.jobId, routeSearch.archived, routeSearch.returning, routeSearch.sort, routeSearch.needsAction]);
+  }, [routeSearch.page, routeSearch.q, routeSearch.stage, routeSearch.clientId, routeSearch.jobId, routeSearch.archived, routeSearch.returning, routeSearch.sort, routeSearch.needsAction, routeSearch.source]);
 
   const updateListUrl = (next: Partial<TAApplicationSearch>) => {
     const valueFor = <K extends keyof TAApplicationSearch>(key: K, fallback: TAApplicationSearch[K]) =>
@@ -190,6 +195,7 @@ export const ApplicationsPage: React.FC = () => {
         stage: valueFor("stage", filterValues.status as ApplicationStatus | undefined),
         clientId: valueFor("clientId", filterValues.clientId ? Number(filterValues.clientId) : undefined),
         jobId: valueFor("jobId", filterValues.jobId ? Number(filterValues.jobId) : undefined),
+        source: valueFor("source", filterValues.source as ApplicationSourceFilter | undefined),
         archived: valueFor("archived", showArchived || undefined),
         returning: valueFor("returning", returningOnly || undefined),
         sort: valueFor("sort", sort),
@@ -205,12 +211,16 @@ export const ApplicationsPage: React.FC = () => {
     stage: (filterValues.status as ApplicationStatus | undefined) || undefined,
     clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
     jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
+    source: (filterValues.source as ApplicationSourceFilter | undefined) || undefined,
     archived: showArchived || undefined,
     returning: returningOnly || undefined,
     sort,
     needsAction: needsAction || undefined,
     page: page > 1 ? page : undefined,
   };
+
+  const [encodeOpen, setEncodeOpen] = useState(false);
+  const [walkInSlip, setWalkInSlip] = useState<WalkInSlip | null>(null);
 
   // Modal states for archive
   const [archiveModalApp, setArchiveModalApp] = useState<{ id: number; name: string; isArchived: boolean } | null>(null);
@@ -226,6 +236,7 @@ export const ApplicationsPage: React.FC = () => {
       status: filterValues.status || "",
       clientId: filterValues.clientId || "",
       jobId: filterValues.jobId || "",
+      source: filterValues.source || "",
       showArchived,
       returningOnly,
       sort: sort ?? "match",
@@ -239,6 +250,7 @@ export const ApplicationsPage: React.FC = () => {
         status: (filterValues.status as ApplicationStatus) || undefined,
         jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
         clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
+        source: (filterValues.source as ApplicationSourceFilter) || undefined,
         isArchived: showArchived,
         returning: returningOnly || undefined,
         sort,
@@ -273,6 +285,7 @@ export const ApplicationsPage: React.FC = () => {
         search: debouncedSearch,
         clientId: filterValues.clientId || "",
         jobId: filterValues.jobId || "",
+        source: filterValues.source || "",
         returningOnly,
         needsAction,
       }],
@@ -285,6 +298,7 @@ export const ApplicationsPage: React.FC = () => {
             status: (stage as ApplicationStatus) || undefined,
             jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
             clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
+            source: (filterValues.source as ApplicationSourceFilter) || undefined,
             isArchived: false,
             returning: returningOnly || undefined,
             needsAction: needsAction || undefined,
@@ -434,6 +448,7 @@ export const ApplicationsPage: React.FC = () => {
       stage: undefined,
       clientId: undefined,
       jobId: undefined,
+      source: undefined,
       sort: undefined,
       needsAction: undefined,
       page: undefined,
@@ -507,7 +522,10 @@ export const ApplicationsPage: React.FC = () => {
         <div className="min-w-0">
           {detailLink(app)}
           <div className="text-xs text-slate-600">{app.user?.email}</div>
-          <ReturningBadge info={app.returning} />
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <SourceChip source={app.source} />
+            <ReturningBadge info={app.returning} />
+          </div>
         </div>
       ),
     },
@@ -587,7 +605,10 @@ export const ApplicationsPage: React.FC = () => {
             {app.jobPosting?.title || "Job opening"}
             {app.jobPosting?.mrf?.client?.name ? ` · ${app.jobPosting.mrf.client.name}` : ""}
           </p>
-          <ReturningBadge info={app.returning} />
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <SourceChip source={app.source} />
+            <ReturningBadge info={app.returning} />
+          </div>
         </div>
         <div className="text-right">
           <StatusBadge status={app.status} />
@@ -632,8 +653,12 @@ export const ApplicationsPage: React.FC = () => {
           { label: TA_COPY.navigation.overview, href: "/ta" },
           { label: TA_COPY.navigation.applications },
         ]}
+        actions={<Button onClick={() => setEncodeOpen(true)}>Encode walk-in</Button>}
         flush
       />
+
+      <EncodeWalkInDialog open={encodeOpen} onClose={() => setEncodeOpen(false)} onCreated={setWalkInSlip} />
+      <WalkInSlipDialog slip={walkInSlip} onClose={() => setWalkInSlip(null)} />
 
       {feedback && (
         <div
@@ -683,6 +708,7 @@ export const ApplicationsPage: React.FC = () => {
               stage: k === "status" ? (v as ApplicationStatus) || undefined : (nextValues.status as ApplicationStatus | undefined),
               clientId: nextValues.clientId ? Number(nextValues.clientId) : undefined,
               jobId: nextValues.jobId ? Number(nextValues.jobId) : undefined,
+              source: nextValues.source as ApplicationSourceFilter | undefined,
               page: undefined,
             });
           }}
@@ -776,6 +802,15 @@ export const ApplicationsPage: React.FC = () => {
                 value: String(j.id),
                 label: j.title,
                 subtitle: `Reference ${j.id} • ${j.location || "Philippines"}`,
+              })),
+            },
+            {
+              key: "source",
+              label: "Source",
+              placeholder: "All sources",
+              options: (["ONLINE", "WALK_IN"] as const).map((value) => ({
+                value,
+                label: APPLICATION_SOURCE_LABELS[value],
               })),
             },
           ]}

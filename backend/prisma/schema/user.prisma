@@ -16,6 +16,8 @@ model User {
   isActive Boolean @default(true)
 
   // Account Status & Setup
+  // ACTIVE | PENDING_VERIFICATION | PENDING | INVITED | DEACTIVATED | WALK_IN.
+  // WALK_IN: encoded by a TA with no portal login yet (synthetic email); becomes ACTIVE when the applicant claims it.
   accountStatus String @default("ACTIVE")
   mustChangePassword Boolean @default(false)
   invitedAt DateTime?
@@ -50,6 +52,7 @@ model User {
   talentPoolMembershipsAdded TalentPoolMembership[] @relation("PoolAddedBy")
   talentPoolContacts TalentPoolContact[] @relation("ContactRecruiter")
   sentTalentPoolInvitations TalentPoolInvitation[] @relation("InvitationRecruiter")
+  assistedInvitationReplies TalentPoolInvitation[] @relation("InvitationAssistedBy")
   employee Employee? @relation("UserEmployee")
   employmentEventsCreated EmploymentEvent[] @relation("EmploymentEventActor")
   mfaRecoveryCodes UserMfaRecoveryCode[]

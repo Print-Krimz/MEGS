@@ -83,6 +83,7 @@ export const taSchema = {
       isArchived: z.enum(["true", "false"]).optional(),
       mineOnly: z.enum(["true", "false"]).optional(),
       returning: z.enum(["true", "false"]).optional(),
+      source: z.enum(["ONLINE", "WALK_IN"]).optional(),
       sort: z.enum(["match", "newest", "oldest", "waiting"]).optional(),
       needsAction: z.enum(["true", "false", "1", "0"]).optional(),
       page: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional(),
@@ -90,6 +91,26 @@ export const taSchema = {
       summary: z.enum(["true", "false"]).optional(),
     }).strict(),
   }),
+  walkInCheckDuplicate: z.object({
+    query: z.object({
+      phone: boundedText(30).optional(),
+      firstName: boundedText(FIELD_LIMITS.name).optional(),
+      lastName: boundedText(FIELD_LIMITS.name).optional(),
+      birthDate: dateOnly.optional().or(z.literal("")),
+    }).strict(),
+  }),
+  createWalkIn: z.object({
+    body: z.object({
+      jobPostingId: idValue,
+      firstName: z.string().trim().min(1, "First name is required").max(FIELD_LIMITS.name),
+      middleName: optionalPersonNameSchema("Middle name"),
+      lastName: z.string().trim().min(1, "Last name is required").max(FIELD_LIMITS.name),
+      mobileNumber: boundedText(30).optional().nullable(),
+      birthDate: dateOnly.optional().or(z.literal("")),
+      existingUserId: z.string().trim().uuid().optional().or(z.literal("")),
+    }).strict(),
+  }),
+  walkInSlip: z.object({ params: z.object({ id: boundedIdText }).strict() }),
   listClients: z.object({
     query: z.object({ isActive: z.enum(["true", "false"]).optional() }).strict(),
   }),

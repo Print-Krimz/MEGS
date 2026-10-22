@@ -5,6 +5,7 @@ import { applicationStatusLabel } from "../../../lib/labels";
 import type { RedeploymentJobSuggestion, RedeploymentStage } from "../../../lib/api/employees.api";
 import { formatDate } from "../../../lib/utils";
 import { TA_COPY } from "../../../lib/ta-copy";
+import { OfferReplyActions } from "../OfferReplyActions";
 import { Avatar, ToneChip } from "./WorkforceRow";
 import {
   REDEPLOYMENT_STAGES,
@@ -91,6 +92,20 @@ export const RedeploymentDetail: React.FC<RedeploymentDetailProps> = ({
           </dd>
         </div>
       </dl>
+
+      {row.pendingInvitation && (
+        <section className="space-y-1.5" aria-label="Pending offer">
+          <SectionHeading>Offer waiting for a reply</SectionHeading>
+          <OfferReplyActions
+            invitationId={row.pendingInvitation.id}
+            candidateName={row.name}
+            jobTitle={row.pendingInvitation.title}
+            hasPortalAccess={row.pendingInvitation.hasPortalAccess ?? row.hasPortalAccess ?? true}
+            hasMobile={row.pendingInvitation.hasMobile ?? row.hasMobile ?? false}
+            maskedMobile={row.pendingInvitation.maskedMobile ?? row.maskedMobile}
+          />
+        </section>
+      )}
 
       {row.applications.length > 0 && (
         <section className="space-y-1.5" aria-label="Applications in progress">

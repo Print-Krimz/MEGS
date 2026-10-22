@@ -23,6 +23,7 @@ import {
   normalizeToE164,
   toSyntheticEmail,
   isSyntheticEmail,
+  isPhoneSyntheticEmail,
   fromSyntheticEmail,
   sendSmsViaTextBee,
   maskPhoneNumber,
@@ -54,7 +55,7 @@ const resolveAuthIdentifier = (identifier: string): ResolvedAuthIdentifier => {
     };
   }
 
-  if (isSyntheticEmail(clean)) {
+  if (isPhoneSyntheticEmail(clean)) {
     const phoneE164 = fromSyntheticEmail(clean);
     return {
       raw: clean,
@@ -86,6 +87,23 @@ const findUserByIdentifier = async (resolved: ResolvedAuthIdentifier) => {
   });
 };
 
+/** A walk-in profile already owns this phone: the applicant should claim it instead of registering. */
+export class ClaimableAccountError extends Error {
+  readonly code = "ACCOUNT_CLAIMABLE";
+  constructor() {
+    super("An account was already set up for this mobile number at a MEGS office. Claim it to sign in.");
+    this.name = "ClaimableAccountError";
+  }
+}
+
+/** Claim-flow failure carrying the HTTP status the controller should answer with. */
+export class ClaimError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "ClaimError";
+  }
+}
+
 const isOtpTestBypassEnabled = async (): Promise<boolean> =>
   (await getSecurityControls()).otpDisabled;
 
@@ -97,6 +115,10 @@ export const registerUser = async (emailOrPhone: string, password: string) => {
   const resolved = resolveAuthIdentifier(emailOrPhone);
 
   const existingUser = await findUserByIdentifier(resolved);
+
+  if (existingUser?.accountStatus === "WALK_IN") {
+    throw new ClaimableAccountError();
+  }
 
   if (existingUser && existingUser.accountStatus !== "PENDING_VERIFICATION") {
     throw new Error(
@@ -970,3 +992,167 @@ export const setupAccount = async (token: string, newPassword: string) => {
 
 
 
+
+// ---------------------------------------------------------------------------
+// Claim a walk-in account: SMS code -> claim token (15 min) -> optional email code -> password.
+// ---------------------------------------------------------------------------
+
+const CLAIM_SESSION_MS = 15 * 60 * 1000;
+const CLAIM_COOLDOWN_MS = 60 * 1000;
+const CLAIM_GENERIC_START_MESSAGE =
+  "If a walk-in profile exists for this mobile number, a verification code has been sent by SMS.";
+const CLAIM_BAD_CODE = "Invalid or expired verification code. Please request a new one.";
+const CLAIM_BAD_SESSION = "This claim session has expired. Please start again.";
+
+const findClaimableUser = async (phoneE164: string) => {
+  const user = await prisma.user.findUnique({ where: { phoneNumber: phoneE164 } });
+  return user && user.isActive && user.role === "APPLICANT" && user.accountStatus === "WALK_IN" ? user : null;
+};
+
+const issueClaimOtp = async (key: string, purpose: string): Promise<string | null> => {
+  const latest = await prisma.authOtp.findFirst({ where: { email: key, purpose }, orderBy: { createdAt: "desc" } });
+  if (latest && !(await getSecurityControls()).rateLimitDisabled &&
+      Date.now() - new Date(latest.createdAt).getTime() < CLAIM_COOLDOWN_MS) {
+    return null;
+  }
+  await prisma.authOtp.updateMany({ where: { email: key, purpose, isUsed: false }, data: { isUsed: true } });
+  const plain = generateNumericOtp();
+  await prisma.authOtp.create({
+    data: {
+      email: key,
+      otpHash: hashOtp(plain),
+      purpose,
+      attempts: 0,
+      maxAttempts: 5,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      isUsed: false,
+    },
+  });
+  return plain;
+};
+
+/** Checks a 6-digit code against the newest unused row and uses it up. Every failure reads the same. */
+const consumeClaimOtp = async (key: string, purpose: string, code: string): Promise<void> => {
+  const clean = code.trim();
+  if (!/^\d{6}$/.test(clean)) throw new ClaimError(CLAIM_BAD_CODE, 400);
+  const otp = await prisma.authOtp.findFirst({
+    where: { email: key, purpose, isUsed: false },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!otp || otp.expiresAt.getTime() < Date.now()) throw new ClaimError(CLAIM_BAD_CODE, 400);
+  const reserved = await prisma.authOtp.updateMany({
+    where: { id: otp.id, isUsed: false, expiresAt: { gt: new Date() }, attempts: { lt: otp.maxAttempts } },
+    data: { attempts: { increment: 1 } },
+  });
+  if (reserved.count !== 1 || !verifyOtpHash(clean, otp.otpHash)) throw new ClaimError(CLAIM_BAD_CODE, 400);
+  const used = await prisma.authOtp.updateMany({ where: { id: otp.id, isUsed: false }, data: { isUsed: true } });
+  if (used.count !== 1) throw new ClaimError(CLAIM_BAD_CODE, 400);
+};
+
+const findClaimSession = async (claimToken: string) => {
+  const row = await prisma.authOtp.findFirst({
+    where: { otpHash: hashToken(claimToken), purpose: "ACCOUNT_CLAIM_SESSION", isUsed: false, expiresAt: { gt: new Date() } },
+  });
+  if (!row) throw new ClaimError(CLAIM_BAD_SESSION, 400);
+  const user = await prisma.user.findUnique({ where: { email: row.email } });
+  if (!user || !user.isActive || user.accountStatus !== "WALK_IN") throw new ClaimError(CLAIM_BAD_SESSION, 400);
+  return { row, user };
+};
+
+/** Step 1. Always answers the same way so nobody can probe which numbers have a walk-in profile. */
+export const startAccountClaim = async (phone: string) => {
+  const phoneE164 = normalizeToE164(phone);
+  const user = await findClaimableUser(phoneE164);
+  if (user) {
+    const code = await issueClaimOtp(user.email, "ACCOUNT_CLAIM");
+    if (code) {
+      if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+        console.log(`[DEV OTP] ACCOUNT_CLAIM SMS code generated for ${maskPhoneNumber(phoneE164)}: ${code}`);
+      }
+      await sendSmsViaTextBee(phoneE164, `Your MEGS verification code is ${code}. Valid for 10 minutes.`);
+    }
+  }
+  return { message: CLAIM_GENERIC_START_MESSAGE };
+};
+
+/** Step 2. Trades the SMS code for a claim token that lasts 15 minutes. */
+export const verifyAccountClaim = async (phone: string, otp: string) => {
+  const user = await findClaimableUser(normalizeToE164(phone));
+  if (!user) throw new ClaimError(CLAIM_BAD_CODE, 400);
+  await consumeClaimOtp(user.email, "ACCOUNT_CLAIM", otp);
+
+  await prisma.authOtp.updateMany({
+    where: { email: user.email, purpose: "ACCOUNT_CLAIM_SESSION", isUsed: false },
+    data: { isUsed: true },
+  });
+  const claimToken = generateSecureToken();
+  await prisma.authOtp.create({
+    data: {
+      email: user.email,
+      otpHash: hashToken(claimToken),
+      purpose: "ACCOUNT_CLAIM_SESSION",
+      attempts: 0,
+      maxAttempts: 1,
+      expiresAt: new Date(Date.now() + CLAIM_SESSION_MS),
+      isUsed: false,
+    },
+  });
+  return { claimToken };
+};
+
+/** Optional step 3. Emails a code to the address the applicant wants on the account. */
+export const sendAccountClaimEmailCode = async (claimToken: string, email: string) => {
+  const { user } = await findClaimSession(claimToken);
+  const address = email.trim().toLowerCase();
+  if (isSyntheticEmail(address)) throw new ClaimError("Enter a real email address.", 400);
+  const taken = await prisma.user.findUnique({ where: { email: address }, select: { id: true } });
+  if (taken && taken.id !== user.id) {
+    throw new ClaimError("This email is already used by another account.", 409);
+  }
+  const code = await issueClaimOtp(address, "ACCOUNT_CLAIM_EMAIL");
+  if (!code) throw new ClaimError("Please wait a minute before requesting another code.", 429);
+  if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+    console.log(`[DEV OTP] ACCOUNT_CLAIM_EMAIL code generated for ${maskEmail(address)}.`);
+  }
+  await sendRegistrationOtpEmail(address, code);
+  return { message: "A 6-digit code has been sent to your email." };
+};
+
+/** Step 4. Sets the password (and the email, once its code checks out) and activates the account. */
+export const completeAccountClaim = async (input: {
+  claimToken: string;
+  password: string;
+  email?: string;
+  emailOtp?: string;
+}) => {
+  if (input.password.length < 8) throw new ClaimError("Password must be at least 8 characters", 400);
+  const { row, user } = await findClaimSession(input.claimToken);
+
+  const email = input.email?.trim().toLowerCase();
+  if (email) {
+    if (!input.emailOtp) throw new ClaimError("Enter the code we emailed you.", 400);
+    if (isSyntheticEmail(email)) throw new ClaimError("Enter a real email address.", 400);
+    const taken = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+    if (taken && taken.id !== user.id) throw new ClaimError("This email is already used by another account.", 409);
+    await consumeClaimOtp(email, "ACCOUNT_CLAIM_EMAIL", input.emailOtp);
+  }
+
+  // The claim token works once.
+  const used = await prisma.authOtp.updateMany({ where: { id: row.id, isUsed: false }, data: { isUsed: true } });
+  if (used.count !== 1) throw new ClaimError(CLAIM_BAD_SESSION, 400);
+
+  const { error } = await supabase.auth.admin.updateUserById(user.id, {
+    password: input.password,
+    ...(email ? { email, email_confirm: true } : {}),
+  });
+  if (error) throw new ClaimError("Could not set up the account. Please try again later.", 500);
+
+  const activated = await prisma.user.updateMany({
+    where: { id: user.id, accountStatus: "WALK_IN" },
+    data: { accountStatus: "ACTIVE", mustChangePassword: false, ...(email ? { email } : {}) },
+  });
+  if (activated.count !== 1) throw new ClaimError(CLAIM_BAD_SESSION, 400);
+
+  logAudit(user.id, "WALK_IN_ACCOUNT_CLAIMED", "User", user.id, { emailAdded: Boolean(email) });
+  return { message: "Account ready. You can now sign in with your mobile number and password." };
+};

@@ -346,6 +346,12 @@ export interface TalentPoolInvitationRecord {
   respondedAt?: string | null;
   createdAt: string;
   invitedBy?: string;
+  /** False for walk-in applicants who never claimed an account. */
+  hasPortalAccess?: boolean;
+  hasMobile?: boolean;
+  /** Masked mobile number for the text-link confirm, for example 0917****521. */
+  maskedMobile?: string | null;
+  responseChannel?: "PORTAL" | "ASSISTED_PHONE" | "IN_PERSON" | "MAGIC_LINK" | null;
 }
 
 export interface SendTalentPoolInvitationDto {

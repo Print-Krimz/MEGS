@@ -35,6 +35,9 @@ const RegisterPage = lazyRouteComponent(() => import("./pages/auth/RegisterPage"
 const ForgotPasswordPage = lazyRouteComponent(() => import("./pages/auth/ForgotPasswordPage"), "ForgotPasswordPage");
 const ResetPasswordPage = lazyRouteComponent(() => import("./pages/auth/ResetPasswordPage"), "ResetPasswordPage");
 const SetupAccountPage = lazyRouteComponent(() => import("./pages/auth/SetupAccountPage"), "SetupAccountPage");
+const ClaimAccountPage = lazyRouteComponent(() => import("./pages/auth/ClaimAccountPage"), "ClaimAccountPage");
+const TrackPage = lazyRouteComponent(() => import("./pages/public/TrackPage"), "TrackPage");
+const OfferPage = lazyRouteComponent(() => import("./pages/public/OfferPage"), "OfferPage");
 
 const ApplicantDashboard = lazyRouteComponent(() => import("./pages/applicant/ApplicantDashboard"), "ApplicantDashboard");
 const ProfilePage = lazyRouteComponent(() => import("./pages/applicant/ProfilePage"), "ProfilePage");
@@ -196,10 +199,39 @@ export const changePasswordRoute = createRoute({
   component: ChangePasswordPage,
 });
 
+export const claimAccountRoute = createRoute({
+  getParentRoute: () => authLayoutRoute,
+  path: "/claim",
+  component: ClaimAccountPage,
+});
+
 export const forbiddenRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/forbidden",
   component: ForbiddenPage,
+});
+
+// Public, no login: opened from a printed walk-in slip QR or a texted offer link.
+export interface PublicTokenSearch {
+  token?: string;
+}
+
+const parsePublicTokenSearch = (search: Record<string, unknown>): PublicTokenSearch => ({
+  token: typeof search.token === "string" ? search.token : undefined,
+});
+
+export const trackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/t/$code",
+  validateSearch: parsePublicTokenSearch,
+  component: TrackPage,
+});
+
+export const offerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/offer/$id",
+  validateSearch: parsePublicTokenSearch,
+  component: OfferPage,
 });
 
 // -------------------------------------------------------------
@@ -306,6 +338,9 @@ export const taLayoutRoute = createRoute({
   notFoundComponent: NotFoundPage,
 });
 
+export type ApplicationSourceFilter = "ONLINE" | "WALK_IN";
+const APPLICATION_SOURCE_FILTERS: ApplicationSourceFilter[] = ["ONLINE", "WALK_IN"];
+
 export interface TAApplicationSearch {
   q?: string;
   stage?: ApplicationStatus;
@@ -313,6 +348,8 @@ export interface TAApplicationSearch {
   jobId?: number;
   archived?: boolean;
   returning?: boolean;
+  /** How the application reached MEGS; omitted means all sources. */
+  source?: ApplicationSourceFilter;
   /** Applications list order; omitted means best match. */
   sort?: "newest" | "oldest" | "waiting";
   needsAction?: boolean;
@@ -345,6 +382,9 @@ const parseTAApplicationSearch = (
     jobId: parsePositiveNumber(search.jobId),
     archived: parseBoolean(search.archived),
     returning: parseBoolean(search.returning),
+    source: APPLICATION_SOURCE_FILTERS.includes(search.source as ApplicationSourceFilter)
+      ? (search.source as ApplicationSourceFilter)
+      : undefined,
     sort: search.sort === "newest" || search.sort === "oldest" || search.sort === "waiting" ? search.sort : undefined,
     needsAction: parseBoolean(search.needsAction),
     page: parsePositiveNumber(search.page),
@@ -600,12 +640,15 @@ export const adminMrfDetailRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   forbiddenRoute,
+  trackRoute,
+  offerRoute,
   authLayoutRoute.addChildren([
     loginRoute,
     registerRoute,
     forgotPasswordRoute,
     resetPasswordRoute,
     setupAccountRoute,
+    claimAccountRoute,
     changePasswordRoute,
   ]),
   applicantLayoutRoute.addChildren([

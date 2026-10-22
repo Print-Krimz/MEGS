@@ -129,7 +129,8 @@ export interface RedeploymentQueueSummary {
 export interface RedeploymentQueueResponse {
   staff: Array<{ id: string; email: string }>;
   items: Array<{
-    stage: RedeploymentStage; pastClients: Array<{ id: number; name: string }>; waitingSince: string | null; pendingInvitation: { id: number; title: string } | null;
+    stage: RedeploymentStage; pastClients: Array<{ id: number; name: string }>; waitingSince: string | null; pendingInvitation: { id: number; title: string; hasPortalAccess?: boolean; hasMobile?: boolean; maskedMobile?: string | null; responseChannel?: string | null } | null;
+    hasPortalAccess?: boolean; hasMobile?: boolean; maskedMobile?: string | null; responseChannel?: string | null;
     id: number; employeeNumber: string; applicantProfileId: number | null; name: string; previousClient: string | null; previousRole: string | null;
     availableAt: string | null; followUpAt: string | null; ownerId: string | null; ownerEmail: string | null; notes: string | null; nextAction: string;
     applications: Array<{ id: number; status: string; title: string; client: string | null }>;

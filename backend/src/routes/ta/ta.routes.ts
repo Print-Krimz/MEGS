@@ -118,6 +118,13 @@ import {
   getTADashboardSummaryHandler,
 } from '../../controllers/ta/ta.analytics.controller.js';
 import { requireOwned, requireOwnedBody } from "../../services/ta/ownership.js";
+import {
+  checkWalkInDuplicateHandler,
+  createWalkInHandler,
+  reissueWalkInSlipHandler,
+} from '../../controllers/ta/ta.walk-in.controller.js';
+import { offerReplyRouteSchema } from "../../schemas/offer-reply.schema.js";
+import { recordAssistedResponseHandler, sendOfferSmsLinkHandler } from "../../controllers/ta/ta.offer-reply.controller.js";
 
 const router = Router();
 
@@ -166,6 +173,15 @@ router.post("/talent-pool/invitations", validate(talentPoolInvitationRouteSchema
 router.post("/talent-pool/invitations/batch", validate(talentPoolInvitationRouteSchema.batchSend), requireOwnedBody("job", "targetJobId"), batchSendInvitationsHandler);
 router.get("/talent-pool/invitations", validate(talentPoolInvitationRouteSchema.list), listInvitationsHandler);
 router.delete("/talent-pool/invitations/:id", validate(talentPoolInvitationRouteSchema.cancel), cancelInvitationHandler);
+// Offer replies for applicants without a portal login.
+router.post("/talent-pool/invitations/:id/assisted-response", validate(offerReplyRouteSchema.assistedResponse), requireOwned("invitation"), recordAssistedResponseHandler);
+router.post("/talent-pool/invitations/:id/sms-link", validate(offerReplyRouteSchema.smsLink), requireOwned("invitation"), sendOfferSmsLinkHandler);
+
+// Walk-in intake (staff-encoded applicants and their printed QR slip).
+// POST /walk-ins checks job ownership inside createWalkIn (the job id arrives in a multipart body).
+router.get("/walk-ins/check-duplicate", validate(taSchema.walkInCheckDuplicate), checkWalkInDuplicateHandler);
+router.post("/walk-ins", upload.single("file"), validate(taSchema.createWalkIn), createWalkInHandler);
+router.post("/walk-ins/:id/slip", validate(taSchema.walkInSlip), requireOwned("application"), reissueWalkInSlipHandler);
 
 // Application Pipeline & Recruiter Decisions
 router.get("/applications", validate(taSchema.listApplications), listApplications);

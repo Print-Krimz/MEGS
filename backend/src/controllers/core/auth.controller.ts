@@ -13,6 +13,11 @@ import {
   changeUserPassword,
   setupAccount as setupAccountService,
   getInvitationDetails as getInvitationDetailsService,
+  ClaimError,
+  startAccountClaim,
+  verifyAccountClaim,
+  sendAccountClaimEmailCode,
+  completeAccountClaim,
 } from '../../services/core/auth.service.js';
 
 // POST /api/auth/register - Creates Supabase auth credentials, local User record (PENDING_VERIFICATION), and dispatches 6-digit OTP
@@ -24,6 +29,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const user = await registerUser(target, password);
     sendSuccess(res, user.message, user, 201);
   } catch (error: any) {
+    if (error?.code === "ACCOUNT_CLAIMABLE") {
+      // The Register page reads error.code to offer the claim page.
+      res.status(409).json({ success: false, message: error.message, error: { code: "ACCOUNT_CLAIMABLE" } });
+      return;
+    }
     const status = error.message.includes("already exists") ? 409 : 400;
     sendError(res, error.message, status);
   }
@@ -156,3 +166,51 @@ export const getInvitationDetails = async (req: Request, res: Response): Promise
 
 
 
+
+const claimFailure = (res: Response, error: unknown): void => {
+  if (error instanceof ClaimError) {
+    sendError(res, error.message, error.status);
+    return;
+  }
+  sendError(res, "Unable to process the claim request", 500, error);
+};
+
+// POST /api/auth/claim/start - Texts a code when a walk-in profile owns the phone. Always the same answer.
+export const claimStart = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await startAccountClaim(req.body.phone);
+    sendSuccess(res, result.message, result);
+  } catch (error) {
+    claimFailure(res, error);
+  }
+};
+
+// POST /api/auth/claim/verify - Trades the SMS code for a 15-minute claim token
+export const claimVerify = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await verifyAccountClaim(req.body.phone, req.body.otp);
+    sendSuccess(res, "Mobile number verified.", result);
+  } catch (error) {
+    claimFailure(res, error);
+  }
+};
+
+// POST /api/auth/claim/email-code - Emails a code for the address to add to the account
+export const claimEmailCode = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await sendAccountClaimEmailCode(req.body.claimToken, req.body.email);
+    sendSuccess(res, result.message, result);
+  } catch (error) {
+    claimFailure(res, error);
+  }
+};
+
+// POST /api/auth/claim/complete - Sets the password (and email) and activates the account
+export const claimComplete = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await completeAccountClaim(req.body);
+    sendSuccess(res, result.message, result);
+  } catch (error) {
+    claimFailure(res, error);
+  }
+};

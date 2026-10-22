@@ -1,5 +1,6 @@
 import prisma from "../utils/prisma.js";
 import { sendMail } from "../utils/mailer.js";
+import { isSyntheticEmail } from "../utils/sms.js";
 
 const MAX_ATTEMPTS = 3;
 const POLL_INTERVAL_MS = 20000; // 20 seconds
@@ -32,6 +33,18 @@ const processPendingEmails = async () => {
             status: "FAILED",
             attempts: item.attempts + 1,
             lastError: "Recipient email not found",
+          },
+        });
+        continue;
+      }
+
+      if (isSyntheticEmail(item.recipient.email)) {
+        await prisma.notificationOutbox.update({
+          where: { id: item.id },
+          data: {
+            status: "FAILED",
+            attempts: item.attempts + 1,
+            lastError: "Recipient has no real email address",
           },
         });
         continue;

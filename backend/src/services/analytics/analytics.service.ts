@@ -2,6 +2,7 @@ import prisma from "../../utils/prisma.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly } from "../../schemas/field-limits.js";
 import { ApplicationStatus } from "@prisma/client";
 import { ACTIVE_PIPELINE_STATUSES } from "./metric-definitions.js";
+import { displayEmail } from "../../utils/display-email.js";
 import { ownedWhere } from "../ta/ownership.js";
 
 export interface AnalyticsFilterDto {
@@ -150,7 +151,7 @@ export const getTAPendingActions = async (
   const person = { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } as const;
   const nameOf = (u?: { email: string; applicantProfile?: { firstName: string | null; lastName: string | null } | null } | null) => {
     const full = `${u?.applicantProfile?.firstName ?? ""} ${u?.applicantProfile?.lastName ?? ""}`.trim();
-    return full || u?.email || "Candidate";
+    return full || displayEmail(u?.email) || "Candidate";
   };
   const ageOf = (date: Date) => Math.max(0, Math.floor((now.getTime() - date.getTime()) / 86_400_000));
 
@@ -195,7 +196,7 @@ export const getTAPendingActions = async (
       type: "FINAL_INTERVIEW",
       title: late ? "Final interview result overdue" : "Record final interview result",
       candidateName: nameOf(iv.application?.user),
-      candidateEmail: iv.application?.user?.email,
+      candidateEmail: displayEmail(iv.application?.user?.email) ?? undefined,
       jobTitle: iv.application?.jobPosting?.title || "Requisition",
       applicationId: iv.application?.id || 0,
       urgency: late ? "HIGH" : "MEDIUM",
@@ -211,7 +212,7 @@ export const getTAPendingActions = async (
       type: "CONTRACT_SIGNING",
       title: "Complete contract signing",
       candidateName: nameOf(app.user),
-      candidateEmail: app.user?.email,
+      candidateEmail: displayEmail(app.user?.email) ?? undefined,
       jobTitle: app.jobPosting?.title || "Requisition",
       applicationId: app.id,
       urgency: "MEDIUM",
@@ -227,7 +228,7 @@ export const getTAPendingActions = async (
       type: "START_CONFIRMATION",
       title: due ? `Confirm start: contract date passed (${d.client?.name ?? "client"})` : `Confirm start (${d.client?.name ?? "client"})`,
       candidateName: nameOf(d.employee?.user),
-      candidateEmail: d.employee?.user?.email,
+      candidateEmail: displayEmail(d.employee?.user?.email) ?? undefined,
       jobTitle: d.mrf?.title || "Placement",
       applicationId: 0,
       urgency: due ? "HIGH" : "NORMAL",
@@ -303,7 +304,7 @@ export const getTAPendingActions = async (
         type: "INITIAL_INTERVIEW",
         title: isOverdue ? "Overdue Initial Interview" : "Initial Interview Pending Evaluation",
         candidateName: name,
-        candidateEmail: iv.application?.user?.email,
+        candidateEmail: displayEmail(iv.application?.user?.email) ?? undefined,
         jobTitle: iv.application?.jobPosting?.title || "Requisition",
         applicationId: iv.application?.id || 0,
         urgency: isOverdue ? "HIGH" : "MEDIUM",
@@ -332,7 +333,7 @@ export const getTAPendingActions = async (
           ? `Client Review Overdue (${ageDays}d / ${threshold}d SLA): ${clientName}`
           : `Awaiting Client Decision (${clientName})`,
         candidateName: name,
-        candidateEmail: endo.application?.user?.email,
+        candidateEmail: displayEmail(endo.application?.user?.email) ?? undefined,
         jobTitle: endo.application?.jobPosting?.title || "Requisition",
         applicationId: endo.application?.id || 0,
         urgency: isBreached ? "HIGH" : "NORMAL",
@@ -353,7 +354,7 @@ export const getTAPendingActions = async (
         type: "COMPLIANCE_REVIEW",
         title: `Review Clearance: ${comp.documentLabel}`,
         candidateName: name,
-        candidateEmail: comp.application?.user?.email,
+        candidateEmail: displayEmail(comp.application?.user?.email) ?? undefined,
         jobTitle: comp.application?.jobPosting?.title || "Requisition",
         applicationId: comp.application?.id || 0,
         urgency: "MEDIUM",

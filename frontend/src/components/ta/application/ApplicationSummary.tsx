@@ -31,6 +31,8 @@ export interface ApplicationSummaryProps {
   resumeAction?: React.ReactNode;
   /** The stage stepper. */
   stepper?: React.ReactNode;
+  /** Extra chip beside the status, for example how the applicant arrived. */
+  sourceChip?: React.ReactNode;
 }
 
 /** Lets a long address wrap before the @ instead of in the middle of a word. */
@@ -65,6 +67,7 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({
   menuItems,
   resumeAction,
   stepper,
+  sourceChip,
 }) => {
   const hasScore = score !== undefined && score !== null && score !== "";
   return (
@@ -91,6 +94,7 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({
         chips={
           <>
             {hasScore && <ScoreBadge score={score} size="lg" />}
+            {sourceChip}
             {contractSignedOnly ? (
               <span className={cn("inline-flex items-center rounded border px-2 py-0.5 text-xs font-semibold", TA_STATUS_TONE_CLASSES.info)}>Contract signed</span>
             ) : (

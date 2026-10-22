@@ -1,6 +1,7 @@
 import prisma from "./prisma.js";
 import { EventEmitter } from "events";
 import * as mailer from "./mailer.js";
+import { isSyntheticEmail } from "./sms.js";
 
 const ROLE_BROADCAST_CONCURRENCY = 8;
 
@@ -54,7 +55,7 @@ export const sendNotification = async (
           recipientEmail = user?.email || undefined;
         }
 
-        if (recipientEmail) {
+        if (recipientEmail && !isSyntheticEmail(recipientEmail)) {
           const subject = emailOptions.subject || title;
           const html = mailer.buildNotificationEmailHtml({
             title,

@@ -22,6 +22,7 @@ import {
   renderSectionTitle,
   renderSummaryKPIs,
 } from "./report-pdf-builder.js";
+import { displayEmail } from "../../utils/display-email.js";
 import {
   applyDataRowsAndFormatting,
   applySpreadsheetHeaderBlock,
@@ -486,8 +487,8 @@ async function receivedSection(filters: AnalyticsFilterDto, requestedBy: Request
       const p = a.user.applicantProfile;
       return {
         id: `#${a.id}`,
-        candidate: clean(p ? `${p.firstName} ${p.lastName}`.trim() : a.user.email),
-        email: clean(a.user.email),
+        candidate: clean(p ? `${p.firstName} ${p.lastName}`.trim() : displayEmail(a.user.email) ?? ""),
+        email: clean(displayEmail(a.user.email) ?? ""),
         job: clean(a.jobPosting?.title ?? ""),
         client: clean(a.jobPosting?.mrf?.client?.name ?? ""),
         request: clean(a.jobPosting?.mrf?.title ?? "No client request"),
@@ -554,7 +555,7 @@ async function awaitingStartSection(filters: AnalyticsFilterDto, requestedBy: Re
   });
   const nameOf = (u?: { email: string; applicantProfile?: { firstName: string | null; lastName: string | null } | null } | null) => {
     const full = `${u?.applicantProfile?.firstName ?? ""} ${u?.applicantProfile?.lastName ?? ""}`.trim();
-    return full || u?.email || "";
+    return full || displayEmail(u?.email) || "";
   };
   return {
     sheet: "Waiting to start",

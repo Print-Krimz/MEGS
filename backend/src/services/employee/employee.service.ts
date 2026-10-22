@@ -1,3 +1,4 @@
+import { maskPhoneNumber } from "../../utils/sms.js";
 import prisma from "../../utils/prisma.js";
 import { ownedWhere, owns, type Actor } from "../ta/ownership.js";
 import { rethrowPlacementConflict } from "./placement-conflict.js";
@@ -539,7 +540,9 @@ const findRedeploymentEmployees = (actor?: Actor, ids?: number[]) =>
       redeploymentOwner: { select: { id: true, email: true } },
       deployments: { where: { status: "ENDED" }, orderBy: { actualEnd: "desc" }, take: 1, include: { client: { select: { name: true } }, mrf: { select: { title: true } }, application: { select: { jobPosting: { select: { title: true } } } }, statusHistory: { where: { toStatus: "ENDED" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } },
       user: { select: {
-        applicantProfile: { select: { id: true, firstName: true, lastName: true, invitations: { where: { status: "PENDING" }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true, jobPosting: { select: { title: true } } } } } },
+        accountStatus: true,
+        phoneNumber: true,
+        applicantProfile: { select: { id: true, firstName: true, lastName: true, mobileNumber: true, invitations: { where: { status: "PENDING" }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true, responseChannel: true, jobPosting: { select: { title: true } } } } } },
         applications: { where: redeploymentApplicationWhere(actor), orderBy: { createdAt: "desc" }, select: { id: true, status: true, jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } } } },
       } },
     },
@@ -553,12 +556,17 @@ const mapRedeploymentRow = (employee: RedeploymentEmployee, pastClients: Array<{
   const applications = employee.user.applications;
   const invitation = profile?.invitations?.[0];
   const stage = redeploymentStageOf(applications.length > 0, Boolean(invitation));
+  const mobile = employee.user.phoneNumber || profile?.mobileNumber;
+  const maskedMobile = mobile ? maskPhoneNumber(mobile) : null;
   return {
     stage,
     pastClients,
     // Falls back to when the last assignment ended when the availability date was never recorded.
     waitingSince: employee.redeploymentAvailableAt ?? previous?.actualEnd ?? previous?.statusHistory[0]?.createdAt ?? null,
-    pendingInvitation: invitation ? { id: invitation.id, title: invitation.jobPosting.title } : null,
+    pendingInvitation: invitation ? { id: invitation.id, title: invitation.jobPosting.title, responseChannel: invitation.responseChannel, maskedMobile } : null,
+    hasPortalAccess: employee.user.accountStatus === "ACTIVE",
+    hasMobile: Boolean(employee.user.phoneNumber || profile?.mobileNumber),
+    maskedMobile: maskedMobile,
     id: employee.id, employeeNumber: employee.employeeNumber,
     applicantProfileId: profile?.id ?? null,
     name: `${profile?.firstName || ""} ${profile?.lastName || ""}`.trim() || employee.employeeNumber,

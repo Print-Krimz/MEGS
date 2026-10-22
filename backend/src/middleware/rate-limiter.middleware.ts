@@ -103,3 +103,6 @@ export const reportLimiters = operationLimiters("reports", 30, 600);
 export const maintenanceLimiters = operationLimiters("maintenance", 6, 24);
 export const scoringLimiters = operationLimiters("scoring-revalidation", 6, 24);
 export const analyticsLimiters = operationLimiters("analytics", 180, 3000, 15 * 60 * 1000);
+
+// Public no-login pages (QR tracker, offer links): per-IP, 60 requests per 15 minutes.
+export const publicLimiter = limiter("public-ip", 60, 15 * 60 * 1000, clientIp);

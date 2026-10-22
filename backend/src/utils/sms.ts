@@ -43,9 +43,19 @@ export const toSyntheticEmail = (phoneE164: string): string => {
   return `${digitsOnly}@${SYNTHETIC_EMAIL_DOMAIN}`;
 };
 
-export const isSyntheticEmail = (email: string): boolean => {
+export const WALK_IN_EMAIL_DOMAIN = "megs.internal";
+
+/** True for phone-derived placeholder addresses (`<digits>@applicant.megs.local`). */
+export const isPhoneSyntheticEmail = (email: string): boolean => {
   if (!email || typeof email !== "string") return false;
   return email.toLowerCase().trim().endsWith(`@${SYNTHETIC_EMAIL_DOMAIN}`);
+};
+
+/** True for any placeholder address MEGS made up: phone-derived or walk-in. Never email these. */
+export const isSyntheticEmail = (email: string): boolean => {
+  if (!email || typeof email !== "string") return false;
+  const lower = email.toLowerCase().trim();
+  return lower.endsWith(`@${SYNTHETIC_EMAIL_DOMAIN}`) || lower.endsWith(`@${WALK_IN_EMAIL_DOMAIN}`);
 };
 
 export const fromSyntheticEmail = (email: string): string => {

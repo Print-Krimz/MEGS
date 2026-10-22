@@ -41,7 +41,9 @@ export async function apiRequest<T>(
     path.startsWith("/api/auth/verify-otp") ||
     path.startsWith("/api/auth/resend-otp") ||
     path.startsWith("/api/auth/setup-account") ||
-    path.startsWith("/api/auth/invitation");
+    path.startsWith("/api/auth/invitation") ||
+    path.startsWith("/api/auth/claim") ||
+    path.startsWith("/api/public/");
 
   // Only inject localStorage token if NO explicit Authorization header was passed and path is not public/isolated auth
   if (token && !isPublicAuthPath && !headers["Authorization"]) {

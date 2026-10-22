@@ -67,6 +67,12 @@ model Application {
 
   attemptNumber Int @default(1)
 
+  // How the application reached MEGS. Staff-encoded walk-ins get a tracking code
+  // for the printed QR slip; online ones do not.
+  source            ApplicationSource @default(ONLINE)
+  trackingCode      String?           @unique // e.g. WLK-2026-0042
+  trackingTokenHash String?           // sha256 of the slip token; the raw token is only printed
+
   status    ApplicationStatus @default(SUBMITTED)
   resumeUrl String?           // Supabase Storage URL of uploaded resume
   aiScore   Float?            // 0–100 score returned by Gemini API
@@ -104,6 +110,12 @@ model Application {
 
   @@unique([userId, jobPostingId, attemptNumber])
   @@index([userId, jobPostingId, createdAt(sort: Desc)])
+  @@index([source])
+}
+
+enum ApplicationSource {
+  ONLINE
+  WALK_IN
 }
 
 // ─────────────────────────────────────────────

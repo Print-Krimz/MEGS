@@ -44,6 +44,9 @@ import { ApplicationStatus, InterviewType } from "../../lib/types/enums";
 import type { Interview } from "../../lib/types/application.types";
 import type { UpdateCandidateProfileDto, ReviewComplianceDto } from "../../lib/types/ta.types";
 import { notify } from "../../lib/feedback";
+import { SourceChip } from "../../components/ta/walk-in/SourceChip";
+import { WalkInSlipDialog } from "../../components/ta/walk-in/WalkInSlipDialog";
+import type { WalkInSlip } from "../../lib/types/application.types";
 import type { TAApplicationSearch } from "../../routes";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 import { addManilaCalendarDays, getManilaToday } from "../../lib/field-limits";
@@ -118,6 +121,17 @@ export const ApplicationDetailPage: React.FC = () => {
   };
 
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [reissueOpen, setReissueOpen] = useState(false);
+  const [reissuedSlip, setReissuedSlip] = useState<WalkInSlip | null>(null);
+  const reissueMutation = useMutation({
+    mutationFn: () => taApi.reissueWalkInSlip(applicationId),
+    onSuccess: (slip) => {
+      setReissueOpen(false);
+      setReissuedSlip(slip);
+      queryClient.invalidateQueries({ queryKey: ["ta", "application", String(applicationId)] });
+    },
+    onError: (error) => notify.error("Could not make a new slip", error),
+  });
   const closeDialog = useCallback(() => setDialog(null), []);
 
   const [previewDocState, setPreviewDocState] = useState<{
@@ -342,6 +356,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const menuItems: ActionMenuItem[] = [
     { label: "Refresh assessment", onSelect: () => m.analyze.mutate(), disabled: m.analyze.isPending },
     ...overflow.map((a) => ({ label: a.label, onSelect: () => runStageAction(a.id) })),
+    ...(app.trackingCode || app.source === "WALK_IN" ? [{ label: app.trackingCode ? "Print new slip" : "Print slip", onSelect: () => setReissueOpen(true) }] : []),
     ...(flags.canReject ? [{ label: "Reject applicant", tone: "danger" as const, onSelect: () => setDialog({ kind: "close", outcome: "REJECTED" }) }] : []),
     ...(flags.canBackout ? [{ label: "Mark as backed out", tone: "danger" as const, onSelect: () => setDialog({ kind: "close", outcome: "BACKED_OUT" }) }] : []),
   ];
@@ -466,6 +481,7 @@ export const ApplicationDetailPage: React.FC = () => {
         contractSignedOnly={contractSignedOnly}
         listHref={applicationListHref}
         menuItems={menuItems}
+        sourceChip={<SourceChip source={app.source} />}
         resumeAction={resumeDrawer}
         stepper={
           <PipelineIndicator
@@ -848,6 +864,19 @@ export const ApplicationDetailPage: React.FC = () => {
         isSubmitting={m.deploy.isPending}
         onSubmit={(values) => m.deploy.mutate(values, { onSuccess: closeDialog })}
       />
+
+      <ConfirmDialog
+        open={reissueOpen}
+        onClose={() => setReissueOpen(false)}
+        onConfirm={() => reissueMutation.mutate()}
+        title={app.trackingCode ? "Print a new slip?" : "Print a tracking slip for this applicant?"}
+        description={app.trackingCode ? "The old slip will stop working." : "The applicant can scan it to see their progress."}
+        confirmLabel={app.trackingCode ? "Print new slip" : "Print slip"}
+        cancelLabel="Cancel"
+        variant="warning"
+        loading={reissueMutation.isPending}
+      />
+      <WalkInSlipDialog slip={reissuedSlip} onClose={() => setReissuedSlip(null)} />
 
       <ConfirmDialog
         open={dlg?.kind === "removeRequirement"}

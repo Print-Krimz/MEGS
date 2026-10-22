@@ -172,14 +172,14 @@ export const fetchJobDetails = async (jobId: number, userId: string) => {
   };
 };
 
-// Submits job application using uploaded resume or falls back to profile default resume
-export const submitApplicationService = async (jobId: number, userId: string, file?: Express.Multer.File) => {
-  const job = await prisma.jobPosting.findUnique({ where: { id: jobId }, include: { mrf: { select: { clientId: true } } } });
+/** Job must exist and be OPEN, with no unfinished attempt and no active deployment for the applicant. */
+export const assertCanApply = async (userId: string, jobPostingId: number) => {
+  const job = await prisma.jobPosting.findUnique({ where: { id: jobPostingId }, include: { mrf: { select: { clientId: true } } } });
   if (!job) throw new Error("Job not found");
   if (job.status !== "OPEN") throw new Error("This job is no longer accepting applications");
 
   const priorApplications = await prisma.application.findMany({
-    where: { userId, jobPostingId: jobId },
+    where: { userId, jobPostingId },
     select: { id: true, attemptNumber: true, status: true, isArchived: true },
     orderBy: { attemptNumber: "desc" },
   });
@@ -194,7 +194,16 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
       `You are currently deployed on an active assignment with ${deployment.clientName || "your client"}. Applications for new positions are restricted until your assignment concludes or you are cleared for redeployment.`
     );
   }
+  return job;
+};
 
+/** COMPLIANCE for a prior same-client placement, else SUBMITTED, plus the next attempt number. */
+export const resolveInitialStatus = async (userId: string, job: { id: number; mrf?: { clientId: number | null } | null }) => {
+  const last = await prisma.application.findFirst({
+    where: { userId, jobPostingId: job.id },
+    select: { attemptNumber: true },
+    orderBy: { attemptNumber: "desc" },
+  });
   const sameClientDeployments = job.mrf?.clientId
     ? await prisma.deployment.findMany({
         where: {
@@ -212,6 +221,17 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
       })
     : [];
   const sameClientDeployment = sameClientDeployments.length > 0;
+  return {
+    status: (sameClientDeployment ? "COMPLIANCE" : "SUBMITTED") as "COMPLIANCE" | "SUBMITTED",
+    attemptNumber: (last?.attemptNumber ?? 0) + 1,
+    sameClientDeployment,
+    sameClientDeployments,
+  };
+};
+
+// Submits job application using uploaded resume or falls back to profile default resume
+export const submitApplicationService = async (jobId: number, userId: string, file?: Express.Multer.File) => {
+  const job = await assertCanApply(userId, jobId);
 
   let resolvedResumeUrl: string | null = null;
 
@@ -280,14 +300,14 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     resolvedResumeUrl = profile.resumeUrl;
   }
 
-  const attemptNumber = (priorApplications[0]?.attemptNumber ?? 0) + 1;
+  const { status: initialStatus, attemptNumber, sameClientDeployment, sameClientDeployments } = await resolveInitialStatus(userId, job);
   let application = await prisma.application.create({
     data: {
       userId,
       jobPostingId: jobId,
       attemptNumber,
       resumeUrl: resolvedResumeUrl,
-      status: sameClientDeployment ? "COMPLIANCE" : "SUBMITTED",
+      status: initialStatus,
     },
   });
 

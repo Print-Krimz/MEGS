@@ -45,7 +45,7 @@ export const respondToInvitationHandler = async (req: Request, res: Response) =>
     }
     const input = talentPoolInvitationSchema.respondInvitation.parse(req.body);
     const result = await respondToJobInvitation({
-      userId: req.user!.id,
+      actor: { kind: "APPLICANT", userId: req.user!.id },
       invitationId: id,
       ...input,
     });

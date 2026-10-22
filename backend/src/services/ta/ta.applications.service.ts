@@ -15,6 +15,7 @@ import { syncMRFFulfillmentStatus } from "./ta.mrf.service.js";
 import { stageEnteredAt } from "../analytics/metric-definitions.js";
 
 import { ALLOWED_TRANSITIONS, SKIPPABLE_STAGES, stagesBetween, type TransitionType } from "./pipeline-rules.js";
+import { displayEmail } from "../../utils/display-email.js";
 export { ALLOWED_TRANSITIONS };
 
 export interface ListTAApplicationsOptions {
@@ -35,6 +36,7 @@ export interface ListTAApplicationsOptions {
   sort?: ApplicationListSort;
   /** Only applications where the TA has a pending step. */
   needsAction?: boolean;
+  source?: "ONLINE" | "WALK_IN";
 }
 
 export type ApplicationListSort = "match" | "newest" | "oldest" | "waiting";
@@ -188,7 +190,7 @@ export const listTAApplications = async (
           jobPostingId: legacyJobPostingId,
         };
 
-  const { status, jobPostingId, clientId, search, isArchived, page, limit, mineOnly, returningOnly, currentUserId, postedById, summary, actor, sort, needsAction } = options;
+  const { status, jobPostingId, clientId, search, isArchived, page, limit, mineOnly, returningOnly, currentUserId, postedById, summary, actor, sort, needsAction, source } = options;
   const dynamicScoring = scoringFlags.dynamicCandidateScoringEnabled();
   const configuration = dynamicScoring ? await getActiveScoringConfiguration() : null;
 
@@ -230,6 +232,10 @@ export const listTAApplications = async (
 
   if (needsAction) {
     andConditions.push(needsActionWhere());
+  }
+
+  if (source) {
+    andConditions.push({ source });
   }
 
   if (isArchived !== undefined) {
@@ -282,6 +288,8 @@ export const listTAApplications = async (
       aiScore: true,
       isArchived: true,
       createdAt: true,
+      source: true,
+      trackingCode: true,
       jobPosting: {
         select: {
           id: true,
@@ -294,6 +302,7 @@ export const listTAApplications = async (
         select: {
           id: true,
           email: true,
+          accountStatus: true,
           applicantProfile: { select: { firstName: true, lastName: true, mobileNumber: true } },
         },
       },
@@ -364,6 +373,8 @@ export const listTAApplications = async (
         const enteredAt = stageEntryOf(application);
         return {
           ...row,
+          user: row.user ? { ...row.user, email: displayEmail(row.user.email) ?? "" } : row.user,
+          hasPortalAccess: application.user?.accountStatus === "ACTIVE",
           stageEnteredAt: enteredAt.toISOString(),
           daysInStage: Math.max(0, Math.floor((Date.now() - enteredAt.getTime()) / MS_PER_DAY)),
           candidateFitScore: score ? Number(score.finalFitScore) : null,
@@ -414,6 +425,8 @@ export const listTAApplications = async (
         aiSummary: true,
         isArchived: true,
         createdAt: true,
+        source: true,
+        trackingCode: true,
         jobPosting: {
           select: {
             id: true,
@@ -434,6 +447,7 @@ export const listTAApplications = async (
           select: {
             id: true,
             email: true,
+            accountStatus: true,
             applicantProfile: {
               select: { firstName: true, lastName: true, mobileNumber: true, city: true, province: true, photoUrl: true },
             },
@@ -474,6 +488,8 @@ export const listTAApplications = async (
       const { candidateScores, ...rest } = application;
       return {
         ...rest,
+        user: rest.user ? { ...rest.user, email: displayEmail(rest.user.email) ?? "" } : rest.user,
+        hasPortalAccess: application.user?.accountStatus === "ACTIVE",
         candidateFitScore,
         candidateFitScoreCalculatedAt,
         candidateScoringConfigurationVersion: configuration?.version ?? null,
@@ -548,6 +564,7 @@ export const getTAApplication = async (id: number, options: { generateRequiremen
         select: {
           id: true,
           email: true,
+          accountStatus: true,
           applicantProfile: {
             include: {
               workExperiences: { orderBy: { startDate: "desc" } },
@@ -700,14 +717,17 @@ export const getTAApplication = async (id: number, options: { generateRequiremen
         (application.user.employee.deployments && application.user.employee.deployments.length > 0))
   );
 
+  const { trackingTokenHash: _tokenHash, ...applicationFields } = application;
   return {
-    ...application,
+    ...applicationFields,
+    hasPortalAccess: application.user?.accountStatus === "ACTIVE",
     isRedeploymentEligible,
     resumeUrl: resolvedAppResumeUrl,
     candidateFitScore: candidateScores?.[0] ? candidateScores[0].finalFitScore : null,
     candidateScores,
     user: {
       ...application.user,
+      email: displayEmail(application.user.email) ?? "",
       applicantProfile: application.user.applicantProfile
         ? {
             ...application.user.applicantProfile,

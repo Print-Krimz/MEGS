@@ -56,6 +56,13 @@ enum TalentPoolInvitationStatus {
   EXPIRED
 }
 
+enum InvitationChannel {
+  PORTAL
+  SMS_MAGIC_LINK
+  ASSISTED_PHONE
+  IN_PERSON
+}
+
 model TalentPoolInvitation {
   id                 Int                        @id @default(autoincrement())
   applicantProfileId Int
@@ -76,6 +83,14 @@ model TalentPoolInvitation {
   responseNotes      String?
   expiresAt          DateTime?
   respondedAt        DateTime?
+
+  // How the reply arrived. Walk-ins without a portal account answer by phone,
+  // in person (recorded by the TA in assistedById) or through a texted link.
+  responseChannel    InvitationChannel          @default(PORTAL)
+  assistedById       String?
+  assistedBy         User?                      @relation("InvitationAssistedBy", fields: [assistedById], references: [id], onDelete: SetNull)
+  responseTokenHash  String?                    // sha256 of the texted link token; cleared once used
+
   createdAt          DateTime                   @default(now())
   updatedAt          DateTime                   @updatedAt
 

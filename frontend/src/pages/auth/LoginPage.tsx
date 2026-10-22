@@ -291,6 +291,15 @@ export const LoginPage: React.FC = () => {
           Create an account
         </Link>
       </p>
+      <p className="-mt-3 text-center text-sm text-muted-foreground">
+        Applied at a MEGS office?{" "}
+        <Link
+          to="/claim"
+          className="inline-block rounded-sm py-3 font-medium text-accent underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Set up your account
+        </Link>
+      </p>
 
       {/* MFA Challenge Modal */}
       {mfaChallenge && (

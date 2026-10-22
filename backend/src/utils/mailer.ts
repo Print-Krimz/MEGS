@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { redactSensitiveText } from "../security/errors.js";
+import { isSyntheticEmail } from "./sms.js";
 
 export const getFromAddress = (): string => {
   if (process.env.EMAIL_FROM) {
@@ -88,6 +89,11 @@ export const sendMail = async (
   text: string,
   html?: string
 ): Promise<{ success: boolean; messageId?: string }> => {
+  // Placeholder addresses (phone sign-ups, walk-ins) have no mailbox.
+  if (isSyntheticEmail(to)) {
+    console.log("[MAIL] Skipped: recipient has no real email address.");
+    return { success: true };
+  }
   const from = getFromAddress();
   const transporter = createMailTransporter();
 

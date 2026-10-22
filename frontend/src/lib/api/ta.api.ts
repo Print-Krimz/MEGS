@@ -8,6 +8,9 @@ import type {
   ClientEndorsement,
   ComplianceRequirement,
   RecruiterDecision,
+  ApplicationSource,
+  WalkInMatch,
+  WalkInSlip,
 } from "../types/application.types";
 import type {
   ManpowerRequest,
@@ -80,6 +83,7 @@ export interface ApplicationQueryFilters {
   /** Summary list order; omitted means best match. */
   sort?: "match" | "newest" | "oldest" | "waiting";
   needsAction?: boolean;
+  source?: ApplicationSource;
   page?: number;
   limit?: number;
   summary?: boolean;
@@ -147,6 +151,7 @@ export const taApi = {
     if (filters.returning) params.append("returning", "true");
     if (filters.sort && filters.sort !== "match") params.append("sort", filters.sort);
     if (filters.needsAction) params.append("needsAction", "true");
+    if (filters.source) params.append("source", filters.source);
     params.append("page", String(filters.page));
     params.append("limit", String(filters.limit));
     params.append("summary", "true");
@@ -155,6 +160,42 @@ export const taApi = {
       options,
     );
   },
+
+  checkWalkInDuplicate: (
+    params: { phone?: string; firstName?: string; lastName?: string; birthDate?: string },
+    options?: RequestInit,
+  ) => {
+    const qs = new URLSearchParams();
+    if (params.phone) qs.append("phone", params.phone);
+    if (params.firstName) qs.append("firstName", params.firstName);
+    if (params.lastName) qs.append("lastName", params.lastName);
+    if (params.birthDate) qs.append("birthDate", params.birthDate);
+    return api.get<{ matches: WalkInMatch[] }>(`/api/ta/walk-ins/check-duplicate?${qs.toString()}`, options);
+  },
+
+  createWalkIn: (formData: FormData) => api.upload<WalkInSlip>("/api/ta/walk-ins", formData),
+
+  reissueWalkInSlip: (applicationId: number | string) =>
+    api.post<WalkInSlip>(`/api/ta/walk-ins/${applicationId}/slip`),
+
+  recordAssistedResponse: (
+    invitationId: number | string,
+    body: {
+      decision: "ACCEPT" | "DECLINE";
+      channel: "ASSISTED_PHONE" | "IN_PERSON";
+      declineReason?: string;
+      notes?: string;
+    },
+  ) =>
+    api.post<{ status: "ACCEPTED" | "DECLINED"; applicationId?: number }>(
+      `/api/ta/talent-pool/invitations/${invitationId}/assisted-response`,
+      body,
+    ),
+
+  sendOfferSmsLink: (invitationId: number | string) =>
+    api.post<{ sentTo: string; expiresAt: string | null }>(
+      `/api/ta/talent-pool/invitations/${invitationId}/sms-link`,
+    ),
 
   getApplication: (id: number | string) =>
     api.get<Application>(`/api/ta/applications/${id}`),

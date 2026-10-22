@@ -11,7 +11,10 @@ export const AppContent: React.FC = () => {
   const auth = useAuth();
   const queryClient = useQueryClient();
 
-  if (auth.isLoading) {
+  // Public pages (tracking slip, offer link) never need the session, so skip the staff loader.
+  const isPublicPath = /^\/(t|offer)\//.test(window.location.pathname);
+
+  if (auth.isLoading && !isPublicPath) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-slate-300">
         <div className="flex items-center gap-3">

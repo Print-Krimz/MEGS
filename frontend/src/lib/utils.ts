@@ -317,6 +317,10 @@ export function maskIdentifier(identifier?: string | null): string {
     const rawNumber = identifier.replace("@applicant.megs.local", "");
     return maskPhone(rawNumber);
   }
+  if (identifier.endsWith("@megs.internal")) {
+    const local = identifier.replace("@megs.internal", "");
+    return isPhilippinePhone(local) ? maskPhone(local) : "";
+  }
   return maskEmail(identifier);
 }
 

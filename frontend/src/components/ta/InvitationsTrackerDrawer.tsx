@@ -6,6 +6,7 @@ import { LoadingState, ErrorState, EmptyState, Pagination, DataTable, ConfirmDia
 import type { DataTableColumn } from "../common";
 import { formatDate, cn } from "../../lib/utils";
 import { notify } from "../../lib/feedback";
+import { OfferReplyActions } from "./OfferReplyActions";
 import { TA_COPY } from "../../lib/ta-copy";
 import type { TalentPoolInvitationRecord } from "../../lib/types/ta.types";
 
@@ -21,6 +22,12 @@ const STATUS_STYLES: Record<string, { label: string; className: string }> = {
   EXPIRED: { label: "Expired", className: "text-slate-700" },
   CANCELLED: { label: "Cancelled", className: "text-slate-700" },
   PENDING: { label: "Pending", className: "text-amber-800" },
+};
+
+const CHANNEL_LABELS: Record<string, string> = {
+  ASSISTED_PHONE: "Recorded by phone",
+  IN_PERSON: "Recorded in person",
+  MAGIC_LINK: "Replied by text link",
 };
 
 type InvitationRow = TalentPoolInvitationRecord;
@@ -69,6 +76,9 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
     return (
       <span>
         <span className={cn("font-medium", style.className)}>{style.label}</span>
+        {inv.responseChannel && inv.responseChannel !== "PORTAL" && (
+          <span className="block text-xs text-slate-600">{CHANNEL_LABELS[inv.responseChannel] ?? inv.responseChannel}</span>
+        )}
         {inv.declineReason && (
           <span className="block text-xs text-slate-600">
             {inv.declineReason.replace(/_/g, " ").toLowerCase().replace(/^./, (ch: string) => ch.toUpperCase())}
@@ -89,9 +99,19 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
 
   const cancelButton = (inv: InvitationRow) =>
     inv.status === "PENDING" ? (
-      <Button variant="ghost" size="sm" onClick={() => setInvitationToCancel(inv)}>
-        Cancel invitation
-      </Button>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <OfferReplyActions
+          invitationId={inv.id}
+          candidateName={inv.candidateName}
+          jobTitle={inv.jobPostingTitle}
+          hasPortalAccess={inv.hasPortalAccess ?? true}
+          hasMobile={inv.hasMobile ?? false}
+          maskedMobile={inv.maskedMobile}
+        />
+        <Button variant="ghost" size="sm" onClick={() => setInvitationToCancel(inv)}>
+          Cancel invitation
+        </Button>
+      </div>
     ) : null;
 
   const columns: DataTableColumn<InvitationRow>[] = [
