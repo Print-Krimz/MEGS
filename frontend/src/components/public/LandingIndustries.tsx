@@ -18,6 +18,28 @@ interface Industry {
 
 const industries: Industry[] = [
   {
+    id: "manufacturing",
+    stock: {
+      base: "/images/stock/industries/manufacturing",
+      alt: "Workers in blue uniforms at a factory assembly line",
+      pos: "object-[50%_60%]",
+    },
+    name: "Manufacturing",
+    description: "Assembly, packaging and machine operation in plants.",
+    roles: ["Production workers", "Machine operators", "QA/QC personnel", "Welders"],
+  },
+  {
+    id: "logistics",
+    stock: {
+      base: "/images/stock/industries/logistics",
+      alt: "Driver in a high-visibility jacket at the back of a truck",
+      pos: "object-[40%_55%]",
+    },
+    name: "Logistics",
+    description: "Delivery, courier work and dispatch support.",
+    roles: ["Delivery drivers", "Messengers", "Office staff", "Encoders"],
+  },
+  {
     id: "warehousing",
     name: "Warehousing",
     stock: {
@@ -60,18 +82,6 @@ const industries: Industry[] = [
     },
     description: "Gaming floors and their support teams.",
     roles: ["Cashiers", "Utility helpers", "Office staff"],
-  },
-  {
-    id: "manufacturing",
-    name: "Manufacturing",
-    description: "Assembly, packaging and machine operation in plants.",
-    roles: ["Production workers", "Machine operators", "QA/QC personnel", "Welders"],
-  },
-  {
-    id: "logistics",
-    name: "Logistics",
-    description: "Delivery, courier work and dispatch support.",
-    roles: ["Delivery drivers", "Messengers", "Office staff", "Encoders"],
   },
 ];
 
