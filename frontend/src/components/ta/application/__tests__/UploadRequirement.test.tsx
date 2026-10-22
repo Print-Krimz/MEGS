@@ -109,6 +109,18 @@ describe("RequirementRow upload action", () => {
     expect(screen.getByText("Replace document")).toBeTruthy();
   });
 
+  it("keeps a way to mark a missing walk-in document as to follow", () => {
+    row({}, false);
+    openMenu();
+    expect(screen.getByText("Mark as to follow")).toBeTruthy();
+  });
+
+  it("does not add that item when Review is already the primary", () => {
+    row({}, true);
+    openMenu();
+    expect(screen.queryByText("Mark as to follow")).toBeNull();
+  });
+
   it("is hidden for approved rows", () => {
     row({ reviewStatus: "APPROVED", documentId: 3 }, false);
     openMenu();

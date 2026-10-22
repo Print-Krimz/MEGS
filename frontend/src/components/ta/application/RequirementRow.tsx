@@ -74,6 +74,8 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
   const menu: ActionMenuItem[] = [];
   if (req.documentId && primary?.label !== "View") menu.push({ label: "View document", onSelect: onView });
   if (canUpload && !uploadPrimary) menu.push({ label: req.documentId ? "Replace document" : "Upload document", onSelect: onUpload! });
+  // Upload takes the primary slot for a walk-in with nothing on file, so the follow-up decision moves into the menu.
+  if (uploadPrimary) menu.push({ label: "Mark as to follow", onSelect: onReview });
   if (isApproved) menu.push({ label: "Request updated copy", onSelect: onRequestCopy });
   if (!isToFollow) menu.push({ label: deadlineDate ? "Edit deadline" : "Set deadline", onSelect: onEditDeadline });
   if (canRemove) menu.push({ label: "Remove requirement", onSelect: onRemove, tone: "danger" });
