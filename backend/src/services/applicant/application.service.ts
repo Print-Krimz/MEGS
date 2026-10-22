@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import prisma from '../../utils/prisma.js';
 import { uploadFileToSupabase } from '../../middleware/upload.middleware.js';
 import { logAudit } from '../../utils/audit.js';
+import { assertOwns } from '../ta/ownership.js';
 import { sendNotification, sendRoleNotification } from '../../utils/notification.js';
 import { enqueueResumeAnalysis, trackFitRevalidation } from '../../workers/resume.worker.js';
 import { revalidateApplication } from "../scoring/scoring-configuration.service.js";
@@ -724,12 +725,8 @@ export const reuseDocumentForRequirement = async (userId: string, requirementId:
   return updated;
 };
 
-export const uploadApplicantComplianceDocument = async (
-  userId: string,
-  requirementId: number,
-  file: Express.Multer.File
-) => {
-  const requirement = await prisma.complianceRequirement.findUnique({
+const loadRequirementForUpload = (requirementId: number) =>
+  prisma.complianceRequirement.findUnique({
     where: { id: requirementId },
     include: {
       application: {
@@ -741,6 +738,7 @@ export const uploadApplicantComplianceDocument = async (
           user: {
             select: {
               email: true,
+              accountStatus: true,
               applicantProfile: {
                 select: {
                   firstName: true,
@@ -755,13 +753,15 @@ export const uploadApplicantComplianceDocument = async (
     },
   });
 
-  if (!requirement) {
-    throw new Error("Compliance requirement not found");
-  }
+type UploadRequirement = NonNullable<Awaited<ReturnType<typeof loadRequirementForUpload>>>;
 
-  if (requirement.application.userId !== userId) {
-    throw new Error("Unauthorized to upload document for this compliance requirement");
-  }
+/** Checks shared by the applicant and staff upload paths, then stores the file under the applicant and links it. */
+const storeAndLinkComplianceDocument = async (
+  requirement: UploadRequirement,
+  requirementId: number,
+  file: Express.Multer.File
+) => {
+  const applicantUserId = requirement.application.userId;
 
   if (CLOSED_APPLICATION_STATUSES.includes(requirement.application.status) || requirement.application.isArchived) {
     throw new Error("This application is closed, so documents can no longer be uploaded.");
@@ -774,21 +774,38 @@ export const uploadApplicantComplianceDocument = async (
     throw new Error("Document file is required");
   }
 
-  const wasRejected = requirement.reviewStatus === "REJECTED";
-
   // Re-use an identical file the applicant already stored instead of uploading it again.
   const sha256 = crypto.createHash("sha256").update(file.buffer).digest("hex");
   const existingDocument = await prisma.storedDocument.findFirst({
-    where: { ownerId: userId, category: "VAULT_201", sha256, deletedAt: null },
+    where: { ownerId: applicantUserId, category: "VAULT_201", sha256, deletedAt: null },
     orderBy: { uploadedAt: "desc" },
   });
 
-  // Otherwise upload to the secure documents bucket with category VAULT_201
+  // Otherwise upload to the secure documents bucket with category VAULT_201. The applicant owns it either way.
   const storedDocument =
     existingDocument ??
-    (await uploadAndStoreDocument(userId, "VAULT_201", file, requirement.applicationId));
+    (await uploadAndStoreDocument(applicantUserId, "VAULT_201", file, requirement.applicationId));
 
-  const updated = await linkDocumentToRequirement(requirementId, storedDocument.id);
+  return linkDocumentToRequirement(requirementId, storedDocument.id);
+};
+
+export const uploadApplicantComplianceDocument = async (
+  userId: string,
+  requirementId: number,
+  file: Express.Multer.File
+) => {
+  const requirement = await loadRequirementForUpload(requirementId);
+
+  if (!requirement) {
+    throw new Error("Compliance requirement not found");
+  }
+
+  if (requirement.application.userId !== userId) {
+    throw new Error("Unauthorized to upload document for this compliance requirement");
+  }
+
+  const wasRejected = requirement.reviewStatus === "REJECTED";
+  const updated = await storeAndLinkComplianceDocument(requirement, requirementId, file);
 
   sendNotification(
     userId,
@@ -851,6 +868,47 @@ export const uploadApplicantComplianceDocument = async (
       void sendRoleNotification("TALENT_ACQUISITION", milestoneTitle, milestoneMsg, milestoneType, directLink, userId);
     }
   }
+
+  return updated;
+};
+
+
+/** A recruiter uploads the paper document an applicant brought in. Storage stays under the applicant. */
+export const uploadComplianceDocumentForApplicant = async ({
+  actor,
+  requirementId,
+  file,
+}: {
+  actor: { id: string; role: string };
+  requirementId: number;
+  file: Express.Multer.File;
+}) => {
+  await assertOwns("requirement", requirementId, actor);
+
+  const requirement = await loadRequirementForUpload(requirementId);
+  if (!requirement) {
+    throw new Error("Compliance requirement not found");
+  }
+
+  const applicantUserId = requirement.application.userId;
+  const updated = await storeAndLinkComplianceDocument(requirement, requirementId, file);
+
+  // Walk-in applicants have no login, so only an active account gets an in-app notice.
+  if (requirement.application.user?.accountStatus === "ACTIVE") {
+    void sendNotification(
+      applicantUserId,
+      "Compliance Document Uploaded",
+      `A recruiter uploaded your document for "${requirement.documentLabel}" for verification.`,
+      "INFO",
+      `/app/applications/${requirement.applicationId}`
+    );
+  }
+
+  void logAudit(actor.id, "COMPLIANCE_DOCUMENT_UPLOADED_BY_STAFF", "ComplianceRequirement", requirementId, {
+    applicationId: requirement.applicationId,
+    documentLabel: requirement.documentLabel,
+    applicantUserId,
+  });
 
   return updated;
 };

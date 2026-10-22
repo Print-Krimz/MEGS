@@ -33,6 +33,9 @@ export interface RequirementRowProps {
   onRequestCopy: () => void;
   onEditDeadline: () => void;
   onRemove: () => void;
+  onUpload?: () => void;
+  /** False for walk-ins, who cannot upload for themselves. Defaults to true. */
+  applicantHasPortalAccess?: boolean;
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -43,7 +46,7 @@ const STATUS_STYLE: Record<string, string> = {
   PENDING: "border-slate-200 bg-slate-100 text-slate-700",
 };
 
-export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, onView, onReview, onRequestCopy, onEditDeadline, onRemove }) => {
+export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, onView, onReview, onRequestCopy, onEditDeadline, onRemove, onUpload, applicantHasPortalAccess = true }) => {
   const status = requirementRowStatus(req);
   const isApproved = status === "APPROVED";
   const isRejected = status === "REJECTED";
@@ -57,8 +60,12 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
   const isDueSoon = diffDays !== null && diffDays >= 0 && diffDays <= 3 && !isApproved && !isToFollow;
 
   // One primary control per row, chosen by state. Everything else lives in the row menu.
+  const canUpload = Boolean(onUpload) && !isApproved;
+  const uploadPrimary = canUpload && !applicantHasPortalAccess && !req.documentId && !isToFollow;
   const primary =
-    isApproved
+    uploadPrimary
+      ? { label: "Upload document", onClick: onUpload! }
+      : isApproved
       ? req.documentId ? { label: "View", onClick: onView } : null
       : isToFollow && !req.documentId
       ? { label: "Change target", onClick: onReview }
@@ -66,6 +73,7 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
 
   const menu: ActionMenuItem[] = [];
   if (req.documentId && primary?.label !== "View") menu.push({ label: "View document", onSelect: onView });
+  if (canUpload && !uploadPrimary) menu.push({ label: req.documentId ? "Replace document" : "Upload document", onSelect: onUpload! });
   if (isApproved) menu.push({ label: "Request updated copy", onSelect: onRequestCopy });
   if (!isToFollow) menu.push({ label: deadlineDate ? "Edit deadline" : "Set deadline", onSelect: onEditDeadline });
   if (canRemove) menu.push({ label: "Remove requirement", onSelect: onRemove, tone: "danger" });

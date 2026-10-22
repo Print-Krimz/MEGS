@@ -333,6 +333,11 @@ export const taSchema = {
     params: z.object({ requirementId: boundedIdText }),
     body: z.object({ documentId: idValue }).strict(),
   }),
+  // The document arrives as a multipart file, so the body carries no other fields.
+  uploadComplianceDocument: z.object({
+    params: z.object({ requirementId: boundedIdText }),
+    body: z.object({}).strict().optional(),
+  }),
   reviewComplianceRequirement: z.object({
     params: z.object({ requirementId: boundedIdText }),
     body: z.object({

@@ -569,6 +569,13 @@ export const taApi = {
   submitComplianceDocument: (requirementId: number | string, formData: FormData) =>
     api.upload<ComplianceRequirement>(`/api/ta/compliance/${requirementId}/submit`, formData),
 
+  /** TA uploads a requirement's document on the applicant's behalf (walk-ins have no portal). */
+  uploadComplianceDocument: (requirementId: number | string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.upload<ComplianceRequirement>(`/api/ta/compliance/${requirementId}/upload`, formData);
+  },
+
   reviewComplianceRequirement: (requirementId: number | string, data: ReviewComplianceDto) =>
     api.patch<ComplianceRequirement>(`/api/ta/compliance/${requirementId}/review`, data),
 

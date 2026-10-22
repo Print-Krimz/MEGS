@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { uploadComplianceDocumentForApplicant } from "../../services/applicant/application.service.js";
 import { requestComplianceDocumentUpdate } from "../../services/ta/ta.compliance.service.js";
 import { sendSuccess, sendError } from "../../utils/response.js";
 import {
@@ -93,6 +94,23 @@ export const requestDocumentUpdateHandler = async (req: Request, res: Response):
     const result = await requestComplianceDocumentUpdate(Number(req.params.requirementId), req.user!.id, req.body.reason, req.body.deadline);
     sendSuccess(res, "Updated document requested", result);
   } catch (error: any) { sendError(res, error.message, error.message.includes("not found") ? 404 : 400); }
+};
+
+export const uploadComplianceDocumentForApplicantHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      sendError(res, "Attach the document photo or PDF", 400);
+      return;
+    }
+    const updated = await uploadComplianceDocumentForApplicant({
+      actor: { id: req.user!.id, role: req.user!.role },
+      requirementId: Number(req.params.requirementId),
+      file: req.file,
+    });
+    sendSuccess(res, "Document uploaded for the applicant", updated);
+  } catch (error: any) {
+    sendError(res, error.message, error.message.includes("not found") ? 404 : 400);
+  }
 };
 
 export const updateRequirementDeadlineHandler = async (req: Request, res: Response): Promise<void> => {

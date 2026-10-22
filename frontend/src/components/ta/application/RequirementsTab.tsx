@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "../../ui";
 import { ClientReviewSummary, type ClientReviewSummaryProps } from "./ClientReviewSummary";
+import { UploadRequirementDialog } from "./UploadRequirementDialog";
 import { RequirementRow, type RequirementRowData } from "./RequirementRow";
 
 export interface RequirementsTabProps {
@@ -18,6 +19,10 @@ export interface RequirementsTabProps {
   onRequestCopy: (req: RequirementRowData) => void;
   onEditDeadline: (req: RequirementRowData) => void;
   onRemove: (req: RequirementRowData) => void;
+  /** Needed to refresh the record after a TA upload. */
+  applicationId: string;
+  /** Walk-ins have none, so the recruiter uploads for them. */
+  applicantHasPortalAccess?: boolean;
   /** Contract signing opens once requirements are approved. Before that the section is one line. */
   showReadiness: boolean;
   /** Contract and deployment steps (the readiness list). */
@@ -38,10 +43,13 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
   onRequestCopy,
   onEditDeadline,
   onRemove,
+  applicationId,
+  applicantHasPortalAccess = true,
   showReadiness,
   readiness,
 }) => {
   // The list opens while work remains and folds away once everything is approved; the recruiter can override it.
+  const [uploadTarget, setUploadTarget] = useState<RequirementRowData | null>(null);
   const [manualExpanded, setManualExpanded] = useState<boolean | null>(null);
   // Before compliance a waiting decision is already the stage bar's action, so the row would only repeat it.
   const hideClientReview = Boolean(clientReview.stageBarOwnsDecision) && !clientReview.isPastClientReview && clientReview.endorsements.length <= 1;
@@ -108,6 +116,8 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
                     onRequestCopy={() => onRequestCopy(req)}
                     onEditDeadline={() => onEditDeadline(req)}
                     onRemove={() => onRemove(req)}
+                    onUpload={() => setUploadTarget(req)}
+                    applicantHasPortalAccess={applicantHasPortalAccess}
                   />
                 ))}
               </div>
@@ -131,6 +141,10 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
         </div>
         {showReadiness && readiness}
       </section>
+
+      {uploadTarget && (
+        <UploadRequirementDialog applicationId={applicationId} requirement={uploadTarget} onClose={() => setUploadTarget(null)} />
+      )}
     </div>
   );
 };

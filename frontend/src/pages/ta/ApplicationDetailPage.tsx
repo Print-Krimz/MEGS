@@ -616,6 +616,8 @@ export const ApplicationDetailPage: React.FC = () => {
                   },
                   onRecordMissing: () => setDialog({ kind: "sendToClient", mode: "record" }),
                 }}
+                applicationId={applicationId}
+                applicantHasPortalAccess={app.hasPortalAccess !== false}
                 isDeployed={app.status === ApplicationStatus.DEPLOYED}
                 requirements={requirements}
                 counts={requirementCounts}
