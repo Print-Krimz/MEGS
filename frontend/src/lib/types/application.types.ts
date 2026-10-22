@@ -193,6 +193,28 @@ export interface WalkInSlip {
   createdAt: string;
 }
 
+export interface CheckInSummary {
+  id: number;
+  queueNumber: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  jobPostingId: number;
+  jobTitle: string;
+  clientName: string | null;
+  createdAt: string;
+}
+
+export interface CheckInDetail extends CheckInSummary {
+  /** Local 09 format, or null when the applicant left it blank. */
+  mobileNumber: string | null;
+  /** YYYY-MM-DD */
+  birthDate: string;
+  /** The TA who will own the application; null when the job has no recruiter assigned. */
+  jobOwnerId: string | null;
+  jobOwnerName: string | null;
+}
+
 export interface Application {
   id: number;
   source?: ApplicationSource;

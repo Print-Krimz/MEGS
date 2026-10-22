@@ -1,5 +1,9 @@
 import { api } from "./client";
 import type {
+  CheckInJob,
+  CheckInSubmitBody,
+  CheckInSubmitResult,
+  PublicCheckInStatus,
   PublicOffer,
   PublicOfferResponseBody,
   PublicOfferResult,
@@ -11,6 +15,20 @@ export const publicApi = {
   getTracking: (code: string, token: string, options?: RequestInit) =>
     api.get<PublicTracking>(
       `/api/public/track/${encodeURIComponent(code)}?token=${encodeURIComponent(token)}`,
+      options
+    ),
+
+  getCheckInJobs: (q: string, options?: RequestInit) =>
+    api.get<{ jobs: CheckInJob[] }>(`/api/public/check-in/jobs?q=${encodeURIComponent(q)}`, options),
+
+  submitCheckIn: (body: CheckInSubmitBody) =>
+    api.post<CheckInSubmitResult>("/api/public/check-in", body, {
+      headers: { "x-turnstile-token": body.turnstileToken },
+    }),
+
+  getCheckInStatus: (publicId: string, token: string, options?: RequestInit) =>
+    api.get<PublicCheckInStatus>(
+      `/api/public/check-in/${encodeURIComponent(publicId)}?token=${encodeURIComponent(token)}`,
       options
     ),
 

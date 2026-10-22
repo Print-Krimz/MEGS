@@ -53,6 +53,8 @@ model User {
   talentPoolContacts TalentPoolContact[] @relation("ContactRecruiter")
   sentTalentPoolInvitations TalentPoolInvitation[] @relation("InvitationRecruiter")
   assistedInvitationReplies TalentPoolInvitation[] @relation("InvitationAssistedBy")
+  confirmedCheckIns WalkInCheckIn[] @relation("CheckInConfirmedBy")
+  dismissedCheckIns WalkInCheckIn[] @relation("CheckInDismissedBy")
   employee Employee? @relation("UserEmployee")
   employmentEventsCreated EmploymentEvent[] @relation("EmploymentEventActor")
   mfaRecoveryCodes UserMfaRecoveryCode[]

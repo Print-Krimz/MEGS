@@ -284,3 +284,26 @@ body {
     display: none !important;
   }
 }
+
+/* Check-in poster: print only the poster, on A4. The page size is set by CheckInPosterDialog while it is open. */
+@media print {
+  .print-poster,
+  .print-poster * {
+    visibility: visible !important;
+  }
+  .print-poster {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 210mm !important;
+    height: 297mm !important;
+    transform: none !important;
+    color: #000 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+  .print-poster * {
+    color: #000 !important;
+  }
+}

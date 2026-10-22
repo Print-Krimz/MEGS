@@ -1,36 +1,30 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { taApi } from "../../../lib/api/ta.api";
+import { ApiError } from "../../../lib/api/client";
+import { AuthContext } from "../../../context/AuthContext";
 import { Button, ComboBox, Dialog, Input, PhoneInput } from "../../ui";
 import { DateField } from "../../common/DateField";
 import { notify, fieldErrorsFrom } from "../../../lib/feedback";
 import { useDirtyGuard } from "../../../hooks/useDirtyGuard";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../../lib/query-policies";
 import { validatePhilippineMobile } from "../../../lib/phone-utils";
-import { getManilaToday } from "../../../lib/field-limits";
+import { MAX_AGE, MIN_AGE, yearsAgo } from "../../../lib/walk-in-age";
 import { validateDateOfBirth } from "../../../lib/statutory-validation";
 import { formatTaStatus } from "../../../lib/ta-copy";
-import type { WalkInMatch, WalkInSlip } from "../../../lib/types/application.types";
+import type { CheckInDetail, WalkInMatch, WalkInSlip } from "../../../lib/types/application.types";
 
 interface EncodeWalkInDialogProps {
   open: boolean;
   onClose: () => void;
   onCreated: (slip: WalkInSlip) => void;
+  /** A pending self check-in to confirm. Prefills the form and locks the job. */
+  checkIn?: CheckInDetail | null;
 }
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
-
-// Walk-in applicants must be 18 to 65 years old (the backend enforces the same range).
-const MIN_AGE = 18;
-const MAX_AGE = 65;
-
-/** YYYY-MM-DD for the Manila date `years` years before today. */
-const yearsAgo = (years: number): string => {
-  const [y, m, d] = getManilaToday().split("-");
-  return `${Number(y) - years}-${m}-${d}`;
-};
 
 const schema = z.object({
   jobPostingId: z.string().min(1, "Choose a job opening."),
@@ -73,8 +67,10 @@ const EMPTY_FORM: FormState = {
   file: null,
 };
 
-export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, onClose, onCreated }) => {
+export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, onClose, onCreated, checkIn = null }) => {
   const queryClient = useQueryClient();
+  const auth = useContext(AuthContext);
+  const myId = auth?.user?.id;
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [matches, setMatches] = useState<WalkInMatch[]>([]);
@@ -88,7 +84,7 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
     queryKey: ["ta", "jobs", "dropdown"],
     queryFn: ({ signal }) => taApi.listJobs({}, { signal }),
     staleTime: REFERENCE_QUERY_STALE_TIME_MS,
-    enabled: open,
+    enabled: open && !checkIn,
   });
 
   const jobOptions = useMemo(
@@ -98,14 +94,39 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
         .map((job) => ({
           value: String(job.id),
           label: job.title,
-          subtitle: [job.mrf?.client?.name, job.location].filter(Boolean).join(" · ") || undefined,
+          subtitle: [job.mrf?.client?.name, job.location].filter(Boolean).join(" Â· ") || undefined,
         })),
     [jobsQuery.data],
   );
 
-  const isDirty = Boolean(
+  useEffect(() => {
+    if (!checkIn) return;
+    setForm({
+      jobPostingId: String(checkIn.jobPostingId),
+      firstName: checkIn.firstName,
+      middleName: checkIn.middleName ?? "",
+      lastName: checkIn.lastName,
+      mobileNumber: checkIn.mobileNumber ?? "",
+      birthDate: checkIn.birthDate,
+      file: null,
+    });
+    setErrors({});
+    setMatches([]);
+    setExistingUser(null);
+    setDismissedIds([]);
+    lastCheckKey.current = "";
+  }, [checkIn]);
+
+  const isDirty = checkIn
+    ? Boolean(form.file) ||
+      form.firstName !== checkIn.firstName ||
+      form.middleName !== (checkIn.middleName ?? "") ||
+      form.lastName !== checkIn.lastName ||
+      form.mobileNumber !== (checkIn.mobileNumber ?? "") ||
+      form.birthDate !== checkIn.birthDate
+    : Boolean(
     form.jobPostingId || form.firstName || form.middleName || form.lastName || form.mobileNumber || form.birthDate || form.file,
-  );
+      );
   const guard = useDirtyGuard({ isDirty: open && isDirty, message: "The walk-in has not been saved yet." });
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -157,16 +178,24 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: FormData) => taApi.createWalkIn(data),
+    mutationFn: (data: FormData) => (checkIn ? taApi.confirmCheckIn(checkIn.id, data) : taApi.createWalkIn(data)),
     onSuccess: (slip) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      if (checkIn) queryClient.invalidateQueries({ queryKey: ["ta", "check-ins"] });
       notify.success("Walk-in saved", `${slip.applicantName} is now in the pipeline.`);
       reset();
       onClose();
       onCreated(slip);
     },
     onError: (error) => {
+      if (checkIn && error instanceof ApiError && error.status === 409) {
+        notify.error("Check-in already handled", "Another recruiter already handled this check-in.");
+        queryClient.invalidateQueries({ queryKey: ["ta", "check-ins"] });
+        reset();
+        onClose();
+        return;
+      }
       const fieldErrors = fieldErrorsFrom(error);
       if (Object.keys(fieldErrors).length > 0) setErrors((prev) => ({ ...prev, ...fieldErrors }));
       else notify.error("Could not save the walk-in", error);
@@ -204,12 +233,29 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
       <Dialog
         open={open}
         onClose={() => void requestClose()}
-        title="Encode walk-in"
-        description="Enter the applicant and photograph their biodata."
+        title={checkIn ? `Confirm check-in ${checkIn.queueNumber}` : "Encode walk-in"}
+        description={
+          checkIn
+            ? "Check their ID, correct any detail, then photograph the biodata."
+            : "Enter the applicant and photograph their biodata."
+        }
         size="lg"
       >
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          {jobsQuery.isError ? (
+          {checkIn ? (
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-xs font-medium text-slate-600">Job opening</p>
+              <p className="text-sm font-semibold text-slate-900">{checkIn.jobTitle}</p>
+              {checkIn.clientName && <p className="text-xs text-slate-600">{checkIn.clientName}</p>}
+              {checkIn.jobOwnerId && checkIn.jobOwnerId !== myId && (
+                <p className="text-xs text-slate-600">
+                  {checkIn.jobOwnerName
+                    ? `Goes to ${checkIn.jobOwnerName}'s list after you confirm.`
+                    : "Goes to the recruiter who owns this job after you confirm."}
+                </p>
+              )}
+            </div>
+          ) : jobsQuery.isError ? (
             <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
               <span>Could not load the open jobs.</span>
               <Button type="button" variant="outline" size="sm" loading={jobsQuery.isFetching} onClick={() => void jobsQuery.refetch()}>
@@ -320,7 +366,7 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
                     <div className="min-w-0 text-sm text-slate-900">
                       <p className="font-medium">
                         {match.fullName}
-                        {match.maskedPhone ? <span className="font-normal text-slate-700"> · {match.maskedPhone}</span> : null}
+                        {match.maskedPhone ? <span className="font-normal text-slate-700"> Â· {match.maskedPhone}</span> : null}
                       </p>
                       <p className="text-slate-700">
                         {match.latestApplication
@@ -388,7 +434,7 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
               Cancel
             </Button>
             <Button type="submit" loading={createMutation.isPending}>
-              Save and print slip
+              {checkIn ? "Confirm and print slip" : "Save and print slip"}
             </Button>
           </div>
         </form>

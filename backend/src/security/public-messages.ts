@@ -1,5 +1,16 @@
 // Reviewed fixed application messages. Raw provider exceptions are never public by default.
 export const publicMessages = new Set<string>([
+  "This check-in was already handled or has expired",
+  "This check-in was already handled",
+  "Check-in not found",
+  "Enter a valid Philippine mobile number",
+  "Choose a job that is still open",
+  "The queue is busy. Please try again.",
+  "Attach the biodata photo or PDF",
+  "This mobile number already belongs to an applicant. Use the duplicate check and pick that person.",
+  "You already have an active application for this job",
+  "Applicant not found",
+  "Online applications do not have a slip",
   "Backup snapshot not found",
   "Invalid file type. Only PDF, DOCX, DOC, JPEG, PNG, and WEBP files are allowed.",
   "Invalid file type. Only JPEG, PNG, and WEBP images are allowed.",

@@ -29,6 +29,8 @@ import type { ApplicationSourceFilter, TAApplicationSearch } from "../../routes"
 import { SourceChip, APPLICATION_SOURCE_LABELS } from "../../components/ta/walk-in/SourceChip";
 import { EncodeWalkInDialog } from "../../components/ta/walk-in/EncodeWalkInDialog";
 import { WalkInSlipDialog } from "../../components/ta/walk-in/WalkInSlipDialog";
+import { CheckInsPanel, useCheckIns } from "../../components/ta/walk-in/CheckInsPanel";
+import { CheckInPosterDialog } from "../../components/ta/walk-in/CheckInPoster";
 import { TA_COPY } from "../../lib/ta-copy";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import {
@@ -221,6 +223,9 @@ export const ApplicationsPage: React.FC = () => {
 
   const [encodeOpen, setEncodeOpen] = useState(false);
   const [walkInSlip, setWalkInSlip] = useState<WalkInSlip | null>(null);
+  const [posterOpen, setPosterOpen] = useState(false);
+  const [view, setView] = useState<"applications" | "check-ins">("applications");
+  const checkInCount = useCheckIns().data?.items.length ?? 0;
 
   // Modal states for archive
   const [archiveModalApp, setArchiveModalApp] = useState<{ id: number; name: string; isArchived: boolean } | null>(null);
@@ -653,12 +658,20 @@ export const ApplicationsPage: React.FC = () => {
           { label: TA_COPY.navigation.overview, href: "/ta" },
           { label: TA_COPY.navigation.applications },
         ]}
-        actions={<Button onClick={() => setEncodeOpen(true)}>Encode walk-in</Button>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setPosterOpen(true)}>
+              Print check-in poster
+            </Button>
+            <Button onClick={() => setEncodeOpen(true)}>Encode walk-in</Button>
+          </div>
+        }
         flush
       />
 
       <EncodeWalkInDialog open={encodeOpen} onClose={() => setEncodeOpen(false)} onCreated={setWalkInSlip} />
       <WalkInSlipDialog slip={walkInSlip} onClose={() => setWalkInSlip(null)} />
+      <CheckInPosterDialog open={posterOpen} onClose={() => setPosterOpen(false)} />
 
       {feedback && (
         <div
@@ -682,6 +695,32 @@ export const ApplicationsPage: React.FC = () => {
         </div>
       )}
 
+      <div role="group" aria-label="Applications view" className="flex gap-2">
+        {(
+          [
+            { id: "applications", label: "Applications" },
+            { id: "check-ins", label: checkInCount > 0 ? `Check-ins (${checkInCount})` : "Check-ins" },
+          ] as const
+        ).map((tab) => (
+          <Button
+            key={tab.id}
+            type="button"
+            variant={view === tab.id ? "primary" : "outline"}
+            aria-pressed={view === tab.id}
+            className="min-h-11 md:min-h-9"
+            onClick={() => setView(tab.id)}
+          >
+            {tab.label}
+          </Button>
+        ))}
+      </div>
+
+      {view === "check-ins" ? (
+        <div id="applications-view">
+          <CheckInsPanel onConfirmed={setWalkInSlip} />
+        </div>
+      ) : (
+      <div id="applications-view" className="space-y-6">
       <div>
         <SearchFilters
           className="mb-0"
@@ -911,6 +950,8 @@ export const ApplicationsPage: React.FC = () => {
             />
           }
         />
+      )}
+      </div>
       )}
 
       {/* Archive / Restore Modal */}

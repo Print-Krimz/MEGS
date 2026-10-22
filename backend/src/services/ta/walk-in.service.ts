@@ -5,6 +5,7 @@ import prisma from "../../utils/prisma.js";
 import supabase from "../../utils/supabase.js";
 import { uploadFileToSupabase } from "../../middleware/upload.middleware.js";
 import { logAudit } from "../../utils/audit.js";
+import { safeLogError } from "../../security/errors.js";
 import { enqueueResumeAnalysis, trackFitRevalidation } from "../../workers/resume.worker.js";
 import { revalidateApplication } from "../scoring/scoring-configuration.service.js";
 import { isPhilippinePhone, maskPhoneNumber, normalizeToE164, normalizeToLocal, toSyntheticEmail } from "../../utils/sms.js";
@@ -196,8 +197,19 @@ const rollbackNewUser = async (userId: string) => {
   await Promise.resolve(supabase.auth.admin.deleteUser(userId)).catch(() => undefined);
 };
 
-export const createWalkIn = async (actor: Actor, input: CreateWalkInInput, file: Express.Multer.File): Promise<WalkInSlip> => {
-  await assertOwns("job", input.jobPostingId, actor);
+export interface CreateWalkInOptions {
+  /** Only for a confirmed self check-in: any TA may encode it, the application belongs to the job's owner. */
+  skipOwnership?: boolean;
+  selfEncoded?: boolean;
+}
+
+export const createWalkIn = async (
+  actor: Actor,
+  input: CreateWalkInInput,
+  file: Express.Multer.File,
+  options: CreateWalkInOptions = {},
+): Promise<WalkInSlip> => {
+  if (!options.skipOwnership) await assertOwns("job", input.jobPostingId, actor);
 
   const mobile = input.mobileNumber?.trim() || null;
   if (mobile && !isPhilippinePhone(mobile)) throw new Error("Enter a valid Philippine mobile number");
@@ -313,6 +325,7 @@ export const createWalkIn = async (actor: Actor, input: CreateWalkInInput, file:
           resumeUrl,
           status: initial.status,
           source: input.source,
+          selfEncoded: options.selfEncoded ?? false,
         },
       });
       return tx.application.update({
@@ -324,24 +337,29 @@ export const createWalkIn = async (actor: Actor, input: CreateWalkInInput, file:
 
     applicationCommitted = true;
 
-    if (initial.sameClientDeployment) {
-      const { generateComplianceRequirementsFromMRF, reuseValidSameClientDocuments } = await import("./ta.compliance.service.js");
-      await generateComplianceRequirementsFromMRF(created.id);
-      const priorIds = [...new Set(initial.sameClientDeployments.map((d) => d.applicationId).filter((id): id is number => id !== null))];
-      await reuseValidSameClientDocuments(created.id, priorIds);
-    } else {
-      try {
-        await enqueueResumeAnalysis(created.id);
-      } catch {
-        await prisma.application.update({
-          where: { id: created.id },
-          data: { status: "NEEDS_ATTENTION", aiSummary: "Automatic analysis is busy. The saved application requires manual review or a later staff retry." },
-        });
+    // The application is committed: nothing below may throw, or a caller would retry and encode the person twice.
+    try {
+      if (initial.sameClientDeployment) {
+        const { generateComplianceRequirementsFromMRF, reuseValidSameClientDocuments } = await import("./ta.compliance.service.js");
+        await generateComplianceRequirementsFromMRF(created.id);
+        const priorIds = [...new Set(initial.sameClientDeployments.map((d) => d.applicationId).filter((id): id is number => id !== null))];
+        await reuseValidSameClientDocuments(created.id, priorIds);
+      } else {
+        try {
+          await enqueueResumeAnalysis(created.id);
+        } catch {
+          await prisma.application.update({
+            where: { id: created.id },
+            data: { status: "NEEDS_ATTENTION", aiSummary: "Automatic analysis is busy. The saved application requires manual review or a later staff retry." },
+          });
+        }
       }
+      const revalidation = revalidateApplication(created.id, input.jobPostingId);
+      trackFitRevalidation(created.id, revalidation);
+      void revalidation.catch((error) => safeLogError("Scoring revalidation queue", error));
+    } catch (postCommitError) {
+      safeLogError(`Walk-in post-commit step for application ${created.id}`, postCommitError);
     }
-    const revalidation = revalidateApplication(created.id, input.jobPostingId);
-    trackFitRevalidation(created.id, revalidation);
-    void revalidation.catch((error) => console.error("[Scoring] failed to queue application revalidation", error));
 
     void logAudit(actor.id, "WALK_IN_ENCODED", "Application", created.id, { source: input.source, reusedExistingUser });
     return toSlip(created, token);
@@ -377,29 +395,36 @@ export const reissueSlip = async (actor: Actor, applicationId: number): Promise<
 
 // ---------- public tracker ----------
 
-/** Returns null for any mismatch so the controller can answer a uniform 404. */
-export const getPublicTracking = async (code: string, token: string) => {
-  if (!code || !token || code.length > 40 || token.length > 100) return null;
-  const application = await prisma.application.findUnique({
-    where: { trackingCode: code.trim().toUpperCase() },
-    select: {
-      trackingCode: true,
-      trackingTokenHash: true,
-      status: true,
-      createdAt: true,
-      updatedAt: true,
-      user: { select: { applicantProfile: { select: { firstName: true, lastName: true } } } },
-      jobPosting: { select: { title: true, location: true, mrf: { select: { client: { select: { name: true } } } } } },
-      interviews: {
-        where: { isActive: true, scheduledAt: { gt: new Date() } },
-        orderBy: { scheduledAt: "asc" },
-        take: 1,
-        select: { type: true, scheduledAt: true },
-      },
-    },
-  });
-  if (!application || !tokenMatches(token, application.trackingTokenHash)) return null;
+const trackingSelect = {
+  id: true,
+  trackingCode: true,
+  trackingTokenHash: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+  user: { select: { applicantProfile: { select: { firstName: true, lastName: true } } } },
+  jobPosting: { select: { title: true, location: true, mrf: { select: { client: { select: { name: true } } } } } },
+} as const;
 
+const nextInterviewSelect = () =>
+  ({
+    where: { isActive: true, scheduledAt: { gt: new Date() } },
+    orderBy: { scheduledAt: "asc" },
+    take: 1,
+    select: { type: true, scheduledAt: true },
+  }) as const;
+
+type TrackingRow = {
+  trackingCode: string | null;
+  status: any;
+  createdAt: Date;
+  updatedAt: Date;
+  user: { applicantProfile: { firstName: string; lastName: string } | null };
+  jobPosting: { title: string; location: string | null; mrf: { client: { name: string } | null } | null };
+  interviews: Array<{ type: unknown; scheduledAt: Date | null }>;
+};
+
+const buildTrackingPayload = (application: TrackingRow) => {
   const profile = application.user.applicantProfile;
   const initial = profile?.lastName?.trim().charAt(0).toUpperCase();
   const next = application.interviews[0];
@@ -414,4 +439,25 @@ export const getPublicTracking = async (code: string, token: string) => {
     venue: application.jobPosting.location ?? null,
     updatedAt: application.updatedAt.toISOString(),
   };
+};
+
+/** Returns null for any mismatch so the controller can answer a uniform 404. */
+export const getPublicTracking = async (code: string, token: string) => {
+  if (!code || !token || code.length > 40 || token.length > 100) return null;
+  const application = await prisma.application.findUnique({
+    where: { trackingCode: code.trim().toUpperCase() },
+    select: { ...trackingSelect, interviews: nextInterviewSelect() },
+  });
+  if (!application || !tokenMatches(token, application.trackingTokenHash)) return null;
+  return buildTrackingPayload(application);
+};
+
+/** Same payload without a token check. Callers must already have proved access (a valid check-in view token). */
+export const getTrackingByApplicationId = async (applicationId: number) => {
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { ...trackingSelect, interviews: nextInterviewSelect() },
+  });
+  if (!application || !application.trackingCode) return null;
+  return buildTrackingPayload(application);
 };

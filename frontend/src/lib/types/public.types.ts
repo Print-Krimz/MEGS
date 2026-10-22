@@ -43,3 +43,47 @@ export interface PublicOfferResult {
   status: "ACCEPTED" | "DECLINED";
   applicationId?: number;
 }
+
+export interface CheckInJob {
+  id: number;
+  title: string;
+  clientName: string | null;
+  location: string | null;
+}
+
+export interface CheckInSubmitBody {
+  jobPostingId: number;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  mobileNumber?: string;
+  birthDate: string;
+  turnstileToken: string;
+}
+
+export interface CheckInCreated {
+  alreadyCheckedIn?: false;
+  publicId: string;
+  viewToken: string;
+  queueNumber: string;
+  statusPath: string;
+}
+
+/** 200 with no link: the same person already checked in today. */
+export interface CheckInAlready {
+  alreadyCheckedIn: true;
+  queueNumber: string;
+}
+
+export type CheckInSubmitResult = CheckInCreated | CheckInAlready;
+
+export interface PublicCheckInStatus {
+  queueNumber: string;
+  status: "PENDING" | "CONFIRMED" | "DISMISSED";
+  firstName: string;
+  jobTitle: string;
+  createdAt: string;
+  expiresAt: string;
+  /** Filled once the check-in is confirmed. */
+  tracking: PublicTracking | null;
+}

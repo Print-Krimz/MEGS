@@ -12,7 +12,7 @@ export const AppContent: React.FC = () => {
   const queryClient = useQueryClient();
 
   // Public pages (tracking slip, offer link) never need the session, so skip the staff loader.
-  const isPublicPath = /^\/(t|offer)\//.test(window.location.pathname);
+  const isPublicPath = /^\/(t\/|offer\/|check-in(\/|$))/.test(window.location.pathname);
 
   if (auth.isLoading && !isPublicPath) {
     return (

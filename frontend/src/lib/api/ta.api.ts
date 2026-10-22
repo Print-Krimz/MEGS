@@ -9,6 +9,8 @@ import type {
   ComplianceRequirement,
   RecruiterDecision,
   ApplicationSource,
+  CheckInDetail,
+  CheckInSummary,
   WalkInMatch,
   WalkInSlip,
 } from "../types/application.types";
@@ -174,6 +176,18 @@ export const taApi = {
   },
 
   createWalkIn: (formData: FormData) => api.upload<WalkInSlip>("/api/ta/walk-ins", formData),
+
+  listCheckIns: (options?: RequestInit) =>
+    api.get<{ items: CheckInSummary[] }>("/api/ta/walk-ins/check-ins", options),
+
+  getCheckIn: (id: number | string, options?: RequestInit) =>
+    api.get<CheckInDetail>(`/api/ta/walk-ins/check-ins/${id}`, options),
+
+  confirmCheckIn: (id: number | string, formData: FormData) =>
+    api.upload<WalkInSlip>(`/api/ta/walk-ins/check-ins/${id}/confirm`, formData),
+
+  dismissCheckIn: (id: number | string, reason: string) =>
+    api.post<{ ok?: boolean }>(`/api/ta/walk-ins/check-ins/${id}/dismiss`, { reason }),
 
   reissueWalkInSlip: (applicationId: number | string) =>
     api.post<WalkInSlip>(`/api/ta/walk-ins/${applicationId}/slip`),

@@ -124,6 +124,13 @@ import {
   reissueWalkInSlipHandler,
 } from '../../controllers/ta/ta.walk-in.controller.js';
 import { offerReplyRouteSchema } from "../../schemas/offer-reply.schema.js";
+import { checkInSchema } from "../../schemas/check-in.schema.js";
+import {
+  confirmCheckInHandler,
+  dismissCheckInHandler,
+  getCheckInHandler,
+  listCheckInsHandler,
+} from "../../controllers/ta/ta.check-in.controller.js";
 import { recordAssistedResponseHandler, sendOfferSmsLinkHandler } from "../../controllers/ta/ta.offer-reply.controller.js";
 
 const router = Router();
@@ -179,6 +186,12 @@ router.post("/talent-pool/invitations/:id/sms-link", validate(offerReplyRouteSch
 
 // Walk-in intake (staff-encoded applicants and their printed QR slip).
 // POST /walk-ins checks job ownership inside createWalkIn (the job id arrives in a multipart body).
+// Self check-ins from the MEGS poster QR. Shared on purpose: any TA at the desk may confirm or
+// dismiss a pending one; once confirmed, the application belongs to the job's owner.
+router.get("/walk-ins/check-ins", listCheckInsHandler);
+router.get("/walk-ins/check-ins/:id", validate(checkInSchema.idParams), getCheckInHandler);
+router.post("/walk-ins/check-ins/:id/confirm", upload.single("file"), validate(checkInSchema.confirm), confirmCheckInHandler);
+router.post("/walk-ins/check-ins/:id/dismiss", validate(checkInSchema.dismiss), dismissCheckInHandler);
 router.get("/walk-ins/check-duplicate", validate(taSchema.walkInCheckDuplicate), checkWalkInDuplicateHandler);
 router.post("/walk-ins", upload.single("file"), validate(taSchema.createWalkIn), createWalkInHandler);
 router.post("/walk-ins/:id/slip", validate(taSchema.walkInSlip), requireOwned("application"), reissueWalkInSlipHandler);

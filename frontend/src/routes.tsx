@@ -38,6 +38,7 @@ const SetupAccountPage = lazyRouteComponent(() => import("./pages/auth/SetupAcco
 const ClaimAccountPage = lazyRouteComponent(() => import("./pages/auth/ClaimAccountPage"), "ClaimAccountPage");
 const TrackPage = lazyRouteComponent(() => import("./pages/public/TrackPage"), "TrackPage");
 const OfferPage = lazyRouteComponent(() => import("./pages/public/OfferPage"), "OfferPage");
+const CheckInPage = lazyRouteComponent(() => import("./pages/public/CheckInPage"), "CheckInPage");
 
 const ApplicantDashboard = lazyRouteComponent(() => import("./pages/applicant/ApplicantDashboard"), "ApplicantDashboard");
 const ProfilePage = lazyRouteComponent(() => import("./pages/applicant/ProfilePage"), "ProfilePage");
@@ -232,6 +233,20 @@ export const offerRoute = createRoute({
   path: "/offer/$id",
   validateSearch: parsePublicTokenSearch,
   component: OfferPage,
+});
+
+// Self check-in from the MEGS poster QR, then the applicant's own status link.
+export const checkInRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/check-in",
+  component: CheckInPage,
+});
+
+export const checkInStatusRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/check-in/$publicId",
+  validateSearch: parsePublicTokenSearch,
+  component: CheckInPage,
 });
 
 // -------------------------------------------------------------
@@ -642,6 +657,8 @@ const routeTree = rootRoute.addChildren([
   forbiddenRoute,
   trackRoute,
   offerRoute,
+  checkInRoute,
+  checkInStatusRoute,
   authLayoutRoute.addChildren([
     loginRoute,
     registerRoute,

@@ -27,6 +27,7 @@ model JobPosting {
   mrf   ManpowerRequest? @relation(fields: [mrfId], references: [id])
 
   applications Application[]
+  walkInCheckIns WalkInCheckIn[]
   candidateScores CandidateScore[]
   scoringRevalidationTasks ScoringRevalidationTask[]
   talentPoolContacts TalentPoolContact[]
@@ -72,6 +73,7 @@ model Application {
   source            ApplicationSource @default(ONLINE)
   trackingCode      String?           @unique // e.g. WLK-2026-0042
   trackingTokenHash String?           // sha256 of the slip token; the raw token is only printed
+  selfEncoded       Boolean           @default(false) // the applicant typed the details at a check-in; a TA confirmed them
 
   status    ApplicationStatus @default(SUBMITTED)
   resumeUrl String?           // Supabase Storage URL of uploaded resume
@@ -106,6 +108,7 @@ model Application {
   clientEndorsements ClientEndorsement[]
   backout ApplicationBackout?
   closures ApplicationClosure[]
+  walkInCheckIn WalkInCheckIn?
   talentPoolMembershipsSourced TalentPoolMembership[] @relation("SourceApplication")
 
   @@unique([userId, jobPostingId, attemptNumber])
@@ -334,4 +337,51 @@ model ApplicationClosure {
   @@index([disposition])
   @@index([stage])
   @@index([occurredAt])
+}
+
+// ─────────────────────────────────────────────
+// WALK-IN CHECK-IN
+// An applicant scans the MEGS poster QR and types their own details.
+// Nothing else exists until any TA confirms it at the desk; then createWalkIn
+// makes the User, profile and Application. Unconfirmed rows expire after 3 days.
+// ─────────────────────────────────────────────
+
+enum WalkInCheckInStatus {
+  PENDING
+  CONFIRMED
+  DISMISSED
+}
+
+model WalkInCheckIn {
+  id            Int                 @id @default(autoincrement())
+  publicId      String              @unique @default(uuid())
+  queueDate     DateTime            @db.Date // Manila calendar day
+  queueSeq      Int                 // per-day number, shown as A-001
+
+  jobPostingId  Int
+  jobPosting    JobPosting          @relation(fields: [jobPostingId], references: [id], onDelete: Restrict)
+
+  firstName     String
+  middleName    String?
+  lastName      String
+  mobileNumber  String?             // E.164
+  birthDate     DateTime            @db.Date
+
+  status        WalkInCheckInStatus @default(PENDING)
+  viewTokenHash String              // sha256 of the token in the applicant's phone link
+
+  confirmedById String?
+  confirmedBy   User?               @relation("CheckInConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  applicationId Int?                @unique
+  application   Application?        @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  dismissedById String?
+  dismissedBy   User?               @relation("CheckInDismissedBy", fields: [dismissedById], references: [id], onDelete: SetNull)
+  dismissReason String?
+
+  createdAt     DateTime            @default(now())
+  expiresAt     DateTime
+  updatedAt     DateTime            @updatedAt
+
+  @@unique([queueDate, queueSeq])
+  @@index([status, expiresAt])
 }
