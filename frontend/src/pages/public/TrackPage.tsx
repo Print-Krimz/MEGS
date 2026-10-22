@@ -5,6 +5,9 @@ import { publicApi } from "../../lib/api/public.api";
 import { TrackingView } from "../../components/public/TrackingView";
 import { ConnectionProblem, LinkProblem, PublicShell, PublicSkeleton, isDeadLink } from "./PublicShell";
 
+const POLL_MS = 20_000;
+const CLOSED_STATUSES = ["DEPLOYED", "REJECTED", "BACKOUT", "ARCHIVED"];
+
 /** Route: /t/$code, search { token }. */
 export const TrackPage: React.FC = () => {
   const { code } = useParams({ strict: false }) as { code: string };
@@ -16,6 +19,9 @@ export const TrackPage: React.FC = () => {
     enabled: Boolean(token),
     retry: false,
     refetchOnWindowFocus: true,
+    // The applicant leaves this page open at the office, so it follows the recruiter's updates on its own.
+    // React Query pauses the timer while the tab is hidden.
+    refetchInterval: (q) => (q.state.data && CLOSED_STATUSES.includes(q.state.data.status) ? false : POLL_MS),
   });
 
   const broken = !token || (query.isError && isDeadLink(query.error));

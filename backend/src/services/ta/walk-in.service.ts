@@ -1,5 +1,6 @@
 // Staff-encoded applicants (walk-in, job fair, referral): duplicate check, intake, slip reprint and the public QR tracker.
 import crypto from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
 import supabase from "../../utils/supabase.js";
 import { uploadFileToSupabase } from "../../middleware/upload.middleware.js";
@@ -392,11 +393,17 @@ const trackingSelect = {
 
 const nextInterviewSelect = () =>
   ({
-    where: { isActive: true, scheduledAt: { gt: new Date() } },
+    // Only an interview still ahead and not yet decided. A finished one (PASS, FAIL, NO_SHOW) must not show as "next".
+    where: {
+      isActive: true,
+      scheduledAt: { gt: new Date() },
+      conductedAt: null,
+      OR: [{ result: null }, { result: { in: ["PENDING", "SCHEDULED"] } }],
+    },
     orderBy: { scheduledAt: "asc" },
     take: 1,
     select: { type: true, scheduledAt: true },
-  }) as const;
+  }) satisfies Prisma.Application$interviewsArgs;
 
 type TrackingRow = {
   trackingCode: string | null;

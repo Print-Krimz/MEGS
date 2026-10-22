@@ -658,7 +658,13 @@ describe("getPublicTracking", () => {
     const args = m.prisma.application.findUnique.mock.calls[0][0];
     expect(args.where).toEqual({ trackingCode: "WLK-2026-0042" });
     expect(args.select.user.select.applicantProfile.select).toEqual({ firstName: true, lastName: true });
-    expect(args.select.interviews.where).toEqual({ isActive: true, scheduledAt: { gt: expect.any(Date) } });
+    // A decided interview (PASS, FAIL, NO_SHOW) or one already conducted must not show as the next one.
+    expect(args.select.interviews.where).toEqual({
+      isActive: true,
+      scheduledAt: { gt: expect.any(Date) },
+      conductedAt: null,
+      OR: [{ result: null }, { result: { in: ["PENDING", "SCHEDULED"] } }],
+    });
     expect(args.select.interviews.take).toBe(1);
   });
 

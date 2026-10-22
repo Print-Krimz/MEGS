@@ -113,4 +113,40 @@ describe("TrackPage (/t/:code)", () => {
     ).not.toBeInTheDocument();
     await waitFor(() => expect(getTracking).toHaveBeenCalled());
   });
+  it("follows the recruiter's updates without a manual refresh", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      getTracking
+        .mockResolvedValueOnce({ ...tracking, status: "INITIAL_SCREENING" })
+        .mockResolvedValue({ ...tracking, status: "FINAL_INTERVIEW", nextInterview: null, venue: null });
+
+      renderPage();
+      await screen.findByRole("heading", { name: "Warehouse Associate" });
+      expect(getTracking).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(21_000);
+
+      await waitFor(() => expect(getTracking).toHaveBeenCalledTimes(2));
+      expect(
+        await screen.findByText("No interview is scheduled yet. Your recruiter will contact you when one is set."),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops polling once the application is deployed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      getTracking.mockResolvedValue({ ...tracking, status: "DEPLOYED", nextInterview: null });
+
+      renderPage();
+      await screen.findByRole("heading", { name: "Warehouse Associate" });
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(getTracking).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
