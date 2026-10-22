@@ -99,8 +99,11 @@ export async function verifyTurnstile(
 
     // Express has already matched this middleware to one of these POST routes.
     // Do not normalize arbitrary suffixes or derive the expected action from client input.
+    // Each protected form names its widget action; a token from one form cannot be replayed on another.
     const expectedAction = req.method === "POST" ? ({
       "/register": "signup", "/login": "login", "/forgot-password": "forgot_password",
+      "/claim/start": "claim", // /api/auth/claim/start: walk-in account claim
+      "/check-in": "check-in", // /api/public/check-in: self check-in from the MEGS poster
     } as Record<string, string>)[req.path] : undefined;
     const allowedHostnames = new Set((process.env.TURNSTILE_HOSTNAMES || "")
       .split(",").map((host) => host.trim().toLowerCase()).filter(Boolean));
