@@ -270,7 +270,8 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
     }
     const body = new FormData();
     if (parsed.data.file) body.append("file", parsed.data.file);
-    body.append("jobPostingId", parsed.data.jobPostingId);
+    // A check-in already names its job; the server rejects a job id in the confirm request.
+    if (!checkIn) body.append("jobPostingId", parsed.data.jobPostingId);
     body.append("firstName", parsed.data.firstName);
     if (parsed.data.middleName) body.append("middleName", parsed.data.middleName);
     body.append("lastName", parsed.data.lastName);

@@ -148,6 +148,8 @@ describe("EncodeWalkInDialog in check-in mode: applicant attached biodata", () =
     fireEvent.click(confirmButton());
     await waitFor(() => expect(confirmCheckIn).toHaveBeenCalledTimes(1));
     expect((confirmCheckIn.mock.calls[0][1] as FormData).get("file")).toBeNull();
+    // The confirm schema is strict: the form must not send a job id (the check-in names its job).
+    expect((confirmCheckIn.mock.calls[0][1] as FormData).has("jobPostingId")).toBe(false);
   });
 
   it("still sends a replacement file when the TA attaches one", async () => {
@@ -176,7 +178,7 @@ describe("EncodeWalkInDialog in check-in mode: biodata and submit", () => {
     expect(confirmCheckIn).not.toHaveBeenCalled();
   });
 
-  it("sends the check-in id, the locked job and the biodata, then reports the slip", async () => {
+  it("sends the check-in id and the biodata, but no job id, then reports the slip", async () => {
     const { onClose, onCreated } = renderConfirm();
     attachFile(pdf());
     fireEvent.click(confirmButton());
@@ -184,7 +186,7 @@ describe("EncodeWalkInDialog in check-in mode: biodata and submit", () => {
     await waitFor(() => expect(confirmCheckIn).toHaveBeenCalledTimes(1));
     const [id, body] = confirmCheckIn.mock.calls[0] as [number, FormData];
     expect(id).toBe(9);
-    expect(body.get("jobPostingId")).toBe("5");
+    expect(body.has("jobPostingId")).toBe(false);
     expect(body.get("firstName")).toBe("Juan");
     expect(body.get("middleName")).toBe("Santos");
     expect(body.get("lastName")).toBe("Dela Cruz");

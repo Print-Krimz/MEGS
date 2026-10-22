@@ -1087,3 +1087,19 @@ describe("check-in biodata", () => {
     });
   });
 });
+
+describe("confirm request schema", () => {
+  // The exact field set the confirm form sends (see EncodeWalkInDialog in check-in mode).
+  const formFields = { firstName: "James", middleName: "Spank", lastName: "Presley", mobileNumber: "09606128851", birthDate: "2004-10-22" };
+
+  it("accepts what the confirm form sends", () => {
+    const parsed = checkInSchema.confirm.safeParse({ params: { id: "2" }, body: formFields });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects a job id: the check-in already names its job", () => {
+    const parsed = checkInSchema.confirm.safeParse({ params: { id: "2" }, body: { ...formFields, jobPostingId: "10" } });
+    expect(parsed.success).toBe(false);
+  });
+});
+
