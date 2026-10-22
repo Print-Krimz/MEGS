@@ -9,6 +9,7 @@ import { useDirtyGuard } from "../../../hooks/useDirtyGuard";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../../lib/query-policies";
 import { validatePhilippineMobile } from "../../../lib/phone-utils";
 import { getManilaToday } from "../../../lib/field-limits";
+import { validateDateOfBirth } from "../../../lib/statutory-validation";
 import { formatTaStatus } from "../../../lib/ta-copy";
 import type { WalkInMatch, WalkInSlip } from "../../../lib/types/application.types";
 
@@ -21,13 +22,31 @@ interface EncodeWalkInDialogProps {
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
+// Walk-in applicants must be 18 to 65 years old (the backend enforces the same range).
+const MIN_AGE = 18;
+const MAX_AGE = 65;
+
+/** YYYY-MM-DD for the Manila date `years` years before today. */
+const yearsAgo = (years: number): string => {
+  const [y, m, d] = getManilaToday().split("-");
+  return `${Number(y) - years}-${m}-${d}`;
+};
+
 const schema = z.object({
   jobPostingId: z.string().min(1, "Choose a job opening."),
   firstName: z.string().trim().min(1, "Enter a first name.").max(100),
   lastName: z.string().trim().min(1, "Enter a last name.").max(100),
   middleName: z.string().trim().max(100),
   mobileNumber: z.string().refine((v) => validatePhilippineMobile(v).isValid, "Enter an 11-digit mobile number starting with 09."),
-  birthDate: z.string().refine((v) => !v || v <= getManilaToday(), "Birth date cannot be in the future."),
+  birthDate: z.string().superRefine((v, ctx) => {
+    if (!v) {
+      ctx.addIssue({ code: "custom", message: "Enter the birth date." });
+      return;
+    }
+    if (validateDateOfBirth(v, { minAge: MIN_AGE, maxAge: MAX_AGE })) {
+      ctx.addIssue({ code: "custom", message: `Applicant must be ${MIN_AGE} to ${MAX_AGE} years old.` });
+    }
+  }),
   file: z
     .instanceof(File, { message: "Add a photo or PDF of the biodata." })
     .refine((f) => f.size <= MAX_FILE_BYTES, "The file is over 5 MB. Retake the photo or use a smaller file.")
@@ -261,8 +280,11 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
             <div onBlur={() => void runDuplicateCheck()}>
               <DateField
                 id="walk-in-birth-date"
-                label="Birth date (optional)"
-                max={getManilaToday()}
+                label="Birth date"
+                required
+                min={yearsAgo(MAX_AGE + 1)}
+                max={yearsAgo(MIN_AGE)}
+                helperText={`${MIN_AGE} to ${MAX_AGE} years old.`}
                 value={form.birthDate}
                 onChange={(e) => set("birthDate", e.target.value)}
                 error={errors.birthDate}

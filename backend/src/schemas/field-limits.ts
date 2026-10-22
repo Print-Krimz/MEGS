@@ -366,17 +366,18 @@ const completedYearsOn = (birthDate: string, today: string): number => {
 
 /**
  * Real YYYY-MM-DD date of birth for an adult applicant or candidate. Completed age must be 18 to 100
- * inclusive, measured against today's date in Manila time. Callers allow "", null and absent explicitly.
+ * inclusive by default (walk-in intake narrows the upper limit to 65), measured against today's date
+ * in Manila time. Callers allow "", null and absent explicitly.
  */
-export const adultDateOfBirth = (label = "Applicant") =>
+export const adultDateOfBirth = (label = "Applicant", maxAge = ADULT_MAX_AGE) =>
   z.string().superRefine((value, ctx) => {
     if (!isValidDateOnly(value)) {
       ctx.addIssue({ code: "custom", message: "Enter a valid date from 1900 through 2100" });
       return;
     }
     const age = completedYearsOn(value, manilaDateString());
-    if (age < ADULT_MIN_AGE || age > ADULT_MAX_AGE) {
-      ctx.addIssue({ code: "custom", message: `${label} must be between ${ADULT_MIN_AGE} and ${ADULT_MAX_AGE} years old.` });
+    if (age < ADULT_MIN_AGE || age > maxAge) {
+      ctx.addIssue({ code: "custom", message: `${label} must be between ${ADULT_MIN_AGE} and ${maxAge} years old.` });
     }
   });
 

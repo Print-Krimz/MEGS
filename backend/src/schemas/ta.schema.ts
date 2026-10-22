@@ -106,7 +106,8 @@ export const taSchema = {
       middleName: optionalPersonNameSchema("Middle name"),
       lastName: z.string().trim().min(1, "Last name is required").max(FIELD_LIMITS.name),
       mobileNumber: boundedText(30).optional().nullable(),
-      birthDate: dateOnly.optional().or(z.literal("")),
+      // Required: walk-in applicants must be 18 to 65 years old.
+      birthDate: adultDateOfBirth("Applicant", 65),
       existingUserId: z.string().trim().uuid().optional().or(z.literal("")),
     }).strict(),
   }),

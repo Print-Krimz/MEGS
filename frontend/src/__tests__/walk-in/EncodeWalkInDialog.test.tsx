@@ -94,6 +94,7 @@ describe("EncodeWalkInDialog", () => {
     await pickJob();
     typeInto(/First name/i, "Juan");
     typeInto(/Last name/i, "Dela Cruz");
+    typeInto(/Birth date/i, "1995-06-15");
     typeInto(/Mobile number/i, "09171234567");
 
     fireEvent.click(screen.getByRole("button", { name: "Save and print slip" }));
@@ -109,6 +110,7 @@ describe("EncodeWalkInDialog", () => {
     await pickJob();
     typeInto(/First name/i, "Juan");
     typeInto(/Last name/i, "Dela Cruz");
+    typeInto(/Birth date/i, "1995-06-15");
     fireEvent.blur(screen.getByLabelText(/Last name/i));
 
     expect(await screen.findByText("This person may already be in MEGS.")).toBeInTheDocument();
@@ -138,6 +140,7 @@ describe("EncodeWalkInDialog", () => {
     await pickJob();
     typeInto(/First name/i, "Juan");
     typeInto(/Last name/i, "Dela Cruz");
+    typeInto(/Birth date/i, "1995-06-15");
     fireEvent.blur(screen.getByLabelText(/Last name/i));
 
     fireEvent.click(await screen.findByRole("button", { name: "Different person" }));
@@ -157,6 +160,7 @@ describe("EncodeWalkInDialog", () => {
     await pickJob();
     typeInto(/First name/i, "Ana");
     typeInto(/Last name/i, "Reyes");
+    typeInto(/Birth date/i, "1995-06-15");
     fireEvent.blur(screen.getByLabelText(/Last name/i));
 
     await waitFor(() => expect(checkWalkInDuplicate).toHaveBeenCalled());
@@ -175,6 +179,7 @@ describe("EncodeWalkInDialog", () => {
     await pickJob();
     typeInto(/First name/i, "Juan");
     typeInto(/Last name/i, "Dela Cruz");
+    typeInto(/Birth date/i, "1995-06-15");
     fireEvent.blur(screen.getByLabelText(/Last name/i));
 
     fireEvent.click(await screen.findByRole("button", { name: "Use this person" }));
@@ -194,6 +199,7 @@ describe("EncodeWalkInDialog", () => {
     await pickJob();
     typeInto(/First name/i, "Juan");
     typeInto(/Last name/i, "Dela Cruz");
+    typeInto(/Birth date/i, "1995-06-15");
     const big = new File([new Uint8Array(6 * 1024 * 1024)], "big-scan.pdf", { type: "application/pdf" });
     attachFile(big);
 
@@ -211,11 +217,32 @@ describe("EncodeWalkInDialog", () => {
     await pickJob();
     typeInto(/First name/i, "Juan");
     typeInto(/Last name/i, "Dela Cruz");
+    typeInto(/Birth date/i, "1995-06-15");
     attachFile(new File(["GIF89a"], "biodata.gif", { type: "image/gif" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Save and print slip" }));
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     expect(createWalkIn).not.toHaveBeenCalled();
+  });
+  it("blocks saving without a birth date", async () => {
+    renderDialog();
+    typeInto(/First name/i, "Juan");
+    typeInto(/Last name/i, "Dela Cruz");
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    expect(await screen.findByText("Enter the birth date.")).toBeInTheDocument();
+  });
+
+  it("blocks saving when the applicant is younger than 18 or older than 65", async () => {
+    renderDialog();
+    typeInto(/First name/i, "Juan");
+    typeInto(/Last name/i, "Dela Cruz");
+    const thisYear = Number(new Date().toISOString().slice(0, 4));
+    typeInto(/Birth date/i, `${thisYear - 10}-01-01`);
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    expect(await screen.findByText("Applicant must be 18 to 65 years old.")).toBeInTheDocument();
+    typeInto(/Birth date/i, `${thisYear - 70}-01-01`);
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    expect(await screen.findByText("Applicant must be 18 to 65 years old.")).toBeInTheDocument();
   });
 });
