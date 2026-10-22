@@ -21,7 +21,6 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
 }) => (
   <div className={cn("flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between", className)}>
     <div className="max-w-2xl">
-      <span aria-hidden="true" className="mb-4 block h-1 w-10 rounded-full bg-primary" />
       <h2
         id={id}
         tabIndex={id ? -1 : undefined}

@@ -239,3 +239,15 @@ body {
 .megs-map-marker.megs-active {
   z-index: 1000 !important;
 }
+/* Touch screens: grow each pin's tap area to 44px without changing how it looks. */
+@media (pointer: coarse) {
+  .megs-map-marker::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}

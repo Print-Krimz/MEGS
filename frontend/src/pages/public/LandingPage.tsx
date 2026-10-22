@@ -4,7 +4,9 @@ import { LandingHero } from "../../components/public/LandingHero";
 import { LandingAffiliates } from "../../components/public/LandingAffiliates";
 import { LandingAbout } from "../../components/public/LandingAbout";
 import { LandingServices } from "../../components/public/LandingServices";
+import { LandingWhyMegs } from "../../components/public/LandingWhyMegs";
 import { LandingIndustries } from "../../components/public/LandingIndustries";
+import { LandingActivities } from "../../components/public/LandingActivities";
 import { LandingBranches } from "../../components/public/LandingBranches";
 import { LandingJobListings } from "../../components/public/LandingJobListings";
 import { LandingFeaturedCompanies } from "../../components/public/LandingFeaturedCompanies";
@@ -16,19 +18,14 @@ export const LandingPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
 
-  const handleHeroSearch = ({ search, location }: { search: string; location: string }) => {
-    setSearchQuery(search);
-    setLocationQuery(location);
-  };
-
-  const handleCompanySelect = (companyName: string) => {
-    setSearchQuery(companyName);
+  const handleFindJobs = () => {
     const jobsEl = document.getElementById("jobs");
     if (jobsEl && typeof jobsEl.scrollIntoView === "function") {
       jobsEl.scrollIntoView({ behavior: "smooth" });
     }
+    // Land keyboard focus in the search field once the scroll settles.
     window.setTimeout(() => {
-      document.getElementById("jobs-heading")?.focus({ preventScroll: true });
+      document.getElementById("jobs-keyword")?.focus({ preventScroll: true });
     }, 450);
   };
 
@@ -49,21 +46,22 @@ export const LandingPage: React.FC = () => {
         <LandingHeader />
 
         <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
-          <LandingHero
-            onSearch={handleHeroSearch}
-            initialSearch={searchQuery}
-            initialLocation={locationQuery}
-          />
+          <LandingHero onFindJobs={handleFindJobs} />
           <LandingAffiliates />
+          <LandingAbout />
+          <LandingServices />
+          <LandingWhyMegs />
+          <LandingIndustries />
+          <LandingActivities />
           <LandingJobListings
             searchQuery={searchQuery}
             locationQuery={locationQuery}
+            onSearchChange={setSearchQuery}
+            onLocationChange={setLocationQuery}
             onClearSearch={handleClearSearch}
-          />
-          <LandingFeaturedCompanies onSelectCompany={handleCompanySelect} />
-          <LandingServices />
-          <LandingIndustries />
-          <LandingAbout />
+          >
+            <LandingFeaturedCompanies selectedCompany={searchQuery} onSelectCompany={setSearchQuery} />
+          </LandingJobListings>
           <LandingBranches />
           <LandingContact />
         </main>

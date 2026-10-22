@@ -1,225 +1,169 @@
-import React, { useState } from "react";
-import { ArrowRight, Building2, MapPin, Search } from "lucide-react";
+import React from "react";
+import { ArrowRight, Search } from "lucide-react";
 import { scrollToSection } from "../../lib/scrollToSection";
 import { Button } from "@/components/shadcn/button";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/shadcn/input-group";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
-import { m } from "./motion";
-import { IndustryExamples } from "./IndustryMosaic";
+import { EASE_OUT, m, useReducedMotion } from "./motion";
+import { HeroShowcase } from "./HeroShowcase";
 
-export interface LandingHeroProps {
-  onSearch?: (filters: { search: string; location: string }) => void;
-  initialSearch?: string;
-  initialLocation?: string;
-}
-
-const POPULAR_SEARCHES = [
-  "Production Worker",
-  "Forklift Operator",
-  "Warehouse Crew",
-  "QA/QC Personnel",
-  "Delivery Driver",
-  "Sales Promo",
-  "Machine Operator",
+/** Positions listed on the MEGS company profile. */
+export const POSITIONS_SUPPLIED = [
+  "Production workers",
+  "Machine operators",
+  "QA/QC personnel",
+  "Forklift operators",
+  "Warehouse crew",
+  "Welders",
+  "Delivery drivers",
+  "Messengers",
+  "Sales promo & merchandisers",
+  "Brand ambassadors",
+  "Cashiers & baggers",
+  "Food servers",
+  "Office staff & encoders",
+  "Utility helpers",
+  "Production supervisors",
 ];
 
-const CREDENTIALS = [
-  { label: "Operating since", value: "May 1997" },
-  { label: "DOLE compliance", value: "D.O. 174-17 & D.O. 40-03" },
-  { label: "Accredited member", value: "PALSCON" },
-  { label: "Main office", value: "Valenzuela City" },
+const FACTS = ["Since May 1997", "Central office in Valenzuela City", "6 branches, Luzon to Mindanao"];
+
+/** The few positions named in the hero. The full list stays in POSITIONS_SUPPLIED. */
+const HERO_POSITIONS = [
+  "Production workers",
+  "Forklift operators",
+  "Warehouse crew",
+  "Delivery drivers",
+  "Cashiers & baggers",
+  "Food servers",
 ];
 
-type Audience = "applicant" | "employer";
+/*
+ * Entrance sequence (all EASE_OUT): headline lines rise from 0.10s, copy and actions follow at 0.35 to
+ * 0.55s, positions at 0.65s. HeroShowcase reveals three photos at 0.12, 0.22 and 0.32s, then the hiring card at 0.60s.
+ */
+const buttonMotion =
+  "transition-[transform,background-color,box-shadow] duration-200 active:scale-[0.98] focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:active:scale-100";
 
-const rise = (i: number) => ({
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.35, ease: "easeOut" as const, delay: i * 0.06 },
-});
-
-const Credentials: React.FC<{ className?: string }> = ({ className }) => (
-  <dl className={className}>
-    {CREDENTIALS.map((item) => (
-      <div key={item.label} className="border-l-2 border-border pl-3">
-        <dt className="text-sm text-muted-foreground">{item.label}</dt>
-        <dd className="mt-0.5 text-base font-semibold text-secondary">{item.value}</dd>
-      </div>
-    ))}
-  </dl>
+/** Headline line that rises out of its own mask. Renders in place under reduced motion. */
+const HeroLine: React.FC<{ children: React.ReactNode; delay: number; reduceMotion: boolean }> = ({
+  children,
+  delay,
+  reduceMotion,
+}) => (
+  <span className="block overflow-hidden pb-[0.08em]">
+    <m.span
+      className="block"
+      initial={reduceMotion ? false : { y: "105%" }}
+      animate={reduceMotion ? undefined : { y: 0 }}
+      transition={{ duration: 0.7, ease: EASE_OUT, delay }}
+    >
+      {children}
+    </m.span>
+  </span>
 );
 
-export const LandingHero: React.FC<LandingHeroProps> = ({
-  onSearch,
-  initialSearch = "",
-  initialLocation = "",
-}) => {
-  const [keyword, setKeyword] = useState(initialSearch);
-  const [location, setLocation] = useState(initialLocation);
-  const [audience, setAudience] = useState<Audience>("applicant");
+export interface LandingHeroProps {
+  onFindJobs: () => void;
+}
 
-  const scrollToJobsResults = () => {
-    const jobsEl = document.getElementById("jobs");
-    if (jobsEl && typeof jobsEl.scrollIntoView === "function") {
-      jobsEl.scrollIntoView({ behavior: "smooth" });
-    }
-    // Move keyboard focus to the results heading so the search outcome is announced.
-    window.setTimeout(() => {
-      document.getElementById("jobs-heading")?.focus({ preventScroll: true });
-    }, 450);
-  };
+export const LandingHero: React.FC<LandingHeroProps> = ({ onFindJobs }) => {
+  const reduceMotion = useReducedMotion();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (onSearch) {
-      onSearch({ search: keyword.trim(), location: location.trim() });
-    }
-    scrollToJobsResults();
-  };
-
-  const handleTagClick = (tag: string) => {
-    setKeyword(tag);
-    if (onSearch) {
-      onSearch({ search: tag, location: location.trim() });
-    }
-    scrollToJobsResults();
-  };
-
-  const tabClass =
-    "relative h-11 flex-1 rounded-md border-0 px-5 text-base font-semibold text-secondary/70 hover:text-secondary data-[state=active]:bg-transparent data-[state=active]:text-secondary after:hidden sm:flex-none";
+  const rise = (delay: number) =>
+    reduceMotion
+      ? {}
+      : {
+          initial: { opacity: 0, y: 14 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.6, ease: EASE_OUT, delay },
+        };
 
   return (
-    <section className="border-b border-border bg-background">
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-12 lg:items-start lg:gap-14 lg:px-8 lg:py-20">
-        <div className="lg:col-span-7">
-
-          <m.h1
-            {...rise(1)}
-            className="font-display text-4xl leading-[1.06] text-secondary text-balance sm:text-5xl"
+    <section aria-labelledby="hero-heading" className="overflow-x-clip border-b border-border bg-background">
+      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:gap-10 sm:px-6 sm:py-12 lg:grid-cols-12 lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-14 lg:gap-y-0 lg:px-8 lg:pb-12 lg:pt-10">
+        <div className="lg:col-span-7 lg:row-start-1">
+          <h1
+            id="hero-heading"
+            className="font-display text-[2.6rem] leading-[1.02] text-secondary sm:text-6xl lg:text-[3.5rem] xl:text-[4.5rem]"
           >
-            Reliable Manpower for Philippine Businesses.
-          </m.h1>
+            <HeroLine delay={0.1} reduceMotion={!!reduceMotion}>
+              Better people
+            </HeroLine>
+            <HeroLine delay={0.2} reduceMotion={!!reduceMotion}>
+              for <span className="text-primary">better results.</span>
+            </HeroLine>
+          </h1>
 
-          <m.p {...rise(2)} className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            MEGS recruits, deploys and manages DOLE-compliant workforces across manufacturing, logistics, retail,
-            hospitality and more. Based in Valenzuela City since May 1997.
+          <m.p {...rise(0.35)} className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-foreground">
+            MEGS recruits, employs and supervises trained workers for Philippine companies, so your team can focus on
+            the work. We have done it from Valenzuela City since May 1997.
           </m.p>
 
-          <m.div {...rise(3)} className="mt-8">
-            <Tabs value={audience} onValueChange={(v) => setAudience(v as Audience)} className="gap-5">
-              <TabsList
-                variant="line"
-                aria-label="I am looking to"
-                className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1 group-data-[orientation=horizontal]/tabs:h-auto sm:w-fit"
-              >
-                {(
-                  [
-                    ["applicant", "Find a job", Search],
-                    ["employer", "Hire workers", Building2],
-                  ] as const
-                ).map(([value, label, Icon]) => (
-                  <TabsTrigger key={value} value={value} className={tabClass}>
-                    {audience === value && (
-                      <m.span
-                        layoutId="hero-tab"
-                        aria-hidden="true"
-                        className="absolute inset-0 rounded-md border border-secondary/30 bg-background"
-                        transition={{ duration: 0.2, ease: "easeOut" }}
-                      />
-                    )}
-                    <span className="relative z-10 inline-flex items-center gap-2">
-                      <Icon aria-hidden="true" />
-                      {label}
-                    </span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-
-              <TabsContent value="applicant" className="flex flex-col gap-4 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4">
-                <form onSubmit={handleSubmit} role="search" aria-label="Job Search" className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-                  <InputGroup>
-                    <InputGroupAddon>
-                      <Search aria-hidden="true" />
-                    </InputGroupAddon>
-                    <InputGroupInput
-                      type="text"
-                      id="hero-job-keyword"
-                      aria-label="Job title or keyword"
-                      placeholder="Job title or skill"
-                      value={keyword}
-                      onChange={(e) => setKeyword(e.target.value)}
-                    />
-                  </InputGroup>
-                  <InputGroup>
-                    <InputGroupAddon>
-                      <MapPin aria-hidden="true" />
-                    </InputGroupAddon>
-                    <InputGroupInput
-                      type="text"
-                      id="hero-job-location"
-                      aria-label="Location"
-                      placeholder="City or area"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                    />
-                  </InputGroup>
-                  <Button type="submit" size="lg" className="sm:px-8">
-                    <Search data-icon="inline-start" aria-hidden="true" />
-                    Search Jobs
-                  </Button>
-                </form>
-
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <span className="w-full text-sm text-muted-foreground">Popular specializations:</span>
-                  {POPULAR_SEARCHES.slice(0, 4).map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => handleTagClick(tag)}
-                      className="min-h-11 cursor-pointer rounded-full bg-muted px-4 text-sm font-medium text-secondary transition-colors hover:bg-secondary hover:text-secondary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-10"
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="employer" className="flex flex-col items-start gap-4 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4">
-                <p className="max-w-xl text-base leading-relaxed text-foreground">
-                  Tell us the positions, headcount and site. We reply with a service proposal and our
-                  company profile, covering statutory records, on-site coordination and employee accident
-                  insurance.
-                </p>
-                <Button asChild size="lg">
-                  <a href="#contact" onClick={(e) => scrollToSection(e, "#contact")}>
-                    Request Manpower Proposal
-                    <ArrowRight data-icon="inline-end" aria-hidden="true" />
-                  </a>
-                </Button>
-              </TabsContent>
-            </Tabs>
+          <m.div {...rise(0.45)} className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Button asChild size="lg" className={`group hover:shadow-md ${buttonMotion}`}>
+              <a href="#contact" onClick={(e) => scrollToSection(e, "#contact")}>
+                Request manpower
+                <ArrowRight
+                  data-icon="inline-end"
+                  aria-hidden="true"
+                  className="transition-transform duration-200 group-hover:translate-x-1 group-focus-visible:translate-x-1 motion-reduce:transition-none"
+                />
+              </a>
+            </Button>
+            <Button type="button" size="lg" variant="outline" onClick={onFindJobs} className={`group ${buttonMotion}`}>
+              <Search
+                data-icon="inline-start"
+                aria-hidden="true"
+                className="transition-transform duration-200 group-hover:scale-110 motion-reduce:transition-none"
+              />
+              Find a job
+            </Button>
           </m.div>
 
-          <Credentials className="mt-10 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border pt-6 sm:grid-cols-4 lg:hidden" />
-          <IndustryExamples className="mt-8 lg:hidden" mosaicClassName="md:grid-cols-4" />
+          <m.ul
+            {...rise(0.55)}
+            aria-label="Company facts"
+            className="mt-8 flex flex-col gap-2 border-t border-border pt-5 text-sm font-medium text-muted-foreground sm:flex-row sm:flex-wrap sm:gap-x-6"
+          >
+            {FACTS.map((fact) => (
+              <li key={fact} className="flex items-center gap-2">
+                <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
+                {fact}
+              </li>
+            ))}
+          </m.ul>
         </div>
 
-        <m.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut", delay: 0.2 }}
-          className="hidden lg:col-span-5 lg:block"
-        >
-          <figure className="overflow-hidden rounded-lg border border-border bg-background">
-            <IndustryExamples className="p-4 pb-1.5" mosaicClassName="" />
-            <figcaption className="border-t border-border bg-background p-5">
-              <div className="mb-4 flex items-center gap-3">
-                <img src="/images/canva-ref/megs-logo-352.webp" alt="" width={480} height={348} loading="lazy" className="h-10 w-auto" />
-                <span className="text-sm font-semibold text-secondary">A PJAR Group Company</span>
-              </div>
-              <Credentials className="grid grid-cols-2 gap-x-6 gap-y-3" />
-            </figcaption>
-          </figure>
+        <div className="lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1">
+          <HeroShowcase onFindJobs={onFindJobs} />
+        </div>
+
+        <m.div {...rise(0.65)} className="lg:col-span-7 lg:row-start-2 lg:mt-5">
+          <div className="flex items-center justify-between gap-4">
+            <h2 id="hero-positions-title" className="text-sm font-semibold text-secondary">
+              Positions we fill
+            </h2>
+            <a
+              href="#industries"
+              onClick={(e) => scrollToSection(e, "#industries")}
+              className="group inline-flex min-h-11 items-center gap-1.5 rounded-sm text-sm font-medium text-secondary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              See industries
+              <ArrowRight
+                className="size-4 transition-transform duration-200 group-hover:translate-x-1 group-focus-visible:translate-x-1 motion-reduce:transition-none"
+                aria-hidden="true"
+              />
+            </a>
+          </div>
+          <ul aria-labelledby="hero-positions-title" className="flex flex-wrap gap-2">
+            {HERO_POSITIONS.map((position) => (
+              <li
+                key={position}
+                className="rounded-full border border-border bg-background px-3 py-1 text-sm font-medium text-foreground"
+              >
+                {position}
+              </li>
+            ))}
+          </ul>
         </m.div>
       </div>
     </section>

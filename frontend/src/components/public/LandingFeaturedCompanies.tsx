@@ -1,101 +1,53 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
-import { ArrowRight } from "lucide-react";
-import { Pagination } from "../common/Pagination";
-import { Button } from "@/components/shadcn/button";
-import { SectionHeader } from "./SectionHeader";
-import { Reveal } from "./motion";
+import { m, staggerItem, staggerParent } from "./motion";
 
 export interface LandingFeaturedCompaniesProps {
+  selectedCompany: string;
   onSelectCompany: (companyName: string) => void;
 }
 
-const PAGE_SIZE = 6;
+const MAX_COMPANIES = 6;
 
-export const LandingFeaturedCompanies: React.FC<LandingFeaturedCompaniesProps> = ({ onSelectCompany }) => {
-  const [currentPage, setCurrentPage] = useState(1);
-
+/** Compact "hiring now" filter row shown inside the jobs section, one line under the popular searches. */
+export const LandingFeaturedCompanies: React.FC<LandingFeaturedCompaniesProps> = ({
+  selectedCompany,
+  onSelectCompany,
+}) => {
   const { data: employerSummary } = useQuery({
     queryKey: ["public-open-job-employers"],
     queryFn: ({ signal }) => applicantJobsApi.getOpenEmployerSummary({ signal }),
   });
-  const companies = employerSummary?.employers ?? [];
-  const totalPages = Math.ceil(companies.length / PAGE_SIZE) || 1;
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(1);
-    }
-  }, [totalPages, currentPage]);
+  const companies = (employerSummary?.employers ?? []).slice(0, MAX_COMPANIES);
 
   if (companies.length === 0) {
     return null;
   }
 
-  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
-  const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
-  const paginatedCompanies = companies.slice(startIndex, startIndex + PAGE_SIZE);
-
-  const handlePageChange = (newPage: number) => {
-    setCurrentPage(newPage);
-    const sectionEl = document.getElementById("companies");
-    if (sectionEl && typeof sectionEl.scrollIntoView === "function") {
-      sectionEl.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
-
   return (
-    <section id="companies" className="scroll-mt-20 bg-background py-16 sm:py-24">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <SectionHeader
-          title="Featured companies"
-          intro="Partner employers currently deploying staff through the MEGS recruitment system."
-        />
-
-        <Reveal>
-          <ul className="mt-8 grid grid-cols-1 border-t border-border md:grid-cols-2 md:gap-x-12">
-            {paginatedCompanies.map((comp) => (
-              <li
-                key={comp.name}
-                className="flex items-center justify-between gap-4 border-b border-border py-4"
+    <div id="companies" className="mt-2 flex flex-col gap-x-3 gap-y-2 sm:flex-row sm:items-start">
+      <h3 className="mr-1 text-sm font-normal text-muted-foreground sm:flex sm:min-h-10 sm:items-center">Hiring now:</h3>
+      <m.ul {...staggerParent(0.05)} className="flex flex-1 flex-wrap gap-2">
+        {companies.map((comp) => {
+          const isActive = selectedCompany === comp.name;
+          return (
+            <m.li key={comp.name} {...staggerItem}>
+              <button
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => onSelectCompany(isActive ? "" : comp.name)}
+                className="inline-flex min-h-11 max-w-full cursor-pointer items-center gap-x-2 rounded-md border border-border bg-background px-3 py-1.5 text-left text-sm font-medium text-secondary transition-[color,background-color,border-color,transform] duration-150 hover:border-secondary active:scale-95 aria-pressed:border-secondary aria-pressed:bg-secondary aria-pressed:text-secondary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:active:scale-100 md:pointer-fine:min-h-10"
               >
-                <div className="min-w-0">
-                  <h3 className="truncate text-base font-semibold text-secondary">{comp.name}</h3>
-                  {comp.industry && <p className="mt-0.5 text-sm text-muted-foreground">{comp.industry}</p>}
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    {`${comp.jobCount} open ${comp.jobCount === 1 ? "vacancy" : "vacancies"}`}
-                  </p>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => onSelectCompany(comp.name)}
-                  className="shrink-0 text-accent"
-                >
-                  <span>View jobs</span>
-                  <ArrowRight aria-hidden="true" />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </Reveal>
-
-        {totalPages > 1 && (
-          <div className="mt-8">
-            <Pagination
-              currentPage={safeCurrentPage}
-              totalPages={totalPages}
-              totalItems={companies.length}
-              pageSize={PAGE_SIZE}
-              onPageChange={handlePageChange}
-              itemLabel="companies"
-              className="border-border"
-            />
-          </div>
-        )}
-      </div>
-    </section>
+                {comp.name}
+                <span className="shrink-0 whitespace-nowrap tabular-nums opacity-70">
+                  {comp.jobCount} {comp.jobCount === 1 ? "opening" : "openings"}
+                </span>
+              </button>
+            </m.li>
+          );
+        })}
+      </m.ul>
+    </div>
   );
 };

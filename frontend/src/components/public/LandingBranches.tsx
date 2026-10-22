@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, Copy, MapPin, Phone } from "lucide-react";
+import { ArrowRight, Check, ChevronRight, Copy, MapPin, Phone } from "lucide-react";
 import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import { scrollToSection } from "../../lib/scrollToSection";
 import { Button } from "@/components/shadcn/button";
 import { cn } from "../../lib/shadcn-utils";
 import { SectionHeader } from "./SectionHeader";
-import { Reveal } from "./motion";
+import { AnimatePresence, EASE_OUT, Reveal, m, onView, staggerItem, staggerParent } from "./motion";
 
 type Region = "Luzon & NCR" | "Visayas" | "Mindanao";
 
@@ -16,8 +16,8 @@ interface Branch {
   isHQ: boolean;
   address: string;
   landmark?: string;
-  phone: string;
   mobile: string;
+  landlines?: { display: string; tel: string }[];
   latLng: [number, number];
 }
 
@@ -28,9 +28,11 @@ export const BRANCHES: Branch[] = [
     region: "Luzon & NCR",
     isHQ: true,
     address: "#9, PJAR Bldg, P. Gomez St, Malinta, Valenzuela City",
-    landmark: "Central Operations & Executive Headquarters",
-    phone: "(02) 8292-1234",
     mobile: "0917-629-1864 (Globe)",
+    landlines: [
+      { display: "(02) 8277-2959", tel: "+63282772959" },
+      { display: "(02) 8291-0807", tel: "+63282910807" },
+    ],
     latLng: [14.6991, 120.984],
   },
   {
@@ -39,8 +41,6 @@ export const BRANCHES: Branch[] = [
     region: "Luzon & NCR",
     isHQ: false,
     address: "Rm 207, 2nd Floor, STG Bldg., 109 P. Tuazon, Cubao, Quezon City",
-    landmark: "Recruitment & Applicant Interview Center",
-    phone: "(02) 8911-5678",
     mobile: "0917-629-1864 (Globe)",
     latLng: [14.6195, 121.0511],
   },
@@ -50,8 +50,6 @@ export const BRANCHES: Branch[] = [
     region: "Luzon & NCR",
     isHQ: false,
     address: "3rd Fl, Uniworld Bldg. 347, Burgos St., Brgy Vicente, Biñan, Laguna",
-    landmark: "Southern Luzon Industrial Workforce Hub",
-    phone: "(049) 511-2345",
     mobile: "0917-629-1864 (Globe)",
     latLng: [14.3414, 121.0803],
   },
@@ -61,8 +59,6 @@ export const BRANCHES: Branch[] = [
     region: "Luzon & NCR",
     isHQ: false,
     address: "PJAR Trading, (In front of New City Hall), Brgy Santor, Tanauan City, Batangas",
-    landmark: "CALABARZON Industrial Corridor Hub",
-    phone: "(043) 778-9012",
     mobile: "0917-629-1864 (Globe)",
     latLng: [14.0854, 121.1504],
   },
@@ -72,8 +68,6 @@ export const BRANCHES: Branch[] = [
     region: "Visayas",
     isHQ: false,
     address: "RM 301, Du Sui Bldg, North Road, Brgy Jagobiao, Mandaue City, Cebu",
-    landmark: "Central Visayas Regional Center",
-    phone: "(032) 345-6789",
     mobile: "0923-745-4050 (Sun/Smart)",
     latLng: [10.362, 123.9472],
   },
@@ -83,8 +77,6 @@ export const BRANCHES: Branch[] = [
     region: "Mindanao",
     isHQ: false,
     address: "D2 2F, C LAT Bldg, Bonifacio St, Davao City",
-    landmark: "Southern Mindanao Operations Hub",
-    phone: "(082) 221-3456",
     mobile: "0923-745-4050 (Sun/Smart)",
     latLng: [7.0707, 125.6087],
   },
@@ -239,16 +231,21 @@ export const LandingBranches: React.FC = () => {
     }
   }, [mapReady, regionFilter]);
 
+  const isHQ = selectedBranch.isHQ;
+  const phoneDigits = selectedBranch.mobile.replace(/\(.*\)/, "").replace(/\D/g, "");
+
   return (
     <section id="branches" aria-labelledby="branches-heading" className="scroll-mt-20 bg-background py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <SectionHeader
-          id="branches-heading"
-          title="6 strategic branch offices across the Philippines"
-          intro="Operations run from our main office in Valenzuela City. Branches across Luzon, Visayas and Mindanao support client sites close to where the work is."
-        />
+        <Reveal>
+          <SectionHeader
+            id="branches-heading"
+            title="Six offices, Luzon to Mindanao"
+            intro="Our main office is in Valenzuela City, with five branches across Luzon, Visayas and Mindanao."
+          />
+        </Reveal>
 
-        <Reveal className="mt-10">
+        <Reveal className="mt-8">
           <div role="group" aria-label="Filter branches by region" className="flex flex-wrap gap-2">
             {REGION_OPTIONS.map((r) => {
               const isActive = regionFilter === r;
@@ -259,22 +256,23 @@ export const LandingBranches: React.FC = () => {
                   variant={isActive ? "secondary" : "outline"}
                   onClick={() => setRegionFilter(r)}
                   aria-pressed={isActive}
+                  className="transition-[background-color,color,transform] duration-150 active:scale-[0.97] motion-reduce:active:scale-100"
                 >
                   {r === "ALL" ? "All (6)" : r}
                 </Button>
               );
             })}
           </div>
+        </Reveal>
 
-          <div className="mt-6 grid grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-10">
-            {/* Map */}
-            <div className="lg:sticky lg:top-24 lg:col-span-7">
-              <img
-                src="/images/canva-ref/megs-logo-352.webp"
-                alt="Map of the Philippines with MEGS Branch Locations"
-                className="sr-only"
-              />
-              <div className="relative z-0 h-[380px] w-full overflow-hidden rounded-lg border border-border bg-muted sm:h-[460px]">
+        <div className="mt-6 grid grid-cols-1 gap-8 lg:h-[41rem] lg:grid-cols-12 lg:gap-12 xl:h-[37.5rem]">
+          {/* Map: fills the column so it ends level with the list */}
+          <div className="lg:col-span-7 lg:min-h-0">
+            <m.div
+              {...onView({ opacity: 0, y: 20 }, { opacity: 1, y: 0 }, { duration: 0.5, ease: EASE_OUT })}
+              className="flex h-full flex-col"
+            >
+              <div className="relative z-0 h-[340px] w-full overflow-hidden rounded-lg border border-border bg-muted sm:h-[440px] lg:h-auto lg:min-h-0 lg:flex-1">
                 <div
                   ref={mapContainerRef}
                   className="h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
@@ -283,7 +281,10 @@ export const LandingBranches: React.FC = () => {
                   aria-busy={!mapReady && !mapLoadFailed}
                 />
                 {!mapReady && (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground" role="status">
+                  <div
+                    className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground"
+                    role="status"
+                  >
                     {mapLoadFailed ? "Map is temporarily unavailable." : "Loading branch map…"}
                   </div>
                 )}
@@ -303,7 +304,7 @@ export const LandingBranches: React.FC = () => {
                   <Button
                     type="button"
                     variant="link"
-                    className="h-9 px-0"
+                    className="h-9 px-0 pointer-coarse:h-11"
                     onClick={() => {
                       setRegionFilter("ALL");
                       setSelectedBranchId("valenzuela");
@@ -313,21 +314,42 @@ export const LandingBranches: React.FC = () => {
                   </Button>
                 </div>
               </div>
-            </div>
+            </m.div>
+          </div>
 
-            {/* Selected branch + list */}
-            <div className="lg:col-span-5">
-              <div className="rounded-lg border border-border bg-muted/60 p-6">
+          {/* Selected branch + list */}
+          <div className="flex min-h-0 flex-col lg:col-span-5">
+            <AnimatePresence mode="wait" initial={false}>
+              <m.div
+                key={selectedBranch.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2, ease: EASE_OUT }}
+                className={cn(
+                  "shrink-0 rounded-lg border p-5 sm:p-6",
+                  isHQ ? "border-megs-navy-900 bg-megs-navy-900 text-white" : "border-border bg-muted/60"
+                )}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="flex flex-wrap items-center gap-x-2 text-sm font-medium text-muted-foreground">
+                  <p
+                    className={cn(
+                      "flex flex-wrap items-center gap-x-2 text-sm font-medium",
+                      isHQ ? "text-white/75" : "text-muted-foreground"
+                    )}
+                  >
                     {selectedBranch.region}
-                    {selectedBranch.isHQ && <span className="font-semibold text-secondary">Head office</span>}
+                    {isHQ && <span className="font-semibold text-white">Head office</span>}
                   </p>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => handleCopyAddress(selectedBranch.id, selectedBranch.address)}
+                    className={cn(
+                      "active:scale-[0.97] pointer-coarse:min-h-11 motion-reduce:active:scale-100",
+                      isHQ && "text-white hover:bg-white/10 hover:text-white focus-visible:ring-white/60"
+                    )}
                   >
                     {copiedId === selectedBranch.id ? (
                       <Check data-icon="inline-start" aria-hidden="true" />
@@ -338,59 +360,110 @@ export const LandingBranches: React.FC = () => {
                   </Button>
                 </div>
 
-                <h3 className="mt-2 text-xl font-bold tracking-tight text-secondary">{selectedBranch.name}</h3>
-                <p className="mt-2 text-base leading-relaxed text-foreground">{selectedBranch.address}</p>
-                {selectedBranch.landmark && <p className="mt-1 text-sm text-muted-foreground">{selectedBranch.landmark}</p>}
+                <h3 className={cn("mt-2 text-xl font-bold tracking-tight", isHQ ? "text-white" : "text-secondary")}>
+                  {selectedBranch.name}
+                </h3>
+                <p className={cn("mt-2 text-base leading-relaxed", isHQ ? "text-white/90" : "text-foreground")}>
+                  {selectedBranch.address}
+                </p>
+                {selectedBranch.landmark && (
+                  <p className={cn("mt-1 text-sm", isHQ ? "text-white/75" : "text-muted-foreground")}>
+                    {selectedBranch.landmark}
+                  </p>
+                )}
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border pt-4">
-                  <div className="flex items-start gap-2 text-base text-foreground tabular-nums">
-                    <Phone className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <div
+                  className={cn(
+                    "mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t pt-4",
+                    isHQ ? "border-white/15" : "border-border"
+                  )}
+                >
+                  <div className="flex items-start gap-2 text-base tabular-nums">
+                    <Phone
+                      className={cn("mt-1 size-4 shrink-0", isHQ ? "text-white/75" : "text-muted-foreground")}
+                      aria-hidden="true"
+                    />
                     <div className="flex flex-col">
-                      <span>{selectedBranch.phone}</span>
-                      <span>{selectedBranch.mobile}</span>
+                      {[{ display: selectedBranch.mobile, tel: phoneDigits }, ...(selectedBranch.landlines ?? [])].map((line) => (
+                        <a
+                          key={line.tel}
+                          href={`tel:${line.tel}`}
+                          className={cn(
+                            "rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 pointer-coarse:py-2.5",
+                            isHQ ? "text-white focus-visible:ring-white/60" : "text-foreground focus-visible:ring-ring"
+                          )}
+                        >
+                          {line.display}
+                        </a>
+                      ))}
                     </div>
                   </div>
                   <a
                     href="#contact"
                     onClick={(e) => scrollToSection(e, "#contact")}
-                    className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-semibold text-accent underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className={cn(
+                      "group inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-semibold underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2",
+                      isHQ ? "text-white focus-visible:ring-white/60" : "text-accent focus-visible:ring-ring"
+                    )}
                   >
-                    Direct branch inquiries
-                    <ArrowRight className="size-4" aria-hidden="true" />
+                    Request a proposal
+                    <ArrowRight
+                      className="size-4 transition-transform duration-200 group-hover:translate-x-1 motion-reduce:transition-none"
+                      aria-hidden="true"
+                    />
                   </a>
                 </div>
-              </div>
+              </m.div>
+            </AnimatePresence>
 
-              <ul className="mt-4 divide-y divide-border border-y border-border">
-                {filteredBranches.map((branch) => {
-                  const isActive = branch.id === selectedBranchId;
-                  return (
-                    <li key={branch.id}>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedBranchId(branch.id)}
-                        aria-pressed={isActive}
+            <m.ul
+              key={regionFilter}
+              {...staggerParent(0.04)}
+              className="mt-4 min-h-0 divide-y divide-border overflow-y-auto border-y border-border"
+            >
+              {filteredBranches.map((branch) => {
+                const isActive = branch.id === selectedBranchId;
+                return (
+                  <m.li key={branch.id} {...staggerItem}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBranchId(branch.id)}
+                      aria-pressed={isActive}
+                      className={cn(
+                        "group flex min-h-11 w-full items-center gap-3 px-2 py-2.5 text-left transition-colors duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                        isActive && "bg-muted"
+                      )}
+                    >
+                      <MapPin
                         className={cn(
-                          "flex min-h-11 w-full items-start gap-3 px-2 py-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                          isActive && "bg-muted",
+                          "size-4 shrink-0 transition-transform duration-200",
+                          branch.isHQ ? "text-primary" : "text-muted-foreground",
+                          isActive && "scale-125 text-primary"
                         )}
-                      >
-                        <MapPin
-                          className={cn("mt-0.5 size-4 shrink-0", branch.isHQ ? "text-primary" : "text-muted-foreground")}
-                          aria-hidden="true"
-                        />
-                        <span className="min-w-0">
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-x-2">
                           <span className="block font-semibold text-secondary">{branch.name}</span>
-                          <span className="mt-0.5 block text-sm text-muted-foreground">{branch.address}</span>
+                          {branch.isHQ && <span className="text-xs font-semibold text-primary">Head office</span>}
                         </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+                      </span>
+                      <ChevronRight
+                        className={cn(
+                          "size-4 shrink-0 text-secondary transition-[opacity,transform] duration-200",
+                          isActive
+                            ? "translate-x-0 opacity-100"
+                            : "-translate-x-1 opacity-0 group-hover:translate-x-0 group-hover:opacity-60"
+                        )}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </m.li>
+                );
+              })}
+            </m.ul>
           </div>
-        </Reveal>
+        </div>
       </div>
     </section>
   );

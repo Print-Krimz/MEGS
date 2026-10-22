@@ -4,156 +4,197 @@ import { Button } from "@/components/shadcn/button";
 import { cn } from "../../lib/shadcn-utils";
 import { scrollToSection } from "../../lib/scrollToSection";
 import { SectionHeader } from "./SectionHeader";
-import { Reveal } from "./motion";
+import { Reveal, m, staggerItem, staggerParent } from "./motion";
+import { megsPhoto, type MegsPhoto } from "./megsPhotos";
 
 interface Industry {
   id: string;
   name: string;
-  image: string;
+  /** Licensed stock fallback until MEGS supplies its own photo for the slot. */
+  stock?: { base: string; alt: string; pos: string };
   description: string;
   roles: string[];
 }
 
 const industries: Industry[] = [
   {
-    id: "manufacturing",
-    name: "Manufacturing",
-    image: "/images/canva-ref/industries/manufacturing",
-    description:
-      "Electronics assembly, food processing lines, plastic extrusion, packaging operations, and precision machinery plants across economic zones.",
-    roles: ["Machine Operators", "Assembly Crew", "QA/QC Personnel", "Production Supervisors"],
-  },
-  {
-    id: "logistics",
-    name: "Logistics & Transport",
-    image: "/images/canva-ref/industries/logistics",
-    description:
-      "Multi-modal freight forwarding, delivery fleet operations, courier transport, route planning, and national supply chain dispatching.",
-    roles: ["Delivery Drivers", "Messengers", "Fleet Dispatchers", "Logistics Clerks"],
-  },
-  {
     id: "warehousing",
-    name: "Warehousing & Storage",
-    image: "/images/canva-ref/industries/warehousing",
-    description:
-      "High-density distribution centers, inventory scanning, goods receiving, palletizing, order sorting, and industrial forklift maneuvers.",
-    roles: ["Forklift Operators", "Warehouse Crew", "Material Handlers", "Inventory Encoders"],
+    name: "Warehousing",
+    stock: {
+      base: "/images/canva-ref/industries/warehousing",
+      alt: "Forklift moving pallets in a warehouse",
+      pos: "object-[22%_72%]",
+    },
+    description: "Receiving, storage, picking and loading.",
+    roles: ["Forklift operators", "Warehouse crew", "Encoders", "Utility helpers"],
   },
   {
     id: "retail",
-    name: "Retail, Sales & Distribution",
-    image: "/images/canva-ref/industries/retail",
-    description:
-      "Hypermarkets, department stores, retail chains, and fast-moving consumer goods (FMCG) distribution networks.",
-    roles: ["Sales Promo / Merchandisers", "Cashiers & Baggers", "Brand Ambassadors", "Stock Clerks"],
+    name: "Retail, sales & distribution",
+    stock: {
+      base: "/images/canva-ref/industries/retail",
+      alt: "Shopper walking down a supermarket aisle",
+      pos: "object-[58%_58%]",
+    },
+    description: "Supermarkets, department stores and distributors.",
+    roles: ["Sales promo & merchandisers", "Brand ambassadors", "Cashiers & baggers"],
   },
   {
     id: "hospitality",
-    name: "Hotel & Restaurant",
-    image: "/images/canva-ref/industries/hospitality",
-    description:
-      "Premier hotels, restaurant chains, catering services, banquet halls, institutional cafeterias, and hospitality dining floors.",
-    roles: ["Food Servers", "Kitchen Helpers", "Dining Stewards", "Banquet Crew"],
+    name: "Hotel & restaurant",
+    stock: {
+      base: "/images/canva-ref/industries/hospitality",
+      alt: "Guests dining at a restaurant table",
+      pos: "object-[48%_55%]",
+    },
+    description: "Hotels, restaurants and catering.",
+    roles: ["Food servers", "Utility helpers", "Cashiers"],
   },
   {
     id: "gaming",
-    name: "Gaming & Casino",
-    image: "/images/canva-ref/industries/casino",
-    description:
-      "Integrated resort gaming facilities, entertainment complexes, high-volume recreation centers, and guest operations support.",
-    roles: ["Floor Attendants", "Cashier Personnel", "Utility Helpers", "Front-Line Support"],
+    name: "Gaming & casino",
+    stock: {
+      base: "/images/canva-ref/industries/casino",
+      alt: "Players at a casino roulette table",
+      pos: "object-[50%_30%]",
+    },
+    description: "Gaming floors and their support teams.",
+    roles: ["Cashiers", "Utility helpers", "Office staff"],
+  },
+  {
+    id: "manufacturing",
+    name: "Manufacturing",
+    description: "Assembly, packaging and machine operation in plants.",
+    roles: ["Production workers", "Machine operators", "QA/QC personnel", "Welders"],
+  },
+  {
+    id: "logistics",
+    name: "Logistics",
+    description: "Delivery, courier work and dispatch support.",
+    roles: ["Delivery drivers", "Messengers", "Office staff", "Encoders"],
   },
 ];
 
-type TileLayout = "feature" | "side" | "plain";
+const IMAGE_SIZES = "(min-width: 1024px) 400px, (min-width: 640px) 50vw, 80vw";
 
-/** Rendered widths: the feature tile is ~700px wide on desktop, side tiles ~200px, plain tiles ~390px. */
-const IMAGE_SIZES: Record<TileLayout, string> = {
-  feature: "(min-width: 1280px) 700px, (min-width: 1024px) 54vw, 100vw",
-  side: "(min-width: 1024px) 200px, 100vw",
-  plain: "(min-width: 1024px) 390px, 100vw",
-};
-
-const IndustryTile: React.FC<{ industry: Industry; layout: TileLayout }> = ({ industry, layout }) => (
-  <article
-    className={cn(
-      "flex h-full flex-col overflow-hidden rounded-lg border border-border bg-background",
-      layout === "side" && "lg:grid lg:grid-cols-[2fr_3fr]"
-    )}
-  >
-    <div
-      className={cn(
-        "relative aspect-[16/10] w-full bg-muted",
-        layout === "feature" && "lg:aspect-auto lg:min-h-72 lg:flex-1",
-        layout === "side" && "lg:aspect-auto lg:h-full"
-      )}
-    >
+const IndustryImage: React.FC<{ industry: Industry; photo: MegsPhoto | null }> = ({ industry, photo }) => {
+  const motionClass =
+    "size-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04] group-focus-within:scale-[1.04] motion-reduce:transition-none";
+  if (photo) {
+    return (
       <img
-        src={`${industry.image}-480.webp`}
-        srcSet={`${industry.image}-480.webp 480w, ${industry.image}-800.webp 800w`}
-        sizes={IMAGE_SIZES[layout]}
-        alt={`${industry.name} workers on site`}
+        src={photo.src}
+        alt={photo.alt}
         loading="lazy"
         decoding="async"
-        width={800}
-        height={500}
-        className="absolute inset-0 h-full w-full object-cover"
+        sizes={IMAGE_SIZES}
+        className={motionClass}
       />
-    </div>
-    <div className={cn("flex flex-col border-t border-border p-5 sm:p-6", layout === "side" && "lg:border-l lg:border-t-0")}>
-      <h3
-        className={cn(
-          "font-display leading-snug text-secondary",
-          layout === "feature" ? "text-2xl" : "text-lg"
-        )}
-      >
-        {industry.name}
-      </h3>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">{industry.description}</p>
-      <p className="mt-4 border-t border-border pt-4 text-sm leading-relaxed text-foreground">
-        <span className="font-semibold text-secondary">Key deployed positions: </span>
-        {industry.roles.join(", ")}
-      </p>
-    </div>
-  </article>
-);
-
-export const LandingIndustries: React.FC = () => {
-  const [feature, sideA, sideB, ...rest] = industries;
-
+    );
+  }
+  const stock = industry.stock!;
   return (
-    <section id="industries" className="scroll-mt-20 bg-background py-16 sm:py-24">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <Reveal>
-          <SectionHeader
-            title="Partner industries we support"
-            intro="Vetted, disciplined manpower matched to the workflows, safety standards, and compliance rules of the industries we serve. Six are shown here; we staff others on request."
-            action={
-              <Button asChild variant="outline" className="shrink-0">
-                <a href="#contact" onClick={(e) => scrollToSection(e, "#contact")}>
-                  Inquire for your industry
-                  <ArrowUpRight data-icon="inline-end" />
-                </a>
-              </Button>
-            }
-          />
-        </Reveal>
-
-        <Reveal className="mt-10 grid gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <IndustryTile industry={feature} layout="feature" />
-          </div>
-          <div className="grid gap-6 lg:col-span-5 lg:grid-rows-2">
-            <IndustryTile industry={sideA} layout="side" />
-            <IndustryTile industry={sideB} layout="side" />
-          </div>
-          {rest.map((ind) => (
-            <div key={ind.id} className="lg:col-span-4">
-              <IndustryTile industry={ind} layout="plain" />
-            </div>
-          ))}
-        </Reveal>
-      </div>
-    </section>
+    <img
+      src={`${stock.base}-800.webp`}
+      srcSet={`${stock.base}-480.webp 480w, ${stock.base}-800.webp 800w`}
+      sizes={IMAGE_SIZES}
+      alt={stock.alt}
+      loading="lazy"
+      decoding="async"
+      width={800}
+      height={533}
+      className={cn(motionClass, stock.pos)}
+    />
   );
 };
+
+/**
+ * One industry. Photo and no-photo cards share the same media box, name position and body,
+ * so a missing photo reads as a deliberate navy tile rather than a gap.
+ */
+const IndustryCard: React.FC<{ industry: Industry }> = ({ industry }) => {
+  const photo = megsPhoto(`industry-${industry.id}`);
+  const hasImage = Boolean(photo || industry.stock);
+
+  return (
+    <m.li
+      {...staggerItem}
+      className="group flex w-[80%] shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-border bg-background transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-0.5 hover:border-secondary/30 hover:shadow-md focus-within:-translate-y-0.5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:translate-y-0 sm:w-auto"
+    >
+      <div className={cn(
+          "relative aspect-[3/2] overflow-hidden",
+          !hasImage &&
+            "bg-megs-navy-900 bg-[repeating-linear-gradient(90deg,transparent_0_47px,rgb(255_255_255/0.05)_47px_48px)]"
+        )}
+      >
+        {hasImage && (
+          <>
+            <IndustryImage industry={industry} photo={photo} />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 bg-linear-to-t from-megs-navy-900/85 via-megs-navy-900/25 to-transparent transition-opacity duration-300 group-hover:opacity-90"
+            />
+          </>
+        )}
+        <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+          <span
+            aria-hidden="true"
+            className="mb-3 block h-1 w-8 rounded-full bg-primary transition-[width] duration-300 ease-out group-hover:w-14 group-focus-within:w-14 motion-reduce:transition-none"
+          />
+          <h3
+            className={cn(
+              "font-display leading-tight text-balance",
+              hasImage ? "text-2xl" : "text-3xl"
+            )}
+          >
+            {industry.name}
+          </h3>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col gap-4 p-5">
+        <p className="text-base leading-relaxed text-muted-foreground">{industry.description}</p>
+        <ul aria-label={`Typical ${industry.name} positions`} className="mt-auto flex flex-wrap gap-2">
+          {industry.roles.map((role) => (
+            <li
+              key={role}
+              className="rounded-full border border-border bg-page px-3 py-1 text-sm text-secondary"
+            >
+              {role}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </m.li>
+  );
+};
+
+export const LandingIndustries: React.FC = () => (
+  <section id="industries" className="scroll-mt-20 bg-page py-16 sm:py-24">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <Reveal>
+        <SectionHeader
+          title="Industries we staff"
+          intro="Six industries make up most of our deployments. We staff others on request."
+          action={
+            <Button asChild variant="outline" className="shrink-0">
+              <a href="#contact" onClick={(e) => scrollToSection(e, "#contact")}>
+                Ask about your industry
+                <ArrowUpRight data-icon="inline-end" />
+              </a>
+            </Button>
+          }
+        />
+      </Reveal>
+
+      <m.ul
+        {...staggerParent(0.07)}
+        className="-mx-4 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 pt-2 scroll-px-4 [scrollbar-width:none] sm:mx-0 sm:mt-12 sm:grid sm:snap-none sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 sm:pt-0 lg:grid-cols-3 lg:gap-6 [&::-webkit-scrollbar]:hidden"
+      >
+        {industries.map((industry) => (
+          <IndustryCard key={industry.id} industry={industry} />
+        ))}
+      </m.ul>
+    </div>
+  </section>
+);
