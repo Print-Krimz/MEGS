@@ -6,10 +6,14 @@ const firstName = z.string().trim().min(1, "First name is required").max(FIELD_L
 const lastName = z.string().trim().min(1, "Last name is required").max(FIELD_LIMITS.name);
 
 export const checkInSchema = {
-  // verifyTurnstile strips turnstileToken from the body before this runs.
+  // Multipart (optional "file" part handled by multer): every field arrives as a string, which idValue coerces.
+  // The CAPTCHA token travels in the x-turnstile-token header; the body copies are tolerated and ignored
+  // because verifyTurnstile runs before multer and cannot strip them from a multipart body.
   submit: z.object({
     body: z
       .object({
+        turnstileToken: z.string().max(2048).optional(),
+        "cf-turnstile-response": z.string().max(2048).optional(),
         jobPostingId: idValue,
         firstName,
         middleName: optionalPersonNameSchema("Middle name"),

@@ -129,6 +129,7 @@ import {
   confirmCheckInHandler,
   dismissCheckInHandler,
   getCheckInHandler,
+  getCheckInBiodataHandler,
   listCheckInsHandler,
 } from "../../controllers/ta/ta.check-in.controller.js";
 import { recordAssistedResponseHandler, sendOfferSmsLinkHandler } from "../../controllers/ta/ta.offer-reply.controller.js";
@@ -190,6 +191,7 @@ router.post("/talent-pool/invitations/:id/sms-link", validate(offerReplyRouteSch
 // dismiss a pending one; once confirmed, the application belongs to the job's owner.
 router.get("/walk-ins/check-ins", listCheckInsHandler);
 router.get("/walk-ins/check-ins/:id", validate(checkInSchema.idParams), getCheckInHandler);
+router.get("/walk-ins/check-ins/:id/biodata", validate(checkInSchema.idParams), getCheckInBiodataHandler);
 router.post("/walk-ins/check-ins/:id/confirm", upload.single("file"), validate(checkInSchema.confirm), confirmCheckInHandler);
 router.post("/walk-ins/check-ins/:id/dismiss", validate(checkInSchema.dismiss), dismissCheckInHandler);
 router.get("/walk-ins/check-duplicate", validate(taSchema.walkInCheckDuplicate), checkWalkInDuplicateHandler);

@@ -1,6 +1,11 @@
 // Self check-in (Phase 2): the applicant queues from a QR poster, any TA confirms at the desk and runs the normal walk-in intake.
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
+import supabase from "../../utils/supabase.js";
+import { ensureBucketExists } from "../../middleware/upload.middleware.js";
+import { validateDocumentBytes, sanitizeUploadFileName } from "../../security/file-validation.js";
+import { CHECK_IN_BIODATA_MESSAGE, CHECK_IN_BIODATA_UNAVAILABLE_MESSAGE } from "../../security/public-messages.js";
 import { logAudit } from "../../utils/audit.js";
 import { safeLogError } from "../../security/errors.js";
 import { sendNotification } from "../../utils/notification.js";
@@ -53,6 +58,94 @@ export interface CheckInConfirmInput {
 
 const isUniqueViolation = (error: unknown): boolean => (error as { code?: string } | null)?.code === "P2002";
 
+// ---------- held biodata (no StoredDocument: the applicant has no User yet) ----------
+
+const BIODATA_BUCKET = "applicant-assets";
+const EXPIRED_PURGE_AFTER_MS = 24 * 60 * 60 * 1000;
+const EXPIRED_PURGE_BATCH = 20;
+
+/** Best effort: a leftover object is private; rows that still point at it are swept later. Failures are logged, never thrown. */
+const removeHeldObjects = async (paths: string[]): Promise<boolean> => {
+  if (paths.length === 0) return true;
+  try {
+    const { error } = await supabase.storage.from(BIODATA_BUCKET).remove(paths);
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    safeLogError("Check-in biodata removal", error);
+    return false;
+  }
+};
+
+/** Checks the bytes and stores the file under check-ins/<publicId>/. Returns the columns to save on the row. */
+const holdBiodata = async (publicId: string, file: Express.Multer.File) => {
+  let extension: string;
+  try {
+    const validated = validateDocumentBytes(file.buffer, file.mimetype);
+    if (!["pdf", "jpg", "png", "webp"].includes(validated.extension)) throw new Error("not a photo or PDF");
+    extension = validated.extension;
+  } catch {
+    throw new CheckInInputError(CHECK_IN_BIODATA_MESSAGE);
+  }
+  await ensureBucketExists(BIODATA_BUCKET);
+  const path = `check-ins/${publicId}/${randomUUID()}.${extension}`;
+  const { error } = await supabase.storage.from(BIODATA_BUCKET).upload(path, file.buffer, { contentType: file.mimetype, upsert: false });
+  if (error) throw error;
+  return {
+    biodataStoragePath: path,
+    biodataMimeType: file.mimetype,
+    biodataFileName: sanitizeUploadFileName(file.originalname),
+    biodataSizeBytes: file.size ?? file.buffer.length,
+  };
+};
+
+const loadHeldBiodata = async (held: { path: string; mimeType: string | null; fileName: string | null }): Promise<Express.Multer.File> => {
+  try {
+    const { data, error } = await supabase.storage.from(BIODATA_BUCKET).download(held.path);
+    if (error || !data) throw error ?? new Error("empty download");
+    const buffer = Buffer.from(await data.arrayBuffer());
+    return {
+      fieldname: "file",
+      originalname: held.fileName ?? "biodata",
+      encoding: "7bit",
+      mimetype: held.mimeType ?? "application/octet-stream",
+      size: buffer.length,
+      buffer,
+    } as Express.Multer.File;
+  } catch (error) {
+    safeLogError("Check-in biodata download", error);
+    throw new Error(CHECK_IN_BIODATA_UNAVAILABLE_MESSAGE);
+  }
+};
+
+const PURGE_INTERVAL_MS = 10 * 60 * 1000;
+let lastPurgeAt = 0;
+
+/** Opportunistic sweep: held files of closed check-ins whose removal failed, and of pending ones expired over a day ago. Bounded, never throws. */
+export const purgeExpiredBiodata = async (): Promise<void> => {
+  try {
+    const stale = await prisma.walkInCheckIn.findMany({
+      where: {
+        biodataStoragePath: { not: null },
+        OR: [
+          { status: { in: ["CONFIRMED", "DISMISSED"] } },
+          { status: "PENDING", expiresAt: { lt: new Date(Date.now() - EXPIRED_PURGE_AFTER_MS) } },
+        ],
+      },
+      take: EXPIRED_PURGE_BATCH,
+      select: { id: true, biodataStoragePath: true },
+    });
+    if (stale.length === 0) return;
+    if (!(await removeHeldObjects(stale.map((row) => row.biodataStoragePath!)))) return;
+    await prisma.walkInCheckIn.updateMany({
+      where: { id: { in: stale.map((row) => row.id) } },
+      data: { biodataStoragePath: null, biodataMimeType: null, biodataFileName: null, biodataSizeBytes: null },
+    });
+  } catch (error) {
+    safeLogError("Check-in biodata purge", error);
+  }
+};
+
 const statusPathFor = (publicId: string, token: string) => `/check-in/${publicId}?token=${token}`;
 
 // ---------- public ----------
@@ -83,7 +176,7 @@ export const listCheckInJobs = async (q?: string) => {
   };
 };
 
-export const createCheckIn = async (input: CheckInSubmission) => {
+export const createCheckIn = async (input: CheckInSubmission, file?: Express.Multer.File) => {
   const job = await prisma.jobPosting.findUnique({ where: { id: input.jobPostingId }, select: { status: true } });
   if (!job) throw new CheckInInputError("Choose a job that is still open");
   if (job.status !== "OPEN") throw new CheckInInputError("This job is no longer accepting applications");
@@ -108,37 +201,49 @@ export const createCheckIn = async (input: CheckInSubmission) => {
     return { alreadyCheckedIn: true as const, queueNumber: queueNumber(duplicate.queueSeq) };
   }
 
-  for (let attempt = 0; attempt < MAX_QUEUE_ATTEMPTS; attempt++) {
-    const latest = await prisma.walkInCheckIn.aggregate({ where: { queueDate }, _max: { queueSeq: true } });
-    const queueSeq = (latest._max.queueSeq ?? 0) + 1;
-    try {
-      const created = await prisma.walkInCheckIn.create({
-        data: {
-          queueDate,
-          queueSeq,
-          jobPostingId: input.jobPostingId,
-          firstName: input.firstName,
-          middleName: input.middleName || null,
-          lastName: input.lastName,
-          mobileNumber: mobileE164,
-          birthDate,
-          viewTokenHash: hash,
-          expiresAt: new Date(Date.now() + EXPIRY_MS),
-        },
-        select: { publicId: true, queueSeq: true },
-      });
-      return {
-        alreadyCheckedIn: false as const,
-        publicId: created.publicId,
-        viewToken: token,
-        queueNumber: queueNumber(created.queueSeq),
-        statusPath: statusPathFor(created.publicId, token),
-      };
-    } catch (error) {
-      if (!isUniqueViolation(error)) throw error;
+  // The file is checked and held only for a new check-in (a duplicate ignores it). The public id is chosen here so the
+  // object path can carry it before the row exists.
+  const publicId = randomUUID();
+  const biodata = file ? await holdBiodata(publicId, file) : null;
+
+  try {
+    for (let attempt = 0; attempt < MAX_QUEUE_ATTEMPTS; attempt++) {
+      const latest = await prisma.walkInCheckIn.aggregate({ where: { queueDate }, _max: { queueSeq: true } });
+      const queueSeq = (latest._max.queueSeq ?? 0) + 1;
+      try {
+        const created = await prisma.walkInCheckIn.create({
+          data: {
+            publicId,
+            ...(biodata ?? {}),
+            queueDate,
+            queueSeq,
+            jobPostingId: input.jobPostingId,
+            firstName: input.firstName,
+            middleName: input.middleName || null,
+            lastName: input.lastName,
+            mobileNumber: mobileE164,
+            birthDate,
+            viewTokenHash: hash,
+            expiresAt: new Date(Date.now() + EXPIRY_MS),
+          },
+          select: { publicId: true, queueSeq: true },
+        });
+        return {
+          alreadyCheckedIn: false as const,
+          publicId: created.publicId,
+          viewToken: token,
+          queueNumber: queueNumber(created.queueSeq),
+          statusPath: statusPathFor(created.publicId, token),
+        };
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+      }
     }
+    throw new CheckInInputError("The queue is busy. Please try again.");
+  } catch (error) {
+    if (biodata) await removeHeldObjects([biodata.biodataStoragePath]);
+    throw error;
   }
-  throw new CheckInInputError("The queue is busy. Please try again.");
 };
 
 /** Returns null for any mismatch so the controller can answer a uniform 404. */
@@ -200,6 +305,11 @@ const toListItem = (row: ListRow) => ({
 });
 
 export const listPendingCheckIns = async () => {
+  // Runs in the background at most every 10 minutes per server, so the 30-second list refresh stays fast.
+  if (Date.now() - lastPurgeAt >= PURGE_INTERVAL_MS) {
+    lastPurgeAt = Date.now();
+    void purgeExpiredBiodata();
+  }
   const rows = await prisma.walkInCheckIn.findMany({
     where: { status: "PENDING", expiresAt: { gt: new Date() } },
     orderBy: { createdAt: "asc" },
@@ -225,6 +335,10 @@ export const getPendingCheckIn = async (id: number) => {
       ...listSelect,
       mobileNumber: true,
       birthDate: true,
+      biodataStoragePath: true,
+      biodataMimeType: true,
+      biodataFileName: true,
+      biodataSizeBytes: true,
       jobPosting: {
         select: { title: true, postedById: true, mrfId: true, mrf: { select: { assignedTaId: true, client: { select: { name: true } } } } },
       },
@@ -242,20 +356,37 @@ export const getPendingCheckIn = async (id: number) => {
     birthDate: fromDbDate(row.birthDate),
     jobOwnerId: ownerId,
     jobOwnerName: ownerDisplayName(owner),
+    biodata: row.biodataStoragePath
+      ? { fileName: row.biodataFileName ?? "biodata", mimeType: row.biodataMimeType ?? "application/octet-stream", sizeBytes: row.biodataSizeBytes ?? 0 }
+      : null,
   };
+};
+
+/** The file the applicant attached at check-in, for any TA to look at while the check-in is still pending. */
+export const getPendingBiodata = async (id: number) => {
+  const row = await prisma.walkInCheckIn.findFirst({
+    where: { id, status: "PENDING", expiresAt: { gt: new Date() }, biodataStoragePath: { not: null } },
+    select: { biodataStoragePath: true, biodataMimeType: true, biodataFileName: true },
+  });
+  if (!row?.biodataStoragePath) throw new Error("Biodata not found");
+  const file = await loadHeldBiodata({ path: row.biodataStoragePath, mimeType: row.biodataMimeType, fileName: row.biodataFileName });
+  return { buffer: file.buffer, mimeType: file.mimetype, fileName: file.originalname };
 };
 
 export const confirmCheckIn = async (
   actor: Actor,
   id: number,
   input: CheckInConfirmInput,
-  file: Express.Multer.File,
+  attached?: Express.Multer.File,
 ): Promise<WalkInSlip> => {
   const checkIn = await prisma.walkInCheckIn.findUnique({
     where: { id },
-    select: { jobPostingId: true, queueSeq: true, jobPosting: { select: { title: true, postedById: true, mrfId: true, mrf: { select: { assignedTaId: true } } } } },
+    select: { jobPostingId: true, queueSeq: true, biodataStoragePath: true, biodataMimeType: true, biodataFileName: true, jobPosting: { select: { title: true, postedById: true, mrfId: true, mrf: { select: { assignedTaId: true } } } } },
   });
   if (!checkIn) throw new Error("Check-in not found");
+  const heldPath = checkIn.biodataStoragePath;
+  // The TA's own file wins; otherwise the one the applicant attached at check-in.
+  if (!attached && !heldPath) throw new Error("Attach the biodata photo or PDF");
 
   // Atomic claim: a second confirm (or an expired row) matches nothing.
   const claimed = await prisma.walkInCheckIn.updateMany({
@@ -266,6 +397,7 @@ export const confirmCheckIn = async (
 
   let slip: WalkInSlip;
   try {
+    const file = attached ?? (await loadHeldBiodata({ path: heldPath!, mimeType: checkIn.biodataMimeType, fileName: checkIn.biodataFileName }));
     const walkInInput: CreateWalkInInput = {
       jobPostingId: checkIn.jobPostingId,
       source: "WALK_IN",
@@ -294,6 +426,13 @@ export const confirmCheckIn = async (
     }
   }
 
+  // The held copy is no longer needed: the application has its own document now.
+  if (heldPath && (await removeHeldObjects([heldPath]))) {
+    await prisma.walkInCheckIn
+      .update({ where: { id }, data: { biodataStoragePath: null, biodataMimeType: null, biodataFileName: null, biodataSizeBytes: null } })
+      .catch((clearError) => safeLogError(`Check-in ${id} biodata columns`, clearError));
+  }
+
   const ownerId = ownerOf(checkIn.jobPosting);
   if (ownerId && ownerId !== actor.id) {
     void sendNotification(
@@ -312,13 +451,18 @@ export const confirmCheckIn = async (
 };
 
 export const dismissCheckIn = async (actor: Actor, id: number, reason: string) => {
-  const exists = await prisma.walkInCheckIn.findUnique({ where: { id }, select: { id: true } });
+  const exists = await prisma.walkInCheckIn.findUnique({ where: { id }, select: { id: true, biodataStoragePath: true } });
   if (!exists) throw new Error("Check-in not found");
   const result = await prisma.walkInCheckIn.updateMany({
     where: { id, status: "PENDING" },
     data: { status: "DISMISSED", dismissedById: actor.id, dismissReason: reason.trim() },
   });
   if (result.count === 0) throw new WalkInConflictError("This check-in was already handled");
+  if (exists.biodataStoragePath && (await removeHeldObjects([exists.biodataStoragePath]))) {
+    await prisma.walkInCheckIn
+      .update({ where: { id }, data: { biodataStoragePath: null, biodataMimeType: null, biodataFileName: null, biodataSizeBytes: null } })
+      .catch((clearError) => safeLogError(`Check-in ${id} biodata columns`, clearError));
+  }
   void logAudit(actor.id, "WALK_IN_CHECK_IN_DISMISSED", "WalkInCheckIn", id, { reason: reason.trim() });
   return { id, status: "DISMISSED" as const };
 };

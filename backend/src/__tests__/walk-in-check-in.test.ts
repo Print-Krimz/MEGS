@@ -16,7 +16,9 @@ const m = vi.hoisted(() => {
       storedDocument: { deleteMany: fn() },
       $transaction: fn(),
     } as Record<string, any>,
-    supabase: { auth: { admin: { createUser: fn(), deleteUser: fn() } } },
+    supabase: { auth: { admin: { createUser: fn(), deleteUser: fn() } }, storage: { from: fn() } },
+    storage: { upload: fn(), download: fn(), remove: fn() },
+    ensureBucketExists: fn(),
     uploadFileToSupabase: fn(),
     logAudit: fn(),
     sendNotification: fn(),
@@ -33,7 +35,7 @@ const m = vi.hoisted(() => {
 
 vi.mock("../utils/prisma.js", () => ({ default: m.prisma }));
 vi.mock("../utils/supabase.js", () => ({ default: m.supabase }));
-vi.mock("../middleware/upload.middleware.js", () => ({ uploadFileToSupabase: m.uploadFileToSupabase }));
+vi.mock("../middleware/upload.middleware.js", () => ({ uploadFileToSupabase: m.uploadFileToSupabase, ensureBucketExists: m.ensureBucketExists }));
 vi.mock("../utils/audit.js", () => ({ logAudit: m.logAudit }));
 vi.mock("../utils/notification.js", () => ({ sendNotification: m.sendNotification, sendRoleNotification: vi.fn() }));
 vi.mock("../workers/resume.worker.js", () => ({ enqueueResumeAnalysis: m.enqueueResumeAnalysis, trackFitRevalidation: m.trackFitRevalidation }));
@@ -49,17 +51,19 @@ vi.mock("../services/ta/walk-in.service.js", async (importOriginal) => ({
   createWalkIn: m.createWalkIn,
 }));
 
-import { confirmCheckIn, createCheckIn, dismissCheckIn, getCheckInStatus, getPendingCheckIn, listPendingCheckIns, CheckInInputError } from "../services/ta/walk-in-check-in.service.js";
+import { confirmCheckIn, createCheckIn, dismissCheckIn, getCheckInStatus, getPendingCheckIn, listPendingCheckIns, purgeExpiredBiodata, CheckInInputError } from "../services/ta/walk-in-check-in.service.js";
 import { WalkInConflictError, hashToken } from "../services/ta/walk-in.service.js";
 import { owns } from "../services/ta/ownership.js";
 import { checkInSchema } from "../schemas/check-in.schema.js";
-import { confirmCheckInHandler, dismissCheckInHandler, listCheckInsHandler } from "../controllers/ta/ta.check-in.controller.js";
+import { confirmCheckInHandler, dismissCheckInHandler, getCheckInBiodataHandler, listCheckInsHandler } from "../controllers/ta/ta.check-in.controller.js";
 
 const actualWalkIn = await vi.importActual<typeof import("../services/ta/walk-in.service.js")>("../services/ta/walk-in.service.js");
 
 type Row = Record<string, any>;
 
 // ---------- in-memory store and a small Prisma where / select evaluator ----------
+
+const objects = new Map<string, Buffer>();
 
 const db = {
   jobs: [] as Row[],
@@ -251,6 +255,18 @@ const wire = () => {
 
   m.supabase.auth.admin.createUser.mockImplementation(async () => ({ data: { user: { id: crypto.randomUUID() } }, error: null }));
   m.supabase.auth.admin.deleteUser.mockResolvedValue({ data: null, error: null });
+  // Private bucket stand-in: object path -> bytes.
+  objects.clear();
+  m.supabase.storage.from.mockReturnValue(m.storage);
+  m.ensureBucketExists.mockResolvedValue(undefined);
+  m.storage.upload.mockImplementation(async (path: string, body: Buffer) => (objects.set(path, body), { data: { path }, error: null }));
+  m.storage.download.mockImplementation(async (path: string) => {
+    const bytes = objects.get(path);
+    return bytes
+      ? { data: { arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) }, error: null }
+      : { data: null, error: new Error("Object not found") };
+  });
+  m.storage.remove.mockImplementation(async (paths: string[]) => (paths.forEach((path) => objects.delete(path)), { data: [], error: null }));
   m.uploadFileToSupabase.mockResolvedValue("https://storage.example/applicant-assets/biodata.pdf");
   m.assertCanApply.mockImplementation(async (_userId: string, jobId: number) => ({ id: jobId, status: "OPEN", mrf: { clientId: 3 } }));
   m.resolveInitialStatus.mockResolvedValue({ status: "SUBMITTED", attemptNumber: 1, sameClientDeployment: false, sameClientDeployments: [] });
@@ -317,6 +333,7 @@ const makeRes = () => {
   res.status = (code: number) => ((res.statusCode = code), res);
   res.json = (body: unknown) => ((res.body = body), res);
   res.set = (values: Record<string, string>) => (Object.assign(res.headers, values), res);
+  res.send = (body: unknown) => ((res.body = body), res);
   return res;
 };
 
@@ -832,5 +849,241 @@ describe("TA check-in controllers", () => {
     const res = makeRes();
     await confirmCheckInHandler(confirmReq(idOf(created.publicId)) as any, res);
     expect(res.statusCode).toBe(500);
+  });
+});
+
+// ---------- optional biodata held at check-in ----------
+
+const PDF = Buffer.from("%PDF-1.4\nbiodata\n%%EOF");
+const heldFile = (over: Record<string, unknown> = {}) =>
+  ({ buffer: PDF, mimetype: "application/pdf", originalname: "my biodata.pdf", size: PDF.length, fieldname: "file", ...over }) as unknown as Express.Multer.File;
+const submitWithFile = (file = heldFile(), over: Record<string, unknown> = {}) =>
+  (createCheckIn as (input: any, file?: Express.Multer.File) => Promise<any>)(
+    { jobPostingId: 5, firstName: "Juan", lastName: "Dela Cruz", mobileNumber: "0917 123 4567", birthDate: "1990-05-09", ...over },
+    file,
+  );
+
+describe("check-in biodata", () => {
+  it("stores an attached PDF under check-ins/<publicId>/ and saves the four columns", async () => {
+    const created = await submitWithFile();
+    const row = rowOf(created.publicId);
+    expect(row.biodataStoragePath).toMatch(new RegExp(`^check-ins/${created.publicId}/[0-9a-f-]{36}\\.pdf$`));
+    expect(row).toMatchObject({ biodataMimeType: "application/pdf", biodataFileName: "my biodata.pdf", biodataSizeBytes: PDF.length });
+    expect(m.supabase.storage.from).toHaveBeenCalledWith("applicant-assets");
+    expect(objects.has(row.biodataStoragePath)).toBe(true);
+  });
+
+  it("stores nothing and leaves the columns empty when no file is attached", async () => {
+    const created = await submit();
+    expect(m.storage.upload).not.toHaveBeenCalled();
+    expect(rowOf(created.publicId).biodataStoragePath ?? null).toBeNull();
+  });
+
+  it("rejects a file that is not a photo or PDF, with a clear message, and creates no row", async () => {
+    await expect(submitWithFile(heldFile({ buffer: Buffer.from("MZ not a document"), mimetype: "application/pdf" }))).rejects.toThrow(
+      "Use a JPEG, PNG or WEBP photo, or a PDF, under 5 MB.",
+    );
+    expect(db.checkIns).toHaveLength(0);
+    expect(m.storage.upload).not.toHaveBeenCalled();
+  });
+
+  it("does not store a new file for an already-checked-in applicant", async () => {
+    await submit({ firstName: "Maria" });
+    const again = await submitWithFile(heldFile(), { firstName: "Maria" });
+    expect(again.alreadyCheckedIn).toBe(true);
+    expect(m.storage.upload).not.toHaveBeenCalled();
+    expect(objects.size).toBe(0);
+  });
+
+  it("deletes the stored object when the row cannot be created", async () => {
+    m.prisma.walkInCheckIn.create.mockRejectedValueOnce(new Error("db down"));
+    await expect(submitWithFile()).rejects.toThrow("db down");
+    expect(m.storage.remove).toHaveBeenCalledTimes(1);
+    expect(objects.size).toBe(0);
+  });
+
+  it("shows the TA the file name, type and size, or null when none was attached", async () => {
+    const withFile = await submitWithFile();
+    const without = await submit({ firstName: "Ana", lastName: "Reyes", birthDate: "1995-01-02" });
+    expect((await getPendingCheckIn(idOf(withFile.publicId))).biodata).toEqual({ fileName: "my biodata.pdf", mimeType: "application/pdf", sizeBytes: PDF.length });
+    expect((await getPendingCheckIn(idOf(without.publicId))).biodata).toBeNull();
+  });
+
+  it("confirms with the held file when the TA attaches none, then deletes the held object", async () => {
+    const created = await submitWithFile();
+    const path = rowOf(created.publicId).biodataStoragePath;
+    await confirmCheckIn(TA_DESK, idOf(created.publicId), confirmInput(), undefined);
+    const passed = m.createWalkIn.mock.calls[0][2];
+    expect(passed).toMatchObject({ fieldname: "file", mimetype: "application/pdf", originalname: "my biodata.pdf", size: PDF.length });
+    expect(Buffer.compare(passed.buffer, PDF)).toBe(0);
+    expect(objects.has(path)).toBe(false);
+    expect(rowOf(created.publicId).biodataStoragePath).toBeNull();
+  });
+
+  it("prefers the TA's own file over the held one, and still deletes the held object", async () => {
+    const created = await submitWithFile();
+    await confirmCheckIn(TA_DESK, idOf(created.publicId), confirmInput(), FILE);
+    expect(m.createWalkIn.mock.calls[0][2]).toBe(FILE);
+    expect(objects.size).toBe(0);
+  });
+
+  it("refuses to confirm with no TA file and no held file, and leaves the check-in pending", async () => {
+    const created = await submit();
+    await expect(confirmCheckIn(TA_DESK, idOf(created.publicId), confirmInput(), undefined)).rejects.toThrow("Attach the biodata photo or PDF");
+    expect(rowOf(created.publicId).status).toBe("PENDING");
+    expect(m.createWalkIn).not.toHaveBeenCalled();
+  });
+
+  it("answers 400 from the confirm handler when neither file exists", async () => {
+    const created = await submit();
+    const res = makeRes();
+    await confirmCheckInHandler({ params: { id: String(idOf(created.publicId)) }, body: confirmInput(), user: TA_DESK } as any, res);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("returns the check-in to pending and keeps the held file when the intake fails", async () => {
+    const created = await submitWithFile();
+    m.createWalkIn.mockRejectedValueOnce(new Error("Storage upload failed"));
+    await expect(confirmCheckIn(TA_DESK, idOf(created.publicId), confirmInput(), undefined)).rejects.toThrow("Storage upload failed");
+    expect(rowOf(created.publicId).status).toBe("PENDING");
+    expect(objects.size).toBe(1);
+  });
+
+  it("deletes the held object when the check-in is dismissed", async () => {
+    const created = await submitWithFile();
+    await dismissCheckIn(TA_DESK, idOf(created.publicId), "Left");
+    expect(objects.size).toBe(0);
+    expect(rowOf(created.publicId).biodataStoragePath).toBeNull();
+  });
+
+  it("sweeps held files of check-ins expired over a day ago, and keeps newer ones", async () => {
+    const old = await submitWithFile();
+    vi.setSystemTime(new Date(NOW.getTime() + 2 * DAY));
+    const recent = await submitWithFile(heldFile(), { firstName: "Ana", lastName: "Reyes", birthDate: "1995-01-02" });
+    // 4 days + 1 minute after the first submission: it expired 1 day + 1 minute ago; the second has 1 day left.
+    vi.setSystemTime(new Date(NOW.getTime() + 4 * DAY + 60 * 1000));
+    await purgeExpiredBiodata();
+    expect(rowOf(old.publicId).biodataStoragePath).toBeNull();
+    expect(rowOf(recent.publicId).biodataStoragePath).toBeTruthy();
+    expect(objects.size).toBe(1);
+  });
+
+  it("never throws from the listing when the sweep fails", async () => {
+    await submitWithFile();
+    vi.setSystemTime(new Date(NOW.getTime() + 5 * DAY));
+    m.storage.remove.mockRejectedValueOnce(new Error("storage down"));
+    await expect(purgeExpiredBiodata()).resolves.toBeUndefined();
+    await expect(listPendingCheckIns()).resolves.toEqual({ items: [] });
+  });
+
+  it("removes the held file when every queue-number attempt clashes", async () => {
+    m.prisma.walkInCheckIn.create.mockRejectedValue(uniqueViolation());
+    await expect(submitWithFile()).rejects.toBeInstanceOf(CheckInInputError);
+    expect(objects.size).toBe(0);
+    expect(m.storage.remove).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the held file when the intake fails, even if the TA attached a file of their own", async () => {
+    const created = await submitWithFile();
+    const path = rowOf(created.publicId).biodataStoragePath;
+    m.createWalkIn.mockRejectedValueOnce(new Error("Storage upload failed"));
+    await expect(confirmCheckIn(TA_DESK, idOf(created.publicId), confirmInput(), FILE)).rejects.toThrow("Storage upload failed");
+    expect(rowOf(created.publicId).status).toBe("PENDING");
+    expect(objects.has(path)).toBe(true);
+  });
+
+  // A failed removal after confirm keeps the path on the CONFIRMED row; the sweep picks closed rows up later.
+  it("does not leave a confirmed check-in's held file behind when removing it fails", async () => {
+    const created = await submitWithFile();
+    m.storage.remove.mockRejectedValueOnce(new Error("storage down"));
+    await confirmCheckIn(TA_DESK, idOf(created.publicId), confirmInput(), undefined);
+    vi.setSystemTime(new Date(NOW.getTime() + 2 * DAY));
+    await purgeExpiredBiodata();
+    expect(objects.size).toBe(0);
+  });
+
+  // Same for a dismissed check-in.
+  it("does not leave a dismissed check-in's held file behind when removing it fails", async () => {
+    const created = await submitWithFile();
+    m.storage.remove.mockRejectedValueOnce(new Error("storage down"));
+    await dismissCheckIn(TA_DESK, idOf(created.publicId), "Left");
+    vi.setSystemTime(new Date(NOW.getTime() + 2 * DAY));
+    await purgeExpiredBiodata();
+    expect(objects.size).toBe(0);
+  });
+
+  // Accepted limitation: if both the DB insert and the storage removal fail, no row points at the object, so
+  // the sweep cannot find it. The object stays private and needs both systems to fail at once.
+  it.fails("does not leave a file behind when the row cannot be created and removing it also fails", async () => {
+    m.prisma.walkInCheckIn.create.mockRejectedValueOnce(new Error("db down"));
+    m.storage.remove.mockRejectedValueOnce(new Error("storage down"));
+    await expect(submitWithFile()).rejects.toThrow("db down");
+    vi.setSystemTime(new Date(NOW.getTime() + 5 * DAY));
+    await purgeExpiredBiodata();
+    expect(objects.size).toBe(0);
+  });
+
+  describe("GET biodata handler", () => {
+    it("answers 404 for a dismissed check-in even while its file is still held", async () => {
+      const created = await submitWithFile();
+      m.storage.remove.mockRejectedValueOnce(new Error("storage down"));
+      await dismissCheckIn(TA_DESK, idOf(created.publicId), "Left");
+      expect(rowOf(created.publicId).biodataStoragePath).toBeTruthy();
+      const res = makeRes();
+      await getCheckInBiodataHandler({ params: { id: String(idOf(created.publicId)) } } as any, res);
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("answers 404 for a held check-in past its three days, before any sweep runs", async () => {
+      const created = await submitWithFile();
+      vi.setSystemTime(new Date(NOW.getTime() + 4 * DAY));
+      expect(rowOf(created.publicId).biodataStoragePath).toBeTruthy();
+      const res = makeRes();
+      await getCheckInBiodataHandler({ params: { id: String(idOf(created.publicId)) } } as any, res);
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("keeps header breaks, quotes and semicolons out of the stored name and the Content-Disposition header", async () => {
+      const created = await submitWithFile(heldFile({ originalname: 'evil\r\nSet-Cookie: a=b "q"; x.pdf' }));
+      expect(rowOf(created.publicId).biodataFileName).not.toMatch(/[\r\n"]/);
+      const res = makeRes();
+      await getCheckInBiodataHandler({ params: { id: String(idOf(created.publicId)) } } as any, res);
+      const disposition = res.headers["Content-Disposition"];
+      expect(disposition).not.toMatch(/[\r\n]/);
+      expect(disposition).toMatch(/^inline; filename="[^"\\;\r\n]*"; filename\*=UTF-8''[A-Za-z0-9._~%!()*'-]*$/);
+    });
+
+    // Known gap: a storage download failure is a server fault (statusFor's own rule), but the message is in
+    // publicMessages, so the handler answers 400 "Attach it again". Flip to `it` once statusFor maps it to 500.
+    it("answers 500, not 400, when the stored file cannot be downloaded", async () => {
+      const created = await submitWithFile();
+      m.storage.download.mockResolvedValueOnce({ data: null, error: new Error("storage down") });
+      const res = makeRes();
+      await getCheckInBiodataHandler({ params: { id: String(idOf(created.publicId)) } } as any, res);
+      expect(res.statusCode).toBe(500);
+    });
+
+    it("returns the file with its type, no-store and nosniff", async () => {
+      const created = await submitWithFile();
+      const res = makeRes();
+      await getCheckInBiodataHandler({ params: { id: String(idOf(created.publicId)) } } as any, res);
+      expect(res.statusCode).toBe(200);
+      expect(res.headers["Content-Type"]).toBe("application/pdf");
+      expect(res.headers["Cache-Control"]).toBe("no-store");
+      expect(res.headers["X-Content-Type-Options"]).toBe("nosniff");
+      expect(res.headers["Content-Disposition"]).toContain('inline; filename="my biodata.pdf"');
+      expect(Buffer.compare(res.body, PDF)).toBe(0);
+    });
+
+    it("answers 404 for a confirmed check-in, a check-in without a file, and an unknown id", async () => {
+      const confirmed = await submitWithFile();
+      await confirmCheckIn(TA_DESK, idOf(confirmed.publicId), confirmInput(), undefined);
+      const bare = await submit({ firstName: "Ana", lastName: "Reyes", birthDate: "1995-01-02" });
+      for (const id of [idOf(confirmed.publicId), idOf(bare.publicId), 99999]) {
+        const res = makeRes();
+        await getCheckInBiodataHandler({ params: { id: String(id) } } as any, res);
+        expect(res.statusCode).toBe(404);
+      }
+    });
   });
 });

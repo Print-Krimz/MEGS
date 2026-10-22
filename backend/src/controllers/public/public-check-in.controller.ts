@@ -15,19 +15,22 @@ export const getCheckInJobsHandler = async (req: Request, res: Response): Promis
   }
 };
 
-// POST /api/public/check-in (behind verifyTurnstile + validate(checkInSchema.submit)). Validation failures are 400.
+// POST /api/public/check-in (multipart; behind verifyTurnstile, the optional biodata upload and validate(checkInSchema.submit)). Validation failures are 400.
 export const submitCheckInHandler = async (req: Request, res: Response): Promise<void> => {
   noStore(res);
   try {
     const body = req.body;
-    const result = await createCheckIn({
-      jobPostingId: Number(body.jobPostingId),
-      firstName: body.firstName,
-      middleName: body.middleName || null,
-      lastName: body.lastName,
-      mobileNumber: body.mobileNumber || null,
-      birthDate: body.birthDate,
-    });
+    const result = await createCheckIn(
+      {
+        jobPostingId: Number(body.jobPostingId),
+        firstName: body.firstName,
+        middleName: body.middleName || null,
+        lastName: body.lastName,
+        mobileNumber: body.mobileNumber || null,
+        birthDate: body.birthDate,
+      },
+      req.file,
+    );
     if (result.alreadyCheckedIn) {
       // No link is reissued: the original phone keeps the only view token.
       sendSuccess(res, "Already checked in", { alreadyCheckedIn: true, queueNumber: result.queueNumber }, 200);

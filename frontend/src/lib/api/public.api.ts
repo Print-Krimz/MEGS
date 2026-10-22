@@ -21,10 +21,16 @@ export const publicApi = {
   getCheckInJobs: (q: string, options?: RequestInit) =>
     api.get<{ jobs: CheckInJob[] }>(`/api/public/check-in/jobs?q=${encodeURIComponent(q)}`, options),
 
-  submitCheckIn: (body: CheckInSubmitBody) =>
-    api.post<CheckInSubmitResult>("/api/public/check-in", body, {
-      headers: { "x-turnstile-token": body.turnstileToken },
-    }),
+  submitCheckIn: ({ turnstileToken, file, ...fields }: CheckInSubmitBody) => {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined && value !== "") form.append(key, String(value));
+    }
+    if (file) form.append("file", file);
+    return api.upload<CheckInSubmitResult>("/api/public/check-in", form, {
+      headers: { "x-turnstile-token": turnstileToken },
+    });
+  },
 
   getCheckInStatus: (publicId: string, token: string, options?: RequestInit) =>
     api.get<PublicCheckInStatus>(

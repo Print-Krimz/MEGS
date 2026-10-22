@@ -367,6 +367,13 @@ model WalkInCheckIn {
   mobileNumber  String?             // E.164
   birthDate     DateTime            @db.Date
 
+  // Optional biodata photo or PDF the applicant attached. Held in private storage
+  // (no StoredDocument yet, since no User exists) and moved into the new account on confirm.
+  biodataStoragePath String?
+  biodataMimeType    String?
+  biodataFileName    String?
+  biodataSizeBytes   Int?
+
   status        WalkInCheckInStatus @default(PENDING)
   viewTokenHash String              // sha256 of the token in the applicant's phone link
 

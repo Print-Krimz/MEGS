@@ -213,6 +213,8 @@ export interface CheckInDetail extends CheckInSummary {
   /** The TA who will own the application; null when the job has no recruiter assigned. */
   jobOwnerId: string | null;
   jobOwnerName: string | null;
+  /** The file the applicant attached when checking in, or null. */
+  biodata: { fileName: string; mimeType: string; sizeBytes: number } | null;
 }
 
 export interface Application {

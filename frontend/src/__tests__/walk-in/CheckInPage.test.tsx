@@ -165,6 +165,55 @@ describe("CheckInPage: details form", () => {
     );
   });
 
+  it("sends an optional biodata file with the details", async () => {
+    renderPage();
+    await chooseJob();
+    fillDetails();
+    const file = new File(["%PDF-1.4"], "biodata.pdf", { type: "application/pdf" });
+    fireEvent.change(screen.getByLabelText(/Biodata photo or PDF/i), { target: { files: [file] } });
+    expect(screen.getByText("biodata.pdf")).toBeInTheDocument();
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(submitCheckIn).toHaveBeenCalledWith(expect.objectContaining({ file })));
+  });
+
+  it("lets the applicant remove the chosen file and still submit", async () => {
+    renderPage();
+    await chooseJob();
+    fillDetails();
+    fireEvent.change(screen.getByLabelText(/Biodata photo or PDF/i), {
+      target: { files: [new File(["x"], "photo.png", { type: "image/png" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(screen.queryByText("photo.png")).not.toBeInTheDocument();
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(submitCheckIn).toHaveBeenCalledTimes(1));
+    expect(submitCheckIn.mock.calls[0][0].file).toBeUndefined();
+  });
+
+  it("refuses a file that is not a photo or PDF and sends nothing", async () => {
+    renderPage();
+    await chooseJob();
+    fillDetails();
+    fireEvent.change(screen.getByLabelText(/Biodata photo or PDF/i), {
+      target: { files: [new File(["x"], "notes.txt", { type: "text/plain" })] },
+    });
+    fireEvent.click(submitButton());
+    expect(await screen.findByText("Use a JPEG, PNG or WEBP photo, or a PDF.")).toBeInTheDocument();
+    expect(submitCheckIn).not.toHaveBeenCalled();
+  });
+
+  it("refuses a file over 5 MB and sends nothing", async () => {
+    renderPage();
+    await chooseJob();
+    fillDetails();
+    const big = new File(["x"], "big.pdf", { type: "application/pdf" });
+    Object.defineProperty(big, "size", { value: 6 * 1024 * 1024 });
+    fireEvent.change(screen.getByLabelText(/Biodata photo or PDF/i), { target: { files: [big] } });
+    fireEvent.click(submitButton());
+    expect(await screen.findByText("The file is over 5 MB. Retake the photo or use a smaller file.")).toBeInTheDocument();
+    expect(submitCheckIn).not.toHaveBeenCalled();
+  });
+
   it("asks for the required names and birth date and sends nothing", async () => {
     renderPage();
     await chooseJob();

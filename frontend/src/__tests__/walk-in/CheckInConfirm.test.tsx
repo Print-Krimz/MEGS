@@ -17,6 +17,7 @@ vi.mock("../../lib/api/ta.api", () => ({
     checkWalkInDuplicate: vi.fn(),
     createWalkIn: vi.fn(),
     confirmCheckIn: vi.fn(),
+    getCheckInBiodata: vi.fn(),
   },
 }));
 
@@ -50,6 +51,12 @@ const queued: CheckInDetail = {
   birthDate: "1990-05-09",
   jobOwnerId: "ta-maria",
   jobOwnerName: "Maria Reyes",
+  biodata: null,
+};
+
+const withBiodata: CheckInDetail = {
+  ...queued,
+  biodata: { fileName: "juan-biodata.pdf", mimeType: "application/pdf", sizeBytes: 250 * 1024 },
 };
 
 const slip = {
@@ -124,6 +131,31 @@ describe("EncodeWalkInDialog in check-in mode: layout", () => {
     expect(screen.getByLabelText(/Last name/i)).toHaveValue("Dela Cruz");
     expect(screen.getByLabelText(/Mobile number/i)).toHaveValue("09171234567");
     expect(screen.getByLabelText(/Birth date/i)).toHaveValue("1990-05-09");
+  });
+});
+
+describe("EncodeWalkInDialog in check-in mode: applicant attached biodata", () => {
+  it("shows the attached file and makes a new file optional", () => {
+    renderConfirm(withBiodata);
+    expect(screen.getByText("juan-biodata.pdf")).toBeInTheDocument();
+    expect(screen.getByText(/Applicant attached:/)).toHaveTextContent("(250 KB)");
+    expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Replace biodata \(optional\)/i)).toBeInTheDocument();
+  });
+
+  it("confirms without attaching a file", async () => {
+    renderConfirm(withBiodata);
+    fireEvent.click(confirmButton());
+    await waitFor(() => expect(confirmCheckIn).toHaveBeenCalledTimes(1));
+    expect((confirmCheckIn.mock.calls[0][1] as FormData).get("file")).toBeNull();
+  });
+
+  it("still sends a replacement file when the TA attaches one", async () => {
+    renderConfirm(withBiodata);
+    fireEvent.change(screen.getByLabelText(/Replace biodata/i), { target: { files: [pdf()] } });
+    fireEvent.click(confirmButton());
+    await waitFor(() => expect(confirmCheckIn).toHaveBeenCalledTimes(1));
+    expect((confirmCheckIn.mock.calls[0][1] as FormData).get("file")).toBeInstanceOf(File);
   });
 });
 

@@ -8,6 +8,7 @@ import {
   submitCheckInHandler,
 } from "../../controllers/public/public-check-in.controller.js";
 import { verifyTurnstile } from "../../middleware/turnstile.middleware.js";
+import { uploadCheckInBiodata } from "../../middleware/upload.middleware.js";
 import { validate } from "../../middleware/validate.middleware.js";
 import { checkInSchema } from "../../schemas/check-in.schema.js";
 
@@ -24,7 +25,8 @@ router.post("/offers/:id/respond", respondPublicOfferHandler);
 
 // Self check-in from the MEGS poster QR. Submitting returns 400 with field errors; the status link answers 404 when wrong.
 router.get("/check-in/jobs", getCheckInJobsHandler);
-router.post("/check-in", verifyTurnstile, validate(checkInSchema.submit), submitCheckInHandler);
+// Multipart with an optional biodata "file". Turnstile reads the x-turnstile-token header, so it runs before the upload is buffered.
+router.post("/check-in", verifyTurnstile, uploadCheckInBiodata.single("file"), validate(checkInSchema.submit), submitCheckInHandler);
 router.get("/check-in/:publicId", getCheckInStatusHandler);
 
 export default router;

@@ -42,9 +42,10 @@ const schema = z.object({
     }
   }),
   file: z
-    .instanceof(File, { message: "Add a photo or PDF of the biodata." })
-    .refine((f) => f.size <= MAX_FILE_BYTES, "The file is over 5 MB. Retake the photo or use a smaller file.")
-    .refine((f) => ACCEPTED_TYPES.includes(f.type), "Use a JPEG, PNG or WEBP photo, or a PDF."),
+    .instanceof(File)
+    .optional()
+    .refine((f) => !f || f.size <= MAX_FILE_BYTES, "The file is over 5 MB. Retake the photo or use a smaller file.")
+    .refine((f) => !f || ACCEPTED_TYPES.includes(f.type), "Use a JPEG, PNG or WEBP photo, or a PDF."),
 });
 
 interface FormState {
@@ -67,6 +68,9 @@ const EMPTY_FORM: FormState = {
   file: null,
 };
 
+const formatFileSize = (bytes: number) =>
+  bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
 export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, onClose, onCreated, checkIn = null }) => {
   const queryClient = useQueryClient();
   const auth = useContext(AuthContext);
@@ -77,6 +81,9 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
   const [existingUser, setExistingUser] = useState<WalkInMatch | null>(null);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [checking, setChecking] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewMime, setPreviewMime] = useState("");
+  const [loadingPreview, setLoadingPreview] = useState(false);
   const lastCheckKey = useRef("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -127,6 +134,7 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
     : Boolean(
     form.jobPostingId || form.firstName || form.middleName || form.lastName || form.mobileNumber || form.birthDate || form.file,
       );
+  const hasBiodata = Boolean(checkIn?.biodata);
   const guard = useDirtyGuard({ isDirty: open && isDirty, message: "The walk-in has not been saved yet." });
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -134,7 +142,48 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
     if (errors[key]) setErrors((prev) => ({ ...prev, [key]: "" }));
   };
 
+  const clearPreview = () => {
+    setPreviewUrl((url) => {
+      if (url) URL.revokeObjectURL(url);
+      return null;
+    });
+  };
+
+  // A preview that finishes loading after the dialog closed must not leave an object URL behind.
+  const openRef = useRef(open);
+  useEffect(() => {
+    openRef.current = open;
+    if (!open) clearPreview();
+  }, [open]);
+
+  useEffect(() => () => clearPreview(), []);
+
+  const viewApplicantFile = async () => {
+    if (!checkIn?.biodata) return;
+    setLoadingPreview(true);
+    try {
+      const blob = await taApi.getCheckInBiodata(checkIn.id);
+      if (!openRef.current) return;
+      const url = URL.createObjectURL(blob);
+      if (blob.type === "application/pdf" || checkIn.biodata.mimeType === "application/pdf") {
+        window.open(url, "_blank", "noopener");
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } else {
+        setPreviewMime(blob.type || checkIn.biodata.mimeType);
+        setPreviewUrl((old) => {
+          if (old) URL.revokeObjectURL(old);
+          return url;
+        });
+      }
+    } catch (error) {
+      notify.error("Could not open the file", error);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
   const reset = () => {
+    clearPreview();
     setForm(EMPTY_FORM);
     setErrors({});
     setMatches([]);
@@ -211,11 +260,16 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
         const field = String(issue.path[0]);
         if (!next[field]) next[field] = issue.message;
       }
+      if (!form.file && !hasBiodata && !next.file) next.file = "Add a photo or PDF of the biodata.";
       setErrors(next);
       return;
     }
+    if (!parsed.data.file && !hasBiodata) {
+      setErrors({ file: "Add a photo or PDF of the biodata." });
+      return;
+    }
     const body = new FormData();
-    body.append("file", parsed.data.file);
+    if (parsed.data.file) body.append("file", parsed.data.file);
     body.append("jobPostingId", parsed.data.jobPostingId);
     body.append("firstName", parsed.data.firstName);
     if (parsed.data.middleName) body.append("middleName", parsed.data.middleName);
@@ -402,9 +456,26 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
             </div>
           )}
 
+          {checkIn?.biodata && (
+            <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="min-w-0 break-words text-sm text-slate-900">
+                  Applicant attached: <strong>{checkIn.biodata.fileName}</strong> ({formatFileSize(checkIn.biodata.sizeBytes)})
+                </p>
+                <Button type="button" variant="outline" size="sm" className="min-h-11 md:min-h-8" loading={loadingPreview} onClick={() => void viewApplicantFile()}>
+                  View
+                </Button>
+              </div>
+              {previewUrl && previewMime.startsWith("image/") && (
+                <img src={previewUrl} alt="Biodata the applicant attached" className="max-h-80 w-full rounded border border-slate-200 bg-white object-contain" />
+              )}
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <label htmlFor="walk-in-biodata" className="block text-xs font-medium text-slate-600">
-              Biodata photo or PDF<span className="ml-0.5 text-rose-500">*</span>
+              {hasBiodata ? "Replace biodata (optional)" : "Biodata photo or PDF"}
+              {!hasBiodata && <span className="ml-0.5 text-rose-500">*</span>}
             </label>
             <input
               ref={fileInputRef}
@@ -424,7 +495,7 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
               </p>
             ) : (
               <p id="walk-in-biodata-help" className="text-xs text-slate-500">
-                The match score is calculated from this file.
+                {hasBiodata ? "Leave empty to use the applicant's file. " : ""}The match score is calculated from this file.
               </p>
             )}
           </div>

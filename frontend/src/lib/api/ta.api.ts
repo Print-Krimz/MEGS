@@ -183,6 +183,8 @@ export const taApi = {
   getCheckIn: (id: number | string, options?: RequestInit) =>
     api.get<CheckInDetail>(`/api/ta/walk-ins/check-ins/${id}`, options),
 
+  getCheckInBiodata: (id: number | string): Promise<Blob> => api.blob(`/api/ta/walk-ins/check-ins/${id}/biodata`),
+
   confirmCheckIn: (id: number | string, formData: FormData) =>
     api.upload<WalkInSlip>(`/api/ta/walk-ins/check-ins/${id}/confirm`, formData),
 

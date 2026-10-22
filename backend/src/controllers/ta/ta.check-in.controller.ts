@@ -5,6 +5,7 @@ import { WalkInConflictError } from "../../services/ta/walk-in.service.js";
 import {
   confirmCheckIn,
   dismissCheckIn,
+  getPendingBiodata,
   getPendingCheckIn,
   listPendingCheckIns,
 } from "../../services/ta/walk-in-check-in.service.js";
@@ -42,16 +43,12 @@ export const getCheckInHandler = async (req: Request, res: Response): Promise<vo
   }
 };
 
-// POST /api/ta/walk-ins/check-ins/:id/confirm (multipart, file field "file")
+// POST /api/ta/walk-ins/check-ins/:id/confirm (multipart, optional file field "file"; without it the applicant's own upload is used)
 export const confirmCheckInHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseId(req);
     if (isNaN(id)) {
       sendError(res, "Check-in not found", 404);
-      return;
-    }
-    if (!req.file) {
-      sendError(res, "Attach the biodata photo or PDF", 400);
       return;
     }
     const body = req.body;
@@ -69,6 +66,39 @@ export const confirmCheckInHandler = async (req: Request, res: Response): Promis
       req.file,
     );
     sendSuccess(res, "Check-in confirmed", slip, 201);
+  } catch (error: any) {
+    sendError(res, error.message, statusFor(error), error);
+  }
+};
+
+// GET /api/ta/walk-ins/check-ins/:id/biodata - streams the file the applicant attached; 404 once the check-in is no longer pending.
+export const getCheckInBiodataHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseId(req);
+    if (isNaN(id)) {
+      sendError(res, "Biodata not found", 404);
+      return;
+    }
+    let file: Awaited<ReturnType<typeof getPendingBiodata>>;
+    try {
+      file = await getPendingBiodata(id);
+    } catch (error: any) {
+      // Unknown or closed check-in: 404. A storage failure is a server fault, not something the TA can fix here.
+      const notFound = /not found/i.test(String(error?.message ?? ""));
+      sendError(res, notFound ? "Biodata not found" : "Could not load the file. Try again.", notFound ? 404 : 500, error);
+      return;
+    }
+    const plain = file.fileName.replace(/[^ -~]|["\\;]/g, "_");
+    res
+      .status(200)
+      .set({
+        "Content-Type": file.mimeType,
+        "Content-Length": String(file.buffer.length),
+        "Content-Disposition": `inline; filename="${plain}"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+      })
+      .send(file.buffer);
   } catch (error: any) {
     sendError(res, error.message, statusFor(error), error);
   }

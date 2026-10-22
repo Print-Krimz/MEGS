@@ -59,6 +59,8 @@ export interface CheckInSubmitBody {
   mobileNumber?: string;
   birthDate: string;
   turnstileToken: string;
+  /** Optional biodata photo or PDF, up to 5 MB. */
+  file?: File;
 }
 
 export interface CheckInCreated {

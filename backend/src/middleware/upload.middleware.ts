@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import prisma from "../utils/prisma.js";
 import type { RequestHandler } from "express";
 import { createHash } from "node:crypto";
-import { publicMessages } from "../security/public-messages.js";
+import { publicMessages, CHECK_IN_BIODATA_MESSAGE } from "../security/public-messages.js";
 import { validateDocumentBytes, MAX_DOCUMENT_BYTES, MAX_CONTRACT_SCAN_BYTES, sanitizeUploadFileName } from "../security/file-validation.js";
 
 // In-memory storage allows direct buffer streaming to Supabase Storage. Max 5MB.
@@ -60,16 +60,16 @@ export const acquireUploadSlot: RequestHandler = (_req, res, next) => {
 
 // Existing routes all use single(). Validate the completed buffer before any
 // controller/storage side effect, and reserve memory before multer buffers it.
-const guardedUpload = (maxBytes: number, fileFilter: multer.Options["fileFilter"] = documentFileFilter) => {
+const guardedUpload = (maxBytes: number, fileFilter: multer.Options["fileFilter"] = documentFileFilter, rejectMessage?: string) => {
   const parser = documentUpload(maxBytes, fileFilter);
   return {
     single(field: string): RequestHandler {
       const parse = parser.single(field);
       return (req, res, next) => acquireUploadSlot(req, res, () => {
         parse(req, res, (error) => {
-          if (error) { const message = error instanceof Error && publicMessages.has(error.message) ? error.message : "Upload failed. Check the document type, size and number of files."; res.status(400).json({ success: false, message }); return; }
+          if (error) { const message = rejectMessage ?? (error instanceof Error && publicMessages.has(error.message) ? error.message : "Upload failed. Check the document type, size and number of files."); res.status(400).json({ success: false, message }); return; }
           try { if (req.file) validateDocumentBytes(req.file.buffer, req.file.mimetype, maxBytes); }
-          catch { res.status(400).json({ success: false, message: "File contents do not match a supported document type or size." }); return; }
+          catch { res.status(400).json({ success: false, message: rejectMessage ?? "File contents do not match a supported document type or size." }); return; }
           next();
         });
       });
@@ -84,6 +84,16 @@ export const uploadContractScan = guardedUpload(MAX_CONTRACT_SCAN_BYTES);
 
 // Profile photos accept only JPEG, PNG and WEBP, so a PDF or Word file cannot be stored as a photo.
 export const uploadImage = guardedUpload(MAX_DOCUMENT_BYTES, imageFileFilter);
+
+// Public self check-in biodata: a photo or PDF only (no Word files), with one plain message for every rejection.
+export const uploadCheckInBiodata = guardedUpload(
+  MAX_DOCUMENT_BYTES,
+  (_req, file, cb) => {
+    if ([...imageMimeTypes, "application/pdf"].includes(file.mimetype)) cb(null, true);
+    else cb(new Error(CHECK_IN_BIODATA_MESSAGE));
+  },
+  CHECK_IN_BIODATA_MESSAGE,
+);
 
 // Uploads buffer to Supabase bucket and registers a StoredDocument metadata record.
 // Returns internal download proxy route rather than exposing direct bucket URL.

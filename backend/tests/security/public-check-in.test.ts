@@ -28,8 +28,13 @@ const m = vi.hoisted(() => {
 });
 
 vi.mock("../../src/utils/prisma.js", () => ({ default: m.prisma }));
-vi.mock("../../src/utils/supabase.js", () => ({ default: { auth: { admin: {} }, storage: {} } }));
-vi.mock("../../src/middleware/upload.middleware.js", () => ({ uploadFileToSupabase: vi.fn() }));
+const storage = vi.hoisted(() => ({ upload: vi.fn(), remove: vi.fn() }));
+vi.mock("../../src/utils/supabase.js", () => ({ default: { auth: { admin: {} }, storage: { from: () => storage } } }));
+vi.mock("../../src/middleware/upload.middleware.js", async (importOriginal) => ({
+  ...(await importOriginal<any>()),
+  uploadFileToSupabase: vi.fn(),
+  ensureBucketExists: vi.fn(),
+}));
 vi.mock("../../src/middleware/rate-limiter.middleware.js", () => ({
   publicLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
@@ -118,6 +123,8 @@ beforeEach(() => {
   m.prisma.walkInCheckIn.create.mockResolvedValue({ publicId: NEW_ID, queueSeq: 1 });
   m.logAudit.mockResolvedValue(undefined);
   m.sendNotification.mockResolvedValue(undefined);
+  storage.upload.mockResolvedValue({ data: {}, error: null });
+  storage.remove.mockResolvedValue({ data: [], error: null });
 });
 
 afterEach(() => {
@@ -228,6 +235,60 @@ describe("POST /api/public/check-in", () => {
     expect(m.prisma.application.create).not.toHaveBeenCalled();
   });
 
+  const PDF = Buffer.from("%PDF-1.4\nbiodata\n%%EOF");
+  const multipart = (file?: { buffer: Buffer; name: string; type: string }) => {
+    const req = request(app).post("/api/public/check-in").set("x-turnstile-token", "test");
+    for (const [key, value] of Object.entries(validBody())) req.field(key, String(value));
+    if (file) req.attach("file", file.buffer, { filename: file.name, contentType: file.type });
+    return req;
+  };
+
+  it("accepts a multipart submit with no file", async () => {
+    const res = await multipart();
+    expect(res.status).toBe(201);
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+
+  it("accepts a multipart submit with a PDF, holds it in private storage and saves its details", async () => {
+    const res = await multipart({ buffer: PDF, name: "biodata.pdf", type: "application/pdf" });
+    expect(res.status).toBe(201);
+    expect(storage.upload).toHaveBeenCalledTimes(1);
+    expect(storage.upload.mock.calls[0][0]).toMatch(/^check-ins\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.pdf$/);
+    expect(m.prisma.walkInCheckIn.create.mock.calls[0][0].data).toMatchObject({
+      biodataMimeType: "application/pdf",
+      biodataFileName: "biodata.pdf",
+      biodataSizeBytes: PDF.length,
+    });
+    expect(JSON.stringify(res.body)).not.toContain("check-ins/");
+  });
+
+  it.each([
+    ["a Word file", { buffer: Buffer.from("PK\u0003\u0004 fake"), name: "cv.docx", type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }],
+    ["a PDF label on other bytes", { buffer: Buffer.from("not really a pdf"), name: "x.pdf", type: "application/pdf" }],
+  ])("answers 400 with the plain message for %s and creates nothing", async (_label, file) => {
+    const res = await multipart(file);
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Use a JPEG, PNG or WEBP photo, or a PDF, under 5 MB.");
+    expect(m.prisma.walkInCheckIn.create).not.toHaveBeenCalled();
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+
+  it("answers 400 for a file over 5 MB", async () => {
+    const big = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(5 * 1024 * 1024), Buffer.from("\n%%EOF")]);
+    const res = await multipart({ buffer: big, name: "big.pdf", type: "application/pdf" });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Use a JPEG, PNG or WEBP photo, or a PDF, under 5 MB.");
+    expect(m.prisma.walkInCheckIn.create).not.toHaveBeenCalled();
+  });
+
+  it("stores no file for an applicant who is already waiting", async () => {
+    m.prisma.walkInCheckIn.findMany.mockResolvedValue([{ id: 1, publicId: PUBLIC_ID, queueSeq: 3, firstName: "Juan", lastName: "Dela Cruz" }]);
+    const res = await multipart({ buffer: PDF, name: "biodata.pdf", type: "application/pdf" });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ alreadyCheckedIn: true, queueNumber: "A-003" });
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+
   it("refuses a submission without a CAPTCHA token before any database work (production rules)", async () => {
     const previous = { env: process.env.NODE_ENV, disable: process.env.DISABLE_CAPTCHA };
     process.env.NODE_ENV = "production";
@@ -276,5 +337,60 @@ describe("POST /api/public/check-in", () => {
     expect(res.status).toBe(500);
     expectHardened(res);
     expect(JSON.stringify(res.body)).not.toContain("connection reset");
+  });
+
+  it.each([
+    ["an HTML page named .png", { buffer: Buffer.from("<html><script>alert(1)</script></html>"), name: "photo.png", type: "image/png" }],
+    ["a Windows program named .jpg", { buffer: Buffer.from("MZ\x90\x00 program"), name: "photo.jpg", type: "image/jpeg" }],
+    ["a PDF sent as a JPEG", { buffer: PDF, name: "scan.jpg", type: "image/jpeg" }],
+    ["an HTML page named .pdf", { buffer: Buffer.from("<html><script>alert(1)</script></html>"), name: "biodata.pdf", type: "application/pdf" }],
+  ])("rejects %s by its bytes, not its name, and stores nothing", async (_label, file) => {
+    const res = await multipart(file);
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Use a JPEG, PNG or WEBP photo, or a PDF, under 5 MB.");
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(m.prisma.walkInCheckIn.create).not.toHaveBeenCalled();
+  });
+
+  it("checks the CAPTCHA before multer reads the file: a disallowed upload with no token is a 403, not a 400", async () => {
+    const previous = { env: process.env.NODE_ENV, disable: process.env.DISABLE_CAPTCHA };
+    process.env.NODE_ENV = "production";
+    delete process.env.DISABLE_CAPTCHA;
+    try {
+      const req = request(app).post("/api/public/check-in");
+      for (const [key, value] of Object.entries(validBody())) req.field(key, String(value));
+      const res = await req.attach("file", Buffer.from("MZ program"), { filename: "run.exe", contentType: "application/x-msdownload" });
+      expect(res.status).toBe(403);
+      expect(res.body.message).toMatch(/CAPTCHA/);
+    } finally {
+      process.env.NODE_ENV = previous.env;
+      if (previous.disable === undefined) delete process.env.DISABLE_CAPTCHA;
+      else process.env.DISABLE_CAPTCHA = previous.disable;
+    }
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(m.prisma.jobPosting.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("builds the storage path from the server's id only: a hostile file name never reaches the folder", async () => {
+    const res = await multipart({ buffer: PDF, name: "../../../etc/evil.pdf", type: "application/pdf" });
+    expect(res.status).toBe(201);
+    const path = storage.upload.mock.calls[0][0] as string;
+    expect(path).toMatch(/^check-ins\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.pdf$/);
+    expect(path).not.toContain("..");
+    const data = m.prisma.walkInCheckIn.create.mock.calls[0][0].data;
+    expect(path.split("/")[1]).toBe(data.publicId);
+    expect(data).toMatchObject({ biodataStoragePath: path, biodataFileName: "evil.pdf" });
+  });
+
+  it.each([
+    ["publicId", "11111111-2222-4333-8444-555555555555"],
+    ["biodataStoragePath", "check-ins/someone-else/held.pdf"],
+  ])("refuses a client-supplied %s field, and stores nothing", async (field, value) => {
+    const req = request(app).post("/api/public/check-in").set("x-turnstile-token", "test");
+    for (const [key, v] of Object.entries(validBody())) req.field(key, String(v));
+    const res = await req.field(field, value).attach("file", PDF, { filename: "biodata.pdf", contentType: "application/pdf" });
+    expect(res.status).toBe(400);
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(m.prisma.walkInCheckIn.create).not.toHaveBeenCalled();
   });
 });

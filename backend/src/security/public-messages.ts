@@ -1,5 +1,11 @@
+export const CHECK_IN_BIODATA_MESSAGE = "Use a JPEG, PNG or WEBP photo, or a PDF, under 5 MB.";
+export const CHECK_IN_BIODATA_UNAVAILABLE_MESSAGE = "The applicant's biodata could not be loaded. Attach it again.";
+
 // Reviewed fixed application messages. Raw provider exceptions are never public by default.
 export const publicMessages = new Set<string>([
+  CHECK_IN_BIODATA_MESSAGE,
+  CHECK_IN_BIODATA_UNAVAILABLE_MESSAGE,
+  "Biodata not found",
   "This check-in was already handled or has expired",
   "This check-in was already handled",
   "Check-in not found",

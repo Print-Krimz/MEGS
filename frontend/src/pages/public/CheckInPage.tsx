@@ -17,6 +17,8 @@ import type { CheckInJob } from "../../lib/types/public.types";
 import { ConnectionProblem, LinkProblem, PublicShell, PublicSkeleton, isDeadLink } from "./PublicShell";
 
 const POLL_MS = 15_000;
+const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 const Accent: React.FC = () => <span aria-hidden="true" className="mb-3 block h-1 w-10 rounded-full bg-primary" />;
 
@@ -111,6 +113,8 @@ const DetailsStep: React.FC<{ job: CheckInJob; onBack: () => void; onAlready: (q
   const controls = useSecurityControls();
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [turnstileToken, setTurnstileToken] = useState("");
   const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
@@ -132,6 +136,7 @@ const DetailsStep: React.FC<{ job: CheckInJob; onBack: () => void; onAlready: (q
         lastName: form.lastName.trim(),
         ...(form.mobileNumber ? { mobileNumber: form.mobileNumber } : {}),
         birthDate: form.birthDate,
+        ...(file ? { file } : {}),
         turnstileToken,
       }),
     onSuccess: (result) => {
@@ -168,6 +173,8 @@ const DetailsStep: React.FC<{ job: CheckInJob; onBack: () => void; onAlready: (q
     else if (validateDateOfBirth(form.birthDate, { minAge: MIN_AGE, maxAge: MAX_AGE })) {
       next.birthDate = `You must be ${MIN_AGE} to ${MAX_AGE} years old to apply.`;
     }
+    if (file && file.size > MAX_FILE_BYTES) next.file = "The file is over 5 MB. Retake the photo or use a smaller file.";
+    else if (file && !ACCEPTED_TYPES.includes(file.type)) next.file = "Use a JPEG, PNG or WEBP photo, or a PDF.";
     if (isCaptchaRequired && !turnstileToken) next.turnstile = "Complete the security check.";
     setErrors(next);
     if (Object.keys(next).length > 0) return;
@@ -235,6 +242,54 @@ const DetailsStep: React.FC<{ job: CheckInJob; onBack: () => void; onAlready: (q
           onChange={(e) => set("birthDate", e.target.value)}
           error={errors.birthDate}
         />
+        <div className="space-y-1.5">
+          <label htmlFor="check-in-biodata" className="block text-sm font-medium text-foreground">
+            Biodata photo or PDF (optional)
+          </label>
+          <input
+            ref={fileInputRef}
+            id="check-in-biodata"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            aria-invalid={errors.file ? true : undefined}
+            aria-describedby={errors.file ? "check-in-biodata-error" : "check-in-biodata-help"}
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+              if (errors.file) setErrors((prev) => ({ ...prev, file: "" }));
+            }}
+            className={`block min-h-12 w-full rounded-lg border bg-background text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-primary file:mr-3 file:h-full file:border-0 file:bg-muted file:px-3 file:py-2 file:text-sm file:font-medium ${
+              errors.file ? "border-rose-400" : "border-border"
+            }`}
+          />
+          {file && (
+            <div className="flex items-center justify-between gap-3">
+              <p className="min-w-0 truncate text-sm text-foreground">{file.name}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-11 shrink-0"
+                disabled={mutation.isPending}
+                onClick={() => {
+                  setFile(null);
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                  setErrors((prev) => ({ ...prev, file: "" }));
+                }}
+              >
+                Remove
+              </Button>
+            </div>
+          )}
+          {errors.file ? (
+            <p id="check-in-biodata-error" role="alert" className="text-xs font-medium text-rose-600">
+              {errors.file}
+            </p>
+          ) : (
+            <p id="check-in-biodata-help" className="text-sm text-muted-foreground">
+              Take a clear photo of your biodata, or skip this and bring the paper to the desk.
+            </p>
+          )}
+        </div>
         {!isCaptchaDisabled && (
           <div className="space-y-1.5">
             <TurnstileWidget
