@@ -31,21 +31,21 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
   const isPassing = num >= activeThreshold;
 
   const colorStyles = isHigh
-    ? "bg-emerald-50 text-emerald-900 border-emerald-400"
+    ? "bg-emerald-100 text-emerald-900 border-emerald-500"
     : isPassing
-    ? "bg-amber-50 text-amber-900 border-amber-400"
-    : "bg-rose-50 text-rose-900 border-rose-400";
+    ? "bg-amber-100 text-amber-900 border-amber-500"
+    : "bg-rose-100 text-rose-900 border-rose-500";
 
   const sizeStyles = {
-    sm: "px-1.5 py-0.5 text-[11px]",
-    md: "px-2 py-0.5 text-xs",
-    lg: "px-2.5 py-1 text-sm font-bold",
+    sm: "px-2 py-0.5 text-sm",
+    md: "px-2.5 py-1 text-base",
+    lg: "px-3 py-1.5 text-xl",
   };
 
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md gap-1 font-bold border tabular-nums select-none",
+        "inline-flex items-center rounded-md gap-1 font-extrabold border-2 tabular-nums select-none",
         colorStyles,
         sizeStyles[size],
         className
@@ -53,7 +53,7 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
       title={`Match score: ${formatScore(num)} out of 100`}
     >
       <span>{Math.round(num)}</span>
-      <span className="text-[11px] font-normal opacity-70">/100</span>
+      <span className="text-xs font-medium opacity-75">/100</span>
     </span>
   );
 };

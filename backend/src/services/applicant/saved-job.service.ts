@@ -1,6 +1,15 @@
 import prisma from "../../utils/prisma.js";
 import { buildApplicantJobWhere } from "./job-filter.service.js";
 
+export const MAX_SAVED_JOBS = 10;
+
+export class SavedJobLimitError extends Error {
+  constructor() {
+    super(`You can save up to ${MAX_SAVED_JOBS} jobs. Remove one to save another.`);
+    this.name = "SavedJobLimitError";
+  }
+}
+
 /**
  * Save / bookmark a job posting for an applicant.
  * Idempotent: If already saved, returns the existing record without error.
@@ -15,7 +24,17 @@ export const saveJobService = async (userId: string, jobPostingId: number) => {
     throw new Error(`Job posting #${jobPostingId} not found.`);
   }
 
-  // Upsert or find existing to ensure idempotency
+  const existing = await prisma.savedJob.findUnique({
+    where: { userId_jobPostingId: { userId, jobPostingId } },
+  });
+  if (existing) return existing;
+
+  // Only open postings count: closed ones drop out of the saved list, so they must not hold a slot.
+  if ((await prisma.savedJob.count({ where: { userId, jobPosting: { status: "OPEN" } } })) >= MAX_SAVED_JOBS) {
+    throw new SavedJobLimitError();
+  }
+
+  // Upsert covers a concurrent duplicate save
   return await prisma.savedJob.upsert({
     where: {
       userId_jobPostingId: {
@@ -44,6 +63,12 @@ export const unsaveJobService = async (userId: string, jobPostingId: number) => 
   });
 
   return { success: true };
+};
+
+/** Remove every saved job for the applicant. */
+export const clearSavedJobsService = async (userId: string) => {
+  const { count } = await prisma.savedJob.deleteMany({ where: { userId } });
+  return { success: true, removed: count };
 };
 
 export interface ListSavedJobsFilters {
@@ -151,7 +176,7 @@ export const listSavedJobsService = async (
  */
 export const getSavedJobIdsService = async (userId: string): Promise<number[]> => {
   const saved = await prisma.savedJob.findMany({
-    where: { userId },
+    where: { userId, jobPosting: { status: "OPEN" } },
     select: { jobPostingId: true },
   });
 

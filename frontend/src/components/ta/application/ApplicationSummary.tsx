@@ -90,7 +90,7 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({
         avatarText={candidateInitials}
         chips={
           <>
-            {hasScore && <ScoreBadge score={score} size="md" />}
+            {hasScore && <ScoreBadge score={score} size="lg" />}
             {contractSignedOnly ? (
               <span className={cn("inline-flex items-center rounded border px-2 py-0.5 text-xs font-semibold", TA_STATUS_TONE_CLASSES.info)}>Contract signed</span>
             ) : (

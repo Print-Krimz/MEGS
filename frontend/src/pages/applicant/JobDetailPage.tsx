@@ -30,6 +30,7 @@ import {
   Banknote,
   Building2,
 } from "lucide-react";
+import { MAX_SAVED_JOBS } from "../../lib/saved-jobs";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 
 const ALLOWED_RESUME_EXTENSIONS = ["pdf", "docx", "doc", "png", "jpg", "jpeg", "webp"];
@@ -81,6 +82,7 @@ export const JobDetailPage: React.FC = () => {
   });
 
   const isSaved = (savedJobIdsQuery.data || []).includes(Number(jobId));
+  const atSaveLimit = (savedJobIdsQuery.data || []).length >= MAX_SAVED_JOBS;
 
   const saveMutation = useMutation({
     mutationFn: () => applicantJobsApi.saveJob(Number(jobId)),
@@ -101,6 +103,10 @@ export const JobDetailPage: React.FC = () => {
   });
 
   const handleToggleSave = () => {
+    if (!isSaved && atSaveLimit) {
+      notify.error("Saved Jobs Limit", `You can save up to ${MAX_SAVED_JOBS} jobs. Remove one to save another.`);
+      return;
+    }
     if (isSaved) {
       unsaveMutation.mutate();
     } else {
@@ -204,18 +210,16 @@ export const JobDetailPage: React.FC = () => {
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              to="/app/jobs"
-              className="inline-flex min-h-[44px] items-center rounded-md border border-[#D9E2EC] bg-white px-4 text-sm font-medium text-[#102A43] hover:bg-[#EAF0F7] hover:text-[#0B315D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors"
-            >
-              Back to jobs
-            </Link>
+            <Button asChild variant="outline" size="md">
+              <Link to="/app/jobs">Back to jobs</Link>
+            </Button>
 
             <Button
               variant="outline"
               size="md"
               leftIcon={<Bookmark className={`w-4 h-4 ${isSaved ? "fill-[#0B315D] text-[#0B315D]" : ""}`} />}
               onClick={handleToggleSave}
+              aria-disabled={!isSaved && atSaveLimit}
             >
               {isSaved ? "Saved for Later" : "Save for Later"}
             </Button>

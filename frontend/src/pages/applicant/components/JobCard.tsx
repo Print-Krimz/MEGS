@@ -14,6 +14,8 @@ import {
 interface JobCardProps {
   job: JobPosting;
   saved: boolean;
+  /** True when the applicant is at the saved-jobs cap, so an unsaved job cannot be bookmarked. */
+  saveDisabled?: boolean;
   onToggleSave: (jobId: number) => void;
 }
 
@@ -24,7 +26,7 @@ export const jobWorksite = (job: JobPosting): string | null =>
 const hasSalary = (job: JobPosting): boolean =>
   Boolean((job.mrf?.salaryRangeMin ?? 0) > 0 || (job.mrf?.salaryRangeMax ?? 0) > 0);
 
-export const JobCard: React.FC<JobCardProps> = ({ job, saved, onToggleSave }) => {
+export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = false, onToggleSave }) => {
   const worksite = jobWorksite(job);
   const client = job.mrf?.client;
   const terms = [
@@ -56,12 +58,16 @@ export const JobCard: React.FC<JobCardProps> = ({ job, saved, onToggleSave }) =>
           type="button"
           aria-label={saved ? `Remove ${job.title} from saved jobs` : `Save ${job.title} for later`}
           aria-pressed={saved}
+          aria-disabled={saveDisabled && !saved}
+          title={saveDisabled && !saved ? "Saved jobs limit reached. Remove one to save another." : undefined}
           onClick={() => onToggleSave(job.id)}
           className={cn(
             "flex size-11 shrink-0 items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1",
             saved
               ? "border-navy/40 bg-navy-soft text-navy hover:bg-navy-line"
-              : "border-slate-300 bg-white text-slate-600 hover:bg-navy-soft hover:text-navy",
+              : saveDisabled
+                ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                : "border-slate-300 bg-white text-slate-600 hover:bg-navy-soft hover:text-navy",
           )}
         >
           <Bookmark className={cn("size-4", saved && "fill-navy")} aria-hidden="true" />

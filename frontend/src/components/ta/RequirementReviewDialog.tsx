@@ -152,13 +152,19 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
   };
 
   const picker = requirements.length > 1;
+  // To follow only applies while the file is missing (or the item is already on the follow-up list).
+  const canToFollow = !hasFile || selected?.reviewStatus === "TO_FOLLOW";
+  // Approval needs the file, so it is not offered without one.
+  const canApprove = hasFile || !requireDocumentForApproval;
   const decisionOptions = [
     { value: "", label: "Select a decision…" },
-    { value: "APPROVED", label: "Approve: document is valid" },
-    {
-      value: "TO_FOLLOW",
-      label: mode === "post" ? "To follow: update the target date" : "To follow: allow deployment, follow up later",
-    },
+    ...(canApprove ? [{ value: "APPROVED", label: "Approve: document is valid" }] : []),
+    ...(canToFollow
+      ? [{
+          value: "TO_FOLLOW",
+          label: mode === "post" ? "To follow: update the target date" : "To follow: allow deployment, follow up later",
+        }]
+      : []),
     { value: "REJECTED", label: "Reject: document needs correction" },
   ];
 

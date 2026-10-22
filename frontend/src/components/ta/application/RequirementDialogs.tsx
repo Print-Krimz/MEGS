@@ -43,6 +43,7 @@ export const AddRequirementDialog: React.FC<AddRequirementDialogProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const deadlineInPast = Boolean(deadline) && deadline < getManilaToday();
   const isDuplicate = existingLabels.some((l) => same(l, label.trim()));
   const hasBundleDelimiters = label.includes(",") || label.includes(";");
 
@@ -110,6 +111,7 @@ export const AddRequirementDialog: React.FC<AddRequirementDialogProps> = ({
           value={deadline}
           onChange={(e) => setDeadline(e.target.value)}
           min={getManilaToday()}
+          error={deadlineInPast ? "Deadline cannot be before today." : undefined}
         />
 
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
@@ -119,7 +121,7 @@ export const AddRequirementDialog: React.FC<AddRequirementDialogProps> = ({
           <Button
             variant="primary"
             size="sm"
-            disabled={!label.trim() || isDuplicate || hasBundleDelimiters}
+            disabled={!label.trim() || isDuplicate || hasBundleDelimiters || deadlineInPast}
             loading={isSubmitting}
             onClick={() => onSubmit({ documentLabel: label.trim(), deadline: deadline || undefined, isRequired: true })}
           >
@@ -156,6 +158,8 @@ export const EditDeadlineDialog: React.FC<EditDeadlineDialogProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const dateInPast = Boolean(date) && date < getManilaToday() && date !== initialDate;
+
   return (
     <Dialog
       open={open}
@@ -177,6 +181,7 @@ export const EditDeadlineDialog: React.FC<EditDeadlineDialogProps> = ({
           value={date}
           onChange={(e) => setDate(e.target.value)}
           min={date && date < getManilaToday() ? date : getManilaToday()}
+          error={dateInPast ? "Deadline cannot be before today." : undefined}
           required
         />
 
@@ -193,9 +198,7 @@ export const EditDeadlineDialog: React.FC<EditDeadlineDialogProps> = ({
                 key={opt.label}
                 type="button"
                 onClick={() => {
-                  const d = new Date();
-                  d.setDate(d.getDate() + opt.days);
-                  setDate(d.toISOString().split("T")[0]);
+                  setDate(addManilaCalendarDays(getManilaToday(), opt.days));
                 }}
                 className="focus-ring min-h-11 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 transition-colors hover:bg-slate-50 md:min-h-8"
               >
@@ -212,7 +215,7 @@ export const EditDeadlineDialog: React.FC<EditDeadlineDialogProps> = ({
           <Button
             variant="primary"
             size="sm"
-            disabled={!date || !requirement}
+            disabled={!date || !requirement || dateInPast}
             loading={isSubmitting}
             onClick={() => {
               if (requirement) onSubmit({ id: requirement.id, deadline: date || null });

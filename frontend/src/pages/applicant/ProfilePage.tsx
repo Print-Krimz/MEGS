@@ -36,6 +36,7 @@ import {
 import { normalizeTitleCase, normalizeSentenceCase } from "../../lib/text-case";
 import { ProfileApplications } from "./components/profile/ProfileApplications";
 import { ProfileDisclosure } from "./components/profile/ProfileDisclosure";
+import { computeProfileProgress, PERSONAL_SECTION_ORDER, type PersonalSectionId } from "./components/profile/profile-progress";
 import { ProfileOverview } from "./components/profile/ProfileOverview";
 import { ProfileSectionNav } from "./components/profile/ProfileSectionNav";
 import type { ProfileSection } from "./components/profile/profile-navigation";
@@ -160,6 +161,8 @@ const manilaDateYearsAgo = (years: number): string => {
   return isValidDateOnly(candidate) ? candidate : `${year - years}-02-28`;
 };
 
+const CONTACT_RELATIONSHIPS = ["Parent", "Spouse", "Sibling", "Child", "Guardian", "Relative", "Other"];
+
 const PERSONAL_SECTION_FIELDS: Record<string, string[]> = {
   identity: ["firstName", "middleName", "lastName", "mobileNumber", "dateOfBirth", "birthPlace"],
   background: ["gender", "civilStatus", "nationality", "religion", "height", "weight", "preferredWorkLocations"],
@@ -282,6 +285,7 @@ export const ProfilePage: React.FC = () => {
 
   // Inline field errors: pre-submit checks, then backend validation errors. Cleared per field on edit.
   const [personalFieldErrors, setPersonalFieldErrors] = useState<Record<string, string>>({});
+  const [relationshipOther, setRelationshipOther] = useState(false);
   const clearPersonalFieldError = (field: string) => setPersonalFieldErrors((prev) => withoutKey(prev, field));
 
   const [expErrors, setExpErrors] = useState<Record<string, string>>({});
@@ -350,6 +354,35 @@ export const ProfilePage: React.FC = () => {
     joinReligion(RELIGION_OTHER, religionOtherDraft) === personalForm.religion
       ? religionOtherDraft
       : religionParts.other;
+
+  // Relationship of the emergency contact: a fixed list, with free text only under "Other".
+  const relationshipPreset = CONTACT_RELATIONSHIPS.find(
+    (r) => r !== "Other" && r.toLowerCase() === personalForm.emergencyContactRelationship.trim().toLowerCase(),
+  );
+  const relationshipSelected =
+    relationshipOther || (personalForm.emergencyContactRelationship.trim() && !relationshipPreset)
+      ? "Other"
+      : relationshipPreset ?? "";
+
+  const profileProgress = computeProfileProgress(personalForm, personalFieldErrors, personalSectionOf);
+  const goToPersonalSection = (id: PersonalSectionId) => {
+    setOpenPersonalSection(id);
+    requestAnimationFrame(() =>
+      document.getElementById(`profile-personal-${id}`)?.closest("section")?.scrollIntoView({ block: "start", behavior: "smooth" }),
+    );
+  };
+  const stepProps = (id: PersonalSectionId) => {
+    const index = PERSONAL_SECTION_ORDER.indexOf(id);
+    const previous = PERSONAL_SECTION_ORDER[index - 1];
+    const next = PERSONAL_SECTION_ORDER[index + 1];
+    return {
+      status: profileProgress.sections[id].status,
+      missing: profileProgress.sections[id].missing,
+      step: `Step ${index + 1} of ${PERSONAL_SECTION_ORDER.length}`,
+      onPrevious: previous ? () => goToPersonalSection(previous) : undefined,
+      onNext: next ? () => goToPersonalSection(next) : undefined,
+    };
+  };
 
   // Auto-Fill & Extraction State
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
@@ -1126,12 +1159,34 @@ export const ProfilePage: React.FC = () => {
                 }}
                 className="space-y-6"
               >
+                <div className="space-y-1.5" role="group" aria-label="Profile completion">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-semibold text-slate-900">Profile {profileProgress.percent}% complete</span>
+                    <span className="text-xs text-slate-600">
+                      {profileProgress.filled} of {profileProgress.total} key fields filled
+                    </span>
+                  </div>
+                  <div
+                    className="h-2 overflow-hidden rounded-full bg-slate-200"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={profileProgress.percent}
+                    aria-label="Profile completion"
+                  >
+                    <div className="h-full rounded-full bg-navy transition-all" style={{ width: `${profileProgress.percent}%` }} />
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    Fields marked <span className="text-rose-600">*</span> are required. Use Next and Previous to move between sections; nothing is lost.
+                  </p>
+                </div>
                 <ProfileDisclosure
                   id="profile-personal-identity"
                   title="Identity & contact"
                   summary="Your legal name and primary contact details"
                   open={openPersonalSection === "identity"}
                   onToggle={() => setOpenPersonalSection(openPersonalSection === "identity" ? "" : "identity")}
+                  {...stepProps("identity")}
                 >
                 {/* 1. Legal Name & Contact */}
                 <div className="space-y-3">
@@ -1230,6 +1285,7 @@ export const ProfilePage: React.FC = () => {
                   summary="Optional demographic and placement preferences"
                   open={openPersonalSection === "background"}
                   onToggle={() => setOpenPersonalSection(openPersonalSection === "background" ? "" : "background")}
+                  {...stepProps("background")}
                 >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
@@ -1397,6 +1453,7 @@ export const ProfilePage: React.FC = () => {
                   summary="Where you live and where you can work"
                   open={openPersonalSection === "address"}
                   onToggle={() => setOpenPersonalSection(openPersonalSection === "address" ? "" : "address")}
+                  {...stepProps("address")}
                 >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
@@ -1440,6 +1497,7 @@ export const ProfilePage: React.FC = () => {
                   summary="A short introduction for recruiters"
                   open={openPersonalSection === "summary"}
                   onToggle={() => setOpenPersonalSection(openPersonalSection === "summary" ? "" : "summary")}
+                  {...stepProps("summary")}
                 >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
@@ -1472,6 +1530,7 @@ export const ProfilePage: React.FC = () => {
                   summary="Optional statutory numbers"
                   open={openPersonalSection === "government"}
                   onToggle={() => setOpenPersonalSection(openPersonalSection === "government" ? "" : "government")}
+                  {...stepProps("government")}
                 >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
@@ -1541,6 +1600,7 @@ export const ProfilePage: React.FC = () => {
                   summary="A contact we can reach if needed"
                   open={openPersonalSection === "emergency"}
                   onToggle={() => setOpenPersonalSection(openPersonalSection === "emergency" ? "" : "emergency")}
+                  {...stepProps("emergency")}
                 >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
@@ -1567,16 +1627,35 @@ export const ProfilePage: React.FC = () => {
                         clearPersonalFieldError("emergencyContactPhone");
                       }}
                     />
-                    <Input
-                      label="Relationship"
-                      placeholder="e.g. Spouse / Parent / Sibling"
-                      value={personalForm.emergencyContactRelationship}
-                      error={personalFieldErrors.emergencyContactRelationship}
-                      onChange={(e) => {
-                        setPersonalForm((prev) => ({ ...prev, emergencyContactRelationship: e.target.value }));
-                        clearPersonalFieldError("emergencyContactRelationship");
-                      }}
-                    />
+                    <div className="space-y-3">
+                      <ComboBox
+                        label="Relationship"
+                        placeholder="Select relationship"
+                        allowCustom={false}
+                        options={CONTACT_RELATIONSHIPS.map((r) => ({ value: r, label: r }))}
+                        value={relationshipSelected}
+                        error={relationshipSelected === "Other" ? undefined : personalFieldErrors.emergencyContactRelationship}
+                        onChange={(val) => {
+                          const isOther = val === "Other";
+                          setRelationshipOther(isOther);
+                          setPersonalForm((prev) => ({ ...prev, emergencyContactRelationship: isOther ? "" : val || "" }));
+                          clearPersonalFieldError("emergencyContactRelationship");
+                        }}
+                      />
+                      {relationshipSelected === "Other" && (
+                        <Input
+                          label="Please specify"
+                          placeholder="e.g. Cousin, Aunt"
+                          maxLength={100}
+                          value={personalForm.emergencyContactRelationship}
+                          error={personalFieldErrors.emergencyContactRelationship}
+                          onChange={(e) => {
+                            setPersonalForm((prev) => ({ ...prev, emergencyContactRelationship: e.target.value }));
+                            clearPersonalFieldError("emergencyContactRelationship");
+                          }}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
                 </ProfileDisclosure>
@@ -1588,6 +1667,7 @@ export const ProfilePage: React.FC = () => {
                   summary="Optional accommodations or schedule notes"
                   open={openPersonalSection === "notes"}
                   onToggle={() => setOpenPersonalSection(openPersonalSection === "notes" ? "" : "notes")}
+                  {...stepProps("notes")}
                 >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">

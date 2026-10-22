@@ -22,6 +22,7 @@ import {
   unsaveJobHandler,
   listSavedJobsHandler,
   getSavedJobIdsHandler,
+  clearSavedJobsHandler,
 } from '../../controllers/applicant/saved-job.controller.js';
 import {
   getMyInvitationsHandler,
@@ -43,6 +44,7 @@ router.post("/jobs/:id/save", validate(applicantApplicationSchema.jobParams), sa
 router.delete("/jobs/:id/save", validate(applicantApplicationSchema.jobParams), unsaveJobHandler);
 router.get("/saved-jobs", validate(applicantApplicationSchema.listSavedJobs), listSavedJobsHandler);
 router.get("/saved-jobs/ids", getSavedJobIdsHandler);
+router.delete("/saved-jobs", clearSavedJobsHandler);
 router.get("/active-deployment", getActiveDeployment);
 router.get("/invitations", getMyInvitationsHandler);
 router.post("/invitations/:id/respond", validate(applicantApplicationSchema.respondInvitation), respondToInvitationHandler);

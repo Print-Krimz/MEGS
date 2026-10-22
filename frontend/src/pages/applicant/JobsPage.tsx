@@ -9,13 +9,15 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
+  ConfirmDialog,
 } from "../../components/common";
 import { Button } from "../../components/ui";
 import { cn } from "../../lib/utils";
-import { Briefcase, Bookmark, SearchX } from "lucide-react";
+import { Briefcase, Bookmark, SearchX, Trash2 } from "lucide-react";
 import { JobCard } from "./components/JobCard";
 import { JobFilters, type JobFilterValues } from "./components/JobFilters";
 import { jobLocationLabel } from "../../lib/job-locations";
+import { MAX_SAVED_JOBS } from "../../lib/saved-jobs";
 import { notify } from "../../lib/feedback";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
@@ -117,7 +119,26 @@ export const JobsPage: React.FC = () => {
     onError: (err: any) => notify.error("Action Failed", err),
   });
 
+  const [confirmClearSaved, setConfirmClearSaved] = useState(false);
+  const clearSavedMutation = useMutation({
+    mutationFn: () => applicantJobsApi.clearSavedJobs(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["applicant", "jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["applicant", "saved-jobs"] });
+      setConfirmClearSaved(false);
+      setPage(1);
+      notify.success("Saved Jobs Cleared", "All jobs were removed from your saved list.");
+    },
+    onError: (err: any) => notify.error("Action Failed", err),
+  });
+  const savedCount = savedJobIds.size;
+  const atSaveLimit = savedCount >= MAX_SAVED_JOBS;
+
   const toggleBookmark = (jobId: number) => {
+    if (!savedJobIds.has(jobId) && atSaveLimit) {
+      notify.error("Saved Jobs Limit", `You can save up to ${MAX_SAVED_JOBS} jobs. Remove one to save another.`);
+      return;
+    }
     if (savedJobIds.has(jobId)) {
       unsaveMutation.mutate(jobId);
     } else {
@@ -225,7 +246,7 @@ export const JobsPage: React.FC = () => {
               )}
             >
               <Bookmark className="size-4" aria-hidden="true" />
-              <span>Saved Jobs ({savedJobIds.size})</span>
+              <span>Saved Jobs ({savedCount}/{MAX_SAVED_JOBS})</span>
             </button>
           </div>
         }
@@ -236,6 +257,25 @@ export const JobsPage: React.FC = () => {
           <p className="text-sm text-slate-700">
             <strong className="text-slate-950">Notice:</strong> You are currently on an active assignment{deploymentQuery.data?.clientName ? ` with ${deploymentQuery.data.clientName}` : ""}. You can browse and bookmark positions for your records, but applications remain locked until your contract reaches redeployment.
           </p>
+        </div>
+      )}
+
+      {scope === "saved" && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2" role="status">
+          <p className={cn("text-sm", atSaveLimit ? "font-medium text-megs-red" : "text-slate-700")}>
+            <span className="font-semibold">{savedCount}/{MAX_SAVED_JOBS}</span> saved jobs
+            {atSaveLimit && " · Limit reached. Remove one to save another."}
+          </p>
+          {savedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setConfirmClearSaved(true)}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-megs-red hover:bg-megs-red-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-megs-red"
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+              Clear all saved jobs
+            </button>
+          )}
         </div>
       )}
 
@@ -254,7 +294,7 @@ export const JobsPage: React.FC = () => {
               title="No jobs match these filters"
               description="Try a wider salary range, a nearby city or fewer keywords."
               action={
-                <Button variant="outline" size="md" onClick={handleReset}>
+                <Button variant="outline" size="md" className="border-megs-red/40 text-megs-red hover:bg-megs-red-tint hover:text-megs-red" onClick={handleReset}>
                   Clear filters
                 </Button>
               }
@@ -291,7 +331,7 @@ export const JobsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleReset}
-                className="min-h-11 rounded-md px-2 text-sm font-medium text-navy underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className="min-h-11 rounded-md px-2 text-sm font-medium text-megs-red underline-offset-4 hover:bg-megs-red-tint hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-megs-red"
               >
                 Clear filters
               </button>
@@ -300,7 +340,7 @@ export const JobsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
             {paginatedJobs.map((job) => (
-              <JobCard key={job.id} job={job} saved={savedJobIds.has(job.id)} onToggleSave={toggleBookmark} />
+              <JobCard key={job.id} job={job} saved={savedJobIds.has(job.id)} saveDisabled={atSaveLimit} onToggleSave={toggleBookmark} />
             ))}
           </div>
 
@@ -319,6 +359,16 @@ export const JobsPage: React.FC = () => {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmClearSaved}
+        onClose={() => setConfirmClearSaved(false)}
+        onConfirm={() => clearSavedMutation.mutate()}
+        title="Clear all saved jobs?"
+        description={`This removes all ${savedCount} saved jobs from your list. The job postings themselves are not affected.`}
+        confirmLabel="Clear all"
+        variant="danger"
+        loading={clearSavedMutation.isPending}
+      />
     </div>
   );
 };

@@ -3,6 +3,8 @@ import { sendSuccess, sendError } from "../../utils/response.js";
 import {
   saveJobService,
   unsaveJobService,
+  clearSavedJobsService,
+  SavedJobLimitError,
   listSavedJobsService,
   getSavedJobIdsService,
 } from "../../services/applicant/saved-job.service.js";
@@ -21,7 +23,7 @@ export const saveJobHandler = async (req: Request, res: Response): Promise<void>
     const saved = await saveJobService(userId, jobId);
     sendSuccess(res, "Job saved successfully", saved, 201);
   } catch (error: any) {
-    sendError(res, error.message || "Failed to save job", 400);
+    sendError(res, error.message || "Failed to save job", error instanceof SavedJobLimitError ? 409 : 400);
   }
 };
 
@@ -80,5 +82,14 @@ export const getSavedJobIdsHandler = async (req: Request, res: Response): Promis
     sendSuccess(res, "Saved job IDs retrieved", ids, 200);
   } catch (error: any) {
     sendError(res, error.message || "Failed to get saved job IDs", 500);
+  }
+};
+
+export const clearSavedJobsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await clearSavedJobsService(req.user!.id);
+    sendSuccess(res, "Saved jobs cleared", result, 200);
+  } catch (error: any) {
+    sendError(res, error.message || "Failed to clear saved jobs", 500);
   }
 };

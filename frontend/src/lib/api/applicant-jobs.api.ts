@@ -171,6 +171,10 @@ export const applicantJobsApi = {
   reuseComplianceDocument: (requirementId: number | string, documentId: number) =>
     api.post<ComplianceRequirement>(`/api/applicant-jobs/compliance/${requirementId}/reuse`, { documentId }),
 
+  // Remove every saved job
+  clearSavedJobs: () =>
+    api.delete<{ success: boolean; removed: number }>("/api/applicant-jobs/saved-jobs"),
+
   // Get list of saved job IDs
   getSavedJobIds: () =>
     api.get<number[]>("/api/applicant-jobs/saved-jobs/ids"),

@@ -3,6 +3,29 @@ import { ChevronDown, Check, X, Search, Loader2 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { FIELD_LIMITS, getInputTextLimit } from "../../lib/field-limits";
 
+const escapeRegExp = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Bolds the parts of `text` that match any word of `query` (case-insensitive). */
+export const HighlightMatch: React.FC<{ text: string; query: string }> = ({ text, query }) => {
+  const tokens = query.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return <>{text}</>;
+  const parts = text.split(new RegExp(`(${tokens.map(escapeRegExp).join("|")})`, "gi"));
+  const lowered = tokens.map((t) => t.toLowerCase());
+  return (
+    <>
+      {parts.map((part, i) =>
+        part && lowered.includes(part.toLowerCase()) ? (
+          <mark key={i} className="bg-transparent font-bold text-navy underline decoration-navy/40 underline-offset-2">
+            {part}
+          </mark>
+        ) : (
+          <React.Fragment key={i}>{part}</React.Fragment>
+        ),
+      )}
+    </>
+  );
+};
+
 export interface ComboBoxOption {
   value: string;
   label: string;
@@ -177,6 +200,15 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
       setSearchQuery("");
     }
   }, [value, selectedOption, allowCustom]);
+
+  // Typed text to highlight in the list; empty while the input just shows the current selection.
+  const highlightQuery = React.useMemo(() => {
+    const q = searchQuery.trim();
+    if (!q) return "";
+    if (selectedOption && q.toLowerCase() === selectedOption.label.trim().toLowerCase()) return "";
+    if (allowCustom && value && q.toLowerCase() === value.trim().toLowerCase()) return "";
+    return q;
+  }, [searchQuery, selectedOption, allowCustom, value]);
 
   // Filter options based on user input
   const filteredOptions = React.useMemo(() => {
@@ -655,7 +687,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className={cn("truncate font-medium", isSelected && "font-bold text-navy")}>
-                        {opt.label}
+                        <HighlightMatch text={opt.label} query={highlightQuery} />
                       </span>
                       {opt.badge && (
                         <span
@@ -674,7 +706,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                     </div>
                     {opt.subtitle && (
                       <p className="text-[11px] text-slate-500 truncate mt-0.5 font-mono">
-                        {opt.subtitle}
+                        <HighlightMatch text={opt.subtitle} query={highlightQuery} />
                       </p>
                     )}
                   </div>

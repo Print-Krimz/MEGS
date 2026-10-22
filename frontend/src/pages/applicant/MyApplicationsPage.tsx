@@ -43,6 +43,7 @@ export const MyApplicationsPage: React.FC = () => {
     search.tab === "invitations" ? "INVITATIONS" : "ALL"
   );
   const [page, setPage] = useState(1);
+  const [showHistory, setShowHistory] = useState(false);
   const pageSize = 6;
 
   // Modals & Feedback State for Job Invitations
@@ -116,7 +117,23 @@ export const MyApplicationsPage: React.FC = () => {
   const allInvitations = invitationsQuery.data || [];
   const pendingInvitations = allInvitations.filter((inv) => inv.status === "PENDING");
 
-  const filteredApplications = allApplications.filter((app) => {
+  // Closed applications move to a collapsed history so the main view leads with what is still moving.
+  const isClosedApplication = (app: (typeof allApplications)[number]) =>
+    app.isArchived ||
+    app.status === ApplicationStatus.ARCHIVED ||
+    app.status === ApplicationStatus.BACKOUT ||
+    app.status === ApplicationStatus.REJECTED ||
+    app.status === ApplicationStatus.TALENT_POOL;
+  const newestFirst = [...allApplications].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+  const openApplications = newestFirst.filter((app) => !isClosedApplication(app));
+  const closedApplications = newestFirst.filter(isClosedApplication);
+  // With nothing open, the latest closed application still leads so the page is never empty.
+  const mainApplications = openApplications.length > 0 ? openApplications : closedApplications.slice(0, 1);
+  const historyApplications = openApplications.length > 0 ? closedApplications : closedApplications.slice(1);
+
+  const filteredApplications = (statusFilter === "ALL" ? (showHistory ? [...mainApplications, ...historyApplications] : mainApplications) : allApplications).filter((app) => {
     if (statusFilter === "ALL") return true;
     if (statusFilter === "ACTIVE") {
       return (
@@ -623,6 +640,22 @@ export const MyApplicationsPage: React.FC = () => {
                 )}
               </div>
             ))}
+
+            {statusFilter === "ALL" && historyApplications.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHistory((value) => !value);
+                  setPage(1);
+                }}
+                aria-expanded={showHistory}
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+              >
+                {showHistory
+                  ? "Hide earlier applications"
+                  : `Show earlier applications (${historyApplications.length})`}
+              </button>
+            )}
 
             {/* Pagination */}
             <div className="bg-white border border-slate-200 p-2 rounded-md shadow-xs">

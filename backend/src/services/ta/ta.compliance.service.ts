@@ -252,6 +252,10 @@ export const reviewComplianceRequirement = async (
   if (reviewStatus === "APPROVED" && requirement.updateRequestedAt && !requirement.updateRequestCompletedAt && requirement.reviewStatus !== "SUBMITTED") {
     throw new Error("Wait for the applicant to submit the requested updated copy before approving it.");
   }
+  // To follow means the file is still missing; a requirement that already has one is approved or rejected.
+  if (reviewStatus === "TO_FOLLOW" && requirement.documentId && requirement.reviewStatus !== "TO_FOLLOW") {
+    throw new Error("This requirement already has an uploaded document. Approve or reject it instead of marking it to follow.");
+  }
   const previousFollowDay = requirement.toFollowExpectedAt ? toManilaDateOnly(requirement.toFollowExpectedAt) : undefined;
   if (reviewStatus === "TO_FOLLOW" && followDay && followDay < manilaDateString() && followDay !== previousFollowDay) {
     throw new Error("Follow-up target date must be today or a future date.");
