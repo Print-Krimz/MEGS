@@ -17,16 +17,18 @@ import {
   History,
   Save,
 } from "lucide-react";
+import { DEFAULT_SCORING_WEIGHTS, normalizeScoringWeights, rebalanceScoringWeights, type ScoringDimension } from "../../lib/scoring-weights";
 import { notify } from "../../lib/feedback";
 
 export const ScoringConfigPage: React.FC = () => {
   const queryClient = useQueryClient();
 
-  const [skillsWeight, setSkillsWeight] = useState<number>(30);
-  const [experienceWeight, setExperienceWeight] = useState<number>(25);
-  const [locationWeight, setLocationWeight] = useState<number>(15);
-  const [complianceWeight, setComplianceWeight] = useState<number>(15);
-  const [educationWeight, setEducationWeight] = useState<number>(15);
+  const [weights, setWeights] = useState(DEFAULT_SCORING_WEIGHTS);
+  const { SKILLS: skillsWeight, EXPERIENCE: experienceWeight, LOCATION: locationWeight,
+    COMPLIANCE: complianceWeight, EDUCATION_CERTIFICATIONS: educationWeight } = weights;
+  const updateWeight = (dimension: ScoringDimension, value: number) => {
+    setWeights((current) => rebalanceScoringWeights(current, dimension, value));
+  };
 
   const [matchThreshold, setMatchThreshold] = useState<number>(60);
   const [defaultK, setDefaultK] = useState<number>(10);
@@ -54,11 +56,7 @@ export const ScoringConfigPage: React.FC = () => {
   useEffect(() => {
     if (config) {
       const w = (config.weights as Record<string, number>) || {};
-      if (w.SKILLS !== undefined) setSkillsWeight(w.SKILLS);
-      if (w.EXPERIENCE !== undefined) setExperienceWeight(w.EXPERIENCE);
-      if (w.LOCATION !== undefined) setLocationWeight(w.LOCATION);
-      if (w.COMPLIANCE !== undefined) setComplianceWeight(w.COMPLIANCE);
-      if (w.EDUCATION_CERTIFICATIONS !== undefined) setEducationWeight(w.EDUCATION_CERTIFICATIONS);
+      setWeights(normalizeScoringWeights(w));
 
       if (config.matchThreshold !== undefined) setMatchThreshold(config.matchThreshold);
 
@@ -235,13 +233,13 @@ export const ScoringConfigPage: React.FC = () => {
            aria-live="polite"
            className={`p-3 border text-sm flex items-center justify-between ${
             feedback.type === "success"
-              ? "bg-teal-50 border-teal-700 text-teal-950"
+              ? "bg-navy-soft border-teal-700 text-navy"
               : "bg-rose-50 border-rose-700 text-rose-950"
           }`}
         >
           <div className="flex flex-wrap items-center gap-2">
             {feedback.type === "success" ? (
-              <CheckCircle2 className="w-4 h-4 text-teal-700" />
+              <CheckCircle2 className="w-4 h-4 text-navy" />
             ) : (
               <AlertTriangle className="w-4 h-4 text-rose-700" />
             )}
@@ -277,36 +275,6 @@ export const ScoringConfigPage: React.FC = () => {
           >
             {totalWeight}% {isWeightValid ? "✓ Ready" : "⚠ Must equal 100%"}
           </span>
-          {!isWeightValid && (
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              onClick={() => {
-                if (totalWeight <= 0) {
-                  setSkillsWeight(30);
-                  setExperienceWeight(25);
-                  setLocationWeight(15);
-                  setComplianceWeight(15);
-                  setEducationWeight(15);
-                  return;
-                }
-                const ratio = 100 / totalWeight;
-                const newSkills = Math.round(skillsWeight * ratio);
-                const newExp = Math.round(experienceWeight * ratio);
-                const newLoc = Math.round(locationWeight * ratio);
-                const newComp = Math.round(complianceWeight * ratio);
-                const newEdu = 100 - (newSkills + newExp + newLoc + newComp);
-                setSkillsWeight(newSkills);
-                setExperienceWeight(newExp);
-                setLocationWeight(newLoc);
-                setComplianceWeight(newComp);
-                setEducationWeight(Math.max(0, newEdu));
-              }}
-            >
-               Balance to 100%
-            </Button>
-          )}
         </div>
       </div>
 
@@ -314,29 +282,31 @@ export const ScoringConfigPage: React.FC = () => {
         {/* 5 Dimension Sliders */}
         <div className="admin-panel">
           <div className="p-3 border-b border-slate-300 flex flex-wrap items-center gap-2 bg-slate-100">
-            <Sliders className="w-4 h-4 text-teal-700" />
+            <Sliders className="w-4 h-4 text-navy" />
               <h3 className="text-sm font-semibold text-slate-900">
               Scoring priorities
             </h3>
           </div>
 
           <div className="p-4 space-y-4">
+            <p id="scoring-weight-help" className="text-sm text-slate-600">Adjust any priority. The other priorities automatically share the remaining percentage, keeping the total at 100%.</p>
             {/* 1. Skills Match */}
             <div className="space-y-1.5">
               <div className="flex justify-between text-sm">
                 <label htmlFor="skills-weight" className="font-semibold text-slate-950">Skills</label>
-                <span className="font-sans font-bold text-teal-900 tabular-nums">{skillsWeight}%</span>
+                <span className="font-sans font-bold text-navy tabular-nums">{skillsWeight}%</span>
               </div>
               <input
                 type="range"
                 min={0}
                 max={100}
-                step={1}
+                step={0.01}
                  id="skills-weight"
+                 aria-describedby="scoring-weight-help"
                  aria-label="Skills weight"
                  value={skillsWeight}
-                onChange={(e) => setSkillsWeight(Number(e.target.value))}
-                 className="w-full h-11 accent-teal-700 cursor-pointer"
+                onChange={(e) => updateWeight("SKILLS", Number(e.target.value))}
+                 className="w-full h-11 accent-navy cursor-pointer"
               />
               <p className="text-xs text-slate-500 font-sans">
                 How closely a candidate's skills match the job.
@@ -347,18 +317,19 @@ export const ScoringConfigPage: React.FC = () => {
             <div className="space-y-1.5 pt-3 border-t border-slate-200">
               <div className="flex justify-between text-sm">
                 <label htmlFor="experience-weight" className="font-semibold text-slate-950">Relevant experience</label>
-                <span className="font-sans font-bold text-teal-900 tabular-nums">{experienceWeight}%</span>
+                <span className="font-sans font-bold text-navy tabular-nums">{experienceWeight}%</span>
               </div>
               <input
                 type="range"
                 min={0}
                 max={100}
-                step={1}
+                step={0.01}
                  id="experience-weight"
+                 aria-describedby="scoring-weight-help"
                  aria-label="Relevant experience weight"
                  value={experienceWeight}
-                onChange={(e) => setExperienceWeight(Number(e.target.value))}
-                 className="w-full h-11 accent-teal-700 cursor-pointer"
+                onChange={(e) => updateWeight("EXPERIENCE", Number(e.target.value))}
+                 className="w-full h-11 accent-navy cursor-pointer"
               />
               <p className="text-xs text-slate-500 font-sans">
                 Similar roles, seniority, and industry experience.
@@ -369,18 +340,19 @@ export const ScoringConfigPage: React.FC = () => {
             <div className="space-y-1.5 pt-3 border-t border-slate-200">
               <div className="flex justify-between text-sm">
                 <label htmlFor="location-weight" className="font-semibold text-slate-950">Location</label>
-                <span className="font-sans font-bold text-teal-900 tabular-nums">{locationWeight}%</span>
+                <span className="font-sans font-bold text-navy tabular-nums">{locationWeight}%</span>
               </div>
               <input
                 type="range"
                 min={0}
                 max={100}
-                step={1}
+                step={0.01}
                  id="location-weight"
+                 aria-describedby="scoring-weight-help"
                  aria-label="Location weight"
                  value={locationWeight}
-                onChange={(e) => setLocationWeight(Number(e.target.value))}
-                 className="w-full h-11 accent-teal-700 cursor-pointer"
+                onChange={(e) => updateWeight("LOCATION", Number(e.target.value))}
+                 className="w-full h-11 accent-navy cursor-pointer"
               />
               <p className="text-xs text-slate-500 font-sans">
                 How close the candidate is to the work location.
@@ -391,18 +363,19 @@ export const ScoringConfigPage: React.FC = () => {
             <div className="space-y-1.5 pt-3 border-t border-slate-200">
               <div className="flex justify-between text-sm">
                 <label htmlFor="compliance-weight" className="font-semibold text-slate-950">Requirements</label>
-                <span className="font-sans font-bold text-teal-900 tabular-nums">{complianceWeight}%</span>
+                <span className="font-sans font-bold text-navy tabular-nums">{complianceWeight}%</span>
               </div>
               <input
                 type="range"
                 min={0}
                 max={100}
-                step={1}
+                step={0.01}
                  id="compliance-weight"
+                 aria-describedby="scoring-weight-help"
                  aria-label="Requirements weight"
                  value={complianceWeight}
-                onChange={(e) => setComplianceWeight(Number(e.target.value))}
-                 className="w-full h-11 accent-teal-700 cursor-pointer"
+                onChange={(e) => updateWeight("COMPLIANCE", Number(e.target.value))}
+                 className="w-full h-11 accent-navy cursor-pointer"
               />
               <p className="text-xs text-slate-500 font-sans">
                 Readiness to provide required documents.
@@ -413,18 +386,19 @@ export const ScoringConfigPage: React.FC = () => {
             <div className="space-y-1.5 pt-3 border-t border-slate-200">
               <div className="flex justify-between text-sm">
                 <label htmlFor="education-weight" className="font-semibold text-slate-950">Education and certifications</label>
-                <span className="font-sans font-bold text-teal-900 tabular-nums">{educationWeight}%</span>
+                <span className="font-sans font-bold text-navy tabular-nums">{educationWeight}%</span>
               </div>
               <input
                 type="range"
                 min={0}
                 max={100}
-                step={1}
+                step={0.01}
                  id="education-weight"
+                 aria-describedby="scoring-weight-help"
                  aria-label="Education and certifications weight"
                  value={educationWeight}
-                onChange={(e) => setEducationWeight(Number(e.target.value))}
-                 className="w-full h-11 accent-teal-700 cursor-pointer"
+                onChange={(e) => updateWeight("EDUCATION_CERTIFICATIONS", Number(e.target.value))}
+                 className="w-full h-11 accent-navy cursor-pointer"
               />
               <p className="text-xs text-slate-500 font-sans">
                 Education, training, and required certifications.
@@ -437,12 +411,12 @@ export const ScoringConfigPage: React.FC = () => {
         <div className="admin-panel">
           <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
             <div className="flex flex-wrap items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-teal-700" />
+              <CheckCircle2 className="w-4 h-4 text-navy" />
               <h3 className="text-sm font-semibold text-slate-900">
                  Recommended match score
               </h3>
             </div>
-            <span className="font-sans font-bold text-sm text-teal-900 bg-teal-50 px-2 py-0.5 border border-teal-200">
+            <span className="font-sans font-bold text-sm text-navy bg-navy-soft px-2 py-0.5 border border-navy-line">
                Recommend at: {matchThreshold} / 100
             </span>
           </div>
@@ -479,7 +453,7 @@ export const ScoringConfigPage: React.FC = () => {
                 aria-label="Recommended match score"
                 value={matchThreshold}
                 onChange={(e) => setMatchThreshold(Number(e.target.value))}
-                 className="w-full h-11 accent-teal-700 cursor-pointer"
+                 className="w-full h-11 accent-navy cursor-pointer"
               />
               <p className="text-xs text-slate-500 font-sans">
                 Candidates scoring {matchThreshold} or higher are recommended automatically. Lower scores stay available for recruiter review. When a job opens, Talent Pool members at or above this score are sent to the recruiter as a notification.
@@ -491,7 +465,7 @@ export const ScoringConfigPage: React.FC = () => {
         {/* Talent Discovery & Match Parameters */}
         <div className="admin-panel">
           <div className="p-3 border-b border-slate-300 flex flex-wrap items-center gap-2 bg-slate-100">
-            <Sliders className="w-4 h-4 text-teal-700" />
+            <Sliders className="w-4 h-4 text-navy" />
               <h3 className="text-sm font-semibold text-slate-900">
               Who to include in matching
             </h3>

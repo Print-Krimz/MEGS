@@ -12,6 +12,7 @@ enum BackupType {
 model DatabaseBackupRecord {
   id               String       @id @default(uuid())
   filename         String
+  displayName      String?
   sizeBytes        BigInt?
   checksumSha256   String?
   status           BackupStatus @default(IN_PROGRESS)

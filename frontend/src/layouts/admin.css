@@ -1,5 +1,6 @@
 /* Admin surfaces share MEGS controls without changing other role layouts. */
 .admin-portal {
+  --color-border: var(--color-ta-line);
   color: var(--color-text-primary);
   font-size: 0.875rem;
   accent-color: var(--color-primary);
@@ -31,11 +32,12 @@
 
 .admin-portal .admin-panel {
   border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   background: var(--color-surface);
 }
 
-.admin-portal main :where(div.bg-white.border) { border-radius: 0.75rem; border-color: var(--color-border); }
+.admin-portal main :where(div.bg-white.border) { border-radius: var(--radius-md); border-color: var(--color-border); }
+.admin-portal .admin-nav-link[data-status="active"] { border-left-color: var(--color-megs-red); color: white; background: rgb(255 255 255 / 0.05); }
 .admin-portal main :where(.text-xs) { font-size: 0.75rem; }
 .admin-portal main :where(p, label) { line-height: 1.5; }
 .admin-portal main :where(.admin-panel) { overflow-wrap: anywhere; }
@@ -53,12 +55,12 @@
 .admin-portal main :where([class*="uppercase"]) { text-transform: none; letter-spacing: normal; }
 .admin-portal main :where(table) { line-height: 1.5; }
 .admin-portal main :where(th, td) { overflow-wrap: anywhere; }
-.admin-portal main :where(th, td) { padding-top: 0.875rem; padding-bottom: 0.875rem; }
-.admin-portal main :where(.admin-section-heading) { padding: 1rem 1.25rem; border-bottom: 1px solid var(--color-border); }
+.admin-portal main :where(th, td) { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.admin-portal main :where(.admin-section-heading) { padding: 0.875rem; background: var(--color-page); border-bottom: 1px solid var(--color-border); }
 .admin-portal .admin-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.admin-portal .admin-metrics > section { min-width: 0; padding: 1.25rem; }
+.admin-portal .admin-metrics > section { min-width: 0; padding: 0.875rem; }
 .admin-portal .admin-metrics > section + section { border-left: 1px solid var(--color-border); }
-.admin-portal .admin-metric-value { margin-top: 0.5rem; font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.admin-portal .admin-metric-value { margin-top: 0.5rem; font-size: 1.5rem; font-stretch: 112%; font-weight: 600; font-variant-numeric: tabular-nums; }
 .admin-portal .admin-section-link { color: var(--color-primary); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .admin-portal .admin-weights { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1rem; padding: 1.25rem; }
 .admin-portal main :where(.admin-form-actions) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
