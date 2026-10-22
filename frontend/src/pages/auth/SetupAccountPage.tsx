@@ -510,5 +510,9 @@ export const SetupAccountPage: React.FC = () => {
     );
   }
 
-  return <AuthStep stepKey={step}>{content}</AuthStep>;
+  return (
+    <AuthStep stepKey={step} order={stepIndex}>
+      {content}
+    </AuthStep>
+  );
 };

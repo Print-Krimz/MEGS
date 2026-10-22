@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { AlertCircle, Check } from "lucide-react";
-import { AnimatePresence, m } from "../public/motion";
+import { AnimatePresence, EASE_OUT, m } from "../public/motion";
 import { Alert, AlertDescription } from "@/components/shadcn/alert";
 import { cn } from "../../lib/shadcn-utils";
 
@@ -51,20 +51,40 @@ export const AuthHeading: React.FC<{
   );
 };
 
-/** Cross-fade wrapper for multi-step flows (register, password reset). */
-export const AuthStep: React.FC<{ stepKey: string; children: React.ReactNode }> = ({ stepKey, children }) => (
-  <AnimatePresence mode="wait" initial={false}>
-    <m.div
-      key={stepKey}
-      initial={{ opacity: 0, x: 8 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -8 }}
-      transition={{ duration: 0.16, ease: "easeOut" }}
-    >
-      {children}
-    </m.div>
-  </AnimatePresence>
-);
+/**
+ * Cross-fade wrapper for multi-step flows (register, password reset). Pass the step's `order` and the
+ * content slides forward when the user advances and back when they return to an earlier step.
+ */
+export const AuthStep: React.FC<{ stepKey: string; order?: number; children: React.ReactNode }> = ({
+  stepKey,
+  order = 0,
+  children,
+}) => {
+  const previous = useRef(order);
+  const direction = order >= previous.current ? 1 : -1;
+  useEffect(() => {
+    previous.current = order;
+  }, [order]);
+
+  return (
+    <AnimatePresence mode="wait" initial={false} custom={direction}>
+      <m.div
+        key={stepKey}
+        custom={direction}
+        variants={{
+          enter: (d: number) => ({ opacity: 0, x: 12 * d }),
+          center: { opacity: 1, x: 0, transition: { duration: 0.24, ease: EASE_OUT } },
+          exit: (d: number) => ({ opacity: 0, x: -12 * d, transition: { duration: 0.14, ease: "easeIn" } }),
+        }}
+        initial="enter"
+        animate="center"
+        exit="exit"
+      >
+        {children}
+      </m.div>
+    </AnimatePresence>
+  );
+};
 
 /** Shared progress indicator replacing the per-step inline copies. */
 export const AuthStepper: React.FC<{ steps: string[]; current: number; label: string }> = ({
@@ -86,8 +106,11 @@ export const AuthStepper: React.FC<{ steps: string[]; current: number; label: st
                 active || done ? "font-semibold text-secondary" : "text-muted-foreground"
               )}
             >
-              <span
+              <m.span
                 aria-hidden="true"
+                initial={active && current > 0 ? { scale: 0.6 } : false}
+                animate={{ scale: 1 }}
+                transition={{ duration: 0.3, ease: EASE_OUT, delay: 0.15 }}
                 className={cn(
                   "flex size-6 items-center justify-center rounded-full text-xs font-semibold",
                   active && "bg-primary text-primary-foreground",
@@ -96,10 +119,21 @@ export const AuthStepper: React.FC<{ steps: string[]; current: number; label: st
                 )}
               >
                 {done ? <Check className="size-3.5" /> : i + 1}
-              </span>
+              </m.span>
               <span className={cn(!active && "max-sm:sr-only")}>{name}</span>
             </li>
-            {i < steps.length - 1 && <li aria-hidden="true" className="h-px flex-1 bg-border" />}
+            {i < steps.length - 1 && (
+              <li aria-hidden="true" className="relative h-px flex-1 bg-border">
+                {i < current && (
+                  <m.span
+                    className="absolute inset-0 origin-left bg-secondary"
+                    initial={i === current - 1 ? { scaleX: 0 } : false}
+                    animate={{ scaleX: 1 }}
+                    transition={{ duration: 0.4, ease: EASE_OUT }}
+                  />
+                )}
+              </li>
+            )}
           </React.Fragment>
         );
       })}

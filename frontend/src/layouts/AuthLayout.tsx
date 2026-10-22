@@ -3,7 +3,8 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { ArrowLeft, Check, LogOut } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { Role } from "../lib/types/enums";
-import { MotionRoot } from "../components/public/motion";
+import { AnimatePresence, EASE_OUT, LineReveal, MotionRoot, m, staggerItem, useReducedMotion } from "../components/public/motion";
+import { HeroBackdrop } from "../components/public/HeroBackdrop";
 import { Button } from "@/components/shadcn/button";
 
 const PANEL_COPY: Record<string, { title: string; points: string[] }> = {
@@ -29,7 +30,15 @@ const PANEL_COPY: Record<string, { title: string; points: string[] }> = {
   },
 };
 
+/** Licensed stock photos already used on the landing page; see src/assets/megs/README.md for sources. */
+const PANEL_PHOTOS = [
+  { base: "/images/canva-ref/industries/warehousing", label: "Warehousing", alt: "Forklift moving pallets in a warehouse", pos: "object-[22%_72%]" },
+  { base: "/images/stock/industries/manufacturing", label: "Manufacturing", alt: "Workers in blue uniforms at a factory assembly line", pos: "object-center" },
+  { base: "/images/stock/industries/logistics", label: "Logistics", alt: "Driver in a high-visibility jacket at the back of a truck", pos: "object-[30%_55%]" },
+];
+
 export const AuthLayout: React.FC = () => {
+  const reduceMotion = useReducedMotion();
   const { isAuthenticated, user, mustChangePassword, logout } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const panel =
@@ -65,8 +74,16 @@ export const AuthLayout: React.FC = () => {
           Skip to main content
         </a>
 
-        {/* Brand panel (tablet and up) */}
-        <aside className="hidden border-t-4 border-primary bg-megs-navy-900 text-white md:block">
+        {/* Brand panel (tablet and up): the landing hero's navy surface, motto and industry photos. */}
+        <aside className="relative hidden overflow-hidden bg-megs-navy-900 text-white md:block">
+          <HeroBackdrop active />
+          <m.span
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 z-10 h-1 origin-left bg-primary"
+            initial={reduceMotion ? false : { scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ duration: 0.7, ease: EASE_OUT, delay: 0.1 }}
+          />
           <div className="sticky top-0 flex h-screen flex-col gap-8 p-8 lg:p-12">
             <Link
               to={portalHome}
@@ -74,30 +91,76 @@ export const AuthLayout: React.FC = () => {
             >
               <img src="/images/canva-ref/megs-logo-480.jpg" alt="" width={480} height={348} className="h-14 w-auto rounded-md bg-white p-1" />
               <span className="flex flex-col leading-none">
-                <span className="flex flex-col leading-none">
-                  <span className="font-display text-2xl text-white">MEGS Inc.</span>
-                  <span className="mt-1 text-xs font-medium text-white/80">MAR Employment for Good Services</span>
-                </span>
+                <span className="font-display text-2xl text-white">MEGS Inc.</span>
+                <span className="mt-1 text-xs font-medium text-white/80">MAR Employment for Good Services</span>
               </span>
             </Link>
 
-            <div className="mt-16 flex max-w-md flex-col lg:mt-24">
-              <p className="font-display text-4xl leading-[1.08] text-balance lg:text-5xl">{panel.title}</p>
-              <ul className="mt-10 border-t border-white/15">
-                {panel.points.map((point) => (
-                  <li key={point} className="flex items-start gap-3 border-b border-white/15 py-4 text-base text-white/90">
-                    <Check className="mt-0.5 size-5 shrink-0 text-white" aria-hidden="true" />
-                    <span>{point}</span>
-                  </li>
+            <AnimatePresence mode="wait">
+              <m.div
+                key={panel.title}
+                className="mt-10 flex max-w-md flex-col lg:mt-16"
+                exit={reduceMotion ? undefined : { opacity: 0, transition: { duration: 0.15 } }}
+              >
+                <p className="font-display text-4xl leading-[1.08] text-balance lg:text-5xl">
+                  <LineReveal delay={0.15}>{panel.title}</LineReveal>
+                </p>
+                <m.ul
+                  className="mt-8 border-t border-white/15"
+                  initial={reduceMotion ? false : "hidden"}
+                  animate="shown"
+                  variants={{ hidden: {}, shown: { transition: { staggerChildren: 0.07, delayChildren: 0.35 } } }}
+                >
+                  {panel.points.map((point) => (
+                    <m.li
+                      key={point}
+                      variants={staggerItem.variants}
+                      className="flex items-start gap-3 border-b border-white/15 py-3.5 text-base text-white/90"
+                    >
+                      <Check className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                      <span>{point}</span>
+                    </m.li>
+                  ))}
+                </m.ul>
+              </m.div>
+            </AnimatePresence>
+
+            <div className="mt-auto">
+              <ul className="hidden grid-cols-3 gap-3 lg:grid [@media(max-height:860px)]:hidden" aria-label="Industries MEGS staffs">
+                {PANEL_PHOTOS.map((photo, i) => (
+                  <m.li
+                    key={photo.label}
+                    className="relative overflow-hidden rounded-md bg-white/5"
+                    initial={reduceMotion ? false : { clipPath: "inset(100% 0 0 0)" }}
+                    animate={{ clipPath: "inset(0% 0 0 0)" }}
+                    transition={{ duration: 0.7, ease: EASE_OUT, delay: 0.45 + i * 0.1 }}
+                  >
+                    <img
+                      src={`${photo.base}-480.webp`}
+                      alt={photo.alt}
+                      width={480}
+                      height={320}
+                      decoding="async"
+                      className={`aspect-[4/3] w-full object-cover ${photo.pos}`}
+                    />
+                    <span className="absolute left-2 top-2 rounded-sm bg-background px-1.5 py-0.5 text-xs font-semibold text-secondary">
+                      {photo.label}
+                    </span>
+                  </m.li>
                 ))}
               </ul>
+              <p className="mt-6 font-display text-xl leading-snug">
+                Better people for <span className="text-primary">better results.</span>
+              </p>
+              <p className="mt-2 text-pretty text-sm text-white/70">
+                Since May 1997 · Valenzuela City · PJAR Group company · PALSCON member
+              </p>
             </div>
-
-            <p className="mt-auto text-pretty text-sm text-white/70">Licensed by DOLE · PJAR Group company · PALSCON member</p>
           </div>
         </aside>
 
         {/* Form column */}
+        <span aria-hidden="true" className="fixed inset-x-0 top-0 z-20 h-1 bg-primary md:hidden" />
         <div className="flex min-h-screen flex-col px-5 py-5 sm:px-8 lg:px-12">
           <header className="mx-auto flex w-full max-w-[26rem] items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -130,9 +193,20 @@ export const AuthLayout: React.FC = () => {
               className="mb-8 flex min-h-11 w-fit items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
             >
               <img src="/images/canva-ref/megs-logo-480.jpg" alt="" width={480} height={348} className="h-12 w-auto shrink-0 object-contain" />
-              <span className="text-base font-semibold text-foreground">MEGS Inc.</span>
+              <span className="flex flex-col leading-none">
+                <span className="font-display text-xl text-primary">MEGS Inc.</span>
+                <span className="mt-1 text-xs font-medium text-muted-foreground">MAR Employment for Good Services</span>
+              </span>
             </Link>
-            <Outlet />
+            {/* Each auth page rises in on arrival, whether from the landing page or another auth page. */}
+            <m.div
+              key={pathname}
+              initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: EASE_OUT, delay: 0.1 }}
+            >
+              <Outlet />
+            </m.div>
           </main>
 
           <footer className="mx-auto flex w-full max-w-[26rem] flex-col gap-1 pt-4 text-sm text-muted-foreground">
