@@ -9,6 +9,8 @@ export interface ScoreBadgeProps {
   className?: string;
 }
 
+const NEAR_MARGIN = 25;
+
 export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
   score,
   threshold,
@@ -27,13 +29,14 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
   }
 
   const num = typeof score === "string" ? parseFloat(score) : score;
-  const isHigh = num >= 75;
+  // Green meets the recommend threshold, orange is within 25 points below it, red is further away.
   const isPassing = num >= activeThreshold;
+  const isNear = num >= activeThreshold - NEAR_MARGIN;
 
-  const colorStyles = isHigh
+  const colorStyles = isPassing
     ? "bg-emerald-100 text-emerald-900 border-emerald-500"
-    : isPassing
-    ? "bg-amber-100 text-amber-900 border-amber-500"
+    : isNear
+    ? "bg-orange-100 text-orange-900 border-orange-500"
     : "bg-rose-100 text-rose-900 border-rose-500";
 
   const sizeStyles = {
