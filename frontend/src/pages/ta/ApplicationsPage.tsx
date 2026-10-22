@@ -716,6 +716,22 @@ export const ApplicationsPage: React.FC = () => {
         ))}
       </div>
 
+      {/* Self check-ins are not applications until a recruiter confirms them, so say where they wait. */}
+      {view === "applications" && checkInCount > 0 && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        >
+          <p>
+            {checkInCount === 1 ? "1 applicant is" : `${checkInCount} applicants are`} waiting at the desk. Confirm a
+            check-in to add it to this list.
+          </p>
+          <Button type="button" variant="outline" className="min-h-11 md:min-h-9" onClick={() => setView("check-ins")}>
+            View check-ins
+          </Button>
+        </div>
+      )}
+
       {view === "check-ins" ? (
         <div id="applications-view">
           <CheckInsPanel onConfirmed={setWalkInSlip} />
