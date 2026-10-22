@@ -37,6 +37,7 @@ vi.mock("../../src/middleware/upload.middleware.js", async (importOriginal) => (
 }));
 vi.mock("../../src/middleware/rate-limiter.middleware.js", () => ({
   publicLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  streamFailureLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 vi.mock("../../src/utils/audit.js", () => ({ logAudit: m.logAudit }));
 vi.mock("../../src/utils/notification.js", () => ({ sendNotification: m.sendNotification, sendRoleNotification: vi.fn() }));

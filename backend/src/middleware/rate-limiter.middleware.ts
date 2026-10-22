@@ -9,7 +9,7 @@ const securityStore = (name: string) => new PostgresRateLimitStore(name);
 // re-enabling resumes existing windows, which persist across dyno restarts.
 const quotaKey = (key: string) => `0:${key}`;
 const hashIdentity = (value: string) => createHash("sha256").update(value).digest("hex");
-const clientIp = (req: Request) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || "127.0.0.1");
+export const clientIp = (req: Request) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || "127.0.0.1");
 
 const limiter = (name: string, max: number, windowMs: number, keyGenerator: (req: Request) => string) => rateLimit({
   windowMs, max, keyGenerator: req => quotaKey(keyGenerator(req)), store: securityStore(name),
@@ -106,3 +106,10 @@ export const analyticsLimiters = operationLimiters("analytics", 180, 3000, 15 * 
 
 // Public no-login pages (QR tracker, offer links): per-IP, 60 requests per 15 minutes.
 export const publicLimiter = limiter("public-ip", 60, 15 * 60 * 1000, clientIp);
+
+// Wrong-token probes on the live streams: successful streams and their reconnects are not counted.
+export const streamFailureLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 30, keyGenerator: req => quotaKey(clientIp(req)), store: securityStore("public-stream-fail"),
+  skip: skipDisabled, skipSuccessfulRequests: true, standardHeaders: true, legacyHeaders: false, passOnStoreError: false,
+  handler: rateLimitHandler("Too many requests. Please retry after the indicated delay.", 900),
+});

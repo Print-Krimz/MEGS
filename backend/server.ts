@@ -31,6 +31,8 @@ app.use(
       "x-turnstile-token",
       "X-Turnstile-Token",
       "cf-turnstile-response",
+      "x-tracking-token",
+      "x-check-in-token",
     ],
   })
 );

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mocks = vi.hoisted(() => ({
@@ -18,6 +18,17 @@ vi.mock("../../lib/api/public.api", () => ({
     getTracking: vi.fn(),
   },
 }));
+
+// The live stream is faked: tests push `ready` and `changed` through the captured handlers.
+const stream = vi.hoisted(() => ({ calls: [] as { url: string; opts: any }[] }));
+vi.mock("@microsoft/fetch-event-source", () => ({
+  fetchEventSource: (url: string, opts: any) =>
+    new Promise<void>((resolve) => {
+      stream.calls.push({ url, opts });
+      opts.signal?.addEventListener("abort", () => resolve());
+    }),
+}));
+const pushEvent = (event: string) => act(() => stream.calls[stream.calls.length - 1].opts.onmessage({ event, data: "{}", id: "", retry: undefined }));
 
 import { publicApi } from "../../lib/api/public.api";
 import { ApiError } from "../../lib/api/client";
@@ -41,16 +52,18 @@ function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  render(
     <QueryClientProvider client={queryClient}>
       <TrackPage />
     </QueryClientProvider>,
   );
+  return queryClient;
 }
 
 describe("TrackPage (/t/:code)", () => {
   beforeEach(() => {
     getTracking.mockReset();
+    stream.calls.length = 0;
     mocks.search = { token: "tok-123" };
   });
 
@@ -133,6 +146,42 @@ describe("TrackPage (/t/:code)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("opens the stream with the tracking header and refetches on a change without waiting for the timer", async () => {
+    getTracking
+      .mockResolvedValueOnce({ ...tracking, status: "INITIAL_SCREENING" })
+      .mockResolvedValue({ ...tracking, status: "FINAL_INTERVIEW", nextInterview: null, venue: null });
+
+    renderPage();
+    await screen.findByRole("heading", { name: "Warehouse Associate" });
+    await waitFor(() => expect(stream.calls).toHaveLength(1));
+    expect(stream.calls[0].url).toContain("/api/public/track/WLK-2026-0042/stream");
+    expect(stream.calls[0].url).not.toContain("tok-123");
+    expect(stream.calls[0].opts.headers).toEqual({ "x-tracking-token": "tok-123" });
+
+    pushEvent("changed");
+
+    expect(
+      await screen.findByText("No interview is scheduled yet. Your recruiter will contact you when one is set."),
+    ).toBeInTheDocument();
+    expect(getTracking).toHaveBeenCalledTimes(2);
+  });
+
+  it("slows the poll to 60 seconds while the stream is connected", async () => {
+    getTracking.mockResolvedValue(tracking);
+    const queryClient = renderPage();
+    await screen.findByRole("heading", { name: "Warehouse Associate" });
+    const query = queryClient.getQueryCache().find({ queryKey: ["public", "track", "WLK-2026-0042", "tok-123"] }) as any;
+    expect(query.options.refetchInterval(query)).toBe(20_000);
+
+    await waitFor(() => expect(stream.calls).toHaveLength(1));
+    pushEvent("ready");
+
+    await waitFor(() => {
+      const q = queryClient.getQueryCache().find({ queryKey: ["public", "track", "WLK-2026-0042", "tok-123"] }) as any;
+      expect(q.options.refetchInterval(q)).toBe(60_000);
+    });
   });
 
   it("stops polling once the application is deployed", async () => {

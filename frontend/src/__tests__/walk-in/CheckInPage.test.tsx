@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Public self check-in page (/check-in and /check-in/$publicId). Router hooks, the API, the CAPTCHA widget and
@@ -41,6 +41,17 @@ vi.mock("../../lib/feedback", async (importOriginal) => ({
   ...(await importOriginal<any>()),
   notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
+
+// The live stream is faked: tests push `ready` and `changed` through the captured handlers.
+const stream = vi.hoisted(() => ({ calls: [] as { url: string; opts: any }[] }));
+vi.mock("@microsoft/fetch-event-source", () => ({
+  fetchEventSource: (url: string, opts: any) =>
+    new Promise<void>((resolve) => {
+      stream.calls.push({ url, opts });
+      opts.signal?.addEventListener("abort", () => resolve());
+    }),
+}));
+const pushEvent = (event: string) => act(() => stream.calls[stream.calls.length - 1].opts.onmessage({ event, data: "{}", id: "", retry: undefined }));
 
 import { publicApi } from "../../lib/api/public.api";
 import { ApiError } from "../../lib/api/client";
@@ -278,6 +289,7 @@ describe("CheckInPage: details form", () => {
 
 describe("CheckInPage: queue number screen", () => {
   beforeEach(() => {
+    stream.calls.length = 0;
     routeState.params = { publicId: "pub-1" };
     routeState.search = { token: "tok-1" };
   });
@@ -298,6 +310,49 @@ describe("CheckInPage: queue number screen", () => {
 
     query.setState({ ...query.state, data: pendingStatus({ status: "CONFIRMED" }) });
     expect(query.options.refetchInterval(query)).toBe(false);
+  });
+
+  it("opens the stream with the check-in header and shows a confirmation without waiting for the timer", async () => {
+    getCheckInStatus
+      .mockResolvedValueOnce(pendingStatus())
+      .mockResolvedValue(
+        pendingStatus({
+          status: "CONFIRMED",
+          tracking: {
+            trackingCode: "WLK-2026-0042",
+            applicantName: "Juan D.",
+            jobTitle: "Forklift Operator",
+            clientName: "Acme Logistics",
+            status: "SUBMITTED",
+            appliedAt: "2026-10-22T02:00:00.000Z",
+            nextInterview: null,
+            venue: "Cebu City",
+            updatedAt: "2026-10-22T02:00:00.000Z",
+          },
+        }),
+      );
+    renderPage();
+    await screen.findByText("A-017");
+    await waitFor(() => expect(stream.calls).toHaveLength(1));
+    expect(stream.calls[0].url).toContain("/api/public/check-in/pub-1/stream");
+    expect(stream.calls[0].url).not.toContain("tok-1");
+    expect(stream.calls[0].opts.headers).toEqual({ "x-check-in-token": "tok-1" });
+
+    pushEvent("changed");
+
+    expect(await screen.findByText("Application for")).toBeInTheDocument();
+    expect(getCheckInStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("slows the poll to 60 seconds while the stream is connected", async () => {
+    const queryClient = renderPage();
+    await screen.findByText("A-017");
+    await waitFor(() => expect(stream.calls).toHaveLength(1));
+    pushEvent("ready");
+    await waitFor(() => {
+      const q = queryClient.getQueryCache().find({ queryKey: ["public", "check-in", "status", "pub-1", "tok-1"] }) as any;
+      expect(q.options.refetchInterval(q)).toBe(60_000);
+    });
   });
 
   it("turns into the tracker once a recruiter confirms the check-in", async () => {

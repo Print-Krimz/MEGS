@@ -23,6 +23,9 @@ export function resolveApiBase(rawUrl?: string): string {
 
 const API_BASE = resolveApiBase(import.meta.env.VITE_API_URL);
 
+/** Absolute URL for an API path, built the same way apiRequest builds it. */
+export const apiUrl = (path: string): string => `${API_BASE}${path}`;
+
 export async function apiRequest<T>(
   path: string,
   options?: RequestInit

@@ -2,6 +2,8 @@ import React, { useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronRight, Search } from "lucide-react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
+import { apiUrl } from "../../lib/api/client";
 import { publicApi } from "../../lib/api/public.api";
 import { Button, Input, PhoneInput } from "../../components/ui";
 import { DateField } from "../../components/common/DateField";
@@ -17,6 +19,8 @@ import type { CheckInJob } from "../../lib/types/public.types";
 import { ConnectionProblem, LinkProblem, PublicShell, PublicSkeleton, isDeadLink } from "./PublicShell";
 
 const POLL_MS = 15_000;
+const LIVE_POLL_MS = 60_000;
+const CLOSED_STATUSES = ["DEPLOYED", "REJECTED", "BACKOUT", "ARCHIVED"];
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -324,6 +328,7 @@ const DetailsStep: React.FC<{ job: CheckInJob; onBack: () => void; onAlready: (q
 
 /** Queue screen. Polls until the recruiter confirms or closes the check-in. */
 const QueueScreen: React.FC<{ publicId: string; token: string | undefined }> = ({ publicId, token }) => {
+  const [live, setLive] = useState(false);
   const query = useQuery({
     queryKey: ["public", "check-in", "status", publicId, token],
     queryFn: ({ signal }) => publicApi.getCheckInStatus(publicId, token ?? "", { signal }),
@@ -332,11 +337,28 @@ const QueueScreen: React.FC<{ publicId: string; token: string | undefined }> = (
     refetchOnWindowFocus: true,
     refetchInterval: (q) => {
       const data = q.state.data;
-      if (!data || data.status !== "PENDING") return false;
-      return new Date(data.expiresAt).getTime() > Date.now() ? POLL_MS : false;
+      const interval = live ? LIVE_POLL_MS : POLL_MS;
+      if (!data) return false;
+      if (data.status === "CONFIRMED") {
+        return data.tracking && !CLOSED_STATUSES.includes(data.tracking.status) ? interval : false;
+      }
+      if (data.status !== "PENDING") return false;
+      return new Date(data.expiresAt).getTime() > Date.now() ? interval : false;
     },
   });
   const data = query.data;
+  const streamOpen =
+    Boolean(token) &&
+    (!data ||
+      (data.status === "PENDING" && new Date(data.expiresAt).getTime() > Date.now()) ||
+      (data.status === "CONFIRMED" && !(data.tracking && CLOSED_STATUSES.includes(data.tracking.status))));
+  const { connected } = useLiveRefresh({
+    url: apiUrl(`/api/public/check-in/${encodeURIComponent(publicId)}/stream`),
+    headers: { "x-check-in-token": token ?? "" },
+    enabled: streamOpen,
+    onChange: () => void query.refetch(),
+  });
+  if (connected !== live) setLive(connected);
   const closedCopy = "This check-in is closed. Ask the recruiter at the desk.";
 
   if (!token || (query.isError && isDeadLink(query.error))) {
