@@ -15,6 +15,7 @@ import { normalizeTitleCase, normalizeSentenceCase } from "../../utils/text-case
 import { validateStructuredAddress } from "../../utils/address-validation.js";
 import { isValidDateOnly, manilaDateString } from "../../schemas/field-limits.js";
 import {
+  labeledIdentity,
   normalizeCivilStatus,
   normalizeGender,
   normalizeMobileNumber,
@@ -454,6 +455,17 @@ export const updateProfileResumeService = async (userId: string, resumeUrl: stri
   return updated;
 };
 
+// The AI reader sometimes leaves out a field that the text states plainly next to a label; fill only those gaps.
+const withLabeledIdentity = (extracted: ExtractedProfileData, text: string): ExtractedProfileData => {
+  const labeled = labeledIdentity(text);
+  return {
+    ...extracted,
+    gender: extracted.gender || labeled.gender,
+    dateOfBirth: extracted.dateOfBirth || labeled.dateOfBirth,
+    mobileNumber: extracted.mobileNumber || labeled.mobileNumber,
+  };
+};
+
 // Extracts candidate profile information from a resume buffer across multiple formats (.pdf, .docx, images)
 export const processResumeExtractionService = async (
   buffer: Buffer,
@@ -474,7 +486,7 @@ export const processResumeExtractionService = async (
       }
       if (!isUsableResumeText(docxText)) return { extractedData: null, extractionStatus: "UNAVAILABLE" };
       try {
-        const extracted = await extractResumeProfileData(docxText);
+        const extracted = withLabeledIdentity(await extractResumeProfileData(docxText), docxText);
         return { extractedData: extracted, extractionStatus: "SUCCESS" };
       } catch (textExtErr: any) {
         console.warn(`[Resume Parser] Text-based docx extraction failed (${classifyExtractionError(textExtErr)}).`);
@@ -503,7 +515,7 @@ export const processResumeExtractionService = async (
     // Real prose goes to the cheaper text path; thin or garbled text (scans) goes straight to vision.
     if (isUsableResumeText(text)) {
       try {
-        const extracted = await extractResumeProfileData(text);
+        const extracted = withLabeledIdentity(await extractResumeProfileData(text), text);
         return { extractedData: extracted, extractionStatus: "SUCCESS" };
       } catch (textExtErr: any) {
         if (textExtErr?.retryable || textExtErr?.message === "AI processing timed out") return { extractedData: null, extractionStatus: "UNAVAILABLE" };

@@ -113,3 +113,22 @@ export const normalizePostalCode = (value: unknown): string | undefined => {
   const s = typeof value === "number" ? String(value) : typeof value === "string" ? value.trim() : "";
   return /^\d{4}$/.test(s) && s !== "0000" ? s : undefined;
 };
+
+const LABEL_VALUE = (labels: string) =>
+  new RegExp(String.raw`(?:^|[\n|•])\s*(?:${labels})\s*[:\-–]\s*([^\n|]+)`, "i");
+const GENDER_LABEL = LABEL_VALUE("gender|sex|kasarian");
+const BIRTH_LABEL = LABEL_VALUE("date of birth|birth date|birthdate|birthday|dob|petsa ng kapanganakan");
+const MOBILE_LABEL = LABEL_VALUE(String.raw`contact number|contact no\.?|mobile number|mobile no\.?|mobile|cellphone number|cellphone no\.?|cell no\.?|phone number|phone`);
+
+/**
+ * Identity values written next to a label in the resume text ("Gender: Male", "Date of Birth: February 19, 2002",
+ * "Contact Number: +63 917 …"). Used to fill fields the AI reader left out; never replaces what it found.
+ */
+export const labeledIdentity = (text: string): { gender?: string; dateOfBirth?: string; mobileNumber?: string } => {
+  const value = (pattern: RegExp) => pattern.exec(text)?.[1]?.trim();
+  return {
+    gender: normalizeGender(value(GENDER_LABEL)),
+    dateOfBirth: parseLooseDate(value(BIRTH_LABEL)),
+    mobileNumber: normalizeMobileNumber(value(MOBILE_LABEL)),
+  };
+};
