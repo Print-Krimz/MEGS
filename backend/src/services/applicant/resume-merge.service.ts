@@ -3,7 +3,7 @@
 // Verified profile values win: an applicant cannot overwrite them.
 import prisma from "../../utils/prisma.js";
 import { logAudit } from "../../utils/audit.js";
-import type { ExtractedProfileData } from "../../utils/gemini.js";
+import { modelThatExtracted, type ExtractedProfileData } from "../../utils/gemini.js";
 import {
   normalizeCivilStatus,
   normalizeGender,
@@ -237,7 +237,7 @@ export const parseResumeToProposal = async (input: {
       sha256,
       source,
       status: extractedData ? "PARSED" : "FAILED",
-      model: process.env.GEMINI_MODEL?.trim() || null,
+      model: modelThatExtracted(extractedData) ?? (process.env.GEMINI_MODEL?.trim() || null),
       latencyMs,
       extracted: (extractedData ?? undefined) as any,
       errorCategory: extractedData ? null : "UNAVAILABLE",

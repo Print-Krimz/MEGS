@@ -21,9 +21,8 @@ export const getCandidateModels = (): string[] => {
   const models = [
     envModel,
     "gemini-2.5-flash-lite",
-    "gemini-3-flash-preview",
-    "gemini-flash-latest",
-    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
   ].filter((m): m is string => Boolean(m && m.length > 0));
 
   return Array.from(new Set(models));
@@ -44,6 +43,10 @@ export interface GenerateOptions {
   thinking?: "minimal";
   /** Longest provider Retry-After to wait for; a longer one fails that model so the next is tried. */
   maxRetryDelayMs?: number;
+  /** Tries per model for 429/500/503 before giving up on it. Default 3. */
+  attempts?: number;
+  /** When a model stays busy (429/500/503), try the next model instead of failing. */
+  failoverOnBusy?: boolean;
   /** Called with each model right before it is tried (used for observability). */
   onModel?: (model: string) => void;
 }
@@ -106,14 +109,18 @@ const generateUnqueued = async (
           if (requestSignal.aborted) throw Object.assign(new Error("AI processing timed out"), { name: "TimeoutError" });
           throw error;
         }
-      }, 3, { maxDelayMs: options.maxRetryDelayMs });
+      }, options.attempts ?? 3, { maxDelayMs: options.maxRetryDelayMs });
       return response;
     } catch (err: any) {
       // Caller cancellation is final: never submit fallback work for a cancelled request.
       if (callerSignal?.aborted) throw callerSignal.reason ?? err;
       // A capped (too long) provider delay fails this model fast; remember it and try the next one.
       if (err?.capped) { cappedError = err; continue; }
-      if (err?.retryable) throw err;
+      if (err?.retryable) {
+        if (!options.failoverOnBusy) throw err;
+        cappedError = err;
+        continue;
+      }
       console.warn("[Gemini] Request failed; trying the next configured model.");
       // A timeout may still incur provider cost; avoid submitting duplicate work.
       if (signal?.aborted || err?.name === "TimeoutError" || err?.name === "AbortError") throw new Error("AI processing timed out");
@@ -535,7 +542,7 @@ const EXTRACTION_VISION_TIMEOUT_MS = 45_000;
 // The applicant is waiting: refuse provider waits longer than this and try the next model.
 const EXTRACTION_MAX_RETRY_DELAY_MS = 5_000;
 const extractionOptions = (onModel: (model: string) => void): GenerateOptions =>
-  ({ thinking: "minimal", maxRetryDelayMs: EXTRACTION_MAX_RETRY_DELAY_MS, onModel });
+  ({ thinking: "minimal", maxRetryDelayMs: EXTRACTION_MAX_RETRY_DELAY_MS, attempts: 2, failoverOnBusy: true, onModel });
 
 const sizeBucket = (n: number): string =>
   n < 50_000 ? "lt50k" : n < 200_000 ? "lt200k" : n < 1_000_000 ? "lt1m" : "gte1m";
@@ -555,6 +562,11 @@ export const classifyExtractionError = (err: any): string => {
 const tracedExtraction = async (
   path: "text" | "vision", mime: string, size: number,
   run: (options: GenerateOptions) => Promise<ExtractedProfileData>,
+// Which model answered each extraction result, so callers can record the real one.
+const extractionModels = new WeakMap<ExtractedProfileData, string>();
+export const modelThatExtracted = (data: ExtractedProfileData | null | undefined): string | null =>
+  (data && extractionModels.get(data)) || null;
+
 ): Promise<ExtractedProfileData> => {
   const started = performance.now();
   let model = "none";
@@ -567,6 +579,7 @@ const tracedExtraction = async (
   } catch (err: any) {
     log(classifyExtractionError(err));
     throw err;
+    extractionModels.set(result, model);
   }
 };
 
