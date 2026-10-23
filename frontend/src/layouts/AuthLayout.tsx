@@ -4,7 +4,6 @@ import { ArrowLeft, Check, LogOut } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { Role } from "../lib/types/enums";
 import { AnimatePresence, EASE_OUT, LineReveal, MotionRoot, m, staggerItem, useReducedMotion } from "../components/public/motion";
-import { HeroBackdrop } from "../components/public/HeroBackdrop";
 import { Button } from "@/components/shadcn/button";
 
 const PANEL_COPY: Record<string, { title: string; points: string[] }> = {
@@ -76,7 +75,6 @@ export const AuthLayout: React.FC = () => {
 
         {/* Brand panel (tablet and up): the landing hero's navy surface, motto and industry photos. */}
         <aside className="relative hidden overflow-hidden bg-megs-navy-900 text-white md:block">
-          <HeroBackdrop active />
           <m.span
             aria-hidden="true"
             className="absolute inset-x-0 top-0 z-10 h-1 origin-left bg-primary"

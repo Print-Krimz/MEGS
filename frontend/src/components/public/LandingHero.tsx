@@ -24,7 +24,7 @@ export const POSITIONS_SUPPLIED = [
   "Production supervisors",
 ];
 
-const FACTS = ["Since May 1997", "Central office in Valenzuela City", "6 branches, Luzon to Mindanao"];
+const FACTS = ["Since May 1997", "Central office in Valenzuela City", "5 branches, Luzon to Mindanao"];
 
 /** The few positions named in the hero. The full list stays in POSITIONS_SUPPLIED. */
 const HERO_POSITIONS = [

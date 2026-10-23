@@ -43,39 +43,60 @@ const milestones = [
     text: "Professional cleaning joins the services, regular and specialized.",
   },
   {
-    when: "Today",
+    when: "MEGS today",
     text: "Central office in Valenzuela and five branches, supplying office, technical, industrial and agricultural personnel and professional cleaners.",
   },
 ];
 
-/** Milestone list with a rail that fills as the reader scrolls. Static and fully drawn under reduced motion. */
-const Timeline: React.FC = () => {
-  const ref = React.useRef<HTMLOListElement>(null);
+/**
+ * One milestone. Its dot lights when it reaches the reading line and the rail segment below it fills
+ * while the reader scrolls to the next dot, so dots and rail always agree and the fill reverses on
+ * scroll up. Static and fully drawn under reduced motion.
+ */
+const TimelineItem: React.FC<{ item: (typeof milestones)[number]; last: boolean }> = ({ item, last }) => {
+  const ref = React.useRef<HTMLLIElement>(null);
   const reduceMotion = useReducedMotion();
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start 75%", "end 55%"] });
-  const scaleY = useTransform(scrollYProgress, [0, 1], [0, 1]);
+  const { scrollYProgress: dotProgress } = useScroll({ target: ref, offset: ["start 72%", "start 62%"] });
+  const { scrollYProgress: railProgress } = useScroll({ target: ref, offset: ["start 62%", "end 62%"] });
+  const dotScale = useTransform(dotProgress, [0, 1], [0, 1]);
+  const textOpacity = useTransform(dotProgress, [0, 1], [0.45, 1]);
 
   return (
-    <m.ol ref={ref} {...staggerParent(0.15)} className="relative space-y-10">
-      <span aria-hidden="true" className="absolute bottom-2 left-[7px] top-2 w-0.5 bg-border" />
-      <m.span
-        aria-hidden="true"
-        style={reduceMotion ? undefined : { scaleY }}
-        className="absolute bottom-2 left-[7px] top-2 w-0.5 origin-top bg-primary"
-      />
-      {milestones.map((item) => (
-        <m.li key={item.when} {...staggerItem} className="relative pl-10">
-          <span
+    <li ref={ref} className={`relative pl-10 ${last ? "" : "pb-12"}`}>
+      {!last && (
+        <>
+          <span aria-hidden="true" className="absolute -bottom-[14px] left-[7px] top-[14px] w-0.5 bg-border" />
+          <m.span
             aria-hidden="true"
-            className="absolute left-0 top-1.5 size-4 rounded-full border-2 border-primary bg-page"
+            style={reduceMotion ? undefined : { scaleY: railProgress }}
+            className="absolute -bottom-[14px] left-[7px] top-[14px] w-0.5 origin-top bg-primary"
           />
-          <p className="font-display text-xl leading-tight text-secondary sm:text-2xl">{item.when}</p>
-          <p className="mt-1.5 max-w-lg text-pretty text-base leading-relaxed text-muted-foreground">{item.text}</p>
-        </m.li>
-      ))}
-    </m.ol>
+        </>
+      )}
+      <span
+        aria-hidden="true"
+        className="absolute left-0 top-1.5 z-10 size-4 overflow-hidden rounded-full border-2 border-primary bg-page"
+      >
+        <m.span
+          style={reduceMotion ? undefined : { scale: dotScale }}
+          className="block size-full rounded-full bg-primary"
+        />
+      </span>
+      <m.div style={reduceMotion ? undefined : { opacity: textOpacity }}>
+        <p className="font-display text-xl leading-tight text-secondary sm:text-2xl">{item.when}</p>
+        <p className="mt-1.5 max-w-lg text-pretty text-base leading-relaxed text-muted-foreground">{item.text}</p>
+      </m.div>
+    </li>
   );
 };
+
+const Timeline: React.FC = () => (
+  <ol className="relative">
+    {milestones.map((item, i) => (
+      <TimelineItem key={item.when} item={item} last={i === milestones.length - 1} />
+    ))}
+  </ol>
+);
 
 const telLink =
   "inline-flex min-h-11 items-center rounded-sm text-lg tabular-nums text-secondary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -155,10 +176,17 @@ export const LandingAbout: React.FC = () => {
 
         {/* Milestones */}
         <div className="mt-14 grid gap-8 border-t border-border pt-10 sm:mt-24 sm:pt-14 lg:grid-cols-12 lg:gap-20">
-          <Reveal className="lg:col-span-4">
-            <h3 className="font-display text-2xl leading-tight text-secondary sm:text-3xl">How MEGS grew</h3>
+          <Reveal className="lg:col-span-5">
+            <div className="lg:sticky lg:top-28">
+              <h3 className="font-display text-2xl leading-tight text-secondary sm:text-3xl">How MEGS grew</h3>
+              <span aria-hidden="true" className="mt-3 block h-0.5 w-10 bg-primary" />
+              <p className="mt-5 max-w-sm text-pretty text-base leading-relaxed text-muted-foreground">
+                From a single proprietorship in 1997 to a Valenzuela head office and five branches from Luzon to
+                Mindanao.
+              </p>
+            </div>
           </Reveal>
-          <div className="lg:col-span-8">
+          <div className="lg:col-span-7">
             <Timeline />
           </div>
         </div>

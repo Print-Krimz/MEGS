@@ -7,7 +7,6 @@ import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
 import { EASE_OUT, m, useReducedMotion, useScroll, useTransform } from "./motion";
 import { megsPhoto } from "./megsPhotos";
-import { HeroBackdrop, useOnScreen } from "./HeroBackdrop";
 
 interface ShowcasePhoto {
   id: "lead" | "retail" | "hospitality";
@@ -257,8 +256,6 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({ onFindJobs }) => {
   const desktop = useIsDesktop();
   const parallax = desktop && !reduceMotion;
   const photos = React.useMemo(buildPhotos, []);
-  const cardRef = React.useRef<HTMLDivElement>(null);
-  const cardOnScreen = useOnScreen(cardRef);
 
   // Each layer travels a different distance for depth. All stay under 30px.
   const { scrollY } = useScroll();
@@ -312,7 +309,7 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({ onFindJobs }) => {
         ))}
       </div>
 
-      <m.div ref={cardRef} style={parallax ? { y: cardY } : undefined} className="relative z-30">
+      <m.div style={parallax ? { y: cardY } : undefined} className="relative z-30">
         <m.div
           initial={reduceMotion ? false : { opacity: 0, y: 24 }}
           animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -322,7 +319,6 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({ onFindJobs }) => {
             aria-labelledby="hero-hiring-title"
             className="relative isolate overflow-hidden rounded-lg bg-megs-navy-900 p-5 text-white transition-transform duration-200 ease-out hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
           >
-            <HeroBackdrop active={cardOnScreen} />
             <span aria-hidden="true" className="absolute inset-x-0 top-0 z-10 h-1 bg-primary" />
             <div className="relative pt-1">
               <HiringCard onFindJobs={onFindJobs} />

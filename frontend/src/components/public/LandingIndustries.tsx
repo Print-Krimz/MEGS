@@ -133,8 +133,7 @@ const IndustryCard: React.FC<{ industry: Industry }> = ({ industry }) => {
     >
       <div className={cn(
           "relative aspect-[3/2] overflow-hidden",
-          !hasImage &&
-            "bg-megs-navy-900 bg-[repeating-linear-gradient(90deg,transparent_0_47px,rgb(255_255_255/0.05)_47px_48px)]"
+          !hasImage && "bg-megs-navy-900"
         )}
       >
         {hasImage && (
