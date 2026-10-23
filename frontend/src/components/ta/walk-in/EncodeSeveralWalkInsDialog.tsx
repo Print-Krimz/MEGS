@@ -475,8 +475,8 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
       <Dialog
         open={open && !sheetOpen}
         onClose={() => void requestClose()}
-        title="Encode several walk-ins"
-        description="Add the biodata files. The details fill in from each one. Check every row, then encode all."
+        title="Encode walk-in"
+        description="Add one or more biodata files. The details fill in from each one. Check each row, then encode."
         size="xl"
         className="lg:max-w-6xl"
       >
@@ -492,7 +492,7 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
             <div className="grid gap-3 md:grid-cols-2">
               <ComboBox
                 id="batch-job"
-                label="Job for this batch (optional)"
+                label="Job (applies to every row)"
                 placeholder="Search open jobs"
                 options={jobOptions}
                 value={batchJob}
@@ -576,12 +576,12 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
                   setSheetOpen(true);
                 }}
               >
-                Print all slips
+                {doneSlips.length > 1 ? "Print all slips" : "Print slip"}
               </Button>
             )}
             {pending.length > 0 && (
               <Button type="button" disabled={!canEncode} loading={encoding} onClick={() => void encodeAll()}>
-                {doneSlips.length > 0 ? "Encode remaining" : "Encode all"}
+                {doneSlips.length > 0 ? "Encode remaining" : rows.length > 1 ? "Encode all" : "Encode"}
               </Button>
             )}
           </div>

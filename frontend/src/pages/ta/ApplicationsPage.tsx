@@ -27,7 +27,6 @@ import { notify } from "../../lib/feedback";
 import type { ReturningWorkerInfo, TAApplicationSummary, WalkInSlip } from "../../lib/types/application.types";
 import type { ApplicationSourceFilter, TAApplicationSearch } from "../../routes";
 import { SourceChip, APPLICATION_SOURCE_LABELS } from "../../components/ta/walk-in/SourceChip";
-import { EncodeWalkInDialog } from "../../components/ta/walk-in/EncodeWalkInDialog";
 import { EncodeSeveralWalkInsDialog } from "../../components/ta/walk-in/EncodeSeveralWalkInsDialog";
 import { WalkInSlipDialog } from "../../components/ta/walk-in/WalkInSlipDialog";
 import { CheckInsPanel, useCheckIns } from "../../components/ta/walk-in/CheckInsPanel";
@@ -223,8 +222,8 @@ export const ApplicationsPage: React.FC = () => {
   };
 
   const [encodeOpen, setEncodeOpen] = useState(false);
+  // Slip for a confirmed self check-in (encoding prints its own A4 slips).
   const [walkInSlip, setWalkInSlip] = useState<WalkInSlip | null>(null);
-  const [encodeSeveralOpen, setEncodeSeveralOpen] = useState(false);
   const [posterOpen, setPosterOpen] = useState(false);
   const [view, setView] = useState<"applications" | "check-ins">("applications");
   const checkInCount = useCheckIns().data?.items.length ?? 0;
@@ -665,9 +664,6 @@ export const ApplicationsPage: React.FC = () => {
             <Button variant="outline" onClick={() => setPosterOpen(true)}>
               Print check-in poster
             </Button>
-            <Button variant="outline" onClick={() => setEncodeSeveralOpen(true)}>
-              Encode several
-            </Button>
             <Button onClick={() => setEncodeOpen(true)}>Encode walk-in</Button>
           </div>
         }
@@ -675,8 +671,7 @@ export const ApplicationsPage: React.FC = () => {
       />
 
       {/* Mounted only while open: the encode form's unsaved-changes guard should not run on every page view. */}
-      {encodeOpen && <EncodeWalkInDialog open onClose={() => setEncodeOpen(false)} onCreated={setWalkInSlip} />}
-      {encodeSeveralOpen && <EncodeSeveralWalkInsDialog open onClose={() => setEncodeSeveralOpen(false)} />}
+      {encodeOpen && <EncodeSeveralWalkInsDialog open onClose={() => setEncodeOpen(false)} />}
       {walkInSlip && <WalkInSlipDialog slip={walkInSlip} onClose={() => setWalkInSlip(null)} />}
       {posterOpen && <CheckInPosterDialog open onClose={() => setPosterOpen(false)} />}
 
