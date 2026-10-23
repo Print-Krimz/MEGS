@@ -266,6 +266,7 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetSeen, setSheetSeen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
 
   // Rows live in a ref as well, so the read queue and the save loop always see the latest list.
   const rowsRef = useRef<BatchRow[]>([]);
@@ -489,7 +490,7 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
               </Button>
             </div>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="max-w-xl">
               <ComboBox
                 id="batch-job"
                 label="Job (applies to every row)"
@@ -503,30 +504,50 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
                 emptyText="No open jobs. Open a job first."
                 helperText="Each row starts with this job. You can change a row."
               />
-              <div className="space-y-1.5">
-                <label htmlFor="batch-files" className="block text-xs font-medium text-slate-600">
-                  Biodata photos or PDFs
-                </label>
-                <input
-                  ref={fileInputRef}
-                  id="batch-files"
-                  type="file"
-                  multiple
-                  accept={ACCEPT_ATTRIBUTE}
-                  disabled={full || encoding}
-                  aria-describedby="batch-files-help"
-                  onChange={(e) => {
-                    addFiles(Array.from(e.target.files ?? []));
-                    if (fileInputRef.current) fileInputRef.current.value = "";
-                  }}
-                  className="block w-full min-h-11 md:min-h-10 rounded-md border border-slate-300 bg-white text-sm text-slate-900 transition-colors hover:border-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:bg-slate-100 file:mr-3 file:h-full file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-800"
-                />
-                <p id="batch-files-help" className="text-xs text-slate-500">
-                  Up to {MAX_BATCH_FILES} files, 5 MB each. {rows.length > 0 ? `${rows.length} added.` : ""}
-                </p>
-              </div>
             </div>
           )}
+
+          <div
+            onDragOver={(e) => {
+              if (full || encoding) return;
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              if (!full && !encoding) addFiles(Array.from(e.dataTransfer.files ?? []));
+            }}
+            className={`rounded-md border-2 border-dashed px-4 text-center transition-colors ${
+              rows.length === 0 ? "flex min-h-64 flex-col items-center justify-center gap-2 py-10" : "flex flex-wrap items-center justify-center gap-x-3 gap-y-1 py-3"
+            } ${dragging ? "border-navy bg-navy-soft" : "border-slate-300 bg-slate-50"}`}
+          >
+            <label htmlFor="batch-files" className={rows.length === 0 ? "text-base font-medium text-slate-900" : "text-sm font-medium text-slate-800"}>
+              {rows.length === 0 ? "Drop biodata files here" : "Add more biodata files"}
+              <span className="sr-only"> (Biodata photos or PDFs)</span>
+            </label>
+            <input
+              ref={fileInputRef}
+              id="batch-files"
+              type="file"
+              multiple
+              accept={ACCEPT_ATTRIBUTE}
+              disabled={full || encoding}
+              aria-describedby="batch-files-help"
+              onChange={(e) => {
+                addFiles(Array.from(e.target.files ?? []));
+                if (fileInputRef.current) fileInputRef.current.value = "";
+              }}
+              className="sr-only"
+            />
+            <Button type="button" variant="outline" size={rows.length === 0 ? "md" : "sm"} disabled={full || encoding} onClick={() => fileInputRef.current?.click()}>
+              Choose files
+            </Button>
+            <p id="batch-files-help" className="text-xs text-slate-500">
+              Photos or PDFs, up to {MAX_BATCH_FILES} files, 5 MB each.{rows.length > 0 ? ` ${rows.length} added.` : ""}
+            </p>
+          </div>
 
           {notice.length > 0 && (
             <ul role="alert" className="space-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
