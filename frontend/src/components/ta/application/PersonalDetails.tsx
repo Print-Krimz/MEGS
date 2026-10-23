@@ -49,7 +49,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVer
           {verificationLabel && <p className="text-sm text-slate-600">{verificationLabel}</p>}
           {readState === "reading" && (
             <p role="status" className="text-sm text-slate-600">
-              Reading bio-data…
+              Reading bio-dataâ€¦
             </p>
           )}
           {readState === "failed" && (
@@ -62,7 +62,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVer
                   disabled={isRetrying}
                   className="focus-ring inline-flex min-h-11 items-center font-medium text-navy underline-offset-2 hover:underline disabled:opacity-60 md:min-h-6"
                 >
-                  {isRetrying ? "Trying again…" : "Try again"}
+                  {isRetrying ? "Trying againâ€¦" : "Try again"}
                 </button>
               )}
             </p>
