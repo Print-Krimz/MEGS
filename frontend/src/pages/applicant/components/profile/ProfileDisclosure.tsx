@@ -101,5 +101,5 @@ const StatusPill: React.FC<{ status: SectionStatus; missing: number }> = ({ stat
         <Circle className="size-4" aria-hidden="true" /> {missing} to fill in
       </span>
     );
-  return <span className="shrink-0 text-xs text-slate-500">Optional</span>;
+  return null;
 };
