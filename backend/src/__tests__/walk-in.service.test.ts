@@ -6,7 +6,7 @@ const m = vi.hoisted(() => {
   const fn = () => vi.fn();
   const prisma: Record<string, any> = {
     user: { findMany: fn(), findUnique: fn(), findFirst: fn(), create: fn(), update: fn(), deleteMany: fn() },
-    applicantProfile: { create: fn(), update: fn(), updateMany: fn(), deleteMany: fn() },
+    applicantProfile: { findUnique: fn(), create: fn(), update: fn(), updateMany: fn(), deleteMany: fn() },
     storedDocument: { deleteMany: fn() },
     jobPosting: { findUnique: fn(), findMany: fn(), updateMany: fn() },
     application: { create: fn(), update: fn(), findUnique: fn() },
@@ -28,6 +28,8 @@ const m = vi.hoisted(() => {
     reuseValidSameClientDocuments: fn(),
     sendNotification: fn(),
     sendRoleNotification: fn(),
+    parseResumeToProposal: fn(),
+    fillBlanksFromParse: fn(),
   };
 });
 
@@ -42,6 +44,10 @@ vi.mock("../services/applicant/application.service.js", () => ({ assertCanApply:
 vi.mock("../services/ta/ta.compliance.service.js", () => ({
   generateComplianceRequirementsFromMRF: m.generateComplianceRequirementsFromMRF,
   reuseValidSameClientDocuments: m.reuseValidSameClientDocuments,
+}));
+vi.mock("../services/applicant/resume-merge.service.js", () => ({
+  parseResumeToProposal: m.parseResumeToProposal,
+  fillBlanksFromParse: m.fillBlanksFromParse,
 }));
 // Keep the real ownership rules for everything except the job check, which each test controls.
 vi.mock("../services/ta/ownership.js", async (importOriginal) => ({
@@ -128,6 +134,9 @@ const resetMocks = () => {
   m.prisma.user.create.mockResolvedValue({ id: USER_ID });
   m.prisma.user.update.mockResolvedValue({});
   m.prisma.user.deleteMany.mockResolvedValue({ count: 1 });
+  m.prisma.applicantProfile.findUnique.mockResolvedValue({ id: 9 });
+  m.parseResumeToProposal.mockResolvedValue({ id: 77 });
+  m.fillBlanksFromParse.mockResolvedValue({});
   m.prisma.applicantProfile.create.mockResolvedValue({});
   m.prisma.applicantProfile.update.mockResolvedValue({});
   m.prisma.applicantProfile.updateMany.mockResolvedValue({ count: 1 });
@@ -490,6 +499,46 @@ describe("createWalkIn: new person", () => {
     expect(error).toBeInstanceOf(WalkInConflictError);
     expect(error.message).toMatch(/already belongs to an applicant/);
     expect(m.supabase.auth.admin.createUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("createWalkIn: bio-data extraction", () => {
+  it("parses the bio-data as WALK_IN and fills blanks for a new person before scoring", async () => {
+    await createWalkIn(TA, baseInput(), FILE);
+    await vi.waitFor(() => expect(m.revalidateApplication).toHaveBeenCalledWith(42, 5));
+    expect(m.parseResumeToProposal).toHaveBeenCalledWith(
+      expect.objectContaining({ profileId: 9, buffer: FILE.buffer, source: "WALK_IN", sha256: expect.stringMatching(/^[0-9a-f]{64}$/) })
+    );
+    expect(m.fillBlanksFromParse).toHaveBeenCalledWith(77);
+    expect(m.fillBlanksFromParse.mock.invocationCallOrder[0]).toBeLessThan(m.revalidateApplication.mock.invocationCallOrder[0]);
+    expect(m.enqueueResumeAnalysis).toHaveBeenCalledWith(42);
+  });
+
+  it("never rewrites the TA-typed identity fields itself", async () => {
+    await createWalkIn(TA, baseInput(), FILE);
+    await vi.waitFor(() => expect(m.fillBlanksFromParse).toHaveBeenCalled());
+    expect(m.prisma.applicantProfile.update).not.toHaveBeenCalled();
+    expect(m.prisma.applicantProfile.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the proposal pending for an existing person", async () => {
+    m.prisma.user.findUnique.mockResolvedValueOnce({
+      id: "existing-1", role: "APPLICANT", phoneNumber: null,
+      applicantProfile: { firstName: "Juan", middleName: "Santos", lastName: "Dela Cruz", mobileNumber: "09171234567", dateOfBirth: new Date() },
+    });
+    await createWalkIn(TA, baseInput({ existingUserId: "existing-1" }), FILE);
+    await vi.waitFor(() => expect(m.revalidateApplication).toHaveBeenCalled());
+    expect(m.parseResumeToProposal).toHaveBeenCalledWith(expect.objectContaining({ source: "WALK_IN" }));
+    expect(m.fillBlanksFromParse).not.toHaveBeenCalled();
+  });
+
+  it("still succeeds and scores when extraction fails", async () => {
+    m.parseResumeToProposal.mockRejectedValue(new Error("gemini down"));
+    const slip = await createWalkIn(TA, baseInput(), FILE);
+    expect(slip.applicationId).toBe(42);
+    await vi.waitFor(() => expect(m.revalidateApplication).toHaveBeenCalledWith(42, 5));
+    expect(m.fillBlanksFromParse).not.toHaveBeenCalled();
+    expect(m.enqueueResumeAnalysis).toHaveBeenCalledWith(42);
   });
 });
 
