@@ -12,6 +12,10 @@ export interface PersonalDetailsProps {
   candidateInitials?: string;
   email?: string | null;
   onVerify: () => void;
+  /** Opens the bio-data review. Leave out when there is no resume or bio-data to check against. */
+  onReview?: () => void;
+  /** "Not verified" or "Verified by <name>, <date>". */
+  verificationLabel?: string;
   onOpenPhoto?: () => void;
 }
 
@@ -26,18 +30,28 @@ const Row: React.FC<{ label: string; children: React.ReactNode; wide?: boolean }
  * Read-only personal and contact details. Government IDs show the last four digits;
  * the full value is shown on request here and in full in the verify form.
  */
-export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVerify, onOpenPhoto }) => {
+export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVerify, onReview, verificationLabel, onOpenPhoto }) => {
   const address = [profile?.address, profile?.barangay, profile?.city, profile?.province, profile?.postalCode].filter(Boolean).join(", ");
 
   return (
     <section aria-labelledby="personal-details-heading" className="space-y-3">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
-        <h3 id="personal-details-heading" className="text-base font-semibold text-slate-900">
-          Personal &amp; contact
-        </h3>
-        <Button variant="outline" size="sm" type="button" onClick={onVerify} aria-label="Verify Profile Details" title="Check these details against the resume and correct them">
-          Verify details
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2">
+        <div>
+          <h3 id="personal-details-heading" className="text-base font-semibold text-slate-900">
+            Personal &amp; contact
+          </h3>
+          {verificationLabel && <p className="text-sm text-slate-600">{verificationLabel}</p>}
+        </div>
+        <div className="flex items-center gap-2">
+          {onReview && (
+            <Button variant="outline" size="sm" type="button" onClick={onReview} title="Check the details against the resume and mark them verified">
+              Review bio-data
+            </Button>
+          )}
+          <Button variant="outline" size="sm" type="button" onClick={onVerify} aria-label="Verify Profile Details" title="Check these details against the resume and correct them">
+            Verify details
+          </Button>
+        </div>
       </div>
 
       <dl className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">

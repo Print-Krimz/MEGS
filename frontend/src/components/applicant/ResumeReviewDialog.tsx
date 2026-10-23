@@ -18,6 +18,8 @@ export interface ResumeReviewDialogProps {
   error?: string | null;
   onSave: (accept: ResumeAccept) => void;
   onClose: () => void;
+  /** Talent Acquisition review: wording refers to the resume (not "your"), and verified values may be replaced. */
+  staff?: boolean;
 }
 
 const checkboxClass = "mt-0.5 rounded text-[#0B315D] focus:ring-[#0B315D]";
@@ -77,7 +79,9 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
   error,
   onSave,
   onClose,
+  staff = false,
 }) => {
+  const source = staff ? "From the resume" : "From your resume";
   const [selection, setSelection] = useState<ResumeSelection | null>(null);
 
   useEffect(() => {
@@ -95,7 +99,7 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
   const trainings = proposal.trainings.filter((r) => r.status === "new");
   const references = proposal.references.filter((r) => r.status === "new");
 
-  const accept = buildAccept(proposal, selection);
+  const accept = buildAccept(proposal, selection, { allowLocked: staff });
   const update = (patch: Partial<ResumeSelection>) => setSelection({ ...selection, ...patch });
 
   return (
@@ -103,8 +107,12 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
       open={open}
       onClose={onClose}
       size="lg"
-      title="Review details from your resume"
-      description="Nothing is saved until you choose Save selected. Details already on your profile are kept unless you pick the resume value."
+      title={staff ? "Review details from the resume" : "Review details from your resume"}
+      description={
+        staff
+          ? "Nothing is saved until you choose Save selected. Saved details are kept unless you pick the resume value."
+          : "Nothing is saved until you choose Save selected. Details already on your profile are kept unless you pick the resume value."
+      }
     >
       <div className="space-y-4">
         {personal.length > 0 && (
@@ -119,7 +127,7 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
                       key={row.field}
                       id={id}
                       title={label}
-                      detail={`From your resume: ${formatResumeValue(row.proposed)}`}
+                      detail={`${source}: ${formatResumeValue(row.proposed)}`}
                       checked={selection.personal.has(row.field)}
                       onChange={(on) => update({ personal: toggle(selection.personal, row.field, on) })}
                     />
@@ -129,8 +137,8 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
                   <li key={row.field} className="py-2">
                     <p className="text-sm font-medium text-[#102A43]">{label}</p>
                     <p className="text-xs text-[#627D98]">Saved: {formatResumeValue(row.current)}</p>
-                    <p className="text-xs text-[#627D98]">From your resume: {formatResumeValue(row.proposed)}</p>
-                    {row.locked ? (
+                    <p className="text-xs text-[#627D98]">{source}: {formatResumeValue(row.proposed)}</p>
+                    {row.locked && !staff ? (
                       <p className="mt-1 text-xs text-[#627D98]">Verified by MEGS staff. This value can't be changed here.</p>
                     ) : (
                       <div className="mt-1.5 flex items-center gap-2">

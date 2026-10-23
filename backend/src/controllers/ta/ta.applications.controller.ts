@@ -17,6 +17,14 @@ import {
   recordSignedContract,
 } from '../../services/ta/ta.applications.service.js';
 import { findDuplicateIdentifierWarnings } from '../../services/ta/duplicate-identifiers.js';
+import { revalidateApplicantProfile } from '../../services/scoring/scoring-configuration.service.js';
+import {
+  ProfileSectionError,
+  replaceEducations,
+  replaceSkills,
+  replaceWorkExperiences,
+  type SectionCount,
+} from '../../services/ta/candidate-profile-review.service.js';
 
 // GET /api/ta/applications - List and filter applications across postings
 export const listApplications = async (req: Request, res: Response): Promise<void> => {
@@ -272,6 +280,11 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       emergencyContactPhone,
       emergencyContactRelationship,
       emergencyContactAddress,
+      professionalSummary,
+      workExperiences,
+      educations,
+      skills,
+      markVerified,
     } = req.body || {};
 
     // Address problems are user input errors (400), not server failures.
@@ -492,15 +505,48 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       }
     }
 
-    const updatedProfile = await prisma.applicantProfile.update({
-      where: { id: profile.id },
-      data: updateData,
-    });
+    if (professionalSummary !== undefined) {
+      const val = typeof professionalSummary === "string" ? professionalSummary.trim() || null : null;
+      if (profile.professionalSummary !== val) {
+        changes.professionalSummary = { from: profile.professionalSummary, to: val };
+        updateData.professionalSummary = val;
+      }
+    }
 
     const actorId = req.user?.id || "system";
+    const verified = markVerified === true;
+    if (verified) {
+      updateData.verificationStatus = "VERIFIED";
+      updateData.verifiedById = req.user?.id ?? null;
+      updateData.verifiedAt = new Date();
+    }
+
+    // One transaction: personal fields, the submitted sections, and the verified mark commit together.
+    const sections: { workExperiences?: SectionCount; educations?: SectionCount; skills?: SectionCount } = {};
+    let updatedProfile;
+    try {
+      updatedProfile = await prisma.$transaction(async (tx) => {
+        if (Array.isArray(workExperiences)) sections.workExperiences = await replaceWorkExperiences(tx, profile.id, workExperiences);
+        if (Array.isArray(educations)) sections.educations = await replaceEducations(tx, profile.id, educations);
+        if (Array.isArray(skills)) sections.skills = await replaceSkills(tx, profile.id, skills);
+        return tx.applicantProfile.update({ where: { id: profile.id }, data: updateData });
+      });
+    } catch (txError: any) {
+      if (txError instanceof ProfileSectionError) {
+        sendError(res, txError.message, 400);
+        return;
+      }
+      throw txError;
+    }
+
     await logAudit(actorId, "TA_CANDIDATE_PROFILE_VERIFIED", "ApplicantProfile", profile.id, {
       changes,
+      sections,
+      ...(verified ? { verified: true } : {}),
     });
+
+    // Edits change what scoring sees, so rebuild the candidate's features and scores after the commit.
+    void revalidateApplicantProfile(profile.id);
 
     // Soft warning only: checks just the identifiers changed by this save and never blocks it.
     const warnings = await findDuplicateIdentifierWarnings(profile.id, {
@@ -509,7 +555,7 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       tin: changes.tin?.to,
     });
 
-    sendSuccess(res, "Candidate profile verified and updated successfully", { ...updatedProfile, warnings });
+    sendSuccess(res, verified ? "Candidate profile verified and updated successfully" : "Candidate profile updated successfully", { ...updatedProfile, warnings });
   } catch (error: any) {
     sendError(res, error.message, 500);
   }

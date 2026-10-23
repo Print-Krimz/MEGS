@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useImperativeHandle, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Button, Input, PhoneInput, Select } from "../../ui";
 import { PhilippineAddressFields } from "../../common/PhilippineAddressFields";
@@ -21,6 +21,12 @@ import {
   validateAddressText,
 } from "../../../lib/statutory-validation";
 
+/** Lets a parent screen with its own Save buttons validate the form and read its values. */
+export interface ProfileEditFormHandle {
+  /** Returns the cleaned values, or null after showing the problems on the form. */
+  collect: () => UpdateCandidateProfileDto | null;
+}
+
 export interface ProfileEditFormProps {
   /** The applicant profile being verified. */
   profile: any;
@@ -28,6 +34,9 @@ export interface ProfileEditFormProps {
   isSaving: boolean;
   onCancel: () => void;
   onSave: (dto: UpdateCandidateProfileDto) => void;
+  /** Hides the intro and the Save buttons; the parent saves through `formRef`. */
+  embedded?: boolean;
+  formRef?: React.Ref<ProfileEditFormHandle>;
 }
 
 const startingForm = (profile: any) => ({
@@ -54,13 +63,12 @@ const startingForm = (profile: any) => ({
 });
 
 /** Side-by-side verification: the recruiter checks the resume and corrects the profile fields. Rules moved unchanged from the page. */
-export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candidateInitials, isSaving, onCancel, onSave }) => {
+export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candidateInitials, isSaving, onCancel, onSave, embedded = false, formRef }) => {
   const [profileForm, setProfileForm] = useState(() => startingForm(profile));
   const [profileFormErrors, setProfileFormErrors] = useState<Record<string, string>>({});
   const [photoImgError, setPhotoImgError] = useState(false);
 
-  const handleSaveCandidateProfile = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const collectDto = (): UpdateCandidateProfileDto | null => {
     const errors: Record<string, string> = {};
 
     const firstErr = validatePersonName(profileForm.firstName, "First Name", { required: true });
@@ -133,7 +141,7 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candi
       setProfileFormErrors(errors);
       const firstError = Object.values(errors)[0];
       notify.error("Validation Error", firstError || "Please correct the highlighted fields before saving.");
-      return;
+      return null;
     }
 
     setProfileFormErrors({});
@@ -158,7 +166,7 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candi
       }
     }
 
-    onSave({
+    return {
       firstName: profileForm.firstName.trim(),
       lastName: profileForm.lastName.trim(),
       middleName: profileForm.middleName.trim() || null,
@@ -177,11 +185,20 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candi
       tin: profileForm.tin.trim() || null,
       emergencyContactName: profileForm.emergencyContactName.trim() || null,
       emergencyContactPhone: cleanedEmergencyPhone || null,
-    });
+    };
+  };
+
+  useImperativeHandle(formRef, () => ({ collect: collectDto }));
+
+  const handleSaveCandidateProfile = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const dto = collectDto();
+    if (dto) onSave(dto);
   };
 
   return (
     <form onSubmit={handleSaveCandidateProfile} className="space-y-3 pt-2">
+      {!embedded && (
       <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
         <div className="shrink-0">
           {profile?.photoUrl && !photoImgError ? (
@@ -202,6 +219,7 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candi
           <p className="text-xs text-slate-600">Correct any field that differs from the resume, then save.</p>
         </div>
       </div>
+      )}
     
       <div className="grid grid-cols-2 gap-2">
         <Input
@@ -402,6 +420,7 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candi
         </div>
       </div>
     
+      {!embedded && (
       <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
         <Button
           variant="outline"
@@ -422,6 +441,7 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candi
           Verify & Save Changes
         </Button>
       </div>
+      )}
     </form>
   );
 };

@@ -1,6 +1,6 @@
 /* oxlint-disable react/only-export-components -- the zoom helpers are exported for their unit tests */
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Download, FileText, Maximize2, Minus, PanelRightClose, Plus } from "lucide-react";
+import { Download, FileText, Maximize2, Minus, PanelRightClose, Plus, RotateCw } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 /** Zoom steps in percent. `null` means "Fit width". */
@@ -70,6 +70,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   bodyClassName,
 }) => {
   const [zoom, setZoom] = useState<number | null>(null);
+  const [rotation, setRotation] = useState(0);
   const canZoom = kind === "pdf" || kind === "image";
 
   const zoomIn = useCallback(() => setZoom((z) => stepZoom(z, 1)), []);
@@ -117,6 +118,11 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 Fit width
               </button>
             )}
+            {kind === "image" && (
+              <button type="button" className={toolButton} onClick={() => setRotation((r) => (r + 90) % 360)} aria-label="Rotate" title="Rotate 90 degrees">
+                <RotateCw className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
           </>
         )}
         <span className="ml-auto flex items-center gap-0.5">
@@ -151,7 +157,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
           // Re-keyed so a zoom change reloads the viewer at the new fragment.
           <iframe key={zoom ?? "fit"} src={buildPdfViewerUrl(url, zoom)} title={title} className="absolute inset-0 h-full w-full border-none bg-white" />
         ) : kind === "image" ? (
-          <PannableImage url={url} alt={title} zoom={zoom} onZoomIn={zoomIn} onZoomOut={zoomOut} />
+          <PannableImage url={url} alt={title} zoom={zoom} rotation={rotation} onZoomIn={zoomIn} onZoomOut={zoomOut} />
         ) : (
           <div className="flex h-full items-center justify-center p-4">
             <div className="max-w-sm space-y-3 rounded-md border border-slate-300 bg-white p-6 text-center">
@@ -176,16 +182,18 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
 };
 
 /** Image at a percentage of the container width. Mouse and pen drag to pan; Ctrl + wheel zooms; touch scrolls natively. */
-const PannableImage: React.FC<{ url: string; alt: string; zoom: number | null; onZoomIn: () => void; onZoomOut: () => void }> = ({
+const PannableImage: React.FC<{ url: string; alt: string; zoom: number | null; rotation: number; onZoomIn: () => void; onZoomOut: () => void }> = ({
   url,
   alt,
   zoom,
+  rotation,
   onZoomIn,
   onZoomOut,
 }) => {
   const scroller = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const zoomHandlers = useRef({ onZoomIn, onZoomOut });
   zoomHandlers.current = { onZoomIn, onZoomOut };
 
@@ -233,7 +241,37 @@ const PannableImage: React.FC<{ url: string; alt: string; zoom: number | null; o
       onPointerCancel={endDrag}
       className={cn("absolute inset-0 overflow-auto [touch-action:pan-x_pan-y]", dragging ? "cursor-grabbing select-none" : "cursor-grab")}
     >
-      <img src={url} alt={alt} draggable={false} style={{ width: `${zoom ?? 100}%`, maxWidth: "none" }} className="block h-auto bg-white" />
+      {rotation === 0 || !natural ? (
+        <img
+          src={url}
+          alt={alt}
+          draggable={false}
+          onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+          style={{ width: `${zoom ?? 100}%`, maxWidth: "none" }}
+          className="block h-auto bg-white"
+        />
+      ) : (
+        // Rotated: the frame takes the turned shape so scrolling and panning still reach every edge.
+        <div
+          className="relative"
+          style={{
+            width: `${zoom ?? 100}%`,
+            aspectRatio: rotation % 180 === 0 ? `${natural.w} / ${natural.h}` : `${natural.h} / ${natural.w}`,
+          }}
+        >
+          <img
+            src={url}
+            alt={alt}
+            draggable={false}
+            className="absolute left-1/2 top-1/2 block h-auto bg-white"
+            style={{
+              width: rotation % 180 === 0 ? "100%" : `${(100 * natural.w) / natural.h}%`,
+              maxWidth: "none",
+              transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -22,6 +22,7 @@ import { RequirementsTab } from "../../components/ta/application/RequirementsTab
 import { ActivityTab } from "../../components/ta/application/ActivityTab";
 import { PersonalDetails } from "../../components/ta/application/PersonalDetails";
 import { ProfileEditForm } from "../../components/ta/application/ProfileEditForm";
+import { BioDataReviewPanel, verificationText } from "../../components/ta/application/BioDataReviewPanel";
 import { ResumeRail, ResumeDockTab, ResumeDrawerButton } from "../../components/ta/application/ResumePanel";
 import { PipelineIndicator } from "../../components/common/PipelineIndicator";
 import { APPLICATION_TAB_LABELS, defaultApplicationTab, normalizeApplicationTab, type ApplicationTab } from "../../components/ta/application/tabs";
@@ -155,6 +156,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const [resumeDrawerOpen, setResumeDrawerOpen] = useState(false);
   const [stageBarHeight, setStageBarHeight] = useState(140);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isReviewingBioData, setIsReviewingBioData] = useState(false);
 
   const toggleResume = (open: boolean) => {
     setIsResumeOpen(open);
@@ -406,6 +408,8 @@ export const ApplicationDetailPage: React.FC = () => {
       candidateInitials={candidateInitials}
       email={app.user?.email}
       onVerify={() => setIsEditingProfile(true)}
+      onReview={resumeUrl?.trim() ? () => setIsReviewingBioData(true) : undefined}
+      verificationLabel={verificationText(profile)}
       onOpenPhoto={() =>
         setPreviewDocState({
           open: true,
@@ -701,6 +705,17 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
         </SheetContent>
       </Sheet>
+
+      {isReviewingBioData && profile && (
+        <BioDataReviewPanel
+          applicationId={applicationId}
+          profile={profile}
+          candidateName={candidateName}
+          candidateInitials={candidateInitials}
+          resumeUrl={resumeUrl}
+          onClose={() => setIsReviewingBioData(false)}
+        />
+      )}
 
       {/* Dialogs */}
       <InterviewOutcomeDialog

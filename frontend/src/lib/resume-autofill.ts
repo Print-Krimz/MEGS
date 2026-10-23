@@ -81,10 +81,13 @@ export function initialSelection(proposal: ResumeProposal): ResumeSelection {
   };
 }
 
-/** Builds the apply request. A conflict is sent only when the applicant chose the resume value. */
-export function buildAccept(proposal: ResumeProposal, selection: ResumeSelection): ResumeAccept {
+/**
+ * Builds the apply request. A conflict is sent only when the reviewer chose the resume value.
+ * Verified (locked) fields are dropped unless `allowLocked` is set, which only Talent Acquisition review uses.
+ */
+export function buildAccept(proposal: ResumeProposal, selection: ResumeSelection, options: { allowLocked?: boolean } = {}): ResumeAccept {
   const conflicts = new Set(proposal.personal.filter((r) => r.status === "conflict").map((r) => r.field));
-  const locked = new Set(proposal.personal.filter((r) => r.locked).map((r) => r.field));
+  const locked = new Set(options.allowLocked ? [] : proposal.personal.filter((r) => r.locked).map((r) => r.field));
   const overwrite = [...selection.overwrite].filter((f) => conflicts.has(f) && !locked.has(f));
   const suggested = [...selection.personal].filter((f) => !conflicts.has(f));
   return {

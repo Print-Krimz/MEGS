@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ApplicationStatus } from "@prisma/client";
 import { BACKOUT_REASONS_BY_PARTY, REJECTION_REASON_CODES } from "../services/ta/backout-rules.js";
 import { resumeMergeAccept } from "./applicant.schema.js";
-import { boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber, pageQueryFields, isWorkingHours } from "./field-limits.js";
+import { manilaDateString, boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber, pageQueryFields, isWorkingHours } from "./field-limits.js";
 
 const phoneField = formattedPhone;
 
@@ -22,6 +22,42 @@ const listedChoice = <T extends string>(options: readonly T[], message: string) 
   ).optional().nullable();
 // Update schemas may leave a required field out, but a blank or null value would overwrite it.
 const omittedOrNonBlank = (value: unknown) => value === undefined || (typeof value === "string" && value.length > 0);
+
+// Bio-data review rows (TA edit). Same limits as the applicant's own work, education and skill forms.
+const reviewPastDate = dateOnly.refine((value) => value <= manilaDateString(), "Date cannot be in the future");
+const reviewDateRange = (value: { startDate?: string | null; endDate?: string | null }, ctx: z.RefinementCtx) => {
+  if (value.startDate && value.endDate && value.endDate < value.startDate) {
+    ctx.addIssue({ code: "custom", path: ["endDate"], message: "End date must be on or after start date" });
+  }
+};
+const optionalReviewDate = z.union([reviewPastDate, z.literal("")]).optional().nullable();
+const reviewRowId = finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional();
+const reviewWorkExperience = z.object({
+  id: reviewRowId,
+  company: safeTextSchema("Company", FIELD_LIMITS.shortText),
+  roleTitle: safeTextSchema("Job title", FIELD_LIMITS.shortText),
+  location: optionalSafeText("Location", FIELD_LIMITS.shortText),
+  startDate: reviewPastDate,
+  endDate: optionalReviewDate,
+  isCurrent: z.boolean().optional(),
+  summary: optionalSafeProse("Description", FIELD_LIMITS.notes),
+}).strict().superRefine((value, ctx) => {
+  reviewDateRange(value, ctx);
+  if (value.isCurrent && value.endDate) {
+    ctx.addIssue({ code: "custom", path: ["endDate"], message: "Current work must not have an end date" });
+  }
+});
+const reviewEducation = z.object({
+  id: reviewRowId,
+  school: safeTextSchema("School", FIELD_LIMITS.shortText),
+  degree: optionalSafeText("Degree", FIELD_LIMITS.shortText),
+  fieldOfStudy: optionalSafeText("Field of study", FIELD_LIMITS.shortText),
+  startDate: optionalReviewDate,
+  endDate: optionalReviewDate,
+  notes: optionalSafeProse("Notes", FIELD_LIMITS.notes),
+}).strict().superRefine(reviewDateRange);
+const reviewSkills = z.array(z.string().trim().min(1).max(FIELD_LIMITS.label)).max(FIELD_LIMITS.skills)
+  .refine((skills) => new Set(skills.map((skill) => skill.toLowerCase())).size === skills.length, "Skills must not contain duplicates");
 
 export const taSchema = {
   idParams: z.object({ params: z.object({ id: boundedIdText }).strict() }),
@@ -510,6 +546,11 @@ export const taSchema = {
       emergencyContactPhone: phoneField,
       emergencyContactRelationship: optionalSafeText("Emergency Contact Relationship", FIELD_LIMITS.name),
       emergencyContactAddress: optionalSafeAddress("Emergency Contact Address"),
+      professionalSummary: optionalSafeProse("Professional Summary", FIELD_LIMITS.summary),
+      workExperiences: z.array(reviewWorkExperience).max(FIELD_LIMITS.records).optional(),
+      educations: z.array(reviewEducation).max(FIELD_LIMITS.records).optional(),
+      skills: reviewSkills.optional(),
+      markVerified: z.boolean().optional(),
     }).strict(),
   }),
   updateClient: z.object({
