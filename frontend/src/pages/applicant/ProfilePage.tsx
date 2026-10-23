@@ -55,6 +55,7 @@ import {
   splitReligion,
 } from "../../lib/hr-constants";
 import {
+  ChevronRight,
   Plus,
   Trash2,
   Pencil,
@@ -1610,7 +1611,19 @@ export const ProfilePage: React.FC = () => {
                 </div>
                 </ProfileDisclosure>
 
-                <div className="flex justify-end pt-4 border-t border-slate-200">
+                <div className="flex flex-col-reverse gap-3 pt-4 border-t border-slate-200 sm:flex-row sm:items-center sm:justify-between">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    rightIcon={<ChevronRight className="size-4" aria-hidden="true" />}
+                    onClick={() => {
+                      handleSectionChange("qualifications");
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                  >
+                    Next: Experience & Education
+                  </Button>
                   <Button
                     type="submit"
                     variant="primary"
