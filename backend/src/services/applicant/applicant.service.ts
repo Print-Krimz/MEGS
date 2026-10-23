@@ -2,10 +2,11 @@ import prisma from '../../utils/prisma.js';
 import { revalidateApplicantProfile } from "../scoring/scoring-configuration.service.js";
 import { normalizeComplianceDocumentType } from "../scoring/scoring.dimensions.js";
 import { resolveDocumentSignedUrl } from "../document/document.service.js";
-import { extractDocumentText } from "../../security/document-parser.js";
+import { extractDocumentText, isUsableResumeText } from "../../security/document-parser.js";
 import { validateDocumentBytes } from "../../security/file-validation.js";
 import { detectDocumentFormat } from "../../workers/resume.worker.js";
 import {
+  classifyExtractionError,
   extractResumeProfileData,
   extractResumeProfileDataFromBuffer,
   type ExtractedProfileData,
@@ -463,29 +464,19 @@ export const processResumeExtractionService = async (
     const { isDocx, isImage, detectedMime } = detectDocumentFormat(validated.mimeType, originalName);
 
     if (isDocx) {
+      // Gemini rejects Word MIME types as inline data, so Word files only use the text path.
       let docxText = "";
       try {
         docxText = await extractDocumentText(buffer, detectedMime);
       } catch (docxErr: any) {
-        console.warn("[Resume Parser] mammoth docx extraction failed, attempting buffer fallback:");
+        console.warn("[Resume Parser] docx text extraction failed; Word files have no vision fallback.");
       }
-
-      if (docxText && docxText.length >= 30) {
-        try {
-          const extracted = await extractResumeProfileData(docxText);
-          return { extractedData: extracted, extractionStatus: "SUCCESS" };
-        } catch (textExtErr: any) {
-          if (textExtErr?.retryable || textExtErr?.message === "AI processing timed out") return { extractedData: null, extractionStatus: "UNAVAILABLE" };
-          console.warn("[Resume Parser] Text-based extraction from docx failed, attempting buffer fallback:");
-        }
-      }
-
-      // Fallback: Multimodal extraction directly from buffer with detected MIME
+      if (!isUsableResumeText(docxText)) return { extractedData: null, extractionStatus: "UNAVAILABLE" };
       try {
-        const extracted = await extractResumeProfileDataFromBuffer(buffer, detectedMime);
+        const extracted = await extractResumeProfileData(docxText);
         return { extractedData: extracted, extractionStatus: "SUCCESS" };
-      } catch (bufExtErr: any) {
-        console.warn("[Resume Parser] Multimodal DOCX extraction unavailable:");
+      } catch (textExtErr: any) {
+        console.warn(`[Resume Parser] Text-based docx extraction failed (${classifyExtractionError(textExtErr)}).`);
         return { extractedData: null, extractionStatus: "UNAVAILABLE" };
       }
     }
@@ -495,7 +486,7 @@ export const processResumeExtractionService = async (
         const extracted = await extractResumeProfileDataFromBuffer(buffer, detectedMime);
         return { extractedData: extracted, extractionStatus: "SUCCESS" };
       } catch (imgExtErr: any) {
-        console.warn("[Resume Parser] Multimodal image extraction unavailable:");
+        console.warn(`[Resume Parser] Multimodal image extraction unavailable (${classifyExtractionError(imgExtErr)}).`);
         return { extractedData: null, extractionStatus: "UNAVAILABLE" };
       }
     }
@@ -508,14 +499,14 @@ export const processResumeExtractionService = async (
       console.warn("[Resume Parser] pdfParse failed, will attempt multimodal extraction:");
     }
 
-    // If text was successfully extracted and has substantive content, use text-based extraction
-    if (text && text.length >= 30) {
+    // Real prose goes to the cheaper text path; thin or garbled text (scans) goes straight to vision.
+    if (isUsableResumeText(text)) {
       try {
         const extracted = await extractResumeProfileData(text);
         return { extractedData: extracted, extractionStatus: "SUCCESS" };
       } catch (textExtErr: any) {
         if (textExtErr?.retryable || textExtErr?.message === "AI processing timed out") return { extractedData: null, extractionStatus: "UNAVAILABLE" };
-        console.warn("[Resume Parser] Text-based extraction failed, attempting multimodal extraction:");
+        console.warn(`[Resume Parser] Text-based extraction failed (${classifyExtractionError(textExtErr)}), attempting multimodal extraction.`);
       }
     }
 
@@ -524,7 +515,7 @@ export const processResumeExtractionService = async (
       const extracted = await extractResumeProfileDataFromBuffer(buffer, "application/pdf");
       return { extractedData: extracted, extractionStatus: "SUCCESS" };
     } catch (bufExtErr: any) {
-      console.warn("[Resume Parser] Multimodal PDF extraction unavailable:");
+      console.warn(`[Resume Parser] Multimodal PDF extraction unavailable (${classifyExtractionError(bufExtErr)}).`);
       return { extractedData: null, extractionStatus: "UNAVAILABLE" };
     }
   } catch (err: any) {

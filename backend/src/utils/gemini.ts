@@ -1,7 +1,7 @@
 import { withProviderRetry } from "../security/provider-retry.js";
 import { BoundedWorkQueue } from "../security/bounded-work-queue.js";
-import { GoogleGenAI, type GenerateContentConfig } from "@google/genai";
-import { AI_DATA_INSTRUCTION, aiData, parseAiJson, parseResumeAnalysis } from "../security/ai-output.js";
+import { GoogleGenAI, ThinkingLevel, Type, type GenerateContentConfig } from "@google/genai";
+import { AI_DATA_INSTRUCTION, aiData, aiTextBlock, parseAiJson, parseResumeAnalysis } from "../security/ai-output.js";
 
 let aiInstance: GoogleGenAI | null = null;
 
@@ -38,12 +38,37 @@ const abortable = <T>(request: Promise<T>, signal: AbortSignal): Promise<T> =>
     request.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
   });
 
+// Optional per-call tuning. Defaults keep the behavior of scoring and other callers.
+export interface GenerateOptions {
+  /** Ask for the least thinking each model supports. Sent only to families known to accept it. */
+  thinking?: "minimal";
+  /** Longest provider Retry-After to wait for; a longer one fails that model so the next is tried. */
+  maxRetryDelayMs?: number;
+  /** Called with each model right before it is tried (used for observability). */
+  onModel?: (model: string) => void;
+}
+
+/**
+ * Gemini 2.5 Flash/Flash-Lite take thinkingBudget (0 = off). Gemini 3+ Flash models take
+ * thinkingLevel (lowest is "minimal"). Pro models cannot turn thinking off, and unknown
+ * families get nothing, so an unsupported field can never break the request.
+ */
+export const thinkingConfigFor = (model: string, thinking?: "minimal"): GenerateContentConfig["thinkingConfig"] | undefined => {
+  if (!thinking) return undefined;
+  const name = model.toLowerCase().replace(/^models\//, "");
+  if (/^gemini-2\.5-flash(-lite)?(-|$)/.test(name)) return { thinkingBudget: 0 };
+  const major = /^gemini-(\d+)(?:\.\d+)?-flash/.exec(name)?.[1];
+  if (major && Number(major) >= 3) return { thinkingLevel: ThinkingLevel.MINIMAL };
+  return undefined;
+};
+
 const generateUnqueued = async (
   params: {
     contents: any;
     config?: GenerateContentConfig;
   },
-  timeoutMs: number = 10000
+  timeoutMs: number = 10000,
+  options: GenerateOptions = {},
 ): Promise<any> => {
   const ai = getGeminiClient();
   const candidateModels = getCandidateModels();
@@ -53,8 +78,11 @@ const generateUnqueued = async (
   };
   throwIfCallerAborted();
 
+  let cappedError: any;
   for (const model of candidateModels) {
     let signal: AbortSignal | undefined;
+    const thinkingConfig = thinkingConfigFor(model, options.thinking);
+    options.onModel?.(model);
     try {
       const response = await withProviderRetry(async () => {
         throwIfCallerAborted();
@@ -67,6 +95,7 @@ const generateUnqueued = async (
             contents: params.contents,
             config: {
               ...params.config,
+              ...(thinkingConfig ? { thinkingConfig } : {}),
               systemInstruction: AI_DATA_INSTRUCTION,
               abortSignal: requestSignal,
               maxOutputTokens: 8192,
@@ -77,11 +106,13 @@ const generateUnqueued = async (
           if (requestSignal.aborted) throw Object.assign(new Error("AI processing timed out"), { name: "TimeoutError" });
           throw error;
         }
-      });
+      }, 3, { maxDelayMs: options.maxRetryDelayMs });
       return response;
     } catch (err: any) {
       // Caller cancellation is final: never submit fallback work for a cancelled request.
       if (callerSignal?.aborted) throw callerSignal.reason ?? err;
+      // A capped (too long) provider delay fails this model fast; remember it and try the next one.
+      if (err?.capped) { cappedError = err; continue; }
       if (err?.retryable) throw err;
       console.warn("[Gemini] Request failed; trying the next configured model.");
       // A timeout may still incur provider cost; avoid submitting duplicate work.
@@ -89,6 +120,7 @@ const generateUnqueued = async (
     }
   }
 
+  if (cappedError) throw cappedError;
   throw new Error("AI processing is temporarily unavailable");
 };
 
@@ -127,8 +159,8 @@ export const embedContentWithDeadline = (
 }));
 
 export const generateContentWithFallback = (
-  params: { contents: any; config?: any }, timeoutMs = 10000,
-): Promise<any> => withGeminiCapacity(() => generateUnqueued(params, timeoutMs));
+  params: { contents: any; config?: any }, timeoutMs = 10000, options?: GenerateOptions,
+): Promise<any> => withGeminiCapacity(() => generateUnqueued(params, timeoutMs, options));
 
 export type RequirementCheckResult = "MET" | "PARTIAL" | "NOT_MET" | "UNCLEAR";
 
@@ -313,71 +345,61 @@ import {
   parseWeightKg,
 } from "./profile-normalizers.js";
 
-const RESUME_EXTRACTION_SCHEMA = `
-{
-  "firstName": "<First Name or null if not found>",
-  "middleName": "<Middle Name / Initial or null if not found>",
-  "lastName": "<Last Name / Surname or null if not found>",
-  "email": "<Email address or null if not found>",
-  "mobileNumber": "<Mobile phone number e.g. 09171234567 or null if not found>",
-  "dateOfBirth": "<Date of birth formatted as YYYY-MM-DD or null if not found>",
-  "birthPlace": "<Place / municipality / province of birth or null if not found>",
-  "gender": "<Gender / Sex e.g. Male, Female, Non-Binary, Prefer not to say or null if not found>",
-  "nationality": "<Nationality / Citizenship e.g. Filipino or null if not found>",
-  "civilStatus": "<Civil / Marital status e.g. Single, Married, Widowed, Separated, Divorced or null if not found>",
-  "religion": "<Religion / Religious affiliation e.g. Roman Catholic, Christian, Islam, Iglesia ni Cristo or null if not found>",
-  "height": <Height in cm as a number e.g. 170, or null if not found>,
-  "weight": <Weight in kg as a number e.g. 65, or null if not found>,
-  "address": "<Street / Residential Address or null if not found>",
-  "barangay": "<Barangay / Village / Sub-district or null if not found>",
-  "city": "<City / Municipality e.g. Calamba, Makati, Quezon City, Manila, Caloocan or null if not found>",
-  "province": "<Province / Region e.g. Laguna, Metro Manila, Batangas, Cebu or null if not found>",
-  "postalCode": "<4-digit Philippine postal / ZIP code e.g. 1012, 1400 or null if not found>",
-  "preferredWorkLocations": "<Preferred work locations or null if not found>",
-  "professionalSummary": "<Career objective, executive summary, or professional background statement from resume or null if not found>",
-  "skills": ["<Skill 1>", "<Skill 2>"],
-  "educations": [
-    {
-      "school": "<School or Institution Name>",
-      "degree": "<Degree/Diploma e.g. Bachelor of Science, High School Diploma>",
-      "fieldOfStudy": "<Field of study e.g. Computer Science, Business Admin or General>",
-      "startDate": "<Start date in YYYY-MM-DD or YYYY-MM or YYYY format or null>",
-      "endDate": "<End date in YYYY-MM-DD or YYYY-MM or YYYY format or null>",
-      "notes": "<Honors, awards, or details or null>"
-    }
-  ],
-  "workExperiences": [
-    {
-      "company": "<Company Name>",
-      "roleTitle": "<Job Title / Role>",
-      "location": "<Company Location or null>",
-      "startDate": "<Start date in YYYY-MM-DD or YYYY-MM or YYYY format>",
-      "endDate": "<End date in YYYY-MM-DD or YYYY-MM or YYYY format or null>",
-      "isCurrent": <boolean true if current position or endDate is Present/Current, else false>,
-      "summary": "<Key responsibilities and achievements summary or null>"
-    }
-  ],
-  "trainings": [
-    {
-      "title": "<Training / Certification Title>",
-      "provider": "<Issuing Organization or Provider or null>",
-      "completionDate": "<Completion / Issue date in YYYY-MM-DD or YYYY-MM or YYYY format or null>",
-      "certificateNo": "<Certificate ID / License No or null>",
-      "notes": "<Additional notes or null>"
-    }
-  ],
-  "characterReferences": [
-    {
-      "name": "<Reference Full Name>",
-      "relationship": "<Relationship or Position / Role e.g. Operations Manager or Former Supervisor or null>",
-      "company": "<Company or Organization name or null>",
-      "phone": "<Contact phone number or null>",
-      "email": "<Email address or null>",
-      "notes": "<Additional notes or null>"
-    }
-  ]
-}
+// Structure comes from RESUME_RESPONSE_SCHEMA (every field optional/nullable); this prompt
+// only carries the field meanings and formats the schema cannot express.
+const RESUME_EXTRACTION_FIELDS = `
+Field notes:
+- mobileNumber: e.g. 09171234567. dateOfBirth: YYYY-MM-DD. height in cm and weight in kg, as numbers.
+- gender: Male, Female, Non-Binary or Prefer not to say. civilStatus: Single, Married, Widowed, Separated or Divorced.
+- barangay: barangay / village / sub-district. postalCode: 4-digit Philippine ZIP code, e.g. 1012.
+- city and province are the city / municipality and province or region (e.g. Quezon City, Metro Manila).
+- professionalSummary: career objective or professional background statement.
+- skills: clean list of individual competencies, tools, frameworks and domain expertise.
+- Dates in educations, workExperiences and trainings: YYYY-MM-DD, YYYY-MM or YYYY. isCurrent is true for a current position (endDate Present/Current).
+- characterReferences: relationship may be the reference's position, e.g. Operations Manager or Former Supervisor.
+`.trim();
 
+const nullableString = (extra: Record<string, unknown> = {}) => ({ type: Type.STRING, nullable: true, ...extra });
+const nullableNumber = { type: Type.NUMBER, nullable: true };
+const objectList = (properties: Record<string, unknown>) => ({
+  type: Type.ARRAY, nullable: true, items: { type: Type.OBJECT, properties },
+});
+
+// Mirrors what mapParsedProfileData reads. Nothing is "required", so omission is allowed.
+const RESUME_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    firstName: nullableString(), middleName: nullableString(), lastName: nullableString(),
+    email: nullableString(), mobileNumber: nullableString(), dateOfBirth: nullableString(),
+    birthPlace: nullableString(),
+    gender: nullableString({ enum: ["Male", "Female", "Non-Binary", "Prefer not to say"] }),
+    nationality: nullableString(),
+    civilStatus: nullableString({ enum: ["Single", "Married", "Widowed", "Separated", "Divorced"] }),
+    religion: nullableString(), height: nullableNumber, weight: nullableNumber,
+    address: nullableString(), barangay: nullableString(), city: nullableString(), province: nullableString(),
+    postalCode: nullableString(), preferredWorkLocations: nullableString(), professionalSummary: nullableString(),
+    skills: { type: Type.ARRAY, nullable: true, items: { type: Type.STRING } },
+    educations: objectList({
+      school: nullableString(), degree: nullableString(), fieldOfStudy: nullableString(),
+      startDate: nullableString(), endDate: nullableString(), notes: nullableString(),
+    }),
+    workExperiences: objectList({
+      company: nullableString(), roleTitle: nullableString(), location: nullableString(),
+      startDate: nullableString(), endDate: nullableString(), isCurrent: { type: Type.BOOLEAN, nullable: true },
+      summary: nullableString(),
+    }),
+    trainings: objectList({
+      title: nullableString(), provider: nullableString(), completionDate: nullableString(),
+      certificateNo: nullableString(), notes: nullableString(),
+    }),
+    characterReferences: objectList({
+      name: nullableString(), relationship: nullableString(), company: nullableString(),
+      phone: nullableString(), email: nullableString(), notes: nullableString(),
+    }),
+  },
+};
+
+const RESUME_EXTRACTION_RULES = `
 STRICT EXTRACTION RULES:
 1. ONLY extract information that is explicitly stated in the resume text or document.
 2. Do NOT fabricate, invent, or guess missing information. If a field is not present in the resume, set its value to null (or omit).
@@ -385,7 +407,7 @@ STRICT EXTRACTION RULES:
 4. For names, properly identify First Name, Middle Name (if any), and Last Name.
 5. If multiple character references are listed in the resume, extract all of them into the characterReferences array.
 6. Casing Normalization: Format all names (firstName, middleName, lastName), locations (city, province, birthPlace, address), schools, degrees, fields of study, companies, role titles, certifications, civil status, nationality, religion, and character references in standard Title Case (e.g., "Adrian", "Miguel", "Reyes", "Quezon City", "Metro Manila", "Filipino", "Single", "Roman Catholic", "Bachelor of Science in Computer Science"), even if the source resume writes them in ALL CAPS. Normalize professionalSummary and experience summaries to standard natural sentence case. Preserve standard uppercase acronyms and abbreviations (e.g., "IT", "HR", "QA", "PHP", "AWS", "SQL", "UI/UX", "API", "BS", "MS", "PhD", "TESDA", "NC II", "Jr.", "Sr."). Do NOT output applicant profile values in ALL CAPITAL LETTERS.
-7. Respond with valid JSON only. Do not include markdown fences or any text outside the JSON object.
+7. Respond with the JSON object only.
 `.trim();
 
 export const parseGeminiJsonResponse = (text: string): any => parseAiJson(text);
@@ -508,6 +530,51 @@ export const mapParsedProfileData = (parsed: any): ExtractedProfileData => {
   };
 };
 
+const EXTRACTION_TEXT_TIMEOUT_MS = 25_000;
+const EXTRACTION_VISION_TIMEOUT_MS = 45_000;
+// The applicant is waiting: refuse provider waits longer than this and try the next model.
+const EXTRACTION_MAX_RETRY_DELAY_MS = 5_000;
+const extractionOptions = (onModel: (model: string) => void): GenerateOptions =>
+  ({ thinking: "minimal", maxRetryDelayMs: EXTRACTION_MAX_RETRY_DELAY_MS, onModel });
+
+const sizeBucket = (n: number): string =>
+  n < 50_000 ? "lt50k" : n < 200_000 ? "lt200k" : n < 1_000_000 ? "lt1m" : "gte1m";
+
+export const classifyExtractionError = (err: any): string => {
+  const status = Number(err?.status ?? err?.code);
+  const message = String(err?.message ?? "");
+  if (err?.name === "TimeoutError" || /timed out/i.test(message)) return "timeout";
+  if (/invalid json|must be a json object/i.test(message)) return "json";
+  if (Number.isInteger(status) && status >= 100 && status < 600) return `http_${status}`;
+  if (/unsupported|exceeds|too many|empty or/i.test(message)) return "schema";
+  return "other";
+};
+
+// Runs one extraction attempt and logs a single line: no resume content or PII, only path,
+// type, size bucket, latency and outcome.
+const tracedExtraction = async (
+  path: "text" | "vision", mime: string, size: number,
+  run: (options: GenerateOptions) => Promise<ExtractedProfileData>,
+): Promise<ExtractedProfileData> => {
+  const started = performance.now();
+  let model = "none";
+  const log = (outcome: string) => console.info(
+    `[Resume Extract] model=${model} path=${path} mime=${mime} size=${sizeBucket(size)} ms=${Math.round(performance.now() - started)} outcome=${outcome}`);
+  try {
+    const result = await run(extractionOptions((m) => { model = m; }));
+    log("ok");
+    return result;
+  } catch (err: any) {
+    log(classifyExtractionError(err));
+    throw err;
+  }
+};
+
+const parseExtraction = (response: any): ExtractedProfileData =>
+  mapParsedProfileData(parseAiJson(response.text || "", { truncate: true }));
+
+const extractionConfig = { responseMimeType: "application/json", responseSchema: RESUME_RESPONSE_SCHEMA };
+
 // Prompts Gemini to parse structured candidate profile details from resume text.
 export const extractResumeProfileData = async (
   resumeText: string
@@ -517,24 +584,20 @@ export const extractResumeProfileData = async (
   }
 
   const prompt = `
-You are an expert HR data parser. Your task is to extract structured applicant profile details from the provided resume text.
+You are an expert HR data parser. Extract structured applicant profile details from the resume text below.
 
-CANDIDATE RESUME:
-${aiData(resumeText)}
+${aiTextBlock("resume_text", resumeText)}
 
-Extract the following information accurately. Respond with a JSON object matching this exact structure:
-${RESUME_EXTRACTION_SCHEMA}
+${RESUME_EXTRACTION_FIELDS}
+
+${RESUME_EXTRACTION_RULES}
 `.trim();
 
-  const response = await generateContentWithFallback({
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-    },
+  return tracedExtraction("text", "text/plain", resumeText.length, async (options) => {
+    const response = await generateContentWithFallback(
+      { contents: prompt, config: extractionConfig }, EXTRACTION_TEXT_TIMEOUT_MS, options);
+    return parseExtraction(response);
   });
-
-  const parsed = parseGeminiJsonResponse(response.text || "");
-  return mapParsedProfileData(parsed);
 };
 
 // Multimodal document/image parsing fallback directly using Gemini document understanding
@@ -548,29 +611,21 @@ export const extractResumeProfileDataFromBuffer = async (
 
   const resolvedMime = mimeType || "application/pdf";
   const prompt = `
-You are an expert HR data parser. Your task is to extract structured applicant profile details from the attached resume document/image.
+You are an expert HR data parser. Extract structured applicant profile details from the attached resume document/image.
 
-Extract the following information accurately. Respond with a JSON object matching this exact structure:
-${RESUME_EXTRACTION_SCHEMA}
+${RESUME_EXTRACTION_FIELDS}
+
+${RESUME_EXTRACTION_RULES}
 `.trim();
 
-  const response = await generateContentWithFallback({
-    contents: [
+  return tracedExtraction("vision", resolvedMime, buffer.length, async (options) => {
+    const response = await generateContentWithFallback(
       {
-        inlineData: {
-          mimeType: resolvedMime,
-          data: buffer.toString("base64"),
-        },
-      },
-      prompt,
-    ],
-    config: {
-      responseMimeType: "application/json",
-    },
+        contents: [{ inlineData: { mimeType: resolvedMime, data: buffer.toString("base64") } }, prompt],
+        config: extractionConfig,
+      }, EXTRACTION_VISION_TIMEOUT_MS, options);
+    return parseExtraction(response);
   });
-
-  const parsed = parseGeminiJsonResponse(response.text || "");
-  return mapParsedProfileData(parsed);
 };
 
 // Multimodal vision and document analysis for image, photo, or scanned PDF resumes

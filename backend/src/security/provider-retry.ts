@@ -2,7 +2,11 @@
 
 // Retry only explicit transient responses, never an ambiguous timed-out request.
 // No record/storage writes occur in this helper.
-export async function withProviderRetry<T>(request: () => Promise<T>, attempts = 3): Promise<T> {
+// maxDelayMs lets an interactive caller refuse a long wait: the error then carries `capped: true`
+// so the caller can fail over to another model instead of holding its slot for the full delay.
+export async function withProviderRetry<T>(
+  request: () => Promise<T>, attempts = 3, options: { maxDelayMs?: number } = {},
+): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try { return await request(); }
     catch (error: any) {
@@ -17,9 +21,10 @@ export async function withProviderRetry<T>(request: () => Promise<T>, attempts =
       const hintMs = typeof hint === "string" && /^\d+(\.\d+)?s$/.test(hint) ? parseFloat(hint) * 1000 : 0;
       const headerMs = header ? (Number.isFinite(Number(header)) ? Number(header) * 1000 : Date.parse(header) - Date.now()) : 0;
       const delay = Math.max(1000 * 2 ** attempt + Math.floor(Math.random() * 250), hintMs || 0, headerMs || 0);
-      if (attempt + 1 >= attempts || delay > 60_000) {
+      const capped = options.maxDelayMs !== undefined && delay > options.maxDelayMs;
+      if (attempt + 1 >= attempts || delay > 60_000 || capped) {
         throw Object.assign(new Error("AI provider is temporarily unavailable. Please retry resume processing later."), {
-          retryable: true, retryAfterMs: delay,
+          retryable: true, retryAfterMs: delay, status, ...(capped ? { capped: true } : {}),
         });
       }
       console.warn(`[Gemini] Provider busy; retry ${attempt + 1}/${attempts - 1} in ${Math.ceil(delay / 1000)}s.`);

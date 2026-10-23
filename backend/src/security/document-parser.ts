@@ -57,3 +57,13 @@ export async function extractDocumentText(buffer: Buffer, mimeType: string): Pro
     });
   } finally { activeParsers--; }
 }
+
+// Cheap check that extracted text is real prose rather than a scan's stray characters or
+// garbled glyphs: enough length, enough words, and mostly alphabetic word tokens.
+export function isUsableResumeText(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length < 150) return false;
+  const tokens = trimmed.split(/\s+/);
+  const words = tokens.filter(token => /\p{L}{2,}/u.test(token)).length;
+  return words >= 25 && words / tokens.length >= 0.5;
+}

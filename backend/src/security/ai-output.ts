@@ -7,6 +7,16 @@ export function aiData(value: string, maximum = 128_000): string {
   return JSON.stringify(value);
 }
 
+// Raw (not JSON-escaped) text in a delimited block, so line breaks stay readable to the model.
+// Any copy of the closing tag inside the text is removed so it cannot end the block early.
+export function aiTextBlock(tag: string, value: string, maximum = 128_000): string {
+  if (typeof value !== "string" || value.length > maximum) throw new Error("AI input exceeds the supported size");
+  const closing = new RegExp(String.raw`</\s*${tag}\s*>`, "gi");
+  let text = value;
+  for (let previous = ""; previous !== text;) { previous = text; text = text.replace(closing, ""); }
+  return `<${tag}>\n${text}\n</${tag}>`;
+}
+
 const requirementCheckSchema = z.object({
   requirement: z.string().trim().min(1).max(300),
   result: z.enum(["MET", "PARTIAL", "NOT_MET", "UNCLEAR"]),
@@ -37,7 +47,8 @@ const analysisSchema = z.object({
   resumeIdentity: resumeIdentitySchema.nullish().transform((value) => value ?? null).catch(null),
 });
 
-export function parseAiJson(text: string): Record<string, unknown> {
+// `truncate` shortens over-long strings and lists instead of rejecting the whole response.
+export function parseAiJson(text: string, options: { truncate?: boolean } = {}): Record<string, unknown> {
   if (!text || text.length > 256_000) throw new Error("AI response is empty or exceeds the supported size");
   const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
   let result: unknown;
@@ -46,14 +57,23 @@ export function parseAiJson(text: string): Record<string, unknown> {
     if (depth > 6) throw new Error("AI response exceeds the supported structure");
     if (typeof value === "string" && value.length > 8000) throw new Error("AI response text exceeds the supported size");
     if (Array.isArray(value)) {
-      if (value.length > 100) throw new Error("AI response contains too many entries");
-      value.forEach((entry) => validate(entry, depth + 1));
+      if (value.length > 100) {
+        if (!options.truncate) throw new Error("AI response contains too many entries");
+        value.length = 100;
+      }
+      value.forEach((entry, index) => {
+        if (options.truncate && typeof entry === "string") value[index] = entry.slice(0, 8000);
+        validate(value[index], depth + 1);
+      });
     } else if (value && typeof value === "object") {
       const entries = Object.entries(value);
       if (entries.length > 100 || entries.some(([key]) => ["__proto__", "constructor", "prototype"].includes(key))) {
         throw new Error("AI response contains unsupported fields");
       }
-      entries.forEach(([, entry]) => validate(entry, depth + 1));
+      entries.forEach(([key, entry]) => {
+        if (options.truncate && typeof entry === "string") (value as Record<string, unknown>)[key] = entry.slice(0, 8000);
+        validate((value as Record<string, unknown>)[key], depth + 1);
+      });
     }
   };
   validate(result, 0);
