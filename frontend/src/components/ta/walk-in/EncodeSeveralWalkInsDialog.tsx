@@ -123,7 +123,7 @@ const RowView: React.FC<RowViewProps> = ({ row, jobOptions, jobsLoading, locked,
                 Reading…
               </p>
             )}
-            {row.read === "unreadable" && <p className="text-xs text-slate-600">{UNREADABLE_MESSAGE}</p>}
+            {row.read === "unreadable" && !done && <p className="text-xs text-slate-600">{UNREADABLE_MESSAGE}</p>}
             {row.read === "read" && row.positionApplied && !done && (
               <p className="text-xs text-slate-600">From bio-data: {row.positionApplied}</p>
             )}
