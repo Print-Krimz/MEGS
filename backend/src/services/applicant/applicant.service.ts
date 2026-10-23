@@ -13,6 +13,17 @@ import {
 import { normalizeTitleCase, normalizeSentenceCase } from "../../utils/text-case.js";
 import { validateStructuredAddress } from "../../utils/address-validation.js";
 import { isValidDateOnly, manilaDateString } from "../../schemas/field-limits.js";
+import {
+  normalizeCivilStatus,
+  normalizeGender,
+  normalizeMobileNumber,
+  normalizePostalCode,
+  parseHeightCm,
+  parseLooseDate,
+  parseWeightKg,
+} from "../../utils/profile-normalizers.js";
+import { findNcrBarangay, getNcrLocality, isNcrProvince } from "../../utils/ncr-address.js";
+import { displayCityName, findCity } from "../../utils/ph-address.js";
 
 export type { ExtractedProfileData };
 
@@ -522,6 +533,26 @@ export const processResumeExtractionService = async (
   }
 };
 
+// Rewrites city/province/barangay to the bundled address dataset's spelling when they match it
+// (case-insensitive), so the profile's address selects can show them. Unmatched values pass through
+// and are rejected later by validateStructuredAddress.
+const canonicalAddress = <T extends { province?: string; city?: string; barangay?: string }>(addr: T): T => {
+  const out = { ...addr };
+  if (isNcrProvince(out.province)) {
+    out.province = "Metro Manila (NCR)";
+    const locality = getNcrLocality(out.city);
+    if (locality) {
+      out.city = locality.name;
+      const barangay = findNcrBarangay(locality.name, out.barangay);
+      if (barangay) out.barangay = barangay.name;
+    }
+  } else if (out.province && out.city) {
+    const city = findCity(out.province, out.city);
+    if (city) out.city = displayCityName(city.name);
+  }
+  return out;
+};
+
 export interface ApplyExtractedProfileDto {
   personalDetails?: {
     firstName?: string;
@@ -550,7 +581,7 @@ export interface ApplyExtractedProfileDto {
     company: string;
     roleTitle: string;
     location?: string;
-    startDate: string;
+    startDate?: string;
     endDate?: string | null;
     isCurrent?: boolean;
     summary?: string;
@@ -600,6 +631,8 @@ export interface ResumeChangeSummary {
   referencesAdded: number;
   referencesUpdated: number;
   referencesTotal: number;
+  /** Parsed work experiences that had no usable start date and were not saved. */
+  skippedWorkExperiences: Array<{ company: string; roleTitle: string }>;
 }
 
 export interface ApplyExtractedProfileResult {
@@ -607,556 +640,574 @@ export interface ApplyExtractedProfileResult {
   changeSummary: ResumeChangeSummary;
 }
 
-// Atomically and non-destructively applies extracted resume data into the candidate's profile
+// Atomically and non-destructively applies extracted resume data into the candidate's profile.
+// All writes run in one transaction; revalidation and the profile read happen after commit.
 export const applyExtractedProfileService = async (
   userId: string,
   payload: ApplyExtractedProfileDto
 ): Promise<ApplyExtractedProfileResult> => {
-  let profile = await prisma.applicantProfile.findUnique({ where: { userId } });
-  if (!profile) {
-    const initialFirstName = payload.personalDetails?.firstName
-      ? normalizeTitleCase(payload.personalDetails.firstName) || payload.personalDetails.firstName
-      : "";
-    const initialLastName = payload.personalDetails?.lastName
-      ? normalizeTitleCase(payload.personalDetails.lastName) || payload.personalDetails.lastName
-      : "";
-    profile = await prisma.applicantProfile.create({
-      data: {
-        userId,
-        firstName: initialFirstName,
-        lastName: initialLastName,
-      },
-    });
-  }
-
-  const changeSummary: ResumeChangeSummary = {
-    personalFieldsAdded: 0,
-    personalFieldsUpdated: 0,
-    personalFieldsTotal: 0,
-    changedPersonalFields: [],
-    workExperiencesAdded: 0,
-    workExperiencesUpdated: 0,
-    workExperiencesTotal: 0,
-    educationsAdded: 0,
-    educationsUpdated: 0,
-    educationsTotal: 0,
-    skillsAdded: 0,
-    skillsTotal: 0,
-    trainingsAdded: 0,
-    trainingsUpdated: 0,
-    trainingsTotal: 0,
-    referencesAdded: 0,
-    referencesUpdated: 0,
-    referencesTotal: 0,
-  };
-
-  const sanitizeString = (val: any) => (val !== undefined && val !== null ? String(val).trim() || null : undefined);
-  const sanitizeNumber = (val: any) => (val !== undefined && val !== null && val !== "" && !isNaN(Number(val)) ? Number(val) : val === null ? null : undefined);
-
-  const parseSafeDate = (val: any): Date | null => {
-    if (!val) return null;
-    if (val instanceof Date) {
-      return isNaN(val.getTime()) ? null : val;
-    }
-    const str = String(val).trim();
-    if (!str) return null;
-    const lower = str.toLowerCase();
-    if (
-      lower === "present" ||
-      lower === "current" ||
-      lower === "now" ||
-      lower === "ongoing" ||
-      lower === "n/a" ||
-      lower === "none" ||
-      lower === "null" ||
-      lower === "undefined"
-    ) {
-      return null;
+  const { profileId, changeSummary } = await prisma.$transaction(async (tx) => {
+    let profile = await tx.applicantProfile.findUnique({ where: { userId } });
+    if (!profile) {
+      const initialFirstName = payload.personalDetails?.firstName
+        ? normalizeTitleCase(payload.personalDetails.firstName) || payload.personalDetails.firstName
+        : "";
+      const initialLastName = payload.personalDetails?.lastName
+        ? normalizeTitleCase(payload.personalDetails.lastName) || payload.personalDetails.lastName
+        : "";
+      profile = await tx.applicantProfile.create({
+        data: {
+          userId,
+          firstName: initialFirstName,
+          lastName: initialLastName,
+        },
+      });
     }
 
-    const matchIso = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-    if (matchIso) {
-      const [, y, m, d] = matchIso;
-      const date = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
-      return isNaN(date.getTime()) ? null : date;
-    }
+    const changeSummary: ResumeChangeSummary = {
+      personalFieldsAdded: 0,
+      personalFieldsUpdated: 0,
+      personalFieldsTotal: 0,
+      changedPersonalFields: [],
+      workExperiencesAdded: 0,
+      workExperiencesUpdated: 0,
+      workExperiencesTotal: 0,
+      educationsAdded: 0,
+      educationsUpdated: 0,
+      educationsTotal: 0,
+      skillsAdded: 0,
+      skillsTotal: 0,
+      trainingsAdded: 0,
+      trainingsUpdated: 0,
+      trainingsTotal: 0,
+      referencesAdded: 0,
+      referencesUpdated: 0,
+      referencesTotal: 0,
+      skippedWorkExperiences: [],
+    };
 
-    const matchYearMonth = str.match(/^(\d{4})[-/](\d{1,2})$/);
-    if (matchYearMonth) {
-      const [, y, m] = matchYearMonth;
-      const date = new Date(Date.UTC(Number(y), Number(m) - 1, 1));
-      return isNaN(date.getTime()) ? null : date;
-    }
+    const sanitizeString = (val: any) => (val !== undefined && val !== null ? String(val).trim() || null : undefined);
 
-    const matchYear = str.match(/^(\d{4})$/);
-    if (matchYear) {
-      const date = new Date(Date.UTC(Number(matchYear[1]), 0, 1));
-      return isNaN(date.getTime()) ? null : date;
-    }
+    const parseSafeDate = (val: any): Date | null => {
+      if (!val) return null;
+      if (val instanceof Date) {
+        return isNaN(val.getTime()) ? null : val;
+      }
+      const str = String(val).trim();
+      if (!str) return null;
+      const lower = str.toLowerCase();
+      if (
+        lower === "present" ||
+        lower === "current" ||
+        lower === "now" ||
+        lower === "ongoing" ||
+        lower === "n/a" ||
+        lower === "none" ||
+        lower === "null" ||
+        lower === "undefined"
+      ) {
+        return null;
+      }
 
-    const parsed = new Date(str);
-    return isNaN(parsed.getTime()) ? null : parsed;
-  };
+      const loose = parseLooseDate(str);
+      if (!loose) return null;
+      const [y, m, d] = loose.split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, d));
+    };
 
-  const sanitizeDate = (val: any): Date | null | undefined => {
-    if (val === undefined) return undefined;
-    if (val === null) return null;
-    return parseSafeDate(val);
-  };
-  const toTime = (d: any): number | null => {
-    if (!d) return null;
-    const t = new Date(d).getTime();
-    return isNaN(t) ? null : t;
-  };
+    const sanitizeDate = (val: any): Date | null | undefined => {
+      if (val === undefined) return undefined;
+      if (val === null) return null;
+      return parseSafeDate(val);
+    };
+    const toTime = (d: any): number | null => {
+      if (!d) return null;
+      const t = new Date(d).getTime();
+      return isNaN(t) ? null : t;
+    };
 
-  // 1. Personal Details Merge (Non-destructive unless overwriteExistingPersonal is true)
-  if (payload.personalDetails) {
-    const updateData: Record<string, any> = {};
-    const personal = payload.personalDetails;
-    const overwrite = Boolean(payload.overwriteExistingPersonal);
+    // 1. Personal Details Merge (Non-destructive unless overwriteExistingPersonal is true)
+    if (payload.personalDetails) {
+      const updateData: Record<string, any> = {};
+      const personal = payload.personalDetails;
+      const overwrite = Boolean(payload.overwriteExistingPersonal);
 
-    const fieldsToProcess: (keyof typeof personal)[] = [
-      "firstName",
-      "middleName",
-      "lastName",
-      "mobileNumber",
-      "gender",
-      "province",
-      "city",
-      "barangay",
-      "postalCode",
-      "birthPlace",
-      "nationality",
-      "civilStatus",
-      "religion",
-      "address",
-      "preferredWorkLocations",
-      "professionalSummary",
-    ];
+      const fieldsToProcess: (keyof typeof personal)[] = [
+        "firstName",
+        "middleName",
+        "lastName",
+        "mobileNumber",
+        "gender",
+        "province",
+        "city",
+        "barangay",
+        "postalCode",
+        "birthPlace",
+        "nationality",
+        "civilStatus",
+        "religion",
+        "address",
+        "preferredWorkLocations",
+        "professionalSummary",
+      ];
 
-    // A parsed resume can provide an address line without reliable structured locality fields.
-    // Preserve that data until the applicant provides a complete, validated structured address.
-    const hasConfirmedStructuredAddress = Boolean(
-      (profile.barangay?.trim() || personal.barangay?.trim()) &&
-      (profile.postalCode?.trim() || personal.postalCode?.trim())
-    );
-    const fieldsEligibleForAddress = fieldsToProcess.filter((field) =>
-      hasConfirmedStructuredAddress || !["province", "city", "address", "barangay", "postalCode"].includes(field)
-    );
+      // Address fields are fill-blanks and are saved together or not at all: the save path
+      // (validateStructuredAddress) rejects a partial or inconsistent address.
+      const addressFields = ["province", "city", "barangay", "postalCode", "address"] as const;
+      const canonical = canonicalAddress({
+        province: sanitizeString(personal.province) ?? undefined,
+        city: sanitizeString(personal.city) ?? undefined,
+        barangay: sanitizeString(personal.barangay) ?? undefined,
+        postalCode: sanitizeString(personal.postalCode) ?? undefined,
+        address: sanitizeString(personal.address) ?? undefined,
+      });
 
-    for (const field of fieldsEligibleForAddress) {
-      let incomingVal = sanitizeString(personal[field]);
-      if (incomingVal !== undefined && incomingVal !== null) {
-        if (field === "professionalSummary") {
-          incomingVal = normalizeSentenceCase(incomingVal) || incomingVal;
-        } else if (field !== "mobileNumber") {
-          incomingVal = normalizeTitleCase(incomingVal) || incomingVal;
+      for (const field of fieldsToProcess) {
+        const isAddressField = (addressFields as readonly string[]).includes(field);
+        let incomingVal = isAddressField ? (canonical as Record<string, string | undefined>)[field] : sanitizeString(personal[field]);
+        if (field === "gender") incomingVal = normalizeGender(incomingVal);
+        if (field === "civilStatus") incomingVal = normalizeCivilStatus(incomingVal);
+        if (field === "mobileNumber") incomingVal = normalizeMobileNumber(incomingVal);
+        if (field === "postalCode") incomingVal = normalizePostalCode(incomingVal);
+        if (incomingVal !== undefined && incomingVal !== null) {
+          if (field === "professionalSummary") {
+            incomingVal = normalizeSentenceCase(incomingVal) || incomingVal;
+          } else if (!["mobileNumber", "gender", "civilStatus", "postalCode"].includes(field)) {
+            incomingVal = normalizeTitleCase(incomingVal) || incomingVal;
+          }
+
+          const existingVal = (profile as any)[field];
+          const isExistingEmpty = existingVal === null || existingVal === undefined || String(existingVal).trim() === "";
+          if (isAddressField ? isExistingEmpty : (overwrite || isExistingEmpty)) {
+            updateData[field] = incomingVal;
+            if (isExistingEmpty) {
+              changeSummary.personalFieldsAdded++;
+              changeSummary.changedPersonalFields.push(field);
+            } else if (String(existingVal).trim().toLowerCase() !== incomingVal.toLowerCase()) {
+              changeSummary.personalFieldsUpdated++;
+              changeSummary.changedPersonalFields.push(field);
+            }
+          }
         }
+      }
 
-        const existingVal = (profile as any)[field];
-        const isExistingEmpty = existingVal === null || existingVal === undefined || String(existingVal).trim() === "";
-        if (overwrite || isExistingEmpty) {
-          updateData[field] = incomingVal;
-          if (isExistingEmpty) {
+      const touchedAddress = addressFields.filter((field) => updateData[field] !== undefined);
+      if (touchedAddress.length > 0) {
+        try {
+          validateStructuredAddress({
+            province: updateData.province ?? profile.province,
+            city: updateData.city ?? profile.city,
+            barangay: updateData.barangay ?? profile.barangay,
+            postalCode: updateData.postalCode ?? profile.postalCode,
+            address: updateData.address ?? profile.address,
+          }, profile);
+        } catch {
+          // Incomplete or unrecognised address: leave the profile address untouched.
+          for (const field of touchedAddress) {
+            delete updateData[field];
+            const idx = changeSummary.changedPersonalFields.indexOf(field);
+            if (idx >= 0) changeSummary.changedPersonalFields.splice(idx, 1);
+            changeSummary.personalFieldsAdded--;
+          }
+        }
+      }
+
+      if (personal.dateOfBirth) {
+        const incomingDob = sanitizeDate(personal.dateOfBirth);
+        const isDobEmpty = !profile.dateOfBirth;
+        if (incomingDob && (overwrite || isDobEmpty)) {
+          updateData.dateOfBirth = incomingDob;
+          if (isDobEmpty) {
             changeSummary.personalFieldsAdded++;
-            changeSummary.changedPersonalFields.push(field);
-          } else if (String(existingVal).trim().toLowerCase() !== incomingVal.toLowerCase()) {
-            changeSummary.personalFieldsUpdated++;
-            changeSummary.changedPersonalFields.push(field);
-          }
-        }
-      }
-    }
-
-    if (personal.dateOfBirth) {
-      const incomingDob = sanitizeDate(personal.dateOfBirth);
-      const isDobEmpty = !profile.dateOfBirth;
-      if (incomingDob && (overwrite || isDobEmpty)) {
-        updateData.dateOfBirth = incomingDob;
-        if (isDobEmpty) {
-          changeSummary.personalFieldsAdded++;
-          changeSummary.changedPersonalFields.push("dateOfBirth");
-        } else {
-          const existingDobStr = profile.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().substring(0, 10) : "";
-          const incomingDobStr = incomingDob.toISOString().substring(0, 10);
-          if (existingDobStr !== incomingDobStr) {
-            changeSummary.personalFieldsUpdated++;
             changeSummary.changedPersonalFields.push("dateOfBirth");
+          } else {
+            const existingDobStr = profile.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().substring(0, 10) : "";
+            const incomingDobStr = incomingDob.toISOString().substring(0, 10);
+            if (existingDobStr !== incomingDobStr) {
+              changeSummary.personalFieldsUpdated++;
+              changeSummary.changedPersonalFields.push("dateOfBirth");
+            }
           }
         }
       }
-    }
 
-    if (personal.height !== undefined && personal.height !== null) {
-      const incomingHeight = sanitizeNumber(personal.height);
-      const isHeightEmpty = profile.height === null || profile.height === undefined;
-      if (incomingHeight !== undefined && (overwrite || isHeightEmpty)) {
-        updateData.height = incomingHeight;
-        if (isHeightEmpty) {
-          changeSummary.personalFieldsAdded++;
-          changeSummary.changedPersonalFields.push("height");
-        } else if (Number(profile.height) !== incomingHeight) {
-          changeSummary.personalFieldsUpdated++;
-          changeSummary.changedPersonalFields.push("height");
+      if (personal.height !== undefined && personal.height !== null) {
+        const incomingHeight = parseHeightCm(personal.height);
+        const isHeightEmpty = profile.height === null || profile.height === undefined;
+        if (incomingHeight !== undefined && (overwrite || isHeightEmpty)) {
+          updateData.height = incomingHeight;
+          if (isHeightEmpty) {
+            changeSummary.personalFieldsAdded++;
+            changeSummary.changedPersonalFields.push("height");
+          } else if (Number(profile.height) !== incomingHeight) {
+            changeSummary.personalFieldsUpdated++;
+            changeSummary.changedPersonalFields.push("height");
+          }
         }
+      }
+
+      if (personal.weight !== undefined && personal.weight !== null) {
+        const incomingWeight = parseWeightKg(personal.weight);
+        const isWeightEmpty = profile.weight === null || profile.weight === undefined;
+        if (incomingWeight !== undefined && (overwrite || isWeightEmpty)) {
+          updateData.weight = incomingWeight;
+          if (isWeightEmpty) {
+            changeSummary.personalFieldsAdded++;
+            changeSummary.changedPersonalFields.push("weight");
+          } else if (Number(profile.weight) !== incomingWeight) {
+            changeSummary.personalFieldsUpdated++;
+            changeSummary.changedPersonalFields.push("weight");
+          }
+        }
+      }
+
+      changeSummary.personalFieldsTotal =
+        changeSummary.personalFieldsAdded + changeSummary.personalFieldsUpdated;
+
+      if (Object.keys(updateData).length > 0) {
+        validateStructuredAddress({
+          province: updateData.province !== undefined ? updateData.province : profile.province,
+          city: updateData.city !== undefined ? updateData.city : profile.city,
+          barangay: updateData.barangay !== undefined ? updateData.barangay : profile.barangay,
+          postalCode: updateData.postalCode !== undefined ? updateData.postalCode : profile.postalCode,
+          address: updateData.address !== undefined ? updateData.address : profile.address,
+        }, profile);
+        await tx.applicantProfile.update({
+          where: { id: profile.id },
+          data: updateData,
+        });
       }
     }
 
-    if (personal.weight !== undefined && personal.weight !== null) {
-      const incomingWeight = sanitizeNumber(personal.weight);
-      const isWeightEmpty = profile.weight === null || profile.weight === undefined;
-      if (incomingWeight !== undefined && (overwrite || isWeightEmpty)) {
-        updateData.weight = incomingWeight;
-        if (isWeightEmpty) {
-          changeSummary.personalFieldsAdded++;
-          changeSummary.changedPersonalFields.push("weight");
-        } else if (Number(profile.weight) !== incomingWeight) {
-          changeSummary.personalFieldsUpdated++;
-          changeSummary.changedPersonalFields.push("weight");
-        }
+    // 2. Work Experiences Deduplication & Import
+    if (payload.workExperiences) {
+      if (payload.replaceStructuredFields && payload.workExperiences.length > 0) {
+        await tx.workExperience.deleteMany({ where: { applicantProfileId: profile.id } });
       }
-    }
+      if (payload.workExperiences.length > 0) {
+        const existingExps = await tx.workExperience.findMany({
+          where: { applicantProfileId: profile.id },
+        });
 
-    changeSummary.personalFieldsTotal =
-      changeSummary.personalFieldsAdded + changeSummary.personalFieldsUpdated;
+        for (const exp of payload.workExperiences) {
+          const companyNorm = exp.company.trim().toLowerCase();
+          const roleNorm = exp.roleTitle.trim().toLowerCase();
+          const existing = existingExps.find(
+            (e) => e.company.trim().toLowerCase() === companyNorm && e.roleTitle.trim().toLowerCase() === roleNorm
+          );
 
-    if (Object.keys(updateData).length > 0) {
-      validateStructuredAddress({
-        province: updateData.province !== undefined ? updateData.province : profile.province,
-        city: updateData.city !== undefined ? updateData.city : profile.city,
-        barangay: updateData.barangay !== undefined ? updateData.barangay : profile.barangay,
-        postalCode: updateData.postalCode !== undefined ? updateData.postalCode : profile.postalCode,
-        address: updateData.address !== undefined ? updateData.address : profile.address,
-      }, profile);
-      await prisma.applicantProfile.update({
-        where: { id: profile.id },
-        data: updateData,
-      });
-    }
-  }
-
-  // 2. Work Experiences Deduplication & Import
-  if (payload.workExperiences) {
-    if (payload.replaceStructuredFields) {
-      await prisma.workExperience.deleteMany({ where: { applicantProfileId: profile.id } });
-    }
-    if (payload.workExperiences.length > 0) {
-      const existingExps = await prisma.workExperience.findMany({
-        where: { applicantProfileId: profile.id },
-      });
-
-      for (const exp of payload.workExperiences) {
-        const companyNorm = exp.company.trim().toLowerCase();
-        const roleNorm = exp.roleTitle.trim().toLowerCase();
-        const existing = existingExps.find(
-          (e) => e.company.trim().toLowerCase() === companyNorm && e.roleTitle.trim().toLowerCase() === roleNorm
-        );
-
-        const isEndPresent = typeof exp.endDate === "string" && (
-          exp.endDate.trim().toLowerCase() === "present" ||
-          exp.endDate.trim().toLowerCase() === "current" ||
-          exp.endDate.trim().toLowerCase() === "ongoing" ||
-          exp.endDate.trim().toLowerCase() === "now"
-        );
-        const resolvedIsCurrent = Boolean(exp.isCurrent || isEndPresent);
-        const parsedStart = parseSafeDate(exp.startDate);
-        const parsedEnd = resolvedIsCurrent ? null : parseSafeDate(exp.endDate);
-
-        if (existing) {
-          const nextLoc = sanitizeString(exp.location) ?? existing.location;
-          const nextStart = exp.startDate ? (parsedStart || existing.startDate) : existing.startDate;
-          const nextEnd = exp.endDate !== undefined || isEndPresent ? parsedEnd : existing.endDate;
-          const nextCurrent = exp.isCurrent !== undefined || isEndPresent ? resolvedIsCurrent : existing.isCurrent;
-          const nextSummary = sanitizeString(exp.summary) ?? existing.summary;
-
-          const hasChanged =
-            (nextLoc || "") !== (existing.location || "") ||
-            toTime(nextStart) !== toTime(existing.startDate) ||
-            toTime(nextEnd) !== toTime(existing.endDate) ||
-            Boolean(nextCurrent) !== Boolean(existing.isCurrent) ||
-            (nextSummary || "") !== (existing.summary || "");
-
-          if (hasChanged) {
-            changeSummary.workExperiencesUpdated++;
+          const isEndPresent = typeof exp.endDate === "string" && (
+            exp.endDate.trim().toLowerCase() === "present" ||
+            exp.endDate.trim().toLowerCase() === "current" ||
+            exp.endDate.trim().toLowerCase() === "ongoing" ||
+            exp.endDate.trim().toLowerCase() === "now"
+          );
+          const resolvedIsCurrent = Boolean(exp.isCurrent || isEndPresent);
+          const parsedStart = parseSafeDate(exp.startDate);
+          const parsedEnd = resolvedIsCurrent ? null : parseSafeDate(exp.endDate);
+          if (!existing && !parsedStart) {
+            // WorkExperience.startDate is required; never invent one.
+            changeSummary.skippedWorkExperiences.push({ company: exp.company.trim(), roleTitle: exp.roleTitle.trim() });
+            continue;
           }
 
-          await prisma.workExperience.update({
-            where: { id: existing.id },
-            data: {
-              location: nextLoc,
-              startDate: nextStart,
-              endDate: nextEnd,
-              isCurrent: nextCurrent,
-              summary: nextSummary,
-            },
+          if (existing) {
+            const nextLoc = sanitizeString(exp.location) ?? existing.location;
+            const nextStart = exp.startDate ? (parsedStart || existing.startDate) : existing.startDate;
+            const nextEnd = exp.endDate !== undefined || isEndPresent ? parsedEnd : existing.endDate;
+            const nextCurrent = exp.isCurrent !== undefined || isEndPresent ? resolvedIsCurrent : existing.isCurrent;
+            const nextSummary = sanitizeString(exp.summary) ?? existing.summary;
+
+            const hasChanged =
+              (nextLoc || "") !== (existing.location || "") ||
+              toTime(nextStart) !== toTime(existing.startDate) ||
+              toTime(nextEnd) !== toTime(existing.endDate) ||
+              Boolean(nextCurrent) !== Boolean(existing.isCurrent) ||
+              (nextSummary || "") !== (existing.summary || "");
+
+            if (hasChanged) {
+              changeSummary.workExperiencesUpdated++;
+            }
+
+            await tx.workExperience.update({
+              where: { id: existing.id },
+              data: {
+                location: nextLoc,
+                startDate: nextStart,
+                endDate: nextEnd,
+                isCurrent: nextCurrent,
+                summary: nextSummary,
+              },
+            });
+          } else {
+            changeSummary.workExperiencesAdded++;
+            await tx.workExperience.create({
+              data: {
+                applicantProfileId: profile.id,
+                company: normalizeTitleCase(exp.company.trim()) || exp.company.trim(),
+                roleTitle: normalizeTitleCase(exp.roleTitle.trim()) || exp.roleTitle.trim(),
+                location: exp.location ? (normalizeTitleCase(exp.location.trim()) || exp.location.trim()) : null,
+                startDate: parsedStart!,
+                endDate: parsedEnd,
+                isCurrent: resolvedIsCurrent,
+                summary: exp.summary ? (normalizeSentenceCase(exp.summary.trim()) || exp.summary.trim()) : null,
+              },
+            });
+          }
+        }
+        changeSummary.workExperiencesTotal =
+          changeSummary.workExperiencesAdded + changeSummary.workExperiencesUpdated;
+      }
+    }
+
+    // 3. Educations Deduplication & Import
+    if (payload.educations) {
+      if (payload.replaceStructuredFields && payload.educations.length > 0) {
+        await tx.education.deleteMany({ where: { applicantProfileId: profile.id } });
+      }
+      if (payload.educations.length > 0) {
+        const existingEdus = await tx.education.findMany({
+          where: { applicantProfileId: profile.id },
+        });
+
+        for (const edu of payload.educations) {
+          const schoolNorm = edu.school.trim().toLowerCase();
+          const degreeNorm = (edu.degree || "").trim().toLowerCase();
+          const existing = existingEdus.find(
+            (e) => e.school.trim().toLowerCase() === schoolNorm && (e.degree || "").trim().toLowerCase() === degreeNorm
+          );
+
+          const parsedStart = parseSafeDate(edu.startDate);
+          const parsedEnd = parseSafeDate(edu.endDate);
+
+          if (existing) {
+            const nextField = sanitizeString(edu.fieldOfStudy) ?? existing.fieldOfStudy;
+            const nextStart = edu.startDate !== undefined ? parsedStart : existing.startDate;
+            const nextEnd = edu.endDate !== undefined ? parsedEnd : existing.endDate;
+            const nextNotes = sanitizeString(edu.notes) ?? existing.notes;
+
+            const hasChanged =
+              (nextField || "") !== (existing.fieldOfStudy || "") ||
+              toTime(nextStart) !== toTime(existing.startDate) ||
+              toTime(nextEnd) !== toTime(existing.endDate) ||
+              (nextNotes || "") !== (existing.notes || "");
+
+            if (hasChanged) {
+              changeSummary.educationsUpdated++;
+            }
+
+            await tx.education.update({
+              where: { id: existing.id },
+              data: {
+                fieldOfStudy: nextField,
+                startDate: nextStart,
+                endDate: nextEnd,
+                notes: nextNotes,
+              },
+            });
+          } else {
+            changeSummary.educationsAdded++;
+            await tx.education.create({
+              data: {
+                applicantProfileId: profile.id,
+                school: normalizeTitleCase(edu.school.trim()) || edu.school.trim(),
+                degree: edu.degree ? (normalizeTitleCase(edu.degree.trim()) || edu.degree.trim()) : null,
+                fieldOfStudy: edu.fieldOfStudy ? (normalizeTitleCase(edu.fieldOfStudy.trim()) || edu.fieldOfStudy.trim()) : null,
+                startDate: parsedStart,
+                endDate: parsedEnd,
+                notes: edu.notes ? (normalizeSentenceCase(edu.notes.trim()) || edu.notes.trim()) : null,
+              },
+            });
+          }
+        }
+        changeSummary.educationsTotal =
+          changeSummary.educationsAdded + changeSummary.educationsUpdated;
+      }
+    }
+
+    // 4. Skills Deduplication & Import
+    if (payload.skills) {
+      if (payload.replaceStructuredFields && payload.skills.length > 0) {
+        await tx.applicantSkill.deleteMany({ where: { applicantProfileId: profile.id } });
+      }
+      if (payload.skills.length > 0) {
+        const currentSkills = await tx.applicantSkill.findMany({
+          where: { applicantProfileId: profile.id },
+          include: { skill: true },
+        });
+        const existingSkillNames = new Set(currentSkills.map((s) => s.skill.name.trim().toLowerCase()));
+
+        for (const rawSkill of payload.skills) {
+          const cleanSkill = (normalizeTitleCase(rawSkill.trim()) || rawSkill.trim());
+          const lowerSkill = cleanSkill.toLowerCase();
+          if (!cleanSkill || existingSkillNames.has(lowerSkill)) continue;
+
+          let skill = await tx.skill.findFirst({
+            where: { name: { equals: cleanSkill, mode: "insensitive" } },
           });
-        } else {
-          changeSummary.workExperiencesAdded++;
-          await prisma.workExperience.create({
+
+          if (!skill) {
+            skill = await tx.skill.create({
+              data: { name: cleanSkill },
+            });
+          }
+
+          await tx.applicantSkill.create({
             data: {
               applicantProfileId: profile.id,
-              company: normalizeTitleCase(exp.company.trim()) || exp.company.trim(),
-              roleTitle: normalizeTitleCase(exp.roleTitle.trim()) || exp.roleTitle.trim(),
-              location: exp.location ? (normalizeTitleCase(exp.location.trim()) || exp.location.trim()) : null,
-              startDate: parsedStart || new Date(),
-              endDate: parsedEnd,
-              isCurrent: resolvedIsCurrent,
-              summary: exp.summary ? (normalizeSentenceCase(exp.summary.trim()) || exp.summary.trim()) : null,
+              skillId: skill.id,
             },
           });
+
+          existingSkillNames.add(lowerSkill);
+          changeSummary.skillsAdded++;
         }
+        changeSummary.skillsTotal = changeSummary.skillsAdded;
       }
-      changeSummary.workExperiencesTotal =
-        changeSummary.workExperiencesAdded + changeSummary.workExperiencesUpdated;
     }
-  }
 
-  // 3. Educations Deduplication & Import
-  if (payload.educations) {
-    if (payload.replaceStructuredFields) {
-      await prisma.education.deleteMany({ where: { applicantProfileId: profile.id } });
+    // 5. Trainings & Certifications Deduplication & Import
+    if (payload.trainings) {
+      if (payload.replaceStructuredFields && payload.trainings.length > 0) {
+        await tx.trainingCertification.deleteMany({ where: { applicantProfileId: profile.id } });
+      }
+      if (payload.trainings.length > 0) {
+        const existingTrainings = await tx.trainingCertification.findMany({
+          where: { applicantProfileId: profile.id },
+        });
+
+        for (const training of payload.trainings) {
+          const titleNorm = training.title.trim().toLowerCase();
+          const existing = existingTrainings.find(
+            (t) => t.title.trim().toLowerCase() === titleNorm
+          );
+
+          const parsedCompletion = parseSafeDate(training.completionDate);
+
+          if (existing) {
+            const nextProvider = sanitizeString(training.provider) ?? existing.provider;
+            const nextDate = training.completionDate !== undefined ? parsedCompletion : existing.completionDate;
+            const nextCertNo = sanitizeString(training.certificateNo) ?? existing.certificateNo;
+            const nextNotes = sanitizeString(training.notes) ?? existing.notes;
+
+            const hasChanged =
+              (nextProvider || "") !== (existing.provider || "") ||
+              toTime(nextDate) !== toTime(existing.completionDate) ||
+              (nextCertNo || "") !== (existing.certificateNo || "") ||
+              (nextNotes || "") !== (existing.notes || "");
+
+            if (hasChanged) {
+              changeSummary.trainingsUpdated++;
+            }
+
+            await tx.trainingCertification.update({
+              where: { id: existing.id },
+              data: {
+                provider: nextProvider,
+                completionDate: nextDate,
+                certificateNo: nextCertNo,
+                notes: nextNotes,
+              },
+            });
+          } else {
+            changeSummary.trainingsAdded++;
+            await tx.trainingCertification.create({
+              data: {
+                applicantProfileId: profile.id,
+                title: normalizeTitleCase(training.title.trim()) || training.title.trim(),
+                provider: training.provider ? (normalizeTitleCase(training.provider.trim()) || training.provider.trim()) : null,
+                completionDate: parsedCompletion,
+                certificateNo: sanitizeString(training.certificateNo),
+                notes: training.notes ? (normalizeSentenceCase(training.notes.trim()) || training.notes.trim()) : null,
+              },
+            });
+          }
+        }
+        changeSummary.trainingsTotal =
+          changeSummary.trainingsAdded + changeSummary.trainingsUpdated;
+      }
     }
-    if (payload.educations.length > 0) {
-      const existingEdus = await prisma.education.findMany({
+
+    // 6. Character References Deduplication & Import
+    if (payload.characterReferences && payload.characterReferences.length > 0) {
+      const existingRefs = (await tx.characterReference.findMany({
         where: { applicantProfileId: profile.id },
-      });
+      })) || [];
 
-      for (const edu of payload.educations) {
-        const schoolNorm = edu.school.trim().toLowerCase();
-        const degreeNorm = (edu.degree || "").trim().toLowerCase();
-        const existing = existingEdus.find(
-          (e) => e.school.trim().toLowerCase() === schoolNorm && (e.degree || "").trim().toLowerCase() === degreeNorm
-        );
+      for (const ref of payload.characterReferences) {
+        if (!ref || !ref.name || !ref.name.trim()) continue;
+        const nameNorm = ref.name.trim().toLowerCase();
+        const phoneNorm = (ref.phone || "").trim().toLowerCase();
+        const emailNorm = (ref.email || "").trim().toLowerCase();
 
-        const parsedStart = parseSafeDate(edu.startDate);
-        const parsedEnd = parseSafeDate(edu.endDate);
+        const existing = existingRefs.find((r) => {
+          const exName = r.name.trim().toLowerCase();
+          const exPhone = (r.phone || "").trim().toLowerCase();
+          const exEmail = (r.email || "").trim().toLowerCase();
+
+          if (exName === nameNorm) {
+            if (phoneNorm && exPhone && phoneNorm === exPhone) return true;
+            if (emailNorm && exEmail && emailNorm === exEmail) return true;
+            if (!phoneNorm && !emailNorm && !exPhone && !exEmail) return true;
+          }
+          return false;
+        });
+
+        let relationship = sanitizeString(ref.relationship);
+        const company = sanitizeString(ref.company);
+        if (company) {
+          relationship = relationship ? `${relationship} at ${company}` : company;
+        }
 
         if (existing) {
-          const nextField = sanitizeString(edu.fieldOfStudy) ?? existing.fieldOfStudy;
-          const nextStart = edu.startDate !== undefined ? parsedStart : existing.startDate;
-          const nextEnd = edu.endDate !== undefined ? parsedEnd : existing.endDate;
-          const nextNotes = sanitizeString(edu.notes) ?? existing.notes;
+          const nextRel = relationship ?? existing.relationship;
+          const nextPhone = sanitizeString(ref.phone) ?? existing.phone;
+          const nextEmail = sanitizeString(ref.email) ?? existing.email;
+          const nextNotes = sanitizeString(ref.notes) ?? existing.notes;
 
           const hasChanged =
-            (nextField || "") !== (existing.fieldOfStudy || "") ||
-            toTime(nextStart) !== toTime(existing.startDate) ||
-            toTime(nextEnd) !== toTime(existing.endDate) ||
+            (nextRel || "") !== (existing.relationship || "") ||
+            (nextPhone || "") !== (existing.phone || "") ||
+            (nextEmail || "") !== (existing.email || "") ||
             (nextNotes || "") !== (existing.notes || "");
 
           if (hasChanged) {
-            changeSummary.educationsUpdated++;
+            changeSummary.referencesUpdated++;
           }
 
-          await prisma.education.update({
+          await tx.characterReference.update({
             where: { id: existing.id },
             data: {
-              fieldOfStudy: nextField,
-              startDate: nextStart,
-              endDate: nextEnd,
+              relationship: nextRel,
+              phone: nextPhone,
+              email: nextEmail,
               notes: nextNotes,
             },
           });
         } else {
-          changeSummary.educationsAdded++;
-          await prisma.education.create({
+          changeSummary.referencesAdded++;
+          await tx.characterReference.create({
             data: {
               applicantProfileId: profile.id,
-              school: normalizeTitleCase(edu.school.trim()) || edu.school.trim(),
-              degree: edu.degree ? (normalizeTitleCase(edu.degree.trim()) || edu.degree.trim()) : "Degree / Certificate",
-              fieldOfStudy: edu.fieldOfStudy ? (normalizeTitleCase(edu.fieldOfStudy.trim()) || edu.fieldOfStudy.trim()) : "General",
-              startDate: parsedStart,
-              endDate: parsedEnd,
-              notes: edu.notes ? (normalizeSentenceCase(edu.notes.trim()) || edu.notes.trim()) : null,
+              name: normalizeTitleCase(ref.name.trim()) || ref.name.trim(),
+              relationship: relationship ? (normalizeTitleCase(relationship) || relationship) : null,
+              phone: sanitizeString(ref.phone) ?? null,
+              email: sanitizeString(ref.email)?.toLowerCase() ?? null,
+              notes: ref.notes ? (normalizeSentenceCase(ref.notes.trim()) || ref.notes.trim()) : null,
             },
           });
         }
       }
-      changeSummary.educationsTotal =
-        changeSummary.educationsAdded + changeSummary.educationsUpdated;
+      changeSummary.referencesTotal =
+        changeSummary.referencesAdded + changeSummary.referencesUpdated;
     }
-  }
-
-  // 4. Skills Deduplication & Import
-  if (payload.skills) {
-    if (payload.replaceStructuredFields) {
-      await prisma.applicantSkill.deleteMany({ where: { applicantProfileId: profile.id } });
-    }
-    if (payload.skills.length > 0) {
-      const currentSkills = await prisma.applicantSkill.findMany({
-        where: { applicantProfileId: profile.id },
-        include: { skill: true },
-      });
-      const existingSkillNames = new Set(currentSkills.map((s) => s.skill.name.trim().toLowerCase()));
-
-      for (const rawSkill of payload.skills) {
-        const cleanSkill = (normalizeTitleCase(rawSkill.trim()) || rawSkill.trim());
-        const lowerSkill = cleanSkill.toLowerCase();
-        if (!cleanSkill || existingSkillNames.has(lowerSkill)) continue;
-
-        let skill = await prisma.skill.findUnique({
-          where: { name: lowerSkill },
-        });
-
-        if (!skill) {
-          skill = await prisma.skill.create({
-            data: { name: lowerSkill },
-          });
-        }
-
-        await prisma.applicantSkill.create({
-          data: {
-            applicantProfileId: profile.id,
-            skillId: skill.id,
-          },
-        });
-
-        existingSkillNames.add(lowerSkill);
-        changeSummary.skillsAdded++;
-      }
-      changeSummary.skillsTotal = changeSummary.skillsAdded;
-    }
-  }
-
-  // 5. Trainings & Certifications Deduplication & Import
-  if (payload.trainings) {
-    if (payload.replaceStructuredFields) {
-      await prisma.trainingCertification.deleteMany({ where: { applicantProfileId: profile.id } });
-    }
-    if (payload.trainings.length > 0) {
-      const existingTrainings = await prisma.trainingCertification.findMany({
-        where: { applicantProfileId: profile.id },
-      });
-
-      for (const training of payload.trainings) {
-        const titleNorm = training.title.trim().toLowerCase();
-        const existing = existingTrainings.find(
-          (t) => t.title.trim().toLowerCase() === titleNorm
-        );
-
-        const parsedCompletion = parseSafeDate(training.completionDate);
-
-        if (existing) {
-          const nextProvider = sanitizeString(training.provider) ?? existing.provider;
-          const nextDate = training.completionDate !== undefined ? parsedCompletion : existing.completionDate;
-          const nextCertNo = sanitizeString(training.certificateNo) ?? existing.certificateNo;
-          const nextNotes = sanitizeString(training.notes) ?? existing.notes;
-
-          const hasChanged =
-            (nextProvider || "") !== (existing.provider || "") ||
-            toTime(nextDate) !== toTime(existing.completionDate) ||
-            (nextCertNo || "") !== (existing.certificateNo || "") ||
-            (nextNotes || "") !== (existing.notes || "");
-
-          if (hasChanged) {
-            changeSummary.trainingsUpdated++;
-          }
-
-          await prisma.trainingCertification.update({
-            where: { id: existing.id },
-            data: {
-              provider: nextProvider,
-              completionDate: nextDate,
-              certificateNo: nextCertNo,
-              notes: nextNotes,
-            },
-          });
-        } else {
-          changeSummary.trainingsAdded++;
-          await prisma.trainingCertification.create({
-            data: {
-              applicantProfileId: profile.id,
-              title: normalizeTitleCase(training.title.trim()) || training.title.trim(),
-              provider: training.provider ? (normalizeTitleCase(training.provider.trim()) || training.provider.trim()) : null,
-              completionDate: parsedCompletion,
-              certificateNo: sanitizeString(training.certificateNo),
-              notes: training.notes ? (normalizeSentenceCase(training.notes.trim()) || training.notes.trim()) : null,
-            },
-          });
-        }
-      }
-      changeSummary.trainingsTotal =
-        changeSummary.trainingsAdded + changeSummary.trainingsUpdated;
-    }
-  }
-
-  // 6. Character References Deduplication & Import
-  if (payload.characterReferences && payload.characterReferences.length > 0) {
-    const existingRefs = (await prisma.characterReference.findMany({
-      where: { applicantProfileId: profile.id },
-    })) || [];
-
-    for (const ref of payload.characterReferences) {
-      if (!ref || !ref.name || !ref.name.trim()) continue;
-      const nameNorm = ref.name.trim().toLowerCase();
-      const phoneNorm = (ref.phone || "").trim().toLowerCase();
-      const emailNorm = (ref.email || "").trim().toLowerCase();
-
-      const existing = existingRefs.find((r) => {
-        const exName = r.name.trim().toLowerCase();
-        const exPhone = (r.phone || "").trim().toLowerCase();
-        const exEmail = (r.email || "").trim().toLowerCase();
-
-        if (exName === nameNorm) {
-          if (phoneNorm && exPhone && phoneNorm === exPhone) return true;
-          if (emailNorm && exEmail && emailNorm === exEmail) return true;
-          if (!phoneNorm && !emailNorm && !exPhone && !exEmail) return true;
-        }
-        return false;
-      });
-
-      let relationship = sanitizeString(ref.relationship);
-      const company = sanitizeString(ref.company);
-      if (company) {
-        relationship = relationship ? `${relationship} at ${company}` : company;
-      }
-
-      if (existing) {
-        const nextRel = relationship ?? existing.relationship;
-        const nextPhone = sanitizeString(ref.phone) ?? existing.phone;
-        const nextEmail = sanitizeString(ref.email) ?? existing.email;
-        const nextNotes = sanitizeString(ref.notes) ?? existing.notes;
-
-        const hasChanged =
-          (nextRel || "") !== (existing.relationship || "") ||
-          (nextPhone || "") !== (existing.phone || "") ||
-          (nextEmail || "") !== (existing.email || "") ||
-          (nextNotes || "") !== (existing.notes || "");
-
-        if (hasChanged) {
-          changeSummary.referencesUpdated++;
-        }
-
-        await prisma.characterReference.update({
-          where: { id: existing.id },
-          data: {
-            relationship: nextRel,
-            phone: nextPhone,
-            email: nextEmail,
-            notes: nextNotes,
-          },
-        });
-      } else {
-        changeSummary.referencesAdded++;
-        await prisma.characterReference.create({
-          data: {
-            applicantProfileId: profile.id,
-            name: normalizeTitleCase(ref.name.trim()) || ref.name.trim(),
-            relationship: relationship ? (normalizeTitleCase(relationship) || relationship) : null,
-            phone: sanitizeString(ref.phone) ?? null,
-            email: sanitizeString(ref.email)?.toLowerCase() ?? null,
-            notes: ref.notes ? (normalizeSentenceCase(ref.notes.trim()) || ref.notes.trim()) : null,
-          },
-        });
-      }
-    }
-    changeSummary.referencesTotal =
-      changeSummary.referencesAdded + changeSummary.referencesUpdated;
-  }
+    return { profileId: profile.id, changeSummary };
+  }, { timeout: 20000, maxWait: 10000 });
 
   if (payload.replaceStructuredFields) {
-    await Promise.resolve(revalidateApplicantProfile(profile.id)).catch(() => {});
+    await Promise.resolve(revalidateApplicantProfile(profileId)).catch(() => {});
   } else {
-    queueProfileRevalidation(profile.id);
+    queueProfileRevalidation(profileId);
   }
   const updatedProfile = await getApplicantProfile(userId);
   return {
@@ -1164,4 +1215,3 @@ export const applyExtractedProfileService = async (
     changeSummary,
   };
 };
-

@@ -303,6 +303,15 @@ import {
   normalizeSentenceCase,
   normalizeSkill,
 } from "./text-case.js";
+import {
+  normalizeCivilStatus,
+  normalizeGender,
+  normalizeMobileNumber,
+  normalizePostalCode,
+  parseHeightCm,
+  parseLooseDate,
+  parseWeightKg,
+} from "./profile-normalizers.js";
 
 const RESUME_EXTRACTION_SCHEMA = `
 {
@@ -402,46 +411,7 @@ export const mapParsedProfileData = (parsed: any): ExtractedProfileData => {
     return str ? normalizeSentenceCase(str) : undefined;
   };
 
-  const cleanNumber = (val: any): number | undefined => {
-    if (val === undefined || val === null) return undefined;
-    if (typeof val === "number" && Number.isFinite(val)) return val > 0 ? val : undefined;
-    if (typeof val === "string") {
-      const match = val.match(/[\d.]+/);
-      if (match) {
-        const num = parseFloat(match[0]);
-        return !isNaN(num) && num > 0 ? num : undefined;
-      }
-    }
-    return undefined;
-  };
-
-  const cleanDate = (val: any): string | undefined => {
-    const raw = cleanString(val);
-    if (!raw) return undefined;
-    const lower = raw.toLowerCase();
-    if (lower === "present" || lower === "current" || lower === "now" || lower === "ongoing" || lower === "n/a" || lower === "none") {
-      return undefined;
-    }
-    const matchIso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-    if (matchIso) {
-      const [, y, m, d] = matchIso;
-      return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-    }
-    const matchYearMonth = raw.match(/^(\d{4})[-/](\d{1,2})$/);
-    if (matchYearMonth) {
-      const [, y, m] = matchYearMonth;
-      return `${y}-${m.padStart(2, "0")}`;
-    }
-    const matchYear = raw.match(/^(\d{4})$/);
-    if (matchYear) {
-      return matchYear[1];
-    }
-    const parsedDate = new Date(raw);
-    if (!isNaN(parsedDate.getTime())) {
-      return parsedDate.toISOString().substring(0, 10);
-    }
-    return undefined;
-  };
+  const cleanDate = (val: any): string | undefined => parseLooseDate(cleanString(val));
 
   const rawRefs = parsed.characterReferences || parsed.character_references || parsed.references || parsed.character_reference || parsed.characterReference;
 
@@ -450,18 +420,20 @@ export const mapParsedProfileData = (parsed: any): ExtractedProfileData => {
     middleName: cleanTitleString(parsed.middleName || parsed.middle_name || parsed.middleInitial),
     lastName: cleanTitleString(parsed.lastName || parsed.last_name || parsed.surname || parsed.family_name),
     email: cleanString(parsed.email || parsed.emailAddress)?.toLowerCase(),
-    mobileNumber: cleanString(parsed.mobileNumber || parsed.mobile_number || parsed.contactNumber || parsed.contact_number || parsed.phone || parsed.phoneNumber),
+    mobileNumber: normalizeMobileNumber(cleanString(parsed.mobileNumber || parsed.mobile_number || parsed.contactNumber || parsed.contact_number || parsed.phone || parsed.phoneNumber)),
     dateOfBirth: cleanDate(parsed.dateOfBirth || parsed.date_of_birth || parsed.birthDate || parsed.birth_date || parsed.birthday || parsed.dob),
     birthPlace: cleanTitleString(parsed.birthPlace || parsed.birth_place || parsed.placeOfBirth || parsed.place_of_birth || parsed.birthLocation),
-    gender: cleanTitleString(parsed.gender || parsed.sex),
+    gender: normalizeGender(cleanString(parsed.gender || parsed.sex)),
     nationality: cleanTitleString(parsed.nationality || parsed.citizenship),
-    civilStatus: cleanTitleString(parsed.civilStatus || parsed.civil_status || parsed.maritalStatus || parsed.marital_status),
+    civilStatus: normalizeCivilStatus(cleanString(parsed.civilStatus || parsed.civil_status || parsed.maritalStatus || parsed.marital_status)),
     religion: cleanTitleString(parsed.religion || parsed.religiousAffiliation),
-    height: cleanNumber(parsed.height || parsed.heightCm),
-    weight: cleanNumber(parsed.weight || parsed.weightKg),
+    height: parseHeightCm(parsed.height ?? parsed.heightCm),
+    weight: parseWeightKg(parsed.weight ?? parsed.weightKg),
     address: cleanTitleString(parsed.address),
     city: cleanTitleString(parsed.city),
     province: cleanTitleString(parsed.province),
+    barangay: cleanTitleString(parsed.barangay || parsed.brgy),
+    postalCode: normalizePostalCode(parsed.postalCode ?? parsed.postal_code ?? parsed.zipCode ?? parsed.zip),
     preferredWorkLocations: cleanTitleString(parsed.preferredWorkLocations || parsed.preferred_work_locations || parsed.workLocations),
     professionalSummary: cleanSentenceString(parsed.professionalSummary || parsed.professional_summary || parsed.summary || parsed.objective),
     skills: Array.isArray(parsed.skills)
@@ -472,12 +444,12 @@ export const mapParsedProfileData = (parsed: any): ExtractedProfileData => {
           .filter((edu: any) => edu && typeof (edu.school || edu.institution || edu.schoolName) === "string" && (edu.school || edu.institution || edu.schoolName).trim())
           .map((edu: any) => {
             const rawSchool = String(edu.school || edu.institution || edu.schoolName).trim();
-            const rawDegree = cleanString(edu.degree) || "Degree / Certificate";
-            const rawField = cleanString(edu.fieldOfStudy || edu.field) || "General";
+            const rawDegree = cleanString(edu.degree);
+            const rawField = cleanString(edu.fieldOfStudy || edu.field);
             return {
               school: normalizeTitleCase(rawSchool) || rawSchool,
-              degree: normalizeTitleCase(rawDegree) || rawDegree,
-              fieldOfStudy: normalizeTitleCase(rawField) || rawField,
+              degree: rawDegree ? normalizeTitleCase(rawDegree) || rawDegree : undefined,
+              fieldOfStudy: rawField ? normalizeTitleCase(rawField) || rawField : undefined,
               startDate: cleanDate(edu.startDate || edu.start_date),
               endDate: cleanDate(edu.endDate || edu.end_date),
               notes: cleanSentenceString(edu.notes),

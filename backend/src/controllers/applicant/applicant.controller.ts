@@ -196,6 +196,8 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
             gender: extractedData.gender,
             province: extractedData.province,
             city: extractedData.city,
+            barangay: extractedData.barangay,
+            postalCode: extractedData.postalCode,
             dateOfBirth: extractedData.dateOfBirth,
             birthPlace: extractedData.birthPlace,
             nationality: extractedData.nationality,
@@ -211,7 +213,7 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
             company: we.company,
             roleTitle: we.roleTitle,
             location: we.location,
-            startDate: we.startDate || new Date().toISOString().split("T")[0],
+            startDate: we.startDate,
             endDate: we.endDate,
             isCurrent: we.isCurrent,
             summary: we.summary,
@@ -220,8 +222,8 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
           skills: extractedData.skills,
           trainings: extractedData.trainings,
           characterReferences: extractedData.characterReferences,
-          overwriteExistingPersonal: true,
-          replaceStructuredFields: true,
+          overwriteExistingPersonal: false,
+          replaceStructuredFields: false,
         });
         finalProfile = appliedResult.profile;
         changeSummary = appliedResult.changeSummary;
