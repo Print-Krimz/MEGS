@@ -336,7 +336,9 @@ export const RedeploymentQueuePage: React.FC = () => {
                       className="focus-ring flex min-h-11 min-w-0 flex-1 flex-col items-start gap-2 rounded-md text-left text-slate-950 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                     >
                       <PersonCell name={row.name} context={[row.previousRole, row.previousClient]} />
-                      <StatusWithAge chip={<StageChip stage={row.stage} />} age={wait.text} ageTone={wait.tone} />
+                      <div className="sm:w-52 sm:shrink-0">
+                        <StatusWithAge chip={<StageChip stage={row.stage} />} age={wait.text} ageTone={wait.tone} />
+                      </div>
                     </button>
                     <div className="shrink-0 sm:w-36 sm:text-right [&>*]:w-full">{rowAction(row)}</div>
                   </li>
