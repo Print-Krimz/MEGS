@@ -62,6 +62,7 @@ describe("every by-id TA route is guarded by record ownership", () => {
     expect(kindOf("PATCH", "/deployments/:id/status")).toEqual(["deployment"]);
     expect(kindOf("PATCH", "/compliance/:requirementId/review")).toEqual(["requirement"]);
     expect(kindOf("POST", "/compliance/:requirementId/upload")).toEqual(["requirement"]);
+    expect(kindOf("POST", "/applications/:id/compliance/bulk-upload")).toEqual(["application"]);
     expect(kindOf("DELETE", "/mrfs/compliance-templates/:templateId")).toEqual(["template"]);
     expect(kindOf("PATCH", "/candidates/:id")).toEqual(["candidate"]);
     expect(kindOf("POST", "/talent-pool/invitations/:id/assisted-response")).toEqual(["invitation"]);

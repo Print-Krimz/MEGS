@@ -37,9 +37,9 @@ const imageFileFilter: multer.Options["fileFilter"] = (req, file, cb) => {
   }
 };
 
-const documentUpload = (fileSize: number, fileFilter: multer.Options["fileFilter"]) => multer({
+const documentUpload = (fileSize: number, fileFilter: multer.Options["fileFilter"], files = 1) => multer({
   storage,
-  limits: { fileSize, files: 1, fields: 20, fieldSize: 64 * 1024, parts: 21 },
+  limits: { fileSize, files, fields: 20, fieldSize: 64 * 1024, parts: 21 },
   fileFilter,
 });
 
@@ -63,6 +63,18 @@ export const acquireUploadSlot: RequestHandler = (_req, res, next) => {
 const guardedUpload = (maxBytes: number, fileFilter: multer.Options["fileFilter"] = documentFileFilter, rejectMessage?: string) => {
   const parser = documentUpload(maxBytes, fileFilter);
   return {
+    // Several files in one request. Same type and byte checks per file, and it still holds a single upload slot.
+    array(field: string, maxFiles: number): RequestHandler {
+      const parse = documentUpload(maxBytes, fileFilter, maxFiles).array(field, maxFiles);
+      return (req, res, next) => acquireUploadSlot(req, res, () => {
+        parse(req, res, (error) => {
+          if (error) { const message = rejectMessage ?? (error instanceof Error && publicMessages.has(error.message) ? error.message : "Upload failed. Check the document type, size and number of files."); res.status(400).json({ success: false, message }); return; }
+          try { for (const file of (req.files as Express.Multer.File[] | undefined) ?? []) validateDocumentBytes(file.buffer, file.mimetype, maxBytes); }
+          catch { res.status(400).json({ success: false, message: rejectMessage ?? "File contents do not match a supported document type or size." }); return; }
+          next();
+        });
+      });
+    },
     single(field: string): RequestHandler {
       const parse = parser.single(field);
       return (req, res, next) => acquireUploadSlot(req, res, () => {

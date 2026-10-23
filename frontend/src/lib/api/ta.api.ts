@@ -1,4 +1,10 @@
 import { api } from "./client";
+
+export interface BulkUploadResult {
+  requirementId: number;
+  status: "uploaded" | "failed";
+  error?: string;
+}
 import type {
   Application,
   TAApplicationSummary,
@@ -574,6 +580,14 @@ export const taApi = {
     const formData = new FormData();
     formData.append("file", file);
     return api.upload<ComplianceRequirement>(`/api/ta/compliance/${requirementId}/upload`, formData);
+  },
+
+  /** Uploads several scanned documents at once. Every one lands as Submitted; nothing is approved. */
+  bulkUploadComplianceDocuments: (applicationId: number | string, items: { file: File; requirementId: number }[]) => {
+    const formData = new FormData();
+    items.forEach((item) => formData.append("files", item.file));
+    formData.append("mapping", JSON.stringify(items.map((item, fileIndex) => ({ fileIndex, requirementId: item.requirementId }))));
+    return api.upload<{ results: BulkUploadResult[] }>(`/api/ta/applications/${applicationId}/compliance/bulk-upload`, formData);
   },
 
   reviewComplianceRequirement: (requirementId: number | string, data: ReviewComplianceDto) =>

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { uploadComplianceDocumentForApplicant } from "../../services/applicant/application.service.js";
+import { bulkUploadComplianceDocuments, BulkUploadRequestError } from "../../services/ta/ta.compliance-bulk.service.js";
 import { requestComplianceDocumentUpdate } from "../../services/ta/ta.compliance.service.js";
 import { sendSuccess, sendError } from "../../utils/response.js";
 import {
@@ -110,6 +111,25 @@ export const uploadComplianceDocumentForApplicantHandler = async (req: Request, 
     sendSuccess(res, "Document uploaded for the applicant", updated);
   } catch (error: any) {
     sendError(res, error.message, error.message.includes("not found") ? 404 : 400);
+  }
+};
+
+export const bulkUploadComplianceDocumentsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+    if (files.length === 0) {
+      sendError(res, "Attach at least one document photo or PDF", 400);
+      return;
+    }
+    const results = await bulkUploadComplianceDocuments({
+      actor: { id: req.user!.id, role: req.user!.role },
+      applicationId: Number(req.params.id),
+      files,
+      mapping: req.body.mapping,
+    });
+    sendSuccess(res, "Documents uploaded for the applicant", { results });
+  } catch (error: any) {
+    sendError(res, error.message, error instanceof BulkUploadRequestError ? 400 : 500);
   }
 };
 
