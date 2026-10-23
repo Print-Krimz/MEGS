@@ -39,18 +39,22 @@ export const actionablePersonal = (proposal: ResumeProposal): ResumePersonalProp
 const isNew = (row: { status: string }) => row.status === "new";
 const needsDate = (row: { status: string }) => row.status === "needs_date";
 
-/** Number of things the review dialog would show. Zero means nothing to review. */
+/** Number of things the applicant can select in the review dialog. Zero means nothing to review. */
 export function countActionable(proposal: ResumeProposal | null | undefined): number {
   if (!proposal) return 0;
   return (
     actionablePersonal(proposal).length +
-    proposal.workExperiences.filter((r) => isNew(r) || needsDate(r)).length +
+    proposal.workExperiences.filter(isNew).length +
     proposal.educations.filter(isNew).length +
     proposal.skills.filter(isNew).length +
     proposal.trainings.filter(isNew).length +
     proposal.references.filter(isNew).length
   );
 }
+
+/** Work entries from the resume that were not added because no start date was found. */
+export const countUndatedWork = (proposal: ResumeProposal | null | undefined): number =>
+  proposal ? proposal.workExperiences.filter(needsDate).length : 0;
 
 export interface ResumeSelection {
   /** Personal fields to save (suggested values and chosen conflicts). */

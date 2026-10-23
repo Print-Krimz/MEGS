@@ -16,7 +16,6 @@ import type {
   ResumeAccept,
   PendingResumeProposal,
   ApplyResumeResult,
-  ApplyExtractedProfileDto,
 } from "../types/applicant.types";
 
 export const applicantApi = {
@@ -105,8 +104,5 @@ export const applicantApi = {
 
   applyResumeProposal: (parseId: number, accept: ResumeAccept) =>
     api.post<ApplyResumeResult>(`/api/applicants/profile/resume/${parseId}/apply`, { accept }),
-
-  applyExtractedProfile: (data: ApplyExtractedProfileDto) =>
-    api.post<ApplicantProfile>("/api/applicants/profile/apply-extracted", data),
 };
 

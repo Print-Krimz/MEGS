@@ -12,7 +12,6 @@ import {
   addReference, deleteReference,
   addAsset, deleteAsset,
   uploadPhoto, uploadResume,
-  applyExtractedProfile,
   getResumeProposal, applyResumeMerge
 } from '../../controllers/applicant/applicant.controller.js';
 
@@ -23,7 +22,6 @@ router.use(requireRole("APPLICANT"));
 
 router.get("/profile", getProfile);
 router.post("/profile", validate(applicantSchema.upsertProfile), upsertProfile);
-router.post("/profile/apply-extracted", validate(applicantSchema.applyExtractedProfile), applyExtractedProfile);
 
 router.post("/profile/work-experience", validate(applicantSchema.addWorkExperience), addWorkExperience);
 router.delete("/profile/work-experience/:id", validate(applicantSchema.idParams), deleteWorkExperience);

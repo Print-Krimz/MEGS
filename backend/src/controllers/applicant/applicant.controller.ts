@@ -249,18 +249,4 @@ export const applyResumeMerge = async (req: Request, res: Response): Promise<voi
   }
 };
 
-// Apply Extracted Resume Data to Profile
-export const applyExtractedProfile = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { profile: updatedProfile, changeSummary } = await applyExtractedProfileService(req.user!.id, req.body);
-    sendSuccess(res, "Extracted profile details applied successfully", {
-      profile: updatedProfile,
-      changeSummary,
-    });
-  } catch (error: any) {
-    const statusCode = error.message.includes("not found") ? 404 : 400;
-    sendError(res, error.message, statusCode);
-  }
-};
-
 

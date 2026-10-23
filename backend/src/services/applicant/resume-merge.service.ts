@@ -408,7 +408,8 @@ const acceptAll = (proposal: MergeProposal) => ({
 
 // Fills blanks and adds new entries only; never overwrites. For a brand-new profile (walk-in) or the
 // first parse a profile ever gets. Anything that conflicts or is a duplicate is left alone.
-export const fillBlanksFromParse = async (parseId: number) => {
+// actorUserId names who caused the fill (the encoding TA for a walk-in); it defaults to the applicant.
+export const fillBlanksFromParse = async (parseId: number, actorUserId?: string) => {
   const row = await prisma.resumeParseResult.findUnique({ where: { id: parseId } });
   if (!row) throw new ResumeMergeError("Resume proposal not found", 404);
   const loaded = await loadOpenRow(parseId, row.applicantProfileId);
@@ -431,7 +432,7 @@ export const fillBlanksFromParse = async (parseId: number) => {
     throw error;
   }
 
-  await logAudit(profile.userId, "RESUME_FILL_BLANKS", "ApplicantProfile", profile.id, { parseId, source: row.source, accepted: acceptedCounts });
+  await logAudit(actorUserId ?? profile.userId, "RESUME_FILL_BLANKS", "ApplicantProfile", profile.id, { parseId, source: row.source, accepted: acceptedCounts });
   return { changeSummary, accepted: acceptedCounts };
 };
 

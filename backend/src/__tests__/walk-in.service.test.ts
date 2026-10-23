@@ -509,7 +509,7 @@ describe("createWalkIn: bio-data extraction", () => {
     expect(m.parseResumeToProposal).toHaveBeenCalledWith(
       expect.objectContaining({ profileId: 9, buffer: FILE.buffer, source: "WALK_IN", sha256: expect.stringMatching(/^[0-9a-f]{64}$/) })
     );
-    expect(m.fillBlanksFromParse).toHaveBeenCalledWith(77);
+    expect(m.fillBlanksFromParse).toHaveBeenCalledWith(77, expect.any(String));
     expect(m.fillBlanksFromParse.mock.invocationCallOrder[0]).toBeLessThan(m.revalidateApplication.mock.invocationCallOrder[0]);
     expect(m.enqueueResumeAnalysis).toHaveBeenCalledWith(42);
   });

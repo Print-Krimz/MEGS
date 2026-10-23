@@ -25,7 +25,7 @@ import { getNcrBarangayPostal } from "../../lib/ncr-postal-reference";
 import { getCityPostalCodes } from "../../lib/ph-address";
 import { formatDate, extractDocumentId } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
-import { countActionable } from "../../lib/resume-autofill";
+import { countActionable, countUndatedWork } from "../../lib/resume-autofill";
 import { ResumeReviewDialog } from "../../components/applicant/ResumeReviewDialog";
 import type { ResumeAccept, ResumeProposal } from "../../lib/types/applicant.types";
 import { normalizeTitleCase, normalizeSentenceCase } from "../../lib/text-case";
@@ -528,6 +528,11 @@ export const ProfilePage: React.FC = () => {
         setReviewProposal({ parseId: data.parseId, proposal: data.proposal });
         setReviewOpen(true);
         setFeedback(null);
+      } else if (countUndatedWork(data?.proposal) > 0) {
+        setFeedback({
+          type: "success",
+          message: "Resume saved. Some jobs had no start date, so they were not added. Add them under Work experience.",
+        });
       } else {
         setFeedback({ type: "success", message: "Resume saved. No new details found." });
       }
