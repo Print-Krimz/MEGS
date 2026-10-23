@@ -353,6 +353,7 @@ export const ClientsPage: React.FC = () => {
         }}
         title="Add client"
         description="Register the company and its main contact details."
+        size="xl"
       >
         <form
           noValidate
@@ -433,8 +434,11 @@ export const ClientsPage: React.FC = () => {
               postalCode: postalCode.trim() || undefined,
             });
           }}
-          className="space-y-4"
+          className="space-y-5"
         >
+          <div className="grid grid-cols-1 gap-x-8 gap-y-5 lg:grid-cols-2">
+          <section aria-labelledby="add-client-company" className="space-y-4">
+          <h3 id="add-client-company" className="text-sm font-semibold text-slate-900">Company</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               ref={nameInputRef}
@@ -473,6 +477,7 @@ export const ClientsPage: React.FC = () => {
             allowCustom
           />
 
+          <h3 className="pt-1 text-sm font-semibold text-slate-900">Main contact</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Contact first name"
@@ -525,10 +530,12 @@ export const ClientsPage: React.FC = () => {
             />
           </div>
 
-          <div className="pt-2 border-t border-slate-100 space-y-3">
-            <div className="text-sm font-semibold text-slate-900">
+          </section>
+
+          <section aria-labelledby="add-client-address" className="space-y-4 border-t border-slate-100 pt-5 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+            <h3 id="add-client-address" className="text-sm font-semibold text-slate-900">
               Facility address
-            </div>
+            </h3>
             <Input
               label="Street or building address"
               placeholder="e.g. Bldg 4, Light Industry & Science Park II"
@@ -551,13 +558,14 @@ export const ClientsPage: React.FC = () => {
                 if (patch.postalCode !== undefined) setPostalCode(patch.postalCode);
               }}
             />
+          </section>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setCreateModalOpen(false)}>
+          <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+            <Button variant="outline" onClick={() => setCreateModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" type="submit" loading={createClientMutation.isPending}>
+            <Button variant="primary" type="submit" loading={createClientMutation.isPending}>
             Add client
             </Button>
           </div>
