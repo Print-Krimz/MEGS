@@ -67,7 +67,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="admin-section-heading"><h2 id="admin-backups">Backups</h2></div>
           <div className="space-y-5 p-5"><SectionData query={backupsQuery}>{backups => {
             const latest = backups[0];
-            return latest ? <dl className="space-y-4 text-sm"><div><dt className="text-xs text-slate-600">Latest backup status</dt><dd className="mt-1 font-medium">{formatAdminBackupStatus(latest.status)}</dd></div><div><dt className="text-xs text-slate-600">Created</dt><dd className="mt-1">{formatDateTime(latest.createdAt)}</dd></div><div><dt className="text-xs text-slate-600">Protection</dt><dd className="mt-1">{latest.encryptionMethod || "Not available"}</dd></div></dl> : <p className="text-sm text-slate-600">No backups yet. Create a copy of recruitment data before you need to recover it.</p>;
+            return latest ? <dl className="space-y-4 text-sm"><div><dt className="text-xs text-slate-600">Latest backup status</dt><dd className="mt-1 font-medium">{formatAdminBackupStatus(latest.status)}</dd></div><div><dt className="text-xs text-slate-600">Creation date</dt><dd className="mt-1">{formatDateTime(latest.createdAt)}</dd></div></dl> : <p className="text-sm text-slate-600">No backups yet. Create a copy of recruitment data before you need to recover it.</p>;
           }}</SectionData><Link to="/admin/maintenance" className="admin-section-link inline-flex min-h-11 items-center">View backups</Link></div>
         </section>
       </div>

@@ -120,10 +120,10 @@ export const ScoringQualityPage: React.FC = () => {
         </div>
 
         <div className="p-3.5">
-          <div className="text-xs font-sans font-bold text-teal-800  ">
+          <div className="text-xs font-sans font-bold text-navy  ">
             Average match score
           </div>
-          <div className="text-2xl font-bold font-sans text-teal-950 mt-0.5 tabular-nums">
+          <div className="text-2xl font-bold font-sans text-navy mt-0.5 tabular-nums">
             {metric(m.averageFitScore, 1)}
           </div>
           <div className="text-xs text-slate-500 mt-0.5 font-sans">
@@ -148,7 +148,7 @@ export const ScoringQualityPage: React.FC = () => {
       {/* Score Distribution Histogram */}
       <div className="admin-panel">
         <div className="p-3 border-b border-slate-300 flex flex-wrap items-center gap-2 bg-slate-100">
-          <BarChart3 className="w-4 h-4 text-teal-700" />
+          <BarChart3 className="w-4 h-4 text-navy" />
           <h3 className="text-sm font-semibold font-sans text-slate-900">
             Score distribution
           </h3>
@@ -199,7 +199,7 @@ export const ScoringQualityPage: React.FC = () => {
         </h4>
         <p className="text-sm text-slate-600 leading-relaxed font-sans">
             Candidate match scores consider skills, experience, location, requirements, and education. You can change their importance in{" "}
-          <Link to="/admin/scoring" className="font-sans text-teal-900 font-bold underline hover:text-teal-700">
+          <Link to="/admin/scoring" className="font-sans text-navy font-bold underline hover:text-navy">
             Matching settings
           </Link>{" "}
           to match specific hiring requirements.

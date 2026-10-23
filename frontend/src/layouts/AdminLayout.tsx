@@ -189,7 +189,7 @@ export const AdminLayout: React.FC = () => {
   }, [accountMenuOpen]);
 
   return (
-    <div className="admin-portal min-h-screen bg-page flex flex-col lg:flex-row">
+    <div className="admin-portal min-h-screen bg-ta-page flex flex-col lg:flex-row">
       <a href="#admin-main-content" className="admin-skip-link">Skip to content</a>
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
 
@@ -207,18 +207,17 @@ export const AdminLayout: React.FC = () => {
             role="dialog"
             aria-modal="true"
             aria-label="Admin navigation"
-            className="relative flex-1 flex flex-col max-w-xs w-full bg-slate-950 text-slate-300 border-r border-slate-800 shadow-2xl z-10 animate-in slide-in-from-left duration-200"
+            className="relative flex-1 flex flex-col max-w-xs w-full border-t-4 border-t-megs-red bg-megs-navy-900 text-white/75 border-r border-white/10 shadow-2xl z-10 animate-in slide-in-from-left duration-200"
           >
             {/* Drawer Header */}
-            <div className="h-14 flex items-center justify-between px-4 bg-slate-900 border-b border-slate-800">
+            <div className="h-14 flex items-center justify-between px-4 border-b border-white/10">
               <div className="leading-tight">
-                <div className="text-base font-bold font-mono tracking-tight text-white">MEGS</div>
-                <div className="text-xs text-amber-300">Admin portal</div>
+                <div className="text-sm font-semibold text-white">Administration</div>
               </div>
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="focus-ring-dark min-h-11 min-w-11 inline-flex items-center justify-center rounded-md text-white/75 hover:text-white hover:bg-white/5 transition-colors"
                 aria-label="Close menu"
               >
                 <X className="w-5 h-5" />
@@ -229,7 +228,7 @@ export const AdminLayout: React.FC = () => {
             <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
               {adminNavSections.map((section, idx) => (
                 <div key={idx} className="space-y-1">
-                  <div className="px-2 text-xs font-medium text-slate-400">
+                  <div className="px-3 text-[11px] font-medium uppercase tracking-wide text-white/55">
                     {section.label}
                   </div>
                   <div className="space-y-0.5">
@@ -243,9 +242,9 @@ export const AdminLayout: React.FC = () => {
                           onClick={() => setMobileMenuOpen(false)}
                           activeOptions={{ exact: true }}
                           activeProps={{
-                            className: "bg-primary text-white font-semibold rounded-md",
+                            className: "border-megs-red bg-white/5 font-medium text-white",
                           }}
-                          className="flex min-h-11 items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:text-white hover:bg-slate-900 rounded-md transition-colors"
+                          className="admin-nav-link focus-ring-dark flex min-h-11 items-center gap-2.5 border-l-[3px] border-transparent px-3 py-2 text-sm text-white/75 hover:text-white hover:bg-white/5 transition-colors"
                         >
                           <Icon className="w-4 h-4 shrink-0" />
                           <span className="truncate">{item.label}</span>
@@ -262,29 +261,28 @@ export const AdminLayout: React.FC = () => {
 
       {/* Admin Desktop Persistent Sidebar */}
       <aside
-        className={`hidden lg:flex fixed inset-y-0 left-0 z-40 bg-slate-950 text-slate-300 flex-col border-r border-slate-800 transition-all duration-150 ${
+        className={`hidden lg:flex fixed inset-y-0 left-0 z-40 border-t-4 border-t-megs-red bg-megs-navy-900 text-white/75 flex-col border-r border-white/10 transition-all duration-150 ${
           collapsed ? "w-16" : "w-64"
         }`}
       >
         {/* Brand Header */}
-        <div className="h-14 flex items-center justify-between px-4 bg-slate-900 border-b border-slate-800">
+        <div className={`flex shrink-0 items-center border-b border-white/10 ${collapsed ? "flex-col justify-center gap-1.5 py-2" : "h-14 justify-between px-4"}`}>
           {!collapsed && (
             <div className="leading-tight">
-              <div className="text-base font-bold font-mono tracking-tight text-white">MEGS</div>
-                <div className="text-xs text-amber-300">Admin portal</div>
+              <div className="text-sm font-semibold text-white">Administration</div>
             </div>
           )}
 
           {collapsed && (
             <div className="w-full flex justify-center">
-              <span className="font-mono font-bold text-sm text-amber-400">M</span>
+              <span className="font-semibold text-sm text-white">M</span>
             </div>
           )}
 
           <button
             type="button"
             onClick={() => setCollapsed(!collapsed)}
-            className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="focus-ring-dark min-h-9 min-w-9 inline-flex items-center justify-center rounded-md text-white/75 hover:text-white hover:bg-white/5 transition-colors"
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
           >
@@ -297,7 +295,7 @@ export const AdminLayout: React.FC = () => {
           {adminNavSections.map((section, idx) => (
             <div key={idx} className="space-y-1">
               {!collapsed && (
-                <div className="px-2 text-xs font-medium text-slate-400">
+                <div className="px-3 text-[11px] font-medium uppercase tracking-wide text-white/55">
                   {section.label}
                 </div>
               )}
@@ -311,9 +309,9 @@ export const AdminLayout: React.FC = () => {
                       aria-label={item.label}
                       activeOptions={{ exact: true }}
                       activeProps={{
-                        className: "bg-primary text-white font-semibold rounded-md",
+                        className: "border-megs-red bg-white/5 font-medium text-white",
                       }}
-                      className="flex min-h-9 items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:text-white hover:bg-slate-900 rounded-md transition-colors"
+                      className="admin-nav-link focus-ring-dark flex min-h-9 items-center gap-2.5 border-l-[3px] border-transparent px-3 py-2 text-sm text-white/75 hover:text-white hover:bg-white/5 transition-colors"
                       title={collapsed ? item.label : undefined}
                     >
                       <Icon className="w-4 h-4 shrink-0" />
@@ -342,14 +340,14 @@ export const AdminLayout: React.FC = () => {
               ref={mobileMenuButtonRef}
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 border border-slate-300 hover:bg-slate-50 transition-colors rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+              className="lg:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 border border-slate-300 hover:bg-slate-50 transition-colors rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               aria-label="Open navigation menu"
               aria-expanded={mobileMenuOpen}
               aria-controls="admin-mobile-navigation"
             >
               <Menu className="w-4 h-4" />
             </button>
-             <div className="px-2 py-1 bg-amber-100 text-amber-900 border border-amber-300 text-xs font-medium shrink-0">
+             <div className="text-sm font-semibold text-slate-900 truncate">
               Admin portal
             </div>
           </div>
@@ -375,14 +373,14 @@ export const AdminLayout: React.FC = () => {
                 aria-expanded={accountMenuOpen}
                 aria-controls="admin-account-menu"
               >
-                <div className="w-7 h-7 bg-primary text-white rounded-md text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 bg-primary text-white rounded-md text-xs font-bold flex items-center justify-center shrink-0">
                   {initials}
                 </div>
                 <div className="hidden sm:block text-left leading-tight">
                   <div className="text-xs font-bold text-slate-900 truncate max-w-[140px]">
                     {hasProfileName ? fullName : user?.email}
                   </div>
-                  <div className="text-xs text-amber-700 font-medium truncate max-w-[140px]">
+                  <div className="text-xs text-slate-500 font-medium truncate max-w-[140px]">
                     Administrator
                   </div>
                 </div>
@@ -399,12 +397,12 @@ export const AdminLayout: React.FC = () => {
                   id="admin-account-menu"
                   role="menu"
                   aria-labelledby="admin-account-button"
-                  className="absolute right-0 mt-1.5 w-64 bg-white shadow-modal border border-slate-300 z-50 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100"
+                  className="absolute right-0 mt-1.5 w-64 rounded-md bg-white shadow-modal border border-slate-300 z-50 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100"
                 >
                   {/* User Identity Context Card */}
                   <div className="p-3 bg-slate-50 border-b border-slate-200">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 bg-primary text-white rounded-md text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                      <div className="w-8 h-8 bg-primary text-white rounded-md text-xs font-bold flex items-center justify-center shrink-0">
                         {initials}
                       </div>
                       <div className="overflow-hidden min-w-0">
@@ -413,19 +411,19 @@ export const AdminLayout: React.FC = () => {
                             <div className="text-xs font-bold text-slate-900 truncate">
                               {fullName}
                             </div>
-                            <div className="text-[11px] text-slate-500 font-mono truncate">
+                            <div className="text-[11px] text-slate-500 truncate">
                               {user?.email}
                             </div>
                           </>
                         ) : (
-                          <div className="text-xs font-semibold text-slate-900 font-mono truncate">
+                          <div className="text-xs font-semibold text-slate-900 truncate">
                             {user?.email}
                           </div>
                         )}
                       </div>
                     </div>
                     <div className="mt-2 flex items-center gap-1.5">
-                      <span className="px-1.5 py-0.5 bg-amber-50 text-amber-900 border border-amber-300 text-[10px] font-mono font-medium">
+                      <span className="px-1.5 py-0.5 rounded bg-navy-soft text-navy border border-navy-line text-xs font-medium">
                         Administrator
                       </span>
                     </div>
@@ -480,7 +478,7 @@ export const AdminLayout: React.FC = () => {
         )}
 
         {/* Content Container */}
-        <main id="admin-main-content" tabIndex={-1} className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto min-w-0">
+        <main id="admin-main-content" tabIndex={-1} className="flex-1 p-3 sm:p-5 lg:p-6 max-w-[1600px] w-full mx-auto min-w-0">
           <Outlet />
         </main>
       </div>

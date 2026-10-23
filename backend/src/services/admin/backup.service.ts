@@ -167,17 +167,12 @@ const createBackupRecord = async (
     .replace("T", "_")
     .slice(0, 19);
 
-  let filename: string;
-  if (customName && customName.trim()) {
-    const cleanLabel = sanitizeBackupName(customName);
-    filename = `megs_backup_${cleanLabel}_${timestamp}.enc.gz`;
-  } else {
-    filename = `megs_backup_${timestamp}.enc.gz`;
-  }
+  const filename = `megs_backup_${timestamp}_${crypto.randomUUID()}.enc.gz`;
 
   return prisma.databaseBackupRecord.create({
     data: {
       filename,
+      displayName: customName?.trim() || null,
       status: "IN_PROGRESS",
       backupType,
       initiatedById: initiatedById || null,
@@ -364,43 +359,12 @@ export const renameDatabaseBackup = async (
     throw new Error("Database backup record not found.");
   }
 
-  let cleanName = sanitizeBackupName(newName);
-  if (!cleanName.endsWith(".enc.gz")) {
-    if (cleanName.endsWith(".gz")) {
-      cleanName = cleanName.replace(/\.gz$/, ".enc.gz");
-    } else if (cleanName.endsWith(".enc")) {
-      cleanName = `${cleanName}.gz`;
-    } else {
-      cleanName = `${cleanName}.enc.gz`;
-    }
-  }
-
-  const oldStoragePath = record.storagePath || record.filename;
-  const newStoragePath = cleanName;
-
-  if (oldStoragePath && oldStoragePath !== newStoragePath) {
-    try {
-      const { error: moveErr } = await supabase.storage
-        .from(BACKUP_BUCKET)
-        .move(oldStoragePath, newStoragePath);
-      if (moveErr) {
-        if (moveErr.message?.toLowerCase().includes("already exists")) {
-          await supabase.storage.from(BACKUP_BUCKET).remove([newStoragePath]);
-          await supabase.storage.from(BACKUP_BUCKET).move(oldStoragePath, newStoragePath);
-        } else {
-          console.warn(`[Rename Backup] Supabase Storage move warning:`, moveErr.message);
-        }
-      }
-    } catch (err: any) {
-      console.warn(`[Rename Backup] Supabase Storage move error:`, err?.message);
-    }
-  }
+  const displayName = newName.trim();
 
   const updated = await prisma.databaseBackupRecord.update({
     where: { id: backupId },
     data: {
-      filename: cleanName,
-      storagePath: newStoragePath,
+      displayName,
     },
     include: {
       initiatedBy: {
@@ -418,8 +382,8 @@ export const renameDatabaseBackup = async (
     "DatabaseBackupRecord",
     backupId,
     {
-      oldFilename: record.filename,
-      newFilename: cleanName,
+      oldDisplayName: record.displayName,
+      newDisplayName: displayName,
     }
   );
 
@@ -468,7 +432,7 @@ export const getBackupDownloadStream = async (backupId: string, actorId: string)
 
   return {
     stream,
-    filename: record.filename,
+    filename: record.displayName ? `${sanitizeBackupName(record.displayName)}.enc.gz` : record.filename,
     contentType: "application/octet-stream",
     sizeBytes: buffer.length,
   };

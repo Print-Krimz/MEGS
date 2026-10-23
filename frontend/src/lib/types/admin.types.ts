@@ -92,6 +92,7 @@ export type BackupType = "MANUAL" | "SCHEDULED_ROUTINE";
 export interface DatabaseBackupRecord {
   id: string;
   filename: string;
+  displayName?: string | null;
   sizeBytes: number | null;
   checksumSha256: string | null;
   status: BackupStatus;
