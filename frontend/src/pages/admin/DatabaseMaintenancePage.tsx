@@ -23,6 +23,8 @@ import {
   Calendar,
 } from "lucide-react";
 import type { DatabaseBackupRecord, MaintenanceProgress } from "../../lib/types/admin.types";
+import { backupDisplayName, backupDownloadName } from "../../lib/backup-name";
+import { FIELD_LIMITS } from "../../lib/field-limits";
 import { formatAdminBackupStatus } from "../../lib/admin-copy";
 import { formatErrorMessage } from "../../lib/feedback";
 
@@ -95,6 +97,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
       query.state.data?.some((restore) => restore.status === "IN_PROGRESS") ? 5000 : false,
   });
   const activeRestore = restoresQuery.data?.find((restore) => restore.status === "IN_PROGRESS");
+  const restoringBackup = backupsQuery.data?.find((backup) => backup.id === activeRestore?.backupId);
   const activeBackup = backupsQuery.data?.find((backup) => backup.status === "IN_PROGRESS");
   const backupRunning = !!activeBackup;
   const [watchedRestoreId, setWatchedRestoreId] = useState<string | null>(null);
@@ -130,8 +133,8 @@ export const DatabaseMaintenancePage: React.FC = () => {
       setLastActionResult({
         type: "SUCCESS",
          message: "Backup started.",
-        details: newBackup?.filename
-          ? `${newBackup.filename} is being created. Its status will update in the backup history below.`
+        details: newBackup
+          ? `${backupDisplayName(newBackup)} is being created. Its status will update in the backup history below.`
           : "The backup is being created. Its status will update in the backup history below.",
       });
     },
@@ -156,7 +159,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
       setLastActionResult({
         type: "SUCCESS",
          message: "Backup renamed.",
-        details: `Saved as ${updated.filename}.`,
+        details: `Saved as ${backupDisplayName(updated)}.`,
       });
     },
     onError: (err: any) => {
@@ -230,7 +233,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = backup.filename;
+      a.download = backupDownloadName(backup);
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -308,7 +311,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
       // 3. Text search
       if (search.trim()) {
         const q = search.toLowerCase().trim();
-        const filename = (b.filename || "").toLowerCase();
+        const filename = backupDisplayName(b).toLowerCase();
         const email = (b.initiatedBy?.email || "").toLowerCase();
         const backupType = (b.backupType || "").toLowerCase();
 
@@ -451,7 +454,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
             <div className="space-y-0.5">
               <h4 className="text-sm font-bold font-sans">Restore in progress</h4>
               <p className="text-sm font-sans text-slate-700">
-                Restoring {activeRestore.filename.replace(/\.enc\.gz$/, "")}. Backups and other restores are paused until it finishes.
+                Restoring {(restoringBackup ? backupDisplayName(restoringBackup) : "uploaded backup")}. Backups and other restores are paused until it finishes.
               </p>
               <p className="text-xs text-slate-500 font-sans">
                 {formatProgress(activeRestore.progress) ?? "Preparing the backup file..."}
@@ -476,7 +479,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
             <div className="space-y-0.5">
               <h4 className="text-sm font-bold font-sans">Backup in progress</h4>
               <p className="text-sm font-sans text-slate-700">
-                Creating {activeBackup.filename.replace(/\.enc\.gz$/, "")}. Snapshot data is streaming from the database.
+                Creating {backupDisplayName(activeBackup)}. Snapshot data is streaming from the database.
               </p>
               <p className="text-xs text-slate-600 font-sans font-medium">
                 {formatProgress(activeBackup.progress) ? `Reading ${formatProgress(activeBackup.progress)}` : "Preparing snapshot..."}
@@ -696,13 +699,13 @@ export const DatabaseMaintenancePage: React.FC = () => {
               <div key={b.id} className="p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-medium text-sm text-slate-950 break-words">{b.filename.replace(/\.enc\.gz$/, "")}</div>
+                    <div className="font-medium text-sm text-slate-950 break-words">{backupDisplayName(b)}</div>
                     <div className="text-sm text-slate-500 mt-1">{formatDateTime(b.createdAt)}</div>
                   </div>
                   <ActionMenu
-                    label={`Actions for ${b.filename.replace(/\.enc\.gz$/, "")}`}
+                    label={`Actions for ${backupDisplayName(b)}`}
                     items={[
-                      { label: "Rename backup", onSelect: () => { setRenameTarget(b); setRenameInput(b.filename.replace(/\.enc\.gz$/, "")); } },
+                      { label: "Rename backup", onSelect: () => { setRenameTarget(b); setRenameInput(backupDisplayName(b)); } },
                       ...(b.status === "IN_PROGRESS" ? [
                         { label: "Cancel backup", tone: "danger" as const, onSelect: () => setIsCancelDialogOpen(true) },
                       ] : []),
@@ -746,7 +749,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
                       {formatDateTime(b.createdAt)}
                     </td>
                      <td className="px-3.5 py-2.5 font-medium text-slate-900">
-                       <span className="text-sm text-slate-900">{b.filename.replace(/\.enc\.gz$/, "")}</span>
+                       <span className="text-sm text-slate-900">{backupDisplayName(b)}</span>
                     </td>
                     <td className="px-3.5 py-2.5 text-slate-600">
                       {formatBytes(b.sizeBytes)}
@@ -773,9 +776,9 @@ export const DatabaseMaintenancePage: React.FC = () => {
                     </td>
                     <td className="px-3.5 py-2.5 text-right">
                        <ActionMenu
-                         label={`Actions for ${b.filename.replace(/\.enc\.gz$/, "")}`}
+                         label={`Actions for ${backupDisplayName(b)}`}
                          items={[
-                           { label: "Rename backup", onSelect: () => { setRenameTarget(b); setRenameInput(b.filename.replace(/\.enc\.gz$/, "")); } },
+                           { label: "Rename backup", onSelect: () => { setRenameTarget(b); setRenameInput(backupDisplayName(b)); } },
                            ...(b.status === "IN_PROGRESS" ? [
                              { label: "Cancel backup", tone: "danger" as const, onSelect: () => setIsCancelDialogOpen(true) },
                            ] : []),
@@ -823,19 +826,21 @@ export const DatabaseMaintenancePage: React.FC = () => {
         >
           <div className="space-y-4 font-sans text-sm">
             <div className="space-y-1">
-              <label className="block font-semibold text-slate-800 text-sm">
+              <label htmlFor="backup-name" className="block font-semibold text-slate-800 text-sm">
                  Backup name (optional)
               </label>
               <input
                 type="text"
+                id="backup-name"
+                maxLength={FIELD_LIMITS.shortText}
                 value={backupNameInput}
                 onChange={(e) => setBackupNameInput(e.target.value)}
                 placeholder="e.g. Pre-Deployment Checkpoint"
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-700 focus:border-teal-700 font-sans"
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-focus focus:border-navy font-sans"
                 disabled={triggerBackupMutation.isPending}
               />
               <p className="text-xs text-slate-500">
-                 Leave blank to use an automatically generated name.
+                 Use a name your team will recognize. Leave blank to use the creation date.
               </p>
             </div>
 
@@ -890,20 +895,22 @@ export const DatabaseMaintenancePage: React.FC = () => {
         >
           <div className="space-y-4 font-sans text-sm">
             <div className="space-y-1.5">
-              <label className="block font-semibold text-slate-800 text-sm">
+              <label htmlFor="rename-backup-name" className="block font-semibold text-slate-800 text-sm">
                  Backup name
               </label>
               <input
                 type="text"
+                id="rename-backup-name"
+                maxLength={FIELD_LIMITS.shortText}
                 value={renameInput}
                 onChange={(e) => setRenameInput(e.target.value)}
                 placeholder="Enter backup name"
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-700 focus:border-teal-700 font-sans"
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-focus focus:border-navy font-sans"
                 disabled={renameMutation.isPending}
                 autoFocus
               />
               <p className="text-xs text-slate-500">
-                 The secure file format is kept automatically.
+                 Changing this name keeps the backup and its recovery link intact.
               </p>
             </div>
 
@@ -968,7 +975,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
                <span className="font-semibold text-slate-900 block">Backup details</span>
               {restoreTarget.mode === "RECORD" ? (
                 <div className="space-y-1">
-                  <div><strong>Name:</strong> {restoreTarget.backup.filename.replace(/\.enc\.gz$/, "")}</div>
+                  <div><strong>Name:</strong> {backupDisplayName(restoreTarget.backup)}</div>
                   <div><strong>Size:</strong> {formatBytes(restoreTarget.backup.sizeBytes)}</div>
                   <div><strong>Created:</strong> {formatDateTime(restoreTarget.backup.createdAt)}</div>
                 </div>

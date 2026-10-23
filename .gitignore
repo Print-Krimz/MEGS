@@ -40,6 +40,16 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # 5. Tests, Unit Specs & E2E Suites
+# Local verification only: do not force-add these files when publishing.
+perf/
+__fixtures__/
+__mocks__/
+*.test.*
+*.spec.*
+*.perf.*
+*.fixtures.*
+vitest*.config.*
+playwright*.config.*
 __tests__/
 *.test.ts
 *.test.tsx
