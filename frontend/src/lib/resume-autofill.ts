@@ -1,331 +1,104 @@
 import type {
-  WorkExperience,
-  Education,
-  Skill,
-  TrainingCertification,
-  CharacterReference,
-  ExtractedProfileData,
-  ExtractedProfileExperience,
-  ExtractedProfileEducation,
-  ExtractedProfileTraining,
-  ExtractedProfileReference,
+  ResumeAccept,
+  ResumeProposal,
+  ResumePersonalProposal,
 } from "./types/applicant.types";
-import { normalizeTitleCase, normalizeSentenceCase } from "./text-case";
 
-export interface AutoFillDiffResult {
-  autoFilledFields: Record<string, string>;
-  conflictingFields: Record<string, { current: string; suggested: string }>;
-  identicalFields: string[];
-  changedOrAddedFields: string[];
-}
+/** Same labels the profile form uses. */
+export const RESUME_FIELD_LABELS: Record<string, string> = {
+  firstName: "First Name",
+  middleName: "Middle Name",
+  lastName: "Last Name",
+  mobileNumber: "Contact Number",
+  gender: "Gender",
+  dateOfBirth: "Date of Birth",
+  birthPlace: "Place of Birth",
+  nationality: "Nationality",
+  civilStatus: "Civil Status",
+  religion: "Religion",
+  height: "Height (cm)",
+  weight: "Weight (kg)",
+  province: "Province or region",
+  city: "City or municipality",
+  barangay: "Barangay",
+  postalCode: "Postal code",
+  address: "Complete Residential Address",
+  preferredWorkLocations: "Preferred Work Locations",
+  professionalSummary: "Professional Summary",
+};
 
-/**
- * Computes non-destructive diff between currently entered personal form values and extracted resume data.
- * - autoFilledFields: Fields that were empty in the form and can be safely filled.
- * - conflictingFields: Fields that already have a non-empty user-entered value that differs from resume.
- * - identicalFields: Fields where existing user input matches the resume.
- * - changedOrAddedFields: All fields that were either empty and filled or had a differing value updated.
- */
-export function computeAutoFillDiff(
-  currentForm: Record<string, string | undefined | null>,
-  extracted: ExtractedProfileData & Record<string, any>
-): AutoFillDiffResult {
-  const autoFilledFields: Record<string, string> = {};
-  const conflictingFields: Record<string, { current: string; suggested: string }> = {};
-  const identicalFields: string[] = [];
+export const resumeFieldLabel = (field: string) => RESUME_FIELD_LABELS[field] ?? field;
 
-  const checkField = (fieldKey: string, extractedVal: string | number | undefined | null) => {
-    if (extractedVal === undefined || extractedVal === null) return;
-    let strVal = String(extractedVal).trim();
-    if (!strVal || strVal.toLowerCase() === "null" || strVal.toLowerCase() === "undefined" || strVal.toLowerCase() === "n/a") {
-      return;
-    }
+export const formatResumeValue = (value: string | number | null | undefined) =>
+  value === null || value === undefined || value === "" ? "—" : String(value);
 
-    if (fieldKey === "professionalSummary") {
-      strVal = normalizeSentenceCase(strVal) || strVal;
-    } else if (fieldKey !== "mobileNumber" && fieldKey !== "dateOfBirth") {
-      strVal = normalizeTitleCase(strVal) || strVal;
-    }
+/** Personal rows the applicant can act on: new values and conflicts. "same" rows are hidden. */
+export const actionablePersonal = (proposal: ResumeProposal): ResumePersonalProposal[] =>
+  proposal.personal.filter((row) => row.status === "suggested" || row.status === "conflict");
 
-    const currentVal = currentForm[fieldKey];
-    const isCurrentEmpty =
-      currentVal === undefined || currentVal === null || String(currentVal).trim() === "";
+const isNew = (row: { status: string }) => row.status === "new";
+const needsDate = (row: { status: string }) => row.status === "needs_date";
 
-    if (isCurrentEmpty) {
-      autoFilledFields[fieldKey] = strVal;
-    } else {
-      const trimmedCurrent = String(currentVal).trim();
-      if (trimmedCurrent.toLowerCase() === strVal.toLowerCase()) {
-        identicalFields.push(fieldKey);
-      } else {
-        conflictingFields[fieldKey] = {
-          current: trimmedCurrent,
-          suggested: strVal,
-        };
-      }
-    }
-  };
-
-  checkField("firstName", extracted.firstName || extracted.first_name);
-  checkField("middleName", extracted.middleName || extracted.middle_name);
-  checkField("lastName", extracted.lastName || extracted.last_name);
-  checkField("mobileNumber", extracted.mobileNumber || extracted.mobile_number || extracted.contactNumber || extracted.phone);
-  checkField("dateOfBirth", extracted.dateOfBirth || extracted.birthDate || extracted.birth_date || extracted.dob);
-  checkField("birthPlace", extracted.birthPlace || extracted.placeOfBirth || extracted.birth_place || extracted.place_of_birth);
-  checkField("gender", extracted.gender || extracted.sex);
-  checkField("nationality", extracted.nationality || extracted.citizenship);
-  checkField("civilStatus", extracted.civilStatus || extracted.civil_status || extracted.maritalStatus);
-  checkField("religion", extracted.religion);
-  checkField("height", extracted.height);
-  checkField("weight", extracted.weight);
-  checkField("province", extracted.province);
-  checkField("city", extracted.city);
-  checkField("address", extracted.address);
-  checkField("preferredWorkLocations", extracted.preferredWorkLocations || extracted.preferred_work_locations);
-  checkField("professionalSummary", extracted.professionalSummary || extracted.professional_summary || extracted.summary);
-
-  const changedOrAddedFields = Array.from(
-    new Set([...Object.keys(autoFilledFields), ...Object.keys(conflictingFields)])
+/** Number of things the review dialog would show. Zero means nothing to review. */
+export function countActionable(proposal: ResumeProposal | null | undefined): number {
+  if (!proposal) return 0;
+  return (
+    actionablePersonal(proposal).length +
+    proposal.workExperiences.filter((r) => isNew(r) || needsDate(r)).length +
+    proposal.educations.filter(isNew).length +
+    proposal.skills.filter(isNew).length +
+    proposal.trainings.filter(isNew).length +
+    proposal.references.filter(isNew).length
   );
+}
 
+export interface ResumeSelection {
+  /** Personal fields to save (suggested values and chosen conflicts). */
+  personal: Set<string>;
+  /** Conflicting fields where the applicant chose the resume value. */
+  overwrite: Set<string>;
+  workExperiences: Set<number>;
+  educations: Set<number>;
+  skills: Set<string>;
+  trainings: Set<number>;
+  references: Set<number>;
+}
+
+/** Suggested fields and new items start checked; conflicts keep the saved value. */
+export function initialSelection(proposal: ResumeProposal): ResumeSelection {
   return {
-    autoFilledFields,
-    conflictingFields,
-    identicalFields,
-    changedOrAddedFields,
+    personal: new Set(proposal.personal.filter((r) => r.status === "suggested").map((r) => r.field)),
+    overwrite: new Set(),
+    workExperiences: new Set(proposal.workExperiences.filter(isNew).map((r) => r.index)),
+    educations: new Set(proposal.educations.filter(isNew).map((r) => r.index)),
+    skills: new Set(proposal.skills.filter(isNew).map((r) => r.name)),
+    trainings: new Set(proposal.trainings.filter(isNew).map((r) => r.index)),
+    references: new Set(proposal.references.filter(isNew).map((r) => r.index)),
   };
 }
 
-const normalizeDateStr = (d?: string | null) => (d ? d.substring(0, 10) : "");
-
-/**
- * Filters and compares extracted work experiences against existing records.
- * Identifies both newly added and updated/modified experiences.
- */
-export function filterDuplicateExperiences(
-  existing: WorkExperience[] = [],
-  extracted: ExtractedProfileExperience[] = []
-): { newItems: ExtractedProfileExperience[]; updatedItems: ExtractedProfileExperience[]; duplicateCount: number; totalCount: number } {
-  let duplicateCount = 0;
-  const newItems: ExtractedProfileExperience[] = [];
-  const updatedItems: ExtractedProfileExperience[] = [];
-
-  for (const exp of extracted) {
-    const compNorm = (exp.company || "").trim().toLowerCase();
-    const roleNorm = (exp.roleTitle || "").trim().toLowerCase();
-
-    const existingMatch = existing.find((e) => {
-      const exCompNorm = (e.company || "").trim().toLowerCase();
-      const exRoleNorm = (e.roleTitle || "").trim().toLowerCase();
-      return exCompNorm === compNorm && exRoleNorm === roleNorm;
-    });
-
-    if (existingMatch) {
-      duplicateCount++;
-      const hasChanged =
-        (exp.location || "").trim().toLowerCase() !== (existingMatch.location || "").trim().toLowerCase() ||
-        normalizeDateStr(exp.startDate) !== normalizeDateStr(existingMatch.startDate) ||
-        normalizeDateStr(exp.endDate) !== normalizeDateStr(existingMatch.endDate) ||
-        Boolean(exp.isCurrent) !== Boolean(existingMatch.isCurrent) ||
-        (exp.summary || "").trim() !== (existingMatch.summary || "").trim();
-
-      if (hasChanged) {
-        updatedItems.push(exp);
-      }
-    } else {
-      newItems.push(exp);
-    }
-  }
-
+/** Builds the apply request. A conflict is sent only when the applicant chose the resume value. */
+export function buildAccept(proposal: ResumeProposal, selection: ResumeSelection): ResumeAccept {
+  const conflicts = new Set(proposal.personal.filter((r) => r.status === "conflict").map((r) => r.field));
+  const locked = new Set(proposal.personal.filter((r) => r.locked).map((r) => r.field));
+  const overwrite = [...selection.overwrite].filter((f) => conflicts.has(f) && !locked.has(f));
+  const suggested = [...selection.personal].filter((f) => !conflicts.has(f));
   return {
-    newItems,
-    updatedItems,
-    duplicateCount,
-    totalCount: newItems.length + updatedItems.length,
+    personal: [...suggested, ...overwrite],
+    overwrite,
+    workExperiences: [...selection.workExperiences],
+    educations: [...selection.educations],
+    skills: [...selection.skills],
+    trainings: [...selection.trainings],
+    references: [...selection.references],
   };
 }
 
-/**
- * Filters and compares extracted education records against existing records.
- * Identifies both newly added and updated/modified educations.
- */
-export function filterDuplicateEducations(
-  existing: Education[] = [],
-  extracted: ExtractedProfileEducation[] = []
-): { newItems: ExtractedProfileEducation[]; updatedItems: ExtractedProfileEducation[]; duplicateCount: number; totalCount: number } {
-  let duplicateCount = 0;
-  const newItems: ExtractedProfileEducation[] = [];
-  const updatedItems: ExtractedProfileEducation[] = [];
-
-  for (const edu of extracted) {
-    const schoolNorm = (edu.school || "").trim().toLowerCase();
-    const degreeNorm = (edu.degree || "").trim().toLowerCase();
-
-    const existingMatch = existing.find((e) => {
-      const exSchoolNorm = (e.school || "").trim().toLowerCase();
-      const exDegreeNorm = (e.degree || "").trim().toLowerCase();
-      return exSchoolNorm === schoolNorm && (!degreeNorm || exDegreeNorm === degreeNorm);
-    });
-
-    if (existingMatch) {
-      duplicateCount++;
-      const hasChanged =
-        (edu.fieldOfStudy || "").trim().toLowerCase() !== (existingMatch.fieldOfStudy || "").trim().toLowerCase() ||
-        normalizeDateStr(edu.startDate) !== normalizeDateStr(existingMatch.startDate) ||
-        normalizeDateStr(edu.endDate) !== normalizeDateStr(existingMatch.endDate) ||
-        (edu.notes || "").trim() !== (existingMatch.notes || "").trim();
-
-      if (hasChanged) {
-        updatedItems.push(edu);
-      }
-    } else {
-      newItems.push(edu);
-    }
-  }
-
-  return {
-    newItems,
-    updatedItems,
-    duplicateCount,
-    totalCount: newItems.length + updatedItems.length,
-  };
-}
-
-/**
- * Normalizes and filters out skills that are already registered.
- */
-export function filterDuplicateSkills(
-  existing: (Skill | string | any)[] = [],
-  extracted: string[] = []
-): { newItems: string[]; duplicateCount: number; totalCount: number } {
-  const existingSet = new Set(
-    existing
-      .map((s) => {
-        if (typeof s === "string") return s.trim().toLowerCase();
-        if (s && typeof s === "object") {
-          const name = s.name || s.skillName || s.skill?.name || "";
-          return String(name).trim().toLowerCase();
-        }
-        return "";
-      })
-      .filter(Boolean)
-  );
-
-  let duplicateCount = 0;
-  const newItems: string[] = [];
-  const addedLower = new Set<string>();
-
-  for (const skill of extracted) {
-    const trimmed = (skill || "").trim();
-    const lower = trimmed.toLowerCase();
-    if (!trimmed || existingSet.has(lower) || addedLower.has(lower)) {
-      if (existingSet.has(lower)) duplicateCount++;
-    } else {
-      newItems.push(trimmed);
-      addedLower.add(lower);
-    }
-  }
-
-  return {
-    newItems,
-    duplicateCount,
-    totalCount: newItems.length,
-  };
-}
-
-/**
- * Filters and compares extracted trainings against existing records.
- */
-export function filterDuplicateTrainings(
-  existing: TrainingCertification[] = [],
-  extracted: ExtractedProfileTraining[] = []
-): { newItems: ExtractedProfileTraining[]; updatedItems: ExtractedProfileTraining[]; duplicateCount: number; totalCount: number } {
-  let duplicateCount = 0;
-  const newItems: ExtractedProfileTraining[] = [];
-  const updatedItems: ExtractedProfileTraining[] = [];
-
-  for (const t of extracted) {
-    const titleNorm = (t.title || "").trim().toLowerCase();
-
-    const existingMatch = existing.find(
-      (ex) => (ex.title || "").trim().toLowerCase() === titleNorm
-    );
-
-    if (existingMatch) {
-      duplicateCount++;
-      const hasChanged =
-        (t.provider || "").trim().toLowerCase() !== (existingMatch.provider || "").trim().toLowerCase() ||
-        (t.certificateNo || "").trim() !== (existingMatch.certificateNo || "").trim() ||
-        (t.notes || "").trim() !== (existingMatch.notes || "").trim() ||
-        normalizeDateStr(t.completionDate) !== normalizeDateStr(existingMatch.completionDate);
-
-      if (hasChanged) {
-        updatedItems.push(t);
-      }
-    } else {
-      newItems.push(t);
-    }
-  }
-
-  return {
-    newItems,
-    updatedItems,
-    duplicateCount,
-    totalCount: newItems.length + updatedItems.length,
-  };
-}
-
-/**
- * Filters and compares extracted character references against existing records.
- */
-export function filterDuplicateReferences(
-  existing: CharacterReference[] = [],
-  extracted: ExtractedProfileReference[] = []
-): { newItems: ExtractedProfileReference[]; updatedItems: ExtractedProfileReference[]; duplicateCount: number; totalCount: number } {
-  let duplicateCount = 0;
-  const newItems: ExtractedProfileReference[] = [];
-  const updatedItems: ExtractedProfileReference[] = [];
-
-  for (const ref of extracted) {
-    if (!ref || !ref.name || !ref.name.trim()) continue;
-    const nameNorm = ref.name.trim().toLowerCase();
-    const phoneNorm = (ref.phone || "").trim().toLowerCase();
-    const emailNorm = (ref.email || "").trim().toLowerCase();
-
-    const existingMatch = existing.find((ex) => {
-      const exNameNorm = (ex.name || "").trim().toLowerCase();
-      const exPhoneNorm = (ex.phone || "").trim().toLowerCase();
-      const exEmailNorm = (ex.email || "").trim().toLowerCase();
-
-      if (exNameNorm === nameNorm) {
-        if (phoneNorm && exPhoneNorm && phoneNorm === exPhoneNorm) return true;
-        if (emailNorm && exEmailNorm && emailNorm === exEmailNorm) return true;
-        if (!phoneNorm && !emailNorm && !exPhoneNorm && !exEmailNorm) return true;
-      }
-      return false;
-    });
-
-    if (existingMatch) {
-      duplicateCount++;
-      const hasChanged =
-        (ref.relationship || "").trim().toLowerCase() !== (existingMatch.relationship || "").trim().toLowerCase() ||
-        phoneNorm !== (existingMatch.phone || "").trim().toLowerCase() ||
-        emailNorm !== (existingMatch.email || "").trim().toLowerCase() ||
-        (ref.notes || "").trim() !== (existingMatch.notes || "").trim();
-
-      if (hasChanged) {
-        updatedItems.push(ref);
-      }
-    } else {
-      newItems.push(ref);
-    }
-  }
-
-  return {
-    newItems,
-    updatedItems,
-    duplicateCount,
-    totalCount: newItems.length + updatedItems.length,
-  };
-}
-
+export const selectionIsEmpty = (accept: ResumeAccept) =>
+  accept.personal.length +
+    accept.workExperiences.length +
+    accept.educations.length +
+    accept.skills.length +
+    accept.trainings.length +
+    accept.references.length ===
+  0;

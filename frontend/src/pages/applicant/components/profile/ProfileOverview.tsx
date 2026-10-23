@@ -3,7 +3,6 @@ import { Button } from "../../../../components/ui";
 import { ProfileHealthMeter } from "../../../../components/applicant/ProfileHealthMeter";
 import type { ApplicantProfile } from "../../../../lib/types/applicant.types";
 import type { ProfileSection } from "./profile-navigation";
-import type { ResumeReviewSummary } from "./profile-types";
 
 export interface ProfileOverviewProps {
   profile?: ApplicantProfile | null;
@@ -15,7 +14,7 @@ export interface ProfileOverviewProps {
   photoUploadPending: boolean;
   onResumeFile: (file: File) => void;
   resumeUploadPending: boolean;
-  resumeReview: ResumeReviewSummary | null;
+  pendingResumeCount: number;
   onViewPdf: () => void;
   onReviewResume: () => void;
   onNavigate: (section: ProfileSection) => void;
@@ -33,7 +32,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
   photoUploadPending,
   onResumeFile,
   resumeUploadPending,
-  resumeReview,
+  pendingResumeCount,
   onViewPdf,
   onReviewResume,
   onNavigate,
@@ -160,70 +159,18 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
             {resumeUploadPending ? "Reading your resume…" : profile?.resumeUrl ? "Replace resume" : "Upload resume"}
           </label>
         </div>
-      {resumeReview && (() => {
-        const total =
-          resumeReview.personalFields.length +
-          resumeReview.workExperienceCount +
-          resumeReview.educationCount +
-          resumeReview.skillsCount +
-          resumeReview.trainingCount +
-          resumeReview.referenceCount;
-
-        const personalLabel =
-          resumeReview.personalFields.length === 1
-            ? "1 personal field"
-            : `${resumeReview.personalFields.length} personal fields`;
-        const expLabel =
-          resumeReview.workExperienceCount === 1
-            ? "1 experience"
-            : `${resumeReview.workExperienceCount} experiences`;
-        const eduLabel =
-          resumeReview.educationCount === 1
-            ? "1 education record"
-            : `${resumeReview.educationCount} education records`;
-        const skillLabel =
-          resumeReview.skillsCount === 1
-            ? "1 skill"
-            : `${resumeReview.skillsCount} skills`;
-        const certLabel =
-          resumeReview.trainingCount === 1
-            ? "1 certification"
-            : `${resumeReview.trainingCount} certifications`;
-        const refLabel =
-          resumeReview.referenceCount === 1
-            ? "1 reference"
-            : `${resumeReview.referenceCount} references`;
-
-        if (total === 0) {
-          return (
-            <div role="status" aria-live="polite" className="mt-4 border-t border-[#D9E2EC] pt-4">
-              <p className="text-sm font-semibold text-[#102A43]">
-                Resume parsed — your profile is already up to date with this resume.
-              </p>
-              <p className="mt-1 text-xs text-[#627D98]">
-                All details in this resume match your existing profile records.
-              </p>
-              <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onReviewResume}>
-                Review profile details
-              </Button>
-            </div>
-          );
-        }
-
-        return (
-          <div role="status" aria-live="polite" className="mt-4 border-t border-[#D9E2EC] pt-4">
-            <p className="text-sm font-semibold text-[#102A43]">
-              Resume parsed — your profile has been updated automatically. Review the details below.
-            </p>
-            <p className="mt-1 text-xs text-[#102A43]">
-              {personalLabel}, {expLabel}, {eduLabel}, {skillLabel}, {certLabel}, and {refLabel} added or updated.
-            </p>
-            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onReviewResume}>
-              Review filled details
-            </Button>
-          </div>
-        );
-      })()}
+      {pendingResumeCount > 0 && (
+        <div role="status" aria-live="polite" className="mt-4 border-t border-[#D9E2EC] pt-4">
+          <p className="text-sm font-semibold text-[#102A43]">
+            {pendingResumeCount === 1
+              ? "1 detail from your resume is ready to review."
+              : `${pendingResumeCount} details from your resume are ready to review.`}
+          </p>
+          <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onReviewResume}>
+            Review
+          </Button>
+        </div>
+      )}
     </section>
 
     <section aria-labelledby="overview-qualifications-heading">

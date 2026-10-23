@@ -25,14 +25,9 @@ import { getNcrBarangayPostal } from "../../lib/ncr-postal-reference";
 import { getCityPostalCodes } from "../../lib/ph-address";
 import { formatDate, extractDocumentId } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
-import {
-  computeAutoFillDiff,
-  filterDuplicateEducations,
-  filterDuplicateExperiences,
-  filterDuplicateReferences,
-  filterDuplicateSkills,
-  filterDuplicateTrainings,
-} from "../../lib/resume-autofill";
+import { countActionable } from "../../lib/resume-autofill";
+import { ResumeReviewDialog } from "../../components/applicant/ResumeReviewDialog";
+import type { ResumeAccept, ResumeProposal } from "../../lib/types/applicant.types";
 import { normalizeTitleCase, normalizeSentenceCase } from "../../lib/text-case";
 import { ProfileApplications } from "./components/profile/ProfileApplications";
 import { ProfileDisclosure } from "./components/profile/ProfileDisclosure";
@@ -59,7 +54,6 @@ import {
   joinReligion,
   splitReligion,
 } from "../../lib/hr-constants";
-import type { ResumeReviewSummary } from "./components/profile/profile-types";
 import {
   Plus,
   Trash2,
@@ -386,12 +380,43 @@ export const ProfilePage: React.FC = () => {
 
   // Auto-Fill & Extraction State
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
-  const [resumeReview, setResumeReview] = useState<ResumeReviewSummary | null>(null);
+  const [reviewProposal, setReviewProposal] = useState<{ parseId: number; proposal: ResumeProposal } | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  // A proposal can already be waiting, e.g. created when the applicant submitted an application.
+  const pendingProposalQuery = useQuery({
+    queryKey: ["applicant", "resume-proposal"],
+    queryFn: applicantApi.getResumeProposal,
+  });
+  const pendingProposal = pendingProposalQuery.data;
+  React.useEffect(() => {
+    if (pendingProposal && countActionable(pendingProposal.proposal) > 0) {
+      setReviewProposal((current) =>
+        current?.parseId === pendingProposal.parseId
+          ? current
+          : { parseId: pendingProposal.parseId, proposal: pendingProposal.proposal },
+      );
+    }
+  }, [pendingProposal]);
+
+  // Form values from the last sync with the saved profile. A field that differs from it was edited by
+  // the applicant and must survive a refetch (for example after a resume upload).
+  const lastSyncedFormRef = React.useRef<typeof personalForm | null>(null);
+  const lastSyncedProfileRef = React.useRef<unknown>(null);
+  const personalFormRef = React.useRef(personalForm);
+  personalFormRef.current = personalForm;
 
   // Update local form when data arrives
   React.useEffect(() => {
     if (profile) {
-      setPersonalForm((prev) => {
+      // Effects can run twice for one profile (React strict mode); sync once.
+      if (lastSyncedProfileRef.current === profile) return;
+      lastSyncedProfileRef.current = profile;
+      const current = personalFormRef.current;
+      const synced = lastSyncedFormRef.current;
+      {
+        const next = ((prev: typeof current) => {
         const loadedProvince = normalizeTitleCase(profile.province || prev.province) || profile.province || prev.province || "";
         const loadedCity = normalizeTitleCase(profile.city || prev.city) || profile.city || prev.city || "";
         let loadedBarangay = profile.barangay || prev.barangay || "";
@@ -440,7 +465,16 @@ export const ProfilePage: React.FC = () => {
           emergencyContactAddress: profile.emergencyContactAddress || prev.emergencyContactAddress || "",
           additionalNotes: profile.additionalNotes || prev.additionalNotes || "",
         };
-      });
+        })(current);
+        const merged = { ...next };
+        if (synced) {
+          for (const key of Object.keys(next) as Array<keyof typeof next>) {
+            if (current[key] !== synced[key]) (merged as any)[key] = current[key];
+          }
+        }
+        lastSyncedFormRef.current = next;
+        setPersonalForm(merged);
+      }
 
       if (profile.skills && profile.skills.length > 0) {
         const parsed = profile.skills.map((s: any) =>
@@ -457,6 +491,8 @@ export const ProfilePage: React.FC = () => {
   const updateProfileMutation = useMutation({
     mutationFn: applicantApi.upsertProfile,
     onSuccess: (savedProfile) => {
+      // The saved values are now the baseline: take them in full on the next sync.
+      lastSyncedFormRef.current = null;
       queryClient.setQueryData(["applicant", "profile"], savedProfile);
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
       void refreshUser();
@@ -475,167 +511,58 @@ export const ProfilePage: React.FC = () => {
   const uploadResumeMutation = useMutation({
     mutationFn: applicantApi.uploadResume,
     onSuccess: (data) => {
+      // The upload only stores the file. Parsed details wait in a proposal until the applicant confirms,
+      // so the form and any unsaved edits are left untouched here.
       if (data?.profile) {
         queryClient.setQueryData(["applicant", "profile"], data.profile);
       }
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
       void refreshUser();
 
-      if (data?.extractedData) {
-        const diff = computeAutoFillDiff(personalForm, data.extractedData);
-        const previousProfile = profile;
-        const experienceDiff = filterDuplicateExperiences(
-          previousProfile?.workExperiences || [],
-          data.extractedData.workExperiences || [],
-        );
-        const educationDiff = filterDuplicateEducations(
-          previousProfile?.educations || [],
-          data.extractedData.educations || [],
-        );
-        const skillsDiff = filterDuplicateSkills(
-          previousProfile?.skills || [],
-          data.extractedData.skills || [],
-        );
-        const trainingDiff = filterDuplicateTrainings(
-          previousProfile?.trainings || [],
-          data.extractedData.trainings || [],
-        );
-        const referenceDiff = filterDuplicateReferences(
-          previousProfile?.characterReferences || [],
-          data.extractedData.characterReferences || [],
-        );
-        const cs = data.changeSummary;
-        const personalFieldKeys = cs?.changedPersonalFields || diff.changedOrAddedFields;
-        const expCount = cs ? cs.workExperiencesAdded + cs.workExperiencesUpdated : experienceDiff.totalCount;
-        const eduCount = cs ? cs.educationsAdded + cs.educationsUpdated : educationDiff.totalCount;
-        const skillCount = cs ? (cs.skillsAdded > 0 ? cs.skillsAdded : (data.extractedData.skills?.length || 0)) : (skillsDiff.newItems.length > 0 ? skillsDiff.newItems.length : (data.extractedData.skills?.length || 0));
-        const trainCount = cs ? cs.trainingsAdded + cs.trainingsUpdated : trainingDiff.totalCount;
-        const refCount = cs ? cs.referencesAdded + cs.referencesUpdated : referenceDiff.totalCount;
-
-        const firstQualificationSection = expCount > 0
-          ? "experience"
-          : eduCount > 0
-            ? "education"
-            : skillCount > 0
-              ? "skills"
-              : trainCount > 0
-                ? "trainings"
-                : refCount > 0
-                  ? "references"
-                  : undefined;
-
-        setResumeReview({
-          personalFields: personalFieldKeys,
-          workExperienceCount: expCount,
-          educationCount: eduCount,
-          skillsCount: skillCount,
-          trainingCount: trainCount,
-          referenceCount: refCount,
-          firstSection: personalFieldKeys.length > 0
-            ? "personal"
-            : firstQualificationSection
-              ? "qualifications"
-              : "overview",
-          firstQualificationSection,
-        });
-
-        const p = data.profile || {};
-        const ext = data.extractedData || {};
-        const rawFirst = ext.firstName || p.firstName || "";
-        const rawMiddle = ext.middleName ?? p.middleName ?? "";
-        const rawLast = ext.lastName || p.lastName || "";
-        const rawBirthPlace = ext.birthPlace || p.birthPlace || "";
-        const rawReligion = ext.religion || p.religion || "";
-        const rawGender = ext.gender || p.gender || "";
-        const rawCivilStatus = ext.civilStatus || p.civilStatus || "";
-        const rawNationality = ext.nationality || p.nationality || "";
-        const rawAddress = ext.address || p.address || "";
-        const rawProvince = ext.province || p.province || "";
-        const rawCity = ext.city || p.city || "";
-        let rawBarangay = ext.barangay || p.barangay || "";
-        let rawPostalCode = ext.postalCode || p.postalCode || "";
-        if (rawBarangay) {
-          if (isNcrProvince(rawProvince) && rawCity) {
-            const match = findNcrBarangay(rawCity, rawBarangay);
-            if (match) rawBarangay = match.name;
-            if (!rawPostalCode) {
-              rawPostalCode = getNcrBarangayPostal(rawCity, rawBarangay)?.codes[0] || "";
-            }
-          } else if (!rawPostalCode && rawProvince && rawCity) {
-            const codes = getCityPostalCodes(rawProvince, rawCity);
-            if (codes.length === 1) rawPostalCode = codes[0];
-          }
-        }
-        const rawLocations = ext.preferredWorkLocations || p.preferredWorkLocations || "";
-        const rawSummary = ext.professionalSummary || p.professionalSummary || "";
-
-        setPersonalForm({
-          firstName: normalizeTitleCase(rawFirst) || rawFirst,
-          middleName: rawMiddle ? (normalizeTitleCase(rawMiddle) || rawMiddle) : "",
-          lastName: normalizeTitleCase(rawLast) || rawLast,
-          mobileNumber: ext.mobileNumber || p.mobileNumber || "",
-          dateOfBirth: ext.dateOfBirth || (p.dateOfBirth ? p.dateOfBirth.substring(0, 10) : "") || "",
-          birthPlace: normalizeTitleCase(rawBirthPlace) || rawBirthPlace,
-          religion: normalizeTitleCase(rawReligion) || rawReligion,
-          height: ext.height !== null && ext.height !== undefined ? String(ext.height) : p.height !== null && p.height !== undefined ? String(p.height) : "",
-          weight: ext.weight !== null && ext.weight !== undefined ? String(ext.weight) : p.weight !== null && p.weight !== undefined ? String(p.weight) : "",
-          gender: normalizeTitleCase(rawGender) || rawGender,
-          civilStatus: normalizeTitleCase(rawCivilStatus) || rawCivilStatus,
-          nationality: normalizeTitleCase(rawNationality) || rawNationality,
-          address: normalizeTitleCase(rawAddress) || rawAddress,
-          province: normalizeTitleCase(rawProvince) || rawProvince,
-          city: normalizeTitleCase(rawCity) || rawCity,
-          barangay: rawBarangay,
-          postalCode: rawPostalCode,
-          preferredWorkLocations: normalizeTitleCase(rawLocations) || rawLocations,
-          professionalSummary: normalizeSentenceCase(rawSummary) || rawSummary,
-          sss: p.sss ? formatSSSNumber(p.sss) : "",
-          philhealth: p.philhealth ? formatPhilHealthNumber(p.philhealth) : "",
-          pagibig: p.pagibig ? formatPagIbigNumber(p.pagibig) : "",
-          tin: p.tin ? formatTINNumber(p.tin) : "",
-          emergencyContactName: p.emergencyContactName || "",
-          emergencyContactPhone: p.emergencyContactPhone || "",
-          emergencyContactRelationship: p.emergencyContactRelationship || "",
-          emergencyContactAddress: p.emergencyContactAddress || "",
-          additionalNotes: p.additionalNotes || "",
-        });
-
-        setAutoFilledFields((prev) => {
-          const next = new Set(prev);
-          personalFieldKeys.forEach((k) => next.add(k));
-          return next;
-        });
-
-        if (p.skills && p.skills.length > 0) {
-          const parsed = p.skills.map((s: any) => typeof s === "string" ? s : s.name || s.skillName || s.skill?.name || "").filter(Boolean);
-          setSkillsList(parsed);
-        } else if (ext.skills && ext.skills.length > 0) {
-          setSkillsList(ext.skills);
-        }
-
-        const totalChanged =
-          personalFieldKeys.length + expCount + eduCount + skillCount + trainCount + refCount;
-
+      if (data?.extractionStatus === "UNAVAILABLE") {
         setFeedback({
           type: "success",
-          message:
-            totalChanged > 0
-              ? "Resume parsed — your profile has been updated automatically. Review the details below."
-              : "Resume parsed — your profile is already up to date with this resume.",
+          message: "Resume saved. We couldn't read its details — you can fill them in below.",
         });
-      } else if (data?.extractionStatus === "UNAVAILABLE") {
-        setResumeReview(null);
-        setFeedback({
-          type: "success",
-          message: "Resume uploaded, but we couldn't fill profile details from this file. You can enter them manually or try another PDF.",
-        });
+      } else if (data?.proposal && data.parseId != null && countActionable(data.proposal) > 0) {
+        setReviewProposal({ parseId: data.parseId, proposal: data.proposal });
+        setReviewOpen(true);
+        setFeedback(null);
       } else {
-        setResumeReview(null);
-        setFeedback({ type: "success", message: "Resume uploaded successfully." });
+        setFeedback({ type: "success", message: "Resume saved. No new details found." });
       }
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Failed to upload resume: " + err.message });
+    },
+  });
+
+  const applyResumeMutation = useMutation({
+    mutationFn: ({ parseId, accept }: { parseId: number; accept: ResumeAccept }) =>
+      applicantApi.applyResumeProposal(parseId, accept),
+    onSuccess: (result, { accept }) => {
+      if (result?.profile) queryClient.setQueryData(["applicant", "profile"], result.profile);
+      queryClient.invalidateQueries({ queryKey: ["applicant"] });
+      void refreshUser();
+      setAutoFilledFields((prev) => new Set([...prev, ...accept.personal]));
+      setReviewOpen(false);
+      setReviewProposal(null);
+      setReviewError(null);
+      setFeedback({ type: "success", message: "Resume details saved to your profile." });
+    },
+    onError: (err: any) => {
+      if (err?.status === 409) {
+        // Already reviewed elsewhere: drop the stale proposal.
+        setReviewOpen(false);
+        setReviewProposal(null);
+        setReviewError(null);
+        queryClient.invalidateQueries({ queryKey: ["applicant"] });
+        setFeedback({ type: "error", message: "These resume details were already reviewed." });
+      } else if (err?.status === 403) {
+        setReviewError("Some of these details were verified by MEGS staff and can't be changed. Clear them and try again.");
+      } else {
+        setReviewError("We couldn't save these details. Please try again.");
+      }
     },
   });
 
@@ -997,17 +924,8 @@ export const ProfilePage: React.FC = () => {
   };
 
   const handleReviewResume = () => {
-    if (!resumeReview) return;
-    if (resumeReview.firstSection === "personal") {
-      setOpenPersonalSection("identity");
-      handleSectionChange("personal");
-    } else if (resumeReview.firstSection === "qualifications") {
-      setOpenQualificationSection(resumeReview.firstQualificationSection || "experience");
-      handleSectionChange("qualifications");
-    } else {
-      handleSectionChange("overview");
-      window.setTimeout(() => document.getElementById("overview-resume-panel")?.focus(), 0);
-    }
+    setReviewError(null);
+    setReviewOpen(true);
   };
 
   const handlePhotoFile = (file: File) => {
@@ -1068,7 +986,7 @@ export const ProfilePage: React.FC = () => {
         ]}
       />
 
-      {feedback && !(activeSection === "overview" && resumeReview && feedback.type === "success" && feedback.message.startsWith("Resume parsed")) && (
+      {feedback && (
         <div
           className={`p-3.5 rounded-md border text-sm font-sans flex items-center justify-between ${
             feedback.type === "success"
@@ -1110,7 +1028,7 @@ export const ProfilePage: React.FC = () => {
               photoUploadPending={uploadPhotoMutation.isPending}
               onResumeFile={handleResumeFile}
               resumeUploadPending={uploadResumeMutation.isPending}
-              resumeReview={resumeReview}
+              pendingResumeCount={reviewProposal ? countActionable(reviewProposal.proposal) : 0}
               onViewPdf={() => {
                 if (profile?.resumeUrl) {
                   setPreviewDocState({
@@ -2345,6 +2263,17 @@ export const ProfilePage: React.FC = () => {
           </div>
         </form>
       </Dialog>
+
+      <ResumeReviewDialog
+        open={reviewOpen}
+        proposal={reviewProposal?.proposal ?? null}
+        saving={applyResumeMutation.isPending}
+        error={reviewError}
+        onSave={(accept) => reviewProposal && applyResumeMutation.mutate({ parseId: reviewProposal.parseId, accept })}
+        onClose={() => {
+          if (!applyResumeMutation.isPending) setReviewOpen(false);
+        }}
+      />
 
       {/* Delete Item Confirm Dialog */}
       <ConfirmDialog

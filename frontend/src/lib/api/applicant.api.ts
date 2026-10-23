@@ -13,6 +13,9 @@ import type {
   AddTrainingDto,
   AddReferenceDto,
   ResumeUploadResult,
+  ResumeAccept,
+  PendingResumeProposal,
+  ApplyResumeResult,
   ApplyExtractedProfileDto,
 } from "../types/applicant.types";
 
@@ -96,6 +99,12 @@ export const applicantApi = {
 
   uploadResume: (formData: FormData) =>
     api.upload<ResumeUploadResult>("/api/applicants/profile/resume", formData),
+
+  getResumeProposal: () =>
+    api.get<PendingResumeProposal | null>("/api/applicants/profile/resume/proposal"),
+
+  applyResumeProposal: (parseId: number, accept: ResumeAccept) =>
+    api.post<ApplyResumeResult>(`/api/applicants/profile/resume/${parseId}/apply`, { accept }),
 
   applyExtractedProfile: (data: ApplyExtractedProfileDto) =>
     api.post<ApplicantProfile>("/api/applicants/profile/apply-extracted", data),

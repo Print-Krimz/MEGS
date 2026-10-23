@@ -274,9 +274,11 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candi
           value={profileForm.gender}
           onChange={(e) => setProfileForm((f) => ({ ...f, gender: e.target.value }))}
         >
-          <option value="">Any / Unspecified</option>
+          <option value="">Not specified</option>
           <option value="Male">Male</option>
           <option value="Female">Female</option>
+          <option value="Non-Binary">Non-Binary</option>
+          <option value="Prefer not to say">Prefer not to say</option>
         </Select>
       </div>
     

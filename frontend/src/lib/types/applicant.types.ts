@@ -274,12 +274,66 @@ export interface ResumeChangeSummary {
   referencesTotal: number;
 }
 
+export type ResumePersonalStatus = "suggested" | "conflict" | "same";
+export type ResumeItemStatus = "new" | "duplicate" | "needs_date";
+
+export interface ResumePersonalProposal {
+  field: string;
+  status: ResumePersonalStatus;
+  current: string | number | null;
+  proposed: string | number;
+  /** Verified by MEGS staff: the applicant cannot overwrite it. */
+  locked: boolean;
+}
+
+export interface ResumeItemProposal<T> {
+  index: number;
+  status: ResumeItemStatus;
+  item: T;
+}
+
+export interface ResumeProposal {
+  verified: boolean;
+  personal: ResumePersonalProposal[];
+  workExperiences: ResumeItemProposal<ExtractedProfileExperience>[];
+  educations: ResumeItemProposal<ExtractedProfileEducation>[];
+  skills: { name: string; status: "new" | "duplicate" }[];
+  trainings: ResumeItemProposal<ExtractedProfileTraining>[];
+  references: ResumeItemProposal<ExtractedProfileReference>[];
+}
+
+export interface ResumeAccept {
+  personal: string[];
+  overwrite: string[];
+  workExperiences: number[];
+  educations: number[];
+  skills: string[];
+  trainings: number[];
+  references: number[];
+}
+
 export interface ResumeUploadResult {
   profile: ApplicantProfile;
   resumeUrl: string;
+  parseId?: number | null;
   extractedData: ExtractedProfileData | null;
   extractionStatus: "SUCCESS" | "UNAVAILABLE";
-  changeSummary?: ResumeChangeSummary;
+  proposal?: ResumeProposal | null;
+  changeSummary?: ResumeChangeSummary | null;
+}
+
+export interface PendingResumeProposal {
+  parseId: number;
+  source: string;
+  documentId: number | null;
+  createdAt: string;
+  proposal: ResumeProposal;
+}
+
+export interface ApplyResumeResult {
+  profile: ApplicantProfile;
+  changeSummary: ResumeChangeSummary;
+  accepted: unknown;
 }
 
 export interface ApplyExtractedProfileDto {
