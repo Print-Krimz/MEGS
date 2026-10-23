@@ -120,15 +120,48 @@ const GENDER_LABEL = LABEL_VALUE("gender|sex|kasarian");
 const BIRTH_LABEL = LABEL_VALUE("date of birth|birth date|birthdate|birthday|dob|petsa ng kapanganakan");
 const MOBILE_LABEL = LABEL_VALUE(String.raw`contact number|contact no\.?|mobile number|mobile no\.?|mobile|cellphone number|cellphone no\.?|cell no\.?|phone number|phone`);
 
+const FIRST_NAME_LABEL = LABEL_VALUE("first name|given name");
+const MIDDLE_NAME_LABEL = LABEL_VALUE("middle name|gitnang pangalan");
+const LAST_NAME_LABEL = LABEL_VALUE("last name|surname|family name|apelyido");
+
+const cleanName = (value: string | undefined): string | undefined => {
+  const name = value?.replace(/\s+/g, " ").trim();
+  return name && /^[\p{L}][\p{L} .'-]{0,59}$/u.test(name) ? name : undefined;
+};
+
 /**
- * Identity values written next to a label in the resume text ("Gender: Male", "Date of Birth: February 19, 2002",
- * "Contact Number: +63 917 …"). Used to fill fields the AI reader left out; never replaces what it found.
+ * Identity values written next to a label in the resume text ("Last Name: Reyes", "Gender: Male",
+ * "Date of Birth: February 19, 2002", "Contact Number: +63 917 …"). Used to fill fields the AI reader
+ * left out; never replaces what it found.
  */
-export const labeledIdentity = (text: string): { gender?: string; dateOfBirth?: string; mobileNumber?: string } => {
+export const labeledIdentity = (
+  text: string,
+): { firstName?: string; middleName?: string; lastName?: string; gender?: string; dateOfBirth?: string; mobileNumber?: string } => {
   const value = (pattern: RegExp) => pattern.exec(text)?.[1]?.trim();
   return {
+    firstName: cleanName(value(FIRST_NAME_LABEL)),
+    middleName: cleanName(value(MIDDLE_NAME_LABEL)),
+    lastName: cleanName(value(LAST_NAME_LABEL)),
     gender: normalizeGender(value(GENDER_LABEL)),
     dateOfBirth: parseLooseDate(value(BIRTH_LABEL)),
     mobileNumber: normalizeMobileNumber(value(MOBILE_LABEL)),
   };
+};
+
+/**
+ * The last name from the full name at the top of a resume ("RODOLFO MARC MENDOZA REYES"), given the first and
+ * middle names already found. Only answers when the heading starts with exactly those names and one or two
+ * words remain; otherwise undefined, so a wrong guess is never made.
+ */
+export const lastNameFromHeading = (text: string, firstName?: string, middleName?: string): string | undefined => {
+  const words = (value: string) => value.toLowerCase().split(/\s+/).filter(Boolean);
+  const heading = text.split("\n").map((line) => line.trim()).find(Boolean);
+  if (!heading || !firstName || !/^[\p{L} .'-]{3,80}$/u.test(heading)) return undefined;
+  const headingWords = heading.split(/\s+/);
+  const known = [...words(firstName), ...words(middleName ?? "")];
+  if (headingWords.length <= known.length) return undefined;
+  if (!known.every((word, i) => headingWords[i].toLowerCase() === word)) return undefined;
+  const rest = headingWords.slice(known.length);
+  if (rest.length > (middleName ? 2 : 1)) return undefined;
+  return rest.join(" ");
 };

@@ -16,6 +16,7 @@ import { validateStructuredAddress } from "../../utils/address-validation.js";
 import { isValidDateOnly, manilaDateString } from "../../schemas/field-limits.js";
 import {
   labeledIdentity,
+  lastNameFromHeading,
   normalizeCivilStatus,
   normalizeGender,
   normalizeMobileNumber,
@@ -458,8 +459,14 @@ export const updateProfileResumeService = async (userId: string, resumeUrl: stri
 // The AI reader sometimes leaves out a field that the text states plainly next to a label; fill only those gaps.
 const withLabeledIdentity = (extracted: ExtractedProfileData, text: string): ExtractedProfileData => {
   const labeled = labeledIdentity(text);
+  const firstName = extracted.firstName || labeled.firstName;
+  const middleName = extracted.middleName || labeled.middleName;
+  const headingLastName = lastNameFromHeading(text, firstName, middleName);
   return {
     ...extracted,
+    firstName,
+    middleName,
+    lastName: extracted.lastName || labeled.lastName || (headingLastName && (normalizeTitleCase(headingLastName) || headingLastName)),
     gender: extracted.gender || labeled.gender,
     dateOfBirth: extracted.dateOfBirth || labeled.dateOfBirth,
     mobileNumber: extracted.mobileNumber || labeled.mobileNumber,
