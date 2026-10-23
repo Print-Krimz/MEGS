@@ -184,7 +184,7 @@ export const ApplicationDetailPage: React.FC = () => {
     onSuccess: (state) => {
       queryClient.setQueryData(resumeProposalKey(parseProfileId as number), state);
     },
-    onError: (err: unknown) => notify.error("Could not read the bio-data", err),
+    onError: (err: unknown) => notify.error("Could not read the resume", err),
   });
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],

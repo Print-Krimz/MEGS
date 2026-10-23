@@ -285,12 +285,12 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
         const field = String(issue.path[0]);
         if (!next[field]) next[field] = issue.message;
       }
-      if (!form.file && !hasBiodata && !next.file) next.file = "Add a photo or PDF of the biodata.";
+      if (!form.file && !hasBiodata && !next.file) next.file = "Add a photo or PDF of the resume.";
       setErrors(next);
       return;
     }
     if (!parsed.data.file && !hasBiodata) {
-      setErrors({ file: "Add a photo or PDF of the biodata." });
+      setErrors({ file: "Add a photo or PDF of the resume." });
       return;
     }
     const body = new FormData();
@@ -317,8 +317,8 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
         title={checkIn ? `Confirm check-in ${checkIn.queueNumber}` : "Encode walk-in"}
         description={
           checkIn
-            ? "Check their ID, correct any detail, then photograph the biodata."
-            : "Add the biodata first. The details fill in from it."
+            ? "Check their ID, correct any detail, then photograph the resume."
+            : "Add the resume first. The details fill in from it."
         }
         size="lg"
       >
@@ -369,14 +369,14 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
                 </Button>
               </div>
               {previewUrl && previewMime.startsWith("image/") && (
-                <img src={previewUrl} alt="Biodata the applicant attached" className="max-h-80 w-full rounded border border-slate-200 bg-white object-contain" />
+                <img src={previewUrl} alt="Resume the applicant attached" className="max-h-80 w-full rounded border border-slate-200 bg-white object-contain" />
               )}
             </div>
           )}
 
           <div className="space-y-1.5">
             <label htmlFor="walk-in-biodata" className="block text-xs font-medium text-slate-600">
-              {hasBiodata ? "Replace biodata (optional)" : "Biodata photo or PDF"}
+              {hasBiodata ? "Replace resume (optional)" : "Resume photo or PDF"}
               {!hasBiodata && <span className="ml-0.5 text-rose-500">*</span>}
             </label>
             <input
@@ -397,11 +397,11 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
               </p>
             ) : readState === "reading" ? (
               <p id="walk-in-biodata-help" role="status" className="text-xs text-slate-600">
-                Reading bio-data…
+                Reading resume…
               </p>
             ) : readState === "filled" ? (
               <p id="walk-in-biodata-help" role="status" className="text-xs text-slate-600">
-                Filled from the bio-data. Check before saving.
+                Filled from the resume. Check before saving.
               </p>
             ) : readState === "unreadable" ? (
               <p id="walk-in-biodata-help" role="status" className="text-xs text-slate-600">

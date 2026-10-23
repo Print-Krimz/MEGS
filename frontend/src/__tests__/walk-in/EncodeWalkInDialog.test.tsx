@@ -82,7 +82,7 @@ function chooseGender(value = "Male") {
 }
 
 function attachFile(file: File) {
-  fireEvent.change(screen.getByLabelText(/Biodata photo or PDF/i), { target: { files: [file] } });
+  fireEvent.change(screen.getByLabelText(/Resume photo or PDF/i), { target: { files: [file] } });
 }
 
 const pdf = () => new File(["%PDF-1.4 test"], "biodata.pdf", { type: "application/pdf" });
@@ -106,7 +106,7 @@ describe("EncodeWalkInDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Save and print slip" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Add a photo or PDF of the biodata.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Add a photo or PDF of the resume.");
     expect(createWalkIn).not.toHaveBeenCalled();
     expect(screen.queryByText("Choose a job opening.")).not.toBeInTheDocument();
   });
@@ -319,7 +319,7 @@ describe("EncodeWalkInDialog: gender and bio-data auto-fill", () => {
     const file = pdf();
     attachFile(file);
 
-    expect(await screen.findByText("Filled from the bio-data. Check before saving.")).toBeInTheDocument();
+    expect(await screen.findByText("Filled from the resume. Check before saving.")).toBeInTheDocument();
     expect(readWalkInBiodata).toHaveBeenCalledWith(file);
     expect(screen.getByLabelText(/First name/i)).toHaveValue("Juan");
     expect(screen.getByLabelText(/Middle name/i)).toHaveValue("Reyes");
@@ -347,7 +347,7 @@ describe("EncodeWalkInDialog: gender and bio-data auto-fill", () => {
     renderDialog();
     await pickJob();
     attachFile(pdf());
-    await screen.findByText("Filled from the bio-data. Check before saving.");
+    await screen.findByText("Filled from the resume. Check before saving.");
     expect(screen.getByLabelText(/Job opening/i)).toHaveValue("Warehouse Associate");
   });
 
@@ -356,12 +356,12 @@ describe("EncodeWalkInDialog: gender and bio-data auto-fill", () => {
     readWalkInBiodata.mockReturnValue(new Promise((resolve) => (finish = resolve)));
     renderDialog();
     attachFile(pdf());
-    expect(await screen.findByText("Reading bio-data…")).toBeInTheDocument();
+    expect(await screen.findByText("Reading resume…")).toBeInTheDocument();
 
     typeInto(/Last name/i, "Garcia");
     finish(read);
 
-    expect(await screen.findByText("Filled from the bio-data. Check before saving.")).toBeInTheDocument();
+    expect(await screen.findByText("Filled from the resume. Check before saving.")).toBeInTheDocument();
     expect(screen.getByLabelText(/Last name/i)).toHaveValue("Garcia");
     expect(screen.getByLabelText(/First name/i)).toHaveValue("Pedro");
   });
@@ -392,7 +392,7 @@ describe("EncodeWalkInDialog: gender and bio-data auto-fill", () => {
     readWalkInBiodata.mockResolvedValueOnce(read);
     renderDialog();
     attachFile(pdf());
-    await screen.findByText("Filled from the bio-data. Check before saving.");
+    await screen.findByText("Filled from the resume. Check before saving.");
 
     readWalkInBiodata.mockResolvedValueOnce({ ...read, firstName: "Mario", lastName: "Lopez", middleName: "Cruz" });
     attachFile(new File(["%PDF-1.4 other"], "other.pdf", { type: "application/pdf" }));

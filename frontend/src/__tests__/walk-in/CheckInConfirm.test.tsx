@@ -89,7 +89,7 @@ function renderConfirm(checkIn: CheckInDetail | null = queued) {
   return { onClose, onCreated };
 }
 
-const attachFile = (file: File) => fireEvent.change(screen.getByLabelText(/Biodata photo or PDF/i), { target: { files: [file] } });
+const attachFile = (file: File) => fireEvent.change(screen.getByLabelText(/Resume photo or PDF/i), { target: { files: [file] } });
 const chooseGender = (value = "Female") => fireEvent.change(screen.getByLabelText(/Gender/i), { target: { value } });
 const confirmButton = () => screen.getByRole("button", { name: "Confirm and print slip" });
 
@@ -106,7 +106,7 @@ describe("EncodeWalkInDialog in check-in mode: layout", () => {
   it("names the check-in and says what to check at the desk", () => {
     renderConfirm();
     expect(screen.getByText("Confirm check-in A-017")).toBeInTheDocument();
-    expect(screen.getByText("Check their ID, correct any detail, then photograph the biodata.")).toBeInTheDocument();
+    expect(screen.getByText("Check their ID, correct any detail, then photograph the resume.")).toBeInTheDocument();
   });
 
   it("locks the job: no job picker, the job's title shown, and the job list is never loaded", () => {
@@ -144,7 +144,7 @@ describe("EncodeWalkInDialog in check-in mode: applicant attached biodata", () =
     expect(screen.getByText("juan-biodata.pdf")).toBeInTheDocument();
     expect(screen.getByText(/Applicant attached:/)).toHaveTextContent("(250 KB)");
     expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
-    expect(screen.getByLabelText(/Replace biodata \(optional\)/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Replace resume \(optional\)/i)).toBeInTheDocument();
   });
 
   it("confirms without attaching a file", async () => {
@@ -159,7 +159,7 @@ describe("EncodeWalkInDialog in check-in mode: applicant attached biodata", () =
 
   it("still sends a replacement file when the TA attaches one", async () => {
     renderConfirm(withBiodata);
-    fireEvent.change(screen.getByLabelText(/Replace biodata/i), { target: { files: [pdf()] } });
+    fireEvent.change(screen.getByLabelText(/Replace resume/i), { target: { files: [pdf()] } });
     chooseGender();
     fireEvent.click(confirmButton());
     await waitFor(() => expect(confirmCheckIn).toHaveBeenCalledTimes(1));
@@ -172,7 +172,7 @@ describe("EncodeWalkInDialog in check-in mode: biodata and submit", () => {
     renderConfirm();
     chooseGender();
     fireEvent.click(confirmButton());
-    expect(await screen.findByRole("alert")).toHaveTextContent("Add a photo or PDF of the biodata.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Add a photo or PDF of the resume.");
     expect(confirmCheckIn).not.toHaveBeenCalled();
     expect(createWalkIn).not.toHaveBeenCalled();
   });

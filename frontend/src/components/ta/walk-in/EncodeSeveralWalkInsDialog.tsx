@@ -125,7 +125,7 @@ const RowView: React.FC<RowViewProps> = ({ row, jobOptions, jobsLoading, locked,
             )}
             {row.read === "unreadable" && !done && <p className="text-xs text-slate-600">{UNREADABLE_MESSAGE}</p>}
             {row.read === "read" && row.positionApplied && !done && (
-              <p className="text-xs text-slate-600">From bio-data: {row.positionApplied}</p>
+              <p className="text-xs text-slate-600">From resume: {row.positionApplied}</p>
             )}
             {done && row.result.slip && (
               <p role="status" className="text-xs font-medium text-emerald-800">
@@ -477,7 +477,7 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
         open={open && !sheetOpen}
         onClose={() => void requestClose()}
         title="Encode walk-in"
-        description="Add one or more biodata files. The details fill in from each one. Check each row, then encode."
+        description="Add one or more resumes. The details fill in from each one. Check each row, then encode."
         size="xl"
         className="lg:max-w-6xl"
       >
@@ -524,8 +524,8 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
             } ${dragging ? "border-navy bg-navy-soft" : "border-slate-300 bg-slate-50"}`}
           >
             <label htmlFor="batch-files" className={rows.length === 0 ? "text-base font-medium text-slate-900" : "text-sm font-medium text-slate-800"}>
-              {rows.length === 0 ? "Drop biodata files here" : "Add more biodata files"}
-              <span className="sr-only"> (Biodata photos or PDFs)</span>
+              {rows.length === 0 ? "Drop resumes here" : "Add more resumes"}
+              <span className="sr-only"> (Resume photos or PDFs)</span>
             </label>
             <input
               ref={fileInputRef}

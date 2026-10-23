@@ -181,7 +181,7 @@ describe("CheckInPage: details form", () => {
     await chooseJob();
     fillDetails();
     const file = new File(["%PDF-1.4"], "biodata.pdf", { type: "application/pdf" });
-    fireEvent.change(screen.getByLabelText(/Biodata photo or PDF/i), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText(/Resume photo or PDF/i), { target: { files: [file] } });
     expect(screen.getByText("biodata.pdf")).toBeInTheDocument();
     fireEvent.click(submitButton());
     await waitFor(() => expect(submitCheckIn).toHaveBeenCalledWith(expect.objectContaining({ file })));
@@ -191,7 +191,7 @@ describe("CheckInPage: details form", () => {
     renderPage();
     await chooseJob();
     fillDetails();
-    fireEvent.change(screen.getByLabelText(/Biodata photo or PDF/i), {
+    fireEvent.change(screen.getByLabelText(/Resume photo or PDF/i), {
       target: { files: [new File(["x"], "photo.png", { type: "image/png" })] },
     });
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
@@ -205,7 +205,7 @@ describe("CheckInPage: details form", () => {
     renderPage();
     await chooseJob();
     fillDetails();
-    fireEvent.change(screen.getByLabelText(/Biodata photo or PDF/i), {
+    fireEvent.change(screen.getByLabelText(/Resume photo or PDF/i), {
       target: { files: [new File(["x"], "notes.txt", { type: "text/plain" })] },
     });
     fireEvent.click(submitButton());
@@ -219,7 +219,7 @@ describe("CheckInPage: details form", () => {
     fillDetails();
     const big = new File(["x"], "big.pdf", { type: "application/pdf" });
     Object.defineProperty(big, "size", { value: 6 * 1024 * 1024 });
-    fireEvent.change(screen.getByLabelText(/Biodata photo or PDF/i), { target: { files: [big] } });
+    fireEvent.change(screen.getByLabelText(/Resume photo or PDF/i), { target: { files: [big] } });
     fireEvent.click(submitButton());
     expect(await screen.findByText("The file is over 5 MB. Retake the photo or use a smaller file.")).toBeInTheDocument();
     expect(submitCheckIn).not.toHaveBeenCalled();

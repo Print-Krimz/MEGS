@@ -43,12 +43,12 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVer
           </h3>
           {readState === "reading" && (
             <p role="status" className="text-sm text-slate-600">
-              Reading bio-data…
+              Reading resume…
             </p>
           )}
           {readState === "failed" && (
             <p role="alert" className="text-sm text-slate-700">
-              Could not read the bio-data. Enter the details manually or try again.{" "}
+              Could not read the resume. Enter the details manually or try again.{" "}
               {onRetryRead && (
                 <button
                   type="button"
@@ -63,7 +63,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVer
           )}
           {readState === "unread" && onRetryRead && (
             <p className="text-sm text-slate-700">
-              The bio-data has not been read yet.{" "}
+              The resume has not been read yet.{" "}
               <button
                 type="button"
                 onClick={onRetryRead}

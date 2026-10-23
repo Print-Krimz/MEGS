@@ -248,7 +248,7 @@ const DetailsStep: React.FC<{ job: CheckInJob; onBack: () => void; onAlready: (q
         />
         <div className="space-y-1.5">
           <label htmlFor="check-in-biodata" className="block text-sm font-medium text-foreground">
-            Biodata photo or PDF (optional)
+            Resume photo or PDF (optional)
           </label>
           <input
             ref={fileInputRef}
@@ -290,7 +290,7 @@ const DetailsStep: React.FC<{ job: CheckInJob; onBack: () => void; onAlready: (q
             </p>
           ) : (
             <p id="check-in-biodata-help" className="text-sm text-muted-foreground">
-              Take a clear photo of your biodata, or skip this and bring the paper to the desk.
+              Take a clear photo of your resume, or skip this and bring the paper to the desk.
             </p>
           )}
         </div>
