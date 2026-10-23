@@ -35,7 +35,7 @@ export const detectDocumentKind = (url: string): DocumentKind => {
   return "other";
 };
 
-const toolButton =
+export const toolButton =
   "focus-ring inline-flex h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200/70 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-40 pointer-coarse:h-11 pointer-coarse:min-w-11";
 
 export interface DocumentViewerProps {

@@ -40,7 +40,7 @@ vi.mock("../services/scoring/talent-pool-knn.service.js", () => ({
 // The invitation service imports walk-in.service for tracking codes. Keep its storage, upload, queue and
 // scoring dependencies out of this unit test, so no real Supabase client or worker starts.
 vi.mock("../utils/supabase.js", () => ({ default: { auth: { admin: {} }, storage: {} } }));
-vi.mock("../middleware/upload.middleware.js", () => ({ uploadFileToSupabase: vi.fn() }));
+vi.mock("../middleware/upload.middleware.js", () => ({ uploadFileToSupabaseWithInfo: vi.fn() }));
 vi.mock("../workers/resume.worker.js", () => ({ enqueueResumeAnalysis: vi.fn(), trackFitRevalidation: vi.fn() }));
 vi.mock("../services/scoring/scoring-configuration.service.js", () => ({ revalidateApplication: vi.fn() }));
 vi.mock("../services/applicant/application.service.js", () => ({ assertCanApply: vi.fn(), resolveInitialStatus: vi.fn() }));

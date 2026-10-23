@@ -573,7 +573,6 @@ export const getTAApplication = async (id: number, options: { generateRequiremen
               trainings: true,
               assets: true,
               characterReferences: true,
-              verifiedBy: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
             },
           },
           employee: {
@@ -735,18 +734,10 @@ export const getTAApplication = async (id: number, options: { generateRequiremen
             photoUrl,
             resumeUrl: resolvedProfileResumeUrl,
             skills: application.user.applicantProfile.skills.map((s) => s.skill.name),
-            verifiedBy: undefined,
-            verifiedByName: verifierName(application.user.applicantProfile.verifiedBy),
           }
         : null,
     },
   };
-};
-
-const verifierName = (user: { email: string; applicantProfile: { firstName: string; lastName: string } | null } | null | undefined): string | null => {
-  if (!user) return null;
-  const name = [user.applicantProfile?.firstName, user.applicantProfile?.lastName].filter(Boolean).join(" ");
-  return name || displayEmail(user.email) || null;
 };
 
 /** Client for a new deployment: the manpower request's client, else the latest client the candidate was sent to. */

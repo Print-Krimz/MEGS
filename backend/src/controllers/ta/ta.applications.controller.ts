@@ -20,9 +20,9 @@ import { findDuplicateIdentifierWarnings } from '../../services/ta/duplicate-ide
 import { revalidateApplicantProfile } from '../../services/scoring/scoring-configuration.service.js';
 import {
   ProfileSectionError,
-  replaceEducations,
+  applyEducations,
+  applyWorkExperiences,
   replaceSkills,
-  replaceWorkExperiences,
   type SectionCount,
 } from '../../services/ta/candidate-profile-review.service.js';
 
@@ -230,7 +230,7 @@ export const uploadSignedContractHandler = async (req: Request, res: Response): 
   }
 };
 
-// PATCH /api/ta/candidates/:id - Verify and update candidate profile
+// PATCH /api/ta/candidates/:id - Verify details: save personal fields and changed profile sections
 export const updateCandidateProfileHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
@@ -282,9 +282,11 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       emergencyContactAddress,
       professionalSummary,
       workExperiences,
+      removeWorkExperienceIds,
       educations,
+      removeEducationIds,
       skills,
-      markVerified,
+      // markVerified is accepted by the schema for older clients and ignored: nothing is marked verified.
     } = req.body || {};
 
     // Address problems are user input errors (400), not server failures.
@@ -514,23 +516,25 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
     }
 
     const actorId = req.user?.id || "system";
-    const verified = markVerified === true;
-    if (verified) {
-      updateData.verificationStatus = "VERIFIED";
-      updateData.verifiedById = req.user?.id ?? null;
-      updateData.verifiedAt = new Date();
-    }
 
-    // One transaction: personal fields, the submitted sections, and the verified mark commit together.
+    // One transaction: personal fields and the submitted sections commit together.
+    // Long timeout: a long resume can mean many row writes against the hosted database.
     const sections: { workExperiences?: SectionCount; educations?: SectionCount; skills?: SectionCount } = {};
+    const uniqueIds = (ids: unknown): number[] => (Array.isArray(ids) ? [...new Set(ids as number[])] : []);
+    const removeWork = uniqueIds(removeWorkExperienceIds);
+    const removeEducation = uniqueIds(removeEducationIds);
     let updatedProfile;
     try {
       updatedProfile = await prisma.$transaction(async (tx) => {
-        if (Array.isArray(workExperiences)) sections.workExperiences = await replaceWorkExperiences(tx, profile.id, workExperiences);
-        if (Array.isArray(educations)) sections.educations = await replaceEducations(tx, profile.id, educations);
+        if (Array.isArray(workExperiences) || removeWork.length) {
+          sections.workExperiences = await applyWorkExperiences(tx, profile.id, Array.isArray(workExperiences) ? workExperiences : [], removeWork);
+        }
+        if (Array.isArray(educations) || removeEducation.length) {
+          sections.educations = await applyEducations(tx, profile.id, Array.isArray(educations) ? educations : [], removeEducation);
+        }
         if (Array.isArray(skills)) sections.skills = await replaceSkills(tx, profile.id, skills);
         return tx.applicantProfile.update({ where: { id: profile.id }, data: updateData });
-      });
+      }, { timeout: 20000, maxWait: 10000 });
     } catch (txError: any) {
       if (txError instanceof ProfileSectionError) {
         sendError(res, txError.message, 400);
@@ -539,11 +543,7 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       throw txError;
     }
 
-    await logAudit(actorId, "TA_CANDIDATE_PROFILE_VERIFIED", "ApplicantProfile", profile.id, {
-      changes,
-      sections,
-      ...(verified ? { verified: true } : {}),
-    });
+    await logAudit(actorId, "TA_CANDIDATE_PROFILE_VERIFIED", "ApplicantProfile", profile.id, { changes, sections });
 
     // Edits change what scoring sees, so rebuild the candidate's features and scores after the commit.
     void revalidateApplicantProfile(profile.id);
@@ -555,7 +555,7 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       tin: changes.tin?.to,
     });
 
-    sendSuccess(res, verified ? "Candidate profile verified and updated successfully" : "Candidate profile updated successfully", { ...updatedProfile, warnings });
+    sendSuccess(res, "Candidate profile updated successfully", { ...updatedProfile, warnings });
   } catch (error: any) {
     sendError(res, error.message, 500);
   }

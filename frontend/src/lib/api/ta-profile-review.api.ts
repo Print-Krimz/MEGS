@@ -23,13 +23,17 @@ export interface ReviewEducation {
   notes?: string | null;
 }
 
-/** Personal fields plus optional full-list sections. A section left out is not changed; a submitted list replaces it. */
+/**
+ * Personal fields plus optional sections. Work and education list only the rows to add (no id) or change (with id),
+ * and the ids to remove; rows left out are not touched. Skills are the full list.
+ */
 export interface ReviewProfileDto extends UpdateCandidateProfileDto {
   professionalSummary?: string | null;
   workExperiences?: ReviewWorkExperience[];
+  removeWorkExperienceIds?: number[];
   educations?: ReviewEducation[];
+  removeEducationIds?: number[];
   skills?: string[];
-  markVerified?: boolean;
 }
 
 export const taProfileReviewApi = {

@@ -19,7 +19,7 @@ const m = vi.hoisted(() => {
     supabase: { auth: { admin: { createUser: fn(), deleteUser: fn() } }, storage: { from: fn() } },
     storage: { upload: fn(), download: fn(), remove: fn() },
     ensureBucketExists: fn(),
-    uploadFileToSupabase: fn(),
+    uploadFileToSupabaseWithInfo: fn(),
     logAudit: fn(),
     sendNotification: fn(),
     enqueueResumeAnalysis: fn(),
@@ -35,7 +35,7 @@ const m = vi.hoisted(() => {
 
 vi.mock("../utils/prisma.js", () => ({ default: m.prisma }));
 vi.mock("../utils/supabase.js", () => ({ default: m.supabase }));
-vi.mock("../middleware/upload.middleware.js", () => ({ uploadFileToSupabase: m.uploadFileToSupabase, ensureBucketExists: m.ensureBucketExists }));
+vi.mock("../middleware/upload.middleware.js", () => ({ uploadFileToSupabaseWithInfo: m.uploadFileToSupabaseWithInfo, ensureBucketExists: m.ensureBucketExists }));
 vi.mock("../utils/audit.js", () => ({ logAudit: m.logAudit }));
 vi.mock("../utils/notification.js", () => ({ sendNotification: m.sendNotification, sendRoleNotification: vi.fn() }));
 vi.mock("../workers/resume.worker.js", () => ({ enqueueResumeAnalysis: m.enqueueResumeAnalysis, trackFitRevalidation: m.trackFitRevalidation }));
@@ -267,7 +267,7 @@ const wire = () => {
       : { data: null, error: new Error("Object not found") };
   });
   m.storage.remove.mockImplementation(async (paths: string[]) => (paths.forEach((path) => objects.delete(path)), { data: [], error: null }));
-  m.uploadFileToSupabase.mockResolvedValue("https://storage.example/applicant-assets/biodata.pdf");
+  m.uploadFileToSupabaseWithInfo.mockResolvedValue({ url: "https://storage.example/applicant-assets/biodata.pdf", documentId: 42, sha256: "b".repeat(64) });
   m.assertCanApply.mockImplementation(async (_userId: string, jobId: number) => ({ id: jobId, status: "OPEN", mrf: { clientId: 3 } }));
   m.resolveInitialStatus.mockResolvedValue({ status: "SUBMITTED", attemptNumber: 1, sameClientDeployment: false, sameClientDeployments: [] });
   m.enqueueResumeAnalysis.mockResolvedValue(undefined);

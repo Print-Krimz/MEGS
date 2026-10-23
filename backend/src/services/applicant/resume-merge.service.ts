@@ -130,6 +130,7 @@ const loadProfile = (profileId: number) =>
 type ProfileForMerge = NonNullable<Awaited<ReturnType<typeof loadProfile>>>;
 
 export const buildMergeProposal = (profile: ProfileForMerge | any, extracted: ExtractedProfileData): MergeProposal => {
+  // Nothing sets VERIFIED anymore; rows verified before that change stay protected.
   const verified = profile.verificationStatus === "VERIFIED";
 
   const personal: PersonalProposal[] = [];

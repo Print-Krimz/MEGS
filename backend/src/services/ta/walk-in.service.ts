@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
 import supabase from "../../utils/supabase.js";
-import { uploadFileToSupabase } from "../../middleware/upload.middleware.js";
+import { uploadFileToSupabaseWithInfo } from "../../middleware/upload.middleware.js";
 import { logAudit } from "../../utils/audit.js";
 import { safeLogError } from "../../security/errors.js";
 import { enqueueResumeAnalysis, trackFitRevalidation } from "../../workers/resume.worker.js";
@@ -186,7 +186,13 @@ const rollbackNewUser = async (userId: string) => {
  * Reads the paper bio-data into the applicant's profile. Never rejects: a failure only means the profile stays
  * as the TA typed it. A new person gets blanks filled; an existing person's proposal waits for TA review.
  */
-const extractWalkInProfile = async (userId: string, file: Express.Multer.File, isNewPerson: boolean, taUserId: string): Promise<void> => {
+const extractWalkInProfile = async (
+  userId: string,
+  file: Express.Multer.File,
+  stored: { documentId: number; sha256: string },
+  isNewPerson: boolean,
+  taUserId: string,
+): Promise<void> => {
   try {
     const { parseResumeToProposal, fillBlanksFromParse } = await import("../applicant/resume-merge.service.js");
     const profile = await prisma.applicantProfile.findUnique({ where: { userId }, select: { id: true } });
@@ -196,8 +202,8 @@ const extractWalkInProfile = async (userId: string, file: Express.Multer.File, i
       buffer: file.buffer,
       mimeType: file.mimetype,
       originalName: file.originalname,
-      documentId: null,
-      sha256: crypto.createHash("sha256").update(file.buffer).digest("hex"),
+      documentId: stored.documentId,
+      sha256: stored.sha256,
       source: "WALK_IN",
     });
     if (isNewPerson && proposal?.id) await fillBlanksFromParse(proposal.id, taUserId);
@@ -320,7 +326,7 @@ export const createWalkIn = async (
   let applicationCommitted = false;
   try {
     const job = await assertCanApply(userId, input.jobPostingId);
-    const resumeUrl = await uploadFileToSupabase("applicant-assets", userId, file);
+    const { url: resumeUrl, documentId, sha256 } = await uploadFileToSupabaseWithInfo("applicant-assets", userId, file);
     await prisma.applicantProfile.updateMany({ where: { userId, resumeUrl: null }, data: { resumeUrl } });
 
     const initial = await resolveInitialStatus(userId, job);
@@ -364,7 +370,7 @@ export const createWalkIn = async (
         }
       }
       // Scoring waits for the profile fill so the first score sees gender, address, work and skills. A failed fill still scores.
-      const profileReady = extractWalkInProfile(userId, file, createdNewUser, actor.id);
+      const profileReady = extractWalkInProfile(userId, file, { documentId, sha256 }, createdNewUser, actor.id);
       const revalidation = profileReady.then(() => revalidateApplication(created.id, input.jobPostingId));
       trackFitRevalidation(created.id, revalidation);
       void revalidation.catch((error) => safeLogError("Scoring revalidation queue", error));

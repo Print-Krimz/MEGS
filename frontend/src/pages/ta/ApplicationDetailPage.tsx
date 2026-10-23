@@ -3,7 +3,6 @@ import { Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import { PageHeader, LoadingState, ErrorState, DocumentPreviewModal, Tabs, ConfirmDialog, DetailLayout } from "../../components/common";
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "../../components/shadcn/sheet";
 import type { ActionMenuItem } from "../../components/common";
 import { Button, manilaIsoToDateTimeLocal } from "../../components/ui";
 import { OnboardingDeploymentStepper } from "../../components/ta/OnboardingDeploymentStepper";
@@ -21,9 +20,7 @@ import { ProfileTab } from "../../components/ta/application/ProfileTab";
 import { RequirementsTab } from "../../components/ta/application/RequirementsTab";
 import { ActivityTab } from "../../components/ta/application/ActivityTab";
 import { PersonalDetails } from "../../components/ta/application/PersonalDetails";
-import { ProfileEditForm } from "../../components/ta/application/ProfileEditForm";
-import { BioDataReviewPanel, verificationText } from "../../components/ta/application/BioDataReviewPanel";
-import { StandardAtsResumePreview } from "../../components/ta/application/StandardAtsResume";
+import { BioDataReviewPanel } from "../../components/ta/application/BioDataReviewPanel";
 import { resumeProposalKey, resumeReadState, useResumeParseState } from "../../components/ta/application/useResumeParseState";
 import { taProfileReviewApi } from "../../lib/api/ta-profile-review.api";
 import { countActionable } from "../../lib/resume-autofill";
@@ -47,7 +44,7 @@ import { formatDate, extractDocumentId } from "../../lib/utils";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
 import { ApplicationStatus, InterviewType } from "../../lib/types/enums";
 import type { Interview } from "../../lib/types/application.types";
-import type { UpdateCandidateProfileDto, ReviewComplianceDto } from "../../lib/types/ta.types";
+import type { ReviewComplianceDto } from "../../lib/types/ta.types";
 import { notify } from "../../lib/feedback";
 import { SourceChip } from "../../components/ta/walk-in/SourceChip";
 import { WalkInSlipDialog } from "../../components/ta/walk-in/WalkInSlipDialog";
@@ -159,9 +156,7 @@ export const ApplicationDetailPage: React.FC = () => {
   });
   const [resumeDrawerOpen, setResumeDrawerOpen] = useState(false);
   const [stageBarHeight, setStageBarHeight] = useState(140);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [isReviewingBioData, setIsReviewingBioData] = useState(false);
-  const [isPrintingResume, setIsPrintingResume] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const toggleResume = (open: boolean) => {
     setIsResumeOpen(open);
@@ -182,7 +177,8 @@ export const ApplicationDetailPage: React.FC = () => {
     enabled: Boolean(applicationId),
   });
   const parseProfileId = applicationQuery.data?.user?.applicantProfile?.id;
-  const parseState = useResumeParseState(parseProfileId, applicationQuery.data?.source === "WALK_IN" ? applicationQuery.data.createdAt : null);
+  const hasUploadedResume = Boolean((applicationQuery.data?.user?.applicantProfile?.resumeUrl || applicationQuery.data?.resumeUrl)?.trim());
+  const parseState = useResumeParseState(parseProfileId, hasUploadedResume ? applicationQuery.data?.createdAt : null);
   const reparseMutation = useMutation({
     mutationFn: () => taProfileReviewApi.reparseResume(parseProfileId as number),
     onSuccess: (state) => {
@@ -204,23 +200,6 @@ export const ApplicationDetailPage: React.FC = () => {
     : appData?.user?.email || "Candidate";
 
   const m = useApplicationMutations({ applicationId, status: appData?.status, candidateName });
-
-  const updateCandidateMutation = useMutation({
-    mutationFn: (data: UpdateCandidateProfileDto) => {
-      const profileId = applicationQuery.data?.user?.applicantProfile?.id;
-      if (!profileId) throw new Error("No applicant profile to update");
-      return taApi.updateCandidateProfile(profileId, data);
-    },
-    onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
-      notify.success("Profile Verified", "Candidate details updated successfully.");
-      (updated?.warnings ?? []).forEach((warning) => notify.warning("Possible duplicate", warning));
-      setIsEditingProfile(false);
-    },
-    onError: (err: any) => {
-      notify.error("Update Failed", err);
-    },
-  });
 
   const backToList = (
     <Button asChild variant="outline" size="sm">
@@ -408,9 +387,10 @@ export const ApplicationDetailPage: React.FC = () => {
     setPreviewDocState({ open: true, documentId: extractDocumentId(resumeUrl), fileUrl: resumeUrl, title: "Application Resume (CV)" });
   };
   // The resume sits beside Profile, Interviews and Requirements. Activity has nothing to compare it with.
-  // With no resume, only Profile keeps the rail, so its empty state is not repeated on every tab.
+  // It is the uploaded file, the MEGS resume built from the profile, or both.
+  const megsResume = profile ? { profile, email: app.user?.email, reference: app.trackingCode, requirements } : undefined;
   const hasResume = Boolean(resumeUrl?.trim());
-  const resumeTabActive = activeTab !== "activity" && (hasResume || activeTab === "profile");
+  const resumeTabActive = activeTab !== "activity" && (hasResume || Boolean(profile));
   const showResumeRail = isDesktop && isResumeOpen && resumeTabActive;
   const showResumeDock = isDesktop && !isResumeOpen && resumeTabActive;
   const railTop = 56 + stageBarHeight + 8;
@@ -421,13 +401,10 @@ export const ApplicationDetailPage: React.FC = () => {
       candidateName={candidateName}
       candidateInitials={candidateInitials}
       email={app.user?.email}
-      onVerify={() => setIsEditingProfile(true)}
-      onReview={resumeUrl?.trim() ? () => setIsReviewingBioData(true) : undefined}
-      verificationLabel={verificationText(profile)}
-      readState={resumeReadState(parseState.data, app.source === "WALK_IN" ? app.createdAt : null, Date.now(), countActionable(parseState.data?.pending?.proposal) > 0)}
+      onVerify={profile ? () => setIsVerifying(true) : undefined}
+      readState={resumeReadState(parseState.data, hasResume ? app.createdAt : null, Date.now(), countActionable(parseState.data?.pending?.proposal) > 0)}
       onRetryRead={resumeUrl?.trim() ? () => reparseMutation.mutate() : undefined}
       isRetrying={reparseMutation.isPending}
-      onPrint={profile ? () => setIsPrintingResume(true) : undefined}
       onOpenPhoto={() =>
         setPreviewDocState({
           open: true,
@@ -479,7 +456,7 @@ export const ApplicationDetailPage: React.FC = () => {
       onOpenChange={setResumeDrawerOpen}
       resumeUrl={resumeUrl}
       candidateName={candidateName}
-      candidateInitials={candidateInitials}
+      megs={megsResume}
       onFullscreen={openResumeFullscreen}
     />
   ) : null;
@@ -584,7 +561,7 @@ export const ApplicationDetailPage: React.FC = () => {
             <ResumeRail
               resumeUrl={resumeUrl}
               candidateName={candidateName}
-              candidateInitials={candidateInitials}
+              megs={megsResume}
               onFullscreen={openResumeFullscreen}
               onHide={() => toggleResume(false)}
               topOffset={railTop}
@@ -706,42 +683,16 @@ export const ApplicationDetailPage: React.FC = () => {
 
       {showResumeDock && <ResumeDockTab onShow={() => toggleResume(true)} />}
 
-      <Sheet open={isEditingProfile && Boolean(profile)} onOpenChange={setIsEditingProfile}>
-        <SheetContent side="left" className="w-full gap-0 overflow-y-auto bg-white p-0 sm:max-w-xl">
-          <SheetTitle className="border-b border-slate-200 px-4 py-3 pr-12 text-base">Verify details</SheetTitle>
-          <SheetDescription className="sr-only">Check the candidate details against the resume and correct anything that differs.</SheetDescription>
-          <div className="p-4">
-            {profile && (
-              <ProfileEditForm
-                profile={profile}
-                candidateInitials={candidateInitials}
-                isSaving={updateCandidateMutation.isPending}
-                onCancel={() => setIsEditingProfile(false)}
-                onSave={(dto) => updateCandidateMutation.mutate(dto)}
-              />
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {isReviewingBioData && profile && (
+      {isVerifying && profile && (
         <BioDataReviewPanel
           applicationId={applicationId}
           profile={profile}
           candidateName={candidateName}
-          candidateInitials={candidateInitials}
           resumeUrl={resumeUrl}
-          onClose={() => setIsReviewingBioData(false)}
-        />
-      )}
-
-      {isPrintingResume && profile && (
-        <StandardAtsResumePreview
-          profile={profile}
           email={app.user?.email}
           reference={app.trackingCode}
           requirements={requirements}
-          onClose={() => setIsPrintingResume(false)}
+          onClose={() => setIsVerifying(false)}
         />
       )}
 

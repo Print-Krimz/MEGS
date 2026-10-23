@@ -4,8 +4,9 @@ import { X } from "lucide-react";
 import { Button } from "../../ui";
 import { ConfirmDialog } from "../../common";
 import { ResumeReviewDialog } from "../../applicant/ResumeReviewDialog";
-import { InlineResumeViewer } from "../InlineResumeViewer";
-import { ProfileEditForm, type ProfileEditFormHandle } from "./ProfileEditForm";
+import { ProfileEditForm, type ProfileEditFormHandle, type ProfileFormValues } from "./ProfileEditForm";
+import { ResumeSwitcher } from "./ResumeSwitcher";
+import type { AtsRequirement } from "./StandardAtsResume";
 import {
   EducationEditor,
   SkillsEditor,
@@ -18,41 +19,88 @@ import {
   validateDrafts,
   workPayload,
   type DraftErrors,
+  type EducationDraft,
+  type WorkDraft,
 } from "./BioDataSectionEditors";
 import { taProfileReviewApi, type ReviewProfileDto } from "../../../lib/api/ta-profile-review.api";
 import { countActionable, countUndatedWork } from "../../../lib/resume-autofill";
 import { notify } from "../../../lib/feedback";
 import { plural } from "../../../lib/plural";
-import { formatDate } from "../../../lib/utils";
 import type { ResumeAccept } from "../../../lib/types/applicant.types";
 
 export interface BioDataReviewPanelProps {
   applicationId: number | string;
   profile: any;
   candidateName: string;
-  candidateInitials: string;
   resumeUrl?: string | null;
+  email?: string | null;
+  /** The application tracking code, when it has one. */
+  reference?: string | null;
+  requirements?: AtsRequirement[];
   onClose: () => void;
 }
-
-/** "Not verified" or "Verified by <name>, <date>". */
-export const verificationText = (profile: any): string =>
-  profile?.verificationStatus === "VERIFIED"
-    ? `Verified${profile.verifiedByName ? ` by ${profile.verifiedByName}` : ""}${profile.verifiedAt ? `, ${formatDate(profile.verifiedAt)}` : ""}`
-    : "Not verified";
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /**
- * Full-screen review: editable details on the left, the resume or bio-data on the right.
- * Stacks (resume first) below 1024px. Save keeps the verification status; Save and mark verified sets it.
+ * Rows to send for one list: new rows and rows that changed, plus the ids the recruiter removed.
+ * Rows left out of the request are not touched on the server.
+ */
+const diffRows = <D extends { id?: number }, P>(current: D[], initial: D[], toPayload: (rows: D[]) => P[]) => {
+  const before = new Map(initial.filter((r) => r.id !== undefined).map((r) => [r.id as number, r]));
+  const keptIds = new Set(current.filter((r) => r.id !== undefined).map((r) => r.id as number));
+  const removed = [...before.keys()].filter((id) => !keptIds.has(id));
+  const changed = current.filter((r) => {
+    const old = r.id === undefined ? undefined : before.get(r.id);
+    return !old || !same(toPayload([r])[0], toPayload([old])[0]);
+  });
+  return { rows: toPayload(changed), removed };
+};
+
+/** Fields of the personal form that appear on the MEGS resume. */
+const resumePersonal = (values: ProfileFormValues | null) =>
+  values
+    ? {
+        firstName: values.firstName,
+        middleName: values.middleName,
+        lastName: values.lastName,
+        mobileNumber: values.mobileNumber,
+        city: values.city,
+        province: values.province,
+      }
+    : {};
+
+const workForResume = (rows: WorkDraft[]) =>
+  rows
+    .filter((r) => r.company.trim() || r.roleTitle.trim())
+    .map((r) => ({
+      id: r.key,
+      company: r.company,
+      roleTitle: r.roleTitle,
+      location: r.location,
+      startDate: r.startDate,
+      endDate: r.isCurrent ? null : r.endDate,
+      isCurrent: r.isCurrent,
+      summary: r.summary,
+    }));
+
+const educationForResume = (rows: EducationDraft[]) =>
+  rows
+    .filter((r) => r.school.trim())
+    .map((r) => ({ id: r.key, school: r.school, degree: r.degree, fieldOfStudy: r.fieldOfStudy, startDate: r.startDate, endDate: r.endDate }));
+
+/**
+ * Verify details, full screen: the details on the left, the resume on the right. The resume can be the uploaded
+ * file or the MEGS resume, which shows the edits as they are typed. Stacks (resume first) below 1024px.
  */
 export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
   applicationId,
   profile,
   candidateName,
-  candidateInitials,
   resumeUrl,
+  email,
+  reference,
+  requirements,
   onClose,
 }) => {
   const queryClient = useQueryClient();
@@ -79,6 +127,7 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
   const [errors, setErrors] = useState<DraftErrors>({});
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [personal, setPersonal] = useState<ProfileFormValues | null>(null);
 
   useEffect(() => {
     setSummary(initial.summary);
@@ -116,9 +165,9 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
 
   const saveMutation = useMutation({
     mutationFn: (dto: ReviewProfileDto) => taProfileReviewApi.updateCandidateProfile(profileId, dto),
-    onSuccess: async (updated, dto) => {
+    onSuccess: async (updated) => {
       await refreshAfterSave();
-      notify.success(dto.markVerified ? "Bio-data verified" : "Changes saved");
+      notify.success("Changes saved");
       (updated?.warnings ?? []).forEach((warning) => notify.warning("Possible duplicate", warning));
       onClose();
     },
@@ -146,33 +195,48 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const save = (markVerified: boolean) => {
-    const personal = formRef.current?.collect();
-    if (!personal) return;
+  const save = () => {
+    const personalDto = formRef.current?.collect();
+    if (!personalDto) return;
     const found = validateDrafts(work, education);
     setErrors(found);
     if (Object.keys(found).length > 0) {
       notify.error("Check the highlighted fields", Object.values(found)[0]);
       return;
     }
-    // Only changed sections are sent; a section left out is not touched.
-    const dto: ReviewProfileDto = { ...personal };
+    // Only changed parts are sent; anything left out is not touched.
+    const dto: ReviewProfileDto = { ...personalDto };
     if (summary.trim() !== initial.summary.trim()) dto.professionalSummary = summary.trim() || null;
-    if (!same(workPayload(work), workPayload(initial.work))) dto.workExperiences = workPayload(work);
-    if (!same(educationPayload(education), educationPayload(initial.education))) dto.educations = educationPayload(education);
+    const jobs = diffRows(work, initial.work, workPayload);
+    if (jobs.rows.length > 0) dto.workExperiences = jobs.rows;
+    if (jobs.removed.length > 0) dto.removeWorkExperienceIds = jobs.removed;
+    const schools = diffRows(education, initial.education, educationPayload);
+    if (schools.rows.length > 0) dto.educations = schools.rows;
+    if (schools.removed.length > 0) dto.removeEducationIds = schools.removed;
     if (!same(skills, initial.skills)) dto.skills = skills;
-    if (markVerified) dto.markVerified = true;
     saveMutation.mutate(dto);
   };
+
+  // The MEGS resume is drawn from the stored profile with the unsaved edits on top.
+  const draftProfile = useMemo(
+    () => ({
+      ...profile,
+      ...resumePersonal(personal),
+      professionalSummary: summary,
+      workExperiences: workForResume(work),
+      educations: educationForResume(education),
+      skills,
+    }),
+    [profile, personal, summary, work, education, skills],
+  );
 
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="bio-review-title" className="fixed inset-0 z-40 flex flex-col bg-white">
       <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-300 px-4 py-3">
         <div className="min-w-0">
           <h2 id="bio-review-title" ref={headingRef} tabIndex={-1} className="truncate text-base font-semibold text-slate-900 focus:outline-none">
-            Review bio-data: {candidateName}
+            Verify details: {candidateName}
           </h2>
-          <p className="text-sm text-slate-600">{verificationText(profile)}</p>
         </div>
         <button type="button" onClick={requestClose} aria-label="Close" className="focus-ring inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-700 hover:bg-slate-100">
           <X className="h-4 w-4" aria-hidden="true" />
@@ -181,7 +245,7 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
 
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-2 lg:overflow-hidden">
         <div className="order-first h-[60vh] min-h-0 border-b border-slate-300 p-3 lg:order-last lg:h-auto lg:border-b-0 lg:border-l">
-          <InlineResumeViewer resumeUrl={resumeUrl} candidateName={candidateName} className="h-full" />
+          <ResumeSwitcher resumeUrl={resumeUrl} candidateName={candidateName} megs={{ profile: draftProfile, email, reference, requirements }} />
         </div>
 
         <div className="min-h-0 space-y-4 p-4 lg:overflow-y-auto">
@@ -202,13 +266,9 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
 
           <ProfileEditForm
             key={`personal-${reloadKey}`}
-            embedded
             formRef={formRef}
             profile={profile}
-            candidateInitials={candidateInitials}
-            isSaving={saveMutation.isPending}
-            onCancel={requestClose}
-            onSave={() => undefined}
+            onValuesChange={setPersonal}
           />
           <SummaryEditor value={summary} onChange={setSummary} />
           <WorkExperienceEditor rows={work} errors={errors} onChange={setWork} />
@@ -217,18 +277,13 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
         </div>
       </div>
 
-      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-300 bg-white px-4 py-3">
+      <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-300 bg-white px-4 py-3">
         <Button type="button" variant="outline" onClick={requestClose} disabled={saveMutation.isPending}>
           Cancel
         </Button>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" onClick={() => save(false)} disabled={saveMutation.isPending}>
-            Save
-          </Button>
-          <Button type="button" variant="primary" onClick={() => save(true)} loading={saveMutation.isPending}>
-            Save and mark verified
-          </Button>
-        </div>
+        <Button type="button" variant="primary" onClick={save} loading={saveMutation.isPending}>
+          Save
+        </Button>
       </footer>
 
       <ResumeReviewDialog

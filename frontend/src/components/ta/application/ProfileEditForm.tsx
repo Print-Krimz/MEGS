@@ -1,6 +1,5 @@
-import React, { useImperativeHandle, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
-import { Button, Input, PhoneInput, Select } from "../../ui";
+import React, { useEffect, useImperativeHandle, useState } from "react";
+import { Input, PhoneInput, Select } from "../../ui";
 import { PhilippineAddressFields } from "../../common/PhilippineAddressFields";
 import { notify } from "../../../lib/feedback";
 import { getManilaToday } from "../../../lib/field-limits";
@@ -21,7 +20,7 @@ import {
   validateAddressText,
 } from "../../../lib/statutory-validation";
 
-/** Lets a parent screen with its own Save buttons validate the form and read its values. */
+/** Lets the screen that owns the Save button validate the form and read its values. */
 export interface ProfileEditFormHandle {
   /** Returns the cleaned values, or null after showing the problems on the form. */
   collect: () => UpdateCandidateProfileDto | null;
@@ -29,16 +28,16 @@ export interface ProfileEditFormHandle {
   isDirty: () => boolean;
 }
 
+/** The form as typed, before it is checked. Text only. */
+export type ProfileFormValues = ReturnType<typeof startingForm>;
+
 export interface ProfileEditFormProps {
   /** The applicant profile being verified. */
   profile: any;
-  candidateInitials: string;
-  isSaving: boolean;
-  onCancel: () => void;
-  onSave: (dto: UpdateCandidateProfileDto) => void;
-  /** Hides the intro and the Save buttons; the parent saves through `formRef`. */
-  embedded?: boolean;
-  formRef?: React.Ref<ProfileEditFormHandle>;
+  /** The parent saves through this handle. */
+  formRef: React.Ref<ProfileEditFormHandle>;
+  /** Called with the typed values whenever they change, so the parent can show them live. */
+  onValuesChange?: (values: ProfileFormValues) => void;
 }
 
 const startingForm = (profile: any) => ({
@@ -64,11 +63,10 @@ const startingForm = (profile: any) => ({
   emergencyContactPhone: profile.emergencyContactPhone || "",
 });
 
-/** Side-by-side verification: the recruiter checks the resume and corrects the profile fields. Rules moved unchanged from the page. */
-export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candidateInitials, isSaving, onCancel, onSave, embedded = false, formRef }) => {
+/** The personal fields of Verify details. The recruiter checks them against the resume and corrects what differs. */
+export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, formRef, onValuesChange }) => {
   const [profileForm, setProfileForm] = useState(() => startingForm(profile));
   const [profileFormErrors, setProfileFormErrors] = useState<Record<string, string>>({});
-  const [photoImgError, setPhotoImgError] = useState(false);
 
   const collectDto = (): UpdateCandidateProfileDto | null => {
     const errors: Record<string, string> = {};
@@ -195,37 +193,13 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candi
     isDirty: () => JSON.stringify(profileForm) !== JSON.stringify(startingForm(profile)),
   }));
 
-  const handleSaveCandidateProfile = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const dto = collectDto();
-    if (dto) onSave(dto);
-  };
+  useEffect(() => {
+    onValuesChange?.(profileForm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileForm]);
 
   return (
-    <form onSubmit={handleSaveCandidateProfile} className="space-y-3 pt-2">
-      {!embedded && (
-      <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
-        <div className="shrink-0">
-          {profile?.photoUrl && !photoImgError ? (
-            <img
-              src={profile.photoUrl}
-              alt="Profile"
-              className="w-12 h-12 rounded-md object-cover border border-slate-300 shadow-xs"
-              onError={() => setPhotoImgError(true)}
-            />
-          ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-md bg-navy-soft text-xs font-semibold text-navy ring-1 ring-inset ring-navy-line">
-              {candidateInitials}
-            </div>
-          )}
-        </div>
-        <div className="text-xs text-slate-600">
-          <p className="font-semibold text-slate-700">Check against the resume</p>
-          <p className="text-xs text-slate-600">Correct any field that differs from the resume, then save.</p>
-        </div>
-      </div>
-      )}
-    
+    <form onSubmit={(e) => e.preventDefault()} className="space-y-3 pt-2">
       <div className="grid grid-cols-2 gap-2">
         <Input
           label="First Name"
@@ -425,28 +399,6 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candi
         </div>
       </div>
     
-      {!embedded && (
-      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          disabled={isSaving}
-          onClick={() => onCancel()}
-        >
-          Cancel
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          type="submit"
-          loading={isSaving}
-          leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
-        >
-          Verify & Save Changes
-        </Button>
-      </div>
-      )}
     </form>
   );
 };

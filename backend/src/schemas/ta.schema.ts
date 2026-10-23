@@ -23,7 +23,7 @@ const listedChoice = <T extends string>(options: readonly T[], message: string) 
 // Update schemas may leave a required field out, but a blank or null value would overwrite it.
 const omittedOrNonBlank = (value: unknown) => value === undefined || (typeof value === "string" && value.length > 0);
 
-// Bio-data review rows (TA edit). Same limits as the applicant's own work, education and skill forms.
+// Verify details rows (TA edit). Same limits as the applicant's own work, education and skill forms.
 const reviewPastDate = dateOnly.refine((value) => value <= manilaDateString(), "Date cannot be in the future");
 const reviewDateRange = (value: { startDate?: string | null; endDate?: string | null }, ctx: z.RefinementCtx) => {
   if (value.startDate && value.endDate && value.endDate < value.startDate) {
@@ -31,7 +31,9 @@ const reviewDateRange = (value: { startDate?: string | null; endDate?: string | 
   }
 };
 const optionalReviewDate = z.union([reviewPastDate, z.literal("")]).optional().nullable();
-const reviewRowId = finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional();
+const reviewRequiredRowId = finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true });
+const reviewRowId = reviewRequiredRowId.optional();
+const reviewRowIds = z.array(reviewRequiredRowId).max(FIELD_LIMITS.records).optional();
 const reviewWorkExperience = z.object({
   id: reviewRowId,
   company: safeTextSchema("Company", FIELD_LIMITS.shortText),
@@ -551,9 +553,13 @@ export const taSchema = {
       emergencyContactRelationship: optionalSafeText("Emergency Contact Relationship", FIELD_LIMITS.name),
       emergencyContactAddress: optionalSafeAddress("Emergency Contact Address"),
       professionalSummary: optionalSafeProse("Professional Summary", FIELD_LIMITS.summary),
+      // Rows to create (no id) or update (id). Rows not listed are left alone.
       workExperiences: z.array(reviewWorkExperience).max(FIELD_LIMITS.records).optional(),
+      removeWorkExperienceIds: reviewRowIds,
       educations: z.array(reviewEducation).max(FIELD_LIMITS.records).optional(),
+      removeEducationIds: reviewRowIds,
       skills: reviewSkills.optional(),
+      // Accepted and ignored for one release so an older client does not get a 400. Nothing is marked verified.
       markVerified: z.boolean().optional(),
     }).strict(),
   }),

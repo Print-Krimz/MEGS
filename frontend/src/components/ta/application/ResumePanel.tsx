@@ -1,13 +1,14 @@
 import React from "react";
 import { FileText } from "lucide-react";
 import { Button } from "../../ui";
-import { InlineResumeViewer } from "../InlineResumeViewer";
+import { ResumeSwitcher, type MegsResumeSource } from "./ResumeSwitcher";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "../../shadcn/sheet";
 
 interface ViewerProps {
   resumeUrl?: string | null;
   candidateName: string;
-  candidateInitials: string;
+  /** What the MEGS resume is built from. Without it only the uploaded file is shown. */
+  megs?: MegsResumeSource;
   onFullscreen: () => void;
 }
 
@@ -22,24 +23,18 @@ const BOTTOM_GAP = 16;
 export const ResumeRail: React.FC<ViewerProps & { onHide: () => void; topOffset: number }> = ({
   resumeUrl,
   candidateName,
-  candidateInitials,
+  megs,
   onFullscreen,
   onHide,
   topOffset,
 }) => {
-  const hasResume = Boolean(resumeUrl?.trim());
+  const hasResume = Boolean(resumeUrl?.trim()) || Boolean(megs);
   return (
     <div
       className="sticky"
       style={{ top: topOffset, height: hasResume ? `max(24rem, calc(100dvh - ${topOffset + BOTTOM_GAP}px))` : undefined }}
     >
-      <InlineResumeViewer
-        resumeUrl={resumeUrl}
-        candidateName={candidateName}
-        candidateInitials={candidateInitials}
-        onOpenFullscreen={onFullscreen}
-        onCollapse={onHide}
-      />
+      <ResumeSwitcher resumeUrl={resumeUrl} candidateName={candidateName} megs={megs} onOpenFullscreen={onFullscreen} onCollapse={onHide} />
     </div>
   );
 };
@@ -63,7 +58,7 @@ export const ResumeDrawerButton: React.FC<ViewerProps & { open: boolean; onOpenC
   onOpenChange,
   resumeUrl,
   candidateName,
-  candidateInitials,
+  megs,
   onFullscreen,
 }) => (
   <>
@@ -78,12 +73,7 @@ export const ResumeDrawerButton: React.FC<ViewerProps & { open: boolean; onOpenC
         <SheetTitle className="sr-only">Resume of {candidateName}</SheetTitle>
         <SheetDescription className="sr-only">The resume the candidate uploaded.</SheetDescription>
         <div className="h-full p-3 pt-12">
-          <InlineResumeViewer
-            resumeUrl={resumeUrl}
-            candidateName={candidateName}
-            candidateInitials={candidateInitials}
-            onOpenFullscreen={onFullscreen}
-          />
+          <ResumeSwitcher resumeUrl={resumeUrl} candidateName={candidateName} megs={megs} onOpenFullscreen={onFullscreen} />
         </div>
       </SheetContent>
     </Sheet>

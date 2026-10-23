@@ -11,18 +11,13 @@ export interface PersonalDetailsProps {
   candidateName?: string;
   candidateInitials?: string;
   email?: string | null;
-  onVerify: () => void;
-  /** Opens the bio-data review. Leave out when there is no resume or bio-data to check against. */
-  onReview?: () => void;
-  /** "Not verified" or "Verified by <name>, <date>". */
-  verificationLabel?: string;
+  /** Opens Verify details. Leave out when there is no profile to check. */
+  onVerify?: () => void;
   onOpenPhoto?: () => void;
   /** Progress of reading the resume. "idle" shows nothing. */
   readState?: "reading" | "failed" | "suggestions" | "idle";
   onRetryRead?: () => void;
   isRetrying?: boolean;
-  /** Opens the print preview of the standard resume. */
-  onPrint?: () => void;
 }
 
 const Row: React.FC<{ label: string; children: React.ReactNode; wide?: boolean }> = ({ label, children, wide }) => (
@@ -36,7 +31,7 @@ const Row: React.FC<{ label: string; children: React.ReactNode; wide?: boolean }
  * Read-only personal and contact details. Government IDs show the last four digits;
  * the full value is shown on request here and in full in the verify form.
  */
-export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVerify, onReview, verificationLabel, onOpenPhoto, readState = "idle", onRetryRead, isRetrying, onPrint }) => {
+export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVerify, onOpenPhoto, readState = "idle", onRetryRead, isRetrying }) => {
   const address = [profile?.address, profile?.barangay, profile?.city, profile?.province, profile?.postalCode].filter(Boolean).join(", ");
 
   return (
@@ -46,7 +41,6 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVer
           <h3 id="personal-details-heading" className="text-base font-semibold text-slate-900">
             Personal &amp; contact
           </h3>
-          {verificationLabel && <p className="text-sm text-slate-600">{verificationLabel}</p>}
           {readState === "reading" && (
             <p role="status" className="text-sm text-slate-600">
               Reading bio-data…
@@ -67,12 +61,12 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVer
               )}
             </p>
           )}
-          {readState === "suggestions" && onReview && (
+          {readState === "suggestions" && onVerify && (
             <p className="text-sm text-slate-700">
               Suggestions waiting.{" "}
               <button
                 type="button"
-                onClick={onReview}
+                onClick={onVerify}
                 className="focus-ring inline-flex min-h-11 items-center font-medium text-navy underline-offset-2 hover:underline md:min-h-6"
               >
                 Review
@@ -80,21 +74,11 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVer
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {onReview && (
-            <Button variant="outline" size="sm" type="button" onClick={onReview} title="Check the details against the resume and mark them verified">
-              Review bio-data
-            </Button>
-          )}
-          {onPrint && (
-            <Button variant="outline" size="sm" type="button" onClick={onPrint} title="Preview and print the standard resume">
-              Print resume
-            </Button>
-          )}
+        {onVerify && (
           <Button variant="outline" size="sm" type="button" onClick={onVerify} aria-label="Verify Profile Details" title="Check these details against the resume and correct them">
             Verify details
           </Button>
-        </div>
+        )}
       </div>
 
       <dl className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">

@@ -3,7 +3,8 @@ import supabase from "../../utils/supabase.js";
 import { ensureBucketExists } from "../../middleware/upload.middleware.js";
 import { MAX_DOCUMENT_BYTES } from "../../security/file-validation.js";
 import { logAudit } from "../../utils/audit.js";
-import { ResumeMergeError, findProfileIdByCandidateId, getLatestProposal, parseResumeToProposal } from "../applicant/resume-merge.service.js";
+import { fetchResumePayload } from "../../workers/resume.worker.js";
+import { ResumeMergeError,findProfileIdByCandidateId, getLatestProposal, parseResumeToProposal } from "../applicant/resume-merge.service.js";
 
 const STORED_DOCUMENT_URL = /^\/api\/documents\/(\d+)(?:\/download)?$/;
 
@@ -40,32 +41,54 @@ export const reparseCandidateResume = async (input: { candidateId: string; docum
   const profile = await prisma.applicantProfile.findUnique({ where: { id: profileId }, select: { id: true, userId: true, resumeUrl: true } });
   if (!profile) throw new ResumeMergeError("Candidate not found", 404);
 
+  const resumeUrl = profile.resumeUrl?.trim() || "";
   let documentId = input.documentId;
   if (documentId === undefined) {
-    const match = profile.resumeUrl?.trim().match(STORED_DOCUMENT_URL);
-    if (!match) throw new ResumeMergeError("This candidate has no stored resume to read", 404);
-    documentId = Number(match[1]);
+    const match = resumeUrl.match(STORED_DOCUMENT_URL);
+    if (match) documentId = Number(match[1]);
   }
 
-  const doc = await prisma.storedDocument.findFirst({
-    where: { id: documentId, deletedAt: null, OR: [{ profileId: profile.id }, { ownerId: profile.userId }] },
-  });
-  if (!doc) throw new ResumeMergeError("Document not found", 404);
-  if (doc.sizeBytes > MAX_DOCUMENT_BYTES) throw new ResumeMergeError("Document is too large to read", 413);
+  let parse;
+  let readDocumentId: number | null = null;
+  if (documentId !== undefined) {
+    const doc = await prisma.storedDocument.findFirst({
+      where: { id: documentId, deletedAt: null, OR: [{ profileId: profile.id }, { ownerId: profile.userId }] },
+    });
+    if (!doc) throw new ResumeMergeError("Document not found", 404);
+    if (doc.sizeBytes > MAX_DOCUMENT_BYTES) throw new ResumeMergeError("Document is too large to read", 413);
 
-  await ensureBucketExists(doc.storageBucket);
-  const { data, error } = await supabase.storage.from(doc.storageBucket).download(doc.storagePath);
-  if (error || !data) throw new ResumeMergeError("Could not open the stored document", 502);
+    await ensureBucketExists(doc.storageBucket);
+    const { data, error } = await supabase.storage.from(doc.storageBucket).download(doc.storagePath);
+    if (error || !data) throw new ResumeMergeError("Could not open the stored document", 502);
 
-  const parse = await parseResumeToProposal({
-    profileId: profile.id,
-    buffer: Buffer.from(await data.arrayBuffer()),
-    mimeType: doc.mimeType,
-    originalName: doc.originalName,
-    documentId: doc.id,
-    sha256: doc.sha256,
-    source: "TA_REPARSE",
-  });
-  await logAudit(input.actorUserId, "TA_RESUME_REPARSED", "ApplicantProfile", profile.id, { parseId: parse.id, documentId: doc.id, status: parse.status });
+    readDocumentId = doc.id;
+    parse = await parseResumeToProposal({
+      profileId: profile.id,
+      buffer: Buffer.from(await data.arrayBuffer()),
+      mimeType: doc.mimeType,
+      originalName: doc.originalName,
+      documentId: doc.id,
+      sha256: doc.sha256,
+      source: "TA_REPARSE",
+    });
+  } else {
+    // Older applications keep a plain file URL instead of a stored document. The worker's loader guards that download.
+    if (!resumeUrl) throw new ResumeMergeError("This candidate has no resume to read", 404);
+    let payload;
+    try {
+      payload = await fetchResumePayload(resumeUrl, profile.userId);
+    } catch {
+      throw new ResumeMergeError("Could not open the resume", 502);
+    }
+    parse = await parseResumeToProposal({
+      profileId: profile.id,
+      buffer: payload.buffer,
+      mimeType: payload.mimeType,
+      originalName: payload.originalName,
+      documentId: null,
+      source: "TA_REPARSE",
+    });
+  }
+  await logAudit(input.actorUserId, "TA_RESUME_REPARSED", "ApplicantProfile", profile.id, { parseId: parse.id, documentId: readDocumentId, status: parse.status });
   return getResumeReviewState(profile.id);
 };

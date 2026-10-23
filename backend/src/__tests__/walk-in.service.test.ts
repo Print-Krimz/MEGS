@@ -16,7 +16,7 @@ const m = vi.hoisted(() => {
   return {
     prisma,
     supabase: { auth: { admin: { createUser: fn(), deleteUser: fn() } } },
-    uploadFileToSupabase: fn(),
+    uploadFileToSupabaseWithInfo: fn(),
     logAudit: fn(),
     enqueueResumeAnalysis: fn(),
     trackFitRevalidation: fn(),
@@ -35,7 +35,7 @@ const m = vi.hoisted(() => {
 
 vi.mock("../utils/prisma.js", () => ({ default: m.prisma }));
 vi.mock("../utils/supabase.js", () => ({ default: m.supabase }));
-vi.mock("../middleware/upload.middleware.js", () => ({ uploadFileToSupabase: m.uploadFileToSupabase }));
+vi.mock("../middleware/upload.middleware.js", () => ({ uploadFileToSupabaseWithInfo: m.uploadFileToSupabaseWithInfo }));
 vi.mock("../utils/audit.js", () => ({ logAudit: m.logAudit }));
 vi.mock("../utils/notification.js", () => ({ sendNotification: m.sendNotification, sendRoleNotification: m.sendRoleNotification }));
 vi.mock("../workers/resume.worker.js", () => ({ enqueueResumeAnalysis: m.enqueueResumeAnalysis, trackFitRevalidation: m.trackFitRevalidation }));
@@ -123,7 +123,7 @@ const resetMocks = () => {
     sameClientDeployment: false,
     sameClientDeployments: [],
   });
-  m.uploadFileToSupabase.mockResolvedValue("https://storage.example/applicant-assets/resume.pdf");
+  m.uploadFileToSupabaseWithInfo.mockResolvedValue({ url: "https://storage.example/applicant-assets/resume.pdf", documentId: 41, sha256: "a".repeat(64) });
   m.enqueueResumeAnalysis.mockResolvedValue(undefined);
   m.revalidateApplication.mockResolvedValue(undefined);
   m.generateComplianceRequirementsFromMRF.mockResolvedValue(undefined);
@@ -463,7 +463,7 @@ describe("createWalkIn: new person", () => {
   });
 
   it("rolls back the new applicant when the resume upload fails", async () => {
-    m.uploadFileToSupabase.mockRejectedValueOnce(new Error("storage unavailable"));
+    m.uploadFileToSupabaseWithInfo.mockRejectedValueOnce(new Error("storage unavailable"));
     await expect(createWalkIn(TA, baseInput(), FILE)).rejects.toThrow("storage unavailable");
     expect(m.prisma.storedDocument.deleteMany).toHaveBeenCalledWith({ where: { ownerId: USER_ID } });
     expect(m.prisma.applicantProfile.deleteMany).toHaveBeenCalledWith({ where: { userId: USER_ID } });
@@ -507,7 +507,7 @@ describe("createWalkIn: bio-data extraction", () => {
     await createWalkIn(TA, baseInput(), FILE);
     await vi.waitFor(() => expect(m.revalidateApplication).toHaveBeenCalledWith(42, 5));
     expect(m.parseResumeToProposal).toHaveBeenCalledWith(
-      expect.objectContaining({ profileId: 9, buffer: FILE.buffer, source: "WALK_IN", sha256: expect.stringMatching(/^[0-9a-f]{64}$/) })
+      expect.objectContaining({ profileId: 9, buffer: FILE.buffer, source: "WALK_IN", documentId: 41, sha256: "a".repeat(64) })
     );
     expect(m.fillBlanksFromParse).toHaveBeenCalledWith(77, expect.any(String));
     expect(m.fillBlanksFromParse.mock.invocationCallOrder[0]).toBeLessThan(m.revalidateApplication.mock.invocationCallOrder[0]);

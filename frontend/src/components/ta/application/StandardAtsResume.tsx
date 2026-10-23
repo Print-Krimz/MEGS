@@ -1,8 +1,6 @@
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Button } from "../../ui";
 import { formatDate } from "../../../lib/utils";
-import { verificationText } from "./BioDataReviewPanel";
 
 export interface AtsRequirement {
   documentLabel: string;
@@ -44,6 +42,8 @@ const range = (start?: string | null, end?: string | null, current?: boolean): s
   return [from, to].filter(Boolean).join(" – ");
 };
 
+const sortKey = (iso?: string | null): number => Date.parse(iso ?? "") || 0;
+
 const skillName = (skill: unknown): string => (typeof skill === "string" ? skill : (skill as { name?: string })?.name ?? "").trim();
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -60,13 +60,11 @@ export const StandardAtsResume: React.FC<StandardAtsResumeProps> = ({ profile, e
   const phone = profile?.mobileNumber ? (showContact ? profile.mobileNumber : maskPhone(profile.mobileNumber)) : "";
   const mail = email ? (showContact ? email : maskEmail(email)) : "";
   const summary = (profile?.professionalSummary ?? "").trim();
-  const work = [...(profile?.workExperiences ?? [])].sort((a: any, b: any) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
-  const education = [...(profile?.educations ?? [])].sort(
-    (a: any, b: any) => new Date(b.endDate ?? b.startDate ?? 0).getTime() - new Date(a.endDate ?? a.startDate ?? 0).getTime(),
-  );
+  const work = [...(profile?.workExperiences ?? [])].sort((a: any, b: any) => sortKey(b.startDate) - sortKey(a.startDate));
+  const education = [...(profile?.educations ?? [])].sort((a: any, b: any) => sortKey(b.endDate ?? b.startDate) - sortKey(a.endDate ?? a.startDate));
+  const trainings = [...(profile?.trainings ?? [])].sort((a: any, b: any) => sortKey(b.completionDate) - sortKey(a.completionDate));
   const skills: string[] = (profile?.skills ?? []).map(skillName).filter(Boolean);
   const approved = requirements.filter((r) => r.reviewStatus === "APPROVED").map((r) => r.documentLabel);
-  const verified = profile?.verificationStatus === "VERIFIED";
 
   return (
     <article className="ats-resume bg-white text-black" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
@@ -113,6 +111,20 @@ export const StandardAtsResume: React.FC<StandardAtsResumeProps> = ({ profile, e
         </Section>
       )}
 
+      {trainings.length > 0 && (
+        <Section title="Trainings & certifications">
+          {trainings.map((t: any, i: number) => (
+            <div key={t.id ?? i} className="ats-entry text-sm">
+              <div className="flex justify-between gap-4">
+                <span className="font-bold">{t.title}</span>
+                <span className="shrink-0">{monthYear(t.completionDate)}</span>
+              </div>
+              {t.provider && <div>{t.provider}</div>}
+            </div>
+          ))}
+        </Section>
+      )}
+
       {skills.length > 0 && (
         <Section title="Skills">
           <p className="text-sm">{skills.join(", ")}</p>
@@ -128,45 +140,47 @@ export const StandardAtsResume: React.FC<StandardAtsResumeProps> = ({ profile, e
 
       <footer className="mt-8 border-t border-black pt-1 text-xs">
         <p>Prepared by MEGS Talent Acquisition · {formatDate(preparedOn ?? new Date().toISOString())}</p>
-        <p>{verified ? verificationText(profile) : "Not verified"}</p>
       </footer>
     </article>
   );
 };
 
-export interface StandardAtsResumePreviewProps extends Omit<StandardAtsResumeProps, "showContact"> {
-  onClose: () => void;
+export interface PrintableResumeProps extends Omit<StandardAtsResumeProps, "showContact"> {
+  /** Whether the printed copy shows the full phone and email. */
+  showContact: boolean;
+  /** Called when the print dialog closes. */
+  onDone: () => void;
 }
 
-/** Full-screen preview. Print hides everything else on the page (see .print-resume-root in index.css). */
-export const StandardAtsResumePreview: React.FC<StandardAtsResumePreviewProps> = ({ onClose, ...resume }) => {
-  const [showContact, setShowContact] = useState(false);
-  const checkId = useId();
+/**
+ * Prints the resume on A4. It mounts a copy that is hidden on screen, opens the print dialog and
+ * unmounts when the dialog closes. Print hides everything else on the page (see .print-resume-root in index.css).
+ * Mount it with a new `key` each time to print again.
+ */
+export const PrintableResume: React.FC<PrintableResumeProps> = ({ onDone, ...resume }) => {
+  const printed = useRef(false);
+  const done = useRef(onDone);
+  done.current = onDone;
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    const onAfterPrint = () => done.current();
+    window.addEventListener("afterprint", onAfterPrint);
+    return () => window.removeEventListener("afterprint", onAfterPrint);
+  }, []);
+
+  useEffect(() => {
+    // Strict Mode runs effects twice in development; the dialog must open once.
+    if (printed.current) return;
+    printed.current = true;
+    window.print();
+  }, []);
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label="Print resume" className="print-resume-root fixed inset-0 z-[100] overflow-y-auto bg-slate-100">
-      {/* The walk-in slip sets an 80 mm page; this overrides it while the resume is open. */}
+    <div className="print-resume-root hidden print:block">
+      {/* The walk-in slip sets an 80 mm page; this overrides it while the resume prints. */}
       <style>{"@media print { @page { size: A4; margin: 12.7mm; } }"}</style>
-      <div className="no-print sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-slate-300 bg-white px-4 py-3">
-        <label htmlFor={checkId} className="flex min-h-11 items-center gap-2 text-sm text-slate-900 md:min-h-6">
-          <input id={checkId} type="checkbox" checked={showContact} onChange={(e) => setShowContact(e.target.checked)} className="h-4 w-4" />
-          Show contact details
-        </label>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
-          <Button onClick={() => window.print()}>Print</Button>
-        </div>
-      </div>
-      <div className="print-resume-sheet mx-auto my-4 max-w-[210mm] bg-white p-[12.7mm] shadow-sm">
-        <StandardAtsResume {...resume} showContact={showContact} />
+      <div className="print-resume-sheet">
+        <StandardAtsResume {...resume} />
       </div>
     </div>,
     document.body,

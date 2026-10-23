@@ -1,6 +1,7 @@
-// Section edits from the TA "Review bio-data" screen.
-// A submitted list replaces that section: rows with an id are updated, rows without are created,
-// and rows the TA left out are deleted. A section that is not submitted is never touched.
+// Section edits from the TA "Verify details" screen.
+// Work and education send only the rows that changed: a row with an id is updated, a row without is created,
+// and a row is deleted only when its id is listed for removal. Rows that are not mentioned are never touched.
+// Skills are the one full list: the submitted names become the candidate's skills.
 import type { Prisma } from "@prisma/client";
 
 type Tx = Prisma.TransactionClient;
@@ -37,21 +38,24 @@ export interface SectionCount {
 const blank = (value: string | null | undefined) => (value && value.trim() ? value.trim() : null);
 const toDate = (value: string | null | undefined) => (value ? new Date(`${value.slice(0, 10)}T00:00:00.000Z`) : null);
 
-const assertOwnIds = (submitted: Array<{ id?: number }>, existing: Set<number>) => {
-  for (const row of submitted) {
-    if (row.id !== undefined && !existing.has(row.id)) {
-      throw new ProfileSectionError("One of the entries does not belong to this candidate. Reload and try again.");
-    }
-  }
+const OWN_ROWS_MESSAGE = "One of the entries does not belong to this candidate. Reload and try again.";
+
+// Every id the TA touches (update or remove) must be a row of this profile, and a row cannot be both.
+const assertOwnIds = (rows: Array<{ id?: number }>, removeIds: number[], existing: Set<number>) => {
+  const updateIds = rows.filter((row) => row.id !== undefined).map((row) => row.id as number);
+  if ([...updateIds, ...removeIds].some((id) => !existing.has(id))) throw new ProfileSectionError(OWN_ROWS_MESSAGE);
+  if (updateIds.some((id) => removeIds.includes(id))) throw new ProfileSectionError("An entry cannot be edited and removed in the same save.");
 };
 
-export const replaceWorkExperiences = async (tx: Tx, profileId: number, rows: WorkExperienceInput[]): Promise<SectionCount> => {
+export const applyWorkExperiences = async (
+  tx: Tx,
+  profileId: number,
+  rows: WorkExperienceInput[],
+  removeIds: number[],
+): Promise<SectionCount> => {
   const existing = await tx.workExperience.findMany({ where: { applicantProfileId: profileId }, select: { id: true } });
-  const existingIds = new Set(existing.map((row) => row.id));
-  assertOwnIds(rows, existingIds);
+  assertOwnIds(rows, removeIds, new Set(existing.map((row) => row.id)));
 
-  const keepIds = new Set(rows.filter((r) => r.id !== undefined).map((r) => r.id as number));
-  const removeIds = [...existingIds].filter((id) => !keepIds.has(id));
   if (removeIds.length) await tx.workExperience.deleteMany({ where: { id: { in: removeIds }, applicantProfileId: profileId } });
 
   let added = 0;
@@ -77,13 +81,15 @@ export const replaceWorkExperiences = async (tx: Tx, profileId: number, rows: Wo
   return { added, updated, removed: removeIds.length };
 };
 
-export const replaceEducations = async (tx: Tx, profileId: number, rows: EducationInput[]): Promise<SectionCount> => {
+export const applyEducations = async (
+  tx: Tx,
+  profileId: number,
+  rows: EducationInput[],
+  removeIds: number[],
+): Promise<SectionCount> => {
   const existing = await tx.education.findMany({ where: { applicantProfileId: profileId }, select: { id: true } });
-  const existingIds = new Set(existing.map((row) => row.id));
-  assertOwnIds(rows, existingIds);
+  assertOwnIds(rows, removeIds, new Set(existing.map((row) => row.id)));
 
-  const keepIds = new Set(rows.filter((r) => r.id !== undefined).map((r) => r.id as number));
-  const removeIds = [...existingIds].filter((id) => !keepIds.has(id));
   if (removeIds.length) await tx.education.deleteMany({ where: { id: { in: removeIds }, applicantProfileId: profileId } });
 
   let added = 0;
@@ -109,7 +115,8 @@ export const replaceEducations = async (tx: Tx, profileId: number, rows: Educati
 };
 
 export const replaceSkills = async (tx: Tx, profileId: number, names: string[]): Promise<SectionCount> => {
-  // Skills match case-insensitively but keep the casing they were typed with ("JavaScript", not "javascript").
+  // Skills match case-insensitively. Skill rows are shared by every candidate, so an existing row keeps its casing
+  // even when the TA types it differently; a skill that does not exist yet is created with the typed casing.
   const wantedByKey = new Map<string, string>();
   for (const raw of names) {
     const name = raw.trim();
