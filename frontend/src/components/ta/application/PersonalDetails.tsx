@@ -15,7 +15,7 @@ export interface PersonalDetailsProps {
   onVerify?: () => void;
   onOpenPhoto?: () => void;
   /** Progress of reading the resume. "idle" shows nothing. */
-  readState?: "reading" | "failed" | "suggestions" | "idle";
+  readState?: "reading" | "failed" | "unread" | "suggestions" | "idle";
   onRetryRead?: () => void;
   isRetrying?: boolean;
 }
@@ -59,6 +59,19 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVer
                   {isRetrying ? "Trying again…" : "Try again"}
                 </button>
               )}
+            </p>
+          )}
+          {readState === "unread" && onRetryRead && (
+            <p className="text-sm text-slate-700">
+              The bio-data has not been read yet.{" "}
+              <button
+                type="button"
+                onClick={onRetryRead}
+                disabled={isRetrying}
+                className="focus-ring inline-flex min-h-11 items-center font-medium text-navy underline-offset-2 hover:underline disabled:opacity-60 md:min-h-6"
+              >
+                {isRetrying ? "Reading…" : "Read now"}
+              </button>
             </p>
           )}
           {readState === "suggestions" && onVerify && (

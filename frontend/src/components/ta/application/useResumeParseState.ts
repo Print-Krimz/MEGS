@@ -9,7 +9,7 @@ const RECENT_UPLOAD_MS = 2 * 60 * 1000;
 
 export const resumeProposalKey = (profileId: number | string) => ["ta", "candidate", profileId, "resume-proposal"];
 
-export type ResumeReadState = "reading" | "failed" | "suggestions" | "idle";
+export type ResumeReadState = "reading" | "failed" | "unread" | "suggestions" | "idle";
 
 /** Pure rule so it can be tested: what the TA should be told about the bio-data reading. */
 export const resumeReadState = (
@@ -24,6 +24,8 @@ export const resumeReadState = (
   if (!parse && uploadedAt && now - new Date(uploadedAt).getTime() < RECENT_UPLOAD_MS) return "reading";
   if (parse?.status === "FAILED" && !parse.reviewed) return "failed";
   if (hasSuggestions) return "suggestions";
+  // A resume that was never read, e.g. uploaded before reading existed. Only once the lookup has answered.
+  if (data && !parse && uploadedAt) return "unread";
   return "idle";
 };
 
