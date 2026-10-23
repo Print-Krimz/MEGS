@@ -182,6 +182,30 @@ const rollbackNewUser = async (userId: string) => {
   await Promise.resolve(supabase.auth.admin.deleteUser(userId)).catch(() => undefined);
 };
 
+/**
+ * Reads the paper bio-data into the applicant's profile. Never rejects: a failure only means the profile stays
+ * as the TA typed it. A new person gets blanks filled; an existing person's proposal waits for TA review.
+ */
+const extractWalkInProfile = async (userId: string, file: Express.Multer.File, isNewPerson: boolean): Promise<void> => {
+  try {
+    const { parseResumeToProposal, fillBlanksFromParse } = await import("../applicant/resume-merge.service.js");
+    const profile = await prisma.applicantProfile.findUnique({ where: { userId }, select: { id: true } });
+    if (!profile) return;
+    const proposal = await parseResumeToProposal({
+      profileId: profile.id,
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+      originalName: file.originalname,
+      documentId: null,
+      sha256: crypto.createHash("sha256").update(file.buffer).digest("hex"),
+      source: "WALK_IN",
+    });
+    if (isNewPerson && proposal?.id) await fillBlanksFromParse(proposal.id);
+  } catch (error) {
+    safeLogError("Walk-in profile extraction", error);
+  }
+};
+
 export interface CreateWalkInOptions {
   /** Only for a confirmed self check-in: any TA may encode it, the application belongs to the job's owner. */
   skipOwnership?: boolean;
@@ -339,7 +363,9 @@ export const createWalkIn = async (
           });
         }
       }
-      const revalidation = revalidateApplication(created.id, input.jobPostingId);
+      // Scoring waits for the profile fill so the first score sees gender, address, work and skills. A failed fill still scores.
+      const profileReady = extractWalkInProfile(userId, file, createdNewUser);
+      const revalidation = profileReady.then(() => revalidateApplication(created.id, input.jobPostingId));
       trackFitRevalidation(created.id, revalidation);
       void revalidation.catch((error) => safeLogError("Scoring revalidation queue", error));
     } catch (postCommitError) {
