@@ -143,7 +143,7 @@ router.use(requireRole("TALENT_ACQUISITION"));
 router.use(validateDateRangeQuery);
 router.use("/analytics", ...analyticsLimiters);
 router.use("/reports", ...reportLimiters);
-router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates"], ...aiLimiters);
+router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates", "/candidates/:id/parse-resume"], ...aiLimiters);
 
 router.get("/dashboard-counts", getTADashboardCountsHandler);
 

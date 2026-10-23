@@ -25,6 +25,8 @@ import {
 export interface ProfileEditFormHandle {
   /** Returns the cleaned values, or null after showing the problems on the form. */
   collect: () => UpdateCandidateProfileDto | null;
+  /** True when any field differs from the profile the form started with. */
+  isDirty: () => boolean;
 }
 
 export interface ProfileEditFormProps {
@@ -188,7 +190,10 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, candi
     };
   };
 
-  useImperativeHandle(formRef, () => ({ collect: collectDto }));
+  useImperativeHandle(formRef, () => ({
+    collect: collectDto,
+    isDirty: () => JSON.stringify(profileForm) !== JSON.stringify(startingForm(profile)),
+  }));
 
   const handleSaveCandidateProfile = (e?: React.FormEvent) => {
     if (e) e.preventDefault();

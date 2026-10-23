@@ -133,7 +133,7 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
 
   const requestClose = () => {
     if (saveMutation.isPending) return;
-    if (dirty) setConfirmClose(true);
+    if (dirty || formRef.current?.isDirty()) setConfirmClose(true);
     else onClose();
   };
 

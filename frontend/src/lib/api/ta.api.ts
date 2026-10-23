@@ -1,10 +1,5 @@
 import { api } from "./client";
 
-export interface BulkUploadResult {
-  requirementId: number;
-  status: "uploaded" | "failed";
-  error?: string;
-}
 import type {
   Application,
   TAApplicationSummary,
@@ -59,6 +54,12 @@ import type {
   AnalyticsFilterOptions,
   AnalyticsFilterState,
 } from "../types/analytics.types";
+
+export interface BulkUploadResult {
+  requirementId: number;
+  status: "uploaded" | "failed";
+  error?: string;
+}
 
 function buildTAAnalyticsQueryString(filters?: Partial<AnalyticsFilterState>): string {
   if (!filters) return "";

@@ -316,6 +316,11 @@ body {
   body:has(.print-resume-root) {
     background: #fff !important;
   }
+  /* The slip rule above hides every element in print; bring the resume back. */
+  .print-resume-root,
+  .print-resume-root * {
+    visibility: visible !important;
+  }
   .print-resume-root {
     position: static !important;
     overflow: visible !important;
