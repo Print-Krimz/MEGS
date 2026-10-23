@@ -195,6 +195,10 @@ export const buildMergeProposal = (profile: ProfileForMerge | any, extracted: Ex
 
 // Reads (or reuses) the parse for a file. An identical file already parsed for this profile reuses its
 // extracted JSON, so the AI is never called twice for the same bytes.
+/** A reading with no work history, education, skills or summary: some models return only the name block. */
+export const isThinReading = (data: ExtractedProfileData): boolean =>
+  !data.workExperiences?.length && !data.educations?.length && !data.skills?.length && !data.professionalSummary?.trim();
+
 export const parseResumeToProposal = async (input: {
   profileId: number;
   buffer: Buffer;
@@ -213,7 +217,8 @@ export const parseResumeToProposal = async (input: {
       where: { applicantProfileId: profileId, sha256, status: "PARSED", extracted: { not: null as any } },
       orderBy: { createdAt: "desc" },
     });
-    if (cached?.extracted) {
+    // A thin earlier reading (names only) is read again rather than copied forward.
+    if (cached?.extracted && !isThinReading(cached.extracted as ExtractedProfileData)) {
       return prisma.resumeParseResult.create({
         data: {
           applicantProfileId: profileId,
@@ -230,7 +235,8 @@ export const parseResumeToProposal = async (input: {
   }
 
   const startedAt = Date.now();
-  const extractedData = input.preExtracted ?? (await processResumeExtractionService(input.buffer, input.mimeType, input.originalName)).extractedData;
+  const usablePreRead = input.preExtracted && !isThinReading(input.preExtracted) ? input.preExtracted : null;
+  const extractedData = usablePreRead ?? (await processResumeExtractionService(input.buffer, input.mimeType, input.originalName)).extractedData;
   const latencyMs = Date.now() - startedAt;
   return prisma.resumeParseResult.create({
     data: {

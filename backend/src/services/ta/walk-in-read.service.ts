@@ -5,6 +5,7 @@ import prisma from "../../utils/prisma.js";
 import { processResumeExtractionService } from "../applicant/applicant.service.js";
 import { ownedWhere, type Actor } from "./ownership.js";
 import { cacheWalkInRead } from "./walk-in-read-cache.js";
+import { isThinReading } from "../applicant/resume-merge.service.js";
 
 export interface WalkInReadResult {
   status: "read" | "unreadable";
@@ -60,7 +61,8 @@ export const readWalkInBiodata = async (actor: Actor, file: Express.Multer.File)
   const { extractedData } = await processResumeExtractionService(file.buffer, file.mimetype, file.originalname);
   if (!extractedData) return { status: "unreadable", suggestedJobId: null };
 
-  cacheWalkInRead(actor.id, createHash("sha256").update(file.buffer).digest("hex"), extractedData);
+  // A thin reading (names only) is not kept, so saving reads the file again instead of reusing it.
+  if (!isThinReading(extractedData)) cacheWalkInRead(actor.id, createHash("sha256").update(file.buffer).digest("hex"), extractedData);
 
   const suggestedJobId = await suggestJobId(actor, extractedData.positionApplied).catch(() => null);
   return {
