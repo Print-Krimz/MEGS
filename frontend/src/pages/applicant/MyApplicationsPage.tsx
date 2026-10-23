@@ -117,9 +117,10 @@ export const MyApplicationsPage: React.FC = () => {
   const allInvitations = invitationsQuery.data || [];
   const pendingInvitations = allInvitations.filter((inv) => inv.status === "PENDING");
 
-  // Closed applications move to a collapsed history so the main view leads with what is still moving.
+  // Closed and deployed applications move to a collapsed history so the main view leads with what is still moving.
   const isClosedApplication = (app: (typeof allApplications)[number]) =>
     app.isArchived ||
+    app.status === ApplicationStatus.DEPLOYED ||
     app.status === ApplicationStatus.ARCHIVED ||
     app.status === ApplicationStatus.BACKOUT ||
     app.status === ApplicationStatus.REJECTED ||
