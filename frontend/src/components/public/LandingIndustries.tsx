@@ -141,7 +141,7 @@ const IndustryCard: React.FC<{ industry: Industry }> = ({ industry }) => {
             <IndustryImage industry={industry} photo={photo} />
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 bg-linear-to-t from-megs-navy-900/85 via-megs-navy-900/25 to-transparent transition-opacity duration-300 group-hover:opacity-90"
+              className="pointer-events-none absolute inset-0 bg-megs-navy-900/60 transition-opacity duration-300 group-hover:opacity-90"
             />
           </>
         )}

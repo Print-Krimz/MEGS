@@ -7,7 +7,7 @@ import { Reveal } from "./motion";
 
 /** Underline that draws in from the left on hover and focus. */
 const drawLink =
-  "bg-[linear-gradient(currentColor,currentColor)] bg-[length:0%_1px] bg-[position:0_100%] bg-no-repeat transition-[background-size] duration-300 group-hover/link:bg-[length:100%_1px] group-focus-visible/link:bg-[length:100%_1px] motion-reduce:transition-none";
+  "relative after:absolute after:inset-x-0 after:bottom-0 after:h-px after:origin-left after:scale-x-0 after:bg-current after:transition-transform after:duration-300 motion-reduce:after:transition-none group-hover/link:after:scale-x-100 group-focus-visible/link:after:scale-x-100";
 
 const footerLink =
   "group/link inline-flex min-h-11 items-center rounded-sm text-white/75 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60";

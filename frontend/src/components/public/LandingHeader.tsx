@@ -111,11 +111,6 @@ export const LandingHeader: React.FC = () => {
             scrolled ? "opacity-100" : "opacity-0"
           }`}
         />
-        <span
-          className={`absolute inset-x-0 top-full h-4 bg-gradient-to-b from-black/[0.06] to-transparent transition-opacity duration-300 motion-reduce:transition-none ${
-            scrolled ? "opacity-100" : "opacity-0"
-          }`}
-        />
       </div>
 
       <div className="relative mx-auto h-full max-w-7xl px-4 sm:px-6 lg:px-8">

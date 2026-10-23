@@ -15,7 +15,7 @@ const selectClass =
 
 /** Underline that draws in from the left on hover and focus. */
 const drawLink =
-  "bg-[linear-gradient(currentColor,currentColor)] bg-[length:0%_1px] bg-[position:0_100%] bg-no-repeat transition-[background-size] duration-300 hover:bg-[length:100%_1px] focus-visible:bg-[length:100%_1px] motion-reduce:transition-none";
+  "relative after:absolute after:inset-x-0 after:bottom-0 after:h-px after:origin-left after:scale-x-0 after:bg-current after:transition-transform after:duration-300 motion-reduce:after:transition-none hover:after:scale-x-100 focus-visible:after:scale-x-100";
 
 const darkLink = cn(
   "rounded-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
