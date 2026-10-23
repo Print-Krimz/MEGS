@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ApplicationStatus } from "@prisma/client";
 import { BACKOUT_REASONS_BY_PARTY, REJECTION_REASON_CODES } from "../services/ta/backout-rules.js";
+import { resumeMergeAccept } from "./applicant.schema.js";
 import { boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber, pageQueryFields, isWorkingHours } from "./field-limits.js";
 
 const phoneField = formattedPhone;
@@ -478,6 +479,13 @@ export const taSchema = {
       reviewThresholdDays: finiteNumber({ min: 1, max: 30, integer: true }).optional(),
       medicalValidityMonths: finiteNumber({ min: 1, max: 36, integer: true }).optional(),
     }),
+  }),
+  candidateResumeProposal: z.object({
+    params: z.object({ id: z.string().min(1).max(128) }).strict(),
+  }),
+  applyCandidateResumeMerge: z.object({
+    params: z.object({ id: z.string().min(1).max(128), parseId: boundedIdText }).strict(),
+    body: z.object({ accept: resumeMergeAccept }).strict(),
   }),
   updateCandidateProfile: z.object({
     params: z.object({ id: z.string().min(1).max(128) }),

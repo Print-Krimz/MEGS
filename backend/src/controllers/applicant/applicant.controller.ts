@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { sendSuccess, sendError } from '../../utils/response.js';
-import { uploadFileToSupabase } from '../../middleware/upload.middleware.js';
+import { uploadFileToSupabase, uploadFileToSupabaseWithInfo } from '../../middleware/upload.middleware.js';
 import {
   getApplicantProfile,
   upsertApplicantProfile,
@@ -17,9 +17,16 @@ import {
   deleteAssetService,
   updateProfilePhotoService,
   updateProfileResumeService,
-  processResumeExtractionService,
+  ensureApplicantProfile,
   applyExtractedProfileService
 } from '../../services/applicant/applicant.service.js';
+import {
+  applyMergeDecision,
+  getLatestProposal,
+  parseResumeToProposal,
+  proposalForRow,
+  ResumeMergeError,
+} from '../../services/applicant/resume-merge.service.js';
 
 // Profile CRUD (scoped to authenticated user req.user.id)
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
@@ -174,78 +181,71 @@ export const uploadPhoto = async (req: Request, res: Response): Promise<void> =>
 };
 
 // Central Resume & AI Extraction
+// The resume is stored and read, but nothing is written to the profile: the result is a proposal
+// the applicant reviews and confirms (see applyResumeMerge).
 export const uploadResume = async (req: Request, res: Response): Promise<void> => {
   try {
     const file = req.file;
     if (!file) { sendError(res, "No file provided", 400); return; }
 
-    const resumeUrl = await uploadFileToSupabase("applicant-assets", req.user!.id, file);
-    await updateProfileResumeService(req.user!.id, resumeUrl);
-    const { extractedData, extractionStatus } = await processResumeExtractionService(file.buffer, file.mimetype, file.originalname);
+    const uploaded = await uploadFileToSupabaseWithInfo("applicant-assets", req.user!.id, file);
+    const profile = await ensureApplicantProfile(req.user!.id);
+    // Read the resume first so the request is not held up behind the scoring queue that a resume change starts.
+    const parse = await parseResumeToProposal({
+      profileId: profile.id,
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+      originalName: file.originalname,
+      documentId: uploaded.documentId,
+      sha256: uploaded.sha256,
+      source: "PROFILE_UPLOAD",
+    });
+    await updateProfileResumeService(req.user!.id, uploaded.url);
 
-    let finalProfile: any = null;
-    let changeSummary: any = null;
-    if (extractedData) {
-      try {
-        const appliedResult = await applyExtractedProfileService(req.user!.id, {
-          personalDetails: {
-            firstName: extractedData.firstName,
-            middleName: extractedData.middleName,
-            lastName: extractedData.lastName,
-            mobileNumber: extractedData.mobileNumber,
-            gender: extractedData.gender,
-            province: extractedData.province,
-            city: extractedData.city,
-            barangay: extractedData.barangay,
-            postalCode: extractedData.postalCode,
-            dateOfBirth: extractedData.dateOfBirth,
-            birthPlace: extractedData.birthPlace,
-            nationality: extractedData.nationality,
-            civilStatus: extractedData.civilStatus,
-            religion: extractedData.religion,
-            height: extractedData.height,
-            weight: extractedData.weight,
-            address: extractedData.address,
-            preferredWorkLocations: extractedData.preferredWorkLocations,
-            professionalSummary: extractedData.professionalSummary,
-          },
-          workExperiences: extractedData.workExperiences?.map((we) => ({
-            company: we.company,
-            roleTitle: we.roleTitle,
-            location: we.location,
-            startDate: we.startDate,
-            endDate: we.endDate,
-            isCurrent: we.isCurrent,
-            summary: we.summary,
-          })),
-          educations: extractedData.educations,
-          skills: extractedData.skills,
-          trainings: extractedData.trainings,
-          characterReferences: extractedData.characterReferences,
-          overwriteExistingPersonal: false,
-          replaceStructuredFields: false,
-        });
-        finalProfile = appliedResult.profile;
-        changeSummary = appliedResult.changeSummary;
-      } catch (applyErr: any) {
-        console.warn("[Resume Auto-Fill] Failed to auto-apply extracted details:", applyErr.message);
-      }
-    }
+    const proposal = parse.status === "PARSED" ? await proposalForRow(parse) : null;
+    const finalProfile = await getApplicantProfile(req.user!.id);
 
-    if (!finalProfile) {
-      finalProfile = await getApplicantProfile(req.user!.id);
-    }
-
-    sendSuccess(res, "Resume uploaded and profile auto-filled successfully", {
+    sendSuccess(res, "Resume uploaded. Review the details found before saving them.", {
       profile: finalProfile,
-      resumeUrl,
-      extractedData,
-      extractionStatus,
-      changeSummary,
+      resumeUrl: uploaded.url,
+      parseId: parse.id,
+      extractionStatus: parse.status === "PARSED" ? "SUCCESS" : "UNAVAILABLE",
+      extractedData: parse.extracted ?? null,
+      proposal,
+      changeSummary: null,
     });
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 500;
     sendError(res, error.message, statusCode);
+  }
+};
+
+// Latest resume proposal waiting for review, or null.
+export const getResumeProposal = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const profile = await ensureApplicantProfile(req.user!.id);
+    sendSuccess(res, "Resume proposal retrieved", await getLatestProposal(profile.id));
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+export const applyResumeMerge = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const profile = await ensureApplicantProfile(req.user!.id);
+    const result = await applyMergeDecision({
+      parseId: Number(req.params.parseId),
+      profileId: profile.id,
+      actor: { userId: req.user!.id, role: req.user!.role },
+      accept: req.body.accept,
+    });
+    sendSuccess(res, "Resume details saved", {
+      profile: result.profile ?? (await getApplicantProfile(req.user!.id)),
+      changeSummary: result.changeSummary,
+      accepted: result.accepted,
+    });
+  } catch (error: any) {
+    sendError(res, error.message, error instanceof ResumeMergeError ? error.status : 500);
   }
 };
 

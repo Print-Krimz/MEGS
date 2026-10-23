@@ -31,6 +31,7 @@ import {
   uploadSignedContractHandler,
   updateCandidateProfileHandler,
 } from '../../controllers/ta/ta.applications.controller.js';
+import { getCandidateResumeProposalHandler, applyCandidateResumeMergeHandler } from '../../controllers/ta/ta.resume.controller.js';
 
 import { analyzeApplication, getAnalysisStatus } from '../../controllers/ta/ta.ai.controller.js';
 
@@ -173,6 +174,8 @@ router.get("/jobs/:jobId/talent-pool", validate(candidateScoringRouteSchema.tale
 // candidateId is an application id; the TA must own that application.
 router.get("/candidates/:candidateId/similar", validate(candidateScoringRouteSchema.similarCandidates), requireOwned("application", "candidateId"), getSimilarCandidates);
 router.patch("/candidates/:id", validate(taSchema.updateCandidateProfile), requireOwned("candidate"), updateCandidateProfileHandler);
+router.get("/candidates/:id/resume-proposal", validate(taSchema.candidateResumeProposal), requireOwned("candidate"), getCandidateResumeProposalHandler);
+router.post("/candidates/:id/resume-merge/:parseId/apply", validate(taSchema.applyCandidateResumeMerge), requireOwned("candidate"), applyCandidateResumeMergeHandler);
 router.post("/talent-pool/search", validate(candidateScoringRouteSchema.searchTalentPool), requireOwnedBody("job", "jobId"), requireOwnedBody("application", "candidateId"), searchTalentPool);
 router.post("/talent-pool/members", validate(candidateScoringRouteSchema.addCandidate), addCandidateToPool);
 router.post("/talent-pool/contacts", validate(candidateScoringRouteSchema.recordContact), requireOwnedBody("job", "jobPostingId"), recordContact);

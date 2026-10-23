@@ -116,11 +116,24 @@ export const ensureBucketExists = async (bucket: string): Promise<void> => {
       verifiedBuckets.add(bucket);
 };
 
+export interface UploadedFileInfo {
+  url: string;
+  documentId: number;
+  sha256: string;
+}
+
 export const uploadFileToSupabase = async (
   bucket: string,
   folder: string,
   file: Express.Multer.File
-): Promise<string> => {
+): Promise<string> => (await uploadFileToSupabaseWithInfo(bucket, folder, file)).url;
+
+// Same upload, but also returns the stored document id and content hash.
+export const uploadFileToSupabaseWithInfo = async (
+  bucket: string,
+  folder: string,
+  file: Express.Multer.File
+): Promise<UploadedFileInfo> => {
   const validated = validateDocumentBytes(file.buffer, file.mimetype);
   await ensureBucketExists(bucket);
 
@@ -159,6 +172,7 @@ export const uploadFileToSupabase = async (
     throw new Error(`Failed to upload file to Supabase: ${error.message}`);
   }
 
+  const sha256 = createHash("sha256").update(file.buffer).digest("hex");
   const doc = await prisma.storedDocument.create({
     data: {
       ownerId: folder,
@@ -166,11 +180,11 @@ export const uploadFileToSupabase = async (
       originalName: sanitizeUploadFileName(file.originalname),
       mimeType: file.mimetype,
       sizeBytes: file.size,
-      sha256: createHash("sha256").update(file.buffer).digest("hex"),
+      sha256,
       storageBucket: bucket,
       storagePath: filename,
     }
   });
 
-  return `/api/documents/${doc.id}/download`;
+  return { url: `/api/documents/${doc.id}/download`, documentId: doc.id, sha256 };
 };

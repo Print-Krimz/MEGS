@@ -75,8 +75,26 @@ const weightValidation = z
     }
   );
 
+const idList = z.array(z.number().int().min(0).max(500)).max(100).default([]);
+const nameList = z.array(z.string().trim().min(1).max(200)).max(200).default([]);
+export const resumeMergeAccept = z
+  .object({
+    personal: nameList,
+    overwrite: nameList,
+    workExperiences: idList,
+    educations: idList,
+    skills: nameList,
+    trainings: idList,
+    references: idList,
+  })
+  .strict();
+
 export const applicantSchema = {
   idParams: z.object({ params: z.object({ id: boundedIdText }).strict() }),
+  applyResumeMerge: z.object({
+    params: z.object({ parseId: boundedIdText }).strict(),
+    body: z.object({ accept: resumeMergeAccept }).strict(),
+  }),
   emptyUploadBody: z.object({ body: z.object({}).strict().optional() }),
   upsertProfile: z.object({
     body: z.object({

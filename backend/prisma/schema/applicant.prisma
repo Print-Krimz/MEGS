@@ -80,6 +80,46 @@ model ApplicantProfile {
   storedDocuments StoredDocument[]
   talentPoolMembership TalentPoolMembership?
   invitations TalentPoolInvitation[]
+  resumeParses ResumeParseResult[]
+
+  // TA verification: a VERIFIED profile's saved values win over parsed resume data.
+  verificationStatus String    @default("UNVERIFIED") // UNVERIFIED, VERIFIED
+  verifiedById       String?
+  verifiedBy         User?     @relation("ProfileVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+  verifiedAt         DateTime?
+}
+
+// ─────────────────────────────────────────────
+// RESUME PARSE RESULT
+// One row per resume parse. Holds the proposal until the applicant or owning TA reviews it,
+// and doubles as the sha256 cache so an identical file is never sent to the AI twice.
+// ─────────────────────────────────────────────
+
+model ResumeParseResult {
+  id                 Int              @id @default(autoincrement())
+  applicantProfileId Int
+  applicantProfile   ApplicantProfile @relation(fields: [applicantProfileId], references: [id], onDelete: Cascade)
+  documentId         Int?
+  document           StoredDocument?  @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  sha256 String?
+  source String  // PROFILE_UPLOAD, APPLICATION_SUBMIT, WALK_IN, TA_REPARSE
+  status String  // PENDING, PARSED, FAILED
+
+  model         String?
+  latencyMs     Int?
+  extracted     Json?
+  errorCategory String?
+
+  createdAt DateTime @default(now())
+
+  reviewedById String?
+  reviewedBy   User?     @relation("ResumeParseReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+  decision     Json?
+
+  @@index([applicantProfileId, createdAt])
+  @@index([applicantProfileId, sha256])
 }
 
 // ─────────────────────────────────────────────

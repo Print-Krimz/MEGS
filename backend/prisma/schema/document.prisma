@@ -33,6 +33,7 @@ model StoredDocument {
   profile         ApplicantProfile?  @relation(fields: [profileId], references: [id])
 
   complianceVersions ComplianceDocumentVersion[]
+  resumeParses       ResumeParseResult[]
 
   @@index([ownerId, category])
   @@index([sha256])

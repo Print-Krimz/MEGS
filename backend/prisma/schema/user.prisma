@@ -55,6 +55,8 @@ model User {
   assistedInvitationReplies TalentPoolInvitation[] @relation("InvitationAssistedBy")
   confirmedCheckIns WalkInCheckIn[] @relation("CheckInConfirmedBy")
   dismissedCheckIns WalkInCheckIn[] @relation("CheckInDismissedBy")
+  verifiedProfiles ApplicantProfile[] @relation("ProfileVerifiedBy")
+  reviewedResumeParses ResumeParseResult[] @relation("ResumeParseReviewer")
   employee Employee? @relation("UserEmployee")
   employmentEventsCreated EmploymentEvent[] @relation("EmploymentEventActor")
   mfaRecoveryCodes UserMfaRecoveryCode[]

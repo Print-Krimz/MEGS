@@ -23,6 +23,7 @@ import {
   parseLooseDate,
   parseWeightKg,
 } from "../../utils/profile-normalizers.js";
+import { resumeDedupe } from "../../utils/resume-dedupe.js";
 import { findNcrBarangay, getNcrLocality, isNcrProvince } from "../../utils/ncr-address.js";
 import { displayCityName, findCity } from "../../utils/ph-address.js";
 
@@ -567,6 +568,8 @@ export interface ApplyExtractedProfileDto {
     professionalSummary?: string;
   };
   overwriteExistingPersonal?: boolean;
+  /** Personal fields that may replace a saved value, one by one. Everything else stays fill-blanks. */
+  overwriteFields?: string[];
   replaceStructuredFields?: boolean;
   workExperiences?: Array<{
     company: string;
@@ -722,6 +725,8 @@ export const applyExtractedProfileService = async (
       const updateData: Record<string, any> = {};
       const personal = payload.personalDetails;
       const overwrite = Boolean(payload.overwriteExistingPersonal);
+      const overwriteOnly = new Set(payload.overwriteFields ?? []);
+      const mayOverwrite = (field: string) => overwrite || overwriteOnly.has(field);
 
       const fieldsToProcess: (keyof typeof personal)[] = [
         "firstName",
@@ -769,7 +774,7 @@ export const applyExtractedProfileService = async (
 
           const existingVal = (profile as any)[field];
           const isExistingEmpty = existingVal === null || existingVal === undefined || String(existingVal).trim() === "";
-          if (isAddressField ? isExistingEmpty : (overwrite || isExistingEmpty)) {
+          if (isAddressField ? (isExistingEmpty || overwriteOnly.has(field)) : (mayOverwrite(field) || isExistingEmpty)) {
             updateData[field] = incomingVal;
             if (isExistingEmpty) {
               changeSummary.personalFieldsAdded++;
@@ -806,7 +811,7 @@ export const applyExtractedProfileService = async (
       if (personal.dateOfBirth) {
         const incomingDob = sanitizeDate(personal.dateOfBirth);
         const isDobEmpty = !profile.dateOfBirth;
-        if (incomingDob && (overwrite || isDobEmpty)) {
+        if (incomingDob && (mayOverwrite("dateOfBirth") || isDobEmpty)) {
           updateData.dateOfBirth = incomingDob;
           if (isDobEmpty) {
             changeSummary.personalFieldsAdded++;
@@ -825,7 +830,7 @@ export const applyExtractedProfileService = async (
       if (personal.height !== undefined && personal.height !== null) {
         const incomingHeight = parseHeightCm(personal.height);
         const isHeightEmpty = profile.height === null || profile.height === undefined;
-        if (incomingHeight !== undefined && (overwrite || isHeightEmpty)) {
+        if (incomingHeight !== undefined && (mayOverwrite("height") || isHeightEmpty)) {
           updateData.height = incomingHeight;
           if (isHeightEmpty) {
             changeSummary.personalFieldsAdded++;
@@ -840,7 +845,7 @@ export const applyExtractedProfileService = async (
       if (personal.weight !== undefined && personal.weight !== null) {
         const incomingWeight = parseWeightKg(personal.weight);
         const isWeightEmpty = profile.weight === null || profile.weight === undefined;
-        if (incomingWeight !== undefined && (overwrite || isWeightEmpty)) {
+        if (incomingWeight !== undefined && (mayOverwrite("weight") || isWeightEmpty)) {
           updateData.weight = incomingWeight;
           if (isWeightEmpty) {
             changeSummary.personalFieldsAdded++;
@@ -881,11 +886,8 @@ export const applyExtractedProfileService = async (
         });
 
         for (const exp of payload.workExperiences) {
-          const companyNorm = exp.company.trim().toLowerCase();
-          const roleNorm = exp.roleTitle.trim().toLowerCase();
-          const existing = existingExps.find(
-            (e) => e.company.trim().toLowerCase() === companyNorm && e.roleTitle.trim().toLowerCase() === roleNorm
-          );
+          const workKey = resumeDedupe.workKey(exp.company, exp.roleTitle);
+          const existing = existingExps.find((e) => resumeDedupe.workKey(e.company, e.roleTitle) === workKey);
 
           const isEndPresent = typeof exp.endDate === "string" && (
             exp.endDate.trim().toLowerCase() === "present" ||
@@ -962,11 +964,8 @@ export const applyExtractedProfileService = async (
         });
 
         for (const edu of payload.educations) {
-          const schoolNorm = edu.school.trim().toLowerCase();
-          const degreeNorm = (edu.degree || "").trim().toLowerCase();
-          const existing = existingEdus.find(
-            (e) => e.school.trim().toLowerCase() === schoolNorm && (e.degree || "").trim().toLowerCase() === degreeNorm
-          );
+          const eduKey = resumeDedupe.educationKey(edu.school, edu.degree);
+          const existing = existingEdus.find((e) => resumeDedupe.educationKey(e.school, e.degree) === eduKey);
 
           const parsedStart = parseSafeDate(edu.startDate);
           const parsedEnd = parseSafeDate(edu.endDate);
@@ -1026,7 +1025,7 @@ export const applyExtractedProfileService = async (
           where: { applicantProfileId: profile.id },
           include: { skill: true },
         });
-        const existingSkillNames = new Set(currentSkills.map((s) => s.skill.name.trim().toLowerCase()));
+        const existingSkillNames = new Set(currentSkills.map((s) => resumeDedupe.skillKey(s.skill.name)));
 
         for (const rawSkill of payload.skills) {
           const cleanSkill = (normalizeTitleCase(rawSkill.trim()) || rawSkill.trim());
@@ -1068,10 +1067,8 @@ export const applyExtractedProfileService = async (
         });
 
         for (const training of payload.trainings) {
-          const titleNorm = training.title.trim().toLowerCase();
-          const existing = existingTrainings.find(
-            (t) => t.title.trim().toLowerCase() === titleNorm
-          );
+          const trainingKey = resumeDedupe.trainingKey(training.title);
+          const existing = existingTrainings.find((t) => resumeDedupe.trainingKey(t.title) === trainingKey);
 
           const parsedCompletion = parseSafeDate(training.completionDate);
 
@@ -1127,22 +1124,7 @@ export const applyExtractedProfileService = async (
 
       for (const ref of payload.characterReferences) {
         if (!ref || !ref.name || !ref.name.trim()) continue;
-        const nameNorm = ref.name.trim().toLowerCase();
-        const phoneNorm = (ref.phone || "").trim().toLowerCase();
-        const emailNorm = (ref.email || "").trim().toLowerCase();
-
-        const existing = existingRefs.find((r) => {
-          const exName = r.name.trim().toLowerCase();
-          const exPhone = (r.phone || "").trim().toLowerCase();
-          const exEmail = (r.email || "").trim().toLowerCase();
-
-          if (exName === nameNorm) {
-            if (phoneNorm && exPhone && phoneNorm === exPhone) return true;
-            if (emailNorm && exEmail && emailNorm === exEmail) return true;
-            if (!phoneNorm && !emailNorm && !exPhone && !exEmail) return true;
-          }
-          return false;
-        });
+        const existing = existingRefs.find((r) => resumeDedupe.referenceMatches(ref, r));
 
         let relationship = sanitizeString(ref.relationship);
         const company = sanitizeString(ref.company);

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import prisma from '../../utils/prisma.js';
-import { uploadFileToSupabase } from '../../middleware/upload.middleware.js';
+import { uploadFileToSupabaseWithInfo } from '../../middleware/upload.middleware.js';
 import { logAudit } from '../../utils/audit.js';
 import { assertOwns } from '../ta/ownership.js';
 import { sendNotification, sendRoleNotification } from '../../utils/notification.js';
@@ -9,9 +9,8 @@ import { revalidateApplication } from "../scoring/scoring-configuration.service.
 import {
   ensureApplicantProfile,
   updateProfileResumeService,
-  processResumeExtractionService,
-  applyExtractedProfileService,
 } from './applicant.service.js';
+import { fillBlanksFromParse, parseResumeToProposal } from './resume-merge.service.js';
 import { buildApplicantJobWhere, type ApplicantJobFilters } from './job-filter.service.js';
 
 export const fetchOpenJobs = async (filters?: ApplicantJobFilters & { page?: number; limit?: number }) => {
@@ -237,63 +236,37 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
   let resolvedResumeUrl: string | null = null;
 
   if (file) {
-    await ensureApplicantProfile(userId);
+    const profile = await ensureApplicantProfile(userId);
+    let uploaded: Awaited<ReturnType<typeof uploadFileToSupabaseWithInfo>>;
     try {
-      resolvedResumeUrl = await uploadFileToSupabase("applicant-assets", userId, file);
-      await updateProfileResumeService(userId, resolvedResumeUrl);
+      uploaded = await uploadFileToSupabaseWithInfo("applicant-assets", userId, file);
     } catch (err: any) {
       throw new Error(`File upload failed: ${err.message}`);
     }
+    resolvedResumeUrl = uploaded.url;
 
+    // Read the resume before the resume update starts scoring. An identical file reuses its earlier parse.
+    // Only the profile's first-ever parse fills blanks; later ones wait as a proposal for the applicant to review.
     try {
-      const { extractedData } = await processResumeExtractionService(
-        file.buffer,
-        file.mimetype,
-        file.originalname
-      );
-
-      if (extractedData) {
-        await applyExtractedProfileService(userId, {
-          personalDetails: {
-            firstName: extractedData.firstName,
-            middleName: extractedData.middleName,
-            lastName: extractedData.lastName,
-            mobileNumber: extractedData.mobileNumber,
-            gender: extractedData.gender,
-            province: extractedData.province,
-            city: extractedData.city,
-            barangay: extractedData.barangay,
-            postalCode: extractedData.postalCode,
-            dateOfBirth: extractedData.dateOfBirth,
-            birthPlace: extractedData.birthPlace,
-            nationality: extractedData.nationality,
-            civilStatus: extractedData.civilStatus,
-            religion: extractedData.religion,
-            height: extractedData.height,
-            weight: extractedData.weight,
-            address: extractedData.address,
-            preferredWorkLocations: extractedData.preferredWorkLocations,
-            professionalSummary: extractedData.professionalSummary,
-          },
-          workExperiences: extractedData.workExperiences?.map((we) => ({
-            company: we.company,
-            roleTitle: we.roleTitle,
-            location: we.location,
-            startDate: we.startDate,
-            endDate: we.endDate,
-            isCurrent: we.isCurrent,
-            summary: we.summary,
-          })),
-          educations: extractedData.educations,
-          skills: extractedData.skills,
-          trainings: extractedData.trainings,
-          characterReferences: extractedData.characterReferences,
-          overwriteExistingPersonal: false,
-          replaceStructuredFields: false,
-        });
-      }
+      const isFirstParse = (await prisma.resumeParseResult.count({ where: { applicantProfileId: profile.id } })) === 0;
+      const parse = await parseResumeToProposal({
+        profileId: profile.id,
+        buffer: file.buffer,
+        mimeType: file.mimetype,
+        originalName: file.originalname,
+        documentId: uploaded.documentId,
+        sha256: uploaded.sha256,
+        source: "APPLICATION_SUBMIT",
+      });
+      if (parse.status === "PARSED" && isFirstParse) await fillBlanksFromParse(parse.id);
     } catch (extractErr: any) {
       console.warn("[Application Submission] Profile extraction/auto-fill non-blocking failure:", extractErr.message);
+    }
+
+    try {
+      await updateProfileResumeService(userId, uploaded.url);
+    } catch (err: any) {
+      throw new Error(`File upload failed: ${err.message}`);
     }
   } else {
     const profile = await ensureApplicantProfile(userId);

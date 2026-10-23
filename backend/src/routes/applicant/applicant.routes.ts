@@ -12,7 +12,8 @@ import {
   addReference, deleteReference,
   addAsset, deleteAsset,
   uploadPhoto, uploadResume,
-  applyExtractedProfile
+  applyExtractedProfile,
+  getResumeProposal, applyResumeMerge
 } from '../../controllers/applicant/applicant.controller.js';
 
 const router = Router();
@@ -42,6 +43,8 @@ router.post("/profile/assets", upload.single("file"), validate(applicantSchema.a
 router.delete("/profile/assets/:id", validate(applicantSchema.idParams), deleteAsset);
 router.post("/profile/photo", uploadImage.single("file"), validate(applicantSchema.emptyUploadBody), uploadPhoto);
 router.post("/profile/resume", upload.single("file"), validate(applicantSchema.emptyUploadBody), uploadResume);
+router.get("/profile/resume/proposal", getResumeProposal);
+router.post("/profile/resume/:parseId/apply", validate(applicantSchema.applyResumeMerge), applyResumeMerge);
 
 export default router;
 
