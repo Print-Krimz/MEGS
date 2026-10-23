@@ -14,6 +14,7 @@ vi.mock("../../lib/api/ta.api", () => ({
     listJobs: vi.fn(),
     checkWalkInDuplicate: vi.fn(),
     createWalkIn: vi.fn(),
+    readWalkInBiodata: vi.fn(),
   },
 }));
 
@@ -23,6 +24,7 @@ import { EncodeWalkInDialog } from "../../components/ta/walk-in/EncodeWalkInDial
 const listJobs = taApi.listJobs as unknown as ReturnType<typeof vi.fn>;
 const checkWalkInDuplicate = taApi.checkWalkInDuplicate as unknown as ReturnType<typeof vi.fn>;
 const createWalkIn = taApi.createWalkIn as unknown as ReturnType<typeof vi.fn>;
+const readWalkInBiodata = taApi.readWalkInBiodata as unknown as ReturnType<typeof vi.fn>;
 
 const openJob = {
   id: 5,
@@ -75,6 +77,10 @@ function typeInto(label: RegExp, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 }
 
+function chooseGender(value = "Male") {
+  fireEvent.change(screen.getByLabelText(/Gender/i), { target: { value } });
+}
+
 function attachFile(file: File) {
   fireEvent.change(screen.getByLabelText(/Biodata photo or PDF/i), { target: { files: [file] } });
 }
@@ -87,6 +93,7 @@ describe("EncodeWalkInDialog", () => {
     listJobs.mockResolvedValue([openJob]);
     checkWalkInDuplicate.mockResolvedValue({ matches: [] });
     createWalkIn.mockResolvedValue(slip);
+    readWalkInBiodata.mockResolvedValue({ status: "unreadable", suggestedJobId: null });
   });
 
   it("does not submit without a biodata file and says what to add", async () => {
@@ -125,6 +132,7 @@ describe("EncodeWalkInDialog", () => {
     expect(screen.queryByRole("button", { name: "Use this person" })).not.toBeInTheDocument();
 
     attachFile(pdf());
+    chooseGender();
     fireEvent.click(screen.getByRole("button", { name: "Save and print slip" }));
 
     await waitFor(() => expect(createWalkIn).toHaveBeenCalledTimes(1));
@@ -147,6 +155,7 @@ describe("EncodeWalkInDialog", () => {
     expect(screen.queryByText("This person may already be in MEGS.")).not.toBeInTheDocument();
 
     attachFile(pdf());
+    chooseGender();
     fireEvent.click(screen.getByRole("button", { name: "Save and print slip" }));
 
     await waitFor(() => expect(createWalkIn).toHaveBeenCalledTimes(1));
@@ -167,6 +176,7 @@ describe("EncodeWalkInDialog", () => {
     expect(screen.queryByText("This person may already be in MEGS.")).not.toBeInTheDocument();
 
     attachFile(pdf());
+    chooseGender();
     fireEvent.click(screen.getByRole("button", { name: "Save and print slip" }));
     await waitFor(() => expect(createWalkIn).toHaveBeenCalledTimes(1));
   });
@@ -203,6 +213,7 @@ describe("EncodeWalkInDialog", () => {
     const big = new File([new Uint8Array(6 * 1024 * 1024)], "big-scan.pdf", { type: "application/pdf" });
     attachFile(big);
 
+    chooseGender();
     fireEvent.click(screen.getByRole("button", { name: "Save and print slip" }));
     await new Promise((resolve) => setTimeout(resolve, 20));
 
@@ -220,6 +231,7 @@ describe("EncodeWalkInDialog", () => {
     typeInto(/Birth date/i, "1995-06-15");
     attachFile(new File(["GIF89a"], "biodata.gif", { type: "image/gif" }));
 
+    chooseGender();
     fireEvent.click(screen.getByRole("button", { name: "Save and print slip" }));
     await new Promise((resolve) => setTimeout(resolve, 20));
 
@@ -244,5 +256,156 @@ describe("EncodeWalkInDialog", () => {
     typeInto(/Birth date/i, `${thisYear - 70}-01-01`);
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
     expect(await screen.findByText("Applicant must be 18 to 65 years old.")).toBeInTheDocument();
+  });
+});
+
+describe("EncodeWalkInDialog: gender and bio-data auto-fill", () => {
+  const read = {
+    status: "read",
+    firstName: "Pedro",
+    middleName: "Reyes",
+    lastName: "Santos",
+    mobileNumber: "09171234567",
+    birthDate: "1990-05-09",
+    gender: "Female",
+    positionApplied: "Warehouse Associate",
+    suggestedJobId: 5,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    listJobs.mockResolvedValue([openJob]);
+    checkWalkInDuplicate.mockResolvedValue({ matches: [] });
+    createWalkIn.mockResolvedValue(slip);
+    readWalkInBiodata.mockResolvedValue({ status: "unreadable", suggestedJobId: null });
+  });
+
+  it("no longer shows the age hint under the birth date", () => {
+    renderDialog();
+    expect(screen.queryByText(/18 to 65 years old/)).not.toBeInTheDocument();
+  });
+
+  it("asks for a gender and does not save without one", async () => {
+    renderDialog();
+    await pickJob();
+    typeInto(/First name/i, "Juan");
+    typeInto(/Last name/i, "Dela Cruz");
+    typeInto(/Birth date/i, "1995-06-15");
+    attachFile(pdf());
+    fireEvent.click(screen.getByRole("button", { name: "Save and print slip" }));
+
+    expect(await screen.findByText("Choose a gender.")).toBeInTheDocument();
+    expect(createWalkIn).not.toHaveBeenCalled();
+  });
+
+  it("sends the chosen gender", async () => {
+    renderDialog();
+    await pickJob();
+    typeInto(/First name/i, "Juan");
+    typeInto(/Last name/i, "Dela Cruz");
+    typeInto(/Birth date/i, "1995-06-15");
+    chooseGender("Non-Binary");
+    attachFile(pdf());
+    fireEvent.click(screen.getByRole("button", { name: "Save and print slip" }));
+
+    await waitFor(() => expect(createWalkIn).toHaveBeenCalledTimes(1));
+    expect((createWalkIn.mock.calls[0][0] as FormData).get("gender")).toBe("Non-Binary");
+  });
+
+  it("reads the file when it is picked and fills only the empty fields", async () => {
+    readWalkInBiodata.mockResolvedValue(read);
+    renderDialog();
+    typeInto(/First name/i, "Juan");
+    const file = pdf();
+    attachFile(file);
+
+    expect(await screen.findByText("Filled from the bio-data. Check before saving.")).toBeInTheDocument();
+    expect(readWalkInBiodata).toHaveBeenCalledWith(file);
+    expect(screen.getByLabelText(/First name/i)).toHaveValue("Juan");
+    expect(screen.getByLabelText(/Middle name/i)).toHaveValue("Reyes");
+    expect(screen.getByLabelText(/Last name/i)).toHaveValue("Santos");
+    expect(screen.getByLabelText(/Mobile number/i)).toHaveValue("09171234567");
+    expect(screen.getByLabelText(/Birth date/i)).toHaveValue("1990-05-09");
+    expect(screen.getByLabelText(/Gender/i)).toHaveValue("Female");
+    await waitFor(() => expect(screen.getByLabelText(/Job opening/i)).toHaveValue("Warehouse Associate"));
+    await waitFor(() =>
+      expect(checkWalkInDuplicate).toHaveBeenCalledWith(expect.objectContaining({ firstName: "Juan", lastName: "Santos" })),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save and print slip" }));
+    await waitFor(() => expect(createWalkIn).toHaveBeenCalledTimes(1));
+    const body = createWalkIn.mock.calls[0][0] as FormData;
+    expect(body.get("gender")).toBe("Female");
+    expect(body.get("jobPostingId")).toBe("5");
+    expect(body.get("firstName")).toBe("Juan");
+    expect(body.get("file")).toBeInstanceOf(File);
+  });
+
+  it("keeps the job the TA already chose", async () => {
+    listJobs.mockResolvedValue([openJob, { ...openJob, id: 6, title: "Forklift Operator" }]);
+    readWalkInBiodata.mockResolvedValue({ ...read, suggestedJobId: 6 });
+    renderDialog();
+    await pickJob();
+    attachFile(pdf());
+    await screen.findByText("Filled from the bio-data. Check before saving.");
+    expect(screen.getByLabelText(/Job opening/i)).toHaveValue("Warehouse Associate");
+  });
+
+  it("shows that it is reading, and never overwrites what is typed while it reads", async () => {
+    let finish: (value: unknown) => void = () => {};
+    readWalkInBiodata.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderDialog();
+    attachFile(pdf());
+    expect(await screen.findByText("Reading bio-data…")).toBeInTheDocument();
+
+    typeInto(/Last name/i, "Garcia");
+    finish(read);
+
+    expect(await screen.findByText("Filled from the bio-data. Check before saving.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Last name/i)).toHaveValue("Garcia");
+    expect(screen.getByLabelText(/First name/i)).toHaveValue("Pedro");
+  });
+
+  it("says when the file could not be read and lets the TA type the details", async () => {
+    renderDialog();
+    await pickJob();
+    attachFile(pdf());
+    expect(await screen.findByText("Couldn't read this file. Type the details.")).toBeInTheDocument();
+
+    typeInto(/First name/i, "Ana");
+    typeInto(/Last name/i, "Reyes");
+    typeInto(/Birth date/i, "1995-06-15");
+    chooseGender("Female");
+    fireEvent.click(screen.getByRole("button", { name: "Save and print slip" }));
+    await waitFor(() => expect(createWalkIn).toHaveBeenCalledTimes(1));
+  });
+
+  it("treats a failed read (for example too many reads) like an unreadable file", async () => {
+    readWalkInBiodata.mockRejectedValue(new Error("Too many requests"));
+    renderDialog();
+    attachFile(pdf());
+    expect(await screen.findByText("Couldn't read this file. Type the details.")).toBeInTheDocument();
+    expect(readWalkInBiodata).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads again when the file changes, still keeping what is already filled", async () => {
+    readWalkInBiodata.mockResolvedValueOnce(read);
+    renderDialog();
+    attachFile(pdf());
+    await screen.findByText("Filled from the bio-data. Check before saving.");
+
+    readWalkInBiodata.mockResolvedValueOnce({ ...read, firstName: "Mario", lastName: "Lopez", middleName: "Cruz" });
+    attachFile(new File(["%PDF-1.4 other"], "other.pdf", { type: "application/pdf" }));
+    await waitFor(() => expect(readWalkInBiodata).toHaveBeenCalledTimes(2));
+
+    expect(screen.getByLabelText(/First name/i)).toHaveValue("Pedro");
+    expect(screen.getByLabelText(/Last name/i)).toHaveValue("Santos");
+  });
+
+  it("does not send a file the form would refuse to be read", async () => {
+    renderDialog();
+    attachFile(new File(["GIF89a"], "biodata.gif", { type: "image/gif" }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readWalkInBiodata).not.toHaveBeenCalled();
   });
 });

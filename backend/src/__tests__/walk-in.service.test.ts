@@ -30,6 +30,7 @@ const m = vi.hoisted(() => {
     sendRoleNotification: fn(),
     parseResumeToProposal: fn(),
     fillBlanksFromParse: fn(),
+    processResumeExtractionService: fn(),
   };
 });
 
@@ -49,6 +50,7 @@ vi.mock("../services/applicant/resume-merge.service.js", () => ({
   parseResumeToProposal: m.parseResumeToProposal,
   fillBlanksFromParse: m.fillBlanksFromParse,
 }));
+vi.mock("../services/applicant/applicant.service.js", () => ({ processResumeExtractionService: m.processResumeExtractionService }));
 // Keep the real ownership rules for everything except the job check, which each test controls.
 vi.mock("../services/ta/ownership.js", async (importOriginal) => ({
   ...(await importOriginal<any>()),
@@ -71,6 +73,7 @@ import {
 } from "../services/ta/walk-in.service.js";
 import { calculateMRFFulfillment, syncMRFFulfillmentStatus } from "../services/ta/ta.mrf.service.js";
 import { isSyntheticEmail } from "../utils/sms.js";
+import { cacheWalkInRead, clearWalkInReads } from "../services/ta/walk-in-read-cache.js";
 
 const TA = { id: "ta-1", role: "TALENT_ACQUISITION" };
 const USER_ID = "11111111-1111-4111-8111-111111111111";
@@ -150,6 +153,7 @@ const resetMocks = () => {
 
 beforeEach(() => {
   resetMocks();
+  clearWalkInReads();
   // Pin the clock so the tracking code year is deterministic.
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-22T02:00:00Z"));
@@ -392,6 +396,14 @@ describe("createWalkIn: new person", () => {
     expect(slip.location).toBe("Cebu City");
   });
 
+  it("stores the gender on the new profile, and null when none is given", async () => {
+    await createWalkIn(TA, baseInput({ gender: "Female" }), FILE);
+    expect(m.prisma.applicantProfile.create.mock.calls[0][0].data.gender).toBe("Female");
+    m.prisma.applicantProfile.create.mockClear();
+    await createWalkIn(TA, baseInput({ gender: "" }), FILE);
+    expect(m.prisma.applicantProfile.create.mock.calls[0][0].data.gender).toBeNull();
+  });
+
   it("stores only the hash of the tracking token, never the raw token", async () => {
     const slip = await createWalkIn(TA, baseInput(), FILE);
     const writeData = m.prisma.application.update.mock.calls[0][0].data;
@@ -532,6 +544,22 @@ describe("createWalkIn: bio-data extraction", () => {
     expect(m.fillBlanksFromParse).not.toHaveBeenCalled();
   });
 
+  it("reuses a read from the dialog: passes it on and never calls the extractor itself", async () => {
+    const read = { firstName: "Juan", positionApplied: "Forklift Operator" };
+    cacheWalkInRead(TA.id, "a".repeat(64), read);
+    await createWalkIn(TA, baseInput(), FILE);
+    await vi.waitFor(() => expect(m.parseResumeToProposal).toHaveBeenCalled());
+    expect(m.parseResumeToProposal.mock.calls[0][0].preExtracted).toBe(read);
+    expect(m.processResumeExtractionService).not.toHaveBeenCalled();
+  });
+
+  it("does not reuse another TA's read of the same file", async () => {
+    cacheWalkInRead("ta-2", "a".repeat(64), { firstName: "Other" });
+    await createWalkIn(TA, baseInput(), FILE);
+    await vi.waitFor(() => expect(m.parseResumeToProposal).toHaveBeenCalled());
+    expect(m.parseResumeToProposal.mock.calls[0][0].preExtracted).toBeUndefined();
+  });
+
   it("still succeeds and scores when extraction fails", async () => {
     m.parseResumeToProposal.mockRejectedValue(new Error("gemini down"));
     const slip = await createWalkIn(TA, baseInput(), FILE);
@@ -578,6 +606,18 @@ describe("createWalkIn: reusing an existing applicant", () => {
     expect(fill).not.toHaveProperty("firstName");
     expect(fill).not.toHaveProperty("lastName");
     expect(fill).not.toHaveProperty("mobileNumber");
+  });
+
+  it("fills a blank gender but never replaces a saved one", async () => {
+    const saved = { firstName: "Maria", middleName: "Ann", lastName: "Reyes", mobileNumber: "09181234567", dateOfBirth: new Date("1980-01-01T00:00:00Z") };
+    m.prisma.user.findUnique.mockResolvedValueOnce(existingUser({ ...saved, gender: null }));
+    await createWalkIn(TA, baseInput({ existingUserId: "existing-1", gender: "Female" }), FILE);
+    expect(m.prisma.applicantProfile.update.mock.calls[0][0].data).toEqual({ gender: "Female" });
+
+    m.prisma.applicantProfile.update.mockClear();
+    m.prisma.user.findUnique.mockResolvedValueOnce(existingUser({ ...saved, gender: "Male" }));
+    await createWalkIn(TA, baseInput({ existingUserId: "existing-1", gender: "Female" }), FILE);
+    expect(m.prisma.applicantProfile.update).not.toHaveBeenCalled();
   });
 
   it("does not touch the profile at all when every field is already filled", async () => {

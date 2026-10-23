@@ -1,19 +1,25 @@
-import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { z } from "zod";
+import React, { useContext, useEffect, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../../lib/api/ta.api";
 import { ApiError } from "../../../lib/api/client";
 import { AuthContext } from "../../../context/AuthContext";
-import { Button, ComboBox, Dialog, Input, PhoneInput } from "../../ui";
+import { Button, ComboBox, Dialog, Input, PhoneInput, Select } from "../../ui";
 import { DateField } from "../../common/DateField";
 import { notify, fieldErrorsFrom } from "../../../lib/feedback";
 import { useDirtyGuard } from "../../../hooks/useDirtyGuard";
-import { REFERENCE_QUERY_STALE_TIME_MS } from "../../../lib/query-policies";
-import { validatePhilippineMobile } from "../../../lib/phone-utils";
 import { MAX_AGE, MIN_AGE, yearsAgo } from "../../../lib/walk-in-age";
-import { validateDateOfBirth } from "../../../lib/statutory-validation";
-import { formatTaStatus } from "../../../lib/ta-copy";
 import type { CheckInDetail, WalkInMatch, WalkInSlip } from "../../../lib/types/application.types";
+import {
+  ACCEPT_ATTRIBUTE,
+  GENDER_SELECT_OPTIONS,
+  UNREADABLE_MESSAGE,
+  duplicateParamsFor,
+  fileSchema,
+  fillEmptyFields,
+  useOpenJobOptions,
+  walkInIdentitySchema,
+} from "./walkInShared";
+import { ExistingRecordNotice, WalkInMatchList } from "./WalkInMatchList";
 
 interface EncodeWalkInDialogProps {
   open: boolean;
@@ -23,30 +29,7 @@ interface EncodeWalkInDialogProps {
   checkIn?: CheckInDetail | null;
 }
 
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
-
-const schema = z.object({
-  jobPostingId: z.string().min(1, "Choose a job opening."),
-  firstName: z.string().trim().min(1, "Enter a first name.").max(100),
-  lastName: z.string().trim().min(1, "Enter a last name.").max(100),
-  middleName: z.string().trim().max(100),
-  mobileNumber: z.string().refine((v) => validatePhilippineMobile(v).isValid, "Enter an 11-digit mobile number starting with 09."),
-  birthDate: z.string().superRefine((v, ctx) => {
-    if (!v) {
-      ctx.addIssue({ code: "custom", message: "Enter the birth date." });
-      return;
-    }
-    if (validateDateOfBirth(v, { minAge: MIN_AGE, maxAge: MAX_AGE })) {
-      ctx.addIssue({ code: "custom", message: `Applicant must be ${MIN_AGE} to ${MAX_AGE} years old.` });
-    }
-  }),
-  file: z
-    .instanceof(File)
-    .optional()
-    .refine((f) => !f || f.size <= MAX_FILE_BYTES, "The file is over 5 MB. Retake the photo or use a smaller file.")
-    .refine((f) => !f || ACCEPTED_TYPES.includes(f.type), "Use a JPEG, PNG or WEBP photo, or a PDF."),
-});
+const schema = walkInIdentitySchema.extend({ file: fileSchema });
 
 interface FormState {
   jobPostingId: string;
@@ -55,6 +38,7 @@ interface FormState {
   lastName: string;
   mobileNumber: string;
   birthDate: string;
+  gender: string;
   file: File | null;
 }
 
@@ -65,6 +49,7 @@ const EMPTY_FORM: FormState = {
   lastName: "",
   mobileNumber: "",
   birthDate: "",
+  gender: "",
   file: null,
 };
 
@@ -84,27 +69,15 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewMime, setPreviewMime] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [readState, setReadState] = useState<"idle" | "reading" | "filled" | "unreadable">("idle");
   const lastCheckKey = useRef("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Each file pick gets a number, so an older read that finishes late is ignored.
+  const readVersion = useRef(0);
+  const formRef = useRef(form);
+  formRef.current = form;
 
-  const jobsQuery = useQuery({
-    queryKey: ["ta", "jobs", "dropdown"],
-    queryFn: ({ signal }) => taApi.listJobs({}, { signal }),
-    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
-    enabled: open && !checkIn,
-  });
-
-  const jobOptions = useMemo(
-    () =>
-      (jobsQuery.data ?? [])
-        .filter((job) => job.status === "OPEN")
-        .map((job) => ({
-          value: String(job.id),
-          label: job.title,
-          subtitle: [job.mrf?.client?.name, job.location].filter(Boolean).join(" Â· ") || undefined,
-        })),
-    [jobsQuery.data],
-  );
+  const { jobsQuery, jobOptions } = useOpenJobOptions(open && !checkIn);
 
   useEffect(() => {
     if (!checkIn) return;
@@ -115,8 +88,11 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
       lastName: checkIn.lastName,
       mobileNumber: checkIn.mobileNumber ?? "",
       birthDate: checkIn.birthDate,
+      gender: "",
       file: null,
     });
+    readVersion.current += 1;
+    setReadState("idle");
     setErrors({});
     setMatches([]);
     setExistingUser(null);
@@ -130,9 +106,17 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
       form.middleName !== (checkIn.middleName ?? "") ||
       form.lastName !== checkIn.lastName ||
       form.mobileNumber !== (checkIn.mobileNumber ?? "") ||
-      form.birthDate !== checkIn.birthDate
+      form.birthDate !== checkIn.birthDate ||
+      Boolean(form.gender)
     : Boolean(
-    form.jobPostingId || form.firstName || form.middleName || form.lastName || form.mobileNumber || form.birthDate || form.file,
+        form.jobPostingId ||
+          form.firstName ||
+          form.middleName ||
+          form.lastName ||
+          form.mobileNumber ||
+          form.birthDate ||
+          form.gender ||
+          form.file,
       );
   const hasBiodata = Boolean(checkIn?.biodata);
   const guard = useDirtyGuard({ isDirty: open && isDirty, message: "The walk-in has not been saved yet." });
@@ -189,6 +173,8 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
     setMatches([]);
     setExistingUser(null);
     setDismissedIds([]);
+    setReadState("idle");
+    readVersion.current += 1;
     lastCheckKey.current = "";
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -200,17 +186,10 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
     onClose();
   };
 
-  const runDuplicateCheck = async () => {
+  const runDuplicateCheck = async (values: FormState = formRef.current) => {
     if (existingUser) return;
-    const phoneOk = form.mobileNumber && validatePhilippineMobile(form.mobileNumber).isComplete;
-    const nameOk = form.firstName.trim() && form.lastName.trim();
-    if (!phoneOk && !nameOk) return;
-    const params = {
-      phone: phoneOk ? form.mobileNumber : undefined,
-      firstName: nameOk ? form.firstName.trim() : undefined,
-      lastName: nameOk ? form.lastName.trim() : undefined,
-      birthDate: form.birthDate || undefined,
-    };
+    const params = duplicateParamsFor(values);
+    if (!params) return;
     const key = JSON.stringify(params);
     if (key === lastCheckKey.current) return;
     lastCheckKey.current = key;
@@ -224,6 +203,52 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
     } finally {
       setChecking(false);
     }
+  };
+
+  const readBiodata = async (file: File) => {
+    const version = ++readVersion.current;
+    setReadState("reading");
+    try {
+      const read = await taApi.readWalkInBiodata(file);
+      if (version !== readVersion.current) return;
+      if (read.status !== "read") {
+        setReadState("unreadable");
+        return;
+      }
+      // Only empty fields are filled: anything the TA typed (even while the file was being read) stays.
+      const { next, filled } = fillEmptyFields(formRef.current, read);
+      let merged = next;
+      let jobFilled = false;
+      if (!checkIn && !merged.jobPostingId && read.suggestedJobId) {
+        merged = { ...merged, jobPostingId: String(read.suggestedJobId) };
+        jobFilled = true;
+      }
+      if (filled || jobFilled) {
+        setForm(merged);
+        setErrors({});
+      }
+      setReadState(filled || jobFilled ? "filled" : "idle");
+      void runDuplicateCheck(merged);
+    } catch {
+      // Includes "too many reads right now". The TA can type the details; saving still works.
+      if (version === readVersion.current) setReadState("unreadable");
+    }
+  };
+
+  const handleFileChange = (file: File | null) => {
+    set("file", file);
+    if (!file) {
+      readVersion.current += 1;
+      setReadState("idle");
+      return;
+    }
+    // A file the form would refuse is not sent for reading; submit shows the reason.
+    if (!fileSchema.safeParse(file).success) {
+      readVersion.current += 1;
+      setReadState("idle");
+      return;
+    }
+    void readBiodata(file);
   };
 
   const createMutation = useMutation({
@@ -277,6 +302,7 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
     body.append("lastName", parsed.data.lastName);
     if (parsed.data.mobileNumber) body.append("mobileNumber", parsed.data.mobileNumber);
     if (parsed.data.birthDate) body.append("birthDate", parsed.data.birthDate);
+    body.append("gender", parsed.data.gender);
     if (existingUser) body.append("existingUserId", existingUser.userId);
     createMutation.mutate(body);
   };
@@ -292,7 +318,7 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
         description={
           checkIn
             ? "Check their ID, correct any detail, then photograph the biodata."
-            : "Enter the applicant and photograph their biodata."
+            : "Add the biodata first. The details fill in from it."
         }
         size="lg"
       >
@@ -332,6 +358,62 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
           />
           )}
 
+          {checkIn?.biodata && (
+            <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="min-w-0 break-words text-sm text-slate-900">
+                  Applicant attached: <strong>{checkIn.biodata.fileName}</strong> ({formatFileSize(checkIn.biodata.sizeBytes)})
+                </p>
+                <Button type="button" variant="outline" size="sm" className="min-h-11 md:min-h-8" loading={loadingPreview} onClick={() => void viewApplicantFile()}>
+                  View
+                </Button>
+              </div>
+              {previewUrl && previewMime.startsWith("image/") && (
+                <img src={previewUrl} alt="Biodata the applicant attached" className="max-h-80 w-full rounded border border-slate-200 bg-white object-contain" />
+              )}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label htmlFor="walk-in-biodata" className="block text-xs font-medium text-slate-600">
+              {hasBiodata ? "Replace biodata (optional)" : "Biodata photo or PDF"}
+              {!hasBiodata && <span className="ml-0.5 text-rose-500">*</span>}
+            </label>
+            <input
+              ref={fileInputRef}
+              id="walk-in-biodata"
+              type="file"
+              accept={ACCEPT_ATTRIBUTE}
+              aria-invalid={errors.file ? true : undefined}
+              aria-describedby={errors.file ? "walk-in-biodata-error" : "walk-in-biodata-help"}
+              onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+              className={`block w-full min-h-11 md:min-h-10 rounded-md border bg-white text-sm text-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 file:mr-3 file:h-full file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-800 ${
+                errors.file ? "border-rose-400 bg-rose-50/20 focus-visible:ring-rose-600" : "border-slate-300 hover:border-slate-400"
+              }`}
+            />
+            {errors.file ? (
+              <p id="walk-in-biodata-error" role="alert" className="text-xs font-medium text-rose-600">
+                {errors.file}
+              </p>
+            ) : readState === "reading" ? (
+              <p id="walk-in-biodata-help" role="status" className="text-xs text-slate-600">
+                Reading bio-data…
+              </p>
+            ) : readState === "filled" ? (
+              <p id="walk-in-biodata-help" role="status" className="text-xs text-slate-600">
+                Filled from the bio-data. Check before saving.
+              </p>
+            ) : readState === "unreadable" ? (
+              <p id="walk-in-biodata-help" role="status" className="text-xs text-slate-600">
+                {UNREADABLE_MESSAGE}
+              </p>
+            ) : (
+              <p id="walk-in-biodata-help" className="text-xs text-slate-500">
+                {hasBiodata ? "Leave empty to use the applicant's file. " : ""}The match score is calculated from this file.
+              </p>
+            )}
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-3">
             <Input
               id="walk-in-first-name"
@@ -366,7 +448,7 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div onBlur={() => void runDuplicateCheck()}>
               <PhoneInput
                 id="walk-in-mobile"
@@ -385,12 +467,21 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
                 required
                 min={yearsAgo(MAX_AGE + 1)}
                 max={yearsAgo(MIN_AGE)}
-                helperText={`${MIN_AGE} to ${MAX_AGE} years old.`}
                 value={form.birthDate}
                 onChange={(e) => set("birthDate", e.target.value)}
                 error={errors.birthDate}
               />
             </div>
+            <Select
+              id="walk-in-gender"
+              label="Gender"
+              required
+              placeholder="Choose"
+              options={GENDER_SELECT_OPTIONS}
+              value={form.gender}
+              onChange={(e) => set("gender", e.target.value)}
+              error={errors.gender}
+            />
           </div>
 
           {checking && (
@@ -399,107 +490,13 @@ export const EncodeWalkInDialog: React.FC<EncodeWalkInDialogProps> = ({ open, on
             </p>
           )}
 
-          {existingUser && (
-            <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-navy-line bg-navy-soft px-3 py-2 text-sm text-navy">
-              <span>
-                Using the existing record for <strong>{existingUser.fullName}</strong>. Blank profile fields get filled in.
-              </span>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setExistingUser(null)}>
-                Undo
-              </Button>
-            </div>
-          )}
+          {existingUser && <ExistingRecordNotice match={existingUser} onUndo={() => setExistingUser(null)} />}
 
-          {visibleMatches.length > 0 && (
-            <div role="group" aria-label="Possible matches" className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
-              <p className="text-sm font-semibold text-amber-900">
-                {visibleMatches.length === 1 ? "This person may already be in MEGS." : "These people may already be in MEGS."}
-              </p>
-              <ul className="space-y-2">
-                {visibleMatches.map((match) => (
-                  <li key={match.userId} className="flex flex-wrap items-center justify-between gap-2 border-t border-amber-200 pt-2 first:border-t-0 first:pt-0">
-                    <div className="min-w-0 text-sm text-slate-900">
-                      <p className="font-medium">
-                        {match.fullName}
-                        {match.maskedPhone ? <span className="font-normal text-slate-700"> Â· {match.maskedPhone}</span> : null}
-                      </p>
-                      <p className="text-slate-700">
-                        {match.latestApplication
-                          ? `Last applied for ${match.latestApplication.jobTitle} (${formatTaStatus(match.latestApplication.status)})`
-                          : "No applications yet"}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="min-h-11 md:min-h-8"
-                        onClick={() => setDismissedIds((prev) => [...prev, match.userId])}
-                      >
-                        Different person
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="min-h-11 md:min-h-8"
-                        onClick={() => {
-                          setExistingUser(match);
-                        }}
-                      >
-                        Use this person
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {checkIn?.biodata && (
-            <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="min-w-0 break-words text-sm text-slate-900">
-                  Applicant attached: <strong>{checkIn.biodata.fileName}</strong> ({formatFileSize(checkIn.biodata.sizeBytes)})
-                </p>
-                <Button type="button" variant="outline" size="sm" className="min-h-11 md:min-h-8" loading={loadingPreview} onClick={() => void viewApplicantFile()}>
-                  View
-                </Button>
-              </div>
-              {previewUrl && previewMime.startsWith("image/") && (
-                <img src={previewUrl} alt="Biodata the applicant attached" className="max-h-80 w-full rounded border border-slate-200 bg-white object-contain" />
-              )}
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <label htmlFor="walk-in-biodata" className="block text-xs font-medium text-slate-600">
-              {hasBiodata ? "Replace biodata (optional)" : "Biodata photo or PDF"}
-              {!hasBiodata && <span className="ml-0.5 text-rose-500">*</span>}
-            </label>
-            <input
-              ref={fileInputRef}
-              id="walk-in-biodata"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,application/pdf"
-              aria-invalid={errors.file ? true : undefined}
-              aria-describedby={errors.file ? "walk-in-biodata-error" : "walk-in-biodata-help"}
-              onChange={(e) => set("file", e.target.files?.[0] ?? null)}
-              className={`block w-full min-h-11 md:min-h-10 rounded-md border bg-white text-sm text-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 file:mr-3 file:h-full file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-800 ${
-                errors.file ? "border-rose-400 bg-rose-50/20 focus-visible:ring-rose-600" : "border-slate-300 hover:border-slate-400"
-              }`}
-            />
-            {errors.file ? (
-              <p id="walk-in-biodata-error" role="alert" className="text-xs font-medium text-rose-600">
-                {errors.file}
-              </p>
-            ) : (
-              <p id="walk-in-biodata-help" className="text-xs text-slate-500">
-                {hasBiodata ? "Leave empty to use the applicant's file. " : ""}The match score is calculated from this file.
-              </p>
-            )}
-          </div>
+          <WalkInMatchList
+            matches={visibleMatches}
+            onUse={setExistingUser}
+            onDismiss={(match) => setDismissedIds((prev) => [...prev, match.userId])}
+          />
 
           <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
             <Button type="button" variant="outline" onClick={() => void requestClose()} disabled={createMutation.isPending}>

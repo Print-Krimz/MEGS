@@ -18,6 +18,7 @@ vi.mock("../../lib/api/ta.api", () => ({
     createWalkIn: vi.fn(),
     confirmCheckIn: vi.fn(),
     getCheckInBiodata: vi.fn(),
+    readWalkInBiodata: vi.fn(),
   },
 }));
 
@@ -36,6 +37,7 @@ const listJobs = taApi.listJobs as unknown as ReturnType<typeof vi.fn>;
 const checkWalkInDuplicate = taApi.checkWalkInDuplicate as unknown as ReturnType<typeof vi.fn>;
 const createWalkIn = taApi.createWalkIn as unknown as ReturnType<typeof vi.fn>;
 const confirmCheckIn = taApi.confirmCheckIn as unknown as ReturnType<typeof vi.fn>;
+const readWalkInBiodata = taApi.readWalkInBiodata as unknown as ReturnType<typeof vi.fn>;
 
 const queued: CheckInDetail = {
   id: 9,
@@ -88,6 +90,7 @@ function renderConfirm(checkIn: CheckInDetail | null = queued) {
 }
 
 const attachFile = (file: File) => fireEvent.change(screen.getByLabelText(/Biodata photo or PDF/i), { target: { files: [file] } });
+const chooseGender = (value = "Female") => fireEvent.change(screen.getByLabelText(/Gender/i), { target: { value } });
 const confirmButton = () => screen.getByRole("button", { name: "Confirm and print slip" });
 
 beforeEach(() => {
@@ -96,6 +99,7 @@ beforeEach(() => {
   checkWalkInDuplicate.mockResolvedValue({ matches: [] });
   confirmCheckIn.mockResolvedValue(slip);
   createWalkIn.mockResolvedValue(slip);
+  readWalkInBiodata.mockResolvedValue({ status: "unreadable", suggestedJobId: null });
 });
 
 describe("EncodeWalkInDialog in check-in mode: layout", () => {
@@ -145,6 +149,7 @@ describe("EncodeWalkInDialog in check-in mode: applicant attached biodata", () =
 
   it("confirms without attaching a file", async () => {
     renderConfirm(withBiodata);
+    chooseGender();
     fireEvent.click(confirmButton());
     await waitFor(() => expect(confirmCheckIn).toHaveBeenCalledTimes(1));
     expect((confirmCheckIn.mock.calls[0][1] as FormData).get("file")).toBeNull();
@@ -155,6 +160,7 @@ describe("EncodeWalkInDialog in check-in mode: applicant attached biodata", () =
   it("still sends a replacement file when the TA attaches one", async () => {
     renderConfirm(withBiodata);
     fireEvent.change(screen.getByLabelText(/Replace biodata/i), { target: { files: [pdf()] } });
+    chooseGender();
     fireEvent.click(confirmButton());
     await waitFor(() => expect(confirmCheckIn).toHaveBeenCalledTimes(1));
     expect((confirmCheckIn.mock.calls[0][1] as FormData).get("file")).toBeInstanceOf(File);
@@ -164,6 +170,7 @@ describe("EncodeWalkInDialog in check-in mode: applicant attached biodata", () =
 describe("EncodeWalkInDialog in check-in mode: biodata and submit", () => {
   it("does not confirm without the biodata file and says what to add", async () => {
     renderConfirm();
+    chooseGender();
     fireEvent.click(confirmButton());
     expect(await screen.findByRole("alert")).toHaveTextContent("Add a photo or PDF of the biodata.");
     expect(confirmCheckIn).not.toHaveBeenCalled();
@@ -173,6 +180,7 @@ describe("EncodeWalkInDialog in check-in mode: biodata and submit", () => {
   it("refuses a file type that is not a photo or PDF", async () => {
     renderConfirm();
     attachFile(new File(["notes"], "notes.txt", { type: "text/plain" }));
+    chooseGender();
     fireEvent.click(confirmButton());
     expect(await screen.findByRole("alert")).toHaveTextContent("Use a JPEG, PNG or WEBP photo, or a PDF.");
     expect(confirmCheckIn).not.toHaveBeenCalled();
@@ -181,6 +189,7 @@ describe("EncodeWalkInDialog in check-in mode: biodata and submit", () => {
   it("sends the check-in id and the biodata, but no job id, then reports the slip", async () => {
     const { onClose, onCreated } = renderConfirm();
     attachFile(pdf());
+    chooseGender();
     fireEvent.click(confirmButton());
 
     await waitFor(() => expect(confirmCheckIn).toHaveBeenCalledTimes(1));
@@ -192,6 +201,7 @@ describe("EncodeWalkInDialog in check-in mode: biodata and submit", () => {
     expect(body.get("lastName")).toBe("Dela Cruz");
     expect(body.get("mobileNumber")).toBe("09171234567");
     expect(body.get("birthDate")).toBe("1990-05-09");
+    expect(body.get("gender")).toBe("Female");
     expect(body.get("existingUserId")).toBeNull();
     expect(body.get("file")).toBeInstanceOf(File);
     expect(createWalkIn).not.toHaveBeenCalled();
@@ -205,6 +215,7 @@ describe("EncodeWalkInDialog in check-in mode: biodata and submit", () => {
     renderConfirm();
     fireEvent.change(screen.getByLabelText(/First name/i), { target: { value: "Juan Miguel" } });
     attachFile(pdf());
+    chooseGender();
     fireEvent.click(confirmButton());
 
     await waitFor(() => expect(confirmCheckIn).toHaveBeenCalledTimes(1));
@@ -215,6 +226,7 @@ describe("EncodeWalkInDialog in check-in mode: biodata and submit", () => {
     renderConfirm();
     fireEvent.change(screen.getByLabelText(/Birth date/i), { target: { value: yearsAgo(17) } });
     attachFile(pdf());
+    chooseGender();
     fireEvent.click(confirmButton());
     expect(await screen.findByText("Applicant must be 18 to 65 years old.")).toBeInTheDocument();
     expect(confirmCheckIn).not.toHaveBeenCalled();
@@ -224,6 +236,7 @@ describe("EncodeWalkInDialog in check-in mode: biodata and submit", () => {
     confirmCheckIn.mockRejectedValue(new Error("Attach the biodata photo or PDF"));
     const { onCreated } = renderConfirm();
     attachFile(pdf());
+    chooseGender();
     fireEvent.click(confirmButton());
     await waitFor(() => expect(notify.error).toHaveBeenCalledWith("Could not save the walk-in", expect.any(Error)));
     expect(onCreated).not.toHaveBeenCalled();

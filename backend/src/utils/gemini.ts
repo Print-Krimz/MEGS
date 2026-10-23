@@ -323,6 +323,8 @@ export interface ExtractedProfileData {
   barangay?: string;
   postalCode?: string;
   preferredWorkLocations?: string;
+  /** Job the form says the person applies for. Used to suggest a job at walk-in intake; never saved to the profile. */
+  positionApplied?: string;
   professionalSummary?: string;
   skills?: string[];
   educations?: ExtractedProfileEducation[];
@@ -361,6 +363,7 @@ Field notes:
 - barangay: barangay / village / sub-district. postalCode: 4-digit Philippine ZIP code, e.g. 1012.
 - city and province are the city / municipality and province or region (e.g. Quezon City, Metro Manila).
 - professionalSummary: career objective or professional background statement.
+- positionApplied: the job or position the form says the person is applying for, if stated.
 - skills: clean list of individual competencies, tools, frameworks and domain expertise.
 - Dates in educations, workExperiences and trainings: YYYY-MM-DD, YYYY-MM or YYYY. isCurrent is true for a current position (endDate Present/Current).
 - characterReferences: relationship may be the reference's position, e.g. Operations Manager or Former Supervisor.
@@ -384,7 +387,8 @@ const RESUME_RESPONSE_SCHEMA = {
     civilStatus: nullableString({ enum: ["Single", "Married", "Widowed", "Separated", "Divorced"] }),
     religion: nullableString(), height: nullableNumber, weight: nullableNumber,
     address: nullableString(), barangay: nullableString(), city: nullableString(), province: nullableString(),
-    postalCode: nullableString(), preferredWorkLocations: nullableString(), professionalSummary: nullableString(),
+    postalCode: nullableString(), preferredWorkLocations: nullableString(), positionApplied: nullableString(),
+    professionalSummary: nullableString(),
     skills: { type: Type.ARRAY, nullable: true, items: { type: Type.STRING } },
     educations: objectList({
       school: nullableString(), degree: nullableString(), fieldOfStudy: nullableString(),
@@ -464,6 +468,7 @@ export const mapParsedProfileData = (parsed: any): ExtractedProfileData => {
     barangay: cleanTitleString(parsed.barangay || parsed.brgy),
     postalCode: normalizePostalCode(parsed.postalCode ?? parsed.postal_code ?? parsed.zipCode ?? parsed.zip),
     preferredWorkLocations: cleanTitleString(parsed.preferredWorkLocations || parsed.preferred_work_locations || parsed.workLocations),
+    positionApplied: cleanTitleString(parsed.positionApplied || parsed.position_applied || parsed.positionAppliedFor || parsed.position),
     professionalSummary: cleanSentenceString(parsed.professionalSummary || parsed.professional_summary || parsed.summary || parsed.objective),
     skills: Array.isArray(parsed.skills)
       ? parsed.skills.filter((s: unknown) => typeof s === "string").map((s: string) => normalizeSkill(s)).filter(Boolean)
@@ -557,16 +562,16 @@ export const classifyExtractionError = (err: any): string => {
   return "other";
 };
 
-// Runs one extraction attempt and logs a single line: no resume content or PII, only path,
-// type, size bucket, latency and outcome.
-const tracedExtraction = async (
-  path: "text" | "vision", mime: string, size: number,
-  run: (options: GenerateOptions) => Promise<ExtractedProfileData>,
 // Which model answered each extraction result, so callers can record the real one.
 const extractionModels = new WeakMap<ExtractedProfileData, string>();
 export const modelThatExtracted = (data: ExtractedProfileData | null | undefined): string | null =>
   (data && extractionModels.get(data)) || null;
 
+// Runs one extraction attempt and logs a single line: no resume content or PII, only path,
+// type, size bucket, latency and outcome.
+const tracedExtraction = async (
+  path: "text" | "vision", mime: string, size: number,
+  run: (options: GenerateOptions) => Promise<ExtractedProfileData>,
 ): Promise<ExtractedProfileData> => {
   const started = performance.now();
   let model = "none";
@@ -574,12 +579,12 @@ export const modelThatExtracted = (data: ExtractedProfileData | null | undefined
     `[Resume Extract] model=${model} path=${path} mime=${mime} size=${sizeBucket(size)} ms=${Math.round(performance.now() - started)} outcome=${outcome}`);
   try {
     const result = await run(extractionOptions((m) => { model = m; }));
+    extractionModels.set(result, model);
     log("ok");
     return result;
   } catch (err: any) {
     log(classifyExtractionError(err));
     throw err;
-    extractionModels.set(result, model);
   }
 };
 

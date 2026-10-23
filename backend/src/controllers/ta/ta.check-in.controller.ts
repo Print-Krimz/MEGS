@@ -61,6 +61,7 @@ export const confirmCheckInHandler = async (req: Request, res: Response): Promis
         lastName: body.lastName,
         mobileNumber: body.mobileNumber || null,
         birthDate: body.birthDate,
+        gender: body.gender || null,
         existingUserId: body.existingUserId || null,
       },
       req.file,

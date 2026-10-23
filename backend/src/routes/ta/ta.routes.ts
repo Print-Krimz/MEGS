@@ -123,6 +123,7 @@ import { requireOwned, requireOwnedBody } from "../../services/ta/ownership.js";
 import {
   checkWalkInDuplicateHandler,
   createWalkInHandler,
+  readWalkInBiodataHandler,
   reissueWalkInSlipHandler,
 } from '../../controllers/ta/ta.walk-in.controller.js';
 import { offerReplyRouteSchema } from "../../schemas/offer-reply.schema.js";
@@ -143,7 +144,7 @@ router.use(requireRole("TALENT_ACQUISITION"));
 router.use(validateDateRangeQuery);
 router.use("/analytics", ...analyticsLimiters);
 router.use("/reports", ...reportLimiters);
-router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates", "/candidates/:id/parse-resume"], ...aiLimiters);
+router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates", "/candidates/:id/parse-resume", "/walk-ins/read-biodata"], ...aiLimiters);
 
 router.get("/dashboard-counts", getTADashboardCountsHandler);
 
@@ -200,6 +201,7 @@ router.get("/walk-ins/check-ins/:id/biodata", validate(checkInSchema.idParams), 
 router.post("/walk-ins/check-ins/:id/confirm", upload.single("file"), validate(checkInSchema.confirm), confirmCheckInHandler);
 router.post("/walk-ins/check-ins/:id/dismiss", validate(checkInSchema.dismiss), dismissCheckInHandler);
 router.get("/walk-ins/check-duplicate", validate(taSchema.walkInCheckDuplicate), checkWalkInDuplicateHandler);
+router.post("/walk-ins/read-biodata", upload.single("file"), readWalkInBiodataHandler);
 router.post("/walk-ins", upload.single("file"), validate(taSchema.createWalkIn), createWalkInHandler);
 router.post("/walk-ins/:id/slip", validate(taSchema.walkInSlip), requireOwned("application"), reissueWalkInSlipHandler);
 

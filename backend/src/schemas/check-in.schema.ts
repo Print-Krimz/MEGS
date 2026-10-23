@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { walkInGender } from "./ta.schema.js";
 import { FIELD_LIMITS, adultDateOfBirth, boundedIdText, boundedText, finiteNumber, optionalPersonNameSchema } from "./field-limits.js";
 
 const idValue = finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true });
@@ -35,6 +36,7 @@ export const checkInSchema = {
         lastName,
         mobileNumber: boundedText(30).optional().nullable(),
         birthDate: adultDateOfBirth("Applicant", 65),
+        gender: walkInGender,
         existingUserId: z.string().trim().uuid().optional().or(z.literal("")),
       })
       .strict(),

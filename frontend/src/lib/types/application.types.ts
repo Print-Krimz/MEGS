@@ -179,6 +179,24 @@ export interface WalkInMatch {
   latestApplication: { jobTitle: string; status: ApplicationStatus } | null;
 }
 
+export type WalkInGender = "Male" | "Female" | "Non-Binary" | "Prefer not to say";
+
+/** What the server read from a bio-data file. Nothing is saved by the read. */
+export interface WalkInBiodataRead {
+  status: "read" | "unreadable";
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  mobileNumber?: string;
+  /** YYYY-MM-DD */
+  birthDate?: string;
+  gender?: WalkInGender;
+  /** The "Position applied for" written on the bio-data. */
+  positionApplied?: string;
+  /** The TA's own open job that matches positionApplied, when exactly one does. */
+  suggestedJobId: number | null;
+}
+
 export interface WalkInSlip {
   applicationId: number;
   trackingCode: string;

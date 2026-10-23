@@ -20,6 +20,7 @@ const listedChoice = <T extends string>(options: readonly T[], message: string) 
     (value) => (typeof value === "string" ? options.find((option) => option.toLowerCase() === value.trim().toLowerCase()) ?? (value.trim() === "" ? "" : value) : value),
     z.enum(["", ...options] as [string, ...string[]], { message }),
   ).optional().nullable();
+export const walkInGender = listedChoice(["Male", "Female", "Non-Binary", "Prefer not to say"], "Select a gender from the list.");
 // Update schemas may leave a required field out, but a blank or null value would overwrite it.
 const omittedOrNonBlank = (value: unknown) => value === undefined || (typeof value === "string" && value.length > 0);
 
@@ -147,6 +148,7 @@ export const taSchema = {
       mobileNumber: boundedText(30).optional().nullable(),
       // Required: walk-in applicants must be 18 to 65 years old.
       birthDate: adultDateOfBirth("Applicant", 65),
+      gender: walkInGender,
       existingUserId: z.string().trim().uuid().optional().or(z.literal("")),
     }).strict(),
   }),

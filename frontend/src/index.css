@@ -308,6 +308,26 @@ body {
   }
 }
 
+/* Batch slip sheet: print only the A4 sheet. It is rendered straight under <body> by WalkInSlipSheetDialog, which also sets the A4 page size while open. The 80 mm single slip is not affected. */
+@media print {
+  body:has(.print-slip-sheet) > *:not(.print-slip-sheet) {
+    display: none !important;
+  }
+  body:has(.print-slip-sheet) {
+    background: #fff !important;
+  }
+  .print-slip-sheet,
+  .print-slip-sheet * {
+    visibility: visible !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+  .print-slip-sheet {
+    position: static !important;
+    background: #fff !important;
+  }
+}
+
 /* Standard resume: print only the resume, black on white. The A4 page size is set by the preview while it is open. */
 @media print {
   body:has(.print-resume-root) > *:not(.print-resume-root) {

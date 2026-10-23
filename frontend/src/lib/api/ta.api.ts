@@ -12,6 +12,7 @@ import type {
   ApplicationSource,
   CheckInDetail,
   CheckInSummary,
+  WalkInBiodataRead,
   WalkInMatch,
   WalkInSlip,
 } from "../types/application.types";
@@ -183,6 +184,13 @@ export const taApi = {
   },
 
   createWalkIn: (formData: FormData) => api.upload<WalkInSlip>("/api/ta/walk-ins", formData),
+
+  /** Reads a bio-data file and returns what it says. Saves nothing. */
+  readWalkInBiodata: (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return api.upload<WalkInBiodataRead>("/api/ta/walk-ins/read-biodata", body);
+  },
 
   listCheckIns: (options?: RequestInit) =>
     api.get<{ items: CheckInSummary[] }>("/api/ta/walk-ins/check-ins", options),

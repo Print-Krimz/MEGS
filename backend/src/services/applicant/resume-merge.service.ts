@@ -203,6 +203,8 @@ export const parseResumeToProposal = async (input: {
   documentId?: number | null;
   sha256?: string | null;
   source: ResumeParseSource;
+  /** An already-read result for this exact file. Skips the AI call. */
+  preExtracted?: ExtractedProfileData | null;
 }) => {
   const { profileId, documentId = null, sha256 = null, source } = input;
 
@@ -228,7 +230,7 @@ export const parseResumeToProposal = async (input: {
   }
 
   const startedAt = Date.now();
-  const { extractedData } = await processResumeExtractionService(input.buffer, input.mimeType, input.originalName);
+  const extractedData = input.preExtracted ?? (await processResumeExtractionService(input.buffer, input.mimeType, input.originalName)).extractedData;
   const latencyMs = Date.now() - startedAt;
   return prisma.resumeParseResult.create({
     data: {

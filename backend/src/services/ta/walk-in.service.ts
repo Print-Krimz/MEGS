@@ -11,6 +11,7 @@ import { revalidateApplication } from "../scoring/scoring-configuration.service.
 import { isPhilippinePhone, maskPhoneNumber, normalizeToE164, normalizeToLocal, toSyntheticEmail } from "../../utils/sms.js";
 import { parseManilaDateOnly } from "../../schemas/field-limits.js";
 import { assertOwns, type Actor } from "./ownership.js";
+import { getWalkInRead } from "./walk-in-read-cache.js";
 import { assertCanApply, resolveInitialStatus } from "../applicant/application.service.js";
 
 export type { WalkInSource } from "./walk-in-tokens.js";
@@ -165,6 +166,8 @@ export interface CreateWalkInInput {
   lastName: string;
   mobileNumber?: string | null;
   birthDate?: string | null;
+  /** One of Male, Female, Non-Binary, Prefer not to say. */
+  gender?: string | null;
   existingUserId?: string | null;
 }
 
@@ -197,8 +200,11 @@ const extractWalkInProfile = async (
     const { parseResumeToProposal, fillBlanksFromParse } = await import("../applicant/resume-merge.service.js");
     const profile = await prisma.applicantProfile.findUnique({ where: { userId }, select: { id: true } });
     if (!profile) return;
+    // A bio-data the TA already read in the dialog or batch is reused, so Gemini is called once per file.
+    const preExtracted = getWalkInRead(taUserId, stored.sha256) ?? undefined;
     const proposal = await parseResumeToProposal({
       profileId: profile.id,
+      preExtracted,
       buffer: file.buffer,
       mimeType: file.mimetype,
       originalName: file.originalname,
@@ -230,6 +236,7 @@ export const createWalkIn = async (
   if (mobile && !isPhilippinePhone(mobile)) throw new Error("Enter a valid Philippine mobile number");
   const phoneE164 = mobile ? normalizeToE164(mobile) : null;
   const birthDate = input.birthDate?.trim() ? parseManilaDateOnly(input.birthDate.trim()) : null;
+  const gender = input.gender?.trim() || null;
 
   let userId: string;
   let createdNewUser = false;
@@ -256,6 +263,7 @@ export const createWalkIn = async (
           lastName: input.lastName,
           mobileNumber: mobile ? normalizeToLocal(mobile) : null,
           dateOfBirth: birthDate,
+          gender: gender || null,
         },
       });
     } else {
@@ -263,6 +271,7 @@ export const createWalkIn = async (
       if (!profile.middleName && input.middleName) fill.middleName = input.middleName;
       if (!profile.mobileNumber && mobile) fill.mobileNumber = normalizeToLocal(mobile);
       if (!profile.dateOfBirth && birthDate) fill.dateOfBirth = birthDate;
+      if (!profile.gender && gender) fill.gender = gender;
       if (Object.keys(fill).length) await prisma.applicantProfile.update({ where: { userId }, data: fill });
     }
     if (!existing.phoneNumber && phoneE164) {
@@ -313,6 +322,7 @@ export const createWalkIn = async (
             lastName: input.lastName,
             mobileNumber: mobile ? normalizeToLocal(mobile) : null,
             dateOfBirth: birthDate,
+            gender: gender || null,
           },
         });
       });

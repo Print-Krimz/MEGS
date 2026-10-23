@@ -6,6 +6,7 @@ import {
   findWalkInDuplicates,
   reissueSlip,
 } from "../../services/ta/walk-in.service.js";
+import { readWalkInBiodata } from "../../services/ta/walk-in-read.service.js";
 
 const statusFor = (error: any): number => {
   if (error instanceof WalkInConflictError) return 409;
@@ -17,6 +18,19 @@ export const checkWalkInDuplicateHandler = async (req: Request, res: Response): 
   try {
     const { phone, firstName, lastName, birthDate } = req.query as Record<string, string | undefined>;
     sendSuccess(res, "Duplicate check complete", await findWalkInDuplicates({ phone, firstName, lastName, birthDate }));
+  } catch (error: any) {
+    sendError(res, error.message, statusFor(error), error);
+  }
+};
+
+// POST /api/ta/walk-ins/read-biodata (multipart, file field "file"). Reads the form with AI; saves nothing.
+export const readWalkInBiodataHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      sendError(res, "Attach the biodata photo or PDF", 400);
+      return;
+    }
+    sendSuccess(res, "Bio-data read", await readWalkInBiodata(req.user!, req.file));
   } catch (error: any) {
     sendError(res, error.message, statusFor(error), error);
   }
@@ -40,6 +54,7 @@ export const createWalkInHandler = async (req: Request, res: Response): Promise<
         lastName: body.lastName,
         mobileNumber: body.mobileNumber || null,
         birthDate: body.birthDate || null,
+        gender: body.gender || null,
         existingUserId: body.existingUserId || null,
       },
       req.file,

@@ -53,6 +53,7 @@ export interface CheckInConfirmInput {
   lastName: string;
   mobileNumber?: string | null;
   birthDate: string;
+  gender?: string | null;
   existingUserId?: string | null;
 }
 
@@ -406,6 +407,7 @@ export const confirmCheckIn = async (
       lastName: input.lastName,
       mobileNumber: input.mobileNumber || null,
       birthDate: input.birthDate,
+      gender: input.gender || null,
       existingUserId: input.existingUserId || null,
     };
     slip = await createWalkIn(actor, walkInInput, file, { skipOwnership: true, selfEncoded: true });
