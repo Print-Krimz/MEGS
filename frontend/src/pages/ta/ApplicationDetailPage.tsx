@@ -23,6 +23,10 @@ import { ActivityTab } from "../../components/ta/application/ActivityTab";
 import { PersonalDetails } from "../../components/ta/application/PersonalDetails";
 import { ProfileEditForm } from "../../components/ta/application/ProfileEditForm";
 import { BioDataReviewPanel, verificationText } from "../../components/ta/application/BioDataReviewPanel";
+import { StandardAtsResumePreview } from "../../components/ta/application/StandardAtsResume";
+import { resumeProposalKey, resumeReadState, useResumeParseState } from "../../components/ta/application/useResumeParseState";
+import { taProfileReviewApi } from "../../lib/api/ta-profile-review.api";
+import { countActionable } from "../../lib/resume-autofill";
 import { ResumeRail, ResumeDockTab, ResumeDrawerButton } from "../../components/ta/application/ResumePanel";
 import { PipelineIndicator } from "../../components/common/PipelineIndicator";
 import { APPLICATION_TAB_LABELS, defaultApplicationTab, normalizeApplicationTab, type ApplicationTab } from "../../components/ta/application/tabs";
@@ -157,6 +161,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const [stageBarHeight, setStageBarHeight] = useState(140);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isReviewingBioData, setIsReviewingBioData] = useState(false);
+  const [isPrintingResume, setIsPrintingResume] = useState(false);
 
   const toggleResume = (open: boolean) => {
     setIsResumeOpen(open);
@@ -175,6 +180,15 @@ export const ApplicationDetailPage: React.FC = () => {
     queryKey: ["ta", "application", applicationId, "decisions"],
     queryFn: () => taApi.getRecruiterDecisions(applicationId),
     enabled: Boolean(applicationId),
+  });
+  const parseProfileId = applicationQuery.data?.user?.applicantProfile?.id;
+  const parseState = useResumeParseState(parseProfileId, applicationQuery.data?.source === "WALK_IN" ? applicationQuery.data.createdAt : null);
+  const reparseMutation = useMutation({
+    mutationFn: () => taProfileReviewApi.reparseResume(parseProfileId as number),
+    onSuccess: (state) => {
+      queryClient.setQueryData(resumeProposalKey(parseProfileId as number), state);
+    },
+    onError: (err: unknown) => notify.error("Could not read the bio-data", err),
   });
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
@@ -410,6 +424,10 @@ export const ApplicationDetailPage: React.FC = () => {
       onVerify={() => setIsEditingProfile(true)}
       onReview={resumeUrl?.trim() ? () => setIsReviewingBioData(true) : undefined}
       verificationLabel={verificationText(profile)}
+      readState={resumeReadState(parseState.data, app.source === "WALK_IN" ? app.createdAt : null, Date.now(), countActionable(parseState.data?.pending?.proposal) > 0)}
+      onRetryRead={resumeUrl?.trim() ? () => reparseMutation.mutate() : undefined}
+      isRetrying={reparseMutation.isPending}
+      onPrint={profile ? () => setIsPrintingResume(true) : undefined}
       onOpenPhoto={() =>
         setPreviewDocState({
           open: true,
@@ -714,6 +732,16 @@ export const ApplicationDetailPage: React.FC = () => {
           candidateInitials={candidateInitials}
           resumeUrl={resumeUrl}
           onClose={() => setIsReviewingBioData(false)}
+        />
+      )}
+
+      {isPrintingResume && profile && (
+        <StandardAtsResumePreview
+          profile={profile}
+          email={app.user?.email}
+          reference={app.trackingCode}
+          requirements={requirements}
+          onClose={() => setIsPrintingResume(false)}
         />
       )}
 

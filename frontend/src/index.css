@@ -307,3 +307,35 @@ body {
     color: #000 !important;
   }
 }
+
+/* Standard resume: print only the resume, black on white. The A4 page size is set by the preview while it is open. */
+@media print {
+  body:has(.print-resume-root) > *:not(.print-resume-root) {
+    display: none !important;
+  }
+  body:has(.print-resume-root) {
+    background: #fff !important;
+  }
+  .print-resume-root {
+    position: static !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .print-resume-root .no-print {
+    display: none !important;
+  }
+  .print-resume-sheet {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  .print-resume-root .ats-resume,
+  .print-resume-root .ats-resume * {
+    color: #000 !important;
+    background: transparent !important;
+  }
+  .print-resume-root .ats-entry {
+    break-inside: avoid;
+  }
+}

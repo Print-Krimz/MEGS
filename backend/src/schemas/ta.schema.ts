@@ -519,6 +519,10 @@ export const taSchema = {
   candidateResumeProposal: z.object({
     params: z.object({ id: z.string().min(1).max(128) }).strict(),
   }),
+  reparseCandidateResume: z.object({
+    params: z.object({ id: z.string().min(1).max(128) }).strict(),
+    body: z.object({ documentId: z.number().int().positive().optional() }).strict(),
+  }),
   applyCandidateResumeMerge: z.object({
     params: z.object({ id: z.string().min(1).max(128), parseId: boundedIdText }).strict(),
     body: z.object({ accept: resumeMergeAccept }).strict(),

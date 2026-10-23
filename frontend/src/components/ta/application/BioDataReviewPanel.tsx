@@ -97,7 +97,7 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
     queryKey: proposalKey,
     queryFn: () => taProfileReviewApi.getResumeProposal(profileId),
   });
-  const pending = proposalQuery.data;
+  const pending = proposalQuery.data?.pending;
   const suggestionCount = countActionable(pending?.proposal);
   const undatedCount = countUndatedWork(pending?.proposal);
 

@@ -1,5 +1,5 @@
 import { api } from "./client";
-import type { ApplicantProfile, ApplyResumeResult, PendingResumeProposal, ResumeAccept } from "../types/applicant.types";
+import type { ApplicantProfile, ApplyResumeResult, ResumeAccept, ResumeReviewState } from "../types/applicant.types";
 import type { UpdateCandidateProfileDto } from "../types/ta.types";
 
 export interface ReviewWorkExperience {
@@ -34,7 +34,11 @@ export interface ReviewProfileDto extends UpdateCandidateProfileDto {
 
 export const taProfileReviewApi = {
   getResumeProposal: (candidateId: number | string) =>
-    api.get<PendingResumeProposal | null>(`/api/ta/candidates/${candidateId}/resume-proposal`),
+    api.get<ResumeReviewState>(`/api/ta/candidates/${candidateId}/resume-proposal`),
+
+  /** Reads the candidate's resume again (or a named document of theirs). The result waits for review. */
+  reparseResume: (candidateId: number | string, documentId?: number) =>
+    api.post<ResumeReviewState>(`/api/ta/candidates/${candidateId}/parse-resume`, documentId ? { documentId } : {}),
 
   applyResumeMerge: (candidateId: number | string, parseId: number, accept: ResumeAccept) =>
     api.post<ApplyResumeResult>(`/api/ta/candidates/${candidateId}/resume-merge/${parseId}/apply`, { accept }),

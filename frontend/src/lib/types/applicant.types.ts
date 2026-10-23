@@ -330,6 +330,20 @@ export interface PendingResumeProposal {
   proposal: ResumeProposal;
 }
 
+export interface ResumeParseSummary {
+  status: "PENDING" | "PARSED" | "FAILED" | string;
+  source: string;
+  createdAt: string;
+  errorCategory?: string | null;
+  reviewed: boolean;
+}
+
+/** What the TA screen gets: the unreviewed proposal (if any) and the state of the latest parse. */
+export interface ResumeReviewState {
+  pending: PendingResumeProposal | null;
+  parse: ResumeParseSummary | null;
+}
+
 export interface ApplyResumeResult {
   profile: ApplicantProfile;
   changeSummary: ResumeChangeSummary;

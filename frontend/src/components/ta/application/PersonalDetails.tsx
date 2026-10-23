@@ -17,6 +17,12 @@ export interface PersonalDetailsProps {
   /** "Not verified" or "Verified by <name>, <date>". */
   verificationLabel?: string;
   onOpenPhoto?: () => void;
+  /** Progress of reading the resume. "idle" shows nothing. */
+  readState?: "reading" | "failed" | "suggestions" | "idle";
+  onRetryRead?: () => void;
+  isRetrying?: boolean;
+  /** Opens the print preview of the standard resume. */
+  onPrint?: () => void;
 }
 
 const Row: React.FC<{ label: string; children: React.ReactNode; wide?: boolean }> = ({ label, children, wide }) => (
@@ -30,7 +36,7 @@ const Row: React.FC<{ label: string; children: React.ReactNode; wide?: boolean }
  * Read-only personal and contact details. Government IDs show the last four digits;
  * the full value is shown on request here and in full in the verify form.
  */
-export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVerify, onReview, verificationLabel, onOpenPhoto }) => {
+export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVerify, onReview, verificationLabel, onOpenPhoto, readState = "idle", onRetryRead, isRetrying, onPrint }) => {
   const address = [profile?.address, profile?.barangay, profile?.city, profile?.province, profile?.postalCode].filter(Boolean).join(", ");
 
   return (
@@ -41,11 +47,48 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVer
             Personal &amp; contact
           </h3>
           {verificationLabel && <p className="text-sm text-slate-600">{verificationLabel}</p>}
+          {readState === "reading" && (
+            <p role="status" className="text-sm text-slate-600">
+              Reading bio-data…
+            </p>
+          )}
+          {readState === "failed" && (
+            <p role="alert" className="text-sm text-slate-700">
+              Could not read the bio-data. Enter the details manually or try again.{" "}
+              {onRetryRead && (
+                <button
+                  type="button"
+                  onClick={onRetryRead}
+                  disabled={isRetrying}
+                  className="focus-ring inline-flex min-h-11 items-center font-medium text-navy underline-offset-2 hover:underline disabled:opacity-60 md:min-h-6"
+                >
+                  {isRetrying ? "Trying again…" : "Try again"}
+                </button>
+              )}
+            </p>
+          )}
+          {readState === "suggestions" && onReview && (
+            <p className="text-sm text-slate-700">
+              Suggestions waiting.{" "}
+              <button
+                type="button"
+                onClick={onReview}
+                className="focus-ring inline-flex min-h-11 items-center font-medium text-navy underline-offset-2 hover:underline md:min-h-6"
+              >
+                Review
+              </button>
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {onReview && (
             <Button variant="outline" size="sm" type="button" onClick={onReview} title="Check the details against the resume and mark them verified">
               Review bio-data
+            </Button>
+          )}
+          {onPrint && (
+            <Button variant="outline" size="sm" type="button" onClick={onPrint} title="Preview and print the standard resume">
+              Print resume
             </Button>
           )}
           <Button variant="outline" size="sm" type="button" onClick={onVerify} aria-label="Verify Profile Details" title="Check these details against the resume and correct them">
