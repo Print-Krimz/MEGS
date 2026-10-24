@@ -23,6 +23,9 @@ export const fetchOpenJobs = async (filters?: ApplicantJobFilters & { page?: num
       { description: { contains: term, mode: "insensitive" } },
       { requirements: { contains: term, mode: "insensitive" } },
       { location: { contains: term, mode: "insensitive" } },
+      // The landing page's "Hiring now" chips search by company, so the client's names must match too.
+      { mrf: { client: { name: { contains: term, mode: "insensitive" } } } },
+      { mrf: { client: { tradeName: { contains: term, mode: "insensitive" } } } },
     ];
   }
 
