@@ -999,8 +999,7 @@ export const setupAccount = async (token: string, newPassword: string) => {
 
 const CLAIM_SESSION_MS = 15 * 60 * 1000;
 const CLAIM_COOLDOWN_MS = 60 * 1000;
-const CLAIM_GENERIC_START_MESSAGE =
-  "If a walk-in profile exists for this mobile number, a verification code has been sent by SMS.";
+const CLAIM_START_MESSAGE = "A verification code has been sent by SMS.";
 const CLAIM_BAD_CODE = "Invalid or expired verification code. Please request a new one.";
 const CLAIM_BAD_SESSION = "This claim session has expired. Please start again.";
 
@@ -1059,7 +1058,7 @@ const findClaimSession = async (claimToken: string) => {
   return { row, user };
 };
 
-/** Step 1. A number with an active account says so, so the applicant logs in instead of waiting for a text. */
+/** Step 1. Says plainly why no code is sent, so the applicant is never left waiting on a text that will not come. */
 export const startAccountClaim = async (phone: string) => {
   const phoneE164 = normalizeToE164(phone);
   const user = await findClaimableUser(phoneE164);
@@ -1068,17 +1067,16 @@ export const startAccountClaim = async (phone: string) => {
     if (existing?.role === "APPLICANT" && existing.accountStatus === "ACTIVE") {
       throw new ClaimError("This mobile number already has an account. Log in instead, or use Forgot password.", 409);
     }
+    throw new ClaimError("No MEGS office account was found for this mobile number. Check the number, or ask the recruiter who encoded your application.", 404);
   }
-  if (user) {
-    const code = await issueClaimOtp(user.email, "ACCOUNT_CLAIM");
-    if (code) {
-      if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
-        console.log(`[DEV OTP] ACCOUNT_CLAIM SMS code generated for ${maskPhoneNumber(phoneE164)}: ${code}`);
-      }
-      await sendSmsViaTextBee(phoneE164, `Your MEGS verification code is ${code}. Valid for 10 minutes.`);
-    }
+  const code = await issueClaimOtp(user.email, "ACCOUNT_CLAIM");
+  if (!code) throw new ClaimError("A code was sent less than a minute ago. Please wait before requesting another.", 429);
+  if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+    console.log(`[DEV OTP] ACCOUNT_CLAIM SMS code generated for ${maskPhoneNumber(phoneE164)}: ${code}`);
   }
-  return { message: CLAIM_GENERIC_START_MESSAGE };
+  const sent = await sendSmsViaTextBee(phoneE164, `Your MEGS verification code is ${code}. Valid for 10 minutes.`);
+  if (!sent.success) throw new ClaimError("We could not send the SMS code right now. Please try again in a few minutes.", 502);
+  return { message: CLAIM_START_MESSAGE };
 };
 
 /** Step 2. Trades the SMS code for a claim token that lasts 15 minutes. */

@@ -198,8 +198,7 @@ export const ClaimAccountPage: React.FC = () => {
           title="Enter the SMS code"
           description={
             <>
-              If a MEGS office set up an account for {maskPhone(phone.trim()) || "this number"}, we sent a 6-digit code
-              by SMS.
+              We sent a 6-digit code by SMS to {maskPhone(phone.trim()) || "this number"}.
             </>
           }
         />
