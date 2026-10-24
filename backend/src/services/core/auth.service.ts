@@ -1075,7 +1075,7 @@ export const startAccountClaim = async (phone: string) => {
     console.log(`[DEV OTP] ACCOUNT_CLAIM SMS code generated for ${maskPhoneNumber(phoneE164)}: ${code}`);
   }
   const sent = await sendSmsViaTextBee(phoneE164, `Your MEGS verification code is ${code}. Valid for 10 minutes.`);
-  if (!sent.success) throw new ClaimError("We could not send the SMS code right now. Please try again in a few minutes.", 502);
+  if (!sent.success) throw new ClaimError("We could not send the SMS code right now. Please try again in a few minutes.", 424);
   return { message: CLAIM_START_MESSAGE };
 };
 
