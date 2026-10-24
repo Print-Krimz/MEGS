@@ -1059,10 +1059,16 @@ const findClaimSession = async (claimToken: string) => {
   return { row, user };
 };
 
-/** Step 1. Always answers the same way so nobody can probe which numbers have a walk-in profile. */
+/** Step 1. A number with an active account says so, so the applicant logs in instead of waiting for a text. */
 export const startAccountClaim = async (phone: string) => {
   const phoneE164 = normalizeToE164(phone);
   const user = await findClaimableUser(phoneE164);
+  if (!user) {
+    const existing = await prisma.user.findUnique({ where: { phoneNumber: phoneE164 }, select: { role: true, accountStatus: true } });
+    if (existing?.role === "APPLICANT" && existing.accountStatus === "ACTIVE") {
+      throw new ClaimError("This mobile number already has an account. Log in instead, or use Forgot password.", 409);
+    }
+  }
   if (user) {
     const code = await issueClaimOtp(user.email, "ACCOUNT_CLAIM");
     if (code) {
