@@ -35,10 +35,12 @@ const REVEAL_START = {
 
 /*
  * Collage geometry, as a share of the collage width W (aspect 11:8, so its height is 0.727W):
- *   lead         62% wide, 3:2  -> top left,     height 0.413W
- *   retail       42% wide, 2:3  -> top right,    height 0.630W, overlaps the lead by 4%
- *   hospitality  54% wide, 3:2  -> bottom left,  height 0.360W, overlaps the lead by 0.046W
- * Overlaps and gaps are all about 4% of W, so the stagger reads as deliberate.
+ *   lead         58% wide, 16:10 -> top left, height 0.363W
+ *   retail       44% wide, 5:6   -> flush right, 0.10W down, height 0.528W, tucked 2% under the lead
+ *   hospitality  50% wide, 5:4   -> bottom, 4% in from the left, height 0.400W, overlaps the lead by 0.04W
+ *                and sits 2% clear of retail; its crop anchors left so the server and the table stay in frame
+ * The tiles carry near-equal areas (0.20-0.23 W^2) so no industry dominates, and the cluster is flush
+ * with both edges of the hiring card below.
  */
 const buildPhotos = (): ShowcasePhoto[] => {
   const real = megsPhoto("hero");
@@ -49,34 +51,34 @@ const buildPhotos = (): ShowcasePhoto[] => {
       alt: real ? real.alt : "Forklift beside tall pallet racking in a warehouse",
       src: real?.src,
       stockBase: real ? undefined : "/images/canva-ref/industries/warehousing",
-      box: "left-0 top-0 z-10 w-[62%] aspect-[3/2]",
+      box: "left-0 top-0 z-10 w-[58%] aspect-[16/10]",
       objectPosition: "35% 60%",
       reveal: REVEAL_START.left,
       delay: 0.12,
       eager: true,
-      sizes: "(min-width: 1024px) 300px, (min-width: 768px) 30vw, 62vw",
+      sizes: "(min-width: 1024px) 280px, (min-width: 768px) 28vw, 58vw",
     },
     {
       id: "retail",
       label: "Retail",
-      alt: "Shopper walking down a supermarket aisle",
-      stockBase: "/images/canva-ref/industries/retail",
-      box: "right-0 top-0 z-20 w-[42%] aspect-[2/3]",
-      objectPosition: "58% 50%",
+      alt: "Store worker stocking supermarket shelves",
+      stockBase: "/images/stock/industries/retail",
+      box: "right-0 top-[14%] z-20 w-[44%] aspect-[5/6]",
+      objectPosition: "4% 50%",
       reveal: REVEAL_START.bottom,
       delay: 0.22,
-      sizes: "(min-width: 1024px) 200px, (min-width: 768px) 16vw, 42vw",
+      sizes: "(min-width: 1024px) 220px, (min-width: 768px) 18vw, 44vw",
     },
     {
       id: "hospitality",
-      label: "Hotel & restaurant",
-      alt: "Dishes and drinks on a restaurant table",
-      stockBase: "/images/canva-ref/industries/hospitality",
-      box: "bottom-0 left-0 z-20 w-[54%] aspect-[3/2]",
-      objectPosition: "50% 45%",
+      label: "Hotel & Restaurant",
+      alt: "Waitress in an apron serving a dish at a restaurant table",
+      stockBase: "/images/stock/industries/hospitality",
+      box: "bottom-0 left-[4%] z-30 w-[50%] aspect-[5/4]",
+      objectPosition: "0% 50%",
       reveal: REVEAL_START.left,
       delay: 0.32,
-      sizes: "(min-width: 1024px) 260px, (min-width: 768px) 24vw, 54vw",
+      sizes: "(min-width: 1024px) 250px, (min-width: 768px) 24vw, 50vw",
     },
   ];
 };
@@ -160,17 +162,18 @@ const HiringCard: React.FC<{ onFindJobs: () => void }> = ({ onFindJobs }) => {
     </button>
   );
 
+  // No list to show (request failed or nothing published): keep the card calm and point to the full job board.
   if (!isLoading && !ready) {
     return (
-      <>
-        <h2 id="hero-hiring-title" className="font-display text-2xl leading-none">
-          Now hiring
-        </h2>
-        <p className="mt-3 text-sm leading-relaxed text-white/80">
-          {isError ? "Current openings did not load. You can still browse them after signing in." : "No positions are open right now. Check back soon."}
-        </p>
-        <div className="mt-4">{viewAll}</div>
-      </>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div className="flex min-h-16 flex-col justify-center">
+          <h2 id="hero-hiring-title" className="font-display text-lg leading-none">
+            Now hiring
+          </h2>
+          <p className="mt-2 font-display text-2xl leading-tight">Explore current opportunities</p>
+        </div>
+        {viewAll}
+      </div>
     );
   }
 
@@ -296,11 +299,12 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({ onFindJobs }) => {
                   animate={reduceMotion ? undefined : { scale: 1 }}
                   transition={{ duration: 0.8, ease: EASE_OUT, delay: photo.delay }}
                   style={{ objectPosition: photo.objectPosition }}
-                  className="size-full object-cover"
+                  // One shared grade so photos from different sources read as a set.
+                  className="size-full object-cover [filter:saturate(0.9)_contrast(1.04)_brightness(1.02)]"
                 />
               </div>
               {photo.label && (
-                <span className="absolute left-2 top-2 rounded-md bg-background px-2 py-1 text-xs font-semibold leading-none text-secondary">
+                <span className="absolute left-3 top-3 rounded-md bg-background px-2.5 py-1.5 text-xs font-semibold leading-none text-secondary">
                   {photo.label}
                 </span>
               )}
@@ -317,7 +321,7 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({ onFindJobs }) => {
         >
           <section
             aria-labelledby="hero-hiring-title"
-            className="relative isolate overflow-hidden rounded-lg bg-megs-navy-900 p-5 text-white transition-transform duration-200 ease-out hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+            className="relative isolate overflow-hidden rounded-lg bg-megs-navy-900 p-6 text-white transition-transform sm:p-7 duration-200 ease-out hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
           >
             <span aria-hidden="true" className="absolute inset-x-0 top-0 z-10 h-1 bg-primary" />
             <div className="relative pt-1">

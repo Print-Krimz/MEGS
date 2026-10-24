@@ -28,6 +28,8 @@ These are not MEGS photos. Their alt text describes only what they show. Replace
 | :--- | :--- | :--- | :--- | :--- |
 | Manufacturing | `public/images/stock/industries/manufacturing-{480,800}.webp` | https://unsplash.com/photos/KP6XQIEjjPA | Remy Gieling | [Unsplash License](https://unsplash.com/license): free for commercial use, no attribution required |
 | Logistics | `public/images/stock/industries/logistics-{480,800}.webp` | https://www.pexels.com/photo/driver-and-truck-11114134/ | Tony Mrst | [Pexels License](https://www.pexels.com/license/): free for commercial use, no attribution required |
+| Retail (hero) | `public/images/stock/industries/retail-{480,800}.webp` | https://www.pexels.com/photo/grocery-store-worker-stocking-shelves-with-vegetables-40240972/ | Khaya Motsa | [Pexels License](https://www.pexels.com/license/): free for commercial use, no attribution required |
+| Hotel & Restaurant (hero) | `public/images/stock/industries/hospitality-{480,800}.webp` | https://www.pexels.com/photo/smiling-waitress-serving-food-to-customer-4350081/ | Ketut Subiyanto | [Pexels License](https://www.pexels.com/license/): free for commercial use, no attribution required |
 | Warehousing, Retail, Hotel & restaurant, Gaming | `public/images/canva-ref/industries/*.webp` | MEGS Canva site, https://megsinc.my.canva.site/ | Canva stock | Canva content licence of the MEGS Canva account |
 
 Both free photos were downloaded on 2026-10-22, cropped to 3:2 and saved as WebP.
