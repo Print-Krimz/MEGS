@@ -16,6 +16,7 @@ import {
   getContractPdf,
   recordSignedContract,
 } from '../../services/ta/ta.applications.service.js';
+import { isPhilippinePhone, normalizeToE164, normalizeToLocal, phoneVariants, toSyntheticEmail } from '../../utils/sms.js';
 import { findDuplicateIdentifierWarnings } from '../../services/ta/duplicate-identifiers.js';
 import { revalidateApplicantProfile } from '../../services/scoring/scoring-configuration.service.js';
 import {
@@ -305,6 +306,7 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
 
     const updateData: Record<string, any> = {};
     const changes: Record<string, { from: any; to: any }> = {};
+    let walkInPhone: { userId: string; phoneNumber: string | null } | null = null;
 
     if (firstName !== undefined) {
       if (typeof firstName !== "string" || firstName.trim() === "") {
@@ -347,9 +349,37 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
           return;
         }
       }
-      if (profile.mobileNumber !== val) {
-        changes.mobileNumber = { from: profile.mobileNumber, to: val };
-        updateData.mobileNumber = val;
+      let nextMobile = val;
+      // An unclaimed walk-in account is found by User.phoneNumber, so the number TA verifies must reach it too.
+      // Claimed accounts keep their login number: changing it needs the applicant's own OTP.
+      const owner = await prisma.user.findUnique({
+        where: { id: profile.userId },
+        select: { id: true, role: true, accountStatus: true, phoneNumber: true },
+      });
+      if (owner?.role === "APPLICANT" && owner.accountStatus === "WALK_IN") {
+        if (val && !isPhilippinePhone(val)) {
+          sendError(res, "Enter a valid Philippine mobile number", 400);
+          return;
+        }
+        nextMobile = val ? normalizeToLocal(val) : null;
+        const nextE164 = nextMobile ? normalizeToE164(nextMobile) : null;
+        if (nextE164) {
+          const taken = await prisma.user.findFirst({
+            where: { id: { not: owner.id }, OR: [{ phoneNumber: { in: phoneVariants(nextE164) } }, { email: toSyntheticEmail(nextE164) }] },
+            select: { id: true },
+          });
+          if (taken) {
+            sendError(res, "This mobile number already belongs to another applicant.", 409);
+            return;
+          }
+        }
+        walkInPhone = { userId: owner.id, phoneNumber: nextE164 };
+      }
+      // A walk-in whose profile already matches still saves when the account number has drifted.
+      const accountDrifted = walkInPhone !== null && walkInPhone.phoneNumber !== owner?.phoneNumber;
+      if (profile.mobileNumber !== nextMobile || accountDrifted) {
+        changes.mobileNumber = { from: profile.mobileNumber, to: nextMobile };
+        updateData.mobileNumber = nextMobile;
       }
     }
 
@@ -533,6 +563,9 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
           sections.educations = await applyEducations(tx, profile.id, Array.isArray(educations) ? educations : [], removeEducation);
         }
         if (Array.isArray(skills)) sections.skills = await replaceSkills(tx, profile.id, skills);
+        if (walkInPhone && "mobileNumber" in updateData) {
+          await tx.user.update({ where: { id: walkInPhone.userId }, data: { phoneNumber: walkInPhone.phoneNumber } });
+        }
         return tx.applicantProfile.update({ where: { id: profile.id }, data: updateData });
       }, { timeout: 20000, maxWait: 10000 });
     } catch (txError: any) {

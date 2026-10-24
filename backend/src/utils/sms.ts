@@ -36,6 +36,12 @@ export const normalizeToLocal = (val: string): string => {
   return e164;
 };
 
+/** Every spelling a stored number may take: +639…, 09… and 639…. */
+export const phoneVariants = (phone: string): string[] => {
+  const e164 = normalizeToE164(phone);
+  return [...new Set([e164, normalizeToLocal(e164), e164.replace(/^\+/, "")])];
+};
+
 export const SYNTHETIC_EMAIL_DOMAIN = "applicant.megs.local";
 
 export const toSyntheticEmail = (phoneE164: string): string => {

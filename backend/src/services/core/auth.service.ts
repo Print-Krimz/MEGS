@@ -27,6 +27,7 @@ import {
   fromSyntheticEmail,
   sendSmsViaTextBee,
   maskPhoneNumber,
+  phoneVariants,
 } from '../../utils/sms.js';
 import { ensureApplicantProfile } from '../applicant/applicant.service.js';
 import { isActiveAccount, isMfaEnforced } from '../../security/auth-policy.js';
@@ -1004,7 +1005,7 @@ const CLAIM_BAD_CODE = "Invalid or expired verification code. Please request a n
 const CLAIM_BAD_SESSION = "This claim session has expired. Please start again.";
 
 const findClaimableUser = async (phoneE164: string) => {
-  const user = await prisma.user.findUnique({ where: { phoneNumber: phoneE164 } });
+  const user = await prisma.user.findFirst({ where: { phoneNumber: { in: phoneVariants(phoneE164) } } });
   return user && user.isActive && user.role === "APPLICANT" && user.accountStatus === "WALK_IN" ? user : null;
 };
 
@@ -1063,7 +1064,7 @@ export const startAccountClaim = async (phone: string) => {
   const phoneE164 = normalizeToE164(phone);
   const user = await findClaimableUser(phoneE164);
   if (!user) {
-    const existing = await prisma.user.findUnique({ where: { phoneNumber: phoneE164 }, select: { role: true, accountStatus: true } });
+    const existing = await prisma.user.findFirst({ where: { phoneNumber: { in: phoneVariants(phoneE164) } }, select: { role: true, accountStatus: true } });
     if (existing?.role === "APPLICANT" && existing.accountStatus === "ACTIVE") {
       throw new ClaimError("This mobile number already has an account. Log in instead, or use Forgot password.", 409);
     }

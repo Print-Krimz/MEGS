@@ -8,7 +8,7 @@ import { logAudit } from "../../utils/audit.js";
 import { safeLogError } from "../../security/errors.js";
 import { enqueueResumeAnalysis, trackFitRevalidation } from "../../workers/resume.worker.js";
 import { revalidateApplication } from "../scoring/scoring-configuration.service.js";
-import { isPhilippinePhone, maskPhoneNumber, normalizeToE164, normalizeToLocal, toSyntheticEmail } from "../../utils/sms.js";
+import { isPhilippinePhone, maskPhoneNumber, normalizeToE164, normalizeToLocal, phoneVariants, toSyntheticEmail } from "../../utils/sms.js";
 import { parseManilaDateOnly } from "../../schemas/field-limits.js";
 import { assertOwns, type Actor } from "./ownership.js";
 import { getWalkInRead } from "./walk-in-read-cache.js";
@@ -43,11 +43,6 @@ export const buildSyntheticWalkInEmail = (phoneE164: string | null): string =>
 /** Lowercase, accents removed, extra spaces collapsed. */
 export const normalizeName = (value: string | null | undefined): string =>
   (value ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
-
-const phoneVariants = (phone: string): string[] => {
-  const e164 = normalizeToE164(phone);
-  return [...new Set([e164, normalizeToLocal(e164), e164.replace(/^\+/, "")])];
-};
 
 const fullName = (p: { firstName: string; middleName?: string | null; lastName: string } | null | undefined): string =>
   p ? [p.firstName, p.middleName, p.lastName].filter(Boolean).join(" ") : "";
