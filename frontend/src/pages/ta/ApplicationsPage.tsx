@@ -958,7 +958,7 @@ export const ApplicationsPage: React.FC = () => {
         count={selectedRows.length}
         onClear={selection.clear}
         note={totalItems > applications.length ? `on this page (${totalItems} in the list)` : undefined}
-        emptyHint="No action fits all the selected records. Select records in the same stage."
+        emptyHint="No action fits this mix. Select open records to reject, closed ones to archive, or archived ones to restore."
       >
         {bulkActions.length > 0 &&
           bulkActions.map(({ action, label, variant }) => (
@@ -997,6 +997,8 @@ export const ApplicationsPage: React.FC = () => {
             selectedIds: selection.selectedIds,
             onChange: selection.setSelectedIds,
             rowLabel: (app) => `Select ${candidateNameOf(app)}`,
+            // No bulk action applies to a deployed worker, so select all skips them.
+            isRowSelectable: (app) => Boolean(app.isArchived) || app.status !== ApplicationStatus.DEPLOYED,
           }}
           empty={
             <EmptyState
