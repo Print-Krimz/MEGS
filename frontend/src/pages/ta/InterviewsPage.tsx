@@ -12,6 +12,8 @@ import {
   DataTable,
   FilterTile,
   FilterTileRow,
+  BulkActionBar,
+  BulkResultDialog,
   type DataTableColumn,
   type DataTableSort,
 } from "../../components/common";
@@ -22,6 +24,14 @@ import { formatInterviewDeadlineStatus, TA_COPY } from "../../lib/ta-copy";
 import { notify } from "../../lib/feedback";
 import { SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { useRowSelection } from "../../hooks/useRowSelection";
+import { PoolSelectAll } from "../../components/ta/PoolSelectAll";
+import {
+  BulkInterviewDialog,
+  bulkInterviewTitle,
+  type BulkInterviewAction,
+} from "../../components/ta/BulkInterviewDialog";
+import type { BulkSummary } from "../../lib/types/application.types";
 import {
   InterviewOutcomeDialog,
   interviewOutcomeNextStep,
@@ -138,6 +148,41 @@ export const InterviewsPage: React.FC = () => {
   const paginatedItems = (slaData?.items ?? []) as InterviewRow[];
   const totalItems = slaData?.total ?? 0;
   const totalPages = Math.max(1, slaData?.totalPages ?? 1);
+
+  // Bulk outcomes. Selection is dropped whenever the visible list changes (filters, page, sort, view).
+  const selection = useRowSelection(
+    JSON.stringify([view, page, pageSize, debouncedSearch, statusFilter, stageFilter, positionFilter, sortField, sortDirection])
+  );
+  const selectedRows = paginatedItems.filter((row) => selection.selectedIds.has(String(row.interviewId)));
+  const [bulkAction, setBulkAction] = useState<BulkInterviewAction | null>(null);
+  const [bulkResult, setBulkResult] = useState<{ title: string; summary: BulkSummary; names: Record<number, string> } | null>(null);
+  // Passed means different things for a screening and a client review, so one stage at a time.
+  const bulkStages = new Set(selectedRows.map((row) => row.currentStage));
+  const bulkIsFinal = bulkStages.size === 1 && bulkStages.has("FINAL_INTERVIEW");
+
+  const bulkMutation = useMutation({
+    mutationFn: ({ action, rows, notes }: { action: BulkInterviewAction; rows: InterviewRow[]; notes?: string }) =>
+      taApi.bulkRecordInterviews({
+        items: rows.map((row) => ({ applicationId: row.applicationId, interviewId: row.interviewId })),
+        result: action,
+        notes,
+      }),
+    onSuccess: (summary, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["applicant"] });
+      // Only interviews that went through leave the selection, so the failed ones can be reviewed.
+      selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
+      setBulkAction(null);
+      const title = bulkInterviewTitle(vars.action, bulkIsFinal);
+      // Names are kept now: finished interviews leave the list when it refreshes.
+      if (summary.failed > 0 || summary.results.some((row) => row.reason)) {
+        setBulkResult({ title, summary, names: Object.fromEntries(vars.rows.map((row) => [row.interviewId, row.candidateName])) });
+      } else notify.success(title, `${summary.succeeded} ${summary.succeeded === 1 ? "interview" : "interviews"} recorded.`);
+    },
+    onError: (err: any) => notify.error("Unable to record the outcomes", err),
+  });
 
   const positionOptions = (slaData?.positions ?? []).map((title) => ({ value: title, label: title }));
 
@@ -357,7 +402,33 @@ export const InterviewsPage: React.FC = () => {
             <div className="rounded-md border border-slate-300 bg-white">{emptyState}</div>
           ) : (
             <>
-              <InterviewAgenda rows={paginatedItems} onRecord={setTargetInterview} />
+              <PoolSelectAll
+                total={paginatedItems.length}
+                selected={selectedRows.length}
+                noun="interviews"
+                onToggle={() =>
+                  selection.setSelectedIds(
+                    selectedRows.length === paginatedItems.length
+                      ? new Set()
+                      : new Set(paginatedItems.map((row) => String(row.interviewId)))
+                  )
+                }
+              />
+              <InterviewAgenda
+                rows={paginatedItems}
+                onRecord={setTargetInterview}
+                selection={{
+                  selectedIds: selection.selectedIds,
+                  onToggle: (interviewId) =>
+                    selection.setSelectedIds((current) => {
+                      const next = new Set(current);
+                      const key = String(interviewId);
+                      if (next.has(key)) next.delete(key);
+                      else next.add(key);
+                      return next;
+                    }),
+                }}
+              />
               {totalItems > paginatedItems.length && (
                 <p className="text-sm text-slate-600">
                   Showing the {paginatedItems.length} most urgent of {totalItems} interviews. Narrow the search or switch to Table to see the rest.
@@ -375,6 +446,11 @@ export const InterviewsPage: React.FC = () => {
             sort={{ key: sortField, direction: sortDirection }}
             onSortChange={handleSort}
             isFetching={slaQuery.isFetching}
+            selection={{
+              selectedIds: selection.selectedIds,
+              onChange: selection.setSelectedIds,
+              rowLabel: (row) => `Select ${row.candidateName}`,
+            }}
             empty={
               summary.total === 0 ? (
                 <EmptyState bare title="No interviews waiting for an outcome" />
@@ -404,7 +480,40 @@ export const InterviewsPage: React.FC = () => {
             }
           />
         )}
+
+        <BulkActionBar
+          count={selectedRows.length}
+          onClear={selection.clear}
+          emptyHint="Select interviews of the same type: initial screening or final interview."
+        >
+          {bulkStages.size === 1 && (
+            <>
+              <Button size="sm" onClick={() => setBulkAction("PASS")}>
+                {bulkIsFinal ? "Passed (client approved)" : "Passed"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setBulkAction("NO_SHOW")}>
+                No show
+              </Button>
+            </>
+          )}
+        </BulkActionBar>
       </section>
+
+      <BulkInterviewDialog
+        action={bulkAction}
+        count={selectedRows.length}
+        isFinalInterview={bulkIsFinal}
+        loading={bulkMutation.isPending}
+        onClose={() => setBulkAction(null)}
+        onSubmit={(notes) => bulkAction && bulkMutation.mutate({ action: bulkAction, rows: selectedRows, notes })}
+      />
+      <BulkResultDialog
+        open={Boolean(bulkResult)}
+        onClose={() => setBulkResult(null)}
+        title={bulkResult?.title ?? ""}
+        summary={bulkResult?.summary ?? null}
+        labelFor={(id) => bulkResult?.names[id] ?? `Interview ${id}`}
+      />
 
       <InterviewOutcomeDialog
         open={Boolean(targetInterview)}

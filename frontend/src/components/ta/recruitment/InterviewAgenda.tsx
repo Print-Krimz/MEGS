@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "../../ui";
+import { SelectBox } from "../../common/SelectBox";
 import { formatDate } from "../../../lib/utils";
 import { formatInterviewDeadlineStatus, TA_COPY } from "../../../lib/ta-copy";
 
@@ -40,13 +41,20 @@ const formatTime = (iso: string) => {
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" }).format(date);
 };
 
+export interface AgendaSelection {
+  selectedIds: ReadonlySet<string>;
+  onToggle: (interviewId: number) => void;
+}
+
 interface InterviewAgendaProps {
   rows: AgendaInterview[];
   onRecord: (row: AgendaInterview) => void;
+  /** Adds a checkbox to each row for bulk actions. */
+  selection?: AgendaSelection;
 }
 
 /** Interviews awaiting an outcome, grouped by their deadline status (same as the chips and tiles). Only the first overdue row is a solid button. */
-export const InterviewAgenda: React.FC<InterviewAgendaProps> = ({ rows, onRecord }) => {
+export const InterviewAgenda: React.FC<InterviewAgendaProps> = ({ rows, onRecord, selection }) => {
   const byDeadline = (a: AgendaInterview, b: AgendaInterview) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
   const groups = BUCKET_ORDER.map((bucket) => ({
     bucket,
@@ -64,10 +72,15 @@ export const InterviewAgenda: React.FC<InterviewAgendaProps> = ({ rows, onRecord
           </h3>
           <ul className="divide-y divide-slate-200 rounded-md border border-slate-300 bg-white">
             {items.map((row) => (
-              <li
-                key={row.interviewId}
-                className="grid gap-x-4 gap-y-1 px-4 py-2.5 md:grid-cols-[8.5rem_minmax(0,1.2fr)_minmax(0,1fr)_16rem_9.5rem] md:items-center"
-              >
+              <li key={row.interviewId} className={selection ? "flex items-start gap-1 pl-2 md:items-center" : undefined}>
+                {selection && (
+                  <SelectBox
+                    checked={selection.selectedIds.has(String(row.interviewId))}
+                    label={`Select ${row.candidateName}`}
+                    onChange={() => selection.onToggle(row.interviewId)}
+                  />
+                )}
+                <div className="grid min-w-0 flex-1 gap-x-4 gap-y-1 px-4 py-2.5 md:grid-cols-[8.5rem_minmax(0,1.2fr)_minmax(0,1fr)_16rem_9.5rem] md:items-center">
                 <time dateTime={row.scheduledAt} className="text-sm tabular-nums text-slate-700">
                   <span className="block font-medium text-slate-900">{formatDate(row.scheduledAt)}</span>
                   <span className="text-xs text-slate-600">{formatTime(row.scheduledAt)}</span>
@@ -103,6 +116,7 @@ export const InterviewAgenda: React.FC<InterviewAgendaProps> = ({ rows, onRecord
                 >
                   {TA_COPY.interviews.recordOutcome}
                 </Button>
+                </div>
               </li>
             ))}
           </ul>

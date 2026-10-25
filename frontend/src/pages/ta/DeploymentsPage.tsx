@@ -14,6 +14,8 @@ import {
   ActionMenuItem,
   DataTable,
   DataTableColumn,
+  BulkActionBar,
+  BulkResultDialog,
 } from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
 import { cn, formatDate, getDeploymentStatusMeta } from "../../lib/utils";
@@ -27,6 +29,13 @@ import { PersonCell, StatusWithAge, WorkforceCard } from "../../components/ta/wo
 import { getManilaToday } from "../../lib/field-limits";
 import { SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { useRowSelection } from "../../hooks/useRowSelection";
+import {
+  BulkDeploymentDialog,
+  type BulkDeploymentAction,
+  type BulkDeploymentSubmission,
+} from "../../components/ta/BulkDeploymentDialog";
+import type { BulkSummary } from "../../lib/types/application.types";
 
 export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: string }> = ({ hideHeader = false, initialSearch = "" }) => {
   const navigate = useNavigate();
@@ -83,6 +92,49 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
   const totalItems = deploymentsQuery.data?.total ?? 0;
   const totalPages = Math.max(1, deploymentsQuery.data?.totalPages ?? 1);
 
+  type DeploymentRow = (typeof paginatedDeployments)[0];
+
+  const employeeNameOf = (dep: DeploymentRow) => {
+    const profile = dep.employee?.user?.applicantProfile;
+    return profile ? `${profile.firstName} ${profile.lastName}` : dep.employee?.employeeNumber || "Employee";
+  };
+
+  // The first working date for a worker: their own contract start unless it has already passed.
+  const ownStartDate = (dep: DeploymentRow) =>
+    dep.contractStart && dep.contractStart.slice(0, 10) >= getManilaToday() ? dep.contractStart.slice(0, 10) : getManilaToday();
+
+  // Bulk actions. Selection is dropped whenever the visible list changes.
+  const selection = useRowSelection(JSON.stringify([page, pageSize, debouncedSearch, filterValues]));
+  const selectedRows = paginatedDeployments.filter((dep) => selection.selectedIds.has(String(dep.id)));
+  const [bulkAction, setBulkAction] = useState<BulkDeploymentAction | null>(null);
+  const [bulkResult, setBulkResult] = useState<{ title: string; summary: BulkSummary; names: Record<number, string> } | null>(null);
+  const canBulkStart = selectedRows.length > 0 && selectedRows.every((dep) => dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT);
+  const canBulkCheckIn = selectedRows.length > 0 && selectedRows.every((dep) => dep.status === DeploymentStatus.ACTIVE);
+
+  const bulkMutation = useMutation({
+    mutationFn: ({ action, rows, data }: { action: BulkDeploymentAction; rows: DeploymentRow[]; data: BulkDeploymentSubmission }) =>
+      action === "start"
+        ? taApi.bulkConfirmDeploymentStart({
+            items: rows.map((dep) => ({ id: dep.id, actualStart: data.startMode === "same" ? data.date : ownStartDate(dep) })),
+            notes: data.notes,
+          })
+        : taApi.bulkRecordDeploymentCheckIns({ ids: rows.map((dep) => dep.id), nextReviewAt: data.date, notes: data.notes }),
+    onSuccess: (summary, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "deployment"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
+      setBulkAction(null);
+      const title = vars.action === "start" ? "Confirm site start" : "Record check-in";
+      if (summary.failed > 0) {
+        setBulkResult({ title, summary, names: Object.fromEntries(vars.rows.map((dep) => [dep.id, employeeNameOf(dep)])) });
+      } else {
+        notify.success(title, `${summary.succeeded} ${summary.succeeded === 1 ? "deployment" : "deployments"} updated.`);
+      }
+    },
+    onError: (err: any) => notify.error("Unable to complete the bulk action", err),
+  });
+
   // A refresh can leave the current page past the end (for example after an assignment ends).
   useEffect(() => {
     if (deploymentsQuery.data && !deploymentsQuery.isPlaceholderData && page > totalPages) setPage(totalPages);
@@ -104,23 +156,12 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
     setPage(1);
   };
 
-  type DeploymentRow = (typeof paginatedDeployments)[0];
-
-  const employeeNameOf = (dep: DeploymentRow) => {
-    const profile = dep.employee?.user?.applicantProfile;
-    return profile ? `${profile.firstName} ${profile.lastName}` : dep.employee?.employeeNumber || "Employee";
-  };
-
   const detailHref = (dep: DeploymentRow) => `/ta/deployments/${dep.id}`;
 
   const openConfirmStart = (dep: DeploymentRow) => {
     setStatusModalDeployment({ id: dep.id, currentStatus: dep.status });
     setNewStatus(DeploymentStatus.ACTIVE);
-    const defaultStart =
-      dep.contractStart && dep.contractStart.slice(0, 10) >= getManilaToday()
-        ? dep.contractStart.slice(0, 10)
-        : getManilaToday();
-    setActualStart(defaultStart);
+    setActualStart(ownStartDate(dep));
   };
 
   const renderRowActions = (dep: DeploymentRow, employeeName: string, fullWidth = false) => {
@@ -313,6 +354,13 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
           cardsBelow="md"
           density="compact"
           isFetching={deploymentsQuery.isFetching}
+          selection={{
+            selectedIds: selection.selectedIds,
+            onChange: selection.setSelectedIds,
+            rowLabel: (dep) => `Select ${employeeNameOf(dep)}`,
+            isRowSelectable: (dep) =>
+              dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT || dep.status === DeploymentStatus.ACTIVE,
+          }}
           empty={
             <EmptyState
               bare
@@ -355,6 +403,37 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
           }
         />
       )}
+
+      <BulkActionBar
+        count={selectedRows.length}
+        onClear={selection.clear}
+        emptyHint="Select deployments that are all ready to start, or all active."
+      >
+        {canBulkStart && (
+          <Button size="sm" onClick={() => setBulkAction("start")}>
+            Confirm start
+          </Button>
+        )}
+        {canBulkCheckIn && (
+          <Button size="sm" onClick={() => setBulkAction("checkin")}>
+            Record check-in
+          </Button>
+        )}
+      </BulkActionBar>
+      <BulkDeploymentDialog
+        action={bulkAction}
+        count={selectedRows.length}
+        loading={bulkMutation.isPending}
+        onClose={() => setBulkAction(null)}
+        onSubmit={(data) => bulkAction && bulkMutation.mutate({ action: bulkAction, rows: selectedRows, data })}
+      />
+      <BulkResultDialog
+        open={Boolean(bulkResult)}
+        onClose={() => setBulkResult(null)}
+        title={bulkResult?.title ?? ""}
+        summary={bulkResult?.summary ?? null}
+        labelFor={(id) => bulkResult?.names[id] ?? `Deployment ${id}`}
+      />
 
       {/* Update Deployment Status Modal */}
       <Dialog

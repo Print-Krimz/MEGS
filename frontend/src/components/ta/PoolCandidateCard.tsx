@@ -1,6 +1,7 @@
 import React from "react";
 import { PoolMatchNotes, PoolMatchScore } from "./PoolMatchDetails";
 import { formatDate, cn } from "../../lib/utils";
+import { SelectBox } from "../common/SelectBox";
 import type { TalentPoolMatchResult } from "../../lib/types/ta.types";
 
 const AVAILABILITY_LABELS: Record<string, { label: string; className: string }> = {
@@ -21,10 +22,12 @@ export interface PoolCandidateCardProps {
   actions: React.ReactNode;
   maxSkills?: number;
   className?: string;
+  /** Adds a checkbox for bulk actions. Omit it and the card looks as before. */
+  selectable?: { checked: boolean; disabled?: boolean; onChange: () => void };
 }
 
 /** One candidate pool member. Shared by the Candidate pool page and the job opening's pool tab. */
-export const PoolCandidateCard: React.FC<PoolCandidateCardProps> = ({ result, actions, maxSkills = 6, className }) => {
+export const PoolCandidateCard: React.FC<PoolCandidateCardProps> = ({ result, actions, maxSkills = 6, className, selectable }) => {
   const c = result.candidate;
   const place = [c.city, c.province].filter(Boolean).join(", ");
   const details = [c.currentRole, place].filter(Boolean).join(" · ");
@@ -33,7 +36,17 @@ export const PoolCandidateCard: React.FC<PoolCandidateCardProps> = ({ result, ac
     <article className={cn("flex flex-col justify-between gap-3 border border-slate-300 bg-white p-4", className)}>
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+          {selectable && (
+            <div className="-ml-1 -mt-1 shrink-0">
+              <SelectBox
+                checked={selectable.checked}
+                disabled={selectable.disabled}
+                label={`Select ${c.firstName} ${c.lastName}`}
+                onChange={selectable.onChange}
+              />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
             <h4 className="text-sm font-semibold text-slate-900">
               {c.firstName} {c.lastName}
             </h4>

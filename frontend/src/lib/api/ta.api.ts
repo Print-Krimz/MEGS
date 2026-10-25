@@ -11,6 +11,7 @@ import type {
   RecruiterDecision,
   ApplicationSource,
   CheckInDetail,
+  BulkSummary,
   CheckInSummary,
   WalkInBiodataRead,
   WalkInMatch,
@@ -258,6 +259,40 @@ export const taApi = {
 
   restoreApplication: (id: number | string, data: { reason: string }) =>
     api.patch<Application>(`/api/ta/applications/${id}/restore`, data),
+
+  bulkMoveApplications: (data: { ids: number[]; status: "INITIAL_SCREENING" }) =>
+    api.post<BulkSummary>("/api/ta/bulk/applications/status", data),
+
+  bulkRejectApplications: (data: {
+    ids: number[];
+    reasonCode: string;
+    disposition: "TALENT_POOL" | "ARCHIVE";
+    notes?: string;
+  }) => api.post<BulkSummary>("/api/ta/bulk/applications/reject", data),
+
+  bulkArchiveApplications: (data: { ids: number[]; reason: string }) =>
+    api.post<BulkSummary>("/api/ta/bulk/applications/archive", data),
+
+  bulkRestoreApplications: (data: { ids: number[]; reason: string }) =>
+    api.post<BulkSummary>("/api/ta/bulk/applications/restore", data),
+
+  bulkRecordInterviews: (data: {
+    items: { applicationId: number; interviewId: number }[];
+    result: "PASS" | "NO_SHOW";
+    notes?: string;
+  }) => api.post<BulkSummary>("/api/ta/bulk/interviews/result", data),
+
+  bulkDismissCheckIns: (data: { ids: number[]; reason: string }) =>
+    api.post<BulkSummary>("/api/ta/bulk/check-ins/dismiss", data),
+
+  bulkCancelInvitations: (data: { ids: number[] }) =>
+    api.post<BulkSummary>("/api/ta/bulk/invitations/cancel", data),
+
+  bulkConfirmDeploymentStart: (data: { items: { id: number; actualStart: string }[]; notes?: string }) =>
+    api.post<BulkSummary>("/api/ta/bulk/deployments/confirm-start", data),
+
+  bulkRecordDeploymentCheckIns: (data: { ids: number[]; nextReviewAt?: string; notes?: string }) =>
+    api.post<BulkSummary>("/api/ta/bulk/deployments/check-in", data),
 
   getRecruiterDecisions: (id: number | string) =>
     api.get<RecruiterDecision[]>(`/api/ta/applications/${id}/decisions`),

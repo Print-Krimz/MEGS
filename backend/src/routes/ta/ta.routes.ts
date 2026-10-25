@@ -32,6 +32,17 @@ import {
   uploadSignedContractHandler,
   updateCandidateProfileHandler,
 } from '../../controllers/ta/ta.applications.controller.js';
+import {
+  bulkMoveApplicationsHandler,
+  bulkRejectApplicationsHandler,
+  bulkArchiveApplicationsHandler,
+  bulkRestoreApplicationsHandler,
+  bulkRecordInterviewsHandler,
+  bulkDismissCheckInsHandler,
+  bulkCancelInvitationsHandler,
+  bulkConfirmDeploymentStartHandler,
+  bulkRecordDeploymentCheckInsHandler,
+} from '../../controllers/ta/ta.bulk.controller.js';
 import { getCandidateResumeProposalHandler, applyCandidateResumeMergeHandler, reparseCandidateResumeHandler } from '../../controllers/ta/ta.resume.controller.js';
 
 import { analyzeApplication, getAnalysisStatus } from '../../controllers/ta/ta.ai.controller.js';
@@ -214,6 +225,17 @@ router.post("/applications/:id/close", validate(taSchema.closeApplication), requ
 router.patch("/applications/:id/archive", validate(taSchema.archiveRestore), requireOwned("application"), archiveApplication);
 router.patch("/applications/:id/restore", validate(taSchema.archiveRestore), requireOwned("application"), restoreApplication);
 router.get("/applications/:id/decisions", validate(taSchema.idParams), requireOwned("application"), getRecruiterDecisionsHandler);
+
+// Bulk actions. Ids are in the body, so each id is ownership-checked per row inside the service (runBulk).
+router.post("/bulk/applications/status", validate(taSchema.bulkMoveApplications), bulkMoveApplicationsHandler);
+router.post("/bulk/applications/reject", validate(taSchema.bulkRejectApplications), bulkRejectApplicationsHandler);
+router.post("/bulk/applications/archive", validate(taSchema.bulkArchiveRestoreApplications), bulkArchiveApplicationsHandler);
+router.post("/bulk/applications/restore", validate(taSchema.bulkArchiveRestoreApplications), bulkRestoreApplicationsHandler);
+router.post("/bulk/interviews/result", validate(taSchema.bulkRecordInterviews), bulkRecordInterviewsHandler);
+router.post("/bulk/check-ins/dismiss", validate(taSchema.bulkDismissCheckIns), bulkDismissCheckInsHandler);
+router.post("/bulk/invitations/cancel", validate(taSchema.bulkCancelInvitations), bulkCancelInvitationsHandler);
+router.post("/bulk/deployments/confirm-start", validate(taSchema.bulkConfirmDeploymentStart), bulkConfirmDeploymentStartHandler);
+router.post("/bulk/deployments/check-in", validate(taSchema.bulkRecordDeploymentCheckIns), bulkRecordDeploymentCheckInsHandler);
 router.get("/applications/:id/contract/pdf", validate(taSchema.downloadContractPdf), requireOwned("application"), downloadContractPdfHandler);
 router.post("/applications/:id/contract/signed", uploadContractScan.single("file"), validate(taSchema.uploadSignedContract), requireOwned("application"), uploadSignedContractHandler);
 

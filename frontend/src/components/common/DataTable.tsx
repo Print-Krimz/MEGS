@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { SelectBox } from "./SelectBox";
 
 export type SortDirection = "asc" | "desc";
 export interface DataTableSort {
@@ -20,6 +21,15 @@ export interface DataTableColumn<T> {
   hideBelow?: "md" | "lg";
   /** Render the cell as a link to rowHref(row). Defaults to the first column. */
   primary?: boolean;
+}
+
+export interface DataTableSelection<T> {
+  selectedIds: ReadonlySet<string>;
+  onChange: (next: Set<string>) => void;
+  /** Accessible name for a row's checkbox, e.g. "Select Ana Cruz". */
+  rowLabel: (row: T) => string;
+  /** Rows that return false get a disabled checkbox and are skipped by select all. */
+  isRowSelectable?: (row: T) => boolean;
 }
 
 export interface DataTableProps<T> {
@@ -41,6 +51,8 @@ export interface DataTableProps<T> {
   density?: "comfortable" | "compact";
   /** Keep the header row visible while the table body scrolls inside a bounded height. */
   stickyHeader?: boolean;
+  /** Adds a checkbox column (table) and a checkbox on each card, plus select all for the rows shown. */
+  selection?: DataTableSelection<T>;
   className?: string;
 }
 
@@ -62,11 +74,36 @@ export function DataTable<T>({
   caption,
   density = "comfortable",
   stickyHeader = false,
+  selection,
   className,
 }: DataTableProps<T>) {
   const tableShow = cardsBelow === "lg" ? "hidden lg:block" : "hidden md:block";
   const cardsShow = cardsBelow === "lg" ? "lg:hidden" : "md:hidden";
   const primaryKey = columns.find((c) => c.primary)?.key ?? columns[0]?.key;
+
+  const selectableIds = selection
+    ? rows.filter((row) => selection.isRowSelectable?.(row) ?? true).map(getRowId)
+    : [];
+  const selectedOnPage = selection ? selectableIds.filter((id) => selection.selectedIds.has(id)).length : 0;
+  const allSelected = selectableIds.length > 0 && selectedOnPage === selectableIds.length;
+
+  const toggleAll = () => {
+    if (!selection) return;
+    const next = new Set(selection.selectedIds);
+    for (const id of selectableIds) {
+      if (allSelected) next.delete(id);
+      else next.add(id);
+    }
+    selection.onChange(next);
+  };
+
+  const toggleRow = (id: string) => {
+    if (!selection) return;
+    const next = new Set(selection.selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    selection.onChange(next);
+  };
 
   const toggleSort = (col: DataTableColumn<T>) => {
     if (!onSortChange) return;
@@ -91,6 +128,17 @@ export function DataTable<T>({
               {caption && <caption className="sr-only">{caption}</caption>}
               <thead>
                 <tr className={cn("border-b border-slate-300 bg-slate-50", stickyHeader && "sticky top-0 z-[1]")}>
+                  {selection && (
+                    <th scope="col" className="w-10 px-3 py-2.5">
+                      <SelectBox
+                        checked={allSelected}
+                        indeterminate={selectedOnPage > 0 && !allSelected}
+                        disabled={selectableIds.length === 0}
+                        label="Select all rows on this page"
+                        onChange={toggleAll}
+                      />
+                    </th>
+                  )}
                   {columns.map((col) => {
                     const active = sort?.key === col.key;
                     const ariaSort = col.sortable
@@ -144,8 +192,19 @@ export function DataTable<T>({
               <tbody className="divide-y divide-slate-200">
                 {rows.map((row) => {
                   const id = getRowId(row);
+                  const selected = Boolean(selection?.selectedIds.has(id));
                   return (
-                    <tr key={id} className="hover:bg-slate-50">
+                    <tr key={id} className={cn("hover:bg-slate-50", selected && "bg-navy-soft/60")}>
+                      {selection && (
+                        <td className="w-10 px-3 align-middle">
+                          <SelectBox
+                            checked={selected}
+                            disabled={!(selection.isRowSelectable?.(row) ?? true)}
+                            label={selection.rowLabel(row)}
+                            onChange={() => toggleRow(id)}
+                          />
+                        </td>
+                      )}
                       {columns.map((col) => {
                         const content = col.cell(row);
                         const asLink = rowHref && col.key === primaryKey;
@@ -180,9 +239,25 @@ export function DataTable<T>({
           </div>
 
           <ul className={cn("divide-y divide-slate-200", cardsShow)}>
-            {rows.map((row) => (
-              <li key={getRowId(row)}>{renderCard(row)}</li>
-            ))}
+            {rows.map((row) => {
+              const id = getRowId(row);
+              const selected = Boolean(selection?.selectedIds.has(id));
+              return (
+                <li key={id} className={cn(selection && "flex items-start", selected && "bg-navy-soft/60")}>
+                  {selection && (
+                    <div className="pl-2 pt-3">
+                      <SelectBox
+                        checked={selected}
+                        disabled={!(selection.isRowSelectable?.(row) ?? true)}
+                        label={selection.rowLabel(row)}
+                        onChange={() => toggleRow(id)}
+                      />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">{renderCard(row)}</div>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}

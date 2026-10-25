@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ApplicationStatus } from "@prisma/client";
 import { BACKOUT_REASONS_BY_PARTY, REJECTION_REASON_CODES } from "../services/ta/backout-rules.js";
+import { BULK_MAX_IDS, BULK_MOVE_TARGETS } from "../services/ta/bulk-rules.js";
 import { resumeMergeAccept } from "./applicant.schema.js";
 import { manilaDateString, boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber, pageQueryFields, isWorkingHours } from "./field-limits.js";
 
@@ -14,6 +15,7 @@ const salary = finiteNumber({ min: 0, max: 1_000_000, decimals: 2 }).optional().
 const age = finiteNumber({ min: 18, max: 65, integer: true }).optional().nullable();
 const BACKOUT_REASON_VALUES = [...new Set(Object.values(BACKOUT_REASONS_BY_PARTY).flat())] as [string, ...string[]];
 const idValue = finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true });
+const bulkIds = z.array(idValue).min(1, "Select at least one record").max(BULK_MAX_IDS, `Select at most ${BULK_MAX_IDS} records at a time`);
 // Dropdown values match case-insensitively and are stored as the listed spelling; blank means no selection.
 const listedChoice = <T extends string>(options: readonly T[], message: string) =>
   z.preprocess(
@@ -235,6 +237,62 @@ export const taSchema = {
       notes: boundedText(FIELD_LIMITS.notes).optional(),
       reason: boundedText(FIELD_LIMITS.notes).optional(),
     }).optional(),
+  }),
+  bulkMoveApplications: z.object({
+    body: z.object({
+      ids: bulkIds,
+      status: z.enum(BULK_MOVE_TARGETS),
+    }),
+  }),
+  bulkRejectApplications: z.object({
+    body: z
+      .object({
+        ids: bulkIds,
+        reasonCode: z.enum(REJECTION_REASON_CODES),
+        disposition: z.enum(["TALENT_POOL", "ARCHIVE"]),
+        notes: boundedText(FIELD_LIMITS.notes).optional(),
+      })
+      .superRefine((body, ctx) => {
+        if (body.reasonCode === "OTHER" && !body.notes) {
+          ctx.addIssue({ code: "custom", path: ["notes"], message: "Please describe the reason." });
+        }
+      }),
+  }),
+  bulkArchiveRestoreApplications: z.object({
+    body: z.object({
+      ids: bulkIds,
+      reason: requiredText("Reason", FIELD_LIMITS.notes),
+    }),
+  }),
+  bulkDismissCheckIns: z.object({
+    body: z.object({
+      ids: bulkIds,
+      reason: z.string().trim().min(1, "Give a reason").max(300),
+    }),
+  }),
+  bulkCancelInvitations: z.object({
+    body: z.object({ ids: bulkIds }),
+  }),
+  bulkConfirmDeploymentStart: z.object({
+    body: z.object({
+      items: z.array(z.object({ id: idValue, actualStart: dateOnly })).min(1, "Select at least one deployment").max(BULK_MAX_IDS, `Select at most ${BULK_MAX_IDS} deployments at a time`),
+      notes: boundedText(FIELD_LIMITS.notes).optional(),
+    }),
+  }),
+  bulkRecordDeploymentCheckIns: z.object({
+    body: z.object({
+      ids: bulkIds,
+      nextReviewAt: dateOnly.optional().nullable(),
+      notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
+    }),
+  }),
+  bulkRecordInterviews: z.object({
+    body: z.object({
+      items: z.array(z.object({ applicationId: idValue, interviewId: idValue })).min(1, "Select at least one interview").max(BULK_MAX_IDS, `Select at most ${BULK_MAX_IDS} interviews at a time`),
+      // Fail needs a note per candidate, so it stays one by one.
+      result: z.enum(["PASS", "NO_SHOW"]),
+      notes: boundedText(FIELD_LIMITS.notes).optional(),
+    }),
   }),
   scheduleInterview: z.object({
     params: z.object({ id: boundedIdText }),

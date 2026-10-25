@@ -14,6 +14,8 @@ import {
   EmptyState,
   ActionMenu,
   DataTable,
+  BulkActionBar,
+  BulkResultDialog,
   type DataTableColumn,
 } from "../../components/common";
 import { Button, ComboBox, Dialog, Textarea } from "../../components/ui";
@@ -24,7 +26,14 @@ import {
   PIPELINE_FILTER_STAGES,
 } from "../../lib/types/enums";
 import { notify } from "../../lib/feedback";
-import type { ReturningWorkerInfo, TAApplicationSummary, WalkInSlip } from "../../lib/types/application.types";
+import type { BulkSummary, ReturningWorkerInfo, TAApplicationSummary, WalkInSlip } from "../../lib/types/application.types";
+import {
+  BULK_ACTION_TITLES,
+  BulkApplicationsDialog,
+  type BulkApplicationAction,
+  type BulkSubmission,
+} from "../../components/ta/BulkApplicationsDialog";
+import { useRowSelection } from "../../hooks/useRowSelection";
 import type { ApplicationSourceFilter, TAApplicationSearch } from "../../routes";
 import { SourceChip, APPLICATION_SOURCE_LABELS } from "../../components/ta/walk-in/SourceChip";
 import { EncodeSeveralWalkInsDialog } from "../../components/ta/walk-in/EncodeSeveralWalkInsDialog";
@@ -76,6 +85,15 @@ const CLOSED_STATUSES: ApplicationStatus[] = [
   ApplicationStatus.BACKOUT,
   ApplicationStatus.TALENT_POOL,
   ApplicationStatus.ARCHIVED,
+];
+
+/** Stages that may move straight into Initial Screening in bulk (the same stages the backend allows without evidence). */
+const BULK_MOVE_FROM: ApplicationStatus[] = [
+  ApplicationStatus.SUBMITTED,
+  ApplicationStatus.PARSING,
+  ApplicationStatus.REVIEW,
+  ApplicationStatus.NEEDS_ATTENTION,
+  ApplicationStatus.MATCHED,
 ];
 
 /** The next TA action, derived from the stage and the counts the list already returns. */
@@ -400,6 +418,66 @@ export const ApplicationsPage: React.FC = () => {
 
   const queryData = applicationsQuery.data;
   const applications = queryData?.items ?? [];
+
+  // Bulk actions. Selection is dropped whenever the visible list changes (filters, page, sort).
+  const selection = useRowSelection(
+    JSON.stringify([page, pageSize, debouncedSearch, filterValues, showArchived, returningOnly, sort, needsAction])
+  );
+  const selectedRows = applications.filter((app) => selection.selectedIds.has(String(app.id)));
+  const [bulkAction, setBulkAction] = useState<BulkApplicationAction | null>(null);
+  const [bulkResult, setBulkResult] = useState<{ title: string; summary: BulkSummary } | null>(null);
+
+  const bulkMutation = useMutation({
+    mutationFn: ({ action, ids, data }: { action: BulkApplicationAction; ids: number[]; data: BulkSubmission }) => {
+      switch (action) {
+        case "move":
+          return taApi.bulkMoveApplications({ ids, status: "INITIAL_SCREENING" });
+        case "reject":
+          return taApi.bulkRejectApplications({
+            ids,
+            reasonCode: data.reasonCode ?? "",
+            disposition: data.disposition ?? "ARCHIVE",
+            notes: data.notes,
+          });
+        case "archive":
+          return taApi.bulkArchiveApplications({ ids, reason: data.reason ?? "" });
+        case "restore":
+          return taApi.bulkRestoreApplications({ ids, reason: data.reason ?? "" });
+      }
+    },
+    onSuccess: (summary, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      // Only the rows that went through leave the selection, so the failed ones can be reviewed.
+      selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
+      setBulkAction(null);
+      const title = BULK_ACTION_TITLES[vars.action];
+      if (summary.failed > 0) setBulkResult({ title, summary });
+      else notify.success(title, `${summary.succeeded} ${summary.succeeded === 1 ? "application" : "applications"} done.`);
+    },
+    onError: (err: any) => notify.error("Unable to complete the bulk action", err),
+  });
+
+  const bulkActions: { action: BulkApplicationAction; label: string; variant: "primary" | "outline" | "danger" }[] = [];
+  if (selectedRows.length > 0) {
+    const every = (test: (app: TAApplicationSummary) => boolean) => selectedRows.every(test);
+    if (every((app) => !app.isArchived && BULK_MOVE_FROM.includes(app.status))) {
+      bulkActions.push({ action: "move", label: "Move to Initial Screening", variant: "primary" });
+    }
+    if (every((app) => !isClosedRecord(app))) {
+      bulkActions.push({ action: "reject", label: "Reject", variant: "outline" });
+    }
+    if (every((app) => isClosedRecord(app) && !app.isArchived)) {
+      bulkActions.push({ action: "archive", label: "Archive", variant: "outline" });
+    }
+    if (every((app) => Boolean(app.isArchived))) {
+      bulkActions.push({ action: "restore", label: "Restore", variant: "primary" });
+    }
+  }
+  const bulkLabelFor = (id: number) => {
+    const app = applications.find((row) => row.id === id);
+    return app ? candidateNameOf(app) : `Application ${id}`;
+  };
   const totalItems = queryData?.total ?? 0;
   const totalPages = queryData?.totalPages ?? 1;
   const jobs = jobsQuery.data ?? EMPTY_LIST;
@@ -914,6 +992,11 @@ export const ApplicationsPage: React.FC = () => {
           getRowId={(app) => String(app.id)}
           renderCard={renderCard}
           isFetching={applicationsQuery.isFetching}
+          selection={{
+            selectedIds: selection.selectedIds,
+            onChange: selection.setSelectedIds,
+            rowLabel: (app) => `Select ${candidateNameOf(app)}`,
+          }}
           empty={
             <EmptyState
               bare
@@ -971,6 +1054,37 @@ export const ApplicationsPage: React.FC = () => {
       )}
       </div>
       )}
+
+      <BulkActionBar
+        count={selectedRows.length}
+        onClear={selection.clear}
+        emptyHint="No action fits all the selected records. Select records in the same stage."
+      >
+        {bulkActions.length > 0 &&
+          bulkActions.map(({ action, label, variant }) => (
+            <Button key={action} size="sm" variant={variant} onClick={() => setBulkAction(action)}>
+              {label}
+            </Button>
+          ))}
+      </BulkActionBar>
+
+      <BulkApplicationsDialog
+        action={bulkAction}
+        count={selectedRows.length}
+        loading={bulkMutation.isPending}
+        onClose={() => setBulkAction(null)}
+        onSubmit={(data) =>
+          bulkAction &&
+          bulkMutation.mutate({ action: bulkAction, ids: selectedRows.map((app) => app.id), data })
+        }
+      />
+      <BulkResultDialog
+        open={Boolean(bulkResult)}
+        onClose={() => setBulkResult(null)}
+        title={bulkResult?.title ?? ""}
+        summary={bulkResult?.summary ?? null}
+        labelFor={bulkLabelFor}
+      />
 
       {/* Archive / Restore Modal */}
       <Dialog

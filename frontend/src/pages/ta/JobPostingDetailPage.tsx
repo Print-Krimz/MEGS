@@ -17,6 +17,8 @@ import {
   ConfirmDialog,
   ActionMenu,
   RecordSummary,
+  BulkActionBar,
+  BulkResultDialog,
 } from "../../components/common";
 import { StageStrip, type StageStripItem } from "../../components/ta/recruitment/StageStrip";
 import { RecordBreadcrumb } from "../../components/ta/recruitment/RecordBreadcrumb";
@@ -61,6 +63,10 @@ import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
 import type { CandidateScore } from "../../lib/types/application.types";
 import { SendInvitationModal } from "../../components/ta/SendInvitationModal";
+import { BulkInviteDialog } from "../../components/ta/BulkInviteDialog";
+import { PoolSelectAll } from "../../components/ta/PoolSelectAll";
+import { useBulkInvite } from "../../hooks/useBulkInvite";
+import { useRowSelection } from "../../hooks/useRowSelection";
 import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTrackerDrawer";
 import { TA_COPY } from "../../lib/ta-copy";
 import { useJobCandidateQueries } from "../../hooks/useJobCandidateQueries";
@@ -193,6 +199,14 @@ export const JobPostingDetailPage: React.FC = () => {
     },
   });
 
+  // Bulk invite from the pool tab. A refreshed match list clears the selection.
+  const [bulkInviteOpen, setBulkInviteOpen] = useState(false);
+  const poolSelection = useRowSelection(String(talentPoolQuery.dataUpdatedAt));
+  const bulkInvite = useBulkInvite((sentIds) => {
+    poolSelection.remove(sentIds.map(String));
+    setBulkInviteOpen(false);
+  });
+
   const job = jobQuery.data;
 
   // Initialize edit form when job loads
@@ -218,6 +232,44 @@ export const JobPostingDetailPage: React.FC = () => {
     [talentPoolQuery.data]
   );
   const unsearchablePoolCount = talentPoolQuery.data?.unsearchableCount ?? 0;
+
+  // Someone already applying to this opening, or already ranked for it, is not invited again.
+  const isInPipeline = (c: TalentPoolCandidate) =>
+    rankedScores.some(
+      (r: any) =>
+        (Boolean(r.candidate?.id) && Boolean(c.id) && r.candidate?.id === c.id) ||
+        (Boolean(r.candidate?.email) && Boolean(c.email) && r.candidate?.email?.toLowerCase() === c.email?.toLowerCase())
+    ) ||
+    Boolean(
+      job?.applications?.some(
+        (application) =>
+          !application.isArchived &&
+          application.status !== ApplicationStatus.ARCHIVED &&
+          application.status !== ApplicationStatus.BACKOUT &&
+          application.status !== ApplicationStatus.REJECTED &&
+          (application.user?.id === c.id || application.user?.email?.toLowerCase() === c.email?.toLowerCase())
+      )
+    );
+  const invitableIds = talentPoolMatches
+    .filter((res) => !isInPipeline(res.candidate))
+    .map((res) => String(res.candidate.applicantProfileId));
+  const selectedInvitable = invitableIds.filter((id) => poolSelection.selectedIds.has(id));
+  const toggleAllInvitable = () =>
+    poolSelection.setSelectedIds((current) => {
+      const next = new Set(current);
+      for (const id of invitableIds) {
+        if (selectedInvitable.length === invitableIds.length) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  const toggleCandidate = (id: string) =>
+    poolSelection.setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   // The pool is only requested when its tab opens. Until then the count is unknown, so none is shown.
   const poolCountKnown = Boolean(talentPoolQuery.data) && !talentPoolQuery.isError;
 
@@ -646,31 +698,23 @@ export const JobPostingDetailPage: React.FC = () => {
                 }
               />
             ) : (
-              <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
+              <div className="space-y-3 p-4">
+              <PoolSelectAll total={invitableIds.length} selected={selectedInvitable.length} onToggle={toggleAllInvitable} />
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {talentPoolMatches.map((res) => {
                   const c = res.candidate;
-                  const isAlreadyInPipeline =
-                    rankedScores.some(
-                      (r: any) =>
-                        (Boolean(r.candidate?.id) && Boolean(c.id) && r.candidate?.id === c.id) ||
-                        (Boolean(r.candidate?.email) && Boolean(c.email) && r.candidate?.email?.toLowerCase() === c.email?.toLowerCase())
-                    ) ||
-                    Boolean(
-                      job?.applications?.some(
-                        (application) =>
-                          !application.isArchived &&
-                          application.status !== ApplicationStatus.ARCHIVED &&
-                          application.status !== ApplicationStatus.BACKOUT &&
-                          application.status !== ApplicationStatus.REJECTED &&
-                          (application.user?.id === c.id || application.user?.email?.toLowerCase() === c.email?.toLowerCase())
-                      )
-                    );
+                  const isAlreadyInPipeline = isInPipeline(c);
 
                   return (
                     <PoolCandidateCard
                       key={c.id}
                       result={res}
                       maxSkills={5}
+                      selectable={{
+                        checked: poolSelection.selectedIds.has(String(c.applicantProfileId)),
+                        disabled: isAlreadyInPipeline,
+                        onChange: () => toggleCandidate(String(c.applicantProfileId)),
+                      }}
                       actions={
                         <span className="ml-auto">
                           {isAlreadyInPipeline ? (
@@ -692,6 +736,12 @@ export const JobPostingDetailPage: React.FC = () => {
                     />
                   );
                 })}
+              </div>
+              <BulkActionBar count={selectedInvitable.length} onClear={poolSelection.clear}>
+                <Button size="sm" onClick={() => setBulkInviteOpen(true)}>
+                  {TA_COPY.invitations.inviteToApply}
+                </Button>
+              </BulkActionBar>
               </div>
             )}
           </div>
@@ -957,6 +1007,30 @@ export const JobPostingDetailPage: React.FC = () => {
         targetJobTitle={job.title}
         onSend={(payload) => sendInvitationMutation.mutate(payload)}
         loading={sendInvitationMutation.isPending}
+      />
+
+      <BulkInviteDialog
+        open={bulkInviteOpen}
+        onClose={() => setBulkInviteOpen(false)}
+        count={selectedInvitable.length}
+        fixedJob={{ id: Number(jobId), title: job.title }}
+        draftMessage={(jobTitle) =>
+          `Your background and skills match our opening for ${jobTitle || "this position"}. We invite you to apply!`
+        }
+        loading={bulkInvite.mutation.isPending}
+        onSubmit={(payload) =>
+          bulkInvite.mutation.mutate({ ...payload, applicantProfileIds: selectedInvitable.map(Number) })
+        }
+      />
+      <BulkResultDialog
+        open={Boolean(bulkInvite.failures)}
+        onClose={bulkInvite.clearFailures}
+        title="Invite to apply"
+        summary={bulkInvite.failures}
+        labelFor={(id) => {
+          const c = talentPoolMatches.find((res) => res.candidate.applicantProfileId === id)?.candidate;
+          return c ? `${c.firstName} ${c.lastName}` : `Candidate ${id}`;
+        }}
       />
 
       {/* Outgoing Invitations Tracker Drawer */}

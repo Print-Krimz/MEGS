@@ -2,13 +2,15 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import { Dialog, Button, Select } from "../ui";
-import { LoadingState, ErrorState, EmptyState, Pagination, DataTable, ConfirmDialog } from "../common";
+import { LoadingState, ErrorState, EmptyState, Pagination, DataTable, ConfirmDialog, BulkActionBar, BulkResultDialog } from "../common";
+import { useRowSelection } from "../../hooks/useRowSelection";
 import type { DataTableColumn } from "../common";
 import { formatDate, cn } from "../../lib/utils";
 import { notify } from "../../lib/feedback";
 import { OfferReplyActions } from "./OfferReplyActions";
 import { TA_COPY } from "../../lib/ta-copy";
 import type { TalentPoolInvitationRecord } from "../../lib/types/ta.types";
+import type { BulkSummary } from "../../lib/types/application.types";
 
 export interface InvitationsTrackerDrawerProps {
   open: boolean;
@@ -67,6 +69,26 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
 
   const data = invitationsQuery.data;
   const items = data?.items || [];
+
+  // Bulk cancel. Only pending invitations can be cancelled, so only those can be selected.
+  const selection = useRowSelection(JSON.stringify([open, jobPostingId, statusFilter, page]));
+  const selectedPending = items.filter((inv) => inv.status === "PENDING" && selection.selectedIds.has(String(inv.id)));
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ summary: BulkSummary; names: Record<number, string> } | null>(null);
+  const bulkCancelMutation = useMutation({
+    mutationFn: (rows: InvitationRow[]) => taApi.bulkCancelInvitations({ ids: rows.map((inv) => inv.id) }),
+    onSuccess: (summary, rows) => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "talent-pool", "invitations"] });
+      selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
+      setBulkConfirmOpen(false);
+      if (summary.failed > 0) {
+        setBulkResult({ summary, names: Object.fromEntries(rows.map((inv) => [inv.id, inv.candidateName])) });
+      } else {
+        notify.success("Invitations cancelled", `${summary.succeeded} ${summary.succeeded === 1 ? "candidate" : "candidates"} can no longer accept.`);
+      }
+    },
+    onError: (err: any) => notify.error("Unable to cancel invitations", err),
+  });
   const totalPages = data?.totalPages || 1;
 
   const [invitationToCancel, setInvitationToCancel] = useState<InvitationRow | null>(null);
@@ -182,6 +204,12 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
               columns={columns}
               rows={items}
               getRowId={(inv) => String(inv.id)}
+              selection={{
+                selectedIds: selection.selectedIds,
+                onChange: selection.setSelectedIds,
+                rowLabel: (inv) => `Select ${inv.candidateName}`,
+                isRowSelectable: (inv) => inv.status === "PENDING",
+              }}
               renderCard={(inv) => (
                 <div className="space-y-1.5 p-3 text-sm">
                   <div className="flex items-start justify-between gap-3">
@@ -212,6 +240,12 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
                 />
               </div>
             )}
+
+            <BulkActionBar count={selectedPending.length} onClear={selection.clear}>
+              <Button size="sm" variant="outline" onClick={() => setBulkConfirmOpen(true)}>
+                Cancel invitations
+              </Button>
+            </BulkActionBar>
           </div>
         )}
 
@@ -238,6 +272,24 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
         cancelLabel="Keep invitation"
         variant="danger"
         loading={cancelMutation.isPending}
+      />
+      <ConfirmDialog
+        open={bulkConfirmOpen}
+        onClose={() => setBulkConfirmOpen(false)}
+        onConfirm={() => bulkCancelMutation.mutate(selectedPending)}
+        title={`Cancel ${selectedPending.length} ${selectedPending.length === 1 ? "invitation" : "invitations"}?`}
+        description="These candidates will no longer be able to accept their invitations. Invitations that are no longer pending are listed afterward."
+        confirmLabel="Cancel invitations"
+        cancelLabel="Keep invitations"
+        variant="danger"
+        loading={bulkCancelMutation.isPending}
+      />
+      <BulkResultDialog
+        open={Boolean(bulkResult)}
+        onClose={() => setBulkResult(null)}
+        title="Cancel invitations"
+        summary={bulkResult?.summary ?? null}
+        labelFor={(id) => bulkResult?.names[id] ?? `Invitation ${id}`}
       />
     </Dialog>
   );

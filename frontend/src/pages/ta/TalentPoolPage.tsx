@@ -7,6 +7,8 @@ import {
   LoadingState,
   ErrorState,
   EmptyState,
+  BulkActionBar,
+  BulkResultDialog,
 } from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea, ComboBox } from "../../components/ui";
 import { notify } from "../../lib/feedback";
@@ -17,6 +19,10 @@ import { SendInvitationModal } from "../../components/ta/SendInvitationModal";
 import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTrackerDrawer";
 import { PoolCandidateCard } from "../../components/ta/PoolCandidateCard";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
+import { BulkInviteDialog } from "../../components/ta/BulkInviteDialog";
+import { PoolSelectAll } from "../../components/ta/PoolSelectAll";
+import { useBulkInvite } from "../../hooks/useBulkInvite";
+import { useRowSelection } from "../../hooks/useRowSelection";
 
 const SEARCH_LIMIT = 20;
 
@@ -74,6 +80,14 @@ export const TalentPoolPage: React.FC = () => {
     onError: (err: any) => {
       notify.error("Unable to send invitation", err);
     },
+  });
+
+  // Bulk invite. A new search replaces the results, so it also clears the selection.
+  const [bulkInviteOpen, setBulkInviteOpen] = useState(false);
+  const selection = useRowSelection(String(searchMutation.submittedAt));
+  const bulkInvite = useBulkInvite((sentIds) => {
+    selection.remove(sentIds.map(String));
+    setBulkInviteOpen(false);
   });
 
   const recordContactMutation = useMutation({
@@ -141,6 +155,27 @@ export const TalentPoolPage: React.FC = () => {
   const jobs = jobsQuery.data || [];
   const results = searchMutation.data?.items ?? [];
   const unsearchablePoolCount = searchMutation.data?.unsearchableCount ?? 0;
+
+  const invitableIds = results
+    .filter((res) => res.candidate.availability !== "UNAVAILABLE")
+    .map((res) => String(res.candidate.applicantProfileId));
+  const selectedInvitable = invitableIds.filter((id) => selection.selectedIds.has(id));
+  const toggleAllInvitable = () =>
+    selection.setSelectedIds((current) => {
+      const next = new Set(current);
+      for (const id of invitableIds) {
+        if (selectedInvitable.length === invitableIds.length) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  const toggleCandidate = (id: string) =>
+    selection.setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const handleOpenContactModal = (c: TalentPoolCandidate) => {
     setContactMembershipId(c.membershipId || c.applicantProfileId || 0);
@@ -270,6 +305,7 @@ export const TalentPoolPage: React.FC = () => {
             </span>
             <span>{searchMutation.variables?.jobId ? "Sorted by match score" : "Sorted by profile similarity"}</span>
           </div>
+          <PoolSelectAll total={invitableIds.length} selected={selectedInvitable.length} onToggle={toggleAllInvitable} />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {results.map((res) => {
@@ -280,6 +316,11 @@ export const TalentPoolPage: React.FC = () => {
                 <PoolCandidateCard
                   key={c.id}
                   result={res}
+                  selectable={{
+                    checked: selection.selectedIds.has(String(c.applicantProfileId)),
+                    disabled: unavailable,
+                    onChange: () => toggleCandidate(String(c.applicantProfileId)),
+                  }}
                   actions={
                     <>
                       <Button variant="outline" size="sm" onClick={() => handleOpenContactModal(c)}>
@@ -304,6 +345,12 @@ export const TalentPoolPage: React.FC = () => {
               );
             })}
           </div>
+
+          <BulkActionBar count={selectedInvitable.length} onClear={selection.clear}>
+            <Button size="sm" onClick={() => setBulkInviteOpen(true)}>
+              {TA_COPY.invitations.inviteToApply}
+            </Button>
+          </BulkActionBar>
         </div>
       ) : (
         <EmptyState
@@ -376,6 +423,31 @@ export const TalentPoolPage: React.FC = () => {
         jobs={jobs}
         onSend={(payload) => sendInvitationMutation.mutate(payload)}
         loading={sendInvitationMutation.isPending}
+      />
+
+      <BulkInviteDialog
+        open={bulkInviteOpen}
+        onClose={() => setBulkInviteOpen(false)}
+        count={selectedInvitable.length}
+        fixedJob={selectedJobId > 0 ? { id: selectedJobId, title: jobs.find((j) => j.id === selectedJobId)?.title } : undefined}
+        jobs={jobs}
+        draftMessage={(jobTitle) =>
+          `Your background and skills match our opening for ${jobTitle || "this position"}. We invite you to apply!`
+        }
+        loading={bulkInvite.mutation.isPending}
+        onSubmit={(payload) =>
+          bulkInvite.mutation.mutate({ ...payload, applicantProfileIds: selectedInvitable.map(Number) })
+        }
+      />
+      <BulkResultDialog
+        open={Boolean(bulkInvite.failures)}
+        onClose={bulkInvite.clearFailures}
+        title="Invite to apply"
+        summary={bulkInvite.failures}
+        labelFor={(id) => {
+          const c = results.find((res) => res.candidate.applicantProfileId === id)?.candidate;
+          return c ? `${c.firstName} ${c.lastName}` : `Candidate ${id}`;
+        }}
       />
 
       {/* Sent invitations drawer */}

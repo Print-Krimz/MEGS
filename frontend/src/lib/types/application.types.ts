@@ -351,3 +351,16 @@ export interface TAApplicationSummary {
     } | null;
   } | null;
 }
+
+/** Result of a bulk action. Each row succeeds or fails on its own. */
+export interface BulkRowResult {
+  id: number;
+  ok: boolean;
+  reason?: string;
+}
+
+export interface BulkSummary {
+  succeeded: number;
+  failed: number;
+  results: BulkRowResult[];
+}

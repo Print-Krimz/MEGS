@@ -9,6 +9,9 @@ import {
   FilterTile,
   FilterTileRow,
   SearchFilters,
+  BulkActionBar,
+  BulkResultDialog,
+  SelectBox,
 } from "../../components/common";
 import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
 import { TA_COPY } from "../../lib/ta-copy";
@@ -18,6 +21,10 @@ import { cn, formatDate } from "../../lib/utils";
 import { notify } from "../../lib/feedback";
 import { REFERENCE_QUERY_STALE_TIME_MS, SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { useBulkInvite } from "../../hooks/useBulkInvite";
+import { useRowSelection } from "../../hooks/useRowSelection";
+import { BulkInviteDialog } from "../../components/ta/BulkInviteDialog";
+import { PoolSelectAll } from "../../components/ta/PoolSelectAll";
 import { PersonCell, StatusWithAge } from "../../components/ta/workforce/WorkforceRow";
 import { RedeploymentDetail, StageChip } from "../../components/ta/workforce/RedeploymentDetail";
 import {
@@ -97,11 +104,20 @@ export const RedeploymentQueuePage: React.FC = () => {
     retry: 1,
   });
 
+  // Bulk invite: workers who still need a placement can be invited to one job together.
+  const [bulkInviteOpen, setBulkInviteOpen] = useState(false);
+  const selection = useRowSelection(JSON.stringify([page, stageFilter, debouncedSearch]));
+  const bulkInvite = useBulkInvite((sentIds) => {
+    const profileIds = new Set(sentIds);
+    selection.remove(pageItems.filter((row) => row.applicantProfileId && profileIds.has(row.applicantProfileId)).map((row) => String(row.id)));
+    setBulkInviteOpen(false);
+  });
+
   // Open jobs are only needed once a worker is chosen for assignment.
   const openJobsQuery = useQuery({
     queryKey: ["ta", "redeployment-open-jobs"],
     queryFn: () => taApi.listJobs({ status: "OPEN" }),
-    enabled: Boolean(assignmentTarget),
+    enabled: Boolean(assignmentTarget) || bulkInviteOpen,
     staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
 
@@ -219,6 +235,27 @@ export const RedeploymentQueuePage: React.FC = () => {
 
   const selectedRow = pageItems.find((row) => row.id === selectedId) ?? pageItems[0] ?? null;
 
+  // Only workers who need a placement and have an applicant account can be invited in bulk.
+  const canInvite = (row: Row) => row.stage === "NEEDS_PLACEMENT" && Boolean(row.applicantProfileId);
+  const invitableRows = pageItems.filter(canInvite);
+  const selectedInvitable = invitableRows.filter((row) => selection.selectedIds.has(String(row.id)));
+  const toggleAllInvitable = () =>
+    selection.setSelectedIds((current) => {
+      const next = new Set(current);
+      for (const row of invitableRows) {
+        if (selectedInvitable.length === invitableRows.length) next.delete(String(row.id));
+        else next.add(String(row.id));
+      }
+      return next;
+    });
+  const toggleRow = (id: string) =>
+    selection.setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   const rowAction = (row: Row, fullWidth = false) =>
     row.stage === "IN_PROGRESS" ? (
       row.applications[0] ? (
@@ -317,6 +354,17 @@ export const RedeploymentQueuePage: React.FC = () => {
           {pageItems.length === 0 ? (
             emptyState
           ) : (
+            <>
+            {invitableRows.length > 0 && (
+              <div className="border-b border-slate-200 bg-slate-50 px-4 py-1">
+                <PoolSelectAll
+                  total={invitableRows.length}
+                  selected={selectedInvitable.length}
+                  onToggle={toggleAllInvitable}
+                  noun="workers"
+                />
+              </div>
+            )}
             <ul className="divide-y divide-slate-200">
               {pageItems.map((row) => {
                 const selected = wide && selectedRow?.id === row.id;
@@ -329,6 +377,14 @@ export const RedeploymentQueuePage: React.FC = () => {
                       selected ? "bg-navy-soft shadow-[inset_3px_0_0_var(--color-navy)]" : "hover:bg-slate-50",
                     )}
                   >
+                    {invitableRows.length > 0 && (
+                      <SelectBox
+                        checked={selection.selectedIds.has(String(row.id))}
+                        disabled={!canInvite(row)}
+                        label={`Select ${row.name}`}
+                        onChange={() => toggleRow(String(row.id))}
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={() => selectRow(row)}
@@ -345,6 +401,7 @@ export const RedeploymentQueuePage: React.FC = () => {
                 );
               })}
             </ul>
+            </>
           )}
           {totalItems > PAGE_SIZE && (
             <div className="border-t border-slate-300">
@@ -369,6 +426,34 @@ export const RedeploymentQueuePage: React.FC = () => {
           </aside>
         )}
       </div>
+      <BulkActionBar count={selectedInvitable.length} onClear={selection.clear}>
+        <Button size="sm" onClick={() => setBulkInviteOpen(true)}>
+          Invite to a job
+        </Button>
+      </BulkActionBar>
+      <BulkInviteDialog
+        open={bulkInviteOpen}
+        onClose={() => setBulkInviteOpen(false)}
+        count={selectedInvitable.length}
+        jobs={openJobsQuery.data ?? []}
+        draftMessage={(jobTitle) =>
+          `We have ${jobTitle ? `an open ${jobTitle} role` : "an open role"} that fits your experience. Please review the role and accept it in your Applicant account.`
+        }
+        loading={bulkInvite.mutation.isPending}
+        onSubmit={(payload) =>
+          bulkInvite.mutation.mutate({
+            ...payload,
+            applicantProfileIds: selectedInvitable.map((row) => row.applicantProfileId!),
+          })
+        }
+      />
+      <BulkResultDialog
+        open={Boolean(bulkInvite.failures)}
+        onClose={bulkInvite.clearFailures}
+        title="Invite to a job"
+        summary={bulkInvite.failures}
+        labelFor={(id) => pageItems.find((row) => row.applicantProfileId === id)?.name ?? `Worker ${id}`}
+      />
       <Dialog
         open={drillOpen && !wide && Boolean(selectedRow)}
         onClose={() => setDrillOpen(false)}
