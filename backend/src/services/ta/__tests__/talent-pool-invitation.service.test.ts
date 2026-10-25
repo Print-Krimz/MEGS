@@ -37,7 +37,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../utils/prisma.js", () => ({ default: mocks.prisma }));
-vi.mock("../../../utils/notification.js", () => ({
+vi.mock("../../../utils/notification.js", () => ({ notifyJobOwner: vi.fn(async () => 0), notifyOwner: vi.fn(async () => 0),
   sendNotification: mocks.sendNotification,
 }));
 vi.mock("../../../utils/audit.js", () => ({

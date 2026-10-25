@@ -8,10 +8,10 @@ import { validateDocumentBytes, sanitizeUploadFileName } from "../../security/fi
 import { CHECK_IN_BIODATA_MESSAGE, CHECK_IN_BIODATA_UNAVAILABLE_MESSAGE } from "../../security/public-messages.js";
 import { logAudit } from "../../utils/audit.js";
 import { safeLogError } from "../../security/errors.js";
-import { sendNotification } from "../../utils/notification.js";
+import { notifyOwner } from "../../utils/notification.js";
 import { isPhilippinePhone, normalizeToE164, normalizeToLocal } from "../../utils/sms.js";
 import { manilaDateString } from "../../schemas/field-limits.js";
-import type { Actor } from "./ownership.js";
+import { jobOwnerTaId, type Actor } from "./ownership.js";
 import {
   WalkInConflictError,
   createWalkIn,
@@ -319,9 +319,6 @@ export const listPendingCheckIns = async () => {
   return { items: rows.map(toListItem) };
 };
 
-/** Same rule as ownership.ts: a job follows its requisition (none when unassigned); legacy jobs with no requisition follow the poster. */
-const ownerOf = (job: { postedById: string; mrfId: number | null; mrf: { assignedTaId: string | null } | null }): string | null =>
-  job.mrf ? job.mrf.assignedTaId : job.mrfId === null ? job.postedById : null;
 
 /** Recruiters are named like the analytics pages: profile name when there is one, else null. */
 const ownerDisplayName = (user: { applicantProfile: { firstName: string; lastName: string } | null } | null): string | null => {
@@ -347,7 +344,7 @@ export const getPendingCheckIn = async (id: number) => {
   });
   if (!row) throw new Error("Check-in not found");
 
-  const ownerId = ownerOf(row.jobPosting);
+  const ownerId = jobOwnerTaId(row.jobPosting);
   const owner = ownerId
     ? await prisma.user.findUnique({ where: { id: ownerId }, select: { applicantProfile: { select: { firstName: true, lastName: true } } } })
     : null;
@@ -435,16 +432,16 @@ export const confirmCheckIn = async (
       .catch((clearError) => safeLogError(`Check-in ${id} biodata columns`, clearError));
   }
 
-  const ownerId = ownerOf(checkIn.jobPosting);
-  if (ownerId && ownerId !== actor.id) {
-    void sendNotification(
-      ownerId,
-      "Self check-in confirmed",
-      `${slip.applicantName} (${queueNumber(checkIn.queueSeq)}) was checked in for ${slip.jobTitle} by another recruiter and is now in your applications.`,
-      "INFO",
-      `/ta/applications/${slip.applicationId}`,
-    );
-  }
+  const ownerId = jobOwnerTaId(checkIn.jobPosting);
+  // An unassigned requisition has no TA to tell, so the Admins hear about it instead.
+  void notifyOwner(
+    ownerId,
+    "Self check-in confirmed",
+    `${slip.applicantName} (${queueNumber(checkIn.queueSeq)}) was checked in for ${slip.jobTitle} by another recruiter and is now in Applications.`,
+    "INFO",
+    `/ta/applications/${slip.applicationId}`,
+    { excludeUserId: actor.id },
+  );
   void logAudit(actor.id, "WALK_IN_CHECK_IN_CONFIRMED", "WalkInCheckIn", id, {
     applicationId: slip.applicationId,
     jobOwnerId: ownerId,

@@ -37,7 +37,15 @@ vi.mock("../utils/prisma.js", () => ({ default: m.prisma }));
 vi.mock("../utils/supabase.js", () => ({ default: m.supabase }));
 vi.mock("../middleware/upload.middleware.js", () => ({ uploadFileToSupabaseWithInfo: m.uploadFileToSupabaseWithInfo, ensureBucketExists: m.ensureBucketExists }));
 vi.mock("../utils/audit.js", () => ({ logAudit: m.logAudit }));
-vi.mock("../utils/notification.js", () => ({ sendNotification: m.sendNotification, sendRoleNotification: vi.fn() }));
+// notifyOwner skips the actor, then sends to the owner; mirror that so the assertions below read the final send.
+vi.mock("../utils/notification.js", () => ({
+  notifyJobOwner: vi.fn(async () => 0),
+  notifyOwner: vi.fn(async (ownerId: string | null, title: string, message: string, type: string, link: string, options?: { excludeUserId?: string }) => {
+    if (ownerId && ownerId !== options?.excludeUserId) await m.sendNotification(ownerId, title, message, type, link);
+  }),
+  sendNotification: m.sendNotification,
+  sendRoleNotification: vi.fn(),
+}));
 vi.mock("../workers/resume.worker.js", () => ({ enqueueResumeAnalysis: m.enqueueResumeAnalysis, trackFitRevalidation: m.trackFitRevalidation }));
 vi.mock("../services/scoring/scoring-configuration.service.js", () => ({ revalidateApplication: m.revalidateApplication }));
 vi.mock("../services/applicant/application.service.js", () => ({ assertCanApply: m.assertCanApply, resolveInitialStatus: m.resolveInitialStatus }));

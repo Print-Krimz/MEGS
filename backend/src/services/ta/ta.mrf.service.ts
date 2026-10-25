@@ -151,11 +151,12 @@ export const syncMRFFulfillmentStatus = async (
       actorId
     );
 
-    if (mrf.createdById) {
+    // Admins were told above; also tell the assigned TA, who owns the requisition.
+    if (mrf.assignedTaId && mrf.assignedTaId !== actorId) {
       void sendNotification(
-        mrf.createdById,
+        mrf.assignedTaId,
         "MRF Quota Fulfilled",
-        `Your MRF "${mrf.title}" for ${mrf.client.name} is 100% fulfilled (${stats.deployedCount}/${stats.headcount} pax). ${closedJobCount > 0 ? `${closedJobCount} linked job opening(s) closed.` : ""}`,
+        `MRF "${mrf.title}" for ${mrf.client.name} is 100% fulfilled (${stats.deployedCount}/${stats.headcount} pax). ${closedJobCount > 0 ? `${closedJobCount} linked job opening(s) closed.` : ""}`,
         "SUCCESS",
         `/ta/mrfs/${mrf.id}`
       );
@@ -170,9 +171,9 @@ export const syncMRFFulfillmentStatus = async (
       actorId
     );
 
-    if (mrf.createdById) {
+    if (mrf.assignedTaId && mrf.assignedTaId !== actorId) {
       void sendNotification(
-        mrf.createdById,
+        mrf.assignedTaId,
         "MRF Quota Reopened",
         `MRF "${mrf.title}" has reopened due to deployment cancellation (${stats.deployedCount}/${stats.headcount} pax).`,
         "INFO",

@@ -1,9 +1,9 @@
 import prisma from '../../utils/prisma.js';
-import { sendNotification } from '../../utils/notification.js';
+import { notifyJobOwner, sendNotification } from '../../utils/notification.js';
 import { logAudit } from '../../utils/audit.js';
 import { recordBackout } from './backout.service.js';
 import { isFutureDateTime, isWorkingHours } from "../../schemas/field-limits.js";
-import { ownedWhere, type Actor } from "./ownership.js";
+import { JOB_OWNER_SELECT, ownedWhere, type Actor } from "./ownership.js";
 import { isPageRequested, paginateArray, type PageRequest } from "../../utils/pagination.js";
 
 export const fetchInterviews = async (applicationId: number) => {
@@ -45,7 +45,7 @@ export const scheduleNewInterview = async (
       status: true,
       isArchived: true,
       userId: true,
-      jobPosting: { select: { id: true, title: true, postedById: true } },
+      jobPosting: { select: { id: true, title: true, ...JOB_OWNER_SELECT } },
     },
   });
 
@@ -209,27 +209,17 @@ export const scheduleNewInterview = async (
     });
   }
 
-  const jobOwnerId = (application as any).jobPosting?.postedById;
-  const jobTitle = (application as any).jobPosting?.title || "Job";
-  if (jobOwnerId && actorId && jobOwnerId !== actorId) {
-    if (existingPending) {
-      void sendNotification(
-        jobOwnerId,
-        "Interview Rescheduled",
-        `An interview (${type.replace(/_/g, " ")}) for candidate on "${jobTitle}" was rescheduled.`,
-        "INFO",
-        `/ta/applications/${applicationId}`
-      );
-    } else {
-      void sendNotification(
-        jobOwnerId,
-        "Interview Scheduled for Candidate",
-        `An interview (${type.replace(/_/g, " ")}) has been scheduled for candidate on "${jobTitle}".`,
-        "INFO",
-        `/ta/applications/${applicationId}`
-      );
-    }
-  }
+  const jobTitle = application.jobPosting?.title || "Job";
+  void notifyJobOwner(
+    application.jobPosting,
+    existingPending ? "Interview Rescheduled" : "Interview Scheduled for Candidate",
+    existingPending
+      ? `An interview (${type.replace(/_/g, " ")}) for candidate on "${jobTitle}" was rescheduled.`
+      : `An interview (${type.replace(/_/g, " ")}) has been scheduled for candidate on "${jobTitle}".`,
+    "INFO",
+    `/ta/applications/${applicationId}`,
+    { excludeUserId: actorId }
+  );
 
   return interview;
 };
@@ -262,7 +252,7 @@ export const recordDirectInterviewResult = async (
       status: true,
       isArchived: true,
       userId: true,
-      jobPosting: { select: { postedById: true, title: true } },
+      jobPosting: { select: { ...JOB_OWNER_SELECT, title: true } },
     },
   });
 
@@ -402,17 +392,15 @@ export const recordDirectInterviewResult = async (
     );
   }
 
-  const jobOwnerId = application.jobPosting?.postedById;
   const jobTitle = application.jobPosting?.title || "Requisition";
-  if (jobOwnerId && actorId && jobOwnerId !== actorId) {
-    void sendNotification(
-      jobOwnerId,
-      "Interview Result Recorded",
-      `${type.replace(/_/g, " ")} result for candidate on "${jobTitle}" recorded as ${result}.`,
-      ["PASS", "PASSED"].includes(result) ? "SUCCESS" : "WARNING",
-      `/ta/applications/${applicationId}`
-    );
-  }
+  void notifyJobOwner(
+    application.jobPosting,
+    "Interview Result Recorded",
+    `${type.replace(/_/g, " ")} result for candidate on "${jobTitle}" recorded as ${result}.`,
+    ["PASS", "PASSED"].includes(result) ? "SUCCESS" : "WARNING",
+    `/ta/applications/${applicationId}`,
+    { excludeUserId: actorId }
+  );
 
   void logAudit(actorId || null, "INTERVIEW_RESULT_RECORDED", "Application", applicationId, {
     interviewId: newInterview.id,
@@ -446,7 +434,7 @@ export const updateInterviewResult = async (
         select: {
           userId: true,
           status: true,
-          jobPosting: { select: { postedById: true, title: true } },
+          jobPosting: { select: { ...JOB_OWNER_SELECT, title: true } },
         },
       },
     },
@@ -563,17 +551,15 @@ export const updateInterviewResult = async (
     );
   }
 
-  const jobOwnerId = interview.application?.jobPosting?.postedById;
   const jobTitle = interview.application?.jobPosting?.title || "Requisition";
-  if (jobOwnerId && actorId && jobOwnerId !== actorId) {
-    void sendNotification(
-      jobOwnerId,
-      "Interview Result Recorded",
-      `${interview.type.replace(/_/g, " ")} result for candidate on "${jobTitle}" recorded as ${result}.`,
-      ["PASS", "PASSED"].includes(result) ? "SUCCESS" : "WARNING",
-      `/ta/applications/${applicationId}`
-    );
-  }
+  void notifyJobOwner(
+    interview.application?.jobPosting,
+    "Interview Result Recorded",
+    `${interview.type.replace(/_/g, " ")} result for candidate on "${jobTitle}" recorded as ${result}.`,
+    ["PASS", "PASSED"].includes(result) ? "SUCCESS" : "WARNING",
+    `/ta/applications/${applicationId}`,
+    { excludeUserId: actorId }
+  );
 
   void logAudit(actorId || null, "INTERVIEW_RESULT_RECORDED", "Application", applicationId, {
     interviewId,

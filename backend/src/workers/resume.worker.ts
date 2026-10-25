@@ -2,7 +2,8 @@ import { BoundedWorkQueue } from "../security/bounded-work-queue.js";
 import prisma from "../utils/prisma.js";
 import supabase from "../utils/supabase.js";
 import { analyzeResume, analyzeResumeFromBuffer } from "../utils/gemini.js";
-import { sendNotification, sendRoleNotification } from "../utils/notification.js";
+import { notifyJobOwner } from "../utils/notification.js";
+import type { JobOwnerFields } from "../services/ta/ownership.js";
 
 import { validateDocumentBytes, MAX_DOCUMENT_BYTES } from "../security/file-validation.js";
 import { extractDocumentText } from "../security/document-parser.js";
@@ -177,18 +178,14 @@ export const detectDocumentFormat = (
 const notifyNeedsAttention = async (
   applicationId: number,
   jobTitle: string,
-  postedById?: string | null
+  jobPosting: JobOwnerFields | null | undefined
 ): Promise<void> => {
   const title = "Application Needs Attention";
   const message = `Resume analysis failed for an applicant on "${jobTitle}". Manual review required.`;
   const type = "WARNING";
   const link = `/ta/applications/${applicationId}`;
 
-  if (postedById) {
-    await sendNotification(postedById, title, message, type, link);
-  } else {
-    await sendRoleNotification("TALENT_ACQUISITION", title, message, type, link);
-  }
+  await notifyJobOwner(jobPosting, title, message, type, link);
 };
 
 export const processResumeJob = async (applicationId: number): Promise<void> => {
@@ -212,10 +209,12 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
         select: {
           title: true,
           postedById: true,
+          mrfId: true,
           requirements: true,
           mrf: {
             select: {
               title: true,
+              assignedTaId: true,
               requiredSkills: true,
               requiredExperience: true,
               requiredEducation: true,
@@ -235,7 +234,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
   }
 
   const jobTitle = application.jobPosting?.title || "Requisition";
-  const postedById = application.jobPosting?.postedById;
+  const jobPosting = application.jobPosting;
 
   if (!application.resumeUrl) {
     console.error(`[Worker] Application #${applicationId} has no resume URL. Skipping.`);
@@ -247,7 +246,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
       },
     });
     setPhase(applicationId, "FAILED", { failureReason: "NO_RESUME" });
-    await notifyNeedsAttention(applicationId, jobTitle, postedById);
+    await notifyNeedsAttention(applicationId, jobTitle, jobPosting);
     return;
   }
 
@@ -269,7 +268,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
       },
     });
     setPhase(applicationId, "FAILED", { failureReason: "UNREADABLE_RESUME" });
-    await notifyNeedsAttention(applicationId, jobTitle, postedById);
+    await notifyNeedsAttention(applicationId, jobTitle, jobPosting);
     return;
   }
 
@@ -353,7 +352,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
           aiSummary: `Analysis failed: Could not process resume. Manual review required. Reference: ${reference}`,
         },
       });
-      await notifyNeedsAttention(applicationId, jobTitle, postedById);
+      await notifyNeedsAttention(applicationId, jobTitle, jobPosting);
     } catch {
       // ignore if record was deleted concurrently
     }

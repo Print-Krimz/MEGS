@@ -4,8 +4,8 @@ import { getActiveScoringConfiguration, revalidateJobScoring } from "../scoring/
 import { logAudit } from "../../utils/audit.js";
 import { discoverTalentPoolForJob } from "../scoring/talent-pool-knn.service.js";
 import { jobRequirementClarity } from "../scoring/match-score.js";
-import { sendNotification } from "../../utils/notification.js";
-import { assertOwns, ownedWhere, type Actor } from "./ownership.js";
+import { notifyJobOwner } from "../../utils/notification.js";
+import { assertOwns, JOB_OWNER_SELECT, ownedWhere, type Actor } from "./ownership.js";
 
 export interface ListTAJobsOptions {
   status?: string;
@@ -97,15 +97,15 @@ export const listTAJobs = async (statusOrOptions?: string | ListTAJobsOptions) =
   return { items: jobs, total, page: resolvedPage, pageSize: resolvedLimit, totalPages: Math.ceil(total / resolvedLimit) };
 };
 
-export const triggerTalentPoolAutoDiscovery = async (jobId: number, postedById: string) => {
+// Tells the TA who owns the job (Admins when it is unassigned) about strong Talent Pool matches.
+export const triggerTalentPoolAutoDiscovery = async (jobId: number) => {
   try {
     const job = await prisma.jobPosting.findUnique({
       where: { id: jobId },
-      select: { id: true, title: true, status: true, postedById: true },
+      select: { id: true, title: true, status: true, ...JOB_OWNER_SELECT },
     });
     if (!job || job.status !== "OPEN") return;
 
-    const targetRecruiterId = postedById || job.postedById;
     // Same bar as screening's "Match found": the admin-set match threshold on the match score.
     const [discovery, configuration] = await Promise.all([
       discoverTalentPoolForJob(jobId, { k: 10 }),
@@ -119,8 +119,8 @@ export const triggerTalentPoolAutoDiscovery = async (jobId: number, postedById: 
     if (qualifiedMatches.length > 0) {
       const count = qualifiedMatches.length;
 
-      await sendNotification(
-        targetRecruiterId,
+      await notifyJobOwner(
+        job,
         "Talent Pool Candidates Matched",
         `Found ${count} Talent Pool candidate${count > 1 ? "s" : ""} for "${job.title}" with a match score of ${threshold} or more.`,
         "INFO",
@@ -181,7 +181,7 @@ export const createTAJob = async (postedById: string, data: any, actor?: Actor) 
   });
 
   if (job.status === "OPEN") {
-    void triggerTalentPoolAutoDiscovery(job.id, postedById);
+    void triggerTalentPoolAutoDiscovery(job.id);
   }
 
   return job;
@@ -289,7 +289,7 @@ export const updateTAJob = async (jobId: number, data: any, actor?: Actor) => {
   });
 
   if (existing.status !== "OPEN" && updated.status === "OPEN") {
-    void triggerTalentPoolAutoDiscovery(updated.id, existing.postedById);
+    void triggerTalentPoolAutoDiscovery(updated.id);
   }
 
   return updated;
@@ -324,7 +324,7 @@ export const updateTAJobStatus = async (jobId: number, status: any) => {
   });
 
   if (existing.status !== "OPEN" && updated.status === "OPEN") {
-    void triggerTalentPoolAutoDiscovery(updated.id, existing.postedById);
+    void triggerTalentPoolAutoDiscovery(updated.id);
   }
 
   return updated;

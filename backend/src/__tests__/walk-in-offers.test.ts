@@ -29,7 +29,7 @@ vi.mock("../utils/sms.js", async (importOriginal) => ({
   ...(await importOriginal<any>()),
   sendSmsViaTextBee: m.sendSmsViaTextBee,
 }));
-vi.mock("../utils/notification.js", () => ({ sendNotification: m.sendNotification }));
+vi.mock("../utils/notification.js", () => ({ notifyJobOwner: vi.fn(async () => 0), notifyOwner: vi.fn(async () => 0), sendNotification: m.sendNotification }));
 vi.mock("../utils/audit.js", () => ({ logAudit: m.logAudit }));
 vi.mock("../services/scoring/candidate-scoring.service.js", () => ({
   calculateAndPersistCandidateScore: m.calculateAndPersistCandidateScore,

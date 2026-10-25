@@ -15,9 +15,9 @@ return { tx, prismaMock };
 vi.mock("../utils/prisma.js", () => ({ default: prismaMock }));
 vi.mock("../utils/supabase.js", () => ({ default: { auth: { getClaims: vi.fn() }, storage: { from: vi.fn() } } }));
 vi.mock("../utils/audit.js", () => ({ logAudit: vi.fn() }));
-vi.mock("../utils/notification.js", () => ({ sendNotification: vi.fn(), sendRoleNotification: vi.fn() }));
+vi.mock("../utils/notification.js", () => ({ notifyJobOwner: vi.fn(async () => 0), notifyOwner: vi.fn(async () => 0), sendNotification: vi.fn(), sendRoleNotification: vi.fn() }));
 vi.mock("../services/document/document.service.js", () => ({ uploadAndStoreDocument: vi.fn() }));
-vi.mock("../services/ta/ownership.js", () => ({ assertOwns: vi.fn(), requireOwned: vi.fn(() => vi.fn()) }));
+vi.mock("../services/ta/ownership.js", () => ({ assertOwns: vi.fn(), requireOwned: vi.fn(() => vi.fn()), JOB_OWNER_SELECT: {} }));
 
 import { uploadComplianceDocumentForApplicant } from "../services/applicant/application.service.js";
 import { uploadAndStoreDocument } from "../services/document/document.service.js";

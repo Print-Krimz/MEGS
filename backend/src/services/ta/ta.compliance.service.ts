@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
 import { logAudit } from "../../utils/audit.js";
-import { sendNotification } from "../../utils/notification.js";
+import { notifyJobOwner, sendNotification } from "../../utils/notification.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 import { ownedWhere, type Actor } from "./ownership.js";
 import { PIPELINE_STAGE_ORDER } from "./pipeline-rules.js";
@@ -221,10 +221,12 @@ export const reviewComplianceRequirement = async (
           jobPosting: {
             select: {
               postedById: true,
+              mrfId: true,
               title: true,
               mrf: {
                 select: {
                   clientId: true,
+                  assignedTaId: true,
                   client: {
                     select: {
                       id: true,
@@ -420,16 +422,15 @@ export const reviewComplianceRequirement = async (
     );
   }
 
-  const jobOwnerId = requirement.application?.jobPosting?.postedById;
-  if (jobOwnerId && jobOwnerId !== reviewedById) {
-    void sendNotification(
-      jobOwnerId,
-      `Compliance Document ${isApproved ? "Approved" : isToFollow ? "To Follow" : "Rejected"}`,
-      `Document '${requirement.documentLabel}' for ${candidateName} on "${jobTitle}" was marked as ${reviewStatus.toLowerCase()} by reviewer.`,
-      notifType,
-      `/ta/applications/${requirement.applicationId}`
-    );
-  }
+  const jobPosting = requirement.application?.jobPosting;
+  void notifyJobOwner(
+    jobPosting,
+    `Compliance Document ${isApproved ? "Approved" : isToFollow ? "To Follow" : "Rejected"}`,
+    `Document '${requirement.documentLabel}' for ${candidateName} on "${jobTitle}" was marked as ${reviewStatus.toLowerCase()} by reviewer.`,
+    notifType,
+    `/ta/applications/${requirement.applicationId}`,
+    { excludeUserId: reviewedById }
+  );
 
   // If approved or TO_FOLLOW, check if all mandatory requirements are satisfied
   if (isApproved || isToFollow) {
@@ -449,15 +450,13 @@ export const reviewComplianceRequirement = async (
         );
       }
 
-      if (jobOwnerId) {
-        void sendNotification(
-          jobOwnerId,
-          "Candidate Compliance Complete",
-          `${candidateName} on "${jobTitle}" has completed or scheduled all mandatory compliance documents and is ready for contract signing.`,
-          "SUCCESS",
-          `/ta/applications/${requirement.applicationId}`
-        );
-      }
+      void notifyJobOwner(
+        jobPosting,
+        "Candidate Compliance Complete",
+        `${candidateName} on "${jobTitle}" has completed or scheduled all mandatory compliance documents and is ready for contract signing.`,
+        "SUCCESS",
+        `/ta/applications/${requirement.applicationId}`
+      );
     }
   }
 

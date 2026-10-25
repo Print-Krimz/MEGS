@@ -1,9 +1,10 @@
 import prisma from "../../utils/prisma.js";
-import { sendNotification, sendRoleNotification } from "../../utils/notification.js";
+import { notifyJobOwner, sendNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
 import { syncMRFFulfillmentStatus } from "./ta.mrf.service.js";
 import { manilaDateString } from "../../schemas/field-limits.js";
 import { APPLICANT_WITHDRAWABLE_STATUSES, validateBackoutInput } from "./backout-rules.js";
+import { JOB_OWNER_SELECT, type JobOwnerFields } from "./ownership.js";
 import { hasNoShowHistory, retainInTalentPool } from "./talent-pool-retain.js";
 
 export class BackoutConflictError extends Error {}
@@ -41,7 +42,7 @@ export const recordBackout = async (input: RecordBackoutInput) => {
       status: true,
       isArchived: true,
       createdAt: true,
-      jobPosting: { select: { title: true, postedById: true, mrfId: true } },
+      jobPosting: { select: { title: true, ...JOB_OWNER_SELECT } },
       backout: { select: { id: true } },
       deployments: { select: { id: true, status: true, mrfId: true } },
     },
@@ -190,7 +191,7 @@ export const recordBackout = async (input: RecordBackoutInput) => {
     applicationId,
     applicantUserId: application.userId,
     jobTitle: application.jobPosting?.title ?? "the position",
-    postedById: application.jobPosting?.postedById ?? null,
+    jobPosting: application.jobPosting,
   });
 
   return backout;
@@ -202,15 +203,14 @@ async function notifyBackout(args: {
   applicationId: number;
   applicantUserId: string;
   jobTitle: string;
-  postedById: string | null;
+  jobPosting: JobOwnerFields | null;
 }) {
-  const { isApplicant, party, applicationId, applicantUserId, jobTitle, postedById } = args;
+  const { isApplicant, party, applicationId, applicantUserId, jobTitle, jobPosting } = args;
   if (isApplicant) {
     const link = `/ta/applications/${applicationId}`;
     const title = "Applicant withdrew";
     const message = `An applicant withdrew from ${jobTitle}.`;
-    if (postedById) await sendNotification(postedById, title, message, "WARNING", link);
-    else await sendRoleNotification("TALENT_ACQUISITION", title, message, "WARNING", link);
+    await notifyJobOwner(jobPosting, title, message, "WARNING", link);
     return;
   }
   await sendNotification(

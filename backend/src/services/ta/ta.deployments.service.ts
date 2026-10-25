@@ -4,10 +4,10 @@ import { rethrowPlacementConflict } from "../employee/placement-conflict.js";
 import { DeploymentStatus, type Prisma } from "@prisma/client";
 import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
 import { logAudit } from "../../utils/audit.js";
-import { sendNotification } from "../../utils/notification.js";
+import { notifyOwner, sendNotification } from "../../utils/notification.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 import { PIPELINE_STAGE_ORDER } from "./pipeline-rules.js";
-import { assertOwns, ownedWhere, type Actor } from "./ownership.js";
+import { assertOwns, deploymentOwnerTaId, JOB_OWNER_SELECT, ownedWhere, type Actor } from "./ownership.js";
 import { isPageRequested, pageEnvelope, resolvePage, type PageRequest } from "../../utils/pagination.js";
 import {
   calculateMRFFulfillment,
@@ -204,7 +204,7 @@ export const createDeployment = async (
         },
       },
       client: { select: { id: true, name: true } },
-      mrf: { select: { id: true, title: true } },
+      mrf: { select: { id: true, title: true, assignedTaId: true } },
     },
   }).catch(rethrowPlacementConflict);
 
@@ -245,16 +245,14 @@ export const createDeployment = async (
     );
   }
 
-  const ownerId = application?.jobPosting?.postedById || application?.jobPosting?.mrf?.createdById || (deployment as any).mrf?.createdById;
-  if (ownerId && createdById !== ownerId) {
-    void sendNotification(
-      ownerId,
-      "Candidate Deployed",
-      `Deployment record for candidate at ${resolvedSite || "Main Site"} is now ${deployment.status}.`,
-      "SUCCESS",
-      `/ta/deployments/${deployment.id}`
-    );
-  }
+  void notifyOwner(
+    deploymentOwnerTaId({ ...deployment, application }),
+    "Candidate Deployed",
+    `Deployment record for candidate at ${resolvedSite || "Main Site"} is now ${deployment.status}.`,
+    "SUCCESS",
+    `/ta/deployments/${deployment.id}`,
+    { excludeUserId: createdById }
+  );
 
   return deployment;
 };
@@ -271,12 +269,12 @@ export const updateDeploymentStatus = async (
     include: {
       client: { select: { name: true } },
       employee: { select: { id: true, userId: true, employeeNumber: true, status: true } },
-      mrf: { select: { createdById: true } },
+      mrf: { select: { assignedTaId: true } },
       application: {
         select: {
           id: true,
           status: true,
-          jobPosting: { select: { postedById: true } },
+          jobPosting: { select: JOB_OWNER_SELECT },
         },
       },
     },
@@ -438,16 +436,14 @@ export const updateDeploymentStatus = async (
     );
   }
 
-  const ownerId = deployment.mrf?.createdById || deployment.application?.jobPosting?.postedById;
-  if (ownerId && actorId && ownerId !== actorId) {
-    void sendNotification(
-      ownerId,
-      "Deployment Status Updated",
-      `Deployment record for candidate at ${deployment.site || "Main Site"} is now ${status}.`,
-      "SUCCESS",
-      `/ta/deployments/${deployment.id}`
-    );
-  }
+  void notifyOwner(
+    deploymentOwnerTaId(deployment),
+    "Deployment Status Updated",
+    `Deployment record for candidate at ${deployment.site || "Main Site"} is now ${status}.`,
+    "SUCCESS",
+    `/ta/deployments/${deployment.id}`,
+    { excludeUserId: actorId }
+  );
 
   return updated;
 };
@@ -584,11 +580,11 @@ export const signDeploymentContract = async (
     where: { id },
     include: {
       client: true,
-      mrf: { select: { createdById: true } },
+      mrf: { select: { assignedTaId: true } },
       application: {
         select: {
           id: true,
-          jobPosting: { select: { postedById: true } },
+          jobPosting: { select: JOB_OWNER_SELECT },
         },
       },
       employee: { include: { user: true } },
@@ -668,16 +664,14 @@ export const signDeploymentContract = async (
   }
 
   if (party === "WORKER" || party === "CLIENT") {
-    const recruiterId = deployment.mrf?.createdById || deployment.application?.jobPosting?.postedById || deployment.createdById;
-    if (recruiterId && actorId !== recruiterId) {
-      void sendNotification(
-        recruiterId,
-        "Deployment Contract Signed",
-        `Deployment contract for candidate at ${deployment.site || "Main Site"} was signed by ${party === "WORKER" ? "Candidate" : "Client Partner"}.`,
-        "SUCCESS",
-        `/ta/deployments/${deployment.id}`
-      );
-    }
+    void notifyOwner(
+      deploymentOwnerTaId(deployment),
+      "Deployment Contract Signed",
+      `Deployment contract for candidate at ${deployment.site || "Main Site"} was signed by ${party === "WORKER" ? "Candidate" : "Client Partner"}.`,
+      "SUCCESS",
+      `/ta/deployments/${deployment.id}`,
+      { excludeUserId: actorId }
+    );
   }
 
   return updated;

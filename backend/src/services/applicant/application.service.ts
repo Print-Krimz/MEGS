@@ -2,8 +2,8 @@ import crypto from 'node:crypto';
 import prisma from '../../utils/prisma.js';
 import { uploadFileToSupabaseWithInfo } from '../../middleware/upload.middleware.js';
 import { logAudit } from '../../utils/audit.js';
-import { assertOwns } from '../ta/ownership.js';
-import { sendNotification, sendRoleNotification } from '../../utils/notification.js';
+import { assertOwns, JOB_OWNER_SELECT } from '../ta/ownership.js';
+import { notifyJobOwner, sendNotification } from '../../utils/notification.js';
 import { enqueueResumeAnalysis, trackFitRevalidation } from '../../workers/resume.worker.js';
 import { revalidateApplication } from "../scoring/scoring-configuration.service.js";
 import {
@@ -177,7 +177,7 @@ export const fetchJobDetails = async (jobId: number, userId: string) => {
 
 /** Job must exist and be OPEN, with no unfinished attempt and no active deployment for the applicant. */
 export const assertCanApply = async (userId: string, jobPostingId: number) => {
-  const job = await prisma.jobPosting.findUnique({ where: { id: jobPostingId }, include: { mrf: { select: { clientId: true } } } });
+  const job = await prisma.jobPosting.findUnique({ where: { id: jobPostingId }, include: { mrf: { select: { clientId: true, assignedTaId: true } } } });
   if (!job) throw new Error("Job not found");
   if (job.status !== "OPEN") throw new Error("This job is no longer accepting applications");
 
@@ -322,24 +322,13 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     `/app/applications/${application.id}`
   );
 
-  if (job.postedById) {
-    void sendNotification(
-      job.postedById,
-      "New Candidate Application",
-      `New application received for "${job.title}".`,
-      "INFO",
-      `/ta/applications/${application.id}`
-    );
-  } else {
-    void sendRoleNotification(
-      "TALENT_ACQUISITION",
-      "New Candidate Application",
-      `New application received for "${job.title}".`,
-      "INFO",
-      `/ta/applications/${application.id}`,
-      userId
-    );
-  }
+  void notifyJobOwner(
+    job,
+    "New Candidate Application",
+    `New application received for "${job.title}".`,
+    "INFO",
+    `/ta/applications/${application.id}`
+  );
 
   return {
     id: application.id,
@@ -657,7 +646,7 @@ export const fetchMyDocumentLibrary = async (userId: string) => {
 export const reuseDocumentForRequirement = async (userId: string, requirementId: number, documentId: number) => {
   const requirement = await prisma.complianceRequirement.findUnique({
     where: { id: requirementId },
-    include: { application: { select: { userId: true, status: true, isArchived: true, jobPosting: { select: { postedById: true, title: true } } } } },
+    include: { application: { select: { userId: true, status: true, isArchived: true, jobPosting: { select: { ...JOB_OWNER_SELECT, title: true } } } } },
   });
   if (!requirement) throw new Error("Compliance requirement not found");
   if (requirement.application.userId !== userId) {
@@ -698,13 +687,8 @@ export const reuseDocumentForRequirement = async (userId: string, requirementId:
     documentLabel: requirement.documentLabel,
     documentId,
   });
-  const jobOwnerId = requirement.application.jobPosting?.postedById;
   const message = `An applicant re-used an existing document for '${requirement.documentLabel}' on "${requirement.application.jobPosting?.title ?? "Requisition"}".`;
-  if (jobOwnerId) {
-    void sendNotification(jobOwnerId, "Compliance Document Submitted", message, "INFO", `/ta/applications/${requirement.applicationId}`);
-  } else {
-    void sendRoleNotification("TALENT_ACQUISITION", "Compliance Document Submitted", message, "INFO", `/ta/applications/${requirement.applicationId}`, userId);
-  }
+  void notifyJobOwner(requirement.application.jobPosting, "Compliance Document Submitted", message, "INFO", `/ta/applications/${requirement.applicationId}`);
   return updated;
 };
 
@@ -730,7 +714,7 @@ const loadRequirementForUpload = (requirementId: number) =>
               },
             },
           },
-          jobPosting: { select: { postedById: true, title: true } },
+          jobPosting: { select: { ...JOB_OWNER_SELECT, title: true } },
         },
       },
     },
@@ -803,7 +787,7 @@ export const uploadApplicantComplianceDocument = async (
     ? `${candProfile.firstName || ""} ${candProfile.lastName || ""}`.trim()
     : requirement.application?.user?.email || "Candidate";
   const jobTitle = requirement.application?.jobPosting?.title || "Requisition";
-  const jobOwnerId = requirement.application?.jobPosting?.postedById;
+  const jobPosting = requirement.application?.jobPosting;
 
   const taNotifTitle = wasRejected ? "Compliance Document Re-Submitted" : "Compliance Document Uploaded";
   const taNotifMsg = wasRejected
@@ -811,24 +795,7 @@ export const uploadApplicantComplianceDocument = async (
     : `${candidateName} uploaded '${requirement.documentLabel}' for "${jobTitle}".`;
   const directLink = `/ta/applications/${requirement.applicationId}`;
 
-  if (jobOwnerId) {
-    void sendNotification(
-      jobOwnerId,
-      taNotifTitle,
-      taNotifMsg,
-      "INFO",
-      directLink
-    );
-  } else {
-    void sendRoleNotification(
-      "TALENT_ACQUISITION",
-      taNotifTitle,
-      taNotifMsg,
-      "INFO",
-      directLink,
-      userId
-    );
-  }
+  void notifyJobOwner(jobPosting, taNotifTitle, taNotifMsg, "INFO", directLink);
 
   // Milestone check: verify if all mandatory requirements now have documents submitted
   const mandatoryReqs = await prisma.complianceRequirement.findMany({
@@ -845,11 +812,7 @@ export const uploadApplicantComplianceDocument = async (
     const milestoneMsg = `All mandatory compliance documents for ${candidateName} on "${jobTitle}" have been submitted and are ready for verification.`;
     const milestoneType = "SUCCESS";
 
-    if (jobOwnerId) {
-      void sendNotification(jobOwnerId, milestoneTitle, milestoneMsg, milestoneType, directLink);
-    } else {
-      void sendRoleNotification("TALENT_ACQUISITION", milestoneTitle, milestoneMsg, milestoneType, directLink, userId);
-    }
+    void notifyJobOwner(jobPosting, milestoneTitle, milestoneMsg, milestoneType, directLink);
   }
 
   return updated;

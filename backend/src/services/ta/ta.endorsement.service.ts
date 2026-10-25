@@ -1,8 +1,9 @@
 import prisma from "../../utils/prisma.js";
-import { sendNotification } from "../../utils/notification.js";
+import { notifyJobOwner, sendNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
 import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
 import { PIPELINE_STAGE_ORDER } from "./pipeline-rules.js";
+import { JOB_OWNER_SELECT } from "./ownership.js";
 
 // Client decisions can't be recorded or changed once the candidate is backed out, rejected, archived, or past FINAL_INTERVIEW.
 // FINAL_INTERVIEW stays allowed: an approval moves the candidate there and updateClientEndorsement handles that stage.
@@ -214,7 +215,7 @@ export const updateClientEndorsement = async (
       jobPosting: {
         select: {
           title: true,
-          postedById: true,
+          ...JOB_OWNER_SELECT,
         },
       },
     },
@@ -279,17 +280,15 @@ export const updateClientEndorsement = async (
     );
 
     // If recorded by another team member/coordinator, notify requisition owner
-    const jobOwnerId = application.jobPosting?.postedById;
     const jobTitle = application.jobPosting?.title || "Requisition";
-    if (jobOwnerId && actorId && jobOwnerId !== actorId) {
-      await sendNotification(
-        jobOwnerId,
-        "Client Endorsement Decision Recorded",
-        `Client decision for candidate on "${jobTitle}" was recorded as ${outcome}.`,
-        outcome === "APPROVED" ? "SUCCESS" : "WARNING",
-        `/ta/applications/${applicationId}`
-      );
-    }
+    await notifyJobOwner(
+      application.jobPosting,
+      "Client Endorsement Decision Recorded",
+      `Client decision for candidate on "${jobTitle}" was recorded as ${outcome}.`,
+      outcome === "APPROVED" ? "SUCCESS" : "WARNING",
+      `/ta/applications/${applicationId}`,
+      { excludeUserId: actorId }
+    );
   }
 
   void logAudit(actorId || null, "CLIENT_ENDORSEMENT_UPDATED", "Application", applicationId, {

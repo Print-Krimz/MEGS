@@ -102,7 +102,8 @@ model Notification {
   type      String   // e.g., "INFO", "SUCCESS", "WARNING"
   isRead    Boolean  @default(false)
   link      String?  // Optional URL to redirect to when clicked
-  
+  dedupeKey String?  @unique // Set by scheduled reminders so a repeat run cannot send the same alert twice
+
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt(sort: Desc)])

@@ -1,7 +1,7 @@
 import prisma from '../../utils/prisma.js';
 import { Prisma } from '@prisma/client';
 import { ApplicationStatus } from "@prisma/client";
-import { sendNotification, sendRoleNotification } from '../../utils/notification.js';
+import { notifyJobOwner, sendNotification } from '../../utils/notification.js';
 import { scoringFlags } from '../../utils/scoring-flags.js';
 import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.service.js";
 import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
@@ -10,7 +10,7 @@ import { resolveDocumentSignedUrl, resolveDocumentSignedUrls, uploadAndStoreDocu
 import { buildContractPdfBuffer } from './contract-pdf-builder.js';
 import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
-import { ownedWhere, type Actor } from "./ownership.js";
+import { JOB_OWNER_SELECT, ownedWhere, type Actor } from "./ownership.js";
 import { syncMRFFulfillmentStatus } from "./ta.mrf.service.js";
 import { stageEnteredAt } from "../analytics/metric-definitions.js";
 
@@ -1432,7 +1432,7 @@ export const applyScoreCategorization = async (applicationId: number, score: num
       jobPosting: {
         select: {
           title: true,
-          postedById: true,
+          ...JOB_OWNER_SELECT,
         },
       },
     },
@@ -1474,18 +1474,13 @@ export const applyScoreCategorization = async (applicationId: number, score: num
         ? `${candProfile.firstName || ""} ${candProfile.lastName || ""}`.trim()
         : application.user?.email || "Candidate";
       const jobTitle = application.jobPosting?.title || "Requisition";
-      const postedById = application.jobPosting?.postedById;
 
       const notifTitle = "Candidate Matched";
       const notifMessage = `${candidateName} has a match score of ${formatScore(score)}/100 for "${jobTitle}".`;
       const notifType = "SUCCESS";
       const link = `/ta/applications/${applicationId}`;
 
-      if (postedById) {
-        await sendNotification(postedById, notifTitle, notifMessage, notifType, link);
-      } else {
-        await sendRoleNotification("TALENT_ACQUISITION", notifTitle, notifMessage, notifType, link);
-      }
+      await notifyJobOwner(application.jobPosting, notifTitle, notifMessage, notifType, link);
     }
   }
 };

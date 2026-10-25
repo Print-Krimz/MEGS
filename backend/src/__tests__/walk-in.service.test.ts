@@ -38,7 +38,7 @@ vi.mock("../utils/prisma.js", () => ({ default: m.prisma }));
 vi.mock("../utils/supabase.js", () => ({ default: m.supabase }));
 vi.mock("../middleware/upload.middleware.js", () => ({ uploadFileToSupabaseWithInfo: m.uploadFileToSupabaseWithInfo }));
 vi.mock("../utils/audit.js", () => ({ logAudit: m.logAudit }));
-vi.mock("../utils/notification.js", () => ({ sendNotification: m.sendNotification, sendRoleNotification: m.sendRoleNotification }));
+vi.mock("../utils/notification.js", () => ({ notifyJobOwner: vi.fn(async () => 0), notifyOwner: vi.fn(async () => 0), sendNotification: m.sendNotification, sendRoleNotification: m.sendRoleNotification }));
 vi.mock("../workers/resume.worker.js", () => ({ enqueueResumeAnalysis: m.enqueueResumeAnalysis, trackFitRevalidation: m.trackFitRevalidation }));
 vi.mock("../services/scoring/scoring-configuration.service.js", () => ({ revalidateApplication: m.revalidateApplication }));
 vi.mock("../services/applicant/application.service.js", () => ({ assertCanApply: m.assertCanApply, resolveInitialStatus: m.resolveInitialStatus }));

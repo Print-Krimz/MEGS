@@ -22,6 +22,31 @@ const client = (a: Actor): Where =>
 const job = (a: Actor): Where =>
   restricted(a) ? { OR: [{ mrf: { is: { assignedTaId: a.id } } }, { mrfId: null, postedById: a.id }] } : {};
 
+// The fields needed to resolve a job's owner; select them with JOB_OWNER_SELECT.
+export interface JobOwnerFields {
+  postedById: string;
+  mrfId: number | null;
+  mrf?: { assignedTaId: string | null } | null;
+}
+
+export const JOB_OWNER_SELECT = { postedById: true, mrfId: true, mrf: { select: { assignedTaId: true } } } as const;
+
+// Same rule as job(): the requisition's assignee (null when unassigned), else the poster of a legacy job.
+export const jobOwnerTaId = (job: JobOwnerFields): string | null =>
+  job.mrfId !== null ? job.mrf?.assignedTaId ?? null : job.postedById;
+
+// Same rule as deployment(): its requisition's assignee, else its application's job owner, else whoever created it.
+export const deploymentOwnerTaId = (d: {
+  mrfId: number | null;
+  mrf?: { assignedTaId: string | null } | null;
+  application?: { jobPosting: JobOwnerFields | null } | null;
+  createdById: string | null;
+}): string | null => {
+  if (d.mrfId !== null) return d.mrf?.assignedTaId ?? null;
+  if (d.application?.jobPosting) return jobOwnerTaId(d.application.jobPosting);
+  return d.createdById;
+};
+
 const application = (a: Actor): Where => (restricted(a) ? { jobPosting: { is: job(a) } } : {});
 
 // A deployment follows its requisition, then its application's job, then its creator.
