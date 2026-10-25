@@ -119,15 +119,20 @@ export const MyApplicationsPage: React.FC = () => {
 
   // Closed applications and finished placements move to a collapsed history so the main view leads with what is still moving.
   // A deployed application stays in the main list while its placement is scheduled or running: that is the current job.
+  const isCurrentAssignment = (app: (typeof allApplications)[number]) =>
+    !app.isArchived && app.status === ApplicationStatus.DEPLOYED && !!app.deployments?.length;
   const isClosedApplication = (app: (typeof allApplications)[number]) =>
     app.isArchived ||
-    (app.status === ApplicationStatus.DEPLOYED && !(app.deployments?.length)) ||
+    (app.status === ApplicationStatus.DEPLOYED && !isCurrentAssignment(app)) ||
     app.status === ApplicationStatus.ARCHIVED ||
     app.status === ApplicationStatus.BACKOUT ||
     app.status === ApplicationStatus.REJECTED ||
     app.status === ApplicationStatus.TALENT_POOL;
+  // The current assignment leads, then newest first.
   const newestFirst = [...allApplications].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    (a, b) =>
+      Number(isCurrentAssignment(b)) - Number(isCurrentAssignment(a)) ||
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
   const openApplications = newestFirst.filter((app) => !isClosedApplication(app));
   const closedApplications = newestFirst.filter(isClosedApplication);
@@ -539,6 +544,9 @@ export const MyApplicationsPage: React.FC = () => {
                 {/* Top line: role title, company & date */}
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div className="space-y-1">
+                    {isCurrentAssignment(app) && (
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Current assignment</p>
+                    )}
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-base font-semibold text-slate-900">
                         {app.jobPosting?.title || `Position reference #${app.jobPostingId}`}
