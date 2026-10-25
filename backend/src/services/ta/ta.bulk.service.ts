@@ -1,4 +1,5 @@
 import { DeploymentStatus } from "@prisma/client";
+import prisma from "../../utils/prisma.js";
 import { redactSensitiveText } from "../../security/errors.js";
 import { assertOwns, type Actor } from "./ownership.js";
 import { BackoutConflictError } from "./backout.service.js";
@@ -82,8 +83,14 @@ export const bulkRejectApplications = (
   input: { reasonCode: string; disposition: "TALENT_POOL" | "ARCHIVE"; notes?: string },
   actor: Actor
 ) =>
-  runBulk(ids, actor, (id) =>
-    closeApplication({
+  runBulk(ids, actor, async (id) => {
+    // The application page does not offer Reject for a deployed worker, and rejecting one would leave the deployment
+    // running. Backing out or ending the assignment are the right routes, so bulk refuses them too.
+    const current = await prisma.application.findUnique({ where: { id }, select: { status: true } });
+    if (current?.status === "DEPLOYED") {
+      throw new Error("A deployed worker cannot be rejected. End the assignment or record a backout instead.");
+    }
+    return closeApplication({
       applicationId: id,
       outcome: "REJECTED",
       reasonCode: input.reasonCode,
@@ -91,8 +98,8 @@ export const bulkRejectApplications = (
       notes: input.notes,
       actorId: actor.id,
       actorRole: actor.role as "TALENT_ACQUISITION" | "ADMINISTRATOR",
-    })
-  );
+    });
+  });
 
 export const bulkArchiveApplications = (ids: number[], reason: string, actor: Actor) =>
   runBulk(ids, actor, (id) => archiveTAApplication(id, actor.id, reason));

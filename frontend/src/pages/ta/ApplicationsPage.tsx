@@ -464,7 +464,8 @@ export const ApplicationsPage: React.FC = () => {
     if (every((app) => !app.isArchived && BULK_MOVE_FROM.includes(app.status))) {
       bulkActions.push({ action: "move", label: "Move to Initial Screening", variant: "primary" });
     }
-    if (every((app) => !isClosedRecord(app))) {
+    // Same rule as the application page: a deployed worker is not rejected. End the assignment or record a backout.
+    if (every((app) => !isClosedRecord(app) && app.status !== ApplicationStatus.DEPLOYED)) {
       bulkActions.push({ action: "reject", label: "Reject", variant: "outline" });
     }
     if (every((app) => isClosedRecord(app) && !app.isArchived)) {
@@ -970,6 +971,7 @@ export const ApplicationsPage: React.FC = () => {
       <BulkActionBar
         count={selectedRows.length}
         onClear={selection.clear}
+        note={totalItems > applications.length ? `on this page (${totalItems} in the list)` : undefined}
         emptyHint="No action fits all the selected records. Select records in the same stage."
       >
         {bulkActions.length > 0 &&
