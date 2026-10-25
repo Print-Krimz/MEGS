@@ -411,7 +411,8 @@ export interface ComplianceAnalytics {
 }
 
 export interface InterviewSLAItem {
-  interviewId: number;
+  /** The open interview for the stage; null when none is scheduled yet. */
+  interviewId: number | null;
   applicationId: number;
   candidateName: string;
   jobTitle: string;

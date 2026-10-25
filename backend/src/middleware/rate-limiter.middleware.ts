@@ -104,6 +104,14 @@ export const maintenanceLimiters = operationLimiters("maintenance", 6, 24);
 export const scoringLimiters = operationLimiters("scoring-revalidation", 6, 24);
 export const analyticsLimiters = operationLimiters("analytics", 180, 3000, 15 * 60 * 1000);
 
+// Account claim: a second budget per mobile number, so one number cannot be probed or texted
+// repeatedly from many addresses. The IP budget (authLimiter) still applies on top.
+const claimPhoneKey = (req: Request): string => {
+  const digits = String(req.body?.phone ?? "").replace(/\D/g, "").slice(-10);
+  return digits ? hashIdentity(`claim_phone_${digits}`) : clientIp(req);
+};
+export const claimPhoneLimiter = limiter("claim-phone", 5, 15 * 60 * 1000, claimPhoneKey);
+
 // Public no-login pages (QR tracker, offer links): per-IP, 60 requests per 15 minutes.
 export const publicLimiter = limiter("public-ip", 60, 15 * 60 * 1000, clientIp);
 

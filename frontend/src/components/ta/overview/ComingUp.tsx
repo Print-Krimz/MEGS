@@ -127,6 +127,8 @@ export const ComingUp: React.FC<{ deploymentsQuery: UseQueryResult<Deployment[]>
   const sections: Section[] = [];
 
   const interviews = (interviewsQuery.data?.items ?? [])
+    // Only rows with a scheduled interview have a real interview date.
+    .filter((row) => row.interviewId != null)
     .map((row) => ({ row, day: toManilaDateInput(row.scheduledAt) }))
     .filter(({ day }) => day >= today && day <= weekEnd)
     .sort((a, b) => a.row.scheduledAt.localeCompare(b.row.scheduledAt));

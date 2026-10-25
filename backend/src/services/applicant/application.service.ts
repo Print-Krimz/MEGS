@@ -378,6 +378,11 @@ export const fetchMyApplications = async (
             select: { id: true },
           },
           jobPosting: { select: { id: true, title: true, location: true } },
+          // A scheduled or running placement marks the worker's current assignment, so it is not filed as history.
+          deployments: {
+            where: { status: { in: ["READY_FOR_DEPLOYMENT", "ACTIVE"] } },
+            select: { id: true, status: true },
+          },
         },
       }),
       prisma.application.count({ where }),

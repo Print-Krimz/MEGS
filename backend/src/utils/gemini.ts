@@ -566,6 +566,12 @@ export const classifyExtractionError = (err: any): string => {
 const extractionModels = new WeakMap<ExtractedProfileData, string>();
 export const modelThatExtracted = (data: ExtractedProfileData | null | undefined): string | null =>
   (data && extractionModels.get(data)) || null;
+/** Use when a result is copied into a new object, so the model that read it is still known. */
+export const carryExtractionModel = <T extends ExtractedProfileData>(from: ExtractedProfileData, to: T): T => {
+  const model = extractionModels.get(from);
+  if (model) extractionModels.set(to, model);
+  return to;
+};
 
 // Runs one extraction attempt and logs a single line: no resume content or PII, only path,
 // type, size bucket, latency and outcome.

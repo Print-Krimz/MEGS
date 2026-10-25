@@ -31,6 +31,7 @@ import {
   forgotPasswordLimiter,
   authIpLimiter,
   authAccountLimiter,
+  claimPhoneLimiter,
 } from '../../middleware/rate-limiter.middleware.js';
 import { verifyTurnstile } from '../../middleware/turnstile.middleware.js';
 
@@ -58,7 +59,7 @@ router.get("/invitation-details", authLimiter, validate(authSchema.getInvitation
 router.post("/setup-account", authLimiter, validate(authSchema.setupAccount), setupAccount);
 
 // Walk-in account claim (SMS code -> claim token -> optional email code -> password)
-router.post("/claim/start", authLimiter, verifyTurnstile, validate(claimSchema.start), claimStart);
+router.post("/claim/start", authLimiter, claimPhoneLimiter, verifyTurnstile, validate(claimSchema.start), claimStart);
 router.post("/claim/verify", authLimiter, validate(claimSchema.verify), claimVerify);
 router.post("/claim/email-code", authLimiter, validate(claimSchema.emailCode), claimEmailCode);
 router.post("/claim/complete", authLimiter, validate(claimSchema.complete), claimComplete);

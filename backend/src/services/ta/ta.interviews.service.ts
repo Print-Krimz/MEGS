@@ -609,6 +609,15 @@ export const getInterviewComplianceReport = async (actor?: Actor, options: Inter
       updatedAt: true,
       jobPosting: { select: { title: true } },
       user: { select: { applicantProfile: { select: { firstName: true, lastName: true } } } },
+      // The open interview for the current stage. A row only records an outcome against a real interview.
+      interviews: {
+        where: {
+          isActive: true,
+          OR: [{ result: null }, { result: { in: ["PENDING", "SCHEDULED"] } }],
+        },
+        select: { id: true, type: true, scheduledAt: true },
+        orderBy: { scheduledAt: "desc" },
+      },
     },
     orderBy: { updatedAt: "asc" },
   });
@@ -625,9 +634,11 @@ export const getInterviewComplianceReport = async (actor?: Actor, options: Inter
 
     const candidateName = `${app.user.applicantProfile?.firstName || ""} ${app.user.applicantProfile?.lastName || ""}`.trim() || "Candidate";
     const deadlineDate = new Date(app.updatedAt.getTime() + 7 * ONE_DAY_MS);
+    const openInterview = app.interviews.find((interview) => interview.type === app.status) ?? null;
 
     return {
-      interviewId: app.id,
+      // Null when the stage has no open interview yet: the recruiter schedules one instead of recording an outcome.
+      interviewId: openInterview?.id ?? null,
       applicationId: app.id,
       candidate: candidateName,
       candidateName,
@@ -635,7 +646,7 @@ export const getInterviewComplianceReport = async (actor?: Actor, options: Inter
       jobTitle: app.jobPosting.title,
       currentStage: app.status,
       enteredStageAt: app.updatedAt,
-      scheduledAt: app.updatedAt.toISOString(),
+      scheduledAt: (openInterview?.scheduledAt ?? app.updatedAt).toISOString(),
       deadline: deadlineDate.toISOString(),
       daysInStage,
       status: slaStatus as "HEALTHY" | "WARNING" | "BREACHED",

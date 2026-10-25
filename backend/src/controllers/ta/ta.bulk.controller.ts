@@ -6,7 +6,6 @@ import {
   bulkConfirmDeploymentStart,
   bulkDismissCheckIns,
   bulkEndDeployments,
-  bulkMoveApplications,
   bulkRecordDeploymentCheckIns,
   bulkRecordInterviews,
   bulkRejectApplications,
@@ -16,15 +15,6 @@ import {
 
 const respond = (res: Response, summary: BulkSummary) =>
   sendSuccess(res, `${summary.succeeded} done, ${summary.failed} failed`, summary);
-
-// POST /api/ta/bulk/applications/status - Move many applications into one early stage
-export const bulkMoveApplicationsHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    respond(res, await bulkMoveApplications(req.body.ids, req.body.status, req.user!));
-  } catch (error: any) {
-    sendError(res, error.message, 500, error);
-  }
-};
 
 // POST /api/ta/bulk/applications/reject - Reject many applications with one reason and disposition
 export const bulkRejectApplicationsHandler = async (req: Request, res: Response): Promise<void> => {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ApplicationStatus } from "@prisma/client";
 import { BACKOUT_REASONS_BY_PARTY, REJECTION_REASON_CODES } from "../services/ta/backout-rules.js";
-import { BULK_MAX_IDS, BULK_MOVE_TARGETS } from "../services/ta/bulk-rules.js";
+import { BULK_MAX_IDS } from "../services/ta/bulk-rules.js";
 import { resumeMergeAccept } from "./applicant.schema.js";
 import { manilaDateString, boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber, pageQueryFields, isWorkingHours } from "./field-limits.js";
 
@@ -237,12 +237,6 @@ export const taSchema = {
       notes: boundedText(FIELD_LIMITS.notes).optional(),
       reason: boundedText(FIELD_LIMITS.notes).optional(),
     }).optional(),
-  }),
-  bulkMoveApplications: z.object({
-    body: z.object({
-      ids: bulkIds,
-      status: z.enum(BULK_MOVE_TARGETS),
-    }),
   }),
   bulkRejectApplications: z.object({
     body: z

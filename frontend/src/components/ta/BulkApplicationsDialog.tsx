@@ -3,7 +3,7 @@ import { Button, Dialog, Select, Textarea } from "../ui";
 import { FIELD_LIMITS } from "../../lib/field-limits";
 import { REJECTION_REASON_OPTIONS, type ClosureDisposition } from "../../lib/backout";
 
-export type BulkApplicationAction = "move" | "reject" | "archive" | "restore";
+export type BulkApplicationAction = "reject" | "archive" | "restore";
 
 export interface BulkSubmission {
   /** Archive and restore. */
@@ -23,7 +23,6 @@ interface BulkApplicationsDialogProps {
 }
 
 export const BULK_ACTION_TITLES: Record<BulkApplicationAction, string> = {
-  move: "Move to Initial Screening",
   reject: "Reject applicants",
   archive: "Archive applications",
   restore: "Restore applications",
@@ -51,19 +50,16 @@ export const BulkApplicationsDialog: React.FC<BulkApplicationsDialogProps> = ({ 
   const notesRequired = action === "reject" && reasonCode === "OTHER";
   const notesMissing = notesRequired && !notes.trim();
   const ready =
-    action === "move" ||
     (action === "reject" && Boolean(reasonCode) && !notesMissing) ||
     ((action === "archive" || action === "restore") && Boolean(reason.trim()));
 
   const description = {
-    move: `${plural(count)} will move to Initial Screening. Each applicant is notified.`,
     reject: `${plural(count)} will be rejected with the same reason. Each applicant is notified. Records that cannot be rejected are listed afterward.`,
     archive: `${plural(count)} will be archived with the same reason.`,
     restore: `${plural(count)} will return to the pipeline as Submitted.`,
   }[action];
 
   const submitLabel = {
-    move: `Move ${count}`,
     reject: `Reject ${count}`,
     archive: `Archive ${count}`,
     restore: `Restore ${count}`,
@@ -72,7 +68,6 @@ export const BulkApplicationsDialog: React.FC<BulkApplicationsDialogProps> = ({ 
   const submit = () => {
     if (action === "reject") onSubmit({ reasonCode, disposition, notes: notes.trim() || undefined });
     else if (action === "archive" || action === "restore") onSubmit({ reason: reason.trim() });
-    else onSubmit({});
   };
 
   return (

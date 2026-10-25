@@ -4,7 +4,7 @@ import { redactSensitiveText } from "../../security/errors.js";
 import { assertOwns, type Actor } from "./ownership.js";
 import { BackoutConflictError } from "./backout.service.js";
 import { closeApplication } from "./closure.service.js";
-import { archiveTAApplication, restoreTAApplication, updateTAApplicationStatus } from "./ta.applications.service.js";
+import { archiveTAApplication, restoreTAApplication } from "./ta.applications.service.js";
 import { updateInterviewResult } from "./ta.interviews.service.js";
 import { dismissCheckIn } from "./walk-in-check-in.service.js";
 import { WalkInConflictError } from "./walk-in.service.js";
@@ -12,7 +12,6 @@ import { cancelTalentPoolInvitation } from "./talent-pool-invitation.service.js"
 import { InvalidKnnRequestError } from "../scoring/talent-pool-knn.service.js";
 import { recordDeploymentReview, updateDeploymentStatus } from "./ta.deployments.service.js";
 import { endEmployeeDeployment } from "../employee/employee.service.js";
-import type { BulkMoveTarget } from "./bulk-rules.js";
 
 export interface BulkRowResult {
   id: number;
@@ -74,9 +73,6 @@ export const runBulk = (
     await assertOwns(kind, id, actor);
     await handle(id);
   });
-
-export const bulkMoveApplications = (ids: number[], status: BulkMoveTarget, actor: Actor) =>
-  runBulk(ids, actor, (id) => updateTAApplicationStatus(id, status, actor.id));
 
 export const bulkRejectApplications = (
   ids: number[],

@@ -26,7 +26,7 @@ import { EndAssignmentDialog } from "../../components/ta/EndAssignmentDialog";
 import { RecordCheckInDialog } from "../../components/ta/RecordCheckInDialog";
 import { checkInDue } from "../../components/ta/check-in-due";
 import { PersonCell, StatusWithAge, WorkforceCard } from "../../components/ta/workforce/WorkforceRow";
-import { getManilaToday } from "../../lib/field-limits";
+import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useRowSelection } from "../../hooks/useRowSelection";
@@ -101,8 +101,11 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
   };
 
   // The first working date for a worker: their own contract start unless it has already passed.
-  const ownStartDate = (dep: DeploymentRow) =>
-    dep.contractStart && dep.contractStart.slice(0, 10) >= getManilaToday() ? dep.contractStart.slice(0, 10) : getManilaToday();
+  // contractStart is Manila midnight, which is the previous day in UTC, so the ISO text cannot be sliced.
+  const ownStartDate = (dep: DeploymentRow) => {
+    const start = toManilaDateInput(dep.contractStart);
+    return start && start >= getManilaToday() ? start : getManilaToday();
+  };
 
   // Bulk actions. Selection is dropped whenever the visible list changes.
   const selection = useRowSelection(JSON.stringify([page, pageSize, debouncedSearch, filterValues]));

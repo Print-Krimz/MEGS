@@ -6,7 +6,8 @@ import { formatDate } from "../../../lib/utils";
 import { formatInterviewDeadlineStatus, TA_COPY } from "../../../lib/ta-copy";
 
 export interface AgendaInterview {
-  interviewId: number;
+  /** Null when the stage has no open interview yet. The row then offers scheduling instead of an outcome. */
+  interviewId: number | null;
   applicationId: number;
   candidateName: string;
   jobTitle: string;
@@ -43,7 +44,8 @@ const formatTime = (iso: string) => {
 
 export interface AgendaSelection {
   selectedIds: ReadonlySet<string>;
-  onToggle: (interviewId: number) => void;
+  /** Rows are keyed by application id: an application has at most one row. */
+  onToggle: (applicationId: number) => void;
 }
 
 interface InterviewAgendaProps {
@@ -60,7 +62,7 @@ export const InterviewAgenda: React.FC<InterviewAgendaProps> = ({ rows, onRecord
     bucket,
     items: rows.filter((row) => row.status === bucket).sort(byDeadline),
   })).filter((group) => group.items.length > 0);
-  const firstOverdueId = groups.find((g) => g.bucket === "BREACHED")?.items[0]?.interviewId;
+  const firstOverdueId = groups.find((g) => g.bucket === "BREACHED")?.items[0]?.applicationId;
 
   return (
     <div className="space-y-5">
@@ -72,12 +74,13 @@ export const InterviewAgenda: React.FC<InterviewAgendaProps> = ({ rows, onRecord
           </h3>
           <ul className="divide-y divide-slate-200 rounded-md border border-slate-300 bg-white">
             {items.map((row) => (
-              <li key={row.interviewId} className={selection ? "flex items-start gap-1 pl-2 md:items-center" : undefined}>
+              <li key={row.applicationId} className={selection ? "flex items-start gap-1 pl-2 md:items-center" : undefined}>
                 {selection && (
                   <SelectBox
-                    checked={selection.selectedIds.has(String(row.interviewId))}
+                    checked={selection.selectedIds.has(String(row.applicationId))}
+                    disabled={row.interviewId == null}
                     label={`Select ${row.candidateName}`}
-                    onChange={() => selection.onToggle(row.interviewId)}
+                    onChange={() => selection.onToggle(row.applicationId)}
                   />
                 )}
                 <div className="grid min-w-0 flex-1 gap-x-4 gap-y-1 px-4 py-2.5 md:grid-cols-[8.5rem_minmax(0,1.2fr)_minmax(0,1fr)_16rem_9.5rem] md:items-center">
@@ -107,15 +110,24 @@ export const InterviewAgenda: React.FC<InterviewAgendaProps> = ({ rows, onRecord
                   {formatInterviewDeadlineStatus(row.status)}
                   <span className="font-normal">· {formatDate(row.deadline)}</span>
                 </span>
-                <Button
-                  variant={row.interviewId === firstOverdueId ? "primary" : "outline"}
-                  size="sm"
-                  className="mt-1 w-full md:mt-0 md:w-auto"
-                  aria-label={`${TA_COPY.interviews.recordOutcome} for ${row.candidateName}`}
-                  onClick={() => onRecord(row)}
-                >
-                  {TA_COPY.interviews.recordOutcome}
-                </Button>
+                {row.interviewId == null ? (
+                  <Button asChild variant="outline" size="sm" className="mt-1 w-full md:mt-0 md:w-auto">
+                    <Link to="/ta/applications/$applicationId" params={{ applicationId: String(row.applicationId) }}>
+                      Schedule interview
+                      <span className="sr-only"> for {row.candidateName}</span>
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button
+                    variant={row.applicationId === firstOverdueId ? "primary" : "outline"}
+                    size="sm"
+                    className="mt-1 w-full md:mt-0 md:w-auto"
+                    aria-label={`${TA_COPY.interviews.recordOutcome} for ${row.candidateName}`}
+                    onClick={() => onRecord(row)}
+                  >
+                    {TA_COPY.interviews.recordOutcome}
+                  </Button>
+                )}
                 </div>
               </li>
             ))}

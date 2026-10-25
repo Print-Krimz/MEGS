@@ -6,6 +6,7 @@ import { extractDocumentText, isUsableResumeText } from "../../security/document
 import { validateDocumentBytes } from "../../security/file-validation.js";
 import { detectDocumentFormat } from "../../workers/resume.worker.js";
 import {
+  carryExtractionModel,
   classifyExtractionError,
   extractResumeProfileData,
   extractResumeProfileDataFromBuffer,
@@ -462,7 +463,8 @@ const withLabeledIdentity = (extracted: ExtractedProfileData, text: string): Ext
   const firstName = extracted.firstName || labeled.firstName;
   const middleName = extracted.middleName || labeled.middleName;
   const headingLastName = lastNameFromHeading(text, firstName, middleName);
-  return {
+  // A new object loses the record of which model read it, so carry that over.
+  return carryExtractionModel(extracted, {
     ...extracted,
     firstName,
     middleName,
@@ -470,7 +472,7 @@ const withLabeledIdentity = (extracted: ExtractedProfileData, text: string): Ext
     gender: extracted.gender || labeled.gender,
     dateOfBirth: extracted.dateOfBirth || labeled.dateOfBirth,
     mobileNumber: extracted.mobileNumber || labeled.mobileNumber,
-  };
+  });
 };
 
 // Extracts candidate profile information from a resume buffer across multiple formats (.pdf, .docx, images)

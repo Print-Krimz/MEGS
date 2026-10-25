@@ -33,7 +33,6 @@ import {
   updateCandidateProfileHandler,
 } from '../../controllers/ta/ta.applications.controller.js';
 import {
-  bulkMoveApplicationsHandler,
   bulkRejectApplicationsHandler,
   bulkArchiveApplicationsHandler,
   bulkRestoreApplicationsHandler,
@@ -228,7 +227,6 @@ router.patch("/applications/:id/restore", validate(taSchema.archiveRestore), req
 router.get("/applications/:id/decisions", validate(taSchema.idParams), requireOwned("application"), getRecruiterDecisionsHandler);
 
 // Bulk actions. Ids are in the body, so each id is ownership-checked per row inside the service (runBulk).
-router.post("/bulk/applications/status", validate(taSchema.bulkMoveApplications), bulkMoveApplicationsHandler);
 router.post("/bulk/applications/reject", validate(taSchema.bulkRejectApplications), bulkRejectApplicationsHandler);
 router.post("/bulk/applications/archive", validate(taSchema.bulkArchiveRestoreApplications), bulkArchiveApplicationsHandler);
 router.post("/bulk/applications/restore", validate(taSchema.bulkArchiveRestoreApplications), bulkRestoreApplicationsHandler);

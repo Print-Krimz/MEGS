@@ -117,6 +117,8 @@ export const sendSmsViaTextBee = async (
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
+      // A stalled gateway must not hold the request open.
+      signal: AbortSignal.timeout(10_000),
     });
 
     const data = await response.json().catch(() => ({}));

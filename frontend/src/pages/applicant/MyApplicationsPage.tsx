@@ -117,10 +117,11 @@ export const MyApplicationsPage: React.FC = () => {
   const allInvitations = invitationsQuery.data || [];
   const pendingInvitations = allInvitations.filter((inv) => inv.status === "PENDING");
 
-  // Closed and deployed applications move to a collapsed history so the main view leads with what is still moving.
+  // Closed applications and finished placements move to a collapsed history so the main view leads with what is still moving.
+  // A deployed application stays in the main list while its placement is scheduled or running: that is the current job.
   const isClosedApplication = (app: (typeof allApplications)[number]) =>
     app.isArchived ||
-    app.status === ApplicationStatus.DEPLOYED ||
+    (app.status === ApplicationStatus.DEPLOYED && !(app.deployments?.length)) ||
     app.status === ApplicationStatus.ARCHIVED ||
     app.status === ApplicationStatus.BACKOUT ||
     app.status === ApplicationStatus.REJECTED ||

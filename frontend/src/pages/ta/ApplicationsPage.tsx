@@ -87,15 +87,6 @@ const CLOSED_STATUSES: ApplicationStatus[] = [
   ApplicationStatus.ARCHIVED,
 ];
 
-/** Stages that may move straight into Initial Screening in bulk (the same stages the backend allows without evidence). */
-const BULK_MOVE_FROM: ApplicationStatus[] = [
-  ApplicationStatus.SUBMITTED,
-  ApplicationStatus.PARSING,
-  ApplicationStatus.REVIEW,
-  ApplicationStatus.NEEDS_ATTENTION,
-  ApplicationStatus.MATCHED,
-];
-
 /** The next TA action, derived from the stage and the counts the list already returns. */
 const nextStepFor = (app: TAApplicationSummary): string => {
   if (app.isArchived) return "None";
@@ -430,8 +421,6 @@ export const ApplicationsPage: React.FC = () => {
   const bulkMutation = useMutation({
     mutationFn: ({ action, ids, data }: { action: BulkApplicationAction; ids: number[]; data: BulkSubmission }) => {
       switch (action) {
-        case "move":
-          return taApi.bulkMoveApplications({ ids, status: "INITIAL_SCREENING" });
         case "reject":
           return taApi.bulkRejectApplications({
             ids,
@@ -461,9 +450,6 @@ export const ApplicationsPage: React.FC = () => {
   const bulkActions: { action: BulkApplicationAction; label: string; variant: "primary" | "outline" | "danger" }[] = [];
   if (selectedRows.length > 0) {
     const every = (test: (app: TAApplicationSummary) => boolean) => selectedRows.every(test);
-    if (every((app) => !app.isArchived && BULK_MOVE_FROM.includes(app.status))) {
-      bulkActions.push({ action: "move", label: "Move to Initial Screening", variant: "primary" });
-    }
     // Same rule as the application page: a deployed worker is not rejected. End the assignment or record a backout.
     if (every((app) => !isClosedRecord(app) && app.status !== ApplicationStatus.DEPLOYED)) {
       bulkActions.push({ action: "reject", label: "Reject", variant: "outline" });

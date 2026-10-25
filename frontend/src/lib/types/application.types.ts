@@ -303,6 +303,8 @@ export interface ApplicantApplicationSummary {
     title: string;
     location?: string | null;
   } | null;
+  /** Scheduled or running placements only. Present means this is the worker's current assignment. */
+  deployments?: { id: number; status: string }[];
 }
 
 export interface ReturningWorkerInfo {

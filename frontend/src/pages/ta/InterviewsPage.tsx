@@ -42,7 +42,8 @@ import {
 type SortField = "candidate" | "position" | "scheduledAt" | "deadline";
 
 type InterviewRow = {
-  interviewId: number;
+  /** Null when the stage has no open interview yet. */
+  interviewId: number | null;
   applicationId: number;
   candidateName: string;
   jobTitle: string;
@@ -153,7 +154,9 @@ export const InterviewsPage: React.FC = () => {
   const selection = useRowSelection(
     JSON.stringify([view, page, pageSize, debouncedSearch, statusFilter, stageFilter, positionFilter, sortField, sortDirection])
   );
-  const selectedRows = paginatedItems.filter((row) => selection.selectedIds.has(String(row.interviewId)));
+  // Rows are keyed by application id. Only rows with an open interview can be selected.
+  const recordable = paginatedItems.filter((row) => row.interviewId != null);
+  const selectedRows = recordable.filter((row) => selection.selectedIds.has(String(row.applicationId)));
   const [bulkAction, setBulkAction] = useState<BulkInterviewAction | null>(null);
   const [bulkResult, setBulkResult] = useState<{ title: string; summary: BulkSummary; names: Record<number, string> } | null>(null);
   // Passed means different things for a screening and a client review, so one stage at a time.
@@ -163,7 +166,7 @@ export const InterviewsPage: React.FC = () => {
   const bulkMutation = useMutation({
     mutationFn: ({ action, rows, notes }: { action: BulkInterviewAction; rows: InterviewRow[]; notes?: string }) =>
       taApi.bulkRecordInterviews({
-        items: rows.map((row) => ({ applicationId: row.applicationId, interviewId: row.interviewId })),
+        items: rows.map((row) => ({ applicationId: row.applicationId, interviewId: row.interviewId as number })),
         result: action,
         notes,
       }),
@@ -173,7 +176,9 @@ export const InterviewsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
       // Only interviews that went through leave the selection, so the failed ones can be reviewed.
-      selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
+      // Results come back by interview id; the selection is keyed by application id.
+      const applicationOf = new Map(vars.rows.map((row) => [row.interviewId, row.applicationId]));
+      selection.remove(summary.results.filter((row) => row.ok).map((row) => String(applicationOf.get(row.id))));
       setBulkAction(null);
       const title = bulkInterviewTitle(vars.action, bulkIsFinal);
       // Names are kept now: finished interviews leave the list when it refreshes.
@@ -267,17 +272,25 @@ export const InterviewsPage: React.FC = () => {
                 )
   );
 
-  const firstOverdueId = paginatedItems.find((row) => row.status === "BREACHED")?.interviewId;
-  const recordButton = (row: InterviewRow) => (
-    <Button
-      variant={row.interviewId === firstOverdueId ? "primary" : "outline"}
-      size="sm"
-      aria-label={`${TA_COPY.interviews.recordOutcome} for ${row.candidateName}`}
-      onClick={() => setTargetInterview(row)}
-    >
-      {TA_COPY.interviews.recordOutcome}
-    </Button>
-  );
+  const firstOverdueId = paginatedItems.find((row) => row.status === "BREACHED")?.applicationId;
+  const recordButton = (row: InterviewRow) =>
+    row.interviewId == null ? (
+      <Button asChild variant="outline" size="sm">
+        <Link to="/ta/applications/$applicationId" params={{ applicationId: String(row.applicationId) }}>
+          Schedule interview
+          <span className="sr-only"> for {row.candidateName}</span>
+        </Link>
+      </Button>
+    ) : (
+      <Button
+        variant={row.applicationId === firstOverdueId ? "primary" : "outline"}
+        size="sm"
+        aria-label={`${TA_COPY.interviews.recordOutcome} for ${row.candidateName}`}
+        onClick={() => setTargetInterview(row)}
+      >
+        {TA_COPY.interviews.recordOutcome}
+      </Button>
+    );
 
   const candidateLink = (row: InterviewRow, className = "font-medium text-navy underline-offset-2 hover:underline focus-ring") => (
     <Link
@@ -420,14 +433,14 @@ export const InterviewsPage: React.FC = () => {
           ) : (
             <>
               <PoolSelectAll
-                total={paginatedItems.length}
+                total={recordable.length}
                 selected={selectedRows.length}
                 noun="interviews"
                 onToggle={() =>
                   selection.setSelectedIds(
-                    selectedRows.length === paginatedItems.length
+                    selectedRows.length === recordable.length
                       ? new Set()
-                      : new Set(paginatedItems.map((row) => String(row.interviewId)))
+                      : new Set(recordable.map((row) => String(row.applicationId)))
                   )
                 }
               />
@@ -436,10 +449,10 @@ export const InterviewsPage: React.FC = () => {
                 onRecord={setTargetInterview}
                 selection={{
                   selectedIds: selection.selectedIds,
-                  onToggle: (interviewId) =>
+                  onToggle: (applicationId) =>
                     selection.setSelectedIds((current) => {
                       const next = new Set(current);
-                      const key = String(interviewId);
+                      const key = String(applicationId);
                       if (next.has(key)) next.delete(key);
                       else next.add(key);
                       return next;
@@ -458,7 +471,7 @@ export const InterviewsPage: React.FC = () => {
             caption="Interviews awaiting an outcome"
             columns={columns}
             rows={paginatedItems}
-            getRowId={(row) => String(row.interviewId)}
+            getRowId={(row) => String(row.applicationId)}
             renderCard={renderCard}
             sort={{ key: sortField, direction: sortDirection }}
             onSortChange={handleSort}
@@ -467,6 +480,7 @@ export const InterviewsPage: React.FC = () => {
               selectedIds: selection.selectedIds,
               onChange: selection.setSelectedIds,
               rowLabel: (row) => `Select ${row.candidateName}`,
+              isRowSelectable: (row) => row.interviewId != null,
             }}
             empty={
               summary.total === 0 ? (
@@ -524,7 +538,7 @@ export const InterviewsPage: React.FC = () => {
         scheduledAt={targetInterview?.scheduledAt}
         isSubmitting={updateResultMutation.isPending}
         onSubmit={({ result, notes }) => {
-          if (!targetInterview) return;
+          if (!targetInterview || targetInterview.interviewId == null) return;
           updateResultMutation.mutate({
             applicationId: targetInterview.applicationId,
             interviewId: targetInterview.interviewId,

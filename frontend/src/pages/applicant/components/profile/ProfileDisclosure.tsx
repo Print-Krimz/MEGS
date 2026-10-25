@@ -47,7 +47,7 @@ export const ProfileDisclosure: React.FC<ProfileDisclosureProps> = ({
         </span>
         {status && (
           <span className="flex w-28 shrink-0 justify-end">
-            <StatusPill status={status} missing={missing} />
+            <StatusPill status={status} missing={missing} hideOptional={id.startsWith("profile-personal-")} />
           </span>
         )}
         <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
@@ -82,7 +82,8 @@ export const ProfileDisclosure: React.FC<ProfileDisclosureProps> = ({
   </section>
 );
 
-const StatusPill: React.FC<{ status: SectionStatus; missing: number }> = ({ status, missing }) => {
+// "Optional" is left off the Personal info sections only; elsewhere it tells optional sections apart from required ones.
+const StatusPill: React.FC<{ status: SectionStatus; missing: number; hideOptional?: boolean }> = ({ status, missing, hideOptional }) => {
   if (status === "complete")
     return (
       <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-800">
@@ -101,5 +102,5 @@ const StatusPill: React.FC<{ status: SectionStatus; missing: number }> = ({ stat
         <Circle className="size-4" aria-hidden="true" /> {missing} to fill in
       </span>
     );
-  return null;
+  return hideOptional ? null : <span className="shrink-0 text-xs text-slate-500">Optional</span>;
 };

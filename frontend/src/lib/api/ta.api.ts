@@ -260,9 +260,6 @@ export const taApi = {
   restoreApplication: (id: number | string, data: { reason: string }) =>
     api.patch<Application>(`/api/ta/applications/${id}/restore`, data),
 
-  bulkMoveApplications: (data: { ids: number[]; status: "INITIAL_SCREENING" }) =>
-    api.post<BulkSummary>("/api/ta/bulk/applications/status", data),
-
   bulkRejectApplications: (data: {
     ids: number[];
     reasonCode: string;
