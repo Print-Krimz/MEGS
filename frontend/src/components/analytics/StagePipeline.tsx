@@ -36,7 +36,7 @@ const limitText = (row: StageTableRow) =>
   row.stage === "DEPLOYED" ? "scheduled start, no limit" : row.stage === "CLIENT_ENDORSEMENT" ? "limit set per client" : `limit ${row.slaDays} days`;
 
 /**
- * The pipeline from application to start as one row of cards. In stage, overdue and median days are always on the card.
+ * The pipeline from application to start as one row of cards. In stage, overdue and typical wait (median days) are always on the card.
  * Stages where many people are past the limit are tinted, so the bottleneck is visible without reading a table.
  * Entered, backed out and the by-age-only note are one toggle away.
  */
@@ -50,7 +50,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
     <AnalyticsPanel
       id="stage-pipeline"
       title="Candidates by stage"
-      subtitle={`Current counts by stage, in order from application to start. Each bar shows how many reached the stage, with the share of the previous step. Entered and backed out cover ${rangeLabel}.${
+      subtitle={`In order from application to start. The big number is how many candidates entered the stage during ${rangeLabel}. "In stage now" is how many are there today, and "typical wait" is how long they have been waiting.${
         hasEstimates ? ' "By age only" counts candidates past the limit with no recorded stage change. Their days run from the application date, so the real wait may be shorter.' : ""
       }`}
       aside={
@@ -69,27 +69,20 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
       ) : (
         <div className="p-3">
           <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-            {rows.map((row, index) => {
+            {rows.map((row) => {
               const pressure = pressureOf(row);
               const late = row.overdue + row.overdueEstimated;
-              const previous = index > 0 ? rows[index - 1] : null;
-              const conversion = previous && previous.entered > 0 ? Math.round((row.entered / previous.entered) * 100) : null;
               const color = stageColor(row.stage);
               const tooltip = `${stageLabel(row)}: ${row.inStageNow} in stage, ${row.overdue} overdue${row.overdueEstimated > 0 ? ` and ${row.overdueEstimated} more by age only` : ""}. ${row.entered} entered and ${row.backedOut} backed out in ${rangeLabel}. ${limitText(row)}.`;
               const content = (
                 <>
-                  <span className="flex items-start justify-between gap-1">
-                    <span className="text-xs font-semibold font-sans text-slate-900 leading-tight">{stageLabel(row)}</span>
-                    <span className="text-[11px] tabular-nums text-slate-600 font-sans" aria-hidden="true">
-                      {conversion === null ? "" : `${conversion}%`}
-                    </span>
-                  </span>
+                  <span className="block text-xs font-semibold font-sans text-slate-900 leading-tight">{stageLabel(row)}</span>
                   <span className="mt-1.5 block text-2xl font-bold tabular-nums text-slate-950">
                     {row.entered}
-                    <span className="ml-1 text-[11px] font-sans font-normal text-slate-600">reached</span>
+                    <span className="ml-1 text-[11px] font-sans font-normal text-slate-600">entered</span>
                   </span>
                   <span className="mt-1 block">
-                    <BarMark label={`${stageLabel(row)} reached`} value={row.entered} max={maxEntered} color={color} pct={conversion === null ? "first step" : `${conversion}% of the previous step`} heightClass="h-2.5" />
+                    <BarMark label={`${stageLabel(row)} entered`} value={row.entered} max={maxEntered} color={color} pct={`during ${rangeLabel}`} heightClass="h-2.5" />
                   </span>
                   <span className="mt-1.5 block text-xs tabular-nums text-slate-700">{row.inStageNow} in stage now</span>
                   <span className={`block text-xs tabular-nums ${late > 0 && row.stage !== "DEPLOYED" ? `font-semibold ${TEXT_LOSS}` : "text-slate-500"}`}>
@@ -101,7 +94,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
                       </span>
                     )}
                   </span>
-                  <span className="block text-xs tabular-nums text-slate-600">{row.medianDaysInStage === null ? "No median yet" : `Median ${row.medianDaysInStage} days`}</span>
+                  <span className="block text-xs tabular-nums text-slate-600">{row.medianDaysInStage === null ? "No one waiting" : `Typical wait: ${row.medianDaysInStage} ${row.medianDaysInStage === 1 ? "day" : "days"}`}</span>
                   {pressure !== "none" && (
                     <span className={`mt-1.5 inline-flex items-center gap-1 border px-1.5 py-px text-xs font-semibold ${HEALTH_CHIP[pressure].className}`}>
                       {pressure === "bottleneck" ? <AlertTriangle className="h-3 w-3" aria-hidden="true" /> : <Eye className="h-3 w-3" aria-hidden="true" />}
@@ -110,7 +103,6 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
                   )}
                   {details && (
                     <span className="mt-1.5 block border-t border-navy-line pt-1.5 text-[11px] font-sans text-slate-700 tabular-nums">
-                      <span className="block">{row.entered} entered</span>
                       <span className={`block ${row.backedOut > 0 ? TEXT_LOSS : ""}`}>{row.backedOut} backed out</span>
                       <span className="block text-slate-500">{limitText(row)}</span>
                     </span>
@@ -150,7 +142,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
           </ol>
           <DataTableToggle
             caption={`Candidates by stage, with entered and backed out in ${rangeLabel}`}
-            columns={["Stage", "Reached", "In stage now", "Overdue", "By age only", "Backed out"]}
+            columns={["Stage", "Entered in period", "In stage now", "Overdue", "By age only", "Backed out"]}
             rows={rows.map((r) => ({ key: r.stage, cells: [stageLabel(r), r.entered, r.inStageNow, r.overdue, r.overdueEstimated, r.backedOut] }))}
           />
         </div>

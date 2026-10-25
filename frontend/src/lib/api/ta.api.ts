@@ -111,6 +111,7 @@ export interface TAJobDetail extends JobPosting {
 export interface TADashboardCounts {
   openJobs: number;
   activeDeployments: number;
+  awaitingStart: number;
 }
 
 const toTalentPoolSearchResult = (

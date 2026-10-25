@@ -326,6 +326,27 @@ export const updateDeploymentStatus = async (
     await syncMRFFulfillmentStatus(deployment.mrfId, actorId);
   }
 
+  // The worker never started, so the application goes back to contract signing instead of staying DEPLOYED.
+  if (status === "CANCELLED" && deployment.applicationId && deployment.application?.status === "DEPLOYED") {
+    await prisma.application.update({ where: { id: deployment.applicationId }, data: { status: "CONTRACT_SIGNING" } });
+    // The cancelled placement no longer counts as an entry into Deployed in the reports.
+    await prisma.recruiterDecision.updateMany({
+      where: { applicationId: deployment.applicationId, toStatus: "DEPLOYED", isReverted: false },
+      data: { isReverted: true },
+    });
+    if (actorId) {
+      await prisma.recruiterDecision.create({
+        data: {
+          applicationId: deployment.applicationId,
+          actorId,
+          fromStatus: "DEPLOYED",
+          toStatus: "CONTRACT_SIGNING",
+          reason: notes || "Deployment cancelled before the worker started.",
+        },
+      });
+    }
+  }
+
   if (status === "ACTIVE" && deployment.applicationId) {
     if (deployment.application?.status !== "DEPLOYED") {
       await prisma.application.update({ where: { id: deployment.applicationId }, data: { status: "DEPLOYED" } });

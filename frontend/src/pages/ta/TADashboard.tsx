@@ -150,7 +150,6 @@ const STAGE_TILES = [
   ApplicationStatus.FINAL_INTERVIEW,
   ApplicationStatus.COMPLIANCE,
   ApplicationStatus.CONTRACT_SIGNING,
-  ApplicationStatus.DEPLOYED,
 ] as const;
 
 /** Which worklist group a pending task belongs to, by its deadline in Manila calendar days. */
@@ -419,7 +418,7 @@ export const TADashboard: React.FC = () => {
               subject="the hiring pipeline"
               skeleton={
                 <div className="divide-y divide-slate-200">
-                  {Array.from({ length: STAGE_TILES.length }).map((_, i) => (
+                  {Array.from({ length: STAGE_TILES.length + 1 }).map((_, i) => (
                     <div key={i} className="flex min-h-11 items-center justify-between px-3.5">
                       <div className="h-3.5 w-24 bg-slate-100" />
                       <div className="h-4 w-6 bg-slate-200" />
@@ -430,7 +429,9 @@ export const TADashboard: React.FC = () => {
             >
               {(pipeline) => {
                 const counts = STAGE_TILES.map((status) => pipeline?.statusBreakdown?.[status] || 0);
-                const max = Math.max(1, ...counts);
+                // Workers who passed contract signing but have not started yet. Placements already working or finished are not pipeline.
+                const awaitingStart = dashboardCountsQuery.data?.awaitingStart ?? 0;
+                const max = Math.max(1, awaitingStart, ...counts);
                 return (
                   <ul className="divide-y divide-slate-200">
                     {STAGE_TILES.map((status, i) => {
@@ -461,6 +462,28 @@ export const TADashboard: React.FC = () => {
                         </li>
                       );
                     })}
+                    <li>
+                      <Link
+                        to="/ta/workforce"
+                        search={{ tab: "deployments" }}
+                        aria-label={`View deployments awaiting start (${awaitingStart})`}
+                        className="focus-ring-inset block min-h-11 px-3.5 py-2 transition-colors hover:bg-slate-50"
+                      >
+                        <span className="flex items-center justify-between gap-3 text-sm">
+                          <span className="flex min-w-0 items-center gap-2 font-medium text-slate-800">
+                            <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: stageColor(ApplicationStatus.DEPLOYED) }} />
+                            Awaiting start
+                          </span>
+                          <span className="font-semibold tabular-nums text-slate-950">{awaitingStart}</span>
+                        </span>
+                        <span aria-hidden="true" className="mt-1.5 block h-1 rounded-full bg-slate-100">
+                          <span
+                            className="block h-1 rounded-full"
+                            style={{ width: `${(awaitingStart / max) * 100}%`, backgroundColor: stageColor(ApplicationStatus.DEPLOYED) }}
+                          />
+                        </span>
+                      </Link>
+                    </li>
                   </ul>
                 );
               }}
