@@ -967,6 +967,19 @@ export const ApplicationsPage: React.FC = () => {
         </p>
       )}
 
+      <BulkActionBar
+        count={selectedRows.length}
+        onClear={selection.clear}
+        emptyHint="No action fits all the selected records. Select records in the same stage."
+      >
+        {bulkActions.length > 0 &&
+          bulkActions.map(({ action, label, variant }) => (
+            <Button key={action} size="sm" variant={variant} onClick={() => setBulkAction(action)}>
+              {label}
+            </Button>
+          ))}
+      </BulkActionBar>
+
       {applicationsQuery.isLoading ? (
         <LoadingState variant="table" rows={6} />
       ) : applicationsQuery.isError ? (
@@ -1054,19 +1067,6 @@ export const ApplicationsPage: React.FC = () => {
       )}
       </div>
       )}
-
-      <BulkActionBar
-        count={selectedRows.length}
-        onClear={selection.clear}
-        emptyHint="No action fits all the selected records. Select records in the same stage."
-      >
-        {bulkActions.length > 0 &&
-          bulkActions.map(({ action, label, variant }) => (
-            <Button key={action} size="sm" variant={variant} onClick={() => setBulkAction(action)}>
-              {label}
-            </Button>
-          ))}
-      </BulkActionBar>
 
       <BulkApplicationsDialog
         action={bulkAction}

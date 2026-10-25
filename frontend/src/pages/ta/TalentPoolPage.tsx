@@ -306,6 +306,11 @@ export const TalentPoolPage: React.FC = () => {
             <span>{searchMutation.variables?.jobId ? "Sorted by match score" : "Sorted by profile similarity"}</span>
           </div>
           <PoolSelectAll total={invitableIds.length} selected={selectedInvitable.length} onToggle={toggleAllInvitable} />
+          <BulkActionBar count={selectedInvitable.length} onClear={selection.clear}>
+            <Button size="sm" onClick={() => setBulkInviteOpen(true)}>
+              {TA_COPY.invitations.inviteToApply}
+            </Button>
+          </BulkActionBar>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {results.map((res) => {
@@ -345,12 +350,6 @@ export const TalentPoolPage: React.FC = () => {
               );
             })}
           </div>
-
-          <BulkActionBar count={selectedInvitable.length} onClear={selection.clear}>
-            <Button size="sm" onClick={() => setBulkInviteOpen(true)}>
-              {TA_COPY.invitations.inviteToApply}
-            </Button>
-          </BulkActionBar>
         </div>
       ) : (
         <EmptyState

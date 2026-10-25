@@ -199,6 +199,12 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
           />
         ) : (
           <div className="space-y-3">
+            <BulkActionBar count={selectedPending.length} onClear={selection.clear}>
+              <Button size="sm" variant="outline" onClick={() => setBulkConfirmOpen(true)}>
+                Cancel invitations
+              </Button>
+            </BulkActionBar>
+
             <DataTable
               caption="Sent invitations"
               columns={columns}
@@ -240,12 +246,6 @@ export const InvitationsTrackerDrawer: React.FC<InvitationsTrackerDrawerProps> =
                 />
               </div>
             )}
-
-            <BulkActionBar count={selectedPending.length} onClear={selection.clear}>
-              <Button size="sm" variant="outline" onClick={() => setBulkConfirmOpen(true)}>
-                Cancel invitations
-              </Button>
-            </BulkActionBar>
           </div>
         )}
 

@@ -397,6 +397,23 @@ export const InterviewsPage: React.FC = () => {
           </div>
         </div>
 
+        <BulkActionBar
+          count={selectedRows.length}
+          onClear={selection.clear}
+          emptyHint="Select interviews of the same type: initial screening or final interview."
+        >
+          {bulkStages.size === 1 && (
+            <>
+              <Button size="sm" onClick={() => setBulkAction("PASS")}>
+                {bulkIsFinal ? "Passed (client approved)" : "Passed"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setBulkAction("NO_SHOW")}>
+                No show
+              </Button>
+            </>
+          )}
+        </BulkActionBar>
+
         {agenda ? (
           paginatedItems.length === 0 ? (
             <div className="rounded-md border border-slate-300 bg-white">{emptyState}</div>
@@ -480,23 +497,6 @@ export const InterviewsPage: React.FC = () => {
             }
           />
         )}
-
-        <BulkActionBar
-          count={selectedRows.length}
-          onClear={selection.clear}
-          emptyHint="Select interviews of the same type: initial screening or final interview."
-        >
-          {bulkStages.size === 1 && (
-            <>
-              <Button size="sm" onClick={() => setBulkAction("PASS")}>
-                {bulkIsFinal ? "Passed (client approved)" : "Passed"}
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setBulkAction("NO_SHOW")}>
-                No show
-              </Button>
-            </>
-          )}
-        </BulkActionBar>
       </section>
 
       <BulkInterviewDialog

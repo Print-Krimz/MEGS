@@ -700,6 +700,11 @@ export const JobPostingDetailPage: React.FC = () => {
             ) : (
               <div className="space-y-3 p-4">
               <PoolSelectAll total={invitableIds.length} selected={selectedInvitable.length} onToggle={toggleAllInvitable} />
+              <BulkActionBar count={selectedInvitable.length} onClear={poolSelection.clear}>
+                <Button size="sm" onClick={() => setBulkInviteOpen(true)}>
+                  {TA_COPY.invitations.inviteToApply}
+                </Button>
+              </BulkActionBar>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {talentPoolMatches.map((res) => {
                   const c = res.candidate;
@@ -737,11 +742,6 @@ export const JobPostingDetailPage: React.FC = () => {
                   );
                 })}
               </div>
-              <BulkActionBar count={selectedInvitable.length} onClear={poolSelection.clear}>
-                <Button size="sm" onClick={() => setBulkInviteOpen(true)}>
-                  {TA_COPY.invitations.inviteToApply}
-                </Button>
-              </BulkActionBar>
               </div>
             )}
           </div>

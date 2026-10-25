@@ -140,6 +140,11 @@ export const CheckInsPanel: React.FC<CheckInsPanelProps> = ({ onConfirmed }) => 
           />
           <span>Select all ({items.length})</span>
         </div>
+        <BulkActionBar count={selectedItems.length} onClear={selection.clear}>
+          <Button size="sm" variant="outline" onClick={() => setBulkOpen(true)}>
+            Dismiss
+          </Button>
+        </BulkActionBar>
         <ul aria-label="Waiting check-ins" className="divide-y divide-slate-200 rounded-md border border-slate-200 bg-white">
           {items.map((item) => (
             <li key={item.id} className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3">
@@ -183,11 +188,6 @@ export const CheckInsPanel: React.FC<CheckInsPanelProps> = ({ onConfirmed }) => 
             </li>
           ))}
         </ul>
-        <BulkActionBar count={selectedItems.length} onClear={selection.clear}>
-          <Button size="sm" variant="outline" onClick={() => setBulkOpen(true)}>
-            Dismiss
-          </Button>
-        </BulkActionBar>
         </>
       )}
 

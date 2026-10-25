@@ -345,6 +345,11 @@ export const RedeploymentQueuePage: React.FC = () => {
           setPage(1);
         }}
       />
+      <BulkActionBar count={selectedInvitable.length} onClear={selection.clear}>
+        <Button size="sm" onClick={() => setBulkInviteOpen(true)}>
+          Invite to a job
+        </Button>
+      </BulkActionBar>
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_26rem]">
         <section
           aria-label="Redeployment queue"
@@ -426,11 +431,6 @@ export const RedeploymentQueuePage: React.FC = () => {
           </aside>
         )}
       </div>
-      <BulkActionBar count={selectedInvitable.length} onClear={selection.clear}>
-        <Button size="sm" onClick={() => setBulkInviteOpen(true)}>
-          Invite to a job
-        </Button>
-      </BulkActionBar>
       <BulkInviteDialog
         open={bulkInviteOpen}
         onClose={() => setBulkInviteOpen(false)}

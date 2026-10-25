@@ -340,6 +340,23 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
         ]}
       />
 
+      <BulkActionBar
+        count={selectedRows.length}
+        onClear={selection.clear}
+        emptyHint="Select deployments that are all ready to start, or all active."
+      >
+        {canBulkStart && (
+          <Button size="sm" onClick={() => setBulkAction("start")}>
+            Confirm start
+          </Button>
+        )}
+        {canBulkCheckIn && (
+          <Button size="sm" onClick={() => setBulkAction("checkin")}>
+            Record check-in
+          </Button>
+        )}
+      </BulkActionBar>
+
       {deploymentsQuery.isLoading ? (
         <LoadingState variant="table" rows={6} />
       ) : deploymentsQuery.isError ? (
@@ -404,22 +421,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
         />
       )}
 
-      <BulkActionBar
-        count={selectedRows.length}
-        onClear={selection.clear}
-        emptyHint="Select deployments that are all ready to start, or all active."
-      >
-        {canBulkStart && (
-          <Button size="sm" onClick={() => setBulkAction("start")}>
-            Confirm start
-          </Button>
-        )}
-        {canBulkCheckIn && (
-          <Button size="sm" onClick={() => setBulkAction("checkin")}>
-            Record check-in
-          </Button>
-        )}
-      </BulkActionBar>
       <BulkDeploymentDialog
         action={bulkAction}
         count={selectedRows.length}
