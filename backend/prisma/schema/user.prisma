@@ -46,7 +46,6 @@ model User {
   createdDeployments Deployment[] @relation("DeploymentCreatedBy")
   outboxNotifications NotificationOutbox[] @relation("OutboxRecipient")
   deploymentStatusHistory DeploymentStatusHistory[] @relation("DeploymentHistoryActor")
-  deploymentReviews DeploymentReview[] @relation("DeploymentReviewActor")
   redeploymentEmployees Employee[] @relation("RedeploymentOwner")
   deploymentAgreementVersions DeploymentAgreementVersion[] @relation("DeploymentAgreementVersionActor")
   talentPoolMembershipsAdded TalentPoolMembership[] @relation("PoolAddedBy")

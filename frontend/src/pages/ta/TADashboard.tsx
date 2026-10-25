@@ -7,7 +7,6 @@ import { PageHeader, EmptyState, ErrorState } from "../../components/common";
 import { Button } from "../../components/ui";
 import { cn } from "../../lib/utils";
 import { getManilaToday } from "../../lib/field-limits";
-import { checkInDue } from "../../components/ta/check-in-due";
 import { stageColor } from "../../lib/chart-palette";
 import { ComingUp } from "../../components/ta/overview/ComingUp";
 import { ApplicationStatus, DeploymentStatus } from "../../lib/types/enums";
@@ -196,9 +195,9 @@ export const TADashboard: React.FC = () => {
     ...PAGE_QUERY,
   });
 
-  // Active deployments carry the next check-in date. The "ta/deployments" prefix is refreshed whenever one changes.
-  const checkInsQuery = useQuery({
-    queryKey: ["ta", "deployments", "active-check-ins"],
+  // Active deployments feed "Contracts ending" in Coming up. The "ta/deployments" prefix is refreshed whenever one changes.
+  const activeDeploymentsQuery = useQuery({
+    queryKey: ["ta", "deployments", "active"],
     queryFn: () => taApi.listDeployments({ status: DeploymentStatus.ACTIVE }),
     staleTime: 60_000,
     ...PAGE_QUERY,
@@ -213,27 +212,17 @@ export const TADashboard: React.FC = () => {
   const shownTasks = tasks.slice(0, WORKLIST_TASK_LIMIT);
 
   const today = getManilaToday();
-  const checkInCounts = (checkInsQuery.data ?? []).reduce(
-    (acc, dep) => {
-      if (!dep.nextReviewAt) return acc;
-      const due = checkInDue(dep.nextReviewAt);
-      if (due.overdue) acc.overdue += 1;
-      else if (due.label === "Due today") acc.today += 1;
-      return acc;
-    },
-    { overdue: 0, today: 0 },
-  );
 
   const tasksIn = (group: "overdue" | "today" | "todo") => shownTasks.filter((t) => taskGroup(t, today) === group);
   const overdueTasks = tasksIn("overdue");
   const todayTasks = tasksIn("today");
   const todoTasks = tasksIn("todo");
 
-  const overdueCount = slaBreached + checkInCounts.overdue + overdueTasks.length;
-  const todayCount = slaWarning + checkInCounts.today + todayTasks.length;
+  const overdueCount = slaBreached + overdueTasks.length;
+  const todayCount = slaWarning + todayTasks.length;
   const todoCount = needsPlacement + todoTasks.length;
 
-  const worklistQueries = [interviewSlaQuery, needsPlacementQuery, tasksQuery, checkInsQuery];
+  const worklistQueries = [interviewSlaQuery, needsPlacementQuery, tasksQuery];
   const worklistLoading = worklistQueries.some((q) => q.isPending && !q.isError);
   const failedQueries = worklistQueries.filter((q) => q.isError && !q.isFetching);
   const hasWork = overdueCount + todayCount + todoCount > 0;
@@ -317,27 +306,11 @@ export const TADashboard: React.FC = () => {
                     {slaBreached > 0 && (
                       <WorkRow to="/ta/interviews" tone="danger" title={`${plural(slaBreached, "interview")} overdue`} detail="Results are due 7 days after the interview is scheduled." />
                     )}
-                    {checkInCounts.overdue > 0 && (
-                      <WorkRow
-                        to="/ta/workforce"
-                        search={{ tab: "deployments" }}
-                        tone="danger"
-                        title={`${plural(checkInCounts.overdue, "check-in")} overdue`}
-                        detail="Active deployments past their next check-in date."
-                      />
-                    )}
                     {overdueTasks.map(taskRow)}
                   </WorkGroup>
                   <WorkGroup label="Due soon" count={todayCount}>
                     {slaWarning > 0 && (
                       <WorkRow to="/ta/interviews" tone="warning" title={`${plural(slaWarning, "interview")} due within 48 hours`} />
-                    )}
-                    {checkInCounts.today > 0 && (
-                      <WorkRow
-                        to="/ta/workforce"
-                        search={{ tab: "deployments" }}
-                        title={`${plural(checkInCounts.today, "check-in")} due today`}
-                      />
                     )}
                     {todayTasks.map(taskRow)}
                   </WorkGroup>
@@ -492,7 +465,7 @@ export const TADashboard: React.FC = () => {
         </div>
 
         <div className="max-lg:order-3 lg:col-span-2">
-          <ComingUp deploymentsQuery={checkInsQuery} />
+          <ComingUp deploymentsQuery={activeDeploymentsQuery} />
         </div>
       </div>
     </div>

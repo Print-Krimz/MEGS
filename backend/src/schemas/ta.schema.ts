@@ -273,13 +273,6 @@ export const taSchema = {
       notes: boundedText(FIELD_LIMITS.notes).optional(),
     }),
   }),
-  bulkRecordDeploymentCheckIns: z.object({
-    body: z.object({
-      ids: bulkIds,
-      nextReviewAt: dateOnly.optional().nullable(),
-      notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
-    }),
-  }),
   bulkEndDeployments: z.object({
     body: z.object({
       ids: bulkIds,
@@ -409,13 +402,6 @@ export const taSchema = {
       // FULLY_EXECUTED is set only by signDeploymentContract once both parties have signed.
       contractStatus: z.enum(["PENDING_REVIEW", "PENDING_SIGNATURES", "WORKER_SIGNED", "CLIENT_SIGNED"]).optional().nullable(),
       contractEnd: dateOnly.optional().nullable(),
-    }).strict(),
-  }),
-  recordDeploymentReview: z.object({
-    params: z.object({ id: boundedIdText }),
-    body: z.object({
-      nextReviewAt: dateOnly.optional().nullable(),
-      notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
     }).strict(),
   }),
   fastTrackRedeployment: z.object({

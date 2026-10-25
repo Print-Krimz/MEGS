@@ -288,9 +288,6 @@ export const taApi = {
   bulkConfirmDeploymentStart: (data: { items: { id: number; actualStart: string }[]; notes?: string }) =>
     api.post<BulkSummary>("/api/ta/bulk/deployments/confirm-start", data),
 
-  bulkRecordDeploymentCheckIns: (data: { ids: number[]; nextReviewAt?: string; notes?: string }) =>
-    api.post<BulkSummary>("/api/ta/bulk/deployments/check-in", data),
-
   bulkEndDeployments: (data: {
     ids: number[];
     actualEnd: string;
@@ -701,9 +698,6 @@ export const taApi = {
     id: number | string,
     data: { contractDocumentUrl?: string | null; contractTerms?: string | null; contractStatus?: string | null; contractEnd?: string | null }
   ) => api.patch<Deployment>(`/api/ta/deployments/${id}/contract`, data),
-
-  recordDeploymentReview: (id: number | string, data: { nextReviewAt: string; notes?: string }) =>
-    api.post<{ id: number; deploymentId: number; reviewedAt: string; nextReviewAt: string | null }>(`/api/ta/deployments/${id}/reviews`, data),
 
   // -------------------------------------------------------------
   // 10. Post-Hire & Digital 201 Document Upload

@@ -3,18 +3,16 @@ import { Button, Dialog, Select, Textarea } from "../ui";
 import { DateField } from "../common/DateField";
 import { FIELD_LIMITS, getManilaToday } from "../../lib/field-limits";
 
-export type BulkDeploymentAction = "start" | "checkin";
-
 export interface BulkDeploymentSubmission {
-  /** Start: "each" keeps every worker's own contract start date; "same" uses `date` for all. */
+  /** "each" keeps every worker's own contract start date; "same" uses `date` for all. */
   startMode: "each" | "same";
-  /** Start: the shared date. Check-in: the next check-in date. */
+  /** The shared start date. */
   date: string;
   notes?: string;
 }
 
 interface BulkDeploymentDialogProps {
-  action: BulkDeploymentAction | null;
+  open: boolean;
   count: number;
   loading?: boolean;
   onClose: () => void;
@@ -23,51 +21,44 @@ interface BulkDeploymentDialogProps {
 
 const plural = (count: number) => (count === 1 ? "1 deployment" : `${count} deployments`);
 
-/** Confirm site start or record a check-in for many deployments at once. */
-export const BulkDeploymentDialog: React.FC<BulkDeploymentDialogProps> = ({ action, count, loading, onClose, onSubmit }) => {
+/** Confirm site start for many deployments at once. */
+export const BulkDeploymentDialog: React.FC<BulkDeploymentDialogProps> = ({ open, count, loading, onClose, onSubmit }) => {
   const [startMode, setStartMode] = useState<"each" | "same">("each");
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
-    if (!action) return;
+    if (!open) return;
     setStartMode("each");
-    setDate(action === "start" ? getManilaToday() : "");
+    setDate(getManilaToday());
     setNotes("");
-  }, [action]);
+  }, [open]);
 
-  if (!action) return null;
-  const isStart = action === "start";
+  if (!open) return null;
   const today = getManilaToday();
-  const needsDate = !isStart || startMode === "same";
+  const needsDate = startMode === "same";
   const dateValid = !needsDate || (Boolean(date) && date >= today);
 
   return (
     <Dialog
       open
       onClose={onClose}
-      title={isStart ? "Confirm site start" : "Record check-in"}
-      description={
-        isStart
-          ? `${plural(count)} will be marked as started. Each employee is notified.`
-          : `One check-in is recorded for each of ${plural(count)}, with the same next check-in date.`
-      }
+      title="Confirm site start"
+      description={`${plural(count)} will be marked as started. Each employee is notified.`}
     >
       <div className="space-y-4">
-        {isStart && (
-          <Select
-            label="First working date"
-            value={startMode}
-            onChange={(event) => setStartMode(event.target.value as "each" | "same")}
-            options={[
-              { value: "each", label: "Each worker's contract start date (today if it has passed)" },
-              { value: "same", label: "One date for everyone" },
-            ]}
-          />
-        )}
+        <Select
+          label="First working date"
+          value={startMode}
+          onChange={(event) => setStartMode(event.target.value as "each" | "same")}
+          options={[
+            { value: "each", label: "Each worker's contract start date (today if it has passed)" },
+            { value: "same", label: "One date for everyone" },
+          ]}
+        />
         {needsDate && (
           <DateField
-            label={isStart ? "Date everyone starts" : "Next check-in date"}
+            label="Date everyone starts"
             value={date}
             min={today}
             onChange={(event) => setDate(event.target.value)}
@@ -76,7 +67,7 @@ export const BulkDeploymentDialog: React.FC<BulkDeploymentDialogProps> = ({ acti
           />
         )}
         <Textarea
-          label={isStart ? "Notes (optional)" : "Check-in notes (optional)"}
+          label="Notes (optional)"
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           maxLength={FIELD_LIMITS.notes}
@@ -94,7 +85,7 @@ export const BulkDeploymentDialog: React.FC<BulkDeploymentDialogProps> = ({ acti
             disabled={!dateValid}
             onClick={() => onSubmit({ startMode, date, notes: notes.trim() || undefined })}
           >
-            {isStart ? `Confirm ${count} ${count === 1 ? "start" : "starts"}` : `Save ${count} ${count === 1 ? "check-in" : "check-ins"}`}
+            {`Confirm ${count} ${count === 1 ? "start" : "starts"}`}
           </Button>
         </div>
       </div>

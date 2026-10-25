@@ -31,7 +31,6 @@ export interface Deployment {
   contractEnd?: string | null;
   actualStart?: string | null;
   actualEnd?: string | null;
-  nextReviewAt?: string | null;
   notes?: string | null;
   contractDocumentUrl?: string | null;
   contractStatus?: string | null;
@@ -71,13 +70,6 @@ export interface Deployment {
     contractStatus?: string | null;
     contractTerms?: string | null;
     recordedAt: string;
-  }>;
-  reviews?: Array<{
-    id: number;
-    reviewedAt: string;
-    nextReviewAt?: string | null;
-    notes?: string | null;
-    reviewedBy?: { id: string; email: string };
   }>;
 }
 

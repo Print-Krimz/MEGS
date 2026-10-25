@@ -334,7 +334,6 @@ function makeDeployment(index: number, clients: ReturnType<typeof makeClients>, 
     contractEnd: iso(-180).slice(0, 10),
     actualStart: iso(60 - (index % 120)).slice(0, 10),
     actualEnd: null,
-    nextReviewAt: null,
     notes: null,
     contractDocumentUrl: null,
     contractStatus: "ACTIVE",
@@ -379,7 +378,6 @@ function makeDeployment(index: number, clients: ReturnType<typeof makeClients>, 
     },
     statusHistory: [],
     agreementVersions: [],
-    reviews: [],
   };
 }
 

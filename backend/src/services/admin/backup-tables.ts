@@ -17,7 +17,7 @@ export const BACKUP_TABLES = [
   ["complianceRequirements", "ComplianceRequirement"], ["deployments", "Deployment"],
   ["employmentEvents", "EmploymentEvent"], ["deploymentStatusHistory", "DeploymentStatusHistory"],
   ["mrfComplianceTemplates", "MRFComplianceTemplate"], ["complianceDocumentVersions", "ComplianceDocumentVersion"],
-  ["deploymentReviews", "DeploymentReview"], ["deploymentAgreementVersions", "DeploymentAgreementVersion"],
+  ["deploymentAgreementVersions", "DeploymentAgreementVersion"],
   ["talentPoolMemberships", "TalentPoolMembership"], ["talentPoolContacts", "TalentPoolContact"], ["talentPoolInvitations", "TalentPoolInvitation"],
   ["candidateScores", "CandidateScore"], ["auditLogs", "AuditLog"], ["notifications", "Notification"],
 ] as const;

@@ -6,7 +6,6 @@ import {
   bulkConfirmDeploymentStart,
   bulkDismissCheckIns,
   bulkEndDeployments,
-  bulkRecordDeploymentCheckIns,
   bulkRecordInterviews,
   bulkRejectApplications,
   bulkRestoreApplications,
@@ -76,16 +75,6 @@ export const bulkCancelInvitationsHandler = async (req: Request, res: Response):
 export const bulkConfirmDeploymentStartHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     respond(res, await bulkConfirmDeploymentStart(req.body.items, req.body.notes, req.user!));
-  } catch (error: any) {
-    sendError(res, error.message, 500, error);
-  }
-};
-
-// POST /api/ta/bulk/deployments/check-in - Record a check-in for many active deployments
-export const bulkRecordDeploymentCheckInsHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { ids, nextReviewAt, notes } = req.body;
-    respond(res, await bulkRecordDeploymentCheckIns(ids, { nextReviewAt, notes }, req.user!));
   } catch (error: any) {
     sendError(res, error.message, 500, error);
   }

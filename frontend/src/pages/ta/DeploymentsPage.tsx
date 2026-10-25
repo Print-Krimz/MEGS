@@ -23,18 +23,12 @@ import { DeploymentStatus, ALLOWED_DEPLOYMENT_TRANSITIONS } from "../../lib/type
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { EndAssignmentDialog } from "../../components/ta/EndAssignmentDialog";
-import { RecordCheckInDialog } from "../../components/ta/RecordCheckInDialog";
-import { checkInDue } from "../../components/ta/check-in-due";
 import { PersonCell, StatusWithAge, WorkforceCard } from "../../components/ta/workforce/WorkforceRow";
 import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useRowSelection } from "../../hooks/useRowSelection";
-import {
-  BulkDeploymentDialog,
-  type BulkDeploymentAction,
-  type BulkDeploymentSubmission,
-} from "../../components/ta/BulkDeploymentDialog";
+import { BulkDeploymentDialog, type BulkDeploymentSubmission } from "../../components/ta/BulkDeploymentDialog";
 import { BulkEndAssignmentDialog, type BulkEndSubmission } from "../../components/ta/BulkEndAssignmentDialog";
 import type { BulkSummary } from "../../lib/types/application.types";
 
@@ -52,7 +46,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
   const [statusNotes, setStatusNotes] = useState("");
   const [actualStart, setActualStart] = useState(getManilaToday());
   const [endModalDeployment, setEndModalDeployment] = useState<{ id: number; employeeName: string; actualStart?: string | null } | null>(null);
-  const [reviewModalDeployment, setReviewModalDeployment] = useState<{ id: number; employeeName: string } | null>(null);
 
   const deploymentsQuery = useQuery({
     queryKey: ["ta", "deployments", "page", { page, pageSize, search: debouncedSearch, filters: filterValues }],
@@ -110,26 +103,24 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
   // Bulk actions. Selection is dropped whenever the visible list changes.
   const selection = useRowSelection(JSON.stringify([page, pageSize, debouncedSearch, filterValues]));
   const selectedRows = paginatedDeployments.filter((dep) => selection.selectedIds.has(String(dep.id)));
-  const [bulkAction, setBulkAction] = useState<BulkDeploymentAction | null>(null);
+  const [bulkStartOpen, setBulkStartOpen] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ title: string; summary: BulkSummary; names: Record<number, string> } | null>(null);
   const canBulkStart = selectedRows.length > 0 && selectedRows.every((dep) => dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT);
-  const canBulkCheckIn = selectedRows.length > 0 && selectedRows.every((dep) => dep.status === DeploymentStatus.ACTIVE);
+  const canBulkEnd = selectedRows.length > 0 && selectedRows.every((dep) => dep.status === DeploymentStatus.ACTIVE);
 
   const bulkMutation = useMutation({
-    mutationFn: ({ action, rows, data }: { action: BulkDeploymentAction; rows: DeploymentRow[]; data: BulkDeploymentSubmission }) =>
-      action === "start"
-        ? taApi.bulkConfirmDeploymentStart({
-            items: rows.map((dep) => ({ id: dep.id, actualStart: data.startMode === "same" ? data.date : ownStartDate(dep) })),
-            notes: data.notes,
-          })
-        : taApi.bulkRecordDeploymentCheckIns({ ids: rows.map((dep) => dep.id), nextReviewAt: data.date, notes: data.notes }),
+    mutationFn: ({ rows, data }: { rows: DeploymentRow[]; data: BulkDeploymentSubmission }) =>
+      taApi.bulkConfirmDeploymentStart({
+        items: rows.map((dep) => ({ id: dep.id, actualStart: data.startMode === "same" ? data.date : ownStartDate(dep) })),
+        notes: data.notes,
+      }),
     onSuccess: (summary, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "deployment"] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
-      setBulkAction(null);
-      const title = vars.action === "start" ? "Confirm site start" : "Record check-in";
+      setBulkStartOpen(false);
+      const title = "Confirm site start";
       if (summary.failed > 0) {
         setBulkResult({ title, summary, names: Object.fromEntries(vars.rows.map((dep) => [dep.id, employeeNameOf(dep)])) });
       } else {
@@ -255,27 +246,16 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
             Confirm start
           </Button>
         )}
-        {isActive && (
-          <Button
-            variant="outline"
-            size="sm"
-            className={fullWidth ? "flex-1" : undefined}
-            onClick={() => setReviewModalDeployment({ id: dep.id, employeeName })}
-          >
-            Record check-in
-          </Button>
-        )}
         <ActionMenu label={`More actions for ${employeeName}`} items={menuItems} />
       </div>
     );
   };
 
-  /** The line under the status chip: what is due next for this assignment. */
+  /** The line under the status chip: the next date that matters for this assignment. */
   const ageOf = (dep: DeploymentRow): { text: string; tone: "normal" | "urgent" | "warning" } | null => {
+    // Not every contract has an end date, so an open-ended assignment shows no line.
     if (dep.status === DeploymentStatus.ACTIVE) {
-      const due = checkInDue(dep.nextReviewAt);
-      const text = `Check-in ${due.label.charAt(0).toLowerCase()}${due.label.slice(1)}`;
-      return { text, tone: due.overdue ? "urgent" : "normal" };
+      return dep.contractEnd ? { text: `Ends ${formatDate(dep.contractEnd)}`, tone: "normal" } : null;
     }
     if (dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT) {
       return { text: dep.contractStart ? `Starts ${formatDate(dep.contractStart)}` : "Start date not set", tone: "normal" };
@@ -373,16 +353,11 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
         emptyHint="Select deployments that are all ready to start, or all active."
       >
         {canBulkStart && (
-          <Button size="sm" onClick={() => setBulkAction("start")}>
+          <Button size="sm" onClick={() => setBulkStartOpen(true)}>
             Confirm start
           </Button>
         )}
-        {canBulkCheckIn && (
-          <Button size="sm" onClick={() => setBulkAction("checkin")}>
-            Record check-in
-          </Button>
-        )}
-        {canBulkCheckIn && (
+        {canBulkEnd && (
           <Button size="sm" variant="outline" onClick={() => setBulkEndOpen(true)}>
             End assignment
           </Button>
@@ -454,11 +429,11 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
       )}
 
       <BulkDeploymentDialog
-        action={bulkAction}
+        open={bulkStartOpen}
         count={selectedRows.length}
         loading={bulkMutation.isPending}
-        onClose={() => setBulkAction(null)}
-        onSubmit={(data) => bulkAction && bulkMutation.mutate({ action: bulkAction, rows: selectedRows, data })}
+        onClose={() => setBulkStartOpen(false)}
+        onSubmit={(data) => bulkMutation.mutate({ rows: selectedRows, data })}
       />
       <BulkEndAssignmentDialog
         open={bulkEndOpen}
@@ -544,13 +519,6 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
           </div>
         </div>
       </Dialog>
-
-      <RecordCheckInDialog
-        open={Boolean(reviewModalDeployment)}
-        deploymentId={reviewModalDeployment?.id ?? 0}
-        employeeName={reviewModalDeployment?.employeeName ?? ""}
-        onClose={() => setReviewModalDeployment(null)}
-      />
 
       <EndAssignmentDialog
         open={Boolean(endModalDeployment)}

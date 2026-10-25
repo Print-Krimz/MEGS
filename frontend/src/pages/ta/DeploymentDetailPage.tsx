@@ -19,8 +19,6 @@ import { TA_COPY } from "../../lib/ta-copy";
 import { getManilaToday } from "../../lib/field-limits";
 import { plural } from "../../lib/plural";
 import { EndAssignmentDialog } from "../../components/ta/EndAssignmentDialog";
-import { RecordCheckInDialog } from "../../components/ta/RecordCheckInDialog";
-import { checkInDue } from "../../components/ta/check-in-due";
 import { AgreementVersionsDisclosure, DeploymentActivity } from "../../components/ta/workforce/DeploymentActivity";
 import { initialsOf } from "../../components/ta/workforce/initials";
 
@@ -53,7 +51,6 @@ export const DeploymentDetailPage: React.FC = () => {
 
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [endModalOpen, setEndModalOpen] = useState(false);
-  const [checkInOpen, setCheckInOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<DeploymentStatus>(DeploymentStatus.ACTIVE);
   const [statusNotes, setStatusNotes] = useState("");
   const [actualStart, setActualStart] = useState(getManilaToday());
@@ -124,17 +121,11 @@ export const DeploymentDetailPage: React.FC = () => {
     : emp?.employeeNumber || "Employee";
   const allowedNext = (ALLOWED_DEPLOYMENT_TRANSITIONS[dep.status] || []).filter((status) => status !== DeploymentStatus.ENDED);
   const isActive = dep.status === DeploymentStatus.ACTIVE;
-  const due = checkInDue(dep.nextReviewAt);
 
   const subtitle = [dep.client?.name, dep.site].filter(Boolean).join(" · ");
 
   const actions = (
     <>
-      {isActive && (
-        <Button variant="primary" size="sm" onClick={() => setCheckInOpen(true)}>
-          Record check-in
-        </Button>
-      )}
       {allowedNext.length > 0 && (
         <Button
           variant={isActive ? "outline" : "primary"}
@@ -194,17 +185,7 @@ export const DeploymentDetailPage: React.FC = () => {
           { label: "Client", value: dep.client?.name || "Not recorded" },
           { label: "Site", value: dep.site || "Client site" },
           { label: "Contract ends", value: contractEndText(dep.contractEnd) },
-          isActive
-            ? {
-                label: "Next check-in",
-                value: (
-                  <>
-                    {dep.nextReviewAt ? formatDate(dep.nextReviewAt) : "Not scheduled"}
-                    {due.overdue && <span className="block font-medium text-rose-700">{due.label}</span>}
-                  </>
-                ),
-              }
-            : { label: "Employee number", value: <span className="font-mono tabular-nums">{emp?.employeeNumber || "Not recorded"}</span> },
+          { label: "Employee number", value: <span className="font-mono tabular-nums">{emp?.employeeNumber || "Not recorded"}</span> },
         ]}
       />
 
@@ -236,7 +217,6 @@ export const DeploymentDetailPage: React.FC = () => {
         </section>
       </div>
 
-      <RecordCheckInDialog open={checkInOpen} deploymentId={deploymentId} employeeName={empName} onClose={() => setCheckInOpen(false)} />
       <EndAssignmentDialog open={endModalOpen} deploymentId={deploymentId} employeeName={empName} actualStart={dep.actualStart} onClose={() => setEndModalOpen(false)} />
 
       <Dialog

@@ -40,7 +40,6 @@ import {
   bulkDismissCheckInsHandler,
   bulkCancelInvitationsHandler,
   bulkConfirmDeploymentStartHandler,
-  bulkRecordDeploymentCheckInsHandler,
   bulkEndDeploymentsHandler,
 } from '../../controllers/ta/ta.bulk.controller.js';
 import { getCandidateResumeProposalHandler, applyCandidateResumeMergeHandler, reparseCandidateResumeHandler } from '../../controllers/ta/ta.resume.controller.js';
@@ -117,7 +116,6 @@ import {
   getDeploymentDetailsHandler,
   signDeploymentContractHandler,
   updateDeploymentContractHandler,
-  recordDeploymentReviewHandler,
   fastTrackRedeploymentHandler,
 } from '../../controllers/ta/ta.deployments.controller.js';
 
@@ -234,7 +232,6 @@ router.post("/bulk/interviews/result", validate(taSchema.bulkRecordInterviews), 
 router.post("/bulk/check-ins/dismiss", validate(taSchema.bulkDismissCheckIns), bulkDismissCheckInsHandler);
 router.post("/bulk/invitations/cancel", validate(taSchema.bulkCancelInvitations), bulkCancelInvitationsHandler);
 router.post("/bulk/deployments/confirm-start", validate(taSchema.bulkConfirmDeploymentStart), bulkConfirmDeploymentStartHandler);
-router.post("/bulk/deployments/check-in", validate(taSchema.bulkRecordDeploymentCheckIns), bulkRecordDeploymentCheckInsHandler);
 router.post("/bulk/deployments/end", validate(taSchema.bulkEndDeployments), bulkEndDeploymentsHandler);
 router.get("/applications/:id/contract/pdf", validate(taSchema.downloadContractPdf), requireOwned("application"), downloadContractPdfHandler);
 router.post("/applications/:id/contract/signed", uploadContractScan.single("file"), validate(taSchema.uploadSignedContract), requireOwned("application"), uploadSignedContractHandler);
@@ -273,7 +270,6 @@ router.post("/applications/:id/fast-track-redeployment", validate(taSchema.fastT
 router.patch("/deployments/:id/status", validate(taSchema.updateDeploymentStatus), requireOwned("deployment"), updateDeploymentStatusHandler);
 router.post("/deployments/:id/sign-contract", validate(taSchema.signDeploymentContract), requireOwned("deployment"), signDeploymentContractHandler);
 router.patch("/deployments/:id/contract", validate(taSchema.updateDeploymentContract), requireOwned("deployment"), updateDeploymentContractHandler);
-router.post("/deployments/:id/reviews", validate(taSchema.recordDeploymentReview), requireOwned("deployment"), recordDeploymentReviewHandler);
 router.get("/deployments", validate(taSchema.listDeployments), listDeploymentsHandler);
 router.get("/deployments/:id", validate(taSchema.idParams), requireOwned("deployment"), getDeploymentDetailsHandler);
 

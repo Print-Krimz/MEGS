@@ -562,7 +562,6 @@ export const getDeploymentDetails = async (id: number) => {
       createdBy: { select: { id: true, email: true } },
       statusHistory: { orderBy: { createdAt: "asc" } },
       agreementVersions: { orderBy: { recordedAt: "desc" } },
-      reviews: { orderBy: { reviewedAt: "desc" }, include: { reviewedBy: { select: { id: true, email: true } } } },
     },
   });
 
@@ -738,30 +737,6 @@ export const updateDeploymentContract = async (
   });
 
   return updated;
-};
-
-export const recordDeploymentReview = async (
-  id: number,
-  reviewerId: string,
-  nextReviewAt?: string | Date | null,
-  notes?: string | null,
-) => {
-  const deployment = await prisma.deployment.findUnique({ where: { id }, select: { id: true, status: true } });
-  if (!deployment) throw new Error("Deployment not found");
-  if (deployment.status !== "ACTIVE") throw new Error("Check-ins can only be recorded for an active assignment.");
-
-  const nextDay = nextReviewAt ? toManilaDateOnly(nextReviewAt) : undefined;
-  if (nextDay && (!isValidDateOnly(nextDay) || nextDay < manilaDateString())) {
-    throw new Error("Next check-in date must be today or in the future.");
-  }
-  const nextDate = nextDay ? parseManilaDateOnly(nextDay) : null;
-  return prisma.$transaction(async (tx) => {
-    const review = await tx.deploymentReview.create({
-      data: { deploymentId: id, reviewedById: reviewerId, nextReviewAt: nextDate, notes: notes || null },
-    });
-    await tx.deployment.update({ where: { id }, data: { nextReviewAt: nextDate } });
-    return review;
-  });
 };
 
 export const fastTrackRedeployment = async (

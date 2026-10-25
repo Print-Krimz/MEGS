@@ -49,7 +49,7 @@ const deploymentTarget = (dep: Deployment): LinkTarget => ({
 
 const WORKFORCE_DEPLOYMENTS: LinkTarget = { to: "/ta/workforce", search: { tab: "deployments" } };
 
-/** Deployments whose date (check-in or contract end) is a Manila day inside [from, to], earliest first. */
+/** Deployments whose date (such as contract end) is a Manila day inside [from, to], earliest first. */
 function deploymentsBetween(deployments: Deployment[], pick: (d: Deployment) => string | null | undefined, from: string, to: string) {
   return deployments
     .map((dep) => ({ dep, day: pick(dep) ? toManilaDateInput(pick(dep)) : "" }))
@@ -142,19 +142,6 @@ export const ComingUp: React.FC<{ deploymentsQuery: UseQueryResult<Deployment[]>
       detail: row.jobTitle,
       when: formatDate(row.scheduledAt),
       target: { to: "/ta/interviews" },
-    })),
-  });
-
-  sections.push({
-    key: "check-ins",
-    label: "Check-ins in the next 7 days",
-    seeAll: WORKFORCE_DEPLOYMENTS,
-    items: deploymentsBetween(deployments, (d) => d.nextReviewAt, addManilaCalendarDays(today, 1), weekEnd).map(({ dep }) => ({
-      key: `c-${dep.id}`,
-      title: workerName(dep),
-      detail: dep.client?.name,
-      when: formatDate(dep.nextReviewAt),
-      target: deploymentTarget(dep),
     })),
   });
 

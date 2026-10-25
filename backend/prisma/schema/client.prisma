@@ -120,7 +120,6 @@ model Deployment {
   contractEnd         DateTime?
   actualStart         DateTime?
   actualEnd           DateTime?
-  nextReviewAt        DateTime?
   notes               String?
   contractDocumentUrl String?
   contractStatus      String?          @default("PENDING_REVIEW")
@@ -135,7 +134,6 @@ model Deployment {
   updatedAt           DateTime         @updatedAt
 
   statusHistory DeploymentStatusHistory[]
-  reviews DeploymentReview[]
   agreementVersions DeploymentAgreementVersion[]
 
   @@index([employeeId])
@@ -161,20 +159,6 @@ model DeploymentStatusHistory {
   createdAt    DateTime          @default(now())
 
   @@index([deploymentId, createdAt])
-}
-
-model DeploymentReview {
-  id            Int        @id @default(autoincrement())
-  deploymentId  Int
-  deployment    Deployment @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
-  reviewedById  String
-  reviewedBy    User       @relation("DeploymentReviewActor", fields: [reviewedById], references: [id], onDelete: Restrict)
-  reviewedAt    DateTime   @default(now())
-  nextReviewAt  DateTime?
-  notes         String?
-
-  @@index([deploymentId, reviewedAt(sort: Desc)])
-  @@index([nextReviewAt])
 }
 
 model DeploymentAgreementVersion {

@@ -8,7 +8,6 @@ import {
   getDeploymentDetails,
   signDeploymentContract,
   updateDeploymentContract,
-  recordDeploymentReview,
   fastTrackRedeployment,
 } from "../../services/ta/ta.deployments.service.js";
 
@@ -158,20 +157,6 @@ export const updateDeploymentContractHandler = async (req: Request, res: Respons
   } catch (error: any) {
     const status = error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, status);
-  }
-};
-
-export const recordDeploymentReviewHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const id = parseInt(req.params.id as string, 10);
-    if (isNaN(id)) {
-      sendError(res, "Invalid deployment ID", 400);
-      return;
-    }
-    const review = await recordDeploymentReview(id, req.user!.id, req.body.nextReviewAt, req.body.notes);
-    sendSuccess(res, "Assignment check-in recorded", review);
-  } catch (error: any) {
-    sendError(res, error.message, error.message.includes("not found") ? 404 : 400);
   }
 };
 

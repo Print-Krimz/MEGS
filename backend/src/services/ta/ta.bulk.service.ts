@@ -10,7 +10,7 @@ import { dismissCheckIn } from "./walk-in-check-in.service.js";
 import { WalkInConflictError } from "./walk-in.service.js";
 import { cancelTalentPoolInvitation } from "./talent-pool-invitation.service.js";
 import { InvalidKnnRequestError } from "../scoring/talent-pool-knn.service.js";
-import { recordDeploymentReview, updateDeploymentStatus } from "./ta.deployments.service.js";
+import { updateDeploymentStatus } from "./ta.deployments.service.js";
 import { endEmployeeDeployment } from "../employee/employee.service.js";
 
 export interface BulkRowResult {
@@ -158,12 +158,6 @@ export const bulkConfirmDeploymentStart = (
     "deployment"
   );
 };
-
-export const bulkRecordDeploymentCheckIns = (
-  ids: number[],
-  input: { nextReviewAt?: string | null; notes?: string | null },
-  actor: Actor
-) => runBulk(ids, actor, (id) => recordDeploymentReview(id, actor.id, input.nextReviewAt, input.notes), "deployment");
 
 /**
  * Ends several active assignments with one date, reason and next step. A worker whose start date is after the

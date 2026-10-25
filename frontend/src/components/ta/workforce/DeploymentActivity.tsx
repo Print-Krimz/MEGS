@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ArrowRightLeft, ClipboardCheck, FileText, type LucideIcon } from "lucide-react";
+import { ArrowRightLeft, FileText, type LucideIcon } from "lucide-react";
 import type { Deployment } from "../../../lib/types/employee.types";
 import { formatDate, formatDateTime } from "../../../lib/utils";
 import { deploymentHistoryLabel, deploymentStatusLabel } from "../../../lib/labels";
@@ -49,12 +49,11 @@ const ActivityList: React.FC<{ items: ActivityItem[]; ariaLabel: string }> = ({ 
   </ol>
 );
 
-type ActivityKind = "checkin" | "status" | "agreement";
+type ActivityKind = "status" | "agreement";
 type Filter = "all" | ActivityKind;
 
 const FILTERS: Array<{ id: Filter; label: string }> = [
   { id: "all", label: "All activity" },
-  { id: "checkin", label: "Check-ins" },
   { id: "status", label: "Status changes" },
   { id: "agreement", label: "Agreements" },
 ];
@@ -62,29 +61,12 @@ const FILTERS: Array<{ id: Filter; label: string }> = [
 const agreementDates = (start?: string | null, end?: string | null) =>
   `${start ? formatDate(start) : "Not set"} to ${end ? formatDate(end) : "open"}`;
 
-/** Check-ins, status changes and agreement versions as one dated list, newest first. */
+/** Status changes and agreement versions as one dated list, newest first. */
 export const DeploymentActivity: React.FC<{ deployment: Deployment }> = ({ deployment }) => {
   const [filter, setFilter] = useState<Filter>("all");
 
   const entries = useMemo(() => {
     const list: Array<{ kind: ActivityKind; at: string; item: ActivityItem }> = [];
-    for (const review of deployment.reviews ?? []) {
-      list.push({
-        kind: "checkin",
-        at: review.reviewedAt,
-        item: {
-          id: `checkin-${review.id}`,
-          icon: ClipboardCheck,
-          title: "Check-in recorded",
-          meta: [
-            { label: "Date", value: formatDateTime(review.reviewedAt) },
-            ...(review.reviewedBy?.email ? [{ label: "By", value: review.reviewedBy.email }] : []),
-            { label: "Next check-in", value: review.nextReviewAt ? formatDate(review.nextReviewAt) : "Not scheduled" },
-          ],
-          body: review.notes || undefined,
-        },
-      });
-    }
     for (const change of deployment.statusHistory ?? []) {
       list.push({
         kind: "status",
@@ -115,7 +97,7 @@ export const DeploymentActivity: React.FC<{ deployment: Deployment }> = ({ deplo
       });
     }
     return list.sort((a, b) => b.at.localeCompare(a.at));
-  }, [deployment.reviews, deployment.statusHistory, deployment.agreementVersions]);
+  }, [deployment.statusHistory, deployment.agreementVersions]);
 
   const visible = entries.filter((entry) => filter === "all" || entry.kind === filter);
 
@@ -145,7 +127,7 @@ export const DeploymentActivity: React.FC<{ deployment: Deployment }> = ({ deplo
       {visible.length === 0 ? (
         <p className="py-2 text-sm text-slate-600">
           {entries.length === 0
-            ? `No check-ins or status changes recorded yet. Current status: ${deploymentStatusLabel(deployment.status)}.`
+            ? `No status changes recorded yet. Current status: ${deploymentStatusLabel(deployment.status)}.`
             : "Nothing of this type yet."}
         </p>
       ) : (

@@ -223,7 +223,6 @@ export interface DeployCandidateDto {
   contractEnd?: string;
   actualStart?: string;
   actualEnd?: string;
-  nextReviewAt?: string | null;
   notes?: string;
 }
 
