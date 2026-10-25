@@ -42,6 +42,7 @@ import {
   bulkCancelInvitationsHandler,
   bulkConfirmDeploymentStartHandler,
   bulkRecordDeploymentCheckInsHandler,
+  bulkEndDeploymentsHandler,
 } from '../../controllers/ta/ta.bulk.controller.js';
 import { getCandidateResumeProposalHandler, applyCandidateResumeMergeHandler, reparseCandidateResumeHandler } from '../../controllers/ta/ta.resume.controller.js';
 
@@ -236,6 +237,7 @@ router.post("/bulk/check-ins/dismiss", validate(taSchema.bulkDismissCheckIns), b
 router.post("/bulk/invitations/cancel", validate(taSchema.bulkCancelInvitations), bulkCancelInvitationsHandler);
 router.post("/bulk/deployments/confirm-start", validate(taSchema.bulkConfirmDeploymentStart), bulkConfirmDeploymentStartHandler);
 router.post("/bulk/deployments/check-in", validate(taSchema.bulkRecordDeploymentCheckIns), bulkRecordDeploymentCheckInsHandler);
+router.post("/bulk/deployments/end", validate(taSchema.bulkEndDeployments), bulkEndDeploymentsHandler);
 router.get("/applications/:id/contract/pdf", validate(taSchema.downloadContractPdf), requireOwned("application"), downloadContractPdfHandler);
 router.post("/applications/:id/contract/signed", uploadContractScan.single("file"), validate(taSchema.uploadSignedContract), requireOwned("application"), uploadSignedContractHandler);
 

@@ -294,6 +294,13 @@ export const taApi = {
   bulkRecordDeploymentCheckIns: (data: { ids: number[]; nextReviewAt?: string; notes?: string }) =>
     api.post<BulkSummary>("/api/ta/bulk/deployments/check-in", data),
 
+  bulkEndDeployments: (data: {
+    ids: number[];
+    actualEnd: string;
+    reason: string;
+    disposition: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED";
+  }) => api.post<BulkSummary>("/api/ta/bulk/deployments/end", data),
+
   getRecruiterDecisions: (id: number | string) =>
     api.get<RecruiterDecision[]>(`/api/ta/applications/${id}/decisions`),
 

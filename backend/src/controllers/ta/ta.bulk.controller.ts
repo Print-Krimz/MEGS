@@ -5,6 +5,7 @@ import {
   bulkCancelInvitations,
   bulkConfirmDeploymentStart,
   bulkDismissCheckIns,
+  bulkEndDeployments,
   bulkMoveApplications,
   bulkRecordDeploymentCheckIns,
   bulkRecordInterviews,
@@ -95,6 +96,16 @@ export const bulkRecordDeploymentCheckInsHandler = async (req: Request, res: Res
   try {
     const { ids, nextReviewAt, notes } = req.body;
     respond(res, await bulkRecordDeploymentCheckIns(ids, { nextReviewAt, notes }, req.user!));
+  } catch (error: any) {
+    sendError(res, error.message, 500, error);
+  }
+};
+
+// POST /api/ta/bulk/deployments/end - End several active assignments with one date, reason and next step
+export const bulkEndDeploymentsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { ids, actualEnd, reason, disposition } = req.body;
+    respond(res, await bulkEndDeployments(ids, { actualEnd, reason, disposition }, req.user!));
   } catch (error: any) {
     sendError(res, error.message, 500, error);
   }

@@ -286,6 +286,14 @@ export const taSchema = {
       notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
     }),
   }),
+  bulkEndDeployments: z.object({
+    body: z.object({
+      ids: bulkIds,
+      actualEnd: dateOnly,
+      reason: z.string().trim().min(1, "Reason is required").max(FIELD_LIMITS.notes),
+      disposition: z.enum(["AVAILABLE_FOR_REDEPLOYMENT", "NOT_CONFIRMED", "SEPARATED"]),
+    }),
+  }),
   bulkRecordInterviews: z.object({
     body: z.object({
       items: z.array(z.object({ applicationId: idValue, interviewId: idValue })).min(1, "Select at least one interview").max(BULK_MAX_IDS, `Select at most ${BULK_MAX_IDS} interviews at a time`),

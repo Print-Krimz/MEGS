@@ -35,6 +35,7 @@ import {
   type BulkDeploymentAction,
   type BulkDeploymentSubmission,
 } from "../../components/ta/BulkDeploymentDialog";
+import { BulkEndAssignmentDialog, type BulkEndSubmission } from "../../components/ta/BulkEndAssignmentDialog";
 import type { BulkSummary } from "../../lib/types/application.types";
 
 export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: string }> = ({ hideHeader = false, initialSearch = "" }) => {
@@ -133,6 +134,29 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
       }
     },
     onError: (err: any) => notify.error("Unable to complete the bulk action", err),
+  });
+
+  // Ending several assignments at once: one date, reason and next step for everyone selected.
+  const [bulkEndOpen, setBulkEndOpen] = useState(false);
+  const bulkEndMutation = useMutation({
+    mutationFn: ({ rows, data }: { rows: DeploymentRow[]; data: BulkEndSubmission }) =>
+      taApi.bulkEndDeployments({ ids: rows.map((dep) => dep.id), ...data }),
+    onSuccess: (summary, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["ta"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
+      setBulkEndOpen(false);
+      if (summary.failed > 0) {
+        setBulkResult({
+          title: "End assignments",
+          summary,
+          names: Object.fromEntries(vars.rows.map((dep) => [dep.id, employeeNameOf(dep)])),
+        });
+      } else {
+        notify.success("Assignments ended", `${summary.succeeded} ${summary.succeeded === 1 ? "assignment was" : "assignments were"} ended.`);
+      }
+    },
+    onError: (err: any) => notify.error("Unable to end the assignments", err),
   });
 
   // A refresh can leave the current page past the end (for example after an assignment ends).
@@ -355,6 +379,11 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
             Record check-in
           </Button>
         )}
+        {canBulkCheckIn && (
+          <Button size="sm" variant="outline" onClick={() => setBulkEndOpen(true)}>
+            End assignment
+          </Button>
+        )}
       </BulkActionBar>
 
       {deploymentsQuery.isLoading ? (
@@ -427,6 +456,13 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
         loading={bulkMutation.isPending}
         onClose={() => setBulkAction(null)}
         onSubmit={(data) => bulkAction && bulkMutation.mutate({ action: bulkAction, rows: selectedRows, data })}
+      />
+      <BulkEndAssignmentDialog
+        open={bulkEndOpen}
+        workers={selectedRows.map((dep) => ({ id: dep.id, name: employeeNameOf(dep), actualStart: dep.actualStart }))}
+        loading={bulkEndMutation.isPending}
+        onClose={() => setBulkEndOpen(false)}
+        onSubmit={(data) => bulkEndMutation.mutate({ rows: selectedRows, data })}
       />
       <BulkResultDialog
         open={Boolean(bulkResult)}

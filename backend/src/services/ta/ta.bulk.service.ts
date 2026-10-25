@@ -10,6 +10,7 @@ import { WalkInConflictError } from "./walk-in.service.js";
 import { cancelTalentPoolInvitation } from "./talent-pool-invitation.service.js";
 import { InvalidKnnRequestError } from "../scoring/talent-pool-knn.service.js";
 import { recordDeploymentReview, updateDeploymentStatus } from "./ta.deployments.service.js";
+import { endEmployeeDeployment } from "../employee/employee.service.js";
 import type { BulkMoveTarget } from "./bulk-rules.js";
 
 export interface BulkRowResult {
@@ -160,3 +161,13 @@ export const bulkRecordDeploymentCheckIns = (
   input: { nextReviewAt?: string | null; notes?: string | null },
   actor: Actor
 ) => runBulk(ids, actor, (id) => recordDeploymentReview(id, actor.id, input.nextReviewAt, input.notes), "deployment");
+
+/**
+ * Ends several active assignments with one date, reason and next step. A worker whose start date is after the
+ * shared date fails on their own row, and the service refuses a deployment that is not active.
+ */
+export const bulkEndDeployments = (
+  ids: number[],
+  input: { actualEnd: string; reason: string; disposition: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED" },
+  actor: Actor
+) => runBulk(ids, actor, (id) => endEmployeeDeployment(id, actor.id, input), "deployment");
