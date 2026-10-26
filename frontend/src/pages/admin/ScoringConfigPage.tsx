@@ -17,8 +17,16 @@ import {
   History,
   Save,
 } from "lucide-react";
-import { DEFAULT_SCORING_WEIGHTS, normalizeScoringWeights, rebalanceScoringWeights, type ScoringDimension } from "../../lib/scoring-weights";
+import { DEFAULT_SCORING_WEIGHTS, maxFor, normalizeScoringWeights, remainingWeight, setScoringWeight, type ScoringDimension } from "../../lib/scoring-weights";
 import { notify } from "../../lib/feedback";
+
+const METRICS: { key: ScoringDimension; id: string; label: string; description: string }[] = [
+  { key: "SKILLS", id: "skills", label: "Skills", description: "How closely a candidate's skills match the job." },
+  { key: "EXPERIENCE", id: "experience", label: "Relevant experience", description: "Similar roles, seniority, and industry experience." },
+  { key: "LOCATION", id: "location", label: "Location", description: "How close the candidate is to the work location." },
+  { key: "COMPLIANCE", id: "compliance", label: "Requirements", description: "Readiness to provide required documents." },
+  { key: "EDUCATION_CERTIFICATIONS", id: "education", label: "Education and certifications", description: "Education, training, and required certifications." },
+];
 
 export const ScoringConfigPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -26,8 +34,10 @@ export const ScoringConfigPage: React.FC = () => {
   const [weights, setWeights] = useState(DEFAULT_SCORING_WEIGHTS);
   const { SKILLS: skillsWeight, EXPERIENCE: experienceWeight, LOCATION: locationWeight,
     COMPLIANCE: complianceWeight, EDUCATION_CERTIFICATIONS: educationWeight } = weights;
+  // Raw text while a number box is being edited, so clearing it does not snap to 0 mid-typing.
+  const [drafts, setDrafts] = useState<Partial<Record<ScoringDimension, string>>>({});
   const updateWeight = (dimension: ScoringDimension, value: number) => {
-    setWeights((current) => rebalanceScoringWeights(current, dimension, value));
+    setWeights((current) => setScoringWeight(current, dimension, value));
   };
 
   const [matchThreshold, setMatchThreshold] = useState<number>(60);
@@ -57,6 +67,7 @@ export const ScoringConfigPage: React.FC = () => {
     if (config) {
       const w = (config.weights as Record<string, number>) || {};
       setWeights(normalizeScoringWeights(w));
+      setDrafts({});
 
       if (config.matchThreshold !== undefined) setMatchThreshold(config.matchThreshold);
 
@@ -102,9 +113,14 @@ export const ScoringConfigPage: React.FC = () => {
 
   const weightSum =
     skillsWeight + experienceWeight + locationWeight + complianceWeight + educationWeight;
-  // Decimal weights can sum to 99.99999999999999 in floating point, so allow a 0.005 tolerance.
-  const isWeightValid = Math.abs(weightSum - 100) < 0.005;
-  const totalWeight = Math.round(weightSum * 100) / 100;
+  const isWeightValid = weightSum === 100;
+  const totalWeight = weightSum;
+  const leftToAllocate = remainingWeight(weights);
+  const allocationText = leftToAllocate === 0
+    ? "100% allocated"
+    : leftToAllocate > 0
+      ? `${leftToAllocate}% left to allocate`
+      : `Over by ${-leftToAllocate}%. Lower a metric to save.`;
   const isKnnValid = Number.isInteger(defaultK) && Number.isInteger(maximumK) &&
     defaultK >= 1 && defaultK <= 100 && maximumK >= 1 && maximumK <= 100 && defaultK <= maximumK &&
     Number.isFinite(minSimilarity) && minSimilarity >= 0 && minSimilarity <= 1 &&
@@ -265,15 +281,15 @@ export const ScoringConfigPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-           <span className="text-slate-500">Weights total:</span>
           <span
+            role="status"
             className={`font-bold px-2 py-0.5 border ${
               isWeightValid
                 ? "bg-emerald-50 text-emerald-900 border-emerald-300"
                 : "bg-rose-50 text-rose-900 border-rose-300"
             }`}
           >
-            {totalWeight}% {isWeightValid ? "✓ Ready" : "⚠ Must equal 100%"}
+            {allocationText}
           </span>
         </div>
       </div>
@@ -289,121 +305,56 @@ export const ScoringConfigPage: React.FC = () => {
           </div>
 
           <div className="p-4 space-y-4">
-            <p id="scoring-weight-help" className="text-sm text-slate-600">Adjust any priority. The other priorities automatically share the remaining percentage, keeping the total at 100%.</p>
-            {/* 1. Skills Match */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-sm">
-                <label htmlFor="skills-weight" className="font-semibold text-slate-950">Skills</label>
-                <span className="font-sans font-bold text-navy tabular-nums">{skillsWeight}%</span>
+            <p id="scoring-weight-help" className="text-sm text-slate-600">Set each priority. The total must equal 100%.</p>
+            {METRICS.map((metric, index) => (
+              <div key={metric.key} className={`space-y-1.5 ${index > 0 ? "pt-3 border-t border-slate-200" : ""}`}>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <label htmlFor={`${metric.id}-weight-number`} className="font-semibold text-slate-950">{metric.label}</label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={100}
+                      step={1}
+                      id={`${metric.id}-weight-number`}
+                      aria-describedby="scoring-weight-help"
+                      value={drafts[metric.key] ?? String(weights[metric.key])}
+                      onKeyDown={(e) => { if (["-", ".", "e", "E", "+", ","].includes(e.key)) e.preventDefault(); }}
+                      onChange={(e) => {
+                        if (e.target.value === "") {
+                          setDrafts((current) => ({ ...current, [metric.key]: "" }));
+                          return;
+                        }
+                        setDrafts((current) => { const { [metric.key]: _drop, ...rest } = current; return rest; });
+                        updateWeight(metric.key, Number(e.target.value));
+                      }}
+                      onBlur={() => {
+                        if (drafts[metric.key] === "") updateWeight(metric.key, 0);
+                        setDrafts((current) => { const { [metric.key]: _drop, ...rest } = current; return rest; });
+                      }}
+                      className="w-16 min-h-11 px-2 py-1 text-right font-sans font-bold text-navy tabular-nums border border-slate-300 rounded-md"
+                    />
+                    <span className="font-sans text-slate-500">%</span>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  id={`${metric.id}-weight`}
+                  aria-describedby="scoring-weight-help"
+                  aria-label={`${metric.label} weight`}
+                  value={weights[metric.key]}
+                  onChange={(e) => { setDrafts({}); updateWeight(metric.key, Number(e.target.value)); }}
+                  className="w-full h-11 accent-navy cursor-pointer"
+                />
+                <p className="text-xs text-slate-500 font-sans">
+                  {metric.description} Up to {maxFor(weights, metric.key)}%.
+                </p>
               </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={0.01}
-                 id="skills-weight"
-                 aria-describedby="scoring-weight-help"
-                 aria-label="Skills weight"
-                 value={skillsWeight}
-                onChange={(e) => updateWeight("SKILLS", Number(e.target.value))}
-                 className="w-full h-11 accent-navy cursor-pointer"
-              />
-              <p className="text-xs text-slate-500 font-sans">
-                How closely a candidate's skills match the job.
-              </p>
-            </div>
-
-            {/* 2. Experience Fit */}
-            <div className="space-y-1.5 pt-3 border-t border-slate-200">
-              <div className="flex justify-between text-sm">
-                <label htmlFor="experience-weight" className="font-semibold text-slate-950">Relevant experience</label>
-                <span className="font-sans font-bold text-navy tabular-nums">{experienceWeight}%</span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={0.01}
-                 id="experience-weight"
-                 aria-describedby="scoring-weight-help"
-                 aria-label="Relevant experience weight"
-                 value={experienceWeight}
-                onChange={(e) => updateWeight("EXPERIENCE", Number(e.target.value))}
-                 className="w-full h-11 accent-navy cursor-pointer"
-              />
-              <p className="text-xs text-slate-500 font-sans">
-                Similar roles, seniority, and industry experience.
-              </p>
-            </div>
-
-            {/* 3. Location Proximity */}
-            <div className="space-y-1.5 pt-3 border-t border-slate-200">
-              <div className="flex justify-between text-sm">
-                <label htmlFor="location-weight" className="font-semibold text-slate-950">Location</label>
-                <span className="font-sans font-bold text-navy tabular-nums">{locationWeight}%</span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={0.01}
-                 id="location-weight"
-                 aria-describedby="scoring-weight-help"
-                 aria-label="Location weight"
-                 value={locationWeight}
-                onChange={(e) => updateWeight("LOCATION", Number(e.target.value))}
-                 className="w-full h-11 accent-navy cursor-pointer"
-              />
-              <p className="text-xs text-slate-500 font-sans">
-                How close the candidate is to the work location.
-              </p>
-            </div>
-
-            {/* 4. Requirements */}
-            <div className="space-y-1.5 pt-3 border-t border-slate-200">
-              <div className="flex justify-between text-sm">
-                <label htmlFor="compliance-weight" className="font-semibold text-slate-950">Requirements</label>
-                <span className="font-sans font-bold text-navy tabular-nums">{complianceWeight}%</span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={0.01}
-                 id="compliance-weight"
-                 aria-describedby="scoring-weight-help"
-                 aria-label="Requirements weight"
-                 value={complianceWeight}
-                onChange={(e) => updateWeight("COMPLIANCE", Number(e.target.value))}
-                 className="w-full h-11 accent-navy cursor-pointer"
-              />
-              <p className="text-xs text-slate-500 font-sans">
-                Readiness to provide required documents.
-              </p>
-            </div>
-
-            {/* 5. Education & Certifications */}
-            <div className="space-y-1.5 pt-3 border-t border-slate-200">
-              <div className="flex justify-between text-sm">
-                <label htmlFor="education-weight" className="font-semibold text-slate-950">Education and certifications</label>
-                <span className="font-sans font-bold text-navy tabular-nums">{educationWeight}%</span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={0.01}
-                 id="education-weight"
-                 aria-describedby="scoring-weight-help"
-                 aria-label="Education and certifications weight"
-                 value={educationWeight}
-                onChange={(e) => updateWeight("EDUCATION_CERTIFICATIONS", Number(e.target.value))}
-                 className="w-full h-11 accent-navy cursor-pointer"
-              />
-              <p className="text-xs text-slate-500 font-sans">
-                Education, training, and required certifications.
-              </p>
-            </div>
+            ))}
           </div>
         </div>
 
@@ -526,7 +477,7 @@ export const ScoringConfigPage: React.FC = () => {
               </span>
             ) : (
               <span className="text-rose-800 font-bold flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-rose-700" /> {isWeightValid ? "Review the threshold and advanced matching options." : `Match factors total ${totalWeight}% (must equal 100%)`}
+                <AlertTriangle className="w-4 h-4 text-rose-700" /> {isWeightValid ? "Review the threshold and advanced matching options." : `${allocationText}`}
               </span>
             )}
           </div>

@@ -3,12 +3,14 @@ import { FIELD_LIMITS, finiteNumber } from "./field-limits.js";
 
 const positiveId = finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true });
 
+const WEIGHT_MESSAGE = "Weights must be whole numbers from 0 to 100.";
+const weight = z.number(WEIGHT_MESSAGE).int(WEIGHT_MESSAGE).min(0, WEIGHT_MESSAGE).max(100, WEIGHT_MESSAGE);
 const weights = z.object({
-  SKILLS: z.number().finite().min(0).max(100),
-  EXPERIENCE: z.number().finite().min(0).max(100),
-  LOCATION: z.number().finite().min(0).max(100),
-  COMPLIANCE: z.number().finite().min(0).max(100),
-  EDUCATION_CERTIFICATIONS: z.number().finite().min(0).max(100),
+  SKILLS: weight,
+  EXPERIENCE: weight,
+  LOCATION: weight,
+  COMPLIANCE: weight,
+  EDUCATION_CERTIFICATIONS: weight,
 }).strict();
 
 const knnSettings = z.object({
@@ -23,12 +25,12 @@ const knnSettings = z.object({
 export const candidateScoringSchema = {
   configuration: z.object({
     expectedRevision: positiveId,
-    weights: weights.refine((value) => Object.values(value).every((number) => Number(number.toFixed(2)) === number), "Weights support up to 2 decimal places"),
+    weights,
     knnSettings: knnSettings.optional(),
     matchThreshold: z.number().finite().int().min(0).max(100).optional(),
   }).strict(),
   validateConfiguration: z.object({
-    weights: weights.refine((value) => Object.values(value).every((number) => Number(number.toFixed(2)) === number), "Weights support up to 2 decimal places"),
+    weights,
     knnSettings: knnSettings.optional(),
     matchThreshold: z.number().finite().int().min(0).max(100).optional(),
   }).strict(),
