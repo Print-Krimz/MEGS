@@ -106,7 +106,8 @@ export const TalentPoolPage: React.FC = () => {
 
   const writeUrl = (text: string, jobId: number) => {
     navigate({
-      to: "/ta/talent-pool",
+      // Route is hidden for now; drop the cast when it is restored in routes.tsx.
+      to: "/ta/talent-pool" as never,
       search: (jobId ? { jobId } : text ? { q: text } : {}) as never,
       replace: true,
     });
