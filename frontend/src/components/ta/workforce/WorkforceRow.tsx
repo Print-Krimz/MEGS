@@ -25,21 +25,31 @@ export const PersonCell: React.FC<{
   context?: Array<string | null | undefined>;
   /** When set, only the name is the link, so its accessible name stays the person's name. */
   href?: string;
-}> = ({ name, context = [], href }) => {
+  /** Short chip shown right after the name, such as "No account". */
+  badge?: React.ReactNode;
+}> = ({ name, context = [], href, badge }) => {
   const parts = context.filter((part): part is string => Boolean(part));
+  const nameEl = href ? (
+    <Link
+      to={href}
+      className="focus-ring inline-flex break-words rounded-sm font-medium text-navy underline-offset-2 hover:underline pointer-coarse:min-h-11 pointer-coarse:items-center"
+    >
+      {name}
+    </Link>
+  ) : (
+    <span className="block break-words font-medium">{name}</span>
+  );
   return (
     <span className="flex min-w-0 items-center gap-3">
       <Avatar name={name} />
       <span className="min-w-0">
-        {href ? (
-          <Link
-            to={href}
-            className="focus-ring inline-flex break-words rounded-sm font-medium text-navy underline-offset-2 hover:underline pointer-coarse:min-h-11 pointer-coarse:items-center"
-          >
-            {name}
-          </Link>
+        {badge ? (
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {nameEl}
+            {badge}
+          </span>
         ) : (
-          <span className="block break-words font-medium">{name}</span>
+          nameEl
         )}
         {href ? <span className="block" /> : null}
         {parts.length > 0 && (
@@ -101,9 +111,10 @@ export const WorkforceCard: React.FC<{
   status: React.ReactNode;
   details?: React.ReactNode;
   action?: React.ReactNode;
-}> = ({ href, name, context, status, details, action }) => (
+  badge?: React.ReactNode;
+}> = ({ href, name, context, status, details, action, badge }) => (
   <article className="space-y-3 p-4">
-    <PersonCell name={name} context={context} href={href} />
+    <PersonCell name={name} context={context} href={href} badge={badge} />
     <div>{status}</div>
     {details ? <div className="text-sm text-slate-700">{details}</div> : null}
     {action ? <div className="border-t border-slate-200 pt-3">{action}</div> : null}

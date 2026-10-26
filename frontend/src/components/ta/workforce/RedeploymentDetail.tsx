@@ -6,6 +6,7 @@ import type { RedeploymentJobSuggestion, RedeploymentStage } from "../../../lib/
 import { formatDate } from "../../../lib/utils";
 import { TA_COPY } from "../../../lib/ta-copy";
 import { OfferReplyActions } from "../OfferReplyActions";
+import { NoAccountChip } from "../walk-in/NoAccountChip";
 import { Avatar, ToneChip } from "./WorkforceRow";
 import {
   REDEPLOYMENT_STAGES,
@@ -59,7 +60,10 @@ export const RedeploymentDetail: React.FC<RedeploymentDetailProps> = ({
         <div className="min-w-0 space-y-1">
           <h2 className="break-words font-display text-xl leading-tight text-slate-950">{row.name}</h2>
           <p className="font-mono text-xs text-slate-600">{row.employeeNumber}</p>
-          <StageChip stage={row.stage} />
+          <div className="flex flex-wrap items-center gap-2">
+            <StageChip stage={row.stage} />
+            <NoAccountChip hasPortalAccess={row.hasPortalAccess} />
+          </div>
         </div>
       </div>
 

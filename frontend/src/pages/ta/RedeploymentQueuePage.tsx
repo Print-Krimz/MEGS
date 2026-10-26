@@ -25,6 +25,7 @@ import { useBulkInvite } from "../../hooks/useBulkInvite";
 import { useRowSelection } from "../../hooks/useRowSelection";
 import { BulkInviteDialog } from "../../components/ta/BulkInviteDialog";
 import { RadioRow } from "../../components/ta/AssistedResponseDialog";
+import { NoAccountChip } from "../../components/ta/walk-in/NoAccountChip";
 import { PoolSelectAll } from "../../components/ta/PoolSelectAll";
 import { PersonCell, StatusWithAge } from "../../components/ta/workforce/WorkforceRow";
 import { RedeploymentDetail, StageChip } from "../../components/ta/workforce/RedeploymentDetail";
@@ -436,7 +437,8 @@ export const RedeploymentQueuePage: React.FC = () => {
                     >
                       <PersonCell
                         name={row.name}
-                        context={[row.previousRole, row.previousClient, row.hasPortalAccess === false ? "No account" : null]}
+                        context={[row.previousRole, row.previousClient]}
+                        badge={<NoAccountChip hasPortalAccess={row.hasPortalAccess} />}
                       />
                       <div className="sm:w-52 sm:shrink-0">
                         <StatusWithAge chip={<StageChip stage={row.stage} />} age={wait.text} ageTone={wait.tone} />
@@ -516,7 +518,10 @@ export const RedeploymentQueuePage: React.FC = () => {
       >
         <div className="space-y-4">
           <div className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-            <div className="font-semibold text-slate-900">{assignmentTarget?.name}</div>
+            <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-900">
+              {assignmentTarget?.name}
+              <NoAccountChip hasPortalAccess={assignmentTarget?.hasPortalAccess} />
+            </div>
             <div>
               Last placement:{" "}
               {assignmentTarget?.previousClient || assignmentTarget?.previousRole

@@ -29,6 +29,7 @@ import { HistoryTab } from "../../components/ta/workforce/employee/HistoryTab";
 import { DeploymentsTab } from "../../components/ta/workforce/employee/DeploymentsTab";
 import { ClearanceTab } from "../../components/ta/workforce/employee/ClearanceTab";
 import { EditEmployeeDialog } from "../../components/ta/workforce/employee/EditEmployeeDialog";
+import { NoAccountChip } from "../../components/ta/walk-in/NoAccountChip";
 import {
   ChangeStatusDialog,
   PlacementDialog,
@@ -169,7 +170,12 @@ export const EmployeeDetailPage: React.FC = () => {
         title={empName}
         subtitle={`${emp.position || "General staff"} · ${emp.department || "Operations"}`}
         avatarText={initialsOf(empName)}
-        chips={<StatusBadge status={emp.status} type="employment" size="sm" />}
+        chips={
+          <>
+            <StatusBadge status={emp.status} type="employment" size="sm" />
+            <NoAccountChip hasPortalAccess={data.candidate?.hasPortalAccess} />
+          </>
+        }
         actions={
           <>
             {headerFindJob ? (

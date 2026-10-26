@@ -15,6 +15,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import { Button } from "../../components/ui";
 import { PersonCell, StatusWithAge, WorkforceCard } from "../../components/ta/workforce/WorkforceRow";
+import { NoAccountChip } from "../../components/ta/walk-in/NoAccountChip";
 import { formatDate } from "../../lib/utils";
 import { EmploymentStatus } from "../../lib/types/enums";
 import { TA_COPY } from "../../lib/ta-copy";
@@ -35,11 +36,12 @@ const assignmentParts = (emp: Employee): string[] | null => {
   return parts.length > 0 ? parts : null;
 };
 
-/** Row context: assignment, plus "No account" for workers who cannot use the applicant portal. */
-const personContext = (emp: Employee): string[] => {
-  const parts = assignmentParts(emp) ?? ["Not on assignment"];
+const personContext = (emp: Employee): string[] => assignmentParts(emp) ?? ["Not on assignment"];
+
+/** "No account" chip for workers who cannot use the applicant portal; unknown state shows nothing. */
+const accountChip = (emp: Employee) => {
   const status = emp.user?.accountStatus;
-  return status && status !== "ACTIVE" ? [...parts, "No account"] : parts;
+  return <NoAccountChip hasPortalAccess={status ? status === "ACTIVE" : undefined} />;
 };
 
 const statusCell = (emp: Employee) => (
@@ -111,6 +113,7 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
         <PersonCell
           name={employeeName(emp)}
           context={personContext(emp)}
+          badge={accountChip(emp)}
         />
       ),
     },
@@ -204,6 +207,7 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
               href={`/ta/employees/${emp.id}`}
               name={employeeName(emp)}
               context={personContext(emp)}
+              badge={accountChip(emp)}
               status={statusCell(emp)}
               action={recordAction(emp, true)}
             />
