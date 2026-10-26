@@ -105,7 +105,13 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
         <React.Suspense fallback={tabFallback}>
           {activeTab === "deployments" && <DeploymentsPage hideHeader initialSearch={search.q} />}
           {activeTab === "employees" && <EmployeesPage hideHeader />}
-          {activeTab === "follow-ups" && <PostDeploymentCompliancePage hideHeader />}
+          {activeTab === "follow-ups" && (
+            <>
+              {/* The tab hides the page header, so keep the one-line purpose visible here. */}
+              <p className="mb-4 text-sm text-slate-600">{TA_COPY.workforce.followUpsDescription}</p>
+              <PostDeploymentCompliancePage hideHeader />
+            </>
+          )}
           {activeTab === "redeployment" && <RedeploymentQueuePage />}
         </React.Suspense>
       </div>

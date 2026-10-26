@@ -102,7 +102,8 @@ export const TA_COPY = {
   navigation: {
     overview: "Overview",
     applications: "Applications",
-    requirements: "Requirements",
+    // Before deployment. Documents owed after deployment live under Workforce > Document follow-ups.
+    requirements: "Pre-employment",
     openings: "Job openings",
     manpowerRequests: "Manpower requests",
     candidatePool: "Candidate pool",
@@ -125,9 +126,9 @@ export const TA_COPY = {
     reports: "Reports",
     deployments: "Deployments",
     employeeRecords: "Employee records",
-    requirements: "Requirements",
+    requirements: "Pre-employment requirements",
     preEmployment: "Pre-employment requirements",
-    followUps: "Follow-ups",
+    followUps: "Document follow-ups",
     redeployment: "Redeployment",
   },
   breadcrumbRoot: "Overview",
@@ -165,11 +166,13 @@ export const TA_COPY = {
     tabs: {
       deployments: "Deployments",
       employees: "Employees",
-      followUps: "Follow-ups",
+      followUps: "Document follow-ups",
       redeployment: "Redeployment",
     },
-    /** One line under the Requirements page title. */
-    requirementsDescription: "Candidates in the requirements stage, oldest waiting first.",
+    /** One line under the Pre-employment requirements page title. */
+    requirementsDescription: "Candidates in the Requirements stage, oldest waiting first.",
+    /** One line under the Document follow-ups page title. */
+    followUpsDescription: "Documents deployed employees still need to submit.",
     dispositions: {
       wantsAnother: "Wants another assignment",
       notConfirmed: "Not confirmed yet",

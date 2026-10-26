@@ -252,7 +252,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
   const header = !hideHeader && (
     <PageHeader
       title={TA_COPY.pageTitles.followUps}
-      description="Documents deployed workers still owe."
+      description={TA_COPY.workforce.followUpsDescription}
       breadcrumbs={[{ label: TA_COPY.navigation.overview, href: "/ta" }, { label: TA_COPY.navigation.workforce }]}
       flush
     />
