@@ -4,7 +4,7 @@ import { logAudit } from "../../utils/audit.js";
 import { notifyJobOwner, sendNotification } from "../../utils/notification.js";
 import { formatManilaDate, isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 import { ownedWhere, type Actor } from "./ownership.js";
-import { PIPELINE_STAGE_ORDER } from "./pipeline-rules.js";
+import { PIPELINE_STAGE_ORDER, assertRequirementStage } from "./pipeline-rules.js";
 
 /** Medical documents get a calculated expiry. "PhilHealth" is an ID number, not a medical certificate. */
 export const isMedicalDocumentLabel = (label: string | null | undefined): boolean =>
@@ -25,8 +25,9 @@ const parseInputCalendarDate = (value: string | Date): Date => parseManilaDateOn
 
 export const requestComplianceDocumentUpdate = async (requirementId: number, actorId: string, reason: string, deadline: string) => {
   if (!reason.trim() || !isValidDateOnly(deadline) || deadline < manilaDateString()) throw new Error("Provide a reason and a deadline today or in the future.");
-  const requirement = await prisma.complianceRequirement.findUnique({ where: { id: requirementId }, include: { application: { select: { userId: true } } } });
+  const requirement = await prisma.complianceRequirement.findUnique({ where: { id: requirementId }, include: { application: { select: { userId: true, status: true } } } });
   if (!requirement) throw new Error("Compliance requirement not found");
+  assertRequirementStage(requirement.application.status);
   const updated = await prisma.complianceRequirement.update({
     where: { id: requirementId },
     data: { reviewStatus: "PENDING", updateRequestedAt: new Date(), updateRequestReason: reason.trim(), updateRequestDeadline: parseManilaDateOnly(deadline), updateRequestCompletedAt: null },
@@ -49,6 +50,7 @@ export const createComplianceRequirement = async (
     include: { complianceRequirements: true },
   });
   if (!application) throw new Error("Application not found");
+  assertRequirementStage(application.status);
 
   const trimmedLabel = documentLabel?.trim();
   if (!trimmedLabel) {
@@ -148,6 +150,8 @@ export const deleteComplianceRequirement = async (
     throw new Error("Compliance requirement not found");
   }
 
+  assertRequirementStage(requirement.application.status);
+
   // Requirements gate Contract Signing; nothing is removed from Contract Signing onward.
   // (TA-added ad-hoc items are saved as required, so isRequired is not used to block earlier cleanup.)
   const stageOrder = PIPELINE_STAGE_ORDER as readonly string[];
@@ -180,7 +184,8 @@ export const submitDocumentForRequirement = async (
 
   const doc = await prisma.storedDocument.findUnique({ where: { id: documentId } });
   if (!doc) throw new Error("Stored document not found");
-  const application = await prisma.application.findUnique({ where: { id: requirement.applicationId }, select: { userId: true } });
+  const application = await prisma.application.findUnique({ where: { id: requirement.applicationId }, select: { userId: true, status: true } });
+  if (application) assertRequirementStage(application.status);
   if (!application || doc.ownerId !== application.userId) throw new Error("This document does not belong to the applicant on this requirement.");
 
   return await prisma.$transaction(async (tx) => {
@@ -222,6 +227,7 @@ export const reviewComplianceRequirement = async (
         select: {
           id: true,
           userId: true,
+          status: true,
           user: {
             select: {
               email: true,
@@ -258,6 +264,7 @@ export const reviewComplianceRequirement = async (
     },
   });
   if (!requirement) throw new Error("Compliance requirement not found");
+  assertRequirementStage(requirement.application.status);
   if (reviewStatus === "REJECTED" && !reviewNotes?.trim()) {
     throw new Error("Please add a note explaining why this was rejected.");
   }
@@ -533,6 +540,7 @@ export const updateComplianceRequirementDeadline = async (
     include: { application: true },
   });
   if (!existing) throw new Error("Compliance requirement not found");
+  assertRequirementStage(existing.application.status);
 
   const deadlineDay = deadline ? toManilaDateOnly(deadline) : null;
   const existingDay = existing.deadline ? toManilaDateOnly(existing.deadline) : null;

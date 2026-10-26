@@ -313,6 +313,8 @@ export const publicMessages = new Set<string>([
   "Enter the job title, description, and requirements.",
   "Choose a valid job status.",
   "A draft job posting must be published before it can be closed.",
+  "Openings with applicants can't go back to draft. Close the opening instead.",
+  "Requirements open when the candidate reaches the Requirements stage.",
   "This request can't be moved to the selected status from its current status.",
   "Client endorsement can't be recorded at this application's current stage.",
   "Cannot record client endorsement. A passed Initial Screening interview is required.",

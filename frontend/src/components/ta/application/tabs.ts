@@ -38,7 +38,7 @@ export const normalizeApplicationTab = (tab: string | null | undefined): Applica
   }
 };
 
-const REQUIREMENTS_ONWARD: string[] = [
+export const REQUIREMENTS_ONWARD: string[] = [
   ApplicationStatus.COMPLIANCE,
   ApplicationStatus.CONTRACT_SIGNING,
   ApplicationStatus.ONBOARDING,

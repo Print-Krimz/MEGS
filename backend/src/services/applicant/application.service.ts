@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { assertRequirementStage } from "../ta/pipeline-rules.js";
 import prisma from '../../utils/prisma.js';
 import { uploadFileToSupabaseWithInfo } from '../../middleware/upload.middleware.js';
 import { logAudit } from '../../utils/audit.js';
@@ -835,6 +836,8 @@ export const uploadComplianceDocumentForApplicant = async ({
   if (!requirement) {
     throw new Error("Compliance requirement not found");
   }
+
+  assertRequirementStage(requirement.application.status);
 
   const applicantUserId = requirement.application.userId;
   const updated = await storeAndLinkComplianceDocument(requirement, requirementId, file);

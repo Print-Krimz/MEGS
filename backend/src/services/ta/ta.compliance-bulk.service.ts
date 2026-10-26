@@ -1,4 +1,5 @@
 import prisma from "../../utils/prisma.js";
+import { REQUIREMENT_STAGES } from "./pipeline-rules.js";
 import { uploadComplianceDocumentForApplicant } from "../applicant/application.service.js";
 
 export interface BulkUploadEntry { fileIndex: number; requirementId: number }
@@ -25,6 +26,12 @@ export const bulkUploadComplianceDocuments = async ({
   const mappedIndexes = new Set(mapping.map((entry) => entry.fileIndex));
   if (mapping.some((entry) => entry.fileIndex >= files.length) || files.some((_, index) => !mappedIndexes.has(index))) {
     throw new BulkUploadRequestError("Every file must be matched to a requirement.");
+  }
+
+  const application = await prisma.application.findUnique({ where: { id: applicationId }, select: { status: true } });
+  if (!application) throw new BulkUploadRequestError("Application not found.");
+  if (!REQUIREMENT_STAGES.includes(application.status)) {
+    throw new BulkUploadRequestError("Requirements open when the candidate reaches the Requirements stage.");
   }
 
   const ids = mapping.map((entry) => entry.requirementId);

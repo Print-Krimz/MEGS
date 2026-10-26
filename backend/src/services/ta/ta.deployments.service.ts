@@ -910,7 +910,7 @@ export const fastTrackRedeployment = async (
   const distinctEligible = Array.from(uniqueEligibleByLabel.values());
 
   // Ensure current application has baseline compliance requirements from MRF/template
-  if (application.complianceRequirements.length === 0) {
+  if (targetStage === "COMPLIANCE" && application.complianceRequirements.length === 0) {
     await generateComplianceRequirementsFromMRF(applicationId);
   }
 

@@ -30,6 +30,15 @@ export const PIPELINE_STAGE_ORDER = [
   "DEPLOYED",
 ] as const;
 
+/** Statuses where requirements can be managed (add, upload, review, remove). */
+export const REQUIREMENT_STAGES: readonly string[] = ["COMPLIANCE", "CONTRACT_SIGNING", "ONBOARDING", "HIRED", "DEPLOYED"];
+
+export const assertRequirementStage = (status: string): void => {
+  if (!REQUIREMENT_STAGES.includes(status)) {
+    throw new Error("Requirements open when the candidate reaches the Requirements stage.");
+  }
+};
+
 /**
  * Only Client review may be skipped (Initial review -> Final interview), with a recorded reason.
  * Final interview, Requirements, Contract Signing and Deployment are never skippable;

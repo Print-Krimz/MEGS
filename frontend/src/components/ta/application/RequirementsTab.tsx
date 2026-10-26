@@ -12,6 +12,8 @@ export interface RequirementsTabProps {
   requirements: RequirementRowData[];
   counts: { total: number; approved: number; toFollow: number; submitted: number; missing: number };
   isAllApproved: boolean;
+  /** Requirements are managed only from the Requirements stage onward. */
+  canManage: boolean;
   /** Removing is closed once the contract stage starts. */
   canRemove: boolean;
   onAdd: () => void;
@@ -37,6 +39,7 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
   requirements,
   counts,
   isAllApproved,
+  canManage,
   canRemove,
   onAdd,
   onView,
@@ -57,8 +60,10 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
   const [manualExpanded, setManualExpanded] = useState<boolean | null>(null);
   // Before compliance a waiting decision is already the stage bar's action, so the row would only repeat it.
   const hideClientReview = Boolean(clientReview.stageBarOwnsDecision) && !clientReview.isPastClientReview && clientReview.endorsements.length <= 1;
-  const toVerify = requirements.filter((r) => verifyIds.includes(r.id) && r.documentId && r.reviewStatus !== "APPROVED" && r.reviewStatus !== "REJECTED");
-  const canBulkUpload = requirements.filter(canTakeUpload).length > 1;
+  const toVerify = !canManage ? [] : requirements.filter((r) => verifyIds.includes(r.id) && r.documentId && r.reviewStatus !== "APPROVED" && r.reviewStatus !== "REJECTED");
+  const canBulkUpload = canManage && requirements.filter(canTakeUpload).length > 1;
+  // A closed application that reached Requirements keeps its list and contract steps; one that never did has neither.
+  const showContractSection = canManage || requirements.length > 0;
   const expanded = manualExpanded !== null ? manualExpanded : !isAllApproved;
 
   return (
@@ -78,9 +83,11 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
               Upload several
             </Button>
           )}
-          <Button variant="outline" size="sm" className="whitespace-nowrap" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={onAdd}>
-            Add requirement
-          </Button>
+          {canManage && (
+            <Button variant="outline" size="sm" className="whitespace-nowrap" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={onAdd}>
+              Add requirement
+            </Button>
+          )}
           </div>
         </div>
 
@@ -106,7 +113,9 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
 
         {requirements.length === 0 ? (
           <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 py-8 text-center text-sm text-slate-600">
-            No requirements yet. The standard checklist is created when the candidate moves to requirements.
+            {canManage
+              ? "No requirements yet. The standard checklist is created when the candidate moves to requirements."
+              : "Requirements open when the candidate reaches the Requirements stage. The standard checklist is created then."}
           </div>
         ) : (
           <>
@@ -143,7 +152,8 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
                   <RequirementRow
                     key={req.id}
                     req={req}
-                    canRemove={canRemove}
+                    canRemove={canManage && canRemove}
+                    readOnly={!canManage}
                     onView={() => onView(req)}
                     onReview={() => onReview(req)}
                     onRequestCopy={() => onRequestCopy(req)}
@@ -159,6 +169,7 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
         )}
       </section>
 
+      {showContractSection && (
       <section id="compliance-onboarding-section" aria-labelledby="contract-heading" className="space-y-3">
         <div className="border-b border-slate-200 pb-3">
           <h3 id="contract-heading" className="text-base font-semibold text-slate-900">
@@ -174,6 +185,7 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
         </div>
         {showReadiness && readiness}
       </section>
+      )}
 
       {bulkOpen && (
         <BulkUploadRequirementsDialog

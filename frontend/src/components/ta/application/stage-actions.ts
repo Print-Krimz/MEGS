@@ -1,6 +1,7 @@
 import type { Application } from "../../../lib/types";
 import { ApplicationStatus } from "../../../lib/types/enums";
 import { canRecordBackout } from "../../../lib/backout";
+import { REQUIREMENTS_ONWARD } from "./tabs";
 
 /**
  * Pure stage rules for the TA application record.
@@ -59,6 +60,8 @@ export function deriveApplicationFlags(app: Application) {
     app.status === ApplicationStatus.BACKOUT ||
     app.status === ApplicationStatus.REJECTED ||
     app.status === ApplicationStatus.DEPLOYED;
+  // Requirements are managed only from the Requirements stage onward (mirrors the backend gate).
+  const canManageRequirements = REQUIREMENTS_ONWARD.includes(app.status);
   const canReject = !isTerminal;
   const canBackout =
     !app.isArchived && canRecordBackout(app.status, (app.deployments || []).map((d) => d.status));
@@ -138,6 +141,7 @@ export function deriveApplicationFlags(app: Application) {
     isClientApproved,
     hasUnapprovedMandatoryCompliance,
     isTerminal,
+    canManageRequirements,
     canReject,
     canBackout,
     isPreScreeningOrScreening,

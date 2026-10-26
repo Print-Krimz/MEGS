@@ -36,6 +36,8 @@ export interface RequirementRowProps {
   onUpload?: () => void;
   /** False for walk-ins, who cannot upload for themselves. Defaults to true. */
   applicantHasPortalAccess?: boolean;
+  /** True before the Requirements stage or once the application is closed: the row can be viewed but not changed. */
+  readOnly?: boolean;
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -46,7 +48,7 @@ const STATUS_STYLE: Record<string, string> = {
   PENDING: "border-slate-200 bg-slate-100 text-slate-700",
 };
 
-export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, onView, onReview, onRequestCopy, onEditDeadline, onRemove, onUpload, applicantHasPortalAccess = true }) => {
+export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, onView, onReview, onRequestCopy, onEditDeadline, onRemove, onUpload, applicantHasPortalAccess = true, readOnly = false }) => {
   const status = requirementRowStatus(req);
   const isApproved = status === "APPROVED";
   const isRejected = status === "REJECTED";
@@ -64,7 +66,9 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
   const canUpload = Boolean(onUpload) && !isApproved;
   const uploadPrimary = canUpload && !applicantHasPortalAccess && !req.documentId && !isToFollow;
   const primary =
-    uploadPrimary
+    readOnly
+      ? req.documentId ? { label: "View", onClick: onView } : null
+      : uploadPrimary
       ? { label: "Upload document", onClick: onUpload! }
       : isApproved
       ? req.documentId ? { label: "View", onClick: onView } : null
@@ -73,6 +77,7 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
       : { label: "Review", onClick: onReview };
 
   const menu: ActionMenuItem[] = [];
+  if (!readOnly) {
   if (req.documentId && primary?.label !== "View") menu.push({ label: "View document", onSelect: onView });
   if (canUpload && !uploadPrimary) menu.push({ label: req.documentId ? "Replace document" : "Upload document", onSelect: onUpload! });
   // Upload takes the primary slot for a walk-in with nothing on file, so the follow-up decision moves into the menu.
@@ -80,6 +85,7 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
   if (isApproved) menu.push({ label: "Request updated copy", onSelect: onRequestCopy });
   if (!isToFollow) menu.push({ label: deadlineDate ? "Edit deadline" : "Set deadline", onSelect: onEditDeadline });
   if (canRemove) menu.push({ label: "Remove requirement", onSelect: onRemove, tone: "danger" });
+  }
 
   const Icon = isApproved ? CheckCircle2 : isRejected ? XCircle : isToFollow || isSubmitted ? Clock : FileText;
   const iconColor = isApproved ? "text-emerald-700" : isRejected ? "text-rose-700" : isToFollow ? "text-amber-700" : isSubmitted ? "text-navy" : "text-slate-500";

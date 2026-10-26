@@ -361,7 +361,9 @@ export const ApplicationDetailPage: React.FC = () => {
   // ---- tabs ------------------------------------------------------------------------------------
   const overdueInterviews = overdueInterviewCount(app.interviews || [], now);
   // One count: the items that wait for the recruiter's review.
-  const requirementsBadge = flags.canDeployCandidate
+  const requirementsBadge = !flags.canManageRequirements
+    ? undefined
+    : flags.canDeployCandidate
     ? "Ready to deploy"
     : flags.submittedCompReqs > 0
     ? `${flags.submittedCompReqs} to review`
@@ -622,8 +624,9 @@ export const ApplicationDetailPage: React.FC = () => {
                 isDeployed={app.status === ApplicationStatus.DEPLOYED}
                 requirements={requirements}
                 counts={requirementCounts}
-                showReadiness={flags.isComplianceStage || flags.isContractSigningStage || flags.isTerminal || app.status === ApplicationStatus.DEPLOYED}
+                showReadiness={flags.isComplianceStage || flags.isContractSigningStage || (flags.isTerminal && requirements.length > 0) || app.status === ApplicationStatus.DEPLOYED}
                 isAllApproved={flags.isAllClearancesApproved}
+                canManage={flags.canManageRequirements}
                 canRemove={!["CONTRACT_SIGNING", "DEPLOYED"].includes(String(app.status))}
                 onAdd={() => setDialog({ kind: "addRequirement" })}
                 onView={(req) =>
@@ -829,7 +832,7 @@ export const ApplicationDetailPage: React.FC = () => {
         requirementStatus={previewDocState?.requirementStatus}
         // Approved documents use "Request updated copy" on the row instead of Reject.
         onReject={
-          previewDocState?.requirementStatus === "APPROVED"
+          previewDocState?.requirementStatus === "APPROVED" || !flags.canManageRequirements
             ? undefined
             : (notes) => {
                 if (!notes.trim()) {
