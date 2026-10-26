@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { ApplicationStatus } from "../../lib/types/enums";
 import type { ComplianceRequirement } from "../../lib/types/application.types";
+import { RequirementStatusBadge } from "../../components/applicant/RequirementStatusBadge";
 import { notify } from "../../lib/feedback";
 import { getApplicationRefetchInterval } from "../../lib/query-policies";
 import { addManilaCalendarDays, getManilaToday, toManilaDateInput } from "../../lib/field-limits";
@@ -474,13 +475,11 @@ export const ApplicationDetailPage: React.FC = () => {
                   <div className="divide-y divide-[#D9E2EC]">
                     {pendingFollowUps.map((req) => {
                       const isRejected = req.reviewStatus === "REJECTED";
-                      const isSubmitted = req.reviewStatus === "SUBMITTED";
-                      const isToFollow = req.reviewStatus === "TO_FOLLOW";
                       const targetDate = req.updateRequestDeadline || req.toFollowExpectedAt || req.deadline;
 
                       return (
                         <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
-                          <div className="flex items-start justify-between gap-4">
+                          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                             <div className="space-y-1">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-bold text-[#102A43] font-mono uppercase">
@@ -494,20 +493,8 @@ export const ApplicationDetailPage: React.FC = () => {
                               )}
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span
-                                className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 border rounded ${
-                                  isRejected
-                                    ? "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]"
-                                    : isSubmitted
-                                    ? "bg-[#FFF7ED] text-[#B45309] border-[#FED7AA]"
-                                    : isToFollow
-                                    ? "bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]"
-                                    : "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]"
-                                }`}
-                              >
-                                {req.reviewStatus}
-                              </span>
+                            <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                              <RequirementStatusBadge status={req.reviewStatus} />
 
                               {req.documentId && (
                                 <button
@@ -581,7 +568,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   <div className="divide-y divide-[#D9E2EC]">
                     {approvedClearances.map((req) => (
                       <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-bold text-[#102A43] font-mono uppercase">
@@ -591,9 +578,7 @@ export const ApplicationDetailPage: React.FC = () => {
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2 shrink-0">
-                            <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-3 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> Approved
-                            </span>
+                            <RequirementStatusBadge status="APPROVED" />
 
                             <button
                               type="button"
@@ -671,11 +656,10 @@ export const ApplicationDetailPage: React.FC = () => {
                   {compliance.map((req) => {
                     const isApproved = req.reviewStatus === "APPROVED";
                     const isRejected = req.reviewStatus === "REJECTED";
-                    const isSubmitted = req.reviewStatus === "SUBMITTED";
 
                     return (
                       <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-bold text-[#102A43] font-mono uppercase">
@@ -687,26 +671,15 @@ export const ApplicationDetailPage: React.FC = () => {
                                 Deadline: {formatDate(req.deadline)}
                               </div>
                             )}
+                            {req.reviewStatus === "TO_FOLLOW" && req.toFollowExpectedAt && (
+                              <div className="text-[10px] text-[#627D98] font-mono">
+                                Expected by {formatDate(req.toFollowExpectedAt)}
+                              </div>
+                            )}
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            {isApproved ? (
-                              <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-3 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> Approved
-                              </span>
-                            ) : (
-                              <span
-                                className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 border rounded ${
-                                  isRejected
-                                    ? "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]"
-                                    : isSubmitted
-                                    ? "bg-[#FFF7ED] text-[#B45309] border-[#FED7AA]"
-                                    : "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]"
-                                }`}
-                              >
-                                {req.reviewStatus}
-                              </span>
-                            )}
+                          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                            <RequirementStatusBadge status={req.reviewStatus} />
 
                             {req.documentId && (
                               <button
