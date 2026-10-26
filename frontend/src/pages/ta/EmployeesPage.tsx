@@ -35,6 +35,13 @@ const assignmentParts = (emp: Employee): string[] | null => {
   return parts.length > 0 ? parts : null;
 };
 
+/** Row context: assignment, plus "No account" for workers who cannot use the applicant portal. */
+const personContext = (emp: Employee): string[] => {
+  const parts = assignmentParts(emp) ?? ["Not on assignment"];
+  const status = emp.user?.accountStatus;
+  return status && status !== "ACTIVE" ? [...parts, "No account"] : parts;
+};
+
 const statusCell = (emp: Employee) => (
   <StatusWithAge
     chip={<StatusBadge status={emp.status} type="employment" size="sm" />}
@@ -103,7 +110,7 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
       cell: (emp) => (
         <PersonCell
           name={employeeName(emp)}
-          context={assignmentParts(emp) ?? ["Not on assignment"]}
+          context={personContext(emp)}
         />
       ),
     },
@@ -196,7 +203,7 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
             <WorkforceCard
               href={`/ta/employees/${emp.id}`}
               name={employeeName(emp)}
-              context={assignmentParts(emp) ?? ["Not on assignment"]}
+              context={personContext(emp)}
               status={statusCell(emp)}
               action={recordAction(emp, true)}
             />

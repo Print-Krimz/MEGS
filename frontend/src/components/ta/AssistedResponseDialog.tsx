@@ -16,7 +16,7 @@ export interface AssistedResponseDialogProps {
   jobTitle: string;
 }
 
-const RadioRow: React.FC<{
+export const RadioRow: React.FC<{
   name: string;
   value: string;
   label: string;

@@ -365,6 +365,7 @@ export const listEmployees = async (filters: {
           select: {
             id: true,
             email: true,
+            accountStatus: true,
             applicantProfile: {
               select: {
                 firstName: true,

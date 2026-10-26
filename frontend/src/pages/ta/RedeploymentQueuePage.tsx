@@ -24,6 +24,7 @@ import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useBulkInvite } from "../../hooks/useBulkInvite";
 import { useRowSelection } from "../../hooks/useRowSelection";
 import { BulkInviteDialog } from "../../components/ta/BulkInviteDialog";
+import { RadioRow } from "../../components/ta/AssistedResponseDialog";
 import { PoolSelectAll } from "../../components/ta/PoolSelectAll";
 import { PersonCell, StatusWithAge } from "../../components/ta/workforce/WorkforceRow";
 import { RedeploymentDetail, StageChip } from "../../components/ta/workforce/RedeploymentDetail";
@@ -77,7 +78,9 @@ export const RedeploymentQueuePage: React.FC = () => {
   // null = automatic: Suggested when the worker has suggestions, otherwise All open jobs.
   const [jobView, setJobView] = useState<"suggested" | "all" | null>(null);
   const [clientFilter, setClientFilter] = useState("");
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  // INVITE: portal invitation. ASSIGN: the worker already said yes. TEXT: SMS offer link.
+  const [confirmMode, setConfirmMode] = useState<"INVITE" | "ASSIGN" | "TEXT" | null>(null);
+  const [assignChannel, setAssignChannel] = useState<"ASSISTED_PHONE" | "IN_PERSON">("ASSISTED_PHONE");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [drillOpen, setDrillOpen] = useState(false);
   const wide = useWideLayout();
@@ -129,30 +132,58 @@ export const RedeploymentQueuePage: React.FC = () => {
   }, [query.data, query.isPlaceholderData, page, totalPages]);
 
   const assignRole = useMutation({
-    mutationFn: () =>
-      taApi.sendTalentPoolInvitation({
+    mutationFn: async (mode: "INVITE" | "ASSIGN" | "TEXT") => {
+      const invitation = await taApi.sendTalentPoolInvitation({
         applicantProfileId: assignmentTarget!.applicantProfileId!,
         targetJobId: Number(targetJobId),
         message: invitationMessage.trim() || undefined,
-      }),
-    onSuccess: () => {
+      });
+      // The offer exists from here on; a failed second step leaves it pending for Record reply or Text offer link.
+      try {
+        if (mode === "ASSIGN") {
+          await taApi.recordAssistedResponse(invitation.id, { decision: "ACCEPT", channel: assignChannel });
+        } else if (mode === "TEXT") {
+          const sms = await taApi.sendOfferSmsLink(invitation.id);
+          return { mode, sentTo: sms.sentTo };
+        }
+      } catch (error: any) {
+        return { mode, followUpError: String(error?.message || "Try again from the pending offer.") };
+      }
+      return { mode };
+    },
+    onSuccess: (result: { mode: "INVITE" | "ASSIGN" | "TEXT"; sentTo?: string; followUpError?: string }) => {
       void cache.invalidateQueries({ queryKey: ["ta", "redeployment-queue"] });
       void cache.invalidateQueries({ queryKey: ["ta", "redeployment-suggestions"] });
+      void cache.invalidateQueries({ queryKey: ["ta", "talent-pool", "invitations"] });
+      if (result.mode === "ASSIGN") void cache.invalidateQueries({ queryKey: ["ta", "applications"] });
+      const name = assignmentTarget?.name ?? "The worker";
+      const jobTitle = selectedJob?.title ?? "the job";
       setAssignmentTarget(null);
       setTargetJobId("");
       setAssignmentMessage("");
       setMessageEdited(false);
-      setConfirmOpen(false);
-      notify.success(
-        "Invitation sent",
-        targetHasPortal
-          ? "The worker can review and accept the open role from their portal."
-          : "Record their reply or text them an offer link from the pending invitation."
-      );
+      setConfirmMode(null);
+      if (result.followUpError) {
+        notify.error(
+          result.mode === "ASSIGN" ? "Offer saved, but the yes was not recorded" : "Offer saved, but the text was not sent",
+          `${result.followUpError} Use ${result.mode === "ASSIGN" ? "Record reply" : "Text offer link"} on ${name}'s pending offer.`
+        );
+      } else if (result.mode === "ASSIGN") {
+        notify.success("Assigned", `${name} now has an application for ${jobTitle}.`);
+      } else if (result.mode === "TEXT") {
+        notify.success("Offer texted", `Sent to ${result.sentTo}. ${name} can accept or decline from the link.`);
+      } else {
+        notify.success(
+          "Invitation sent",
+          targetHasPortal
+            ? "The worker can review and accept the open role from their portal."
+            : "Record their reply or text them an offer link from the pending invitation."
+        );
+      }
     },
     onError: (error: any) => {
-      setConfirmOpen(false);
-      notify.error("Invitation failed", error?.message || error);
+      setConfirmMode(null);
+      notify.error("Could not create the offer", error?.message || error);
     },
   });
 
@@ -235,7 +266,7 @@ export const RedeploymentQueuePage: React.FC = () => {
 
   const closeAssignment = () => {
     setAssignmentTarget(null);
-    setConfirmOpen(false);
+    setConfirmMode(null);
   };
 
   const counts: Record<RedeploymentStage, number> = query.data?.summary.stages ?? { NEEDS_PLACEMENT: 0, WAITING_FOR_REPLY: 0, IN_PROGRESS: 0 };
@@ -479,7 +510,7 @@ export const RedeploymentQueuePage: React.FC = () => {
         description={
           targetHasPortal
             ? `Choose an open job to invite ${assignmentTarget?.name} to. They accept it from their applicant account.`
-            : `Choose an open job to invite ${assignmentTarget?.name} to. They have no applicant account, so you record their reply.`
+            : `Choose an open job for ${assignmentTarget?.name}. They have no applicant account, so you assign them or text them the offer.`
         }
         size="xl"
       >
@@ -689,37 +720,84 @@ export const RedeploymentQueuePage: React.FC = () => {
           <p className="text-xs text-slate-600">
             {targetHasPortal
               ? "The worker gets this invitation in their portal and can accept or decline it."
-              : "After you send it, use Record reply or Text offer link on the pending invitation."}
+              : assignmentTarget?.hasMobile
+                ? "Assign now if they already said yes by phone or in person. Otherwise text them the offer."
+                : "Assign now once they say yes by phone or in person. There is no mobile number to text."}
           </p>
           </div>
           </div>
-          <div className="flex items-center justify-end gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             {!targetJobId && <span className="text-xs text-slate-600">Pick a job first</span>}
             <Button variant="outline" onClick={closeAssignment}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              disabled={!targetJobId || !assignmentTarget?.applicantProfileId}
-              onClick={() => setConfirmOpen(true)}
-            >
-              {TA_COPY.workforce.actions.sendInvitation}
-            </Button>
+            {targetHasPortal ? (
+              <Button
+                variant="primary"
+                disabled={!targetJobId || !assignmentTarget?.applicantProfileId}
+                onClick={() => setConfirmMode("INVITE")}
+              >
+                {TA_COPY.workforce.actions.sendInvitation}
+              </Button>
+            ) : (
+              <>
+                {assignmentTarget?.hasMobile && (
+                  <Button
+                    variant="outline"
+                    disabled={!targetJobId || !assignmentTarget?.applicantProfileId}
+                    onClick={() => setConfirmMode("TEXT")}
+                  >
+                    Text the offer
+                  </Button>
+                )}
+                <Button
+                  variant="primary"
+                  disabled={!targetJobId || !assignmentTarget?.applicantProfileId}
+                  onClick={() => {
+                    setAssignChannel("ASSISTED_PHONE");
+                    setConfirmMode("ASSIGN");
+                  }}
+                >
+                  Assign now
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </Dialog>
       <Dialog
-        open={confirmOpen && Boolean(selectedJob)}
-        onClose={() => setConfirmOpen(false)}
-        title="Send this invitation?"
-        description={`${selectedJob?.title ?? "This job"}${selectedJob?.mrf?.client?.name ? ` (${selectedJob.mrf.client.name})` : ""} will be sent to ${assignmentTarget?.name}.`}
+        open={confirmMode !== null && Boolean(selectedJob)}
+        onClose={() => (assignRole.isPending ? undefined : setConfirmMode(null))}
+        title={
+          confirmMode === "ASSIGN"
+            ? `Assign ${assignmentTarget?.name} to this job?`
+            : confirmMode === "TEXT"
+              ? `Text the offer to ${assignmentTarget?.maskedMobile ?? assignmentTarget?.name}?`
+              : "Send this invitation?"
+        }
+        description={
+          confirmMode === "ASSIGN"
+            ? `Only do this if ${assignmentTarget?.name} already said yes. Their application for ${selectedJob?.title ?? "this job"} starts right away.`
+            : confirmMode === "TEXT"
+              ? `${assignmentTarget?.name} gets an SMS with a link to accept or decline ${selectedJob?.title ?? "this job"}. The link works once.`
+              : `${selectedJob?.title ?? "This job"}${selectedJob?.mrf?.client?.name ? ` (${selectedJob.mrf.client.name})` : ""} will be sent to ${assignmentTarget?.name}.`
+        }
       >
+        {confirmMode === "ASSIGN" && (
+          <fieldset className="mb-4 space-y-2" disabled={assignRole.isPending}>
+            <legend className="text-sm font-medium text-slate-900">How did they say yes?</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <RadioRow name="assign-channel" value="ASSISTED_PHONE" label="Phone call" checked={assignChannel === "ASSISTED_PHONE"} onChange={() => setAssignChannel("ASSISTED_PHONE")} />
+              <RadioRow name="assign-channel" value="IN_PERSON" label="In person" checked={assignChannel === "IN_PERSON"} onChange={() => setAssignChannel("IN_PERSON")} />
+            </div>
+          </fieldset>
+        )}
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+          <Button variant="outline" disabled={assignRole.isPending} onClick={() => setConfirmMode(null)}>
             Back
           </Button>
-          <Button variant="primary" loading={assignRole.isPending} onClick={() => assignRole.mutate()}>
-            {TA_COPY.workforce.actions.sendInvitation}
+          <Button variant="primary" loading={assignRole.isPending} onClick={() => confirmMode && assignRole.mutate(confirmMode)}>
+            {confirmMode === "ASSIGN" ? "Assign now" : confirmMode === "TEXT" ? "Send text" : TA_COPY.workforce.actions.sendInvitation}
           </Button>
         </div>
       </Dialog>

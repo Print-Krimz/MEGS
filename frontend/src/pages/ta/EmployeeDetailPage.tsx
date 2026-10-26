@@ -189,6 +189,7 @@ export const EmployeeDetailPage: React.FC = () => {
           { label: "Hired", value: formatDate(emp.hireDate) },
           { label: "Mobile", value: mobile || "Not provided", copyValue: mobile || undefined, href: mobile ? `tel:${mobile}` : undefined },
           { label: "Email", value: email || "Not provided", copyValue: email || undefined, href: email ? `mailto:${email}` : undefined },
+          { label: "Applicant account", value: data.candidate?.hasPortalAccess === false ? "None" : "Active" },
           { label: "Current assignment", value: assignment },
           { label: "Open follow-ups", value: followUpCount === 0 ? "None" : plural(followUpCount, "document") },
         ]}
