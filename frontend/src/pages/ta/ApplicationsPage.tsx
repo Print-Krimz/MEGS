@@ -138,16 +138,35 @@ const candidateNameOf = (app: TAApplicationSummary) => {
 const isClosedRecord = (app: TAApplicationSummary) =>
   Boolean(app.isArchived) || CLOSED_STATUSES.includes(app.status);
 
-const readApplicationSearch = (): TAApplicationSearch => {
+/**
+ * The router JSON-quotes string values that would otherwise read back as numbers or booleans
+ * (a phone-number search becomes `q="0917..."`). Undo that so the raw URL gives the real text.
+ */
+const readStringParam = (params: URLSearchParams, key: string): string | null => {
+  const raw = params.get(key);
+  if (raw && raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
+    try {
+      const decoded = JSON.parse(raw);
+      return typeof decoded === "string" ? decoded : raw;
+    } catch {
+      return raw;
+    }
+  }
+  return raw;
+};
+
+export const readApplicationSearch = (): TAApplicationSearch => {
   const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
   const stage = params.get("stage");
   const sortParam = params.get("sort");
+  const source = readStringParam(params, "source");
   const number = (value: string | null) => {
     const parsed = Number(value);
     return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
   };
   return {
-    q: params.get("q") || undefined,
+    q: readStringParam(params, "q") || undefined,
+    source: source === "ONLINE" || source === "WALK_IN" ? source : undefined,
     stage: stage && PIPELINE_FILTER_STAGES.includes(stage as ApplicationStatus) ? stage as ApplicationStatus : undefined,
     clientId: number(params.get("clientId")),
     jobId: number(params.get("jobId")),
