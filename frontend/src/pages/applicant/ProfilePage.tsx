@@ -1457,14 +1457,14 @@ export const ProfilePage: React.FC = () => {
                 <ProfileDisclosure
                   id="profile-personal-government"
                   title="Government identification"
-                  summary="Optional statutory numbers"
+                  summary="Statutory numbers"
                   open={openPersonalSection === "government"}
                   onToggle={() => setOpenPersonalSection(openPersonalSection === "government" ? "" : "government")}
                   {...stepProps("government")}
                 >
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
-                    5. Government Identification (Optional)
+                    5. Government Identification
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Input
