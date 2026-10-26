@@ -269,6 +269,7 @@ export const EmployeeDetailPage: React.FC = () => {
         onClose={() => setPlacementDialogOpen(false)}
         employeeName={empName}
         applicantProfileId={applicantProfileIdForPlacement}
+        hasPortalAccess={data.candidate?.hasPortalAccess ?? true}
       />
       <EditEmployeeDialog
         open={editModalOpen}

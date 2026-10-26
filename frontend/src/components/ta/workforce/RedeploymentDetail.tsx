@@ -85,6 +85,19 @@ export const RedeploymentDetail: React.FC<RedeploymentDetailProps> = ({
           </dd>
         </div>
         <div className="col-span-2 min-w-0">
+          <dt className="text-xs font-medium text-slate-600">Applicant account</dt>
+          <dd className="mt-0.5 text-slate-900">
+            {row.hasPortalAccess === false ? (
+              <>
+                None
+                <span className="block text-slate-600">You record their replies or text them an offer link.</span>
+              </>
+            ) : (
+              "Active"
+            )}
+          </dd>
+        </div>
+        <div className="col-span-2 min-w-0">
           <dt className="text-xs font-medium text-slate-600">Next step</dt>
           <dd className="mt-0.5 text-slate-900">
             {row.nextAction}

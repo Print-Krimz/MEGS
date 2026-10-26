@@ -34,6 +34,7 @@ export interface Digital201Aggregate {
   candidate: {
     id: string;
     applicantProfileId: number | null;
+    hasPortalAccess: boolean;
     email: string;
     firstName: string;
     middleName: string | null;
@@ -174,6 +175,7 @@ export const getDigital201ByEmployeeId = async (employeeId: number): Promise<Dig
     candidate: {
       id: employee.user.id,
       applicantProfileId: profile?.id ?? null,
+      hasPortalAccess: employee.user.accountStatus === "ACTIVE",
       email: employee.user.email,
       firstName: profile?.firstName ?? "",
       middleName: profile?.middleName ?? null,

@@ -67,6 +67,8 @@ export const RedeploymentQueuePage: React.FC = () => {
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<RedeploymentStage | null>(null);
   const [assignmentTarget, setAssignmentTarget] = useState<Row | null>(null);
+  // Walk-ins without an account answer through the TA (recorded reply or SMS link).
+  const targetHasPortal = assignmentTarget?.hasPortalAccess ?? true;
   const [targetJobId, setTargetJobId] = useState("");
   const [assignmentMessage, setAssignmentMessage] = useState("");
   // Until the TA edits the text, the message follows the template for the chosen job.
@@ -143,7 +145,9 @@ export const RedeploymentQueuePage: React.FC = () => {
       setConfirmOpen(false);
       notify.success(
         "Invitation sent",
-        "The worker can review and accept the open role from their portal."
+        targetHasPortal
+          ? "The worker can review and accept the open role from their portal."
+          : "Record their reply or text them an offer link from the pending invitation."
       );
     },
     onError: (error: any) => {
@@ -209,10 +213,13 @@ export const RedeploymentQueuePage: React.FC = () => {
   const waitingDays = daysSince(assignmentTarget?.waitingSince ?? null);
 
   const firstName = assignmentTarget?.name?.trim().split(/\s+/)[0] || "there";
+  const acceptLine = targetHasPortal
+    ? "Please review the role and accept it in your Applicant account."
+    : "Please let us know if you accept.";
   const templateMessage = selectedJob
     ? selectedSameClient
-      ? `Hi ${firstName}, we have an open ${selectedJob.title} role at ${selectedJob.mrf?.client?.name || "your previous client"}, where you worked before. Because you already know the client, your application goes straight to requirements and your valid documents are reused. Please review the role and accept it in your Applicant account.`
-      : `Hi ${firstName}, we have an open ${selectedJob.title} role${selectedJob.mrf?.client?.name ? ` at ${selectedJob.mrf.client.name}` : ""} that fits your experience. If you accept, your application starts with screening. Please review the role and accept it in your Applicant account.`
+      ? `Hi ${firstName}, we have an open ${selectedJob.title} role at ${selectedJob.mrf?.client?.name || "your previous client"}, where you worked before. Because you already know the client, your application goes straight to requirements and your valid documents are reused. ${acceptLine}`
+      : `Hi ${firstName}, we have an open ${selectedJob.title} role${selectedJob.mrf?.client?.name ? ` at ${selectedJob.mrf.client.name}` : ""} that fits your experience. If you accept, your application starts with screening. ${acceptLine}`
     : "";
   const invitationMessage = messageEdited ? assignmentMessage : templateMessage;
 
@@ -396,7 +403,10 @@ export const RedeploymentQueuePage: React.FC = () => {
                       aria-current={selected ? "true" : undefined}
                       className="focus-ring flex min-h-11 min-w-0 flex-1 flex-col items-start gap-2 rounded-md text-left text-slate-950 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                     >
-                      <PersonCell name={row.name} context={[row.previousRole, row.previousClient]} />
+                      <PersonCell
+                        name={row.name}
+                        context={[row.previousRole, row.previousClient, row.hasPortalAccess === false ? "No account" : null]}
+                      />
                       <div className="sm:w-52 sm:shrink-0">
                         <StatusWithAge chip={<StageChip stage={row.stage} />} age={wait.text} ageTone={wait.tone} />
                       </div>
@@ -466,7 +476,11 @@ export const RedeploymentQueuePage: React.FC = () => {
         open={Boolean(assignmentTarget)}
         onClose={closeAssignment}
         title={TA_COPY.workforce.actions.findJob}
-        description={`Choose an open job to invite ${assignmentTarget?.name} to. They accept it from their applicant account.`}
+        description={
+          targetHasPortal
+            ? `Choose an open job to invite ${assignmentTarget?.name} to. They accept it from their applicant account.`
+            : `Choose an open job to invite ${assignmentTarget?.name} to. They have no applicant account, so you record their reply.`
+        }
         size="xl"
       >
         <div className="space-y-4">
@@ -673,7 +687,9 @@ export const RedeploymentQueuePage: React.FC = () => {
             )}
           </div>
           <p className="text-xs text-slate-600">
-            The worker gets this invitation in their portal and can accept or decline it.
+            {targetHasPortal
+              ? "The worker gets this invitation in their portal and can accept or decline it."
+              : "After you send it, use Record reply or Text offer link on the pending invitation."}
           </p>
           </div>
           </div>

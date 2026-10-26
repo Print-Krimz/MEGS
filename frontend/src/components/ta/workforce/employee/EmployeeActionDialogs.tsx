@@ -163,7 +163,8 @@ export const PlacementDialog: React.FC<{
   onClose: () => void;
   employeeName: string;
   applicantProfileId: number | null;
-}> = ({ open, onClose, employeeName, applicantProfileId }) => {
+  hasPortalAccess: boolean;
+}> = ({ open, onClose, employeeName, applicantProfileId, hasPortalAccess }) => {
   const [targetJobId, setTargetJobId] = useState("");
   const [message, setMessage] = useState("");
 
@@ -187,7 +188,12 @@ export const PlacementDialog: React.FC<{
       onClose();
       setTargetJobId("");
       setMessage("");
-      notify.success("Invitation sent", "The applicant can review and accept it from their account.");
+      notify.success(
+        "Invitation sent",
+        hasPortalAccess
+          ? "The applicant can review and accept it from their account."
+          : "Record their reply or text them an offer link from the pending invitation."
+      );
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => notify.error("Could not send invitation", error?.message || error),
@@ -198,7 +204,11 @@ export const PlacementDialog: React.FC<{
       open={open}
       onClose={onClose}
       title={TA_COPY.workforce.actions.findJob}
-      description={`Choose an open role to invite ${employeeName} to. They accept it from their applicant account.`}
+      description={
+        hasPortalAccess
+          ? `Choose an open role to invite ${employeeName} to. They accept it from their applicant account.`
+          : `Choose an open role to invite ${employeeName} to. They have no applicant account, so you record their reply.`
+      }
     >
       <div className="space-y-4">
         {openJobsQuery.isError ? (
