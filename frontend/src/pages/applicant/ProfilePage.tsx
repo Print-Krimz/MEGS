@@ -37,6 +37,7 @@ import { ProfileSectionNav } from "./components/profile/ProfileSectionNav";
 import type { ProfileSection } from "./components/profile/profile-navigation";
 import { parseProfileSection } from "./components/profile/profile-navigation";
 import { FIELD_LIMITS, getManilaToday, isValidDateOnly } from "../../lib/field-limits";
+import { toast } from "sonner";
 import { fieldErrorsFrom } from "../../lib/feedback";
 import { validatePhilippineMobile } from "../../lib/phone-utils";
 import {
@@ -486,7 +487,12 @@ export const ProfilePage: React.FC = () => {
     }
   }, [profile]);
 
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [feedback, setFeedbackState] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  // The banner sits at the top of the page, so also toast, centred where the eye is: the result stays visible wherever the applicant scrolled.
+  const setFeedback = (next: { type: "success" | "error"; message: string } | null) => {
+    setFeedbackState(next);
+    if (next) (next.type === "success" ? toast.success : toast.error)(next.message, { position: "top-center" });
+  };
 
   // Mutations
   const updateProfileMutation = useMutation({
