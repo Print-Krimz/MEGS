@@ -71,7 +71,7 @@ export function calculateUrgencyStatus(toFollowExpectedAt?: string | null): Urge
   if (diffDays <= 7) {
     return {
       category: "UPCOMING",
-      label: `Due in ${diffDays} ${diffDays === 1 ? "day" : "days"}`,
+      label: diffDays === 0 ? "Due today" : `Due in ${diffDays} ${diffDays === 1 ? "day" : "days"}`,
       variant: "warning",
       diffDays,
     };

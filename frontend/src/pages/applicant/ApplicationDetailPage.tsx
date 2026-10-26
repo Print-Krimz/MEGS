@@ -34,7 +34,7 @@ import { ApplicationStatus } from "../../lib/types/enums";
 import type { ComplianceRequirement } from "../../lib/types/application.types";
 import { notify } from "../../lib/feedback";
 import { getApplicationRefetchInterval } from "../../lib/query-policies";
-import { addManilaCalendarDays, getManilaToday } from "../../lib/field-limits";
+import { addManilaCalendarDays, getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 
 const normalizeDocumentLabel = (value: string) => value.trim().toLowerCase();
 
@@ -613,7 +613,7 @@ export const ApplicationDetailPage: React.FC = () => {
                               <ExternalLink className="w-3 h-3" />
                               View
                             </button>
-                            {req.expiresAt && req.expiresAt.slice(0, 10) <= addManilaCalendarDays(getManilaToday(), 30) && (
+                            {req.expiresAt && toManilaDateInput(req.expiresAt) <= addManilaCalendarDays(getManilaToday(), 30) && (
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -632,8 +632,8 @@ export const ApplicationDetailPage: React.FC = () => {
                         </div>
 
                         {req.expiresAt && (
-                          <div className={`text-[11px] font-mono ${req.expiresAt.slice(0, 10) < getManilaToday() ? "text-rose-700" : "text-amber-700"}`}>
-                            {req.expiresAt.slice(0, 10) < getManilaToday() ? "Expired" : "Expiring soon"} · Expires {formatDate(req.expiresAt)}
+                          <div className={`text-[11px] font-mono ${toManilaDateInput(req.expiresAt) < getManilaToday() ? "text-rose-700" : "text-amber-700"}`}>
+                            {toManilaDateInput(req.expiresAt) < getManilaToday() ? "Expired" : "Expiring soon"} · Expires {formatDate(req.expiresAt)}
                           </div>
                         )}
 

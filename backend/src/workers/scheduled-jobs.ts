@@ -1,6 +1,7 @@
 import prisma from "../utils/prisma.js";
 import { safeLogError } from "../security/errors.js";
 import { checkReviewSLABreaches } from "./review-sla.worker.js";
+import { REMINDER_JOBS } from "./reminders/index.js";
 
 export interface ScheduledJob {
   name: string;
@@ -18,6 +19,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
       return { ...counts };
     },
   },
+  ...REMINDER_JOBS,
 ];
 
 export interface ScheduledRunResult {

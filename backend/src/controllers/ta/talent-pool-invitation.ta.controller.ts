@@ -83,8 +83,8 @@ export const cancelInvitationHandler = async (req: Request, res: Response) => {
 
 export const expireOverdueInvitationsHandler = async (_req: Request, res: Response) => {
   try {
-    const result = await expirePendingInvitationsWorker();
-    return sendSuccess(res, `Expired ${result.expiredCount} overdue invitations`, result);
+    const { expiredCount } = await expirePendingInvitationsWorker();
+    return sendSuccess(res, `Expired ${expiredCount} overdue invitations`, { expiredCount });
   } catch (error) {
     handle(res, error);
   }

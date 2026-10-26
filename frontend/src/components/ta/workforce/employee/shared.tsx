@@ -2,7 +2,7 @@ import React from "react";
 import { Button } from "../../../ui";
 import { StatusBadge } from "../../../common";
 import { cn, formatDate } from "../../../../lib/utils";
-import { addManilaCalendarDays, getManilaToday } from "../../../../lib/field-limits";
+import { addManilaCalendarDays, getManilaToday, toManilaDateInput } from "../../../../lib/field-limits";
 import { calculateUrgencyStatus } from "../../../../lib/compliance-queue";
 import { TA_STATUS_TONE_CLASSES, getTaStatusTone } from "../../../../lib/ta-copy";
 import { requirementStatusLabel } from "../../../../lib/labels";
@@ -62,9 +62,9 @@ export const ValidityDates: React.FC<{ req: VaultRequirement }> = ({ req }) => (
 );
 
 export const ValidityBadge: React.FC<{ req: VaultRequirement }> = ({ req }) =>
-  req.expiresAt && req.expiresAt.slice(0, 10) < getManilaToday() ? (
+  req.expiresAt && toManilaDateInput(req.expiresAt) < getManilaToday() ? (
     <StatusBadge status="Expired" type="raw" size="sm" />
-  ) : req.expiresAt && req.expiresAt.slice(0, 10) <= addManilaCalendarDays(getManilaToday(), 30) ? (
+  ) : req.expiresAt && toManilaDateInput(req.expiresAt) <= addManilaCalendarDays(getManilaToday(), 30) ? (
     <StatusBadge status="Expiring soon" type="raw" size="sm" />
   ) : req.validityStatus === "UNKNOWN" && !req.expiresAt ? (
     <StatusBadge status="Validity unrecorded" type="raw" size="sm" />

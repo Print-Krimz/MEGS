@@ -43,9 +43,9 @@ const isUnowned = (r: RequestRow) => r.ownerId === null && r.health !== "FILLED"
 /** The short "how late or how soon" text. The target date is in the tooltip. */
 const slaText = (row: RequestRow): string => {
   if (!row.targetFillDate || row.daysRemaining === null) return "No target date";
-  if (row.daysRemaining < 0) return `${Math.abs(row.daysRemaining)} days late`;
+  if (row.daysRemaining < 0) return `${Math.abs(row.daysRemaining)} ${row.daysRemaining === -1 ? "day" : "days"} late`;
   if (row.daysRemaining === 0) return "Due today";
-  return `Due in ${row.daysRemaining} days`;
+  return `Due in ${row.daysRemaining} ${row.daysRemaining === 1 ? "day" : "days"}`;
 };
 
 const TH = "px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap";

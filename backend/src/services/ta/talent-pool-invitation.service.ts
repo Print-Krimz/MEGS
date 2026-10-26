@@ -2,7 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import prisma from "../../utils/prisma.js";
 import { displayEmail } from "../../utils/display-email.js";
 import { maskPhoneNumber, sendSmsViaTextBee } from "../../utils/sms.js";
-import { assertOwns } from "./ownership.js";
+import { assertOwns, JOB_OWNER_SELECT, type JobOwnerFields } from "./ownership.js";
 import { buildTrackingCode, generateTrackingToken } from "./walk-in-tokens.js";
 import { sendNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
@@ -626,18 +626,24 @@ export const respondToJobInvitation = async (input: RespondInvitationInput) => {
   }
 };
 
-export const expirePendingInvitationsWorker = async () => {
+export interface ExpiredInvitation {
+  id: number;
+  jobTitle: string | null;
+  job: JobOwnerFields | null;
+}
+
+export const expirePendingInvitationsWorker = async (): Promise<{ expiredCount: number; expired: ExpiredInvitation[] }> => {
   const now = new Date();
   const overdue = await prisma.talentPoolInvitation.findMany({
     where: {
       status: "PENDING",
       expiresAt: { lt: now },
     },
-    select: { id: true, membershipId: true },
+    select: { id: true, membershipId: true, jobPosting: { select: { title: true, ...JOB_OWNER_SELECT } } },
   });
 
   if (overdue.length === 0) {
-    return { expiredCount: 0 };
+    return { expiredCount: 0, expired: [] };
   }
 
   const { count } = await prisma.talentPoolInvitation.updateMany({
@@ -662,14 +668,29 @@ export const expirePendingInvitationsWorker = async () => {
     });
 
     if (expiredCount >= 2) {
-      await prisma.talentPoolMembership.update({
-        where: { id: membershipId },
-        data: { availability: "UNKNOWN" },
-      });
+      // A candidate who said they are unavailable stays unavailable.
+      try {
+        await prisma.talentPoolMembership.update({
+          where: { id: membershipId, availability: { not: "UNAVAILABLE" } },
+          data: { availability: "UNKNOWN" },
+        });
+      } catch (error) {
+        // P2025: the membership is UNAVAILABLE, so there is nothing to change.
+        if ((error as { code?: string } | null)?.code !== "P2025") throw error;
+      }
     }
   }
 
-  return { expiredCount: count };
+  return {
+    expiredCount: count,
+    expired: overdue.map((o) => ({
+      id: o.id,
+      jobTitle: o.jobPosting?.title ?? null,
+      job: o.jobPosting
+        ? { postedById: o.jobPosting.postedById, mrfId: o.jobPosting.mrfId, mrf: o.jobPosting.mrf }
+        : null,
+    })),
+  };
 };
 
 // ---------------------------------------------------------------------------

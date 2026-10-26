@@ -8,8 +8,7 @@ import {
   type MyDocumentLibraryItem,
   type MyDocumentRequirement,
 } from "../../lib/api/applicant-jobs.api";
-import { getManilaToday } from "../../lib/field-limits";
-import { formatDate } from "../../lib/utils";
+import { formatDate, manilaDaysUntil } from "../../lib/utils";
 
 const reviewBadges: Record<MyDocumentLibraryItem["reviewStatus"], { label: string; variant: BadgeProps["variant"] }> = {
   APPROVED: { label: "Verified", variant: "success" },
@@ -23,7 +22,7 @@ const reviewBadges: Record<MyDocumentLibraryItem["reviewStatus"], { label: strin
 const linkButtonClass =
   "inline-flex min-h-11 md:min-h-9 items-center justify-center rounded-md border border-[#D9E2EC] bg-white px-4 text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors";
 
-const isPastDate = (value?: string | null) => Boolean(value && value.slice(0, 10) < getManilaToday());
+const isPastDate = (value?: string | null) => (manilaDaysUntil(value) ?? 0) < 0;
 
 // A requirement needs action when it is rejected, still missing, expired, or has an open update request.
 const needsAction = (item: MyDocumentRequirement) =>

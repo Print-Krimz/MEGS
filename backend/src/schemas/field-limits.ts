@@ -316,6 +316,28 @@ export const manilaDateString = (date = new Date()): string => {
   return `${part("year")}-${part("month")}-${part("day")}`;
 };
 
+/** "Oct 26, 2026" in Manila time, whatever the server time zone is. */
+export const formatManilaDate = (date: Date): string =>
+  new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric" }).format(date);
+
+/** "Oct 26, 2026, 2:30 PM" in Manila time, whatever the server time zone is. */
+export const formatManilaDateTime = (date: Date): string =>
+  new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+
+/**
+ * Whole Manila calendar days from today until a due date: 0 = due today, 1 = tomorrow, -1 = one day overdue.
+ * A deadline counts as met for the whole of its Manila day, so it is only overdue once the result is negative.
+ */
+export const manilaDaysUntil = (due: Date, now = new Date()): number =>
+  Math.round((Date.parse(manilaDateString(due)) - Date.parse(manilaDateString(now))) / 86_400_000);
+
 export const parseManilaDateOnly = (value: string): Date => {
   if (!isValidDateOnly(value)) throw new Error("Invalid calendar date");
   return new Date(`${value}T00:00:00+08:00`);

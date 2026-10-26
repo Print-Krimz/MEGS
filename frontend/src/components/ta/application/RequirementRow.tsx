@@ -3,7 +3,7 @@ import { CheckCircle2, Clock, FileText, ShieldCheck, XCircle } from "lucide-reac
 import { ActionMenu } from "../../common";
 import type { ActionMenuItem } from "../../common";
 import { Button } from "../../ui";
-import { cn, formatDate } from "../../../lib/utils";
+import { cn, formatDate, manilaDaysUntil } from "../../../lib/utils";
 import { plural } from "../../../lib/plural";
 import { requirementStatusLabel } from "../../../lib/labels";
 
@@ -53,11 +53,12 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
   const isToFollow = status === "TO_FOLLOW";
   const isSubmitted = status === "SUBMITTED";
 
-  const now = new Date();
-  const deadlineDate = req.deadline ? new Date(req.deadline) : null;
-  const isOverdue = Boolean(deadlineDate && deadlineDate < now && !isApproved && !isToFollow);
-  const diffDays = deadlineDate ? Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
-  const isDueSoon = diffDays !== null && diffDays >= 0 && diffDays <= 3 && !isApproved && !isToFollow;
+  // Manila calendar days: a deadline is met for its whole day and overdue only from the next one.
+  const diffDays = manilaDaysUntil(req.deadline);
+  const deadlineDate = diffDays === null ? null : req.deadline;
+  const isOpen = !isApproved && !isToFollow;
+  const isOverdue = diffDays !== null && diffDays < 0 && isOpen;
+  const isDueSoon = diffDays !== null && diffDays >= 0 && diffDays <= 3 && isOpen;
 
   // One primary control per row, chosen by state. Everything else lives in the row menu.
   const canUpload = Boolean(onUpload) && !isApproved;
@@ -106,7 +107,7 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
                 {isOverdue && <span className="rounded border border-rose-300 bg-rose-100 px-1.5 py-0.5 font-semibold text-rose-900">Overdue</span>}
                 {isDueSoon && (
                   <span className="rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">
-                    Due in {plural(diffDays ?? 0, "day")}
+                    {diffDays === 0 ? "Due today" : `Due in ${plural(diffDays ?? 0, "day")}`}
                   </span>
                 )}
               </>

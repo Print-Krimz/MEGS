@@ -2,7 +2,7 @@ import prisma from '../../utils/prisma.js';
 import { notifyJobOwner, sendNotification } from '../../utils/notification.js';
 import { logAudit } from '../../utils/audit.js';
 import { recordBackout } from './backout.service.js';
-import { isFutureDateTime, isWorkingHours } from "../../schemas/field-limits.js";
+import { formatManilaDateTime, isFutureDateTime, isWorkingHours } from "../../schemas/field-limits.js";
 import { JOB_OWNER_SELECT, ownedWhere, type Actor } from "./ownership.js";
 import { isPageRequested, paginateArray, type PageRequest } from "../../utils/pagination.js";
 
@@ -132,8 +132,8 @@ export const scheduleNewInterview = async (
     }
   }
 
-  const deadline = new Date();
-  deadline.setDate(deadline.getDate() + 7);
+  // Follow-up window runs 7 days from the interview itself, on schedule and on reschedule.
+  const deadline = new Date(new Date(scheduledAt).getTime() + 7 * 24 * 60 * 60 * 1000);
 
   // Check if an existing pending interview of this type exists for this application
   const existingPending = await prisma.interview.findFirst({
@@ -161,7 +161,7 @@ export const scheduleNewInterview = async (
     sendNotification(
       application.userId,
       "Interview Rescheduled",
-      `Your ${type.replace("_", " ")} has been rescheduled to ${new Date(scheduledAt).toLocaleString()}.`,
+      `Your ${type.replace("_", " ")} has been rescheduled to ${formatManilaDateTime(new Date(scheduledAt))}.`,
       "INFO",
       `/app/applications/${applicationId}`,
       {
@@ -192,7 +192,7 @@ export const scheduleNewInterview = async (
     sendNotification(
       application.userId,
       "Interview Scheduled",
-      `Your ${type.replace("_", " ")} has been scheduled for ${new Date(scheduledAt).toLocaleString()}.`,
+      `Your ${type.replace("_", " ")} has been scheduled for ${formatManilaDateTime(new Date(scheduledAt))}.`,
       "INFO",
       `/app/applications/${applicationId}`,
       {

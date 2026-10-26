@@ -1,5 +1,6 @@
 import { ApplicationStatus, DeploymentStatus, EmploymentStatus } from "./types/enums";
 import { STAFF_STAGE_LABELS, TA_COPY } from "./ta-copy";
+import { getManilaToday, toManilaDateInput } from "./field-limits";
 
 /**
  * Merge class names safely
@@ -38,6 +39,21 @@ export function formatDate(dateString?: string | null): string {
   } catch {
     return dateString;
   }
+}
+
+/**
+ * Whole Manila calendar days from today until the given date (negative = past).
+ * A deadline is met for its whole Manila day, so 0 means "due today", not overdue.
+ * Accepts date-only "YYYY-MM-DD" or an ISO instant; returns null when unparseable.
+ */
+export function manilaDaysUntil(value?: string | null, now: Date = new Date()): number | null {
+  const target = toManilaDateInput(value);
+  if (!target) return null;
+  const toUtc = (d: string) => {
+    const [y, m, day] = d.split("-").map(Number);
+    return Date.UTC(y, m - 1, day);
+  };
+  return Math.round((toUtc(target) - toUtc(getManilaToday(now))) / 86_400_000);
 }
 
 /**
@@ -377,8 +393,11 @@ export function formatNotificationTitle(title?: string | null, role?: string): s
 /** Keeps legacy notification links inside the recipient's permitted workspace. */
 export function resolveNotificationLink(link?: string | null, role?: string): string | undefined {
   if (!link) return undefined;
-  if (role === "ADMINISTRATOR" && link.startsWith("/ta/mrfs/")) {
-    return link.replace(/^\/ta\/mrfs\//, "/admin/mrfs/");
+  if (role === "ADMINISTRATOR" && link.startsWith("/ta/")) {
+    if (link.startsWith("/ta/mrfs/")) return link.replace(/^\/ta\/mrfs\//, "/admin/mrfs/");
+    if (link.startsWith("/ta/applications/")) return link.replace(/^\/ta\/applications\//, "/admin/applications/");
+    // Other TA pages have no Admin view; opening them would land on Forbidden, so the notice just marks read.
+    return undefined;
   }
   return link;
 }

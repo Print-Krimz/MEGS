@@ -1,5 +1,5 @@
 import prisma from "../../utils/prisma.js";
-import { manilaDateString } from "../../schemas/field-limits.js";
+import { manilaDateString, manilaDaysUntil, parseManilaDateOnly } from "../../schemas/field-limits.js";
 import { parseDateRange, type AnalyticsFilterDto, type UserScope } from "./analytics.service.js";
 import { ownedWhere } from "../ta/ownership.js";
 import {
@@ -399,6 +399,7 @@ async function loadSnapshot(jobClause: Record<string, unknown>, now: Date): Prom
   // Stage-change history, late requirements and awaiting-start placements are fetched as three small aggregate
   // queries instead of nested relations, which loaded every decision row for every candidate one level at a time.
   const ids = apps.map((a) => a.id);
+  const startOfToday = parseManilaDateOnly(manilaDateString(now));
   const [entries, late, waiting] = ids.length
     ? await Promise.all([
         prisma.recruiterDecision.groupBy({
@@ -411,7 +412,8 @@ async function loadSnapshot(jobClause: Record<string, unknown>, now: Date): Prom
             applicationId: { in: ids },
             isRequired: true,
             reviewStatus: { not: "APPROVED" },
-            OR: [{ deadline: { lt: now } }, { toFollowExpectedAt: { lt: now } }],
+            // Due day still counts as met: overdue starts at the next Manila midnight.
+            OR: [{ deadline: { lt: startOfToday } }, { toFollowExpectedAt: { lt: startOfToday } }],
           },
           select: { applicationId: true },
           distinct: ["applicationId"],
@@ -974,7 +976,7 @@ function assembleRequests(
       const filled = m.deployments.length;
       const items = snapshot.filter((s) => s.mrfId === m.id);
       const pipeline = items.filter((s) => s.stage !== "APPLIED" && s.stage !== "DEPLOYED").length;
-      const days = m.targetFillDate ? Math.ceil((m.targetFillDate.getTime() - now.getTime()) / 86_400_000) : null;
+      const days = m.targetFillDate ? manilaDaysUntil(m.targetFillDate, now) : null;
       const jobCount = m._count.jobPostings;
       // Active applicants on this request's openings, from the snapshot already loaded (no extra query).
       const applicantCount = items.filter((s) => s.stage !== "DEPLOYED").length;

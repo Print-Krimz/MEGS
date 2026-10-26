@@ -2,9 +2,24 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
 import { logAudit } from "../../utils/audit.js";
 import { notifyJobOwner, sendNotification } from "../../utils/notification.js";
-import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
+import { formatManilaDate, isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
 import { ownedWhere, type Actor } from "./ownership.js";
 import { PIPELINE_STAGE_ORDER } from "./pipeline-rules.js";
+
+/** Medical documents get a calculated expiry. "PhilHealth" is an ID number, not a medical certificate. */
+export const isMedicalDocumentLabel = (label: string | null | undefined): boolean =>
+  Boolean(label) && !/phil\s*health/i.test(label!) && /\bmedical\b|\bfit\s+to\s+work\b|\bhealth\b/i.test(label!);
+
+/** Adds calendar months on the Manila date, clamping the day (Jan 31 + 1 month = Feb 28/29). Returns Manila 00:00. */
+export const addManilaMonths = (from: Date, months: number): Date => {
+  const [year, month, day] = manilaDateString(from).split("-").map(Number);
+  const target = month - 1 + months;
+  const targetYear = year + Math.floor(target / 12);
+  const targetMonth = ((target % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return parseManilaDateOnly(`${targetYear}-${pad(targetMonth + 1)}-${pad(Math.min(day, lastDay))}`);
+};
 
 const parseInputCalendarDate = (value: string | Date): Date => parseManilaDateOnly(toManilaDateOnly(value));
 
@@ -270,18 +285,13 @@ export const reviewComplianceRequirement = async (
   if (expiresAt) resolvedValidityStatus = "HAS_EXPIRY";
   if (validityStatus === "NO_EXPIRY") calculatedExpiresAt = null;
 
-  const isMedicalDoc = Boolean(
-    requirement.documentLabel &&
-      /medical|fit\s+to\s+work|health/i.test(requirement.documentLabel)
-  );
+  const isMedicalDoc = isMedicalDocumentLabel(requirement.documentLabel);
 
   if (reviewStatus === "APPROVED" && !expiresAt && isMedicalDoc && validityStatus !== "NO_EXPIRY") {
     if (!issuedAt) throw new Error("Enter the issue date so the medical document’s validity can be calculated.");
     const validityMonths =
       requirement.application?.jobPosting?.mrf?.client?.medicalValidityMonths ?? 6;
-    const exp = new Date(resolvedIssuedAt!);
-    exp.setMonth(exp.getMonth() + validityMonths);
-    calculatedExpiresAt = exp;
+    calculatedExpiresAt = addManilaMonths(resolvedIssuedAt!, validityMonths);
     resolvedValidityStatus = "HAS_EXPIRY";
   }
 
@@ -400,7 +410,7 @@ export const reviewComplianceRequirement = async (
     : isToFollow
     ? `Your document '${requirement.documentLabel}' for "${jobTitle}" has been marked to follow${
         updateData.toFollowExpectedAt
-          ? ` with target completion date ${new Date(updateData.toFollowExpectedAt).toLocaleDateString()}`
+          ? ` with target completion date ${formatManilaDate(new Date(updateData.toFollowExpectedAt))}`
           : ""
       }.`
     : isUpdateRequested
@@ -473,11 +483,12 @@ export const isFullyCompliant = async (applicationId: number): Promise<boolean> 
     return false;
   }
 
-  const now = new Date();
+  const today = manilaDateString();
   return requiredList.every((req) => {
     if (req.reviewStatus === "APPROVED") {
+      // A document stays valid through its whole Manila expiry day, same as the approval check.
       return req.validityStatus === "NO_EXPIRY" || (
-        req.validityStatus === "HAS_EXPIRY" && Boolean(req.expiresAt && req.expiresAt > now)
+        req.validityStatus === "HAS_EXPIRY" && Boolean(req.expiresAt && toManilaDateOnly(req.expiresAt) >= today)
       );
     }
     if (req.reviewStatus === "TO_FOLLOW") {
@@ -723,7 +734,8 @@ export const reuseValidSameClientDocuments = async (applicationId: number, prior
         documentId: { not: null },
         OR: [
           { validityStatus: "NO_EXPIRY" },
-          { validityStatus: "HAS_EXPIRY", expiresAt: { gt: new Date() } },
+          // Valid through its Manila expiry day, same as isFullyCompliant.
+          { validityStatus: "HAS_EXPIRY", expiresAt: { gte: parseManilaDateOnly(manilaDateString()) } },
         ],
       },
       orderBy: { reviewedAt: "desc" },

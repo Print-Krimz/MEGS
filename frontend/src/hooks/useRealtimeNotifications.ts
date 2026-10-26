@@ -104,7 +104,7 @@ export function useRealtimeNotifications() {
             type: data.type,
           };
 
-          setActiveToasts((prev) => [newToast, ...prev.slice(0, 2)]);
+          setActiveToasts((prev) => [newToast, ...prev.filter((t) => t.id !== newToast.id).slice(0, 2)]);
 
           // Auto-dismiss toast after 6 seconds
           const priorTimeout = toastTimeouts.current.get(newToast.id);
@@ -132,7 +132,13 @@ export function useRealtimeNotifications() {
 
   const handleToastClick = (toast: RealtimeToast) => {
     dismissToast(toast.id);
-    markAsReadMutation.mutate(toast.id);
+    // Only mark read when still unread: skip if the cached list already shows it read.
+    const cached = queryClient.getQueryData<unknown>(["notifications", "recent"]);
+    const items = (Array.isArray(cached) ? cached : (cached as { items?: unknown[] } | undefined)?.items) as
+      | Array<{ id: number; isRead?: boolean }>
+      | undefined;
+    const alreadyRead = items?.some((n) => n.id === toast.id && n.isRead === true) ?? false;
+    if (!alreadyRead) markAsReadMutation.mutate(toast.id);
     const notificationLink = resolveNotificationLink(toast.link, role);
     if (notificationLink) {
       if (notificationLink.includes("?")) {

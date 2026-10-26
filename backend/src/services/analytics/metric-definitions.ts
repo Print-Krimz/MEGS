@@ -1,7 +1,7 @@
 // Single source of truth for what the analytics count. Pure functions only.
 // Every dashboard number must be built from these definitions so two screens never disagree.
 
-import { manilaDateString } from "../../schemas/field-limits.js";
+import { manilaDateString, manilaDaysUntil } from "../../schemas/field-limits.js";
 
 export type StageRowKey =
   | "APPLIED"
@@ -159,7 +159,7 @@ export function requestHealth(input: {
   const now = input.now ?? new Date();
   if (filled >= headcount) return "FILLED";
   if (!targetFillDate) return "ON_TRACK";
-  const daysLeft = (targetFillDate.getTime() - now.getTime()) / DAY_MS;
+  const daysLeft = manilaDaysUntil(targetFillDate, now);
   if (daysLeft < 0) return "OVERDUE";
   const open = headcount - filled;
   const coverage = open > 0 ? pipeline / open : 1;
