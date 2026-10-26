@@ -307,6 +307,12 @@ export const updateTAJobStatus = async (jobId: number, status: any) => {
   if (existing.status === "DRAFT" && status === "CLOSED") {
     throw new Error("A draft job posting must be published before it can be closed.");
   }
+  if (status === "DRAFT" && existing.status !== "DRAFT") {
+    const applicantTotal = await prisma.application.count({ where: { jobPostingId: jobId } });
+    if (applicantTotal > 0) {
+      throw new Error("Openings with applicants can't go back to draft. Close the opening instead.");
+    }
+  }
   if (status === "OPEN" && existing.status !== "OPEN" && existing.mrfId) {
     await assertRequestAcceptsJobs(existing.mrfId);
   }

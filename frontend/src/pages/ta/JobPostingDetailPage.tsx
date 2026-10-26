@@ -23,7 +23,7 @@ import {
 import { StageStrip, type StageStripItem } from "../../components/ta/recruitment/StageStrip";
 import { RecordBreadcrumb } from "../../components/ta/recruitment/RecordBreadcrumb";
 import type { DataTableColumn } from "../../components/common";
-import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
+import { Button, Dialog, Input, Textarea } from "../../components/ui";
 import { PoolCandidateCard } from "../../components/ta/PoolCandidateCard";
 import { RequirementClarityNotice } from "../../components/ta/RequirementClarityNotice";
 import { FieldWarning } from "../../components/ta/FieldWarning";
@@ -105,7 +105,6 @@ export const JobPostingDetailPage: React.FC = () => {
   const [editImageUrl, setEditImageUrl] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editRequirements, setEditRequirements] = useState("");
-  const [editStatus, setEditStatus] = useState<JobStatus>(JobStatus.OPEN);
   const [editIsEvergreen, setEditIsEvergreen] = useState(false);
   const [editModalTab, setEditModalTab] = useState<"edit" | "preview">("edit");
   const [pendingClose, setPendingClose] = useState(false);
@@ -175,7 +174,7 @@ export const JobPostingDetailPage: React.FC = () => {
   });
 
   const statusMutation = useMutation({
-    mutationFn: (status: JobStatus) => taApi.updateJob(jobId, { status }),
+    mutationFn: (status: JobStatus) => taApi.updateJobStatus(jobId, status),
     onSuccess: (_data, status) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "job", jobId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "jobs"] });
@@ -217,7 +216,6 @@ export const JobPostingDetailPage: React.FC = () => {
       setEditImageUrl(job.imageUrl || "");
       setEditDescription(job.description);
       setEditRequirements(job.requirements);
-      setEditStatus(job.status);
       setEditIsEvergreen(Boolean(job.isEvergreen));
     }
   }, [job]);
@@ -227,6 +225,8 @@ export const JobPostingDetailPage: React.FC = () => {
     [rankedCandidatesQuery.data]
   );
   const applicantCount = rankedCandidatesQuery.data?.length ?? job?.applications?.length ?? 0;
+  // Draft is blocked server-side once any application exists, scored or not.
+  const hasApplications = applicantCount > 0 || (job?.applications?.length ?? 0) > 0;
   const talentPoolMatches = React.useMemo(
     () => talentPoolQuery.data?.items ?? [],
     [talentPoolQuery.data]
@@ -420,7 +420,6 @@ export const JobPostingDetailPage: React.FC = () => {
     setEditImageUrl(job.imageUrl || "");
     setEditDescription(job.description);
     setEditRequirements(job.requirements);
-    setEditStatus(job.status);
     setEditIsEvergreen(Boolean(job.isEvergreen));
     setEditModalTab("edit");
     setEditModalOpen(true);
@@ -491,8 +490,8 @@ export const JobPostingDetailPage: React.FC = () => {
               label="Change status"
               items={[
                 { label: "Mark as open", onSelect: () => handleStatusChange(JobStatus.OPEN), disabled: job.status === JobStatus.OPEN || statusMutation.isPending },
-                { label: "Move to draft", onSelect: () => handleStatusChange(JobStatus.DRAFT), disabled: job.status === JobStatus.DRAFT || statusMutation.isPending },
-                { label: "Close opening", onSelect: () => handleStatusChange(JobStatus.CLOSED), disabled: job.status === JobStatus.CLOSED || statusMutation.isPending, tone: "danger" },
+                { label: "Move to draft", onSelect: () => handleStatusChange(JobStatus.DRAFT), disabled: job.status === JobStatus.DRAFT || hasApplications || statusMutation.isPending },
+                { label: "Close opening", onSelect: () => handleStatusChange(JobStatus.CLOSED), disabled: job.status === JobStatus.CLOSED || job.status === JobStatus.DRAFT || statusMutation.isPending, tone: "danger" },
               ]}
             />
           </>
@@ -817,7 +816,6 @@ export const JobPostingDetailPage: React.FC = () => {
               imageUrl: editImageUrl.trim() || undefined,
               description: editDescription.trim(),
               requirements: editRequirements.trim(),
-              status: editStatus,
               isEvergreen: editIsEvergreen,
             });
           }}
@@ -884,20 +882,6 @@ export const JobPostingDetailPage: React.FC = () => {
                   }}
                 />
               </div>
-              <Select
-                label="Opening status"
-                value={editStatus}
-                error={serverFieldErrors.status}
-                onChange={(e) => {
-                  setEditStatus(e.target.value as JobStatus);
-                  clearServerFieldError("status");
-                }}
-                options={[
-                  { value: JobStatus.OPEN, label: "Open" },
-                  { value: JobStatus.DRAFT, label: "Draft" },
-                  { value: JobStatus.CLOSED, label: "Closed" },
-                ]}
-              />
 
 
               <Textarea
@@ -951,7 +935,7 @@ export const JobPostingDetailPage: React.FC = () => {
                   <div className="space-y-1">
                     <h3 className="text-base font-semibold text-slate-900">{editTitle || "Untitled job opening"}</h3>
                     <p className="text-sm text-slate-600">
-                      {editLocation || "Philippines"} · {editStatus.charAt(0) + editStatus.slice(1).toLowerCase()}
+                      {editLocation || "Philippines"} · {job.status.charAt(0) + job.status.slice(1).toLowerCase()}
                       {editIsEvergreen ? " · Always open" : ""}
                     </p>
                   </div>

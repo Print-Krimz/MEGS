@@ -88,7 +88,6 @@ export const taSchema = {
       imageUrl: optionalSafeUrl("Image web address", FIELD_LIMITS.url),
       mrfId: idValue.optional().nullable(),
       isEvergreen: z.boolean().optional(),
-      status: z.enum(["DRAFT", "OPEN", "CLOSED"]).optional(),
     }),
   }),
   updateStatus: z.object({
