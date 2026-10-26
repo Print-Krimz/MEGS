@@ -16,7 +16,7 @@ import {
   X,
   ChevronDown,
   Shield,
-  UserSearch,
+  // UserSearch,
   FileCheck2,
   type LucideIcon,
 } from "lucide-react";
@@ -318,7 +318,8 @@ export const TALayout: React.FC = () => {
     {
       label: "Candidates & clients",
       items: [
-        { to: "/ta/talent-pool", label: TA_COPY.navigation.candidatePool, icon: UserSearch },
+        // Candidate pool hidden for now. Restore with the UserSearch import and the route in routes.tsx.
+        // { to: "/ta/talent-pool", label: TA_COPY.navigation.candidatePool, icon: UserSearch },
         {
           to: "/ta/interviews",
           label: TA_COPY.navigation.interviews,

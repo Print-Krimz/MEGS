@@ -71,7 +71,7 @@ const AdminMrfDetailPage = lazyRouteComponent(
     default: (props: any) => <MRFDetailPage {...props} readOnly baseBackPath="/admin/notifications" />,
   })),
 );
-const TalentPoolPage = lazyRouteComponent(() => import("./pages/ta/TalentPoolPage"), "TalentPoolPage");
+// const TalentPoolPage = lazyRouteComponent(() => import("./pages/ta/TalentPoolPage"), "TalentPoolPage");
 const InterviewsPage = lazyRouteComponent(() => import("./pages/ta/InterviewsPage"), "InterviewsPage");
 const ClientsPage = lazyRouteComponent(() => import("./pages/ta/ClientsPage"), "ClientsPage");
 const ClientDetailPage = lazyRouteComponent(() => import("./pages/ta/ClientDetailPage"), "ClientDetailPage");
@@ -457,11 +457,12 @@ export const taMrfDetailRoute = createRoute({
   component: MRFDetailPage,
 });
 
-export const taTalentPoolRoute = createRoute({
-  getParentRoute: () => taLayoutRoute,
-  path: "/ta/talent-pool",
-  component: TalentPoolPage,
-});
+// Candidate pool hidden for now. Restore this route, its lazy import, and its entry in the route tree.
+// export const taTalentPoolRoute = createRoute({
+//   getParentRoute: () => taLayoutRoute,
+//   path: "/ta/talent-pool",
+//   component: TalentPoolPage,
+// });
 
 export const taInterviewsRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
@@ -688,7 +689,7 @@ const routeTree = rootRoute.addChildren([
     taMrfRoute,
     taMrfCreateRoute,
     taMrfDetailRoute,
-    taTalentPoolRoute,
+    // taTalentPoolRoute,
     taInterviewsRoute,
     taClientsRoute,
     taClientDetailRoute,
