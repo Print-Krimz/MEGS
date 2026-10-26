@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Button, Dialog, Select, Textarea } from "../ui";
 import { DateField } from "../common/DateField";
+import { useSecurityControls } from "../../hooks/useSecurityControls";
 import { FIELD_LIMITS, getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { TA_COPY } from "../../lib/ta-copy";
 import { formatDate } from "../../lib/utils";
@@ -50,8 +51,11 @@ export const BulkEndAssignmentDialog: React.FC<BulkEndAssignmentDialogProps> = (
     setUnderstood(false);
   }, [open]);
 
+  const controls = useSecurityControls(open);
+  // Demo mode (DEMO_ALLOW_EARLY_END) drops the start-date floor so upcoming assignments can be ended.
+  const earlyEndAllowed = controls.data?.earlyAssignmentEndAllowed === true;
   // The shared date has to suit the worker who started last.
-  const earliestEnd = workers.map((w) => toManilaDateInput(w.actualStart)).filter(Boolean).sort().at(-1) ?? "";
+  const earliestEnd = earlyEndAllowed ? "" : workers.map((w) => toManilaDateInput(w.actualStart)).filter(Boolean).sort().at(-1) ?? "";
   const startsLater = earliestEnd > today;
   const separated = disposition === "SEPARATED";
   const count = workers.length;

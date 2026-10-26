@@ -7,6 +7,7 @@ import { validateStructuredAddress } from "../../utils/address-validation.js";
 import { EmploymentStatus, EmploymentEventType, DeploymentStatus, type Prisma } from "@prisma/client";
 import { resolveDocumentSignedUrl, resolveDocumentSignedUrls } from "../document/document.service.js";
 import { logAudit } from "../../utils/audit.js";
+import { getSecurityControls } from "../../security/security-controls.js";
 import { isPageRequested, pageEnvelope, resolvePage, type PageRequest } from "../../utils/pagination.js";
 import {
   calculateMRFFulfillment,
@@ -1099,7 +1100,7 @@ export const endEmployeeDeployment = async (
   if (!isValidDateOnly(endDateText)) throw new Error("A valid actual end date is required");
   if (endDateText > manilaDateString()) throw new Error("Actual end date cannot be in the future");
   const actualEnd = parseManilaDateOnly(endDateText);
-  if (deployment.actualStart && actualEnd < deployment.actualStart) {
+  if (deployment.actualStart && actualEnd < deployment.actualStart && !getSecurityControls().earlyAssignmentEndAllowed) {
     throw new Error("Actual end date cannot be before the recorded actual start date");
   }
 

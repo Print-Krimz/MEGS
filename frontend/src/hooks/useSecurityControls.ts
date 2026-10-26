@@ -6,6 +6,8 @@ export interface SecurityControls {
   otpDisabled: boolean;
   rateLimitDisabled: boolean;
   captchaDisabled?: boolean;
+  /** Demo only (DEMO_ALLOW_EARLY_END): assignments can be ended before their start date. */
+  earlyAssignmentEndAllowed?: boolean;
 }
 
 export const useSecurityControls = (enabled = true) => useQuery({

@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button, Dialog, Select, Textarea } from "../ui";
 import { DateField } from "../common/DateField";
+import { useSecurityControls } from "../../hooks/useSecurityControls";
 import { employeesApi } from "../../lib/api/employees.api";
 import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { notify } from "../../lib/feedback";
@@ -32,7 +33,10 @@ export const EndAssignmentDialog: React.FC<{
   actualStart?: string | null;
   onClose: () => void;
 }> = ({ open, deploymentId, employeeName, actualStart, onClose }) => {
-  const earliestEnd = toManilaDateInput(actualStart);
+  const controls = useSecurityControls(open);
+  // Demo mode (DEMO_ALLOW_EARLY_END) drops the start-date floor so an upcoming assignment can be ended.
+  const earlyEndAllowed = controls.data?.earlyAssignmentEndAllowed === true;
+  const earliestEnd = earlyEndAllowed ? "" : toManilaDateInput(actualStart);
   const startsLater = Boolean(earliestEnd) && earliestEnd > getManilaToday();
   const cache = useQueryClient();
   const navigate = useNavigate();
