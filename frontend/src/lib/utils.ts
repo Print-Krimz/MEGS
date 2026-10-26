@@ -341,6 +341,17 @@ export function maskIdentifier(identifier?: string | null): string {
 }
 
 /**
+ * Email to show people: null for placeholder addresses MEGS made up for phone sign-ups and walk-ins.
+ * Mirrors backend `displayEmail`. Use only for display; search and matching keep the stored email.
+ */
+export function displayEmail(email?: string | null): string | null {
+  if (!email) return null;
+  const lower = email.toLowerCase().trim();
+  if (lower.endsWith("@applicant.megs.local") || lower.endsWith("@megs.internal")) return null;
+  return email;
+}
+
+/**
  * Extracts a numeric document ID from internal document routes or raw IDs
  * e.g. "/api/documents/123/download" -> 123
  * or "123" -> 123

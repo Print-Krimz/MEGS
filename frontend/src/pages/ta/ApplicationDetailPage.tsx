@@ -40,7 +40,7 @@ import { buildActivity } from "../../components/ta/application/activity";
 import { useApplicationMutations } from "../../components/ta/application/useApplicationMutations";
 import type { RequirementRowData } from "../../components/ta/application/RequirementRow";
 import { CLOSURE_DISPOSITION_LABELS, CLOSURE_OUTCOME_LABELS, closureReasonLabel, type ClosureOutcome } from "../../lib/backout";
-import { formatDate, extractDocumentId } from "../../lib/utils";
+import { formatDate, extractDocumentId, displayEmail } from "../../lib/utils";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
 import { ApplicationStatus, InterviewType } from "../../lib/types/enums";
 import type { Interview } from "../../lib/types/application.types";
@@ -197,7 +197,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const profileForName = appData?.user?.applicantProfile;
   const candidateName = profileForName
     ? `${profileForName.firstName} ${profileForName.lastName}`
-    : appData?.user?.email || "Candidate";
+    : displayEmail(appData?.user?.email) || "Candidate";
 
   const m = useApplicationMutations({ applicationId, status: appData?.status, candidateName });
 
@@ -234,6 +234,8 @@ export const ApplicationDetailPage: React.FC = () => {
 
   const app = applicationQuery.data;
   const profile = app.user?.applicantProfile;
+  // Placeholder addresses for phone sign-ups and walk-ins are never shown.
+  const shownEmail = displayEmail(app.user?.email) ?? undefined;
   const candidateInitials = [profile?.firstName?.[0], profile?.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "ID";
   const flags = deriveApplicationFlags(app);
   const decisions = Array.isArray(decisionsQuery.data) ? decisionsQuery.data : [];
@@ -388,7 +390,7 @@ export const ApplicationDetailPage: React.FC = () => {
   };
   // The resume sits beside Profile, Interviews and Requirements. Activity has nothing to compare it with.
   // It is the uploaded file, the MEGS resume built from the profile, or both.
-  const megsResume = profile ? { profile, email: app.user?.email, reference: app.trackingCode, requirements } : undefined;
+  const megsResume = profile ? { profile, email: shownEmail, reference: app.trackingCode, requirements } : undefined;
   const hasResume = Boolean(resumeUrl?.trim());
   const resumeTabActive = activeTab !== "activity" && (hasResume || Boolean(profile));
   const showResumeRail = isDesktop && isResumeOpen && resumeTabActive;
@@ -400,7 +402,7 @@ export const ApplicationDetailPage: React.FC = () => {
       profile={profile}
       candidateName={candidateName}
       candidateInitials={candidateInitials}
-      email={app.user?.email}
+      email={shownEmail}
       onVerify={profile ? () => setIsVerifying(true) : undefined}
       readState={resumeReadState(parseState.data, hasResume ? app.createdAt : null, Date.now(), countActionable(parseState.data?.pending?.proposal) > 0)}
       onRetryRead={resumeUrl?.trim() ? () => reparseMutation.mutate() : undefined}
@@ -469,7 +471,7 @@ export const ApplicationDetailPage: React.FC = () => {
         applicationId={app.id}
         jobId={app.jobPosting?.id}
         jobTitle={jobTitle}
-        email={app.user?.email}
+        email={shownEmail}
         mobileNumber={profile?.mobileNumber}
         city={[profile?.city, profile?.province].filter(Boolean).join(", ")}
         submittedAt={app.createdAt}
@@ -689,7 +691,7 @@ export const ApplicationDetailPage: React.FC = () => {
           profile={profile}
           candidateName={candidateName}
           resumeUrl={resumeUrl}
-          email={app.user?.email}
+          email={shownEmail}
           reference={app.trackingCode}
           requirements={requirements}
           onClose={() => setIsVerifying(false)}
@@ -718,7 +720,7 @@ export const ApplicationDetailPage: React.FC = () => {
         open={dlg?.kind === "schedule"}
         onClose={closeDialog}
         candidateName={candidateName}
-        candidateEmail={app.user?.email}
+        candidateEmail={shownEmail}
         candidateMobile={profile?.mobileNumber}
         type={dlg?.kind === "schedule" ? dlg.type : InterviewType.INITIAL_SCREENING}
         isReschedule={dlg?.kind === "schedule" ? dlg.isReschedule : false}

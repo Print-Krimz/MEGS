@@ -15,7 +15,7 @@ import {
   RecordSummary,
 } from "../../components/common";
 import { Button } from "../../components/ui";
-import { formatDate } from "../../lib/utils";
+import { formatDate, displayEmail } from "../../lib/utils";
 import { EmploymentStatus, DeploymentStatus } from "../../lib/types/enums";
 import { taApi } from "../../lib/api/ta.api";
 import { plural } from "../../lib/plural";
@@ -138,7 +138,7 @@ export const EmployeeDetailPage: React.FC = () => {
     ? [activeDeployment.client?.name, activeDeployment.site].filter(Boolean).join(" · ") || "Client site"
     : "Not on assignment";
   const mobile = cand.mobileNumber as string | undefined;
-  const email = (cand.email || emp.user?.email) as string | undefined;
+  const email = displayEmail((cand.email || emp.user?.email) as string | undefined);
 
   const headerFindJob = emp.status === EmploymentStatus.AVAILABLE_FOR_REDEPLOYMENT && Boolean(applicantProfileIdForPlacement);
   const headerMenuItems: ActionMenuItem[] = [

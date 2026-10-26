@@ -19,7 +19,7 @@ import {
   type DataTableColumn,
 } from "../../components/common";
 import { Button, ComboBox, Dialog, Textarea } from "../../components/ui";
-import { formatDate, getApplicationStatusMeta } from "../../lib/utils";
+import { formatDate, getApplicationStatusMeta, displayEmail } from "../../lib/utils";
 import { StageStrip, STAGE_STRIP_STAGES, type StageStripItem } from "../../components/ta/recruitment/StageStrip";
 import {
   ApplicationStatus,
@@ -132,7 +132,7 @@ const daysInStageLabel = (days?: number) => {
 const candidateNameOf = (app: TAApplicationSummary) => {
   const p = app.user?.applicantProfile;
   const name = p ? `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() : "";
-  return name || app.user?.email || "Candidate";
+  return name || displayEmail(app.user?.email) || "Candidate";
 };
 
 const isClosedRecord = (app: TAApplicationSummary) =>
@@ -564,7 +564,7 @@ export const ApplicationsPage: React.FC = () => {
   );
 
   const rowMenu = (app: TAApplicationSummary) => {
-    const email = app.user?.email;
+    const email = displayEmail(app.user?.email);
     const jobId = app.jobPosting?.id;
     return (
       <ActionMenu
@@ -592,7 +592,7 @@ export const ApplicationsPage: React.FC = () => {
       cell: (app) => (
         <div className="min-w-0">
           {detailLink(app)}
-          <div className="text-xs text-slate-600">{app.user?.email}</div>
+          <div className="text-xs text-slate-600">{displayEmail(app.user?.email)}</div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <SourceChip source={app.source} />
             <ReturningBadge info={app.returning} />

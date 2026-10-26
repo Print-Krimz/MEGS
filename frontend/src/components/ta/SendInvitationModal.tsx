@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Dialog, Button, Textarea, Select, ComboBox } from "../ui";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
 import { TA_COPY } from "../../lib/ta-copy";
+import { displayEmail } from "../../lib/utils";
 import { AvailabilityText } from "./PoolCandidateCard";
 
 export interface SendInvitationModalProps {
@@ -89,7 +90,7 @@ export const SendInvitationModal: React.FC<SendInvitationModalProps> = ({
             </span>
             <AvailabilityText availability={candidate.availability} />
           </div>
-          <div className="break-all text-slate-600">{candidate.email}</div>
+          {displayEmail(candidate.email) && <div className="break-all text-slate-600">{displayEmail(candidate.email)}</div>}
           {candidate.currentRole && <div className="text-slate-700">Current role: {candidate.currentRole}</div>}
         </div>
 

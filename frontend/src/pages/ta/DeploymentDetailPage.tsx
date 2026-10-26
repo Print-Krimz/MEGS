@@ -12,7 +12,7 @@ import {
 } from "../../components/common";
 import { Button, Dialog, Select, Textarea } from "../../components/ui";
 import { DateField } from "../../components/common/DateField";
-import { formatDate, getDeploymentStatusMeta } from "../../lib/utils";
+import { formatDate, getDeploymentStatusMeta, displayEmail } from "../../lib/utils";
 import { DeploymentStatus, ALLOWED_DEPLOYMENT_TRANSITIONS } from "../../lib/types/enums";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
@@ -206,7 +206,7 @@ export const DeploymentDetailPage: React.FC = () => {
             </Field>
             <Field label="Employee number"><span className="font-mono tabular-nums">{emp?.employeeNumber || "Not recorded"}</span></Field>
             <Field label="Phone">{profile?.mobileNumber || "Not recorded"}</Field>
-            <Field label="Email">{emp?.user?.email || "Not recorded"}</Field>
+            <Field label="Email">{displayEmail(emp?.user?.email) || "Not recorded"}</Field>
           </dl>
           {dep.notes && (
             <div className="border-t border-slate-200 pt-3">

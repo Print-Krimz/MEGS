@@ -13,7 +13,7 @@ import {
   type ComplianceTile,
 } from "../../components/ta/compliance";
 import type { RequirementReviewValues } from "../../components/ta/RequirementReviewDialog";
-import { formatDate } from "../../lib/utils";
+import { formatDate, displayEmail } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
 import type { Application } from "../../lib/types";
 import { notify } from "../../lib/feedback";
@@ -56,7 +56,7 @@ const isCleared = (c: ComplianceCounts) => c.totalCount > 0 && c.approvedCount +
 
 const candidateNameOf = (app: Application): string => {
   const profile = app.user?.applicantProfile;
-  return profile ? `${profile.firstName} ${profile.lastName}` : app.user?.email || "Candidate";
+  return profile ? `${profile.firstName} ${profile.lastName}` : displayEmail(app.user?.email) || "Candidate";
 };
 
 /** How long the application has been in the queue, counted from its submitted date. */

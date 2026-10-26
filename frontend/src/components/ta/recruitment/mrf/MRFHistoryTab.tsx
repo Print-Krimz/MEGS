@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Search, X } from "lucide-react";
 import { Button } from "../../../ui";
 import { StatusBadge } from "../../../common";
-import { formatDate } from "../../../../lib/utils";
+import { formatDate, displayEmail } from "../../../../lib/utils";
 
 interface MRFHistoryTabProps {
   deployments: any[];
@@ -19,7 +19,7 @@ const profileOf = (d: any) => d.employee?.user?.applicantProfile || d.applicatio
 const workerNameOf = (d: any, fallback: string) => {
   const profile = profileOf(d);
   const name = profile ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim() : "";
-  return name || d.employee?.user?.email || fallback;
+  return name || displayEmail(d.employee?.user?.email) || fallback;
 };
 
 const contractPeriod = (d: any) =>

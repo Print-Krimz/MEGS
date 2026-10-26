@@ -20,6 +20,7 @@ import type { Application } from "../../lib/types";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { plural } from "../../lib/plural";
+import { displayEmail } from "../../lib/utils";
 import { calculateUrgencyStatus, getFollowUpTargetDate, getWorkerUrgencyCategory } from "../../lib/compliance-queue";
 import { PersonCell, StatusWithAge, ToneChip, WorkforceCard } from "../../components/ta/workforce/WorkforceRow";
 
@@ -43,7 +44,7 @@ const VISIBLE_DOCUMENTS = 2;
 const workerNameOf = (app: Application): string => {
   const profile = app.user?.applicantProfile;
   const name = profile ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim() : "";
-  return name || app.user?.email || "Worker";
+  return name || displayEmail(app.user?.email) || "Worker";
 };
 
 const clientNameOf = (app: Application): string =>
