@@ -10,7 +10,6 @@ import { plural } from "../../../lib/plural";
 import type { Application } from "../../../lib/types";
 import type { WorkExperience, Education } from "../../../lib/types/applicant.types";
 import type { TAApplicationSearch } from "../../../routes";
-import { summarizeInterview } from "../application/summary";
 import type { ApplicationFlags } from "../application/stage-actions";
 
 const MONTH_MS = 1000 * 60 * 60 * 24 * 30.44;
@@ -172,7 +171,6 @@ export const HiringProgress: React.FC<{ app: Application; flags: ApplicationFlag
           {limitDays ? <span className="text-slate-600"> (limit {limitDays} days)</span> : null}
         </Fact>
         <Fact label="Applied">{formatDate(app.createdAt)}</Fact>
-        <Fact label="Interview">{summarizeInterview(app.interviews ?? [], Date.now())}</Fact>
         {endorsement && (
           <Fact label="Client review">
             {CLIENT_OUTCOME[endorsement.outcome] ?? endorsement.outcome}

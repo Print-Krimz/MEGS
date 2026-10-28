@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { taApi } from "../../../lib/api/ta.api";
 import { ErrorState, ScoreBadge, StatusBadge } from "../../common";
 import { Button } from "../../ui";
-import { cn, displayEmail } from "../../../lib/utils";
+import { cn, displayEmail, formatDate } from "../../../lib/utils";
 import { ApplicationStatus, InterviewType } from "../../../lib/types/enums";
 import type { TAApplicationSummary } from "../../../lib/types/application.types";
 import type { TAApplicationSearch } from "../../../routes";
@@ -18,8 +18,10 @@ import { useIsDesktop } from "../application/useIsDesktop";
 import { MatchBreakdown, type ScoreExplanation } from "../application/MatchBreakdown";
 import { ScheduleInterviewDialog } from "../application/ScheduleInterviewDialog";
 import { CloseApplicationDialog } from "../CloseApplicationDialog";
+import { InterviewOutcomeDialog } from "../InterviewOutcomeDialog";
 import { ResumeDrawerButton } from "../application/ResumePanel";
 import { SourceChip } from "../walk-in/SourceChip";
+import { summarizeInterview } from "../application/summary";
 import { CandidateSnapshot, HiringProgress, OtherApplications } from "./ReviewPanelDetails";
 
 const initialsOf = (name: string) =>
@@ -56,15 +58,6 @@ export const reviewStateOf = (app: Pick<TAApplicationSummary, "status" | "isArch
     : PENDING_REVIEW.includes(app.status)
     ? { label: "Pending review", className: "border-navy bg-white text-navy" }
     : { label: "Reviewed", className: "border-slate-300 bg-white text-slate-700" };
-
-const ReviewTag: React.FC<{ app: Pick<TAApplicationSummary, "status" | "isArchived"> }> = ({ app }) => {
-  const state = reviewStateOf(app);
-  return (
-    <span className={cn("inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-semibold", state.className)}>
-      {state.label}
-    </span>
-  );
-};
 
 const daysLabel = (days?: number) => (days == null ? "-" : days <= 0 ? "Today" : days === 1 ? "1 day" : `${days} days`);
 
@@ -123,6 +116,7 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) =>
   const m = useApplicationMutations({ applicationId: id, status: app?.status, candidateName });
   const [schedule, setSchedule] = useState<ScheduleKind | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [outcomeOpen, setOutcomeOpen] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
 
   if (query.isPending) {
@@ -151,6 +145,19 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) =>
       : primary?.id === "schedule-final"
       ? InterviewType.FINAL_INTERVIEW
       : null;
+  const outcomeInterview =
+    primary?.id === "record-initial-outcome"
+      ? flags.pendingScreeningInterview
+      : primary?.id === "record-final-outcome"
+      ? flags.pendingFinalInterview
+      : null;
+  // Actions the panel can finish itself; anything else opens the record.
+  // Recording needs the pending interview; without it the record page is the safe place to act.
+  const inlineAction: { run: () => void } | null = scheduleType
+    ? { run: () => setSchedule(scheduleType) }
+    : outcomeInterview
+    ? { run: () => setOutcomeOpen(true) }
+    : null;
   const canReject = flags.canReject && app.status !== ApplicationStatus.DEPLOYED;
 
   const scores = app.candidateScores?.[0];
@@ -192,7 +199,6 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) =>
             {clientName ? ` · ${clientName}` : ""}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <ReviewTag app={{ status: app.status, isArchived: Boolean(app.isArchived) }} />
             <StatusBadge status={app.status} />
             <HealthChip status={app.status} days={daysInStage} />
             <SourceChip source={app.source} />
@@ -206,19 +212,13 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) =>
         <ScoreBadge score={fitScore == null ? undefined : Math.round(Number(fitScore))} />
       </header>
 
-      <div
-        className={cn(
-          "border-l-4 px-3 py-2 text-sm",
-          next.needsTa ? "border-navy bg-navy-soft text-slate-950" : "border-slate-300 bg-slate-50 text-slate-700"
-        )}
-      >
-        <p className="font-medium">{next.text}</p>
-      </div>
+      {/* The action button already says what is next; plain text only when the next step is not a button here. */}
+      {!inlineAction && next.text && <p className="text-sm text-slate-700">{next.text}</p>}
 
       <div className="flex flex-wrap gap-2">
-        {scheduleType ? (
+        {inlineAction ? (
           <>
-            <Button size="sm" className="min-h-11 md:min-h-9" onClick={() => setSchedule(scheduleType)}>
+            <Button size="sm" className="min-h-11 md:min-h-9" onClick={inlineAction.run}>
               {primary?.label}
             </Button>
             {recordLink("outline")}
@@ -239,11 +239,18 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) =>
           />
         )}
         {canReject && (
-          <Button variant="outline" size="sm" className="min-h-11 md:min-h-9" onClick={() => setRejectOpen(true)}>
+          <Button variant="ghost" size="sm" className="min-h-11 md:ml-auto md:min-h-9" onClick={() => setRejectOpen(true)}>
             Reject
           </Button>
         )}
       </div>
+
+      {(app.interviews?.length ?? 0) > 0 && (
+        <p className="text-sm text-slate-900">
+          <span className="text-slate-600">Interview: </span>
+          {summarizeInterview(app.interviews ?? [], Date.now())}
+        </p>
+      )}
 
       <CandidateSnapshot app={app} email={email} matchedSkills={matchedSkills} />
 
@@ -268,6 +275,31 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) =>
             {
               onSuccess: () => {
                 setSchedule(null);
+                onDone();
+              },
+            }
+          )
+        }
+      />
+      <InterviewOutcomeDialog
+        open={outcomeOpen}
+        onClose={() => setOutcomeOpen(false)}
+        candidateName={candidateName}
+        jobTitle={app.jobPosting?.title}
+        isFinalInterview={primary?.id === "record-final-outcome"}
+        scheduledAt={outcomeInterview?.scheduledAt}
+        isSubmitting={m.updateInterviewStatus.isPending}
+        onSubmit={({ result, notes }) =>
+          m.updateInterviewStatus.mutate(
+            {
+              interviewId: outcomeInterview?.id,
+              type: primary?.id === "record-final-outcome" ? InterviewType.FINAL_INTERVIEW : InterviewType.INITIAL_SCREENING,
+              result,
+              notes,
+            },
+            {
+              onSuccess: () => {
+                setOutcomeOpen(false);
                 onDone();
               },
             }
@@ -354,6 +386,18 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ rows, nameOf, nextStep
 
   if (rows.length === 0) return <div className="rounded-md border border-slate-300 bg-white">{empty}</div>;
 
+  // Same person applied to the same opening more than once on this page: flag it so it does not read as a glitch.
+  const keyOf = (app: TAApplicationSummary) => (app.user?.id && app.jobPosting?.id ? `${app.user.id}:${app.jobPosting.id}` : null);
+  const seen = new Map<string, number>();
+  rows.forEach((app) => {
+    const key = keyOf(app);
+    if (key) seen.set(key, (seen.get(key) ?? 0) + 1);
+  });
+  const isRepeat = (app: TAApplicationSummary) => {
+    const key = keyOf(app);
+    return key != null && (seen.get(key) ?? 0) > 1;
+  };
+
   // Each column scrolls on its own and stops at what is left of the window.
   const columnHeight = "lg:max-h-[calc(100dvh-9rem)]";
 
@@ -373,8 +417,8 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ rows, nameOf, nextStep
                     aria-current={selected ? "true" : undefined}
                     onClick={() => open(app)}
                     className={cn(
-                      "flex w-full items-start gap-3 border-l-4 px-3.5 py-3 text-left transition-colors focus-ring",
-                      selected ? "border-navy bg-navy-soft" : "border-transparent hover:bg-slate-50"
+                      "flex w-full items-start gap-3 px-3.5 py-3 text-left transition-colors focus-ring",
+                      selected ? "bg-navy-soft ring-1 ring-inset ring-navy" : "hover:bg-slate-50"
                     )}
                   >
                     <Avatar name={name} />
@@ -396,6 +440,11 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ rows, nameOf, nextStep
                         <HealthChip status={app.status} days={app.daysInStage} />
                         <span className="text-xs text-slate-600">{daysLabel(app.daysInStage)}</span>
                       </span>
+                      {isRepeat(app) && (
+                        <span className="mt-1 block truncate text-xs text-slate-700">
+                          Applied again · {formatDate(app.createdAt)}
+                        </span>
+                      )}
                       {nextStepOf(app) !== "None" && (
                         <span className="mt-1 block truncate text-xs text-slate-700">{nextStepOf(app)}</span>
                       )}
