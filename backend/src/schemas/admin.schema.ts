@@ -19,6 +19,7 @@ export const adminSchema = {
       limit: boundedPageSize.optional(),
       search: boundedText(FIELD_LIMITS.search).optional(),
       role: z.enum(["APPLICANT", "TALENT_ACQUISITION", "ADMINISTRATOR"]).optional(),
+      status: z.enum(["active", "inactive", "invited"]).optional(),
     }).strict(),
   }),
   userParams: z.object({ params: z.object({ id: userId }).strict() }),

@@ -602,9 +602,18 @@ export const adminAnalyticsRoute = createRoute({
   component: AdminAnalyticsPage,
 });
 
+export interface AdminUsersSearch {
+  status?: "active" | "inactive" | "invited";
+  role?: Role;
+}
+
 export const adminUsersRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/admin/users",
+  validateSearch: (search: Record<string, unknown>): AdminUsersSearch => ({
+    status: search.status === "active" || search.status === "inactive" || search.status === "invited" ? search.status : undefined,
+    role: Object.values(Role).includes(search.role as Role) ? (search.role as Role) : undefined,
+  }),
   component: UsersPage,
 });
 

@@ -1,7 +1,9 @@
 import React, { useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
-import type { AdminUserListItem } from "../../lib/api/admin.api";
+import type { AdminUserListItem, AdminUserStatus } from "../../lib/api/admin.api";
+import type { BulkSummary } from "../../lib/types/application.types";
 import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
 import {
@@ -12,6 +14,9 @@ import {
   EmptyState,
   Pagination,
   ActionMenu,
+  BulkActionBar,
+  BulkResultDialog,
+  SelectBox,
 } from "../../components/common";
 import { Button, Dialog, Input, Select } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
@@ -23,29 +28,55 @@ import {
   KeyRound,
   AlertTriangle,
 } from "lucide-react";
-import { notify, fieldErrorsFrom } from "../../lib/feedback";
+import { notify, fieldErrorsFrom, formatErrorMessage } from "../../lib/feedback";
 import { formatAdminRole } from "../../lib/admin-copy";
 import { FeedbackBanner, ToneBadge } from "./admin-ui";
 import { validatePersonName } from "../../lib/statutory-validation";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { useRowSelection } from "../../hooks/useRowSelection";
 import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
 import { z } from "zod";
 
 const EMPTY_USERS: AdminUserListItem[] = [];
 const inviteEmailSchema = z.string().trim().email("Enter a valid email address.");
 
-const AccountStatus: React.FC<{ user: AdminUserListItem }> = ({ user }) =>
-  !user.isActive || user.accountStatus === "DEACTIVATED" ? <ToneBadge tone="danger">Inactive</ToneBadge>
-  : user.accountStatus === "PENDING" || user.accountStatus === "INVITED"
-    ? user.invitationStatus === "EXPIRED" ? <ToneBadge tone="warning">Invitation expired</ToneBadge> : <ToneBadge tone="info">Invitation pending</ToneBadge>
-    : <ToneBadge tone="success">Active</ToneBadge>;
+// Same buckets as the backend status filter: inactive wins, then invited, otherwise active.
+const accountState = (user: AdminUserListItem): AdminUserStatus =>
+  !user.isActive || user.accountStatus === "DEACTIVATED" ? "inactive"
+  : user.accountStatus === "PENDING" || user.accountStatus === "INVITED" ? "invited"
+  : "active";
+
+const AccountStatus: React.FC<{ user: AdminUserListItem }> = ({ user }) => {
+  const state = accountState(user);
+  if (state === "inactive") return <ToneBadge tone="danger">Inactive</ToneBadge>;
+  if (state === "invited") return user.invitationStatus === "EXPIRED" ? <ToneBadge tone="warning">Invitation expired</ToneBadge> : <ToneBadge tone="info">Invitation pending</ToneBadge>;
+  return <ToneBadge tone="success">Active</ToneBadge>;
+};
+
+type BulkUserAction = "deactivate" | "reactivate" | "resend";
+
+const BULK_USER_ACTIONS: Record<BulkUserAction, { label: string; title: string; fits: (u: AdminUserListItem) => boolean }> = {
+  deactivate: { label: "Deactivate", title: "Deactivate accounts", fits: (u) => accountState(u) === "active" },
+  reactivate: { label: "Reactivate", title: "Reactivate accounts", fits: (u) => accountState(u) === "inactive" },
+  resend: { label: "Resend invitation", title: "Resend invitations", fits: (u) => accountState(u) === "invited" },
+};
+
+const ROLE_OPTIONS = [
+  { value: Role.ADMINISTRATOR, label: "Administrator" },
+  { value: Role.TALENT_ACQUISITION, label: "Recruiter" },
+  { value: Role.APPLICANT, label: "Applicant" },
+];
 
 export const UsersPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { user: currentAdmin } = useAuth();
 
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string>("");
+  // Role and status live in the URL so overview tiles can link to a filtered list.
+  const navigate = useNavigate();
+  const urlSearch = useSearch({ strict: false }) as { role?: Role; status?: AdminUserStatus };
+  const roleFilter = urlSearch.role ?? "";
+  const statusFilter = urlSearch.status ?? "";
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
@@ -81,12 +112,13 @@ export const UsersPage: React.FC = () => {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const usersQuery = useQuery({
-    queryKey: ["admin", "users", { page, pageSize, search: debouncedSearch, role: roleFilter }],
+    queryKey: ["admin", "users", { page, pageSize, search: debouncedSearch, role: roleFilter, status: statusFilter }],
     queryFn: ({ signal }) => adminApi.listUsersPage({
       page,
       limit: pageSize,
       search: debouncedSearch || undefined,
       role: (roleFilter as Role) || undefined,
+      status: statusFilter || undefined,
     }, { signal }),
     placeholderData: keepPreviousData,
   });
@@ -275,15 +307,91 @@ export const UsersPage: React.FC = () => {
     setPage(1);
   };
 
-  const handleRoleFilterChange = (val: string) => {
-    setRoleFilter(val);
+  const setUrlFilters = (next: { role?: string; status?: string }) => {
     setPage(1);
+    void navigate({
+      to: "/admin/users",
+      search: (prev: Record<string, unknown>) => ({ ...prev, ...next }),
+      replace: true,
+    } as never);
   };
+
+  const handleFilterChange = (key: string, val: string) => setUrlFilters({ [key]: val || undefined });
 
   const handleReset = () => {
     setSearch("");
-    setRoleFilter("");
-    setPage(1);
+    setUrlFilters({ role: undefined, status: undefined });
+  };
+
+  // Bulk actions. Selection is dropped whenever the visible list changes (filters, search, page).
+  const selection = useRowSelection(JSON.stringify([page, debouncedSearch, roleFilter, statusFilter]));
+  const selectedRows = users.filter((u) => selection.selectedIds.has(u.id));
+  const selectableRows = users.filter((u) => u.id !== currentAdmin?.id);
+  const allOnPageSelected = selectableRows.length > 0 && selectableRows.every((u) => selection.selectedIds.has(u.id));
+  const toggleAllOnPage = () =>
+    selection.setSelectedIds(allOnPageSelected ? new Set() : new Set(selectableRows.map((u) => u.id)));
+  const toggleRow = (id: string) =>
+    selection.setSelectedIds((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  const bulkActionsFit = (Object.keys(BULK_USER_ACTIONS) as BulkUserAction[]).filter((action) =>
+    selectedRows.every(BULK_USER_ACTIONS[action].fits),
+  );
+
+  const [bulkAction, setBulkAction] = useState<BulkUserAction | null>(null);
+  const [bulkResult, setBulkResult] = useState<{ title: string; summary: BulkSummary; rows: AdminUserListItem[] } | null>(null);
+
+  // No bulk endpoint: run the single-user calls side by side. Row ids in the summary are positions in `rows`.
+  const bulkMutation = useMutation({
+    mutationFn: async ({ action, rows }: { action: BulkUserAction; rows: AdminUserListItem[] }): Promise<BulkSummary> => {
+      const settled = await Promise.allSettled(
+        rows.map((u) =>
+          action === "resend" ? adminApi.resendTAInvitation(u.id) : adminApi.updateUserStatus(u.id, action === "reactivate"),
+        ),
+      );
+      const results = settled.map((outcome, index) =>
+        outcome.status === "fulfilled"
+          ? { id: index, ok: true }
+          : { id: index, ok: false, reason: formatErrorMessage(outcome.reason) },
+      );
+      const failed = results.filter((row) => !row.ok).length;
+      return { succeeded: results.length - failed, failed, results };
+    },
+    onSuccess: (summary, { action, rows }) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
+      // Only the rows that went through leave the selection, so the failed ones can be retried.
+      selection.remove(summary.results.filter((row) => row.ok).map((row) => rows[row.id].id));
+      setBulkAction(null);
+      const title = BULK_USER_ACTIONS[action].title;
+      if (summary.failed > 0) setBulkResult({ title, summary, rows });
+      else notify.success(title, `${summary.succeeded} ${summary.succeeded === 1 ? "account" : "accounts"} done.`);
+    },
+    onError: (err: any) => notify.error("Unable to complete the bulk action", err),
+  });
+
+  const userLabel = (u: AdminUserListItem) =>
+    u.applicantProfile ? `${u.applicantProfile.firstName} ${u.applicantProfile.lastName}` : u.email;
+
+  // Inline role edit. Picking a role only opens the confirm dialog; the select keeps showing the saved role.
+  const renderRole = (u: AdminUserListItem) => {
+    const editable = currentAdmin?.id !== u.id && u.role !== Role.APPLICANT && accountState(u) !== "invited";
+    if (!editable) return formatAdminRole(u.role);
+    return (
+      <select
+        aria-label={`Role for ${u.email}`}
+        value={u.role}
+        onChange={(e) => {
+          setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
+          setTargetRole(e.target.value as Role);
+        }}
+        className="min-h-9 w-full max-w-44 cursor-pointer rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus pointer-coarse:min-h-11"
+      >
+        {ROLE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    );
   };
 
   return (
@@ -316,8 +424,8 @@ export const UsersPage: React.FC = () => {
         searchPlaceholder="Search users by name or email..."
         searchValue={search}
         onSearchChange={handleSearchChange}
-        filterValues={{ role: roleFilter }}
-        onFilterChange={(_, v) => handleRoleFilterChange(v)}
+        filterValues={{ role: roleFilter, status: statusFilter }}
+        onFilterChange={handleFilterChange}
         onReset={handleReset}
         filters={[
           {
@@ -329,8 +437,30 @@ export const UsersPage: React.FC = () => {
                { value: Role.APPLICANT, label: "Applicant" },
             ],
           },
+          {
+            key: "status",
+            label: "Status",
+            options: [
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+              { value: "invited", label: "Invited" },
+            ],
+          },
         ]}
       />
+
+      <BulkActionBar
+        count={selectedRows.length}
+        onClear={selection.clear}
+        note={totalItems > users.length ? `on this page (${totalItems} in the list)` : undefined}
+        emptyHint="No action fits this mix. Select only active, inactive or invited accounts."
+      >
+        {bulkActionsFit.length > 0 && bulkActionsFit.map((action) => (
+          <Button key={action} size="sm" variant={action === "deactivate" ? "danger" : "outline"} onClick={() => setBulkAction(action)}>
+            {BULK_USER_ACTIONS[action].label}
+          </Button>
+        ))}
+      </BulkActionBar>
 
       {/* Users Table */}
       {usersQuery.isLoading ? (
@@ -342,7 +472,7 @@ export const UsersPage: React.FC = () => {
           <EmptyState
             icon={<Users className="w-5 h-5" />}
              title="No users found"
-             description="No accounts match your search or role filter."
+             description="No accounts match your search or filters."
             action={
               <Button variant="outline" size="sm" onClick={handleReset}>
                 Clear filters
@@ -369,7 +499,13 @@ export const UsersPage: React.FC = () => {
                   className={`p-4 space-y-3 transition-colors ${selectedUserId === u.id ? "bg-navy-soft" : ""}`}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    <SelectBox
+                      checked={selection.selectedIds.has(u.id)}
+                      disabled={isSelf}
+                      label={`Select ${userLabel(u)}`}
+                      onChange={() => toggleRow(u.id)}
+                    />
+                    <div className="min-w-0 flex-1">
                       <div className="font-semibold text-sm text-slate-950 break-words">
                         {fullName || u.email}
                         {isSelf && <span className="ml-1.5 font-normal text-slate-600">(you)</span>}
@@ -413,7 +549,7 @@ export const UsersPage: React.FC = () => {
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                     <div>
                       <dt className="text-sm text-slate-600">Role</dt>
-                      <dd className="font-medium text-slate-800">{formatAdminRole(u.role)}</dd>
+                      <dd className="font-medium text-slate-800">{renderRole(u)}</dd>
                     </div>
                     <div>
                       <dt className="text-sm text-slate-600">Status</dt>
@@ -432,6 +568,15 @@ export const UsersPage: React.FC = () => {
             <table className="w-full text-left text-sm border-collapse">
               <thead className="bg-slate-50 text-xs text-slate-600 border-b border-slate-300">
                 <tr>
+                  <th scope="col" className="w-10 px-3 py-1">
+                    <SelectBox
+                      checked={allOnPageSelected}
+                      indeterminate={selectedRows.length > 0 && !allOnPageSelected}
+                      disabled={selectableRows.length === 0}
+                      label="Select all accounts on this page"
+                      onChange={toggleAllOnPage}
+                    />
+                  </th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Account</th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Role</th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Status</th>
@@ -451,8 +596,16 @@ export const UsersPage: React.FC = () => {
                     <tr
                       key={u.id}
                       aria-selected={selectedUserId === u.id}
-                      className={`transition-colors ${selectedUserId === u.id ? "bg-navy-soft" : "hover:bg-slate-50"}`}
+                      className={`transition-colors ${selectedUserId === u.id || selection.selectedIds.has(u.id) ? "bg-navy-soft" : "hover:bg-slate-50"}`}
                     >
+                      <td className="w-10 px-3 align-middle">
+                        <SelectBox
+                          checked={selection.selectedIds.has(u.id)}
+                          disabled={isSelf}
+                          label={`Select ${userLabel(u)}`}
+                          onChange={() => toggleRow(u.id)}
+                        />
+                      </td>
                       <td className="px-3 py-3">
                         <div className="font-medium text-slate-950 break-all">
                           {u.email}
@@ -461,7 +614,7 @@ export const UsersPage: React.FC = () => {
                         {fullName && <div className="text-sm text-slate-600">{fullName}</div>}
                       </td>
                       <td className="px-3 py-3">
-                        {formatAdminRole(u.role)}
+                        {renderRole(u)}
                       </td>
                       <td className="px-3 py-3">
                         <AccountStatus user={u} />
@@ -538,6 +691,52 @@ export const UsersPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Bulk action confirm */}
+      <Dialog
+        open={Boolean(bulkAction)}
+        onClose={() => setBulkAction(null)}
+        title={bulkAction ? BULK_USER_ACTIONS[bulkAction].title : ""}
+        description={`${selectedRows.length} ${selectedRows.length === 1 ? "account" : "accounts"} selected.`}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 leading-relaxed">
+            {bulkAction === "deactivate" && "They will no longer be able to sign in or use MEGS."}
+            {bulkAction === "reactivate" && "They will be able to sign in again with their current role."}
+            {bulkAction === "resend" && "Each previous link will stop working and a new link will be valid for 48 hours."}
+          </p>
+          {bulkAction === "deactivate" && selectedRows.some((u) => u.role === Role.TALENT_ACQUISITION) && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-md flex items-start gap-2.5 text-sm text-amber-900">
+              <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <p className="leading-relaxed">
+                Requests, clients and openings owned by selected recruiters are not handed over. Their records stay Admin-only until you reassign them.
+              </p>
+            </div>
+          )}
+          <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setBulkAction(null)} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button
+              variant={bulkAction === "deactivate" ? "danger" : "primary"}
+              size="sm"
+              loading={bulkMutation.isPending}
+              className="w-full sm:w-auto"
+              onClick={() => bulkAction && bulkMutation.mutate({ action: bulkAction, rows: selectedRows })}
+            >
+              {bulkAction ? BULK_USER_ACTIONS[bulkAction].label : ""}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <BulkResultDialog
+        open={Boolean(bulkResult)}
+        onClose={() => setBulkResult(null)}
+        title={bulkResult?.title ?? ""}
+        summary={bulkResult?.summary ?? null}
+        labelFor={(index) => bulkResult?.rows[index]?.email ?? "Account"}
+      />
 
       {/* Invite TA Modal */}
       <Dialog

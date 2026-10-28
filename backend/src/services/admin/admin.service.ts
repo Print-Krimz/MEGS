@@ -403,19 +403,32 @@ export const buildAdminUserSearchFilter = (search: string) => {
   return { OR: searchTerms };
 };
 
+export type AdminUserStatusFilter = "active" | "inactive" | "invited";
+
+const INVITED_STATUSES = ["PENDING", "INVITED"];
+
+// Same buckets the Users page badge shows: inactive wins, then invited, otherwise active.
+export const buildAdminUserStatusFilter = (status: AdminUserStatusFilter) => {
+  if (status === "inactive") return { OR: [{ isActive: false }, { accountStatus: "DEACTIVATED" }] };
+  if (status === "invited") return { isActive: true, accountStatus: { in: INVITED_STATUSES } };
+  return { isActive: true, accountStatus: { notIn: ["DEACTIVATED", ...INVITED_STATUSES] } };
+};
+
 export const fetchAllUsers = async (filters: {
   page?: number;
   limit?: number;
   search?: string;
   role?: "APPLICANT" | "TALENT_ACQUISITION" | "ADMINISTRATOR";
+  status?: AdminUserStatusFilter;
 } = {}) => {
-  const paginated = filters.page !== undefined || filters.limit !== undefined || Boolean(filters.search) || Boolean(filters.role);
+  const paginated = filters.page !== undefined || filters.limit !== undefined || Boolean(filters.search) || Boolean(filters.role) || Boolean(filters.status);
   const page = filters.page ?? 1;
   const limit = filters.limit ?? 25;
   const search = filters.search?.trim();
   const where: any = {
     ...(filters.role ? { role: filters.role } : {}),
     ...(search ? buildAdminUserSearchFilter(search) : {}),
+    ...(filters.status ? { AND: [buildAdminUserStatusFilter(filters.status)] } : {}),
   };
   const [users, total] = await Promise.all([
     prisma.user.findMany({
@@ -479,12 +492,28 @@ export const fetchAllUsers = async (filters: {
 };
 
 export const getAdminUserSummary = async () => {
-  const counts = await prisma.user.groupBy({ by: ["role"], _count: { _all: true } });
+  const now = new Date();
+  const invited = { isActive: true, accountStatus: { in: INVITED_STATUSES } };
+  const [counts, invitedTotal, expiredInvitations, inactiveAccounts] = await Promise.all([
+    prisma.user.groupBy({ by: ["role"], _count: { _all: true } }),
+    prisma.user.count({ where: invited }),
+    // Expired: an invitation was sent and none of them is still usable.
+    prisma.user.count({
+      where: {
+        ...invited,
+        invitations: { some: {}, none: { isUsed: false, expiresAt: { gte: now } } },
+      },
+    }),
+    prisma.user.count({ where: buildAdminUserStatusFilter("inactive") as any }),
+  ]);
   const countsByRole = new Map(counts.map((row) => [row.role, row._count._all]));
   return {
     totalUsers: counts.reduce((sum, row) => sum + row._count._all, 0),
     recruiters: countsByRole.get("TALENT_ACQUISITION") ?? 0,
     administrators: countsByRole.get("ADMINISTRATOR") ?? 0,
+    pendingInvitations: invitedTotal - expiredInvitations,
+    expiredInvitations,
+    inactiveAccounts,
   };
 };
 

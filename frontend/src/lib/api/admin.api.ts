@@ -33,12 +33,18 @@ export interface AdminUserListQuery {
   limit?: number;
   search?: string;
   role?: Role | "";
+  status?: AdminUserStatus | "";
 }
+
+export type AdminUserStatus = "active" | "inactive" | "invited";
 
 export interface AdminUserSummary {
   totalUsers: number;
   recruiters: number;
   administrators: number;
+  pendingInvitations: number;
+  expiredInvitations: number;
+  inactiveAccounts: number;
 }
 
 export interface InviteTADto {
@@ -81,6 +87,7 @@ export const adminApi = {
     const search = filters?.search?.trim();
     if (search) params.append("search", search);
     if (filters?.role) params.append("role", filters.role);
+    if (filters?.status) params.append("status", filters.status);
     const qs = params.toString();
     return api.get<PaginatedListResponse<AdminUserListItem>>(
       `/api/admin/users${qs ? `?${qs}` : ""}`,

@@ -33,9 +33,9 @@ function MetricValue<T>({ query, children }: { query: UseQueryResult<T>; childre
 }
 
 /** One headline number, same anatomy as the TA overview tiles. The label link covers the tile. */
-const MetricTile: React.FC<{ label: string; to: string; children: React.ReactNode }> = ({ label, to, children }) => (
+const MetricTile: React.FC<{ label: string; to: string; search?: Record<string, string>; children: React.ReactNode }> = ({ label, to, search, children }) => (
   <div className="relative bg-white p-3.5 transition-colors hover:bg-slate-50 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-inset has-[a:focus-visible]:ring-focus">
-    <Link to={to} className="text-xs font-medium text-slate-600 outline-none after:absolute after:inset-0 after:content-['']">
+    <Link to={to} search={search as never} className="text-xs font-medium text-slate-600 outline-none after:absolute after:inset-0 after:content-['']">
       {label}
     </Link>
     {children}
@@ -79,7 +79,26 @@ export const AdminDashboard: React.FC = () => {
           <Button asChild><Link to="/admin/users">Manage users</Link></Button>
         </>} />
 
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 lg:grid-cols-4">
+      <section aria-labelledby="admin-needs-attention" className="space-y-2">
+        <h2 id="admin-needs-attention" className="text-sm font-semibold text-slate-950">Needs attention</h2>
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 sm:grid-cols-3">
+          <MetricTile label="Invitations" to="/admin/users" search={{ status: "invited" }}>
+            <MetricValue query={userSummaryQuery}>{users => <><Value tone={users.expiredInvitations > 0 ? "alert" : "default"}>{users.pendingInvitations + users.expiredInvitations}</Value><Caption>{users.pendingInvitations} pending · {users.expiredInvitations} expired</Caption></>}</MetricValue>
+          </MetricTile>
+          <MetricTile label="Inactive accounts" to="/admin/users" search={{ status: "inactive" }}>
+            <MetricValue query={userSummaryQuery}>{users => <><Value>{users.inactiveAccounts}</Value><Caption>Cannot sign in</Caption></>}</MetricValue>
+          </MetricTile>
+          <MetricTile label="Latest backup" to="/admin/maintenance">
+            <MetricValue query={backupsQuery}>{backups => {
+              const latest = backups[0];
+              if (!latest) return <><Value>—</Value><Caption>No backups yet</Caption></>;
+              return <><Value date tone={latest.status === "FAILED" ? "alert" : "default"}>{formatDate(latest.createdAt)}</Value><Caption>{formatAdminBackupStatus(latest.status)}</Caption></>;
+            }}</MetricValue>
+          </MetricTile>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 sm:grid-cols-3">
         <MetricTile label="User accounts" to="/admin/users">
           <MetricValue query={userSummaryQuery}>{users => <><Value>{users.totalUsers}</Value><Caption>{plural(users.recruiters, "recruiter")} · {plural(users.administrators, "administrator")}</Caption></>}</MetricValue>
         </MetricTile>
@@ -87,13 +106,6 @@ export const AdminDashboard: React.FC = () => {
           <MetricValue query={qualityQuery}>{quality => {
             const scored = quality?.totalCalculated > 0 && quality.averageFitScore != null && Number.isFinite(Number(quality.averageFitScore));
             return <><Value>{scored ? Number(quality.averageFitScore).toFixed(1) + "%" : "—"}</Value><Caption>{quality?.totalCalculated ? plural(quality.totalCalculated, "candidate") + " scored" : "No candidates scored yet"}</Caption></>;
-          }}</MetricValue>
-        </MetricTile>
-        <MetricTile label="Latest backup" to="/admin/maintenance">
-          <MetricValue query={backupsQuery}>{backups => {
-            const latest = backups[0];
-            if (!latest) return <><Value>—</Value><Caption>No backups yet</Caption></>;
-            return <><Value date tone={latest.status === "FAILED" ? "alert" : "default"}>{formatDate(latest.createdAt)}</Value><Caption>{formatAdminBackupStatus(latest.status)}</Caption></>;
           }}</MetricValue>
         </MetricTile>
         <MetricTile label="Matching settings" to="/admin/scoring">
