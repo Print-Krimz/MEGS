@@ -9,24 +9,18 @@ import {
   SearchFilters,
   Pagination,
   ActionMenu,
+  DataTable,
+  type DataTableColumn,
 } from "../../components/common";
-import { Button, Dialog } from "../../components/ui";
+import { Button, Dialog, Input } from "../../components/ui";
 import { formatDateTime } from "../../lib/utils";
-import {
-  Database,
-  RefreshCw,
-  AlertTriangle,
-  CheckCircle2,
-  HardDrive,
-  RotateCcw,
-  Upload,
-  Calendar,
-} from "lucide-react";
+import { RefreshCw, HardDrive, RotateCcw, Upload } from "lucide-react";
 import type { DatabaseBackupRecord, MaintenanceProgress } from "../../lib/types/admin.types";
 import { backupDisplayName, backupDownloadName } from "../../lib/backup-name";
 import { FIELD_LIMITS } from "../../lib/field-limits";
 import { formatAdminBackupStatus } from "../../lib/admin-copy";
 import { formatErrorMessage } from "../../lib/feedback";
+import { FeedbackBanner, ToneBadge } from "./admin-ui";
 
 const formatProgress = (progress: MaintenanceProgress | null | undefined): string | null => {
   if (!progress) return null;
@@ -43,6 +37,22 @@ const formatBytes = (bytes: number | null | undefined): string => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 };
+
+const STATUS_OPTIONS = [
+  { value: "SUCCESS", label: "Completed" },
+  { value: "FAILED", label: "Failed" },
+  { value: "IN_PROGRESS", label: "In progress" },
+];
+
+const DATE_PRESET_OPTIONS = [
+  { value: "TODAY", label: "Today" },
+  { value: "7D", label: "7 days" },
+  { value: "30D", label: "30 days" },
+  { value: "CUSTOM", label: "Custom range" },
+];
+
+const dateInputClass =
+  "focus-ring min-h-11 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 md:min-h-10";
 
 export const DatabaseMaintenancePage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -261,8 +271,6 @@ export const DatabaseMaintenancePage: React.FC = () => {
   };
 
   const backups = useMemo(() => backupsQuery.data || [], [backupsQuery.data]);
-  const latestBackup = backups[0];
-  const successfulBackups = backups.filter((b) => b.status === "SUCCESS").length;
 
   // Effective start and end dates based on preset or custom pickers
   const effectiveDates = useMemo(() => {
@@ -339,16 +347,14 @@ export const DatabaseMaintenancePage: React.FC = () => {
   };
 
   const handleFilterChange = (k: string, v: string) => {
+    if (k === "range") {
+      handleDatePresetChange(v || "ALL");
+      return;
+    }
     setFilterValues((prev) => ({ ...prev, [k]: v }));
     if (k === "status") {
       setStatusFilter(v || "ALL");
     }
-    setPage(1);
-  };
-
-  const handleStatusFilterChange = (status: string) => {
-    setStatusFilter(status);
-    setFilterValues((prev) => ({ ...prev, status: status === "ALL" ? "" : status }));
     setPage(1);
   };
 
@@ -371,11 +377,98 @@ export const DatabaseMaintenancePage: React.FC = () => {
     setPage(1);
   };
 
+  const framed = "rounded-md border border-slate-300 bg-white";
+
+  const statusTone = (status: string): "success" | "danger" | "info" =>
+    status === "SUCCESS" ? "success" : status === "FAILED" ? "danger" : "info";
+
+  const backupMenuItems = (b: DatabaseBackupRecord) => [
+    { label: "Rename backup", onSelect: () => { setRenameTarget(b); setRenameInput(backupDisplayName(b)); } },
+    ...(b.status === "IN_PROGRESS" ? [
+      { label: "Cancel backup", tone: "danger" as const, onSelect: () => setIsCancelDialogOpen(true) },
+    ] : []),
+    ...(b.status === "SUCCESS" ? [
+      { label: downloadingId === b.id ? "Downloading..." : "Download backup", onSelect: () => handleDownload(b), disabled: downloadingId === b.id },
+      { label: "Restore this backup", tone: "danger" as const, onSelect: () => { setRestoreTarget({ mode: "RECORD", backup: b }); setRestoreConfirmInput(""); }, disabled: maintenanceBusy },
+    ] : []),
+  ];
+
+  const columns: DataTableColumn<DatabaseBackupRecord>[] = [
+    {
+      key: "name",
+      header: "Backup name",
+      primary: true,
+      cell: (b) => <span className="font-medium text-slate-900">{backupDisplayName(b)}</span>,
+    },
+    {
+      key: "created",
+      header: "Created",
+      cell: (b) => <span className="whitespace-nowrap text-slate-600">{formatDateTime(b.createdAt)}</span>,
+    },
+    { key: "size", header: "Size", cell: (b) => <span className="text-slate-600">{formatBytes(b.sizeBytes)}</span> },
+    {
+      key: "status",
+      header: "Status",
+      cell: (b) => (
+        <div>
+          <span title={b.status === "FAILED" && b.errorMessage ? b.errorMessage : undefined}>
+            <ToneBadge tone={statusTone(b.status)}>{formatAdminBackupStatus(b.status)}</ToneBadge>
+          </span>
+          {b.status === "IN_PROGRESS" && formatProgress(b.progress) && (
+            <div className="mt-1 text-xs text-slate-500">Reading {formatProgress(b.progress)}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "creator",
+      header: "Created by",
+      cell: (b) => (
+        <span className="block max-w-[14rem] truncate text-slate-700" title={b.initiatedBy?.email || "System"}>
+          {b.initiatedBy?.email || "System"}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      cell: (b) => <ActionMenu label={`Actions for ${backupDisplayName(b)}`} items={backupMenuItems(b)} />,
+    },
+  ];
+
+  const renderCard = (b: DatabaseBackupRecord) => (
+    <div className="space-y-3 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="break-words text-sm font-medium text-slate-950">{backupDisplayName(b)}</div>
+          <div className="mt-1 text-sm text-slate-500">{formatDateTime(b.createdAt)}</div>
+        </div>
+        <ActionMenu label={`Actions for ${backupDisplayName(b)}`} items={backupMenuItems(b)} />
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+        <div><dt className="text-slate-500">Size</dt><dd className="text-slate-700">{formatBytes(b.sizeBytes)}</dd></div>
+        <div>
+          <dt className="text-slate-500">Status</dt>
+          <dd className="mt-0.5"><ToneBadge tone={statusTone(b.status)}>{formatAdminBackupStatus(b.status)}</ToneBadge></dd>
+        </div>
+        {b.status === "IN_PROGRESS" && formatProgress(b.progress) && (
+          <div className="col-span-2"><dt className="text-slate-500">Progress</dt><dd className="text-slate-700">Reading {formatProgress(b.progress)}</dd></div>
+        )}
+        <div><dt className="text-slate-500">Created by</dt><dd className="break-all text-slate-700">{b.initiatedBy?.email || "System"}</dd></div>
+        {b.status === "FAILED" && b.errorMessage && (
+          <div className="col-span-2"><dt className="text-slate-500">Error</dt><dd className="text-rose-700">{b.errorMessage}</dd></div>
+        )}
+      </dl>
+    </div>
+  );
+
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
       <PageHeader
+        flush
         title="Backups and recovery"
-        description="Create a safe copy of recruitment data or restore an earlier copy when needed."
+        description="Back up recruitment data and restore earlier copies."
         breadcrumbs={[
           { href: "/admin", label: "Administration" },
           { label: "Backups and recovery" },
@@ -396,7 +489,16 @@ export const DatabaseMaintenancePage: React.FC = () => {
               onClick={() => backupsQuery.refetch()}
               disabled={backupsQuery.isFetching}
             >
-               Refresh list
+              Refresh list
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Upload className="w-3.5 h-3.5" />}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={maintenanceBusy}
+            >
+              Restore from a file
             </Button>
             <Button
               variant="primary"
@@ -405,58 +507,35 @@ export const DatabaseMaintenancePage: React.FC = () => {
               onClick={() => setIsConfirmOpen(true)}
               disabled={triggerBackupMutation.isPending || maintenanceBusy}
             >
-               {triggerBackupMutation.isPending ? "Creating backup..." : "Create backup"}
+              {triggerBackupMutation.isPending ? "Creating backup..." : "Create backup"}
             </Button>
           </div>
         }
       />
 
-      {/* Notification Banners */}
       {lastActionResult && (
-        <div
-          role={lastActionResult.type === "FAILED" ? "alert" : "status"}
-          aria-live="polite"
-          className={`p-3.5 border rounded-lg flex items-start justify-between ${
-            lastActionResult.type === "SUCCESS"
-              ? "bg-emerald-50 border-emerald-300 text-emerald-950"
-              : "bg-rose-50 border-rose-300 text-rose-950"
-          }`}
-        >
-          <div className="flex items-start gap-2.5">
-            {lastActionResult.type === "SUCCESS" ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
-            ) : (
-              <AlertTriangle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
-            )}
-            <div className="space-y-0.5">
-              <h4 className="text-sm font-bold font-sans">
-                {lastActionResult.type === "SUCCESS" ? "Action Complete" : "Action Failed"}
-              </h4>
-              <p className="text-sm font-sans text-slate-700">{lastActionResult.message}</p>
-              {lastActionResult.details && (
-                <p className="text-xs text-slate-500 font-sans">{lastActionResult.details}</p>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={() => setLastActionResult(null)}
-            className="text-sm text-slate-400 hover:text-slate-700 px-2 py-0.5 cursor-pointer"
-          >
-            Dismiss
-          </button>
-        </div>
+        <FeedbackBanner
+          type={lastActionResult.type === "SUCCESS" ? "success" : "error"}
+          onDismiss={() => setLastActionResult(null)}
+          message={
+            <>
+              <span className="font-medium">{lastActionResult.message}</span>
+              {lastActionResult.details && <span className="block">{lastActionResult.details}</span>}
+            </>
+          }
+        />
       )}
 
       {activeRestore && (
-        <div role="status" aria-live="polite" className="p-3.5 border rounded-lg bg-blue-50 border-blue-300 text-blue-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div role="status" aria-live="polite" className="flex flex-col gap-3 rounded-md border border-blue-200 bg-blue-50 p-3.5 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2.5">
-            <RotateCcw className="w-4 h-4 text-blue-600 mt-0.5 shrink-0 animate-spin [animation-direction:reverse]" />
+            <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-blue-700 [animation-direction:reverse]" aria-hidden="true" />
             <div className="space-y-0.5">
-              <h4 className="text-sm font-bold font-sans">Restore in progress</h4>
-              <p className="text-sm font-sans text-slate-700">
+              <h2 className="text-sm font-semibold">Restore in progress</h2>
+              <p>
                 Restoring {(restoringBackup ? backupDisplayName(restoringBackup) : "uploaded backup")}. Backups and other restores are paused until it finishes.
               </p>
-              <p className="text-xs text-slate-500 font-sans">
+              <p className="text-slate-600">
                 {formatProgress(activeRestore.progress) ?? "Preparing the backup file..."}
               </p>
             </div>
@@ -465,7 +544,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={() => setIsCancelDialogOpen(true)}
-            className="text-rose-700 border-rose-300 hover:bg-rose-50 self-start sm:self-auto shrink-0"
+            className="shrink-0 self-start border-rose-300 text-rose-700 hover:bg-rose-50 sm:self-auto"
           >
             Cancel restore
           </Button>
@@ -473,15 +552,15 @@ export const DatabaseMaintenancePage: React.FC = () => {
       )}
 
       {activeBackup && (
-        <div role="status" aria-live="polite" className="p-3.5 border rounded-lg bg-blue-50 border-blue-300 text-blue-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div role="status" aria-live="polite" className="flex flex-col gap-3 rounded-md border border-blue-200 bg-blue-50 p-3.5 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2.5">
-            <RefreshCw className="w-4 h-4 text-blue-600 mt-0.5 shrink-0 animate-spin" />
+            <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-blue-700" aria-hidden="true" />
             <div className="space-y-0.5">
-              <h4 className="text-sm font-bold font-sans">Backup in progress</h4>
-              <p className="text-sm font-sans text-slate-700">
+              <h2 className="text-sm font-semibold">Backup in progress</h2>
+              <p>
                 Creating {backupDisplayName(activeBackup)}. Snapshot data is streaming from the database.
               </p>
-              <p className="text-xs text-slate-600 font-sans font-medium">
+              <p className="text-slate-600">
                 {formatProgress(activeBackup.progress) ? `Reading ${formatProgress(activeBackup.progress)}` : "Preparing snapshot..."}
               </p>
             </div>
@@ -490,128 +569,31 @@ export const DatabaseMaintenancePage: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={() => setIsCancelDialogOpen(true)}
-            className="text-rose-700 border-rose-300 hover:bg-rose-50 self-start sm:self-auto shrink-0"
+            className="shrink-0 self-start border-rose-300 text-rose-700 hover:bg-rose-50 sm:self-auto"
           >
             Cancel backup
           </Button>
         </div>
       )}
 
-      {/* Summary Stat Tiles */}
-      {backupsQuery.isLoading ? <LoadingState variant="cards" /> : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="p-3 admin-panel rounded-lg">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-           <span className="text-sm font-medium">Total backups</span>
-            <HardDrive className="w-3.5 h-3.5 text-slate-400" />
-          </div>
-          <div className="text-lg font-bold text-slate-900">{backups.length}</div>
-          <p className="text-sm text-slate-500 mt-0.5">{successfulBackups} available to download or restore</p>
-        </div>
-
-        <div className="p-3 admin-panel rounded-lg">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-           <span className="text-sm font-medium">Latest backup</span>
-            <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
-          </div>
-          <div className="text-lg font-bold text-slate-900">
-             {latestBackup ? formatAdminBackupStatus(latestBackup.status) : "None yet"}
-          </div>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {latestBackup ? formatDateTime(latestBackup.createdAt) : "Ready to create"}
-          </p>
-        </div>
-
-      </div>}
-
-      <div className="admin-panel p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-900">Recovery options</h2>
-          <p className="text-sm text-slate-600 mt-0.5">Restore a saved backup only when you need to replace current data.</p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          leftIcon={<Upload className="w-3.5 h-3.5" />}
-          onClick={() => fileInputRef.current?.click()}
-          disabled={maintenanceBusy}
-        >
-          Restore from a file
-        </Button>
-      </div>
-
-      {/* Main Filter Bar */}
       <SearchFilters
+        className="mb-5! rounded-md"
         searchPlaceholder="Search backup name or creator..."
         searchValue={search}
         onSearchChange={handleSearchChange}
-        filterValues={filterValues}
+        filterValues={{
+          status: filterValues.status || "",
+          range: datePreset === "ALL" ? "" : datePreset,
+        }}
         onFilterChange={handleFilterChange}
         onReset={handleReset}
-        filters={[]}
-      />
-
-      {/* Status & Date Quick Filter Toolbar */}
-      <div className="bg-white p-3 border border-slate-300 flex flex-wrap items-center justify-between gap-3 text-sm">
-        {/* Status Toggle Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-slate-600">Status:</span>
-          <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-100">
-            {[
-              { id: "ALL", label: "All" },
-              { id: "SUCCESS", label: "Completed" },
-              { id: "FAILED", label: "Failed" },
-              { id: "IN_PROGRESS", label: "In Progress" },
-            ].map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => handleStatusFilterChange(s.id)}
-                aria-pressed={statusFilter === s.id}
-                  className={`min-h-9 px-3 py-1 text-sm font-medium transition-colors rounded-md cursor-pointer ${
-                  statusFilter === s.id
-                    ? "bg-white text-slate-950 font-bold shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Date Range Presets */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-slate-600 flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            Date:
-          </span>
-
-          <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-100">
-            {[
-              { id: "ALL", label: "All Time" },
-              { id: "TODAY", label: "Today" },
-              { id: "7D", label: "7 Days" },
-              { id: "30D", label: "30 Days" },
-              { id: "CUSTOM", label: "Custom" },
-            ].map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleDatePresetChange(p.id)}
-                aria-pressed={datePreset === p.id}
-                className={`min-h-9 px-3 py-1 text-sm font-medium transition-colors rounded-md cursor-pointer ${
-                  datePreset === p.id
-                    ? "bg-white text-slate-950 font-bold shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-
-          {datePreset === "CUSTOM" && (
-            <div className="flex items-center gap-1.5 ml-2">
+        filters={[
+          { key: "status", label: "Status", placeholder: "All statuses", options: STATUS_OPTIONS },
+          { key: "range", label: "Date range", placeholder: "All time", options: DATE_PRESET_OPTIONS },
+        ]}
+        actions={
+          datePreset === "CUSTOM" ? (
+            <div className="flex flex-wrap items-center gap-1.5">
               <input
                 type="date"
                 min="1900-01-01"
@@ -621,10 +603,10 @@ export const DatabaseMaintenancePage: React.FC = () => {
                   setStartDate(e.target.value);
                   setPage(1);
                 }}
-                 className="min-h-10 px-2 py-1 border border-slate-300 rounded text-sm bg-white"
+                className={dateInputClass}
                 aria-label="Start date"
               />
-              <span className="text-slate-400 text-sm">to</span>
+              <span className="text-sm text-slate-500">to</span>
               <input
                 type="date"
                 min="1900-01-01"
@@ -634,37 +616,26 @@ export const DatabaseMaintenancePage: React.FC = () => {
                   setEndDate(e.target.value);
                   setPage(1);
                 }}
-                 className="min-h-10 px-2 py-1 border border-slate-300 rounded text-sm bg-white"
+                className={dateInputClass}
                 aria-label="End date"
               />
             </div>
-          )}
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
 
-      {/* Backup Records Table */}
-      <div className="admin-panel shadow-xs">
-        <div className="px-3.5 py-2.5 border-b border-slate-300 flex items-center justify-between bg-slate-100">
-          <div className="flex flex-wrap items-center gap-2">
-            <Database className="w-4 h-4 text-slate-700" />
-             <h3 className="text-sm font-semibold text-slate-900">
-               Backup history
-            </h3>
-          </div>
-          <span className="text-xs text-slate-600 font-medium">
-             Showing {filteredBackups.length} {filteredBackups.length === 1 ? "backup" : "backups"}
-          </span>
-        </div>
-
-        {backupsQuery.isLoading ? (
+      {backupsQuery.isLoading ? (
+        <div className={framed}>
           <LoadingState variant="table" rows={5} />
-        ) : backupsQuery.isError ? (
-          <ErrorState
-            error={backupsQuery.error}
-            onRetry={() => backupsQuery.refetch()}
-          />
-        ) : backups.length === 0 ? (
+        </div>
+      ) : backupsQuery.isError ? (
+        <div className={framed}>
+          <ErrorState error={backupsQuery.error} onRetry={() => backupsQuery.refetch()} />
+        </div>
+      ) : backups.length === 0 ? (
+        <div className={framed}>
           <EmptyState
+            bare
             title="No backups yet"
             description="Create a backup to protect candidates, jobs, applications, and settings."
             action={
@@ -678,139 +649,47 @@ export const DatabaseMaintenancePage: React.FC = () => {
               </Button>
             }
           />
-        ) : filteredBackups.length === 0 ? (
-          <EmptyState
-            title="No backups match your filters"
-            description="Try a different search or clear your filters."
-            action={
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleReset}
-              >
-                Clear filters
-              </Button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-sm text-slate-600" aria-live="polite">
+            Showing {filteredBackups.length} {filteredBackups.length === 1 ? "backup" : "backups"}
+          </p>
+          <DataTable
+            caption="Backup history"
+            columns={columns}
+            rows={paginatedBackups}
+            getRowId={(b) => b.id}
+            renderCard={renderCard}
+            empty={
+              <EmptyState
+                bare
+                title="No backups match your filters"
+                description="Try a different search or clear your filters."
+                action={
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    Clear filters
+                  </Button>
+                }
+              />
             }
-          />
-        ) : (
-          <>
-          <div className="md:hidden divide-y divide-slate-200">
-            {paginatedBackups.map((b) => (
-              <div key={b.id} className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-medium text-sm text-slate-950 break-words">{backupDisplayName(b)}</div>
-                    <div className="text-sm text-slate-500 mt-1">{formatDateTime(b.createdAt)}</div>
-                  </div>
-                  <ActionMenu
-                    label={`Actions for ${backupDisplayName(b)}`}
-                    items={[
-                      { label: "Rename backup", onSelect: () => { setRenameTarget(b); setRenameInput(backupDisplayName(b)); } },
-                      ...(b.status === "IN_PROGRESS" ? [
-                        { label: "Cancel backup", tone: "danger" as const, onSelect: () => setIsCancelDialogOpen(true) },
-                      ] : []),
-                      ...(b.status === "SUCCESS" ? [
-                        { label: "Download backup", onSelect: () => handleDownload(b) },
-                        { label: "Restore this backup", tone: "danger" as const, onSelect: () => { setRestoreTarget({ mode: "RECORD", backup: b }); setRestoreConfirmInput(""); }, disabled: maintenanceBusy },
-                      ] : []),
-                    ]}
+            footer={
+              filteredBackups.length > pageSize ? (
+                <div className="p-2">
+                  <Pagination
+                    currentPage={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                    totalItems={filteredBackups.length}
+                    pageSize={pageSize}
+                    itemLabel="backups"
                   />
                 </div>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div><dt className="text-sm text-slate-500">Size</dt><dd className="text-slate-700">{formatBytes(b.sizeBytes)}</dd></div>
-                  <div><dt className="text-sm text-slate-500">Status</dt><dd className="text-slate-700">{formatAdminBackupStatus(b.status)}</dd></div>
-                  {b.status === "IN_PROGRESS" && formatProgress(b.progress) && (
-                    <div className="col-span-2"><dt className="text-sm text-slate-500">Progress</dt><dd className="text-slate-700">Reading {formatProgress(b.progress)}</dd></div>
-                  )}
-                  <div><dt className="text-sm text-slate-500">Created by</dt><dd className="text-slate-700 break-all">{b.initiatedBy?.email || "System"}</dd></div>
-                  {b.status === "FAILED" && b.errorMessage && (
-                    <div className="col-span-2"><dt className="text-sm text-slate-500">Error</dt><dd className="text-rose-700">{b.errorMessage}</dd></div>
-                  )}
-                </dl>
-              </div>
-            ))}
-          </div>
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-slate-50 text-slate-700 font-semibold text-xs border-b border-slate-300">
-                <tr>
-                   <th className="px-3.5 py-2.5">Created</th>
-                   <th className="px-3.5 py-2.5">Backup name</th>
-                   <th className="px-3.5 py-2.5">Size</th>
-                  <th className="px-3.5 py-2.5">Status</th>
-                   <th className="px-3.5 py-2.5">Created by</th>
-                  <th className="px-3.5 py-2.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {paginatedBackups.map((b) => (
-                  <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-3.5 py-2.5 text-slate-600 whitespace-nowrap">
-                      {formatDateTime(b.createdAt)}
-                    </td>
-                     <td className="px-3.5 py-2.5 font-medium text-slate-900">
-                       <span className="text-sm text-slate-900">{backupDisplayName(b)}</span>
-                    </td>
-                    <td className="px-3.5 py-2.5 text-slate-600">
-                      {formatBytes(b.sizeBytes)}
-                    </td>
-                    <td className="px-3.5 py-2.5">
-                      <span
-                        title={b.status === "FAILED" && b.errorMessage ? b.errorMessage : undefined}
-                        className={`inline-block px-1.5 py-0.5 text-xs font-semibold rounded-md border ${
-                          b.status === "SUCCESS"
-                            ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                            : b.status === "FAILED"
-                            ? "bg-rose-50 text-rose-800 border-rose-200"
-                            : "bg-blue-50 text-blue-800 border-blue-200"
-                        }`}
-                      >
-                         {formatAdminBackupStatus(b.status)}
-                      </span>
-                      {b.status === "IN_PROGRESS" && formatProgress(b.progress) && (
-                        <div className="text-xs text-slate-500 mt-1">Reading {formatProgress(b.progress)}</div>
-                      )}
-                    </td>
-                    <td className="px-3.5 py-2.5 text-slate-700">
-                      {b.initiatedBy?.email || "System"}
-                    </td>
-                    <td className="px-3.5 py-2.5 text-right">
-                       <ActionMenu
-                         label={`Actions for ${backupDisplayName(b)}`}
-                         items={[
-                           { label: "Rename backup", onSelect: () => { setRenameTarget(b); setRenameInput(backupDisplayName(b)); } },
-                           ...(b.status === "IN_PROGRESS" ? [
-                             { label: "Cancel backup", tone: "danger" as const, onSelect: () => setIsCancelDialogOpen(true) },
-                           ] : []),
-                           ...(b.status === "SUCCESS" ? [
-                             { label: downloadingId === b.id ? "Downloading..." : "Download backup", onSelect: () => handleDownload(b), disabled: downloadingId === b.id },
-                             { label: "Restore this backup", tone: "danger" as const, onSelect: () => { setRestoreTarget({ mode: "RECORD", backup: b }); setRestoreConfirmInput(""); }, disabled: maintenanceBusy },
-                           ] : []),
-                         ]}
-                       />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          </>
-        )}
-
-        {/* Pagination Controls */}
-        {filteredBackups.length > pageSize && (
-          <div className="p-2 border-t border-slate-200">
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-              totalItems={filteredBackups.length}
-              pageSize={pageSize}
-              itemLabel="backups"
-            />
-          </div>
-        )}
-      </div>
+              ) : undefined
+            }
+          />
+        </div>
+      )}
 
       {/* Create Backup Confirmation Modal */}
       {isConfirmOpen && (
@@ -826,25 +705,19 @@ export const DatabaseMaintenancePage: React.FC = () => {
         >
           <div className="space-y-4 font-sans text-sm">
             <div className="space-y-1">
-              <label htmlFor="backup-name" className="block font-semibold text-slate-800 text-sm">
-                 Backup name (optional)
-              </label>
-              <input
-                type="text"
+              <Input
                 id="backup-name"
+                label="Backup name (optional)"
                 maxLength={FIELD_LIMITS.shortText}
                 value={backupNameInput}
                 onChange={(e) => setBackupNameInput(e.target.value)}
                 placeholder="e.g. Pre-Deployment Checkpoint"
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-focus focus:border-navy font-sans"
+                helperText="Use a name your team will recognize. Leave blank to use the creation date."
                 disabled={triggerBackupMutation.isPending}
               />
-              <p className="text-xs text-slate-500">
-                 Use a name your team will recognize. Leave blank to use the creation date.
-              </p>
             </div>
 
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-sm">
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-md space-y-2 text-sm">
                <span className="font-semibold text-slate-900 block">This backup includes</span>
               <ul className="space-y-1.5 text-slate-700 list-disc list-inside">
                 <li>Includes all candidates, job applications, interview notes, and system settings</li>
@@ -895,23 +768,17 @@ export const DatabaseMaintenancePage: React.FC = () => {
         >
           <div className="space-y-4 font-sans text-sm">
             <div className="space-y-1.5">
-              <label htmlFor="rename-backup-name" className="block font-semibold text-slate-800 text-sm">
-                 Backup name
-              </label>
-              <input
-                type="text"
+              <Input
                 id="rename-backup-name"
+                label="Backup name"
                 maxLength={FIELD_LIMITS.shortText}
                 value={renameInput}
                 onChange={(e) => setRenameInput(e.target.value)}
                 placeholder="Enter backup name"
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-focus focus:border-navy font-sans"
+                helperText="Changing this name keeps the backup and its recovery link intact."
                 disabled={renameMutation.isPending}
                 autoFocus
               />
-              <p className="text-xs text-slate-500">
-                 Changing this name keeps the backup and its recovery link intact.
-              </p>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
@@ -961,17 +828,14 @@ export const DatabaseMaintenancePage: React.FC = () => {
           size="md"
         >
           <div className="space-y-4 font-sans text-sm">
-            <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg space-y-2 text-sm">
-              <div className="flex items-center gap-1.5 text-amber-900 font-bold">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                 <span>Before you continue</span>
-              </div>
-              <p className="text-amber-800 text-xs leading-relaxed">
-                 Changes made after this backup date will be replaced. Create or download a current backup first if you may need those changes.
+            <div className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <span className="block font-semibold">Before you continue</span>
+              <p className="leading-normal">
+                Changes made after this backup date will be replaced. Create or download a current backup first if you may need those changes.
               </p>
             </div>
 
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5 text-sm text-slate-700">
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-md space-y-1.5 text-sm text-slate-700">
                <span className="font-semibold text-slate-900 block">Backup details</span>
               {restoreTarget.mode === "RECORD" ? (
                 <div className="space-y-1">
@@ -988,15 +852,14 @@ export const DatabaseMaintenancePage: React.FC = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block font-semibold text-slate-800 text-sm">
-                 To confirm, type <span className="font-sans text-rose-700 font-bold">RESTORE</span> below:
+              <label htmlFor="restore-confirm" className="block font-semibold text-slate-800 text-sm">
+                To confirm, type <span className="font-bold text-rose-700">RESTORE</span> below:
               </label>
-              <input
-                type="text"
+              <Input
+                id="restore-confirm"
                 value={restoreConfirmInput}
                 onChange={(e) => setRestoreConfirmInput(e.target.value)}
                 placeholder="Type RESTORE to confirm"
-                className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-sans "
                 disabled={restoreMutation.isPending}
               />
             </div>
@@ -1016,7 +879,6 @@ export const DatabaseMaintenancePage: React.FC = () => {
               <Button
                 variant="danger"
                 size="sm"
-                className="border-rose-700"
                 leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
                 onClick={() => restoreMutation.mutate(restoreTarget)}
                 disabled={
@@ -1060,7 +922,6 @@ export const DatabaseMaintenancePage: React.FC = () => {
               <Button
                 variant="danger"
                 size="sm"
-                className="border-rose-700"
                 onClick={() => cancelMaintenanceMutation.mutate()}
                 disabled={cancelMaintenanceMutation.isPending}
               >

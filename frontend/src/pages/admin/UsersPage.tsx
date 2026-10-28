@@ -19,14 +19,13 @@ import { Role } from "../../lib/types/enums";
 import {
   Users,
   UserPlus,
-  Shield,
-  ShieldCheck,
   Mail,
   KeyRound,
   AlertTriangle,
 } from "lucide-react";
 import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { formatAdminRole } from "../../lib/admin-copy";
+import { FeedbackBanner, ToneBadge } from "./admin-ui";
 import { validatePersonName } from "../../lib/statutory-validation";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
@@ -34,6 +33,12 @@ import { z } from "zod";
 
 const EMPTY_USERS: AdminUserListItem[] = [];
 const inviteEmailSchema = z.string().trim().email("Enter a valid email address.");
+
+const AccountStatus: React.FC<{ user: AdminUserListItem }> = ({ user }) =>
+  !user.isActive || user.accountStatus === "DEACTIVATED" ? <ToneBadge tone="danger">Inactive</ToneBadge>
+  : user.accountStatus === "PENDING" || user.accountStatus === "INVITED"
+    ? user.invitationStatus === "EXPIRED" ? <ToneBadge tone="warning">Invitation expired</ToneBadge> : <ToneBadge tone="info">Invitation pending</ToneBadge>
+    : <ToneBadge tone="success">Active</ToneBadge>;
 
 export const UsersPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -282,10 +287,11 @@ export const UsersPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
-        title="Users and access"
-        description="Invite recruiters, review accounts, and manage who can use each part of MEGS."
+        title="Users"
+        flush
+        description="Invite recruiters and manage who can sign in."
         breadcrumbs={[
           { label: "Administration", href: "/admin" },
           { label: "Users" },
@@ -302,31 +308,11 @@ export const UsersPage: React.FC = () => {
         }
       />
 
-      {feedback && (
-        <div
-           role={feedback.type === "error" ? "alert" : "status"}
-           aria-live="polite"
-           className={`p-3 border text-sm flex items-center justify-between ${
-            feedback.type === "success"
-              ? "bg-teal-50 border-teal-700 text-teal-950"
-              : "bg-rose-50 border-rose-700 text-rose-950"
-          }`}
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <span>{feedback.message}</span>
-          </div>
-          <button
-            onClick={() => setFeedback(null)}
-             aria-label="Dismiss message"
-             className="min-h-11 min-w-11 inline-flex items-center justify-center text-slate-400 hover:text-slate-700 font-bold ml-4"
-          >
-            ×
-          </button>
-        </div>
-      )}
+      {feedback && <FeedbackBanner type={feedback.type} message={feedback.message} onDismiss={() => setFeedback(null)} />}
 
       {/* Filters */}
       <SearchFilters
+        className="mb-5! rounded-md"
         searchPlaceholder="Search users by name or email..."
         searchValue={search}
         onSearchChange={handleSearchChange}
@@ -336,7 +322,7 @@ export const UsersPage: React.FC = () => {
         filters={[
           {
             key: "role",
-             label: "Access level",
+             label: "Role",
             options: [
                { value: Role.ADMINISTRATOR, label: "Administrator" },
                { value: Role.TALENT_ACQUISITION, label: "Recruiter" },
@@ -352,11 +338,11 @@ export const UsersPage: React.FC = () => {
       ) : usersQuery.isError ? (
         <ErrorState error={usersQuery.error} onRetry={() => usersQuery.refetch()} />
       ) : users.length === 0 ? (
-        <div className="admin-panel p-6">
+        <div className="rounded-md border border-slate-300 bg-white p-6">
           <EmptyState
             icon={<Users className="w-5 h-5" />}
              title="No users found"
-             description="No accounts match your search or access-level filter."
+             description="No accounts match your search or role filter."
             action={
               <Button variant="outline" size="sm" onClick={handleReset}>
                 Clear filters
@@ -365,9 +351,9 @@ export const UsersPage: React.FC = () => {
           />
         </div>
       ) : (
-        <div className="admin-panel overflow-hidden">
+        <div className="overflow-hidden rounded-md border border-slate-300 bg-white">
           {selectedUser && (
-            <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 text-sm text-amber-950" role="status" aria-live="polite">
+            <div className="px-3.5 py-2.5 bg-navy-soft border-b border-navy-line text-sm text-slate-900" role="status" aria-live="polite">
               Selected account: <strong>{selectedUser.applicantProfile ? `${selectedUser.applicantProfile.firstName} ${selectedUser.applicantProfile.lastName}` : selectedUser.email}</strong>
             </div>
           )}
@@ -380,13 +366,13 @@ export const UsersPage: React.FC = () => {
                 <div
                   key={u.id}
                   aria-selected={selectedUserId === u.id}
-                  className={`p-4 space-y-3 transition-colors ${selectedUserId === u.id ? "bg-amber-50 ring-2 ring-inset ring-amber-400" : ""}`}
+                  className={`p-4 space-y-3 transition-colors ${selectedUserId === u.id ? "bg-navy-soft" : ""}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="font-semibold text-sm text-slate-950 break-words">
                         {fullName || u.email}
-                        {isSelf && <span className="ml-2 text-sm text-teal-800">(you)</span>}
+                        {isSelf && <span className="ml-1.5 font-normal text-slate-600">(you)</span>}
                       </div>
                       {fullName && <div className="text-sm text-slate-600 break-all">{u.email}</div>}
                     </div>
@@ -404,7 +390,7 @@ export const UsersPage: React.FC = () => {
                             ]
                           : [
                               {
-                                label: "Change access",
+                                label: "Change role",
                                 disabled: isSelf || u.role === Role.APPLICANT,
                                 onSelect: () => {
                                   setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
@@ -426,21 +412,15 @@ export const UsersPage: React.FC = () => {
                   </div>
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                     <div>
-                      <dt className="text-sm text-slate-500">Access level</dt>
+                      <dt className="text-sm text-slate-600">Role</dt>
                       <dd className="font-medium text-slate-800">{formatAdminRole(u.role)}</dd>
                     </div>
                     <div>
-                      <dt className="text-sm text-slate-500">Status</dt>
-                      <dd className="font-medium text-slate-800">
-                        {!u.isActive || u.accountStatus === "DEACTIVATED"
-                          ? "Inactive"
-                          : u.accountStatus === "PENDING" || u.accountStatus === "INVITED"
-                          ? u.invitationStatus === "EXPIRED" ? "Invitation expired" : "Invitation pending"
-                          : "Active"}
-                      </dd>
+                      <dt className="text-sm text-slate-600">Status</dt>
+                      <dd className="mt-0.5"><AccountStatus user={u} /></dd>
                     </div>
                     <div>
-                      <dt className="text-sm text-slate-500">Created</dt>
+                      <dt className="text-sm text-slate-600">Created</dt>
                       <dd className="text-slate-700">{formatDate(u.createdAt)}</dd>
                     </div>
                   </dl>
@@ -450,13 +430,13 @@ export const UsersPage: React.FC = () => {
           </div>
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-slate-100 text-slate-700 font-sans  text-xs border-b border-slate-300">
+              <thead className="bg-slate-50 text-xs text-slate-600 border-b border-slate-300">
                 <tr>
-                  <th className="px-3.5 py-2.5 font-bold">Account</th>
-                  <th className="px-3.5 py-2.5 font-bold">Access level</th>
-                  <th className="px-3.5 py-2.5 font-bold">Status</th>
-                  <th className="px-3.5 py-2.5 font-bold">Created</th>
-                  <th className="px-3.5 py-2.5 font-bold text-right">Actions</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium">Account</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium">Role</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium">Status</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium">Created</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -471,66 +451,25 @@ export const UsersPage: React.FC = () => {
                     <tr
                       key={u.id}
                       aria-selected={selectedUserId === u.id}
-                      className={`transition-colors ${selectedUserId === u.id ? "bg-amber-50" : "hover:bg-slate-100/70"}`}
+                      className={`transition-colors ${selectedUserId === u.id ? "bg-navy-soft" : "hover:bg-slate-50"}`}
                     >
-                      <td className="px-3.5 py-2.5">
-                        <div className="font-bold text-slate-950 flex items-center gap-1.5 font-sans">
-                          <span>{u.email}</span>
-                          {isSelf && (
-                            <span className="text-xs font-sans font-bold px-1 py-0.2 bg-teal-100 border border-teal-300 text-teal-800">
-                               (you)
-                            </span>
-                          )}
+                      <td className="px-3 py-3">
+                        <div className="font-medium text-slate-950 break-all">
+                          {u.email}
+                          {isSelf && <span className="ml-1.5 font-normal text-slate-600">(you)</span>}
                         </div>
-                        {fullName && (
-                           <div className="text-sm text-slate-600">
-                            {fullName}
-                          </div>
-                        )}
+                        {fullName && <div className="text-sm text-slate-600">{fullName}</div>}
                       </td>
-                      <td className="px-3.5 py-2.5">
-                        <span
-                           className={`inline-flex items-center gap-1 text-sm font-sans font-semibold px-2 py-1 border ${
-                            u.role === Role.ADMINISTRATOR
-                              ? "bg-purple-50 text-purple-950 border-purple-300"
-                              : u.role === Role.TALENT_ACQUISITION
-                              ? "bg-teal-50 text-teal-950 border-teal-300"
-                              : "bg-slate-100 text-slate-800 border-slate-300"
-                          }`}
-                        >
-                           {u.role === Role.ADMINISTRATOR ? (
-                            <Shield className="w-3 h-3 text-purple-700" />
-                          ) : (
-                            <ShieldCheck className="w-3 h-3 text-teal-700" />
-                          )}
-                           <span>{formatAdminRole(u.role)}</span>
-                        </span>
+                      <td className="px-3 py-3">
+                        {formatAdminRole(u.role)}
                       </td>
-                      <td className="px-3.5 py-2.5">
-                        {!u.isActive || u.accountStatus === "DEACTIVATED" ? (
-                           <span className="text-sm font-sans font-semibold px-2 py-1 border bg-rose-50 text-rose-950 border-rose-300">
-                             Inactive
-                          </span>
-                        ) : u.accountStatus === "PENDING" || u.accountStatus === "INVITED" ? (
-                          <span
-                             className={`text-sm font-sans font-semibold px-2 py-1 border ${
-                              u.invitationStatus === "EXPIRED"
-                                ? "bg-amber-50 text-amber-950 border-amber-300"
-                                : "bg-blue-50 text-blue-950 border-blue-300"
-                            }`}
-                          >
-                             {u.invitationStatus === "EXPIRED" ? "Invitation expired" : "Invitation pending"}
-                          </span>
-                        ) : (
-                           <span className="text-sm font-sans font-semibold px-2 py-1 border bg-emerald-50 text-emerald-950 border-emerald-300">
-                            Active
-                          </span>
-                        )}
+                      <td className="px-3 py-3">
+                        <AccountStatus user={u} />
                       </td>
-                      <td className="px-3.5 py-2.5 text-slate-600 text-xs">
+                      <td className="px-3 py-3 text-slate-600 tabular-nums">
                         {formatDate(u.createdAt)}
                       </td>
-                       <td className="px-3.5 py-2.5 text-right font-sans">
+                       <td className="px-3 py-1.5 text-right">
                          <ActionMenu
                            label={`Actions for ${u.email}`}
                            onOpenChange={(open) => {
@@ -552,7 +491,7 @@ export const UsersPage: React.FC = () => {
                                  ]
                                : [
                                    {
-                                     label: "Change access",
+                                     label: "Change role",
                                      disabled: isSelf || u.role === Role.APPLICANT,
                                      onSelect: () => {
                                        setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
@@ -587,7 +526,7 @@ export const UsersPage: React.FC = () => {
           </div>
 
           {/* Pagination */}
-          <div className="p-3 border-t border-slate-300 bg-slate-50">
+          <div className="px-3 py-2 border-t border-slate-300">
             <Pagination
               currentPage={page}
               totalPages={totalPages}
@@ -702,12 +641,12 @@ export const UsersPage: React.FC = () => {
       <Dialog
         open={Boolean(roleModalUser)}
         onClose={() => { setRoleModalUser(null); clearSelectedUser(); }}
-        title="Change access"
+        title="Change role"
         description={`Choose what ${roleModalUser?.email} can access.`}
       >
         <div className="space-y-4">
           <Select
-             label="Access level"
+             label="Role"
             value={targetRole}
             onChange={(e) => setTargetRole(e.target.value as Role)}
             options={[
@@ -731,7 +670,7 @@ export const UsersPage: React.FC = () => {
                 }
               }}
             >
-              Save access level
+              Save role
             </Button>
           </div>
         </div>
@@ -748,7 +687,7 @@ export const UsersPage: React.FC = () => {
           <p className="text-sm text-slate-600 leading-relaxed">
             {statusModalUser?.isActive
                ? "They will no longer be able to sign in or use MEGS."
-               : "They will be able to sign in again with their current access level."}
+               : "They will be able to sign in again with their current role."}
           </p>
           {statusModalUser?.isActive && statusModalUser.role === "TALENT_ACQUISITION" && (
             <Select
@@ -785,7 +724,7 @@ export const UsersPage: React.FC = () => {
         description={`Reset sign-in verification for ${mfaModalUser?.email}`}
       >
         <div className="space-y-4">
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2.5 text-sm text-amber-900">
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-md flex items-start gap-2.5 text-sm text-amber-900">
             <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
             <p className="leading-relaxed">
                Their current verification app and recovery codes will stop working. They must set up two-step verification again at their next sign-in.

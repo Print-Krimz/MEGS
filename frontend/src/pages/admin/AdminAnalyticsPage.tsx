@@ -58,7 +58,8 @@ export const AdminAnalyticsPage: React.FC = () => {
 
   const header = (
     <PageHeader
-      title="Hiring reports"
+      title="Reports"
+      flush
       description="Whether the team is delivering to clients, and who needs help."
       breadcrumbs={[{ label: "Administration", href: "/admin" }, { label: "Reports" }]}
       actions={

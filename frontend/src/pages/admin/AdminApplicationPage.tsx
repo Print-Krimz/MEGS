@@ -7,34 +7,32 @@ import { PageHeader, LoadingState, ErrorState } from "../../components/common";
 import { Button } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { formatAdminPipelineStage } from "../../lib/admin-copy";
+import { AnalyticsPanel } from "../../components/analytics";
 
 const titleCase = (value?: string | null) =>
   (value ?? "").replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 
 const Fact: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div>
-    <dt className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500">{label}</dt>
-    <dd className="mt-0.5 text-sm text-slate-900 font-sans">{children}</dd>
+    <dt className="text-xs font-medium text-slate-600">{label}</dt>
+    <dd className="mt-0.5 text-sm text-slate-900">{children}</dd>
   </div>
 );
 
 const Section: React.FC<{ title: string; empty: string; items: React.ReactNode[] }> = ({ title, empty, items }) => (
-  <section className="border border-slate-300 bg-white">
-    <h3 className="px-3.5 py-3 border-b border-slate-300 bg-slate-100 text-xs font-bold font-mono text-slate-900 uppercase tracking-wider">
-      {title}
-    </h3>
+  <AnalyticsPanel title={title} aside={items.length > 0 ? items.length : undefined}>
     {items.length === 0 ? (
-      <p className="p-4 text-xs text-slate-500 font-sans">{empty}</p>
+      <p className="px-3.5 py-3 text-sm text-slate-600">{empty}</p>
     ) : (
       <ul className="divide-y divide-slate-200">
         {items.map((item, i) => (
-          <li key={i} className="px-3.5 py-2.5 text-sm text-slate-800 font-sans">
+          <li key={i} className="px-3.5 py-2.5 text-sm text-slate-800">
             {item}
           </li>
         ))}
       </ul>
     )}
-  </section>
+  </AnalyticsPanel>
 );
 
 /** Read-only view of one application, opened from the reports. The recruiter makes any changes. */
@@ -48,17 +46,18 @@ export const AdminApplicationPage: React.FC = () => {
   });
 
   const back = (
-    <Link to="/admin/analytics">
-      <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
+    <Button asChild variant="outline" size="sm">
+      <Link to="/admin/analytics">
+        <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
         Back to reports
-      </Button>
-    </Link>
+      </Link>
+    </Button>
   );
 
   if (query.isLoading) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Application" description="Loading the application." actions={back} />
+        <PageHeader title="Application" flush actions={back} />
         <LoadingState variant="table" rows={4} />
       </div>
     );
@@ -67,7 +66,7 @@ export const AdminApplicationPage: React.FC = () => {
   if (query.isError || !query.data) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Application" description="This application could not be opened." actions={back} />
+        <PageHeader title="Application" flush actions={back} />
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       </div>
     );
@@ -83,12 +82,13 @@ export const AdminApplicationPage: React.FC = () => {
     <div className="space-y-5">
       <PageHeader
         title={name}
-        description={`Application #${app.id} · View only. The assigned recruiter makes any changes.`}
+        flush
+        description={`Application #${app.id}. Only the assigned recruiter can change it.`}
         breadcrumbs={[{ label: "Administration", href: "/admin" }, { label: "Reports", href: "/admin/analytics" }, { label: name }]}
         actions={back}
       />
 
-      <section className="border border-slate-300 bg-white p-4">
+      <section aria-label="Application summary" className="rounded-md border border-slate-300 bg-white p-3.5">
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Fact label="Stage">{app.isArchived ? "Archived" : formatAdminPipelineStage(app.status)}</Fact>
           <Fact label="Applied">{formatDate(app.createdAt)}</Fact>
@@ -103,7 +103,7 @@ export const AdminApplicationPage: React.FC = () => {
               <Link
                 to="/admin/mrfs/$mrfId"
                 params={{ mrfId: String(job.mrf.id) }}
-                className="text-[#0B315D] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                className="focus-ring rounded-sm font-medium text-navy underline underline-offset-2 hover:text-navy-hover"
               >
                 {job.mrf.title}
               </Link>
@@ -115,7 +115,7 @@ export const AdminApplicationPage: React.FC = () => {
           <Fact label="Mobile">{profile?.mobileNumber ?? "—"}</Fact>
         </dl>
         {app.backout && (
-          <p className="mt-4 border-t border-slate-200 pt-3 text-sm text-rose-800 font-sans">
+          <p className="mt-3.5 border-t border-slate-200 pt-3 text-sm text-rose-800">
             Backed out on {formatDate(app.backout.occurredAt)} at the {titleCase(app.backout.stage)} stage. Party: {titleCase(app.backout.party)}.
             Reason: {titleCase(app.backout.reason)}.
           </p>
@@ -142,8 +142,8 @@ export const AdminApplicationPage: React.FC = () => {
           ))}
         />
         <Section
-          title="Requirements"
-          empty="No requirements on the checklist."
+          title="Pre-employment"
+          empty="No pre-employment requirements on the checklist."
           items={(app.complianceRequirements ?? []).map((r: any) => (
             <>
               {r.documentLabel} · {titleCase(r.reviewStatus)}

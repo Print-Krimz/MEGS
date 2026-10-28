@@ -9,36 +9,56 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
+  DataTable,
+  type DataTableColumn,
 } from "../../components/common";
 import { Button, Dialog } from "../../components/ui";
 import { formatDateTime } from "../../lib/utils";
 import { getManilaToday, addManilaCalendarDays } from "../../lib/field-limits";
-import {
-  Shield,
-  Eye,
-  Calendar,
-  User as UserIcon,
-  FileText,
-  FileSpreadsheet,
-  CheckCircle2,
-  ShieldAlert,
-  Layers,
-} from "lucide-react";
+import { FileText, FileSpreadsheet } from "lucide-react";
 import {
   ACTION_LABELS,
   AUDIT_CATEGORIES,
   formatAction,
   getActionCategory,
-  getCategoryBadgeClass,
   formatIpAddress,
   formatTargetEntity,
   extractDisplayDetails,
   formatActor,
   getAuditSeverity,
-  getAuditSeverityBadgeClass,
   getAuditExplanation,
+  type AuditSeverity,
 } from "../../lib/utils/audit-formatter";
 import type { AuditLog } from "../../lib/types/admin.types";
+import { ToneBadge } from "./admin-ui";
+
+const SEVERITY_LABELS: Record<AuditSeverity, string> = {
+  CRITICAL: "Needs attention",
+  WARNING: "Watch",
+  INFORMATIONAL: "Info",
+};
+
+const SEVERITY_TONES: Record<AuditSeverity, "danger" | "warning" | "neutral"> = {
+  CRITICAL: "danger",
+  WARNING: "warning",
+  INFORMATIONAL: "neutral",
+};
+
+const SEVERITY_OPTIONS = [
+  { value: "CRITICAL", label: SEVERITY_LABELS.CRITICAL },
+  { value: "WARNING", label: SEVERITY_LABELS.WARNING },
+  { value: "INFORMATIONAL", label: SEVERITY_LABELS.INFORMATIONAL },
+];
+
+const DATE_PRESET_OPTIONS = [
+  { value: "TODAY", label: "Today" },
+  { value: "7D", label: "7 days" },
+  { value: "30D", label: "30 days" },
+  { value: "CUSTOM", label: "Custom range" },
+];
+
+const dateInputClass =
+  "focus-ring min-h-11 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 md:min-h-10";
 
 export const AuditLogsPage: React.FC = () => {
   const [search, setSearch] = useState("");
@@ -50,7 +70,6 @@ export const AuditLogsPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingXlsx, setIsExportingXlsx] = useState(false);
 
@@ -92,34 +111,6 @@ export const AuditLogsPage: React.FC = () => {
   });
 
   const allLogs: AuditLog[] = useMemo(() => auditLogsQuery.data || [], [auditLogsQuery.data]);
-
-  // Summary Metrics
-  const summaryStats = useMemo(() => {
-    let criticalCount = 0;
-    let warningCount = 0;
-    let recruitmentCount = 0;
-    let configCount = 0;
-
-    for (const log of allLogs) {
-      const sev = getAuditSeverity(log);
-      if (sev === "CRITICAL") criticalCount++;
-      else if (sev === "WARNING") warningCount++;
-
-      const cat = getActionCategory(log.action);
-      if (cat === "Recruitment" || cat === "Deployment" || cat === "Compliance") {
-        recruitmentCount++;
-      } else if (cat === "Configuration" || cat === "Security") {
-        configCount++;
-      }
-    }
-
-    return {
-      total: allLogs.length,
-      securityAttention: criticalCount + warningCount,
-      recruitment: recruitmentCount,
-      configuration: configCount,
-    };
-  }, [allLogs]);
 
   // Client-side quick filter for fast text search & severity filter
   const filteredLogs = useMemo(() => {
@@ -165,16 +156,24 @@ export const AuditLogsPage: React.FC = () => {
     setPage(1);
   };
 
-  const handleFilterChange = (k: string, v: string) => {
-    setFilterValues((prev) => ({ ...prev, [k]: v }));
-    setPage(1);
-  };
-
   const handleDatePresetChange = (preset: string) => {
     setDatePreset(preset);
     if (preset !== "CUSTOM") {
       setStartDate("");
       setEndDate("");
+    }
+    setPage(1);
+  };
+
+  // Importance and date range sit in the same filter row as the server filters.
+  const handleFilterChange = (k: string, v: string) => {
+    if (k === "severity") {
+      setSeverityFilter(v || "ALL");
+    } else if (k === "range") {
+      handleDatePresetChange(v || "ALL");
+      return;
+    } else {
+      setFilterValues((prev) => ({ ...prev, [k]: v }));
     }
     setPage(1);
   };
@@ -253,25 +252,141 @@ export const AuditLogsPage: React.FC = () => {
     }));
   }, []);
 
+  const openButtonClass =
+    "focus-ring inline-flex min-h-11 items-center rounded-md text-left text-sm font-semibold text-navy hover:underline md:min-h-9";
+
+  const columns: DataTableColumn<AuditLog>[] = [
+    {
+      key: "action",
+      header: "What happened",
+      primary: true,
+      cell: (log) => {
+        const summary = extractDisplayDetails(log);
+        const detailText =
+          Array.isArray(summary) && summary.length > 0
+            ? summary.map((s) => `${s.label}: ${s.value}`).join(" • ")
+            : "";
+        return (
+          <div className="flex min-w-0 max-w-xs flex-col">
+            <button
+              type="button"
+              onClick={() => setSelectedLog(log)}
+              className={openButtonClass}
+            >
+              {formatAction(log.action)}
+            </button>
+            {detailText && (
+              <span className="truncate text-xs text-slate-600" title={detailText}>
+                {detailText}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "importance",
+      header: "Importance",
+      cell: (log) => {
+        const severity = getAuditSeverity(log);
+        return <ToneBadge tone={SEVERITY_TONES[severity]}>{SEVERITY_LABELS[severity]}</ToneBadge>;
+      },
+    },
+    {
+      key: "area",
+      header: "Area",
+      cell: (log) => <span className="text-slate-700">{getActionCategory(log.action)}</span>,
+    },
+    {
+      key: "actor",
+      header: "Performed by",
+      cell: (log) => {
+        const actor = formatActor(log);
+        return (
+          <div className="flex max-w-[13rem] flex-col">
+            <span className="truncate font-medium text-slate-900" title={actor.name}>
+              {actor.name}
+            </span>
+            {actor.role && <span className="text-xs text-slate-500">{actor.role}</span>}
+          </div>
+        );
+      },
+    },
+    {
+      key: "record",
+      header: "Affected record",
+      cell: (log) => {
+        const target = formatTargetEntity(log);
+        return (
+          <div className="flex max-w-[14rem] flex-col">
+            <span className="truncate font-medium text-slate-900" title={target.label}>
+              {target.label}
+            </span>
+            {target.secondary && (
+              <span className="truncate text-xs text-slate-500" title={target.secondary}>
+                {target.secondary}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "when",
+      header: "When",
+      align: "right",
+      cell: (log) => <span className="whitespace-nowrap text-slate-600">{formatDateTime(log.createdAt)}</span>,
+    },
+  ];
+
+  const renderCard = (log: AuditLog) => {
+    const severity = getAuditSeverity(log);
+    const target = formatTargetEntity(log);
+    const actor = formatActor(log);
+    return (
+      <div className="space-y-1.5 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <button type="button" onClick={() => setSelectedLog(log)} className={openButtonClass}>
+            {formatAction(log.action)}
+          </button>
+          <ToneBadge tone={SEVERITY_TONES[severity]}>{SEVERITY_LABELS[severity]}</ToneBadge>
+        </div>
+        <div className="text-sm text-slate-600">
+          {getActionCategory(log.action)} · {formatDateTime(log.createdAt)}
+        </div>
+        <div className="text-sm text-slate-800">
+          <span className="font-medium">{target.label}</span>
+          {target.secondary && <span className="text-slate-500"> · {target.secondary}</span>}
+        </div>
+        <div className="truncate text-sm text-slate-600" title={actor.name}>
+          By {actor.name}
+        </div>
+      </div>
+    );
+  };
+
+  const framed = "rounded-md border border-slate-300 bg-white";
+
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
       <PageHeader
+        flush
         title="Activity history"
-        description="See who changed accounts, hiring records, settings, or backups."
+        description="Who changed accounts, hiring records, settings and backups."
         breadcrumbs={[
           { label: "Administration", href: "/admin" },
           { label: "Activity history" },
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-             <Button
-               variant="outline"
+            <Button
+              variant="outline"
               size="sm"
-              leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-teal-700" />}
+              leftIcon={<FileSpreadsheet className="w-3.5 h-3.5" />}
               onClick={handleExportXLSX}
               disabled={isExportingXlsx || allLogs.length === 0}
             >
-               {isExportingXlsx ? "Preparing..." : "Download Excel"}
+              {isExportingXlsx ? "Preparing..." : "Download Excel"}
             </Button>
             <Button
               variant="primary"
@@ -280,153 +395,33 @@ export const AuditLogsPage: React.FC = () => {
               onClick={handleExportPDF}
               disabled={isExportingPdf || allLogs.length === 0}
             >
-               {isExportingPdf ? "Preparing..." : "Download PDF"}
+              {isExportingPdf ? "Preparing..." : "Download PDF"}
             </Button>
           </div>
         }
       />
 
-      <p className="text-sm text-slate-600">Review up to 100 recent records. Narrow the date range or download a report to review more activity.</p>
-
-      {/* Summary Metrics Cards */}
-      {auditLogsQuery.isLoading ? <LoadingState variant="cards" /> : auditLogsQuery.isError ? null : <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="p-3 admin-panel rounded-lg">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-sm font-medium">All activity</span>
-            <Layers className="w-3.5 h-3.5 text-slate-400" />
-          </div>
-          <div className="text-lg font-bold text-slate-900">{summaryStats.total}</div>
-            <p className="text-sm text-slate-500 mt-0.5">Within the loaded records</p>
-        </div>
-
-        <div className="p-3 admin-panel rounded-lg">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-sm font-medium">Needs attention</span>
-            <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
-          </div>
-          <div className="text-lg font-bold text-slate-900">{summaryStats.securityAttention}</div>
-            <p className="text-sm text-slate-500 mt-0.5">Warnings and security events</p>
-        </div>
-
-        <div className="p-3 admin-panel rounded-lg">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-sm font-medium">Hiring activity</span>
-            <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
-          </div>
-          <div className="text-lg font-bold text-slate-900">{summaryStats.recruitment}</div>
-            <p className="text-sm text-slate-500 mt-0.5">Hiring and requirements changes</p>
-        </div>
-
-        <div className="p-3 admin-panel rounded-lg">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-sm font-medium">Account and settings changes</span>
-            <Shield className="w-3.5 h-3.5 text-indigo-600" />
-          </div>
-          <div className="text-lg font-bold text-slate-900">{summaryStats.configuration}</div>
-            <p className="text-sm text-slate-500 mt-0.5">Access, settings, and backups</p>
-        </div>
-      </div>}
-
-      {/* Main Filter Bar */}
       <SearchFilters
+        className="mb-5! rounded-md"
         searchPlaceholder="Search what happened, who did it, or what changed..."
         searchValue={search}
         onSearchChange={handleSearchChange}
-        filterValues={filterValues}
+        filterValues={{
+          ...filterValues,
+          severity: severityFilter === "ALL" ? "" : severityFilter,
+          range: datePreset === "ALL" ? "" : datePreset,
+        }}
         onFilterChange={handleFilterChange}
         onReset={handleReset}
-        filters={showAdvancedFilters ? [
-          {
-            key: "category",
-             label: "Area",
-             placeholder: "All areas",
-            options: categoryFilterOptions,
-          },
-          {
-            key: "action",
-             label: "Change type",
-             placeholder: "All change types",
-            options: actionFilterOptions,
-          },
-        ] : []}
+        filters={[
+          { key: "category", label: "Area", placeholder: "All areas", options: categoryFilterOptions },
+          { key: "action", label: "Change type", placeholder: "All change types", options: actionFilterOptions },
+          { key: "severity", label: "Importance", placeholder: "All importance", options: SEVERITY_OPTIONS },
+          { key: "range", label: "Date range", placeholder: "All time", options: DATE_PRESET_OPTIONS },
+        ]}
         actions={
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-expanded={showAdvancedFilters}
-            aria-controls="activity-advanced-filters"
-            onClick={() => setShowAdvancedFilters((current) => !current)}
-          >
-            {showAdvancedFilters ? "Hide filters" : "More filters"}
-          </Button>
-        }
-      />
-
-      {/* Toolbar: Severity Filter & Date Range Filter */}
-      <div id="activity-advanced-filters" className="bg-white p-3 border border-slate-300 flex flex-wrap items-center justify-between gap-3 text-sm">
-        {/* Severity Quick Filter */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-slate-600">Importance:</span>
-          <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-100">
-            {[
-              { id: "ALL", label: "All" },
-              { id: "CRITICAL", label: "Critical" },
-              { id: "WARNING", label: "Warning" },
-              { id: "INFORMATIONAL", label: "Info" },
-            ].map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => {
-                  setSeverityFilter(s.id);
-                  setPage(1);
-                }}
-                 aria-pressed={severityFilter === s.id}
-                 className={`min-h-9 px-3 py-1 text-sm font-medium transition-colors rounded-md ${
-                  severityFilter === s.id
-                    ? "bg-white text-slate-950 font-bold shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Date Range Selector */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-             Date:
-          </span>
-
-          <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-100">
-            {[
-              { id: "ALL", label: "All Time" },
-              { id: "TODAY", label: "Today" },
-              { id: "7D", label: "7 Days" },
-              { id: "30D", label: "30 Days" },
-              { id: "CUSTOM", label: "Custom" },
-            ].map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleDatePresetChange(p.id)}
-                 aria-pressed={datePreset === p.id}
-                 className={`min-h-9 px-3 py-1 text-sm font-medium transition-colors rounded-md ${
-                  datePreset === p.id
-                    ? "bg-white text-slate-950 font-bold shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-
-          {datePreset === "CUSTOM" && (
-            <div className="flex items-center gap-1.5 ml-2">
+          datePreset === "CUSTOM" ? (
+            <div className="flex flex-wrap items-center gap-1.5">
               <input
                 type="date"
                 min="1900-01-01"
@@ -436,10 +431,10 @@ export const AuditLogsPage: React.FC = () => {
                   setStartDate(e.target.value);
                   setPage(1);
                 }}
-                 className="min-h-10 px-2 py-1 border border-slate-300 rounded text-sm bg-white"
+                className={dateInputClass}
                 aria-label="Start date"
               />
-              <span className="text-slate-400 text-sm">to</span>
+              <span className="text-sm text-slate-500">to</span>
               <input
                 type="date"
                 min={startDate || "1900-01-01"}
@@ -449,187 +444,63 @@ export const AuditLogsPage: React.FC = () => {
                   setEndDate(e.target.value);
                   setPage(1);
                 }}
-                 className="min-h-10 px-2 py-1 border border-slate-300 rounded text-sm bg-white"
+                className={dateInputClass}
                 aria-label="End date"
               />
             </div>
-          )}
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
 
-      {/* Main Table */}
-      <div className="admin-panel shadow-xs">
-        <div className="px-3.5 py-2.5 border-b border-slate-300 flex items-center justify-between bg-slate-100">
-          <div className="flex flex-wrap items-center gap-2">
-            <Shield className="w-4 h-4 text-slate-700" />
-             <h3 className="text-sm font-semibold text-slate-900">
-               Activity records
-            </h3>
-          </div>
-          <span className="text-xs text-slate-600 font-medium">
-             {auditLogsQuery.isError ? "Activity unavailable" : `Showing ${filteredLogs.length} matching records`}
-          </span>
-        </div>
-
-        {auditLogsQuery.isLoading ? (
+      {auditLogsQuery.isLoading ? (
+        <div className={framed}>
           <LoadingState variant="table" rows={10} />
-        ) : auditLogsQuery.isError ? (
-          <ErrorState
-            error={auditLogsQuery.error}
-            onRetry={() => auditLogsQuery.refetch()}
-          />
-        ) : filteredLogs.length === 0 ? (
-          <EmptyState
-             title="No activity found"
-             description="Try a different search or clear your filters."
-            action={
-              <Button variant="outline" size="sm" onClick={handleReset}>
-                 Clear filters
-              </Button>
+        </div>
+      ) : auditLogsQuery.isError ? (
+        <div className={framed}>
+          <ErrorState error={auditLogsQuery.error} onRetry={() => auditLogsQuery.refetch()} />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-sm text-slate-600" aria-live="polite">
+            From the latest 100 records
+          </p>
+          <DataTable
+            caption="Activity history"
+            columns={columns}
+            rows={paginatedLogs}
+            getRowId={(log) => String(log.id)}
+            renderCard={renderCard}
+            cardsBelow="lg"
+            empty={
+              <EmptyState
+                bare
+                title="No activity found"
+                description="Try a different search or clear your filters."
+                action={
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    Clear filters
+                  </Button>
+                }
+              />
+            }
+            footer={
+              filteredLogs.length > pageSize ? (
+                <div className="p-3">
+                  <Pagination
+                    currentPage={page}
+                    totalPages={totalPages}
+                    totalItems={filteredLogs.length}
+                    pageSize={pageSize}
+                    onPageChange={setPage}
+                    itemLabel="events"
+                  />
+                </div>
+              ) : undefined
             }
           />
-        ) : (
-          <>
-           <div className="md:hidden divide-y divide-slate-200">
-             {paginatedLogs.map((log) => {
-               const category = getActionCategory(log.action);
-               const severity = getAuditSeverity(log);
-               const targetEntity = formatTargetEntity(log);
-               const actor = formatActor(log);
-               return (
-                 <div key={log.id} className="p-4 space-y-2">
-                   <div className="flex items-start justify-between gap-3">
-                     <div>
-                       <div className="font-semibold text-sm text-slate-950">{formatAction(log.action)}</div>
-                       <div className="text-sm text-slate-600">{category} · {severity === "CRITICAL" ? "Needs attention" : severity === "WARNING" ? "Watch" : "Info"}</div>
-                     </div>
-                     <span className="shrink-0 text-sm text-slate-500">{formatDateTime(log.createdAt)}</span>
-                   </div>
-                   <div className="text-sm text-slate-700">
-                     <span className="font-medium">{targetEntity.label}</span>
-                     {targetEntity.secondary && <span className="text-slate-500"> · {targetEntity.secondary}</span>}
-                   </div>
-                   <div className="flex items-center justify-between gap-3">
-                     <span className="text-sm text-slate-500">{actor.name}</span>
-                     <Button variant="outline" size="sm" onClick={() => setSelectedLog(log)}>View details</Button>
-                   </div>
-                 </div>
-               );
-             })}
-           </div>
-           <div className="hidden md:block overflow-x-auto">
-             <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-slate-50 text-slate-700 font-semibold text-xs border-b border-slate-300">
-                <tr>
-                   <th className="px-3.5 py-2.5">What happened</th>
-                   <th className="px-3.5 py-2.5">Area</th>
-                   <th className="px-3.5 py-2.5">Performed by</th>
-                   <th className="px-3.5 py-2.5">Affected record</th>
-                   <th className="px-3.5 py-2.5">Details</th>
-                   <th className="px-3.5 py-2.5 text-right">When</th>
-                   <th className="px-3.5 py-2.5 text-center">View</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {paginatedLogs.map((log) => {
-                  const category = getActionCategory(log.action);
-                  const severity = getAuditSeverity(log);
-                  const formattedAct = formatAction(log.action);
-                  const targetEntity = formatTargetEntity(log);
-                  const summary = extractDisplayDetails(log);
-                  const actor = formatActor(log);
-
-                  return (
-                    <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-3.5 py-2.5">
-                        <div className="flex flex-col gap-1">
-                          <span className="font-bold text-slate-950 font-sans text-sm">
-                            {formattedAct}
-                          </span>
-                          <span
-                            className={`inline-block w-fit px-1.5 py-0.2 text-xs font-semibold  rounded-md border ${getAuditSeverityBadgeClass(
-                              severity
-                            )}`}
-                          >
-                            {severity === "CRITICAL" ? "Needs attention" : severity === "WARNING" ? "Watch" : "Info"}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-3.5 py-2.5">
-                        <span
-                          className={`inline-block px-1.5 py-0.5 text-xs font-medium rounded-md border ${getCategoryBadgeClass(
-                            category
-                          )}`}
-                        >
-                          {category}
-                        </span>
-                      </td>
-                      <td className="px-3.5 py-2.5 text-slate-700">
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-1">
-                            <UserIcon className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="font-medium text-slate-900 truncate max-w-[160px]">
-                              {actor.name}
-                            </span>
-                          </div>
-                          {actor.role && (
-                            <span className="text-xs text-slate-500 pl-4">
-                              {actor.role}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3.5 py-2.5 text-slate-700">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-slate-900">{targetEntity.label}</span>
-                          {targetEntity.secondary && (
-                            <span className="text-xs text-slate-500">
-                              {targetEntity.secondary}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3.5 py-2.5 text-slate-600 max-w-[180px] truncate">
-                        {Array.isArray(summary) && summary.length > 0
-                          ? summary.map((s) => `${s.label}: ${s.value}`).join(" • ")
-                          : "—"}
-                      </td>
-                      <td className="px-3.5 py-2.5 text-right text-xs text-slate-600 whitespace-nowrap">
-                        {formatDateTime(log.createdAt)}
-                      </td>
-                      <td className="px-3.5 py-2.5 text-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          leftIcon={<Eye className="w-3 h-3 text-slate-600" />}
-                          onClick={() => setSelectedLog(log)}
-                        >
-                           View details
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-           </div>
-          </>
-        )}
-
-        {/* Pagination */}
-        {filteredLogs.length > pageSize && (
-          <div className="p-3 border-t border-slate-200">
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              totalItems={filteredLogs.length}
-              pageSize={pageSize}
-              onPageChange={setPage}
-              itemLabel="events"
-            />
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Audit Detail Modal */}
       {selectedLog && (() => {
@@ -649,33 +520,30 @@ export const AuditLogsPage: React.FC = () => {
             open={!!selectedLog}
             onClose={() => setSelectedLog(null)}
             title={formatAction(selectedLog.action)}
-             description={`Recorded ${formatDateTime(selectedLog.createdAt)}`}
+            description={`Recorded ${formatDateTime(selectedLog.createdAt)}`}
             size="md"
           >
             <div className="space-y-3 font-sans text-sm">
               {/* Security Alert (Only when critical) */}
               {severity === "CRITICAL" && (
-                <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg flex items-start gap-2">
-                  <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="space-y-0.5">
-                     <span className="font-semibold text-sm">Security notice</span>
-                    <p className="text-xs text-amber-800 leading-normal">
-                      {explanation.whyItMatters || "This action involves elevated system privileges or security verification."}
-                    </p>
-                  </div>
+                <div className="space-y-0.5 rounded-md border border-rose-200 bg-rose-50 p-3 text-rose-900">
+                  <span className="font-semibold">Security notice</span>
+                  <p className="leading-normal">
+                    {explanation.whyItMatters || "This action involves elevated system privileges or security verification."}
+                  </p>
                 </div>
               )}
 
               {/* Single Clean Details Card */}
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 divide-y divide-slate-200 text-sm">
+              <div className="divide-y divide-slate-200 rounded-md border border-slate-200 bg-slate-50 p-3">
                 {/* Subject & Candidate */}
                 {targetEntity.label && (
                   <div className="py-2 first:pt-0 flex items-start justify-between gap-3">
-                     <span className="text-slate-500 font-medium shrink-0">Affected record</span>
+                    <span className="text-slate-500 font-medium shrink-0">Affected record</span>
                     <div className="text-right">
-                      <span className="font-bold text-slate-900">{targetEntity.label}</span>
+                      <span className="font-semibold text-slate-900">{targetEntity.label}</span>
                       {targetEntity.secondary && (
-                        <span className="block text-xs text-slate-500">{targetEntity.secondary}</span>
+                        <span className="block text-slate-500">{targetEntity.secondary}</span>
                       )}
                     </div>
                   </div>
@@ -693,13 +561,13 @@ export const AuditLogsPage: React.FC = () => {
 
                 {/* Performed By */}
                 <div className="py-2 last:pb-0 flex items-start justify-between gap-3">
-                   <span className="text-slate-500 font-medium shrink-0">Performed by</span>
+                  <span className="text-slate-500 font-medium shrink-0">Performed by</span>
                   <div className="text-right">
-                    <span className="font-semibold text-slate-900 block">
+                    <span className="font-semibold text-slate-900 block break-all">
                       {actor.name}
                     </span>
                     {actor.role && (
-                      <span className="block text-xs text-slate-500">
+                      <span className="block text-slate-500">
                         {actor.role}
                       </span>
                     )}
@@ -707,18 +575,18 @@ export const AuditLogsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Minimalist Advanced Details (Hidden by default) */}
-              <details className="text-xs text-slate-400">
-                <summary className="cursor-pointer hover:text-slate-600 select-none py-1">
-                   Technical information
+              {/* Advanced details (hidden by default) */}
+              <details className="text-slate-600">
+                <summary className="focus-ring flex min-h-11 cursor-pointer select-none items-center rounded-md hover:text-slate-900">
+                  Technical information
                 </summary>
-                <div className="mt-1.5 p-2 bg-slate-100 border border-slate-200 rounded-md space-y-1 font-sans text-xs text-slate-600">
-                  <div className="flex justify-between">
-                   <span>IP address:</span>
+                <div className="mt-1.5 space-y-1 rounded-md border border-slate-200 bg-slate-100 p-2 text-slate-600">
+                  <div className="flex justify-between gap-3">
+                    <span>IP address:</span>
                     <span>{formatIpAddress(selectedLog.ipAddress)}</span>
                   </div>
-                  <div className="flex justify-between">
-                   <span>Event code:</span>
+                  <div className="flex justify-between gap-3">
+                    <span>Event code:</span>
                     <span>{selectedLog.action}</span>
                   </div>
                 </div>

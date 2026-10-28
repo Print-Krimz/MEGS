@@ -9,14 +9,9 @@ import {
 } from "../../components/common";
 import { Button, Dialog, Input } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
-import {
-  Sliders,
-  RotateCcw,
-  CheckCircle2,
-  AlertTriangle,
-  History,
-  Save,
-} from "lucide-react";
+import { AlertTriangle, ChevronDown, History, RotateCcw, Save } from "lucide-react";
+import { AnalyticsPanel } from "../../components/analytics";
+import { FeedbackBanner } from "./admin-ui";
 import { DEFAULT_SCORING_WEIGHTS, maxFor, normalizeScoringWeights, remainingWeight, setScoringWeight, type ScoringDimension } from "../../lib/scoring-weights";
 import { notify } from "../../lib/feedback";
 
@@ -193,8 +188,8 @@ export const ScoringConfigPage: React.FC = () => {
 
   if (configQuery.isLoading) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Matching settings" description="Loading matching settings..." />
+      <div className="space-y-5">
+        <PageHeader title="Matching settings" flush />
         <LoadingState variant="detail" />
       </div>
     );
@@ -202,8 +197,8 @@ export const ScoringConfigPage: React.FC = () => {
 
   if (configQuery.isError || !config) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Matching settings" description="Matching settings could not be loaded." />
+      <div className="space-y-5">
+        <PageHeader title="Matching settings" flush />
         <ErrorState error={configQuery.error} onRetry={() => configQuery.refetch()} />
       </div>
     );
@@ -215,7 +210,8 @@ export const ScoringConfigPage: React.FC = () => {
     <div className="space-y-5">
       <PageHeader
         title="Matching settings"
-        description="Choose how candidate match scores are calculated."
+        flush
+        description={`Choose how candidate match scores are calculated. Last updated ${formatDate(config.activatedAt)}.`}
         breadcrumbs={[
           { label: "Administration", href: "/admin" },
           { label: "Matching settings" },
@@ -233,7 +229,7 @@ export const ScoringConfigPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              leftIcon={<RotateCcw className="w-3.5 h-3.5 text-amber-700" />}
+              leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
               loading={restoreDefaultsMutation.isPending}
               onClick={() => setConfirmRestoreOpen(true)}
             >
@@ -243,69 +239,16 @@ export const ScoringConfigPage: React.FC = () => {
         }
       />
 
-      {feedback && (
-        <div
-           role={feedback.type === "error" ? "alert" : "status"}
-           aria-live="polite"
-           className={`p-3 border text-sm flex items-center justify-between ${
-            feedback.type === "success"
-              ? "bg-navy-soft border-teal-700 text-navy"
-              : "bg-rose-50 border-rose-700 text-rose-950"
-          }`}
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            {feedback.type === "success" ? (
-              <CheckCircle2 className="w-4 h-4 text-navy" />
-            ) : (
-              <AlertTriangle className="w-4 h-4 text-rose-700" />
-            )}
-            <span>{feedback.message}</span>
-          </div>
-          <button
-            onClick={() => setFeedback(null)}
-             aria-label="Dismiss message"
-             className="min-h-11 min-w-11 inline-flex items-center justify-center text-slate-400 hover:text-slate-700 font-bold ml-4"
-          >
-            ×
-          </button>
-        </div>
-      )}
+      {feedback && <FeedbackBanner type={feedback.type} message={feedback.message} onDismiss={() => setFeedback(null)} />}
 
-      {/* Revision Meta Snapshot */}
-      <div className="admin-panel p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm font-sans">
-        <div>
-          <span className="text-slate-500 font-semibold">Current settings: </span>
-          <span className="font-bold text-slate-950">
-            Last updated {formatDate(config.activatedAt)}
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            role="status"
-            className={`font-bold px-2 py-0.5 border ${
-              isWeightValid
-                ? "bg-emerald-50 text-emerald-900 border-emerald-300"
-                : "bg-rose-50 text-rose-900 border-rose-300"
-            }`}
-          >
-            {allocationText}
-          </span>
-        </div>
-      </div>
-
-      <form onSubmit={handleSave} className="space-y-5 admin-matching-form">
+      <form onSubmit={handleSave} className="space-y-5">
         {/* 5 Dimension Sliders */}
-        <div className="admin-panel">
-          <div className="p-3 border-b border-slate-300 flex flex-wrap items-center gap-2 bg-slate-100">
-            <Sliders className="w-4 h-4 text-navy" />
-              <h3 className="text-sm font-semibold text-slate-900">
-              Scoring priorities
-            </h3>
-          </div>
-
-          <div className="p-4 space-y-4">
-            <p id="scoring-weight-help" className="text-sm text-slate-600">Set each priority. The total must equal 100%.</p>
+        <AnalyticsPanel
+          title="Scoring priorities"
+          aside={<span role="status" className={`font-semibold tabular-nums ${isWeightValid ? "text-emerald-800" : "text-rose-700"}`}>{allocationText}</span>}
+        >
+          <div className="p-3.5 space-y-4">
+            <p id="scoring-weight-help" className="sr-only">Set each priority. The total must equal 100%.</p>
             {METRICS.map((metric, index) => (
               <div key={metric.key} className={`space-y-1.5 ${index > 0 ? "pt-3 border-t border-slate-200" : ""}`}>
                 <div className="flex items-center justify-between gap-3 text-sm">
@@ -333,9 +276,9 @@ export const ScoringConfigPage: React.FC = () => {
                         if (drafts[metric.key] === "") updateWeight(metric.key, 0);
                         setDrafts((current) => { const { [metric.key]: _drop, ...rest } = current; return rest; });
                       }}
-                      className="w-16 min-h-11 px-2 py-1 text-right font-sans font-bold text-navy tabular-nums border border-slate-300 rounded-md"
+                      className="focus-ring w-16 min-h-11 md:min-h-9 px-2 py-1 text-right font-semibold text-slate-950 tabular-nums border border-slate-300 rounded-md"
                     />
-                    <span className="font-sans text-slate-500">%</span>
+                    <span className="text-slate-600">%</span>
                   </div>
                 </div>
                 <input
@@ -350,34 +293,20 @@ export const ScoringConfigPage: React.FC = () => {
                   onChange={(e) => { setDrafts({}); updateWeight(metric.key, Number(e.target.value)); }}
                   className="w-full h-11 accent-navy cursor-pointer"
                 />
-                <p className="text-xs text-slate-500 font-sans">
+                <p className="text-xs text-slate-600">
                   {metric.description} Up to {maxFor(weights, metric.key)}%.
                 </p>
               </div>
             ))}
           </div>
-        </div>
+        </AnalyticsPanel>
 
         {/* Candidate AI Match Threshold */}
-        <div className="admin-panel">
-          <div className="p-3 border-b border-slate-300 flex items-center justify-between bg-slate-100">
-            <div className="flex flex-wrap items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-navy" />
-              <h3 className="text-sm font-semibold text-slate-900">
-                 Recommended match score
-              </h3>
-            </div>
-            <span className="font-sans font-bold text-sm text-navy bg-navy-soft px-2 py-0.5 border border-navy-line">
-               Recommend at: {matchThreshold} / 100
-            </span>
-          </div>
-
-          <div className="p-4 space-y-3">
+        <AnalyticsPanel title="Recommended match score">
+          <div className="p-3.5 space-y-3">
             <div className="space-y-1.5">
               <div className="flex justify-between items-center text-sm">
-                 <span className="font-semibold text-slate-950 text-sm">
-                   Score for automatic recommendation
-                </span>
+                <span className="font-semibold text-slate-950">Score for automatic recommendation</span>
                 <div className="flex items-center gap-2">
                   <div className="w-24 shrink-0">
                   <Input
@@ -392,7 +321,7 @@ export const ScoringConfigPage: React.FC = () => {
                     className="w-16 px-2 py-1 text-right"
                   />
                   </div>
-                  <span className="font-sans text-slate-500">/ 100</span>
+                  <span className="text-slate-600">/ 100</span>
                 </div>
               </div>
               <input
@@ -406,29 +335,23 @@ export const ScoringConfigPage: React.FC = () => {
                 onChange={(e) => setMatchThreshold(Number(e.target.value))}
                  className="w-full h-11 accent-navy cursor-pointer"
               />
-              <p className="text-xs text-slate-500 font-sans">
+              <p className="text-xs text-slate-600">
                 Candidates scoring {matchThreshold} or higher are recommended automatically. Lower scores stay available for recruiter review. When a job opens, Talent Pool members at or above this score are sent to the recruiter as a notification.
               </p>
             </div>
           </div>
-        </div>
+        </AnalyticsPanel>
 
         {/* Talent Discovery & Match Parameters */}
-        <div className="admin-panel">
-          <div className="p-3 border-b border-slate-300 flex flex-wrap items-center gap-2 bg-slate-100">
-            <Sliders className="w-4 h-4 text-navy" />
-              <h3 className="text-sm font-semibold text-slate-900">
-              Who to include in matching
-            </h3>
-          </div>
-
-          <div className="p-4 space-y-4">
+        <AnalyticsPanel title="Who to include in matching">
+          <div className="p-3.5 space-y-4">
             <p className="text-sm text-slate-700">
               Only active Talent Pool members are matched. Hired and currently deployed people are always left out.
             </p>
 
             <details className="group border border-slate-200 rounded-md p-3">
-              <summary className="text-sm font-semibold text-slate-700 cursor-pointer flex items-center justify-between">
+              <summary className="focus-ring min-h-11 md:min-h-9 rounded-md text-sm font-semibold text-slate-900 cursor-pointer flex items-center gap-1.5 list-none [&::-webkit-details-marker]:hidden">
+                <ChevronDown className="h-4 w-4 text-slate-600 transition-transform group-open:rotate-180" aria-hidden="true" />
                  Advanced matching options
               </summary>
               <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -466,18 +389,16 @@ export const ScoringConfigPage: React.FC = () => {
               </div>
             </details>
           </div>
-        </div>
+        </AnalyticsPanel>
 
         {/* Save Bar */}
-        <div className="flex items-center justify-between p-3.5 admin-panel">
-          <div className="text-sm font-sans">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-300 bg-white p-3.5">
+          <div className="text-sm">
             {isWeightValid && isKnnValid && Number.isInteger(matchThreshold) && matchThreshold >= 0 && matchThreshold <= 100 ? (
-              <span className="text-emerald-800 font-bold flex items-center gap-1.5" role="status">
-                 <CheckCircle2 className="w-4 h-4 text-emerald-700" /> Ready to save
-              </span>
+              <span className="text-slate-600" role="status">Ready to save</span>
             ) : (
-              <span className="text-rose-800 font-bold flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-rose-700" /> {isWeightValid ? "Review the threshold and advanced matching options." : `${allocationText}`}
+              <span className="text-rose-800 font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-rose-700" aria-hidden="true" /> {isWeightValid ? "Review the threshold and advanced matching options." : `${allocationText}`}
               </span>
             )}
           </div>
@@ -514,14 +435,14 @@ export const ScoringConfigPage: React.FC = () => {
               {historyItems.map((h) => (
                 <div key={h.id} className="py-3 text-sm space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-900 font-sans">
+                    <span className="font-semibold text-slate-900">
                        Saved settings {h.revision} ({h.status})
                     </span>
-                    <span className="text-xs text-slate-400 font-sans">
+                    <span className="text-xs text-slate-600 tabular-nums">
                       {formatDateTime(h.activatedAt)}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-500 font-sans">
+                  <div className="text-xs text-slate-600">
                      Saved by: {h.activatedBy?.email || "Administrator"}
                   </div>
                 </div>
