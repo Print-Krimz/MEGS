@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import nodemailer from "nodemailer";
 import { redactSensitiveText } from "../security/errors.js";
 import { isSyntheticEmail } from "./sms.js";
@@ -8,9 +10,9 @@ export const getFromAddress = (): string => {
   }
   const user = process.env.GMAIL_USER || process.env.SMTP_USER;
   if (user) {
-    return `"MEGS Recruitment" <${user}>`;
+    return `"MEGS Inc." <${user}>`;
   }
-  return '"MEGS Recruitment" <no-reply@megs.com>';
+  return '"MEGS Inc." <no-reply@megs.com>';
 };
 
 export const fromAddress = getFromAddress();
@@ -83,6 +85,165 @@ export const createMailTransporter = () => {
   return null;
 };
 
+// ---------------------------------------------------------------------------
+// MEGS email branding. Every HTML email goes through renderBrandedEmail so the
+// logo, colours and company footer match the public site.
+// ---------------------------------------------------------------------------
+
+const BRAND = {
+  red: "#C8102E",
+  redTint: "#FDF1F2",
+  navy: "#0B2F5B",
+  text: "#0F1B2D",
+  muted: "#4B5A6E",
+  border: "#DDE2E9",
+  page: "#F6F7F9",
+  font: "Arial, Helvetica, sans-serif",
+};
+
+const COMPANY = {
+  shortName: "MEGS Inc.",
+  legalName: "MAR Employment for Good Services Inc.",
+  office: "Valenzuela Central Office",
+  address: "#9, PJAR Bldg, P. Gomez St, Malinta, Valenzuela City",
+  phones: ["0917-629-1864", "(02) 8277-2959", "(02) 8291-0807"],
+  compliance: "DOLE D.O. 174-17 & D.O. 40-03 Compliant",
+};
+
+const LOGO_CID = "megs-logo";
+const LOGO_PATH = path.resolve(process.cwd(), "assets", "megs-logo-email.jpg");
+
+let logoCache: Buffer | null | undefined;
+
+// Read once. A missing file falls back to a text wordmark so mail still goes out.
+const getEmailLogo = (): Buffer | null => {
+  if (logoCache === undefined) {
+    try {
+      logoCache = fs.readFileSync(LOGO_PATH);
+    } catch {
+      console.warn("[Mailer] Email logo not found, using text wordmark:", LOGO_PATH);
+      logoCache = null;
+    }
+  }
+  return logoCache;
+};
+
+const getAppBaseUrl = (): string =>
+  (process.env.APP_URL || process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+
+export const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const textToHtml = (value: string): string => escapeHtml(value).replace(/\r?\n/g, "<br/>");
+
+export const plainTextFooter = (): string =>
+  [
+    "--",
+    `${COMPANY.shortName} | ${COMPANY.legalName}`,
+    `${COMPANY.office}, ${COMPANY.address}`,
+    COMPANY.phones.join(" | "),
+    getAppBaseUrl(),
+  ].join("\n");
+
+export interface BrandedEmailParams {
+  heading: string;
+  bodyHtml: string;
+  // Inbox preview line. Defaults to the heading.
+  preheader?: string;
+  // Small coloured label above the heading.
+  eyebrow?: { text: string; color: string };
+  cta?: { text: string; url: string };
+  // Security or context note shown under the body.
+  footnote?: string;
+}
+
+export const renderBrandedEmail = (params: BrandedEmailParams): string => {
+  const baseUrl = getAppBaseUrl();
+  const siteLabel = baseUrl.replace(/^https?:\/\//, "");
+
+  const logoHtml = getEmailLogo()
+    ? `<img src="cid:${LOGO_CID}" alt="MEGS Inc." width="110" height="80" style="display: block; border: 0; width: 110px; height: auto;" />`
+    : `<span style="font-family: ${BRAND.font}; font-size: 24px; font-weight: 800; color: ${BRAND.red}; letter-spacing: 0.02em;">MEGS Inc.</span>`;
+
+  const eyebrowHtml = params.eyebrow
+    ? `<p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: ${params.eyebrow.color};">${escapeHtml(params.eyebrow.text)}</p>`
+    : "";
+
+  const ctaHtml = params.cta
+    ? `
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 28px 0 8px 0;">
+                <tr>
+                  <td style="border-radius: 6px; background-color: ${BRAND.red};">
+                    <a href="${escapeHtml(params.cta.url)}" style="display: inline-block; padding: 13px 26px; font-family: ${BRAND.font}; font-size: 15px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 6px;">${escapeHtml(params.cta.text)}</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 0; font-size: 12px; line-height: 1.5; color: ${BRAND.muted};">Button not working? Copy this link into your browser:<br/><a href="${escapeHtml(params.cta.url)}" style="color: ${BRAND.navy}; word-break: break-all;">${escapeHtml(params.cta.url)}</a></p>`
+    : "";
+
+  const footnoteHtml = params.footnote
+    ? `<p style="margin: 24px 0 0 0; padding-top: 16px; border-top: 1px solid ${BRAND.border}; font-size: 13px; line-height: 1.5; color: ${BRAND.muted};">${escapeHtml(params.footnote)}</p>`
+    : "";
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<title>${escapeHtml(params.heading)}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: ${BRAND.page};">
+  <div style="display: none; max-height: 0; overflow: hidden; opacity: 0; color: transparent;">${escapeHtml(params.preheader || params.heading)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${BRAND.page};">
+    <tr>
+      <td align="center" style="padding: 24px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border: 1px solid ${BRAND.border}; border-top: 4px solid ${BRAND.red}; border-radius: 8px; font-family: ${BRAND.font};">
+          <tr>
+            <td style="padding: 20px 32px; border-bottom: 1px solid ${BRAND.border};">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="vertical-align: middle;">${logoHtml}</td>
+                  <td align="right" style="vertical-align: middle; font-size: 12px; line-height: 1.4; color: ${BRAND.navy};">
+                    <strong>${COMPANY.legalName}</strong>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px;">
+              ${eyebrowHtml}
+              <h1 style="margin: 0 0 16px 0; font-size: 22px; line-height: 1.3; font-weight: 700; color: ${BRAND.navy};">${escapeHtml(params.heading)}</h1>
+              <div style="font-size: 15px; line-height: 1.6; color: ${BRAND.text};">${params.bodyHtml}</div>
+              ${ctaHtml}
+              ${footnoteHtml}
+            </td>
+          </tr>
+        </table>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; font-family: ${BRAND.font};">
+          <tr>
+            <td style="padding: 20px 32px; font-size: 12px; line-height: 1.6; color: ${BRAND.muted}; text-align: center;">
+              <strong style="color: ${BRAND.navy};">${COMPANY.legalName} (MEGS)</strong><br/>
+              ${COMPANY.office}, ${COMPANY.address}<br/>
+              ${COMPANY.phones.join(" &middot; ")}<br/>
+              <a href="${escapeHtml(baseUrl)}" style="color: ${BRAND.navy};">${escapeHtml(siteLabel)}</a> &middot; ${COMPANY.compliance.replace("&", "&amp;")}<br/>
+              <span style="display: inline-block; margin-top: 8px;">This is an automated message from the MEGS portal. Please do not reply to this email.</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+};
+
 export const sendMail = async (
   to: string,
   subject: string,
@@ -118,13 +279,24 @@ export const sendMail = async (
     return { success: true, messageId: "dev-mock-id" };
   }
 
+  // Plain-text callers (the outbox worker) still get the branded layout.
+  const finalHtml = html || renderBrandedEmail({ heading: subject, bodyHtml: textToHtml(text) });
+  const logo = finalHtml.includes(`cid:${LOGO_CID}`) ? getEmailLogo() : null;
+
   try {
     const info = await transporter.sendMail({
       from,
       to,
       subject,
-      text,
-      html: html || text,
+      text: `${text}\n\n${plainTextFooter()}`,
+      html: finalHtml,
+      ...(logo
+        ? {
+            attachments: [
+              { filename: "megs-logo.jpg", content: logo, cid: LOGO_CID, contentDisposition: "inline" as const },
+            ],
+          }
+        : {}),
     });
 
     return { success: true, messageId: info.messageId };
@@ -134,39 +306,52 @@ export const sendMail = async (
   }
 };
 
+const otpCodeHtml = (otp: string): string => `
+  <div style="margin: 24px 0; text-align: center;">
+    <span style="display: inline-block; font-family: 'Courier New', monospace; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: ${BRAND.navy}; background-color: ${BRAND.redTint}; padding: 14px 28px; border-radius: 8px; border: 1px dashed ${BRAND.red};">${escapeHtml(otp)}</span>
+  </div>
+  <p style="margin: 0; font-size: 14px; color: ${BRAND.muted};">This code expires in <strong>10 minutes</strong> and can only be used once. MEGS staff will never ask you for this code.</p>`;
+
+export const buildRegistrationOtpEmailHtml = (otp: string): string =>
+  renderBrandedEmail({
+    heading: "Verify your email address",
+    preheader: "Your MEGS verification code expires in 10 minutes.",
+    bodyHtml: `<p style="margin: 0;">Thank you for registering with MEGS Inc. Enter this 6-digit code to activate your applicant account:</p>${otpCodeHtml(otp)}`,
+    footnote: "If you did not register for a MEGS account, you can ignore this email.",
+  });
+
+export const buildPasswordResetOtpEmailHtml = (otp: string): string =>
+  renderBrandedEmail({
+    heading: "Reset your password",
+    preheader: "Your MEGS password reset code expires in 10 minutes.",
+    bodyHtml: `<p style="margin: 0;">We received a request to reset the password of your MEGS account. Enter this 6-digit code to continue:</p>${otpCodeHtml(otp)}`,
+    footnote:
+      "If you did not ask to reset your password, ignore this email. Your password stays the same. Call our Valenzuela office if you think someone else is using your account.",
+  });
+
 export const sendRegistrationOtpEmail = async (to: string, otp: string) => {
-  const subject = "Verify Your MEGS Candidate Account";
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;">
-      <h2 style="color: #0f172a; margin-bottom: 16px;">Verify Your Email Address</h2>
-      <p style="color: #475569; font-size: 14px; line-height: 1.5;">Thank you for registering with MEGS Recruitment Portal. Please use the 6-digit verification code below to activate your candidate account:</p>
-      <div style="margin: 28px 0; text-align: center;">
-        <span style="display: inline-block; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #0d9488; background: #f0fdfa; padding: 14px 28px; border-radius: 8px; border: 1px dashed #0d9488; font-family: monospace;">${otp}</span>
-      </div>
-      <p style="color: #64748b; font-size: 13px;">This code expires in <strong>10 minutes</strong> and can only be used once.</p>
-      <p style="color: #94a3b8; font-size: 12px; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 12px;">If you did not register for a MEGS account, you can safely ignore this email.</p>
-    </div>
-  `;
-  const text = `MEGS Candidate Verification Code: ${otp}\n\nThis code expires in 10 minutes.`;
-  return sendMail(to, subject, text, html);
+  const subject = "MEGS Inc.: Your verification code";
+  const text = `MEGS Inc. verification code: ${otp}\n\nThis code expires in 10 minutes.`;
+  return sendMail(to, subject, text, buildRegistrationOtpEmailHtml(otp));
 };
 
 export const sendPasswordResetOtpEmail = async (to: string, otp: string) => {
-  const subject = "MEGS Password Reset Code";
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;">
-      <h2 style="color: #0f172a; margin-bottom: 16px;">Password Reset Request</h2>
-      <p style="color: #475569; font-size: 14px; line-height: 1.5;">We received a request to reset your MEGS account password. Use the 6-digit verification code below to proceed with the reset:</p>
-      <div style="margin: 28px 0; text-align: center;">
-        <span style="display: inline-block; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #2563eb; background: #eff6ff; padding: 14px 28px; border-radius: 8px; border: 1px dashed #2563eb; font-family: monospace;">${otp}</span>
-      </div>
-      <p style="color: #64748b; font-size: 13px;">This code expires in <strong>10 minutes</strong> and can only be used once.</p>
-      <p style="color: #94a3b8; font-size: 12px; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 12px;">If you did not request a password reset, please ignore this email or contact support if you have security concerns.</p>
-    </div>
-  `;
-  const text = `MEGS Password Reset Code: ${otp}\n\nThis code expires in 10 minutes.`;
-  return sendMail(to, subject, text, html);
+  const subject = "MEGS Inc.: Your password reset code";
+  const text = `MEGS Inc. password reset code: ${otp}\n\nThis code expires in 10 minutes.`;
+  return sendMail(to, subject, text, buildPasswordResetOtpEmailHtml(otp));
 };
+
+export const buildTAInvitationEmailHtml = (setupLink: string, firstName?: string): string =>
+  renderBrandedEmail({
+    heading: "You're invited to the MEGS portal",
+    preheader: "Set up your Talent Acquisition account. The link expires in 48 hours.",
+    bodyHtml: `
+      <p style="margin: 0 0 12px 0;">${firstName ? `Hello ${escapeHtml(firstName)},` : "Hello,"}</p>
+      <p style="margin: 0 0 12px 0;">You have been invited to join MEGS Inc. as a <strong>Talent Acquisition Specialist</strong>.</p>
+      <p style="margin: 0;">Set your password to finish your account setup. This link works once and expires in <strong>48 hours</strong>.</p>`,
+    cta: { text: "Set up your account", url: setupLink },
+    footnote: "If you were not expecting this invitation, contact the MEGS administrator.",
+  });
 
 export const sendTAInvitationEmail = async (
   to: string,
@@ -174,22 +359,9 @@ export const sendTAInvitationEmail = async (
   firstName?: string
 ) => {
   const nameGreeting = firstName ? `Hello ${firstName},` : "Hello,";
-  const subject = "Invitation: Join MEGS as Talent Acquisition Specialist";
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;">
-      <h2 style="color: #0f172a; margin-bottom: 16px;">MEGS Recruitment Management System</h2>
-      <p style="color: #475569; font-size: 14px; line-height: 1.5;">${nameGreeting}</p>
-      <p style="color: #475569; font-size: 14px; line-height: 1.5;">You have been invited to join MEGS as a <strong>Talent Acquisition Specialist</strong>.</p>
-      <p style="color: #475569; font-size: 14px; line-height: 1.5;">Please click the button below to set up your password and complete your secure account onboarding:</p>
-      <div style="margin: 28px 0; text-align: center;">
-        <a href="${setupLink}" style="background-color: #0d9488; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">Complete TA Account Setup</a>
-      </div>
-      <p style="color: #64748b; font-size: 13px;">This secure invitation link is single-use and will expire in <strong>48 hours</strong>.</p>
-      <p style="color: #94a3b8; font-size: 12px; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 12px;">If you were not expecting this invitation, please contact your organization administrator.</p>
-    </div>
-  `;
-  const text = `MEGS TA Invitation:\n\n${nameGreeting}\nYou have been invited to join MEGS as a Talent Acquisition Specialist.\n\nPlease complete your account setup and create your password using this link:\n${setupLink}\n\nThis link is single-use and expires in 48 hours.`;
-  return sendMail(to, subject, text, html);
+  const subject = "MEGS Inc.: Your Talent Acquisition account invitation";
+  const text = `${nameGreeting}\nYou have been invited to join MEGS Inc. as a Talent Acquisition Specialist.\n\nSet up your account and create your password using this link:\n${setupLink}\n\nThis link is single-use and expires in 48 hours.`;
+  return sendMail(to, subject, text, buildTAInvitationEmailHtml(setupLink, firstName));
 };
 
 export interface NotificationEmailTemplateParams {
@@ -200,51 +372,30 @@ export interface NotificationEmailTemplateParams {
   ctaUrl?: string;
 }
 
+const NOTIFICATION_TYPE_STYLES: Record<string, { color: string; label: string }> = {
+  INFO: { color: BRAND.navy, label: "Update" },
+  SUCCESS: { color: "#047857", label: "Good news" },
+  WARNING: { color: "#B45309", label: "Action needed" },
+  ERROR: { color: BRAND.red, label: "Important" },
+};
+
 export const buildNotificationEmailHtml = (params: NotificationEmailTemplateParams): string => {
-  const type = params.type || "INFO";
+  const typeStyle = NOTIFICATION_TYPE_STYLES[params.type || "INFO"] || NOTIFICATION_TYPE_STYLES.INFO;
 
-  const typeStyles: Record<string, { color: string; bg: string; border: string; label: string }> = {
-    INFO: { color: "#0d9488", bg: "#f0fdfa", border: "#ccfbf1", label: "Information" },
-    SUCCESS: { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", label: "Success" },
-    WARNING: { color: "#d97706", bg: "#fffbeb", border: "#fde68a", label: "Warning" },
-    ERROR: { color: "#dc2626", bg: "#fef2f2", border: "#fecaca", label: "Alert" },
-  };
-
-  const currentType = typeStyles[type] || typeStyles.INFO;
-  const formattedMessage = (params.message || "").replace(/\r?\n/g, "<br/>");
-
-  const appBaseUrl = (process.env.APP_URL || process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
-
-  let ctaButtonHtml = "";
+  let cta: BrandedEmailParams["cta"];
   if (params.ctaUrl) {
     let fullCtaUrl = params.ctaUrl;
     if (!fullCtaUrl.startsWith("http://") && !fullCtaUrl.startsWith("https://")) {
-      fullCtaUrl = `${appBaseUrl}${fullCtaUrl.startsWith("/") ? "" : "/"}${fullCtaUrl}`;
+      fullCtaUrl = `${getAppBaseUrl()}${fullCtaUrl.startsWith("/") ? "" : "/"}${fullCtaUrl}`;
     }
-    const ctaText = params.ctaText || "View in Portal";
-    ctaButtonHtml = `
-      <div style="margin: 28px 0; text-align: center;">
-        <a href="${fullCtaUrl}" style="background-color: #0d9488; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block; font-size: 14px; letter-spacing: 0.025em;">${ctaText}</a>
-      </div>
-    `;
+    cta = { text: params.ctaText || "Open the MEGS portal", url: fullCtaUrl };
   }
 
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;">
-      <div style="margin-bottom: 16px;">
-        <span style="display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: ${currentType.color}; background-color: ${currentType.bg}; border: 1px solid ${currentType.border}; padding: 4px 10px; border-radius: 9999px;">
-          ${currentType.label}
-        </span>
-        <span style="margin-left: 8px; font-size: 12px; color: #64748b; font-weight: 600; vertical-align: middle;">MEGS Recruitment</span>
-      </div>
-      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 20px; font-weight: 700; line-height: 1.3;">${params.title}</h2>
-      <div style="color: #475569; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
-        ${formattedMessage}
-      </div>
-      ${ctaButtonHtml}
-      <div style="color: #94a3b8; font-size: 12px; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 12px; line-height: 1.4;">
-        This is an automated notification from MEGS Recruitment Portal. Please do not reply directly to this email.
-      </div>
-    </div>
-  `.trim();
+  return renderBrandedEmail({
+    heading: params.title,
+    preheader: (params.message || "").split(/\r?\n/)[0],
+    eyebrow: { text: typeStyle.label, color: typeStyle.color },
+    bodyHtml: `<p style="margin: 0;">${textToHtml(params.message || "")}</p>`,
+    cta,
+  });
 };
