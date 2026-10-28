@@ -30,7 +30,7 @@ import {
 // GET /api/ta/applications - List and filter applications across postings
 export const listApplications = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status, jobPostingId, jobId, clientId, search, isArchived, page, limit, mineOnly, returning, summary, sort, needsAction, source } = req.query;
+    const { status, jobPostingId, jobId, clientId, search, isArchived, page, limit, mineOnly, returning, summary, sort, needsAction, openOnly, source } = req.query;
     const sortMode = typeof sort === "string" && ["match", "newest", "oldest", "waiting"].includes(sort)
       ? (sort as "match" | "newest" | "oldest" | "waiting")
       : undefined;
@@ -48,6 +48,7 @@ export const listApplications = async (req: Request, res: Response): Promise<voi
       summary: summary === "true",
       sort: sortMode,
       needsAction: needsAction === "true" || needsAction === "1",
+      openOnly: openOnly === "true" || openOnly === "1",
       source: typeof source === "string" && ["ONLINE", "WALK_IN"].includes(source) ? (source as "ONLINE" | "WALK_IN") : undefined,
       currentUserId,
       actor: req.user,

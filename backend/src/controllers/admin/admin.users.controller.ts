@@ -19,6 +19,8 @@ export const listUsers = async (req: Request, res: Response): Promise<void> => {
       limit: req.query.limit as number | undefined,
       search: req.query.search as string | undefined,
       role: req.query.role as "APPLICANT" | "TALENT_ACQUISITION" | "ADMINISTRATOR" | undefined,
+      status: req.query.status as "active" | "inactive" | "invited" | undefined,
+      lastLogin: req.query.lastLogin as "7d" | "30d" | "never" | undefined,
     });
     sendSuccess(res, "Users retrieved successfully", users);
   } catch (error: any) {

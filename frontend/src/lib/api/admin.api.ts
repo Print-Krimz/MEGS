@@ -20,6 +20,8 @@ export interface AdminUserListItem {
   accountStatus: string;
   invitationStatus?: string;
   createdAt: string;
+  /** Last sign-in from Supabase Auth; null when the person has never signed in. */
+  lastLoginAt?: string | null;
   applicantProfile?: {
     id?: number;
     firstName: string;
@@ -33,12 +35,25 @@ export interface AdminUserListQuery {
   limit?: number;
   search?: string;
   role?: Role | "";
+  status?: AdminUserStatus | "";
+  lastLogin?: AdminUserLastLogin | "";
 }
+
+export type AdminUserLastLogin = "7d" | "30d" | "never";
+
+export type AdminUserStatus = "active" | "inactive" | "invited";
 
 export interface AdminUserSummary {
   totalUsers: number;
   recruiters: number;
   administrators: number;
+  pendingInvitations: number;
+  expiredInvitations: number;
+  inactiveAccounts: number;
+  /** Failed scoring revalidation jobs. */
+  failedJobs: number;
+  /** Applicant reschedule requests waiting on a recruiter. */
+  pendingRequests: number;
 }
 
 export interface InviteTADto {
@@ -81,6 +96,8 @@ export const adminApi = {
     const search = filters?.search?.trim();
     if (search) params.append("search", search);
     if (filters?.role) params.append("role", filters.role);
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.lastLogin) params.append("lastLogin", filters.lastLogin);
     const qs = params.toString();
     return api.get<PaginatedListResponse<AdminUserListItem>>(
       `/api/admin/users${qs ? `?${qs}` : ""}`,

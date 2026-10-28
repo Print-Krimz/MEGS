@@ -38,6 +38,8 @@ export interface ListTAApplicationsOptions {
   sort?: ApplicationListSort;
   /** Only applications where the TA has a pending step. */
   needsAction?: boolean;
+  /** Hide closed, archived and deployed records: the review queue only lists work still in progress. */
+  openOnly?: boolean;
   source?: "ONLINE" | "WALK_IN";
 }
 
@@ -192,7 +194,7 @@ export const listTAApplications = async (
           jobPostingId: legacyJobPostingId,
         };
 
-  const { status, jobPostingId, clientId, search, isArchived, page, limit, mineOnly, returningOnly, currentUserId, postedById, summary, actor, sort, needsAction, source } = options;
+  const { status, jobPostingId, clientId, search, isArchived, page, limit, mineOnly, returningOnly, currentUserId, postedById, summary, actor, sort, needsAction, openOnly, source } = options;
   const dynamicScoring = scoringFlags.dynamicCandidateScoringEnabled();
   const configuration = dynamicScoring ? await getActiveScoringConfiguration() : null;
 
@@ -232,6 +234,9 @@ export const listTAApplications = async (
     andConditions.push({ id: { in: await findReturningApplicationIds(actor, isNaN(parsedJobId) ? undefined : parsedJobId) } });
   }
 
+  if (openOnly) {
+    andConditions.push({ isArchived: false, status: { notIn: [...CLOSED_STATUSES, "DEPLOYED"] } });
+  }
   if (needsAction) {
     andConditions.push(needsActionWhere());
   }

@@ -403,13 +403,61 @@ export const buildAdminUserSearchFilter = (search: string) => {
   return { OR: searchTerms };
 };
 
+export type AdminUserStatusFilter = "active" | "inactive" | "invited";
+
+const INVITED_STATUSES = ["PENDING", "INVITED"];
+
+// Same buckets the Users page badge shows: inactive wins, then invited, otherwise active.
+export const buildAdminUserStatusFilter = (status: AdminUserStatusFilter) => {
+  if (status === "inactive") return { OR: [{ isActive: false }, { accountStatus: "DEACTIVATED" }] };
+  if (status === "invited") return { isActive: true, accountStatus: { in: INVITED_STATUSES } };
+  return { isActive: true, accountStatus: { notIn: ["DEACTIVATED", ...INVITED_STATUSES] } };
+};
+
+export type AdminUserLastLoginFilter = "7d" | "30d" | "never";
+
+const LAST_SIGN_IN_TTL_MS = 60_000;
+let lastSignInCache: { at: number; map: Map<string, string | null> } | null = null;
+
+/** Last sign-in per user from Supabase Auth, cached for a minute. Null when Supabase can't be reached. */
+export const getLastSignInMap = async (): Promise<Map<string, string | null> | null> => {
+  if (lastSignInCache && Date.now() - lastSignInCache.at < LAST_SIGN_IN_TTL_MS) return lastSignInCache.map;
+  try {
+    const map = new Map<string, string | null>();
+    for (let page = 1; ; page += 1) {
+      const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+      if (error) throw error;
+      const batch = data?.users ?? [];
+      for (const u of batch) map.set(u.id, u.last_sign_in_at ?? null);
+      if (batch.length < 1000) break;
+    }
+    lastSignInCache = { at: Date.now(), map };
+    return map;
+  } catch (error: any) {
+    console.warn("Could not read last sign-in times from Supabase Auth:", error?.message ?? error);
+    return null;
+  }
+};
+
+const LAST_LOGIN_WINDOW_DAYS = { "7d": 7, "30d": 30 } as const;
+
+export const buildAdminUserLastLoginFilter = (filter: AdminUserLastLoginFilter, map: Map<string, string | null>) => {
+  if (filter === "never") {
+    return { id: { notIn: [...map.entries()].filter(([, at]) => at).map(([id]) => id) } };
+  }
+  const since = Date.now() - LAST_LOGIN_WINDOW_DAYS[filter] * 24 * 60 * 60 * 1000;
+  return { id: { in: [...map.entries()].filter(([, at]) => at && new Date(at).getTime() >= since).map(([id]) => id) } };
+};
+
 export const fetchAllUsers = async (filters: {
   page?: number;
   limit?: number;
   search?: string;
   role?: "APPLICANT" | "TALENT_ACQUISITION" | "ADMINISTRATOR";
+  status?: AdminUserStatusFilter;
+  lastLogin?: AdminUserLastLoginFilter;
 } = {}) => {
-  const paginated = filters.page !== undefined || filters.limit !== undefined || Boolean(filters.search) || Boolean(filters.role);
+  const paginated = filters.page !== undefined || filters.limit !== undefined || Boolean(filters.search) || Boolean(filters.role) || Boolean(filters.status) || Boolean(filters.lastLogin);
   const page = filters.page ?? 1;
   const limit = filters.limit ?? 25;
   const search = filters.search?.trim();
@@ -417,6 +465,13 @@ export const fetchAllUsers = async (filters: {
     ...(filters.role ? { role: filters.role } : {}),
     ...(search ? buildAdminUserSearchFilter(search) : {}),
   };
+  const signIns = await getLastSignInMap();
+  // If Supabase is unreachable the sign-in filter is ignored rather than failing the list.
+  const and: any[] = [
+    ...(filters.status ? [buildAdminUserStatusFilter(filters.status)] : []),
+    ...(filters.lastLogin && signIns ? [buildAdminUserLastLoginFilter(filters.lastLogin, signIns)] : []),
+  ];
+  if (and.length) where.AND = and;
   const [users, total] = await Promise.all([
     prisma.user.findMany({
     where: paginated ? where : undefined,
@@ -471,6 +526,7 @@ export const fetchAllUsers = async (filters: {
       invitedAt: u.invitedAt,
       invitedBy: u.invitedBy,
       createdAt: u.createdAt,
+      lastLoginAt: signIns?.get(u.id) ?? null,
       applicantProfile: u.applicantProfile,
     };
   });
@@ -479,12 +535,33 @@ export const fetchAllUsers = async (filters: {
 };
 
 export const getAdminUserSummary = async () => {
-  const counts = await prisma.user.groupBy({ by: ["role"], _count: { _all: true } });
+  const now = new Date();
+  const invited = { isActive: true, accountStatus: { in: INVITED_STATUSES } };
+  const [counts, invitedTotal, expiredInvitations, inactiveAccounts, failedJobs, pendingRequests] = await Promise.all([
+    prisma.user.groupBy({ by: ["role"], _count: { _all: true } }),
+    prisma.user.count({ where: invited }),
+    // Expired: an invitation was sent and none of them is still usable.
+    prisma.user.count({
+      where: {
+        ...invited,
+        invitations: { some: {}, none: { isUsed: false, expiresAt: { gte: now } } },
+      },
+    }),
+    prisma.user.count({ where: buildAdminUserStatusFilter("inactive") as any }),
+    prisma.scoringRevalidationTask.count({ where: { status: "FAILED" } }),
+    // Applicant requests waiting on a recruiter (reschedule requests are the only request applicants raise).
+    prisma.rescheduleRequest.count({ where: { status: "PENDING" } }),
+  ]);
   const countsByRole = new Map(counts.map((row) => [row.role, row._count._all]));
   return {
     totalUsers: counts.reduce((sum, row) => sum + row._count._all, 0),
     recruiters: countsByRole.get("TALENT_ACQUISITION") ?? 0,
     administrators: countsByRole.get("ADMINISTRATOR") ?? 0,
+    pendingInvitations: invitedTotal - expiredInvitations,
+    expiredInvitations,
+    inactiveAccounts,
+    failedJobs,
+    pendingRequests,
   };
 };
 

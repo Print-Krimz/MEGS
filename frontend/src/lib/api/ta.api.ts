@@ -97,6 +97,7 @@ export interface ApplicationQueryFilters {
   /** Summary list order; omitted means best match. */
   sort?: "match" | "newest" | "oldest" | "waiting";
   needsAction?: boolean;
+  openOnly?: boolean;
   source?: ApplicationSource;
   page?: number;
   limit?: number;
@@ -184,6 +185,7 @@ export const taApi = {
     if (filters.returning) params.append("returning", "true");
     if (filters.sort && filters.sort !== "match") params.append("sort", filters.sort);
     if (filters.needsAction) params.append("needsAction", "true");
+    if (filters.openOnly) params.append("openOnly", "true");
     if (filters.source) params.append("source", filters.source);
     params.append("page", String(filters.page));
     params.append("limit", String(filters.limit));

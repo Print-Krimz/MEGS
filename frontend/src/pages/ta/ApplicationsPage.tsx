@@ -40,6 +40,7 @@ import { EncodeSeveralWalkInsDialog } from "../../components/ta/walk-in/EncodeSe
 import { WalkInSlipDialog } from "../../components/ta/walk-in/WalkInSlipDialog";
 import { CheckInsPanel, useCheckIns } from "../../components/ta/walk-in/CheckInsPanel";
 import { CheckInPosterDialog } from "../../components/ta/walk-in/CheckInPoster";
+import { ReviewQueue } from "../../components/ta/recruitment/ReviewQueue";
 import { TA_COPY } from "../../lib/ta-copy";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import {
@@ -122,6 +123,17 @@ const SORT_OPTIONS = [
   { value: "oldest", label: "Sort: Oldest first" },
   { value: "waiting", label: "Sort: Longest in stage" },
 ];
+
+type ListLayout = "table" | "queue";
+const LAYOUT_STORAGE_KEY = "megs_ta_applications_layout";
+
+const readLayout = (): ListLayout => {
+  try {
+    return window.localStorage.getItem(LAYOUT_STORAGE_KEY) === "queue" ? "queue" : "table";
+  } catch {
+    return "table";
+  }
+};
 
 const daysInStageLabel = (days?: number) => {
   if (days == null) return "-";
@@ -233,6 +245,8 @@ export const ApplicationsPage: React.FC = () => {
         page: valueFor("page", page > 1 ? page : undefined),
       },
       replace: true,
+      // Only the list changes; keep the recruiter where they are instead of jumping to the top.
+      resetScroll: false,
     });
   };
 
@@ -255,6 +269,29 @@ export const ApplicationsPage: React.FC = () => {
   const [posterOpen, setPosterOpen] = useState(false);
   const [view, setView] = useState<"applications" | "check-ins">("applications");
   const checkInCount = useCheckIns().data?.items.length ?? 0;
+  const [layout, setLayoutState] = useState<ListLayout>(readLayout);
+  const queueRef = React.useRef<HTMLDivElement>(null);
+  const scrollToQueue = React.useRef(false);
+  const setLayout = (next: ListLayout) => {
+    setLayoutState(next);
+    scrollToQueue.current = next === "queue";
+    try {
+      window.localStorage.setItem(LAYOUT_STORAGE_KEY, next);
+    } catch {
+      // The choice still applies for this visit.
+    }
+  };
+
+  // Switching to Queue scrolls it to the top of the window so the list and panel fit on screen.
+  useEffect(() => {
+    if (layout !== "queue" || !scrollToQueue.current) return;
+    scrollToQueue.current = false;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    queueRef.current?.scrollIntoView?.({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  }, [layout]);
+
+  // The queue lists work still in progress; deployed and closed records stay in the table.
+  const openOnly = layout === "queue" && !showArchived;
 
   // Modal states for archive
   const [archiveModalApp, setArchiveModalApp] = useState<{ id: number; name: string; isArchived: boolean } | null>(null);
@@ -275,6 +312,7 @@ export const ApplicationsPage: React.FC = () => {
       returningOnly,
       sort: sort ?? "match",
       needsAction,
+      openOnly,
     }],
     queryFn: ({ signal }) =>
       taApi.listApplicationsPage({
@@ -289,6 +327,7 @@ export const ApplicationsPage: React.FC = () => {
         returning: returningOnly || undefined,
         sort,
         needsAction: needsAction || undefined,
+        openOnly: openOnly || undefined,
         summary: true,
       }, { signal }),
     placeholderData: keepPreviousData,
@@ -310,8 +349,9 @@ export const ApplicationsPage: React.FC = () => {
   const stageStripValues = React.useMemo(() => {
     const current = filterValues.status;
     const known = (STAGE_STRIP_STAGES as readonly string[]).includes(current ?? "");
-    return ["", ...STAGE_STRIP_STAGES, ...(current && !known ? [current] : [])];
-  }, [filterValues.status]);
+    const stages = openOnly ? STAGE_STRIP_STAGES.filter((stage) => stage !== ApplicationStatus.DEPLOYED) : STAGE_STRIP_STAGES;
+    return ["", ...stages, ...(current && !known ? [current] : [])];
+  }, [filterValues.status, openOnly]);
   const stageCountQueries = useQueries({
     queries: stageStripValues.map((stage) => ({
       queryKey: ["ta", "applications", "stage-count", {
@@ -322,6 +362,7 @@ export const ApplicationsPage: React.FC = () => {
         source: filterValues.source || "",
         returningOnly,
         needsAction,
+        openOnly,
       }],
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         taApi
@@ -336,6 +377,7 @@ export const ApplicationsPage: React.FC = () => {
             isArchived: false,
             returning: returningOnly || undefined,
             needsAction: needsAction || undefined,
+            openOnly: openOnly || undefined,
             summary: true,
           }, { signal })
           .then((result) => result.total),
@@ -735,6 +777,60 @@ export const ApplicationsPage: React.FC = () => {
     </article>
   );
 
+  const listEmpty = (
+    <EmptyState
+      bare
+      title={
+        showArchived
+          ? "No archived applications"
+          : onlyNeedsActionActive
+          ? "No applications need action"
+          : hasActiveFilters
+          ? "No applications match"
+          : "No applications yet"
+      }
+      description={
+        onlyNeedsActionActive
+          ? "Nothing is waiting on you right now."
+          : hasActiveFilters
+          ? "Change or clear the filters to see more records."
+          : showArchived
+          ? undefined
+          : "Applications submitted through the applicant portal appear here."
+      }
+      action={
+        hasActiveFilters ? (
+          <Button variant="outline" size="sm" onClick={resetFilters}>
+            Clear filters
+          </Button>
+        ) : showArchived ? undefined : (
+          <Button asChild variant="outline" size="sm">
+            <Link to="/ta/jobs">Open job openings</Link>
+          </Button>
+        )
+      }
+    />
+  );
+  const listPagination = (
+    <Pagination
+      variant="inset"
+      currentPage={page}
+      totalPages={totalPages}
+      totalItems={totalItems}
+      pageSize={pageSize}
+      onPageSizeChange={(size) => {
+        setPageSize(size);
+        setPage(1);
+        updateListUrl({ page: undefined });
+      }}
+      onPageChange={(nextPage) => {
+        setPage(nextPage);
+        updateListUrl({ page: nextPage > 1 ? nextPage : undefined });
+      }}
+      itemLabel="applications"
+    />
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -781,6 +877,7 @@ export const ApplicationsPage: React.FC = () => {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
       <div role="group" aria-label="Applications view" className="flex gap-2">
         {(
           [
@@ -799,6 +896,31 @@ export const ApplicationsPage: React.FC = () => {
             {tab.label}
           </Button>
         ))}
+      </div>
+      <div className="flex items-center gap-2">
+      {view === "applications" && (
+        <div role="group" aria-label="Layout" className="inline-flex overflow-hidden rounded-md border border-slate-300">
+          {(
+            [
+              { id: "table", label: "Table" },
+              { id: "queue", label: "Queue" },
+            ] as const
+          ).map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={layout === option.id}
+              onClick={() => setLayout(option.id)}
+              className={`min-h-11 px-3 text-sm font-medium focus-ring md:min-h-9 ${
+                layout === option.id ? "bg-navy text-white" : "bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+      </div>
       </div>
 
       {/* Self check-ins are not applications until a recruiter confirms them, so say where they wait. */}
@@ -826,6 +948,8 @@ export const ApplicationsPage: React.FC = () => {
       <div>
         <SearchFilters
           className="mb-0"
+          collapsed={layout === "queue"}
+          activeCount={activeFilterCount - (search ? 1 : 0)}
           searchPlaceholder="Search candidate, email or job"
           searchValue={search}
           onSearchChange={(v) => {
@@ -973,6 +1097,7 @@ export const ApplicationsPage: React.FC = () => {
         </p>
       )}
 
+      {layout === "table" && (
       <BulkActionBar
         count={selectedRows.length}
         onClear={selection.clear}
@@ -986,6 +1111,7 @@ export const ApplicationsPage: React.FC = () => {
             </Button>
           ))}
       </BulkActionBar>
+      )}
 
       {applicationsQuery.isLoading ? (
         <LoadingState variant="table" rows={6} />
@@ -1004,6 +1130,18 @@ export const ApplicationsPage: React.FC = () => {
             </div>
           )}
         </div>
+      ) : layout === "queue" ? (
+        <div ref={queueRef} className="scroll-mt-20">
+        <ReviewQueue
+          rows={applications}
+          nameOf={candidateNameOf}
+          nextStepOf={nextStepFor}
+          listSearch={listSearch}
+          isFetching={applicationsQuery.isFetching}
+          empty={listEmpty}
+          footer={listPagination}
+        />
+        </div>
       ) : (
         <DataTable
           caption="Applications"
@@ -1019,59 +1157,8 @@ export const ApplicationsPage: React.FC = () => {
             // No bulk action applies to a deployed worker, so select all skips them.
             isRowSelectable: (app) => Boolean(app.isArchived) || app.status !== ApplicationStatus.DEPLOYED,
           }}
-          empty={
-            <EmptyState
-              bare
-              title={
-                showArchived
-                  ? "No archived applications"
-                  : onlyNeedsActionActive
-                  ? "No applications need action"
-                  : hasActiveFilters
-                  ? "No applications match"
-                  : "No applications yet"
-              }
-              description={
-                onlyNeedsActionActive
-                  ? "Nothing is waiting on you right now."
-                  : hasActiveFilters
-                  ? "Change or clear the filters to see more records."
-                  : showArchived
-                  ? undefined
-                  : "Applications submitted through the applicant portal appear here."
-              }
-              action={
-                hasActiveFilters ? (
-                  <Button variant="outline" size="sm" onClick={resetFilters}>
-                    Clear filters
-                  </Button>
-                ) : showArchived ? undefined : (
-                  <Button asChild variant="outline" size="sm">
-                    <Link to="/ta/jobs">Open job openings</Link>
-                  </Button>
-                )
-              }
-            />
-          }
-          footer={
-            <Pagination
-              variant="inset"
-              currentPage={page}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              pageSize={pageSize}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setPage(1);
-                updateListUrl({ page: undefined });
-              }}
-              onPageChange={(nextPage) => {
-                setPage(nextPage);
-                updateListUrl({ page: nextPage > 1 ? nextPage : undefined });
-              }}
-              itemLabel="applications"
-            />
-          }
+          empty={listEmpty}
+          footer={listPagination}
         />
       )}
       </div>
