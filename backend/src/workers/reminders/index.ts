@@ -1,3 +1,4 @@
+import { sendAppointmentReminders } from "./appointment-reminder.js";
 import { sendComplianceDueReminders, sendDocUpdateDueReminders, sendToFollowDueReminders } from "./compliance.js";
 import { sendContractEndReminders } from "./contract-end.js";
 import { sendDocExpiryReminders } from "./doc-expiry.js";
@@ -21,6 +22,7 @@ export const REMINDER_JOBS: ReminderJob[] = [
   job("doc-update-due", () => sendDocUpdateDueReminders()),
   job("to-follow-due", () => sendToFollowDueReminders()),
   job("doc-expiry", () => sendDocExpiryReminders()),
+  job("appointment-reminder", () => sendAppointmentReminders()),
   job("interview-followup", () => sendInterviewFollowupReminders()),
   job("invitation-expiry", () => sendInvitationExpiryReminders()),
   job("contract-end", () => sendContractEndReminders()),

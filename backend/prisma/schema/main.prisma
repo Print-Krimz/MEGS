@@ -57,3 +57,16 @@ enum InterviewType {
   INITIAL_SCREENING
   FINAL_INTERVIEW
 }
+
+// The three appointments an applicant can ask to reschedule.
+enum ScheduleActivity {
+  INITIAL_SCREENING
+  FINAL_INTERVIEW
+  CONTRACT_SIGNING
+}
+
+enum RescheduleStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

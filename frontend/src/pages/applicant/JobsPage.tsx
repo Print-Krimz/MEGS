@@ -19,6 +19,7 @@ import { JobFilters, type JobFilterValues } from "./components/JobFilters";
 import { jobLocationLabel } from "../../lib/job-locations";
 import { MAX_SAVED_JOBS } from "../../lib/saved-jobs";
 import { notify } from "../../lib/feedback";
+import { SALARY_RANGE_MESSAGE, salaryTextError } from "../../lib/field-limits";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
 
@@ -39,16 +40,17 @@ export const JobsPage: React.FC = () => {
   const debouncedSalaryMax = useDebouncedValue(filters.salaryMax, SERVER_SEARCH_DEBOUNCE_MS);
   const locationFilter = filters.location.trim();
 
+  const salaryTextProblem = salaryTextError(debouncedSalaryMin) ?? salaryTextError(debouncedSalaryMax);
   const toPesos = (raw: string): number | undefined => {
     const amount = Number(raw);
-    return raw.trim() !== "" && Number.isFinite(amount) && amount > 0 ? amount : undefined;
+    return !salaryTextError(raw) && raw.trim() !== "" && Number.isFinite(amount) && amount > 0 ? amount : undefined;
   };
   const salaryMin = toPesos(debouncedSalaryMin);
   const salaryMax = toPesos(debouncedSalaryMax);
   const salaryRangeBackwards = salaryMin !== undefined && salaryMax !== undefined && salaryMin > salaryMax;
-  const salaryError = salaryRangeBackwards ? "Minimum salary cannot be higher than the maximum." : undefined;
-  // A backwards range is not sent: the list keeps its last good result until it is fixed.
-  const salaryParams = salaryRangeBackwards ? {} : { salaryMin, salaryMax };
+  const salaryError = salaryTextProblem ?? (salaryRangeBackwards ? SALARY_RANGE_MESSAGE : undefined);
+  // An invalid or backwards range is not sent: the list keeps its last good result until it is fixed.
+  const salaryParams = salaryError ? {} : { salaryMin, salaryMax };
 
   // Pick up search filters carried over from the landing page (e.g. /app/jobs?q=forklift).
   useEffect(() => {

@@ -85,3 +85,22 @@ export const isValidBoundedNumber = (raw: string, min: number, max: number, deci
   const value = Number(raw);
   return Number.isFinite(value) && value >= min && value <= max && (raw.split(".")[1]?.length ?? 0) <= decimals;
 };
+
+export const NUMBERS_ONLY_MESSAGE = "Enter numbers only.";
+export const SALARY_NEGATIVE_MESSAGE = "Salary can't be negative.";
+export const SALARY_RANGE_MESSAGE = "Maximum salary can't be lower than the minimum.";
+export const SALARY_LIMIT = 1_000_000;
+
+/** First problem with a salary text (monthly PHP), or null when it is empty or fine. */
+export const salaryTextError = (raw: string, limit = SALARY_LIMIT): string | null => {
+  const text = raw.trim();
+  if (text === "") return null;
+  if (text.startsWith("-")) return SALARY_NEGATIVE_MESSAGE;
+  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(text)) return NUMBERS_ONLY_MESSAGE;
+  if (Number(text) > limit) return `Salary can't be more than ${limit.toLocaleString("en-PH")}.`;
+  return null;
+};
+
+/** Error for a min/max salary pair when max is below min. Both must already be valid numbers. */
+export const salaryRangeError = (min: string, max: string): string | null =>
+  min.trim() !== "" && max.trim() !== "" && Number(min) > Number(max) ? SALARY_RANGE_MESSAGE : null;

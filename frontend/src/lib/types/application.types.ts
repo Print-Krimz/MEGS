@@ -53,12 +53,36 @@ export interface Interview {
   scheduledAt?: string | null;
   conductedAt?: string | null;
   result?: string | null;
+  /** Outcome notes only. */
   notes?: string | null;
+  /** Meeting place or link. */
+  location?: string | null;
   complianceDeadline?: string | null;
   isCompliant?: boolean | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export type RescheduleActivity = "INITIAL_SCREENING" | "FINAL_INTERVIEW" | "CONTRACT_SIGNING";
+export type RescheduleStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+/** An applicant's request to move an interview or the contract signing. */
+export interface RescheduleRequest {
+  id: number;
+  applicationId?: number;
+  activity: RescheduleActivity;
+  interviewId?: number | null;
+  reason: string;
+  previousScheduledAt?: string | null;
+  status: RescheduleStatus;
+  requestedById?: string | null;
+  decidedById?: string | null;
+  decidedAt?: string | null;
+  decisionNote?: string | null;
+  newScheduledAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface ClientEndorsement {
@@ -67,7 +91,10 @@ export interface ClientEndorsement {
   clientId: number;
   outcome: "PENDING" | "APPROVED" | "DECLINED" | "ENDORSED";
   endorsedById?: string | null;
+  /** Written when the candidate is sent to the client. */
   notes?: string | null;
+  /** Written when the client's decision is recorded. */
+  decisionNotes?: string | null;
   createdAt: string;
   updatedAt: string;
   client?: {
@@ -254,6 +281,10 @@ export interface Application {
   contractStartDate?: string | null;
   contractSignedById?: string | null;
   contractDocumentId?: number | null;
+  /** Scheduled contract-signing appointment, and where it happens. */
+  contractSigningAt?: string | null;
+  contractSigningLocation?: string | null;
+  rescheduleRequests?: RescheduleRequest[];
   isArchived: boolean;
   archivedAt?: string | null;
   createdAt: string;

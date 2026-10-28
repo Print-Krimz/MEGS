@@ -8,6 +8,7 @@ import {
   linkJobToMRF,
   addMRFComplianceTemplatesBulk,
 } from "../../services/ta/ta.mrf.service.js";
+import { readMRFDocument } from "../../services/ta/mrf-read.service.js";
 
 export const listMRFsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -250,5 +251,19 @@ export const removeMRFComplianceTemplateHandler = async (req: Request, res: Resp
     sendSuccess(res, "Compliance template removed from MRF", null);
   } catch (error: any) {
     sendError(res, error.message, 400);
+  }
+};
+
+// POST /api/ta/mrfs/read (multipart, file field "file"). Reads the form with AI; saves nothing.
+export const readMRFFile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      sendError(res, "Attach the manpower request form (PDF, Word file or photo)", 400);
+      return;
+    }
+    sendSuccess(res, "Manpower request form read", await readMRFDocument(req.file));
+  } catch (error: any) {
+    // Only an unsupported or oversized file reaches here; a reading failure returns UNREADABLE instead.
+    sendError(res, error.message, 400, error);
   }
 };

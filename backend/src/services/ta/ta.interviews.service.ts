@@ -2,6 +2,8 @@ import prisma from '../../utils/prisma.js';
 import { notifyJobOwner, sendNotification } from '../../utils/notification.js';
 import { logAudit } from '../../utils/audit.js';
 import { recordBackout } from './backout.service.js';
+import { OFFICE_HOURS_MESSAGE } from "../../config/business-hours.js";
+import { resolvePendingRescheduleRequest } from "../scheduling/reschedule.service.js";
 import { formatManilaDateTime, isFutureDateTime, isWorkingHours } from "../../schemas/field-limits.js";
 import { JOB_OWNER_SELECT, ownedWhere, type Actor } from "./ownership.js";
 import { isPageRequested, paginateArray, type PageRequest } from "../../utils/pagination.js";
@@ -18,12 +20,14 @@ export const scheduleNewInterview = async (
   applicationId: number,
   type: any,
   scheduledAt: string,
-  notes?: string,
-  actorId?: string
+  location?: string,
+  actorId?: string,
+  options: { skipApplicantNotice?: boolean } = {}
 ) => {
   if (!["INITIAL_SCREENING", "FINAL_INTERVIEW"].includes(type)) {
     throw new Error("Choose either Initial Screening or Final Interview.");
   }
+  const place = location?.trim() || undefined;
 
   const scheduledDate = new Date(scheduledAt);
   if (isNaN(scheduledDate.getTime())) {
@@ -36,7 +40,7 @@ export const scheduleNewInterview = async (
     throw new Error("Cannot schedule an interview in the past. Please select a future date and time.");
   }
   if (!isWorkingHours(scheduledAt)) {
-    throw new Error("Interviews must be scheduled during strictly working hours (9:00 AM to 5:00 PM Manila time).");
+    throw new Error(OFFICE_HOURS_MESSAGE);
   }
 
   const application = await prisma.application.findUnique({
@@ -80,7 +84,7 @@ export const scheduleNewInterview = async (
         applicationId,
         "INITIAL_SCREENING",
         actorId,
-        notes || "Initial screening interview scheduled"
+        "Initial screening interview scheduled"
       );
     }
   } else if (type === "FINAL_INTERVIEW") {
@@ -115,6 +119,15 @@ export const scheduleNewInterview = async (
       throw new Error("The candidate already passed the Final interview. Another Final interview cannot be scheduled.");
     }
 
+    // A Final interview happens once, whatever its outcome. Rescheduling one that is still open stays allowed.
+    const finishedFinal = await prisma.interview.findFirst({
+      where: { applicationId, type: "FINAL_INTERVIEW", result: { in: ["PASS", "PASSED", "FAIL", "FAILED"] } },
+      select: { id: true },
+    });
+    if (finishedFinal) {
+      throw new Error("This application already had its final interview. A final interview can only happen once.");
+    }
+
     const finalStages = ["INITIAL_SCREENING", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW"];
     if (!finalStages.includes(application.status)) {
       throw new Error("A Final Interview can't be scheduled at this application's current stage.");
@@ -127,7 +140,7 @@ export const scheduleNewInterview = async (
         applicationId,
         "FINAL_INTERVIEW",
         actorId,
-        notes || "Final client interview scheduled"
+        "Final client interview scheduled"
       );
     }
   }
@@ -152,31 +165,36 @@ export const scheduleNewInterview = async (
       where: { id: existingPending.id },
       data: {
         scheduledAt: new Date(scheduledAt),
-        notes: notes !== undefined ? notes : existingPending.notes,
+        location: place !== undefined ? place : existingPending.location,
         complianceDeadline: deadline,
         result: "PENDING",
       },
     });
 
-    sendNotification(
-      application.userId,
-      "Interview Rescheduled",
-      `Your ${type.replace("_", " ")} has been rescheduled to ${formatManilaDateTime(new Date(scheduledAt))}.`,
-      "INFO",
-      `/app/applications/${applicationId}`,
-      {
-        sendEmail: true,
-        ctaText: "View Interview Details",
-      }
-    );
+    if (!options.skipApplicantNotice) {
+      sendNotification(
+        application.userId,
+        "Interview Rescheduled",
+        `Your ${type.replace("_", " ")} has been rescheduled to ${formatManilaDateTime(new Date(scheduledAt))}.${interview.location ? ` Location: ${interview.location}.` : ""}`,
+        "INFO",
+        `/app/applications/${applicationId}`,
+        {
+          sendEmail: true,
+          ctaText: "View Interview Details",
+        }
+      );
+    }
 
     void logAudit(actorId || application.userId, "INTERVIEW_RESCHEDULED", "Application", applicationId, {
       interviewId: interview.id,
       type,
       previousScheduledAt: existingPending.scheduledAt,
       newScheduledAt: scheduledAt,
-      notes,
+      location: interview.location,
     });
+
+    // The applicant asked to move this interview; a direct reschedule answers that request.
+    await resolvePendingRescheduleRequest(applicationId, type, scheduledAt, actorId);
   } else {
     interview = await prisma.interview.create({
       data: {
@@ -184,7 +202,7 @@ export const scheduleNewInterview = async (
         type,
         scheduledAt: new Date(scheduledAt),
         result: "PENDING",
-        notes,
+        location: place,
         complianceDeadline: deadline,
       },
     });
@@ -192,7 +210,7 @@ export const scheduleNewInterview = async (
     sendNotification(
       application.userId,
       "Interview Scheduled",
-      `Your ${type.replace("_", " ")} has been scheduled for ${formatManilaDateTime(new Date(scheduledAt))}.`,
+      `Your ${type.replace("_", " ")} has been scheduled for ${formatManilaDateTime(new Date(scheduledAt))}.${place ? ` Location: ${place}.` : ""}`,
       "INFO",
       `/app/applications/${applicationId}`,
       {
@@ -205,7 +223,7 @@ export const scheduleNewInterview = async (
       interviewId: interview.id,
       type,
       scheduledAt,
-      notes,
+      location: place,
     });
   }
 
@@ -281,7 +299,7 @@ export const recordDirectInterviewResult = async (
   });
   if (finalized) {
     throw new Error(
-      `Interview result is finalized (${finalized.result}) and can no longer be edited. Contact an administrator to request a correction, or schedule a new interview round.`
+      `Interview result is finalized (${finalized.result}) and can no longer be edited. Contact an administrator to request a correction.${type === "INITIAL_SCREENING" ? " You can also schedule a new Initial interview." : ""}`
     );
   }
 
@@ -363,7 +381,7 @@ export const recordDirectInterviewResult = async (
           applicationId,
           "INITIAL_SCREENING",
           actorId,
-          notes || "Passed initial screening interview"
+          "Passed initial screening interview"
         );
         applicationUpdateMessage = " Application moved to INITIAL_SCREENING stage.";
       } catch (err: any) {
@@ -522,7 +540,7 @@ export const updateInterviewResult = async (
           applicationId,
           "INITIAL_SCREENING",
           actorId,
-          notes || "Passed initial screening interview"
+          "Passed initial screening interview"
         );
         applicationUpdateMessage = " Application moved to INITIAL_SCREENING stage.";
       } catch (err: any) {

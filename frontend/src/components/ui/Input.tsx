@@ -1,6 +1,20 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
-import { FIELD_LIMITS, getInputTextLimit } from "../../lib/field-limits";
+import { FIELD_LIMITS, getInputTextLimit, NUMBERS_ONLY_MESSAGE } from "../../lib/field-limits";
+
+/** Keeps digits, at most one decimal point (when allowed) and a leading minus (only when negatives are allowed). */
+export const cleanNumericText = (value: string, options: { negatives: boolean; decimals: boolean }): string => {
+  let out = "";
+  let seenDot = false;
+  for (const char of value) {
+    if (char >= "0" && char <= "9") out += char;
+    else if (char === "." && options.decimals && !seenDot) {
+      seenDot = true;
+      out += char;
+    } else if (char === "-" && options.negatives && out === "") out += char;
+  }
+  return out;
+};
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -44,11 +58,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const inputType = isNumber ? "text" : type;
     const numericPropValue = typeof props.value === "string" ? props.value : String(props.value ?? "");
     const [numericDraft, setNumericDraft] = useState<string | null>(null);
+    const [nonNumericTyped, setNonNumericTyped] = useState(false);
     const lastNumericPropValue = useRef(numericPropValue);
     useEffect(() => {
       if (numericPropValue !== lastNumericPropValue.current) {
         lastNumericPropValue.current = numericPropValue;
         setNumericDraft(null);
+        setNonNumericTyped(false);
       }
     }, [numericPropValue]);
     const rawNumber = numericDraft ?? numericPropValue;
@@ -64,7 +80,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         (rawNumber.split(".")[1]?.length ?? 0) > decimalPlaces
       ))
     );
-    const effectiveError = error || (numericError ? "Enter one number within the allowed range and precision." : undefined);
+    const effectiveError = error
+      || (isNumber && nonNumericTyped ? NUMBERS_ONLY_MESSAGE : undefined)
+      || (numericError ? "Enter one number within the allowed range and precision." : undefined);
     const defaultMaxLength = type === "date" || isNumber ? undefined : getInputTextLimit(label ?? props.name ?? id, type, FIELD_LIMITS.shortText);
     const defaultMinDate = type === "date" ? "1900-01-01" : undefined;
     const defaultMaxDate = type === "date" ? "2100-12-31" : undefined;
@@ -122,7 +140,10 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             value={isNumber ? numericDraft ?? props.value : props.value}
             onChange={(event) => {
               if (isNumber) {
-                const raw = event.target.value;
+                const typed = event.target.value;
+                const raw = cleanNumericText(typed, { negatives: !(min !== undefined && Number(min) >= 0), decimals: decimalPlaces > 0 });
+                setNonNumericTyped(raw !== typed);
+                if (raw !== typed) event.target.value = raw;
                 setNumericDraft(raw);
                 if (raw === "" || /^-?(?:\d+)?(?:\.\d*)?$/.test(raw)) {
                   if (raw === "" || /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(raw)) props.onChange?.(event);

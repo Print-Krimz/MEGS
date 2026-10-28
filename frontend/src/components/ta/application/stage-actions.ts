@@ -12,6 +12,7 @@ type Interviews = NonNullable<Application["interviews"]>;
 type Interview = Interviews[number];
 
 const isPassed = (i: Interview) => i.result === "PASS" || i.result === "PASSED";
+const isFinished = (i: Interview) => ["PASS", "PASSED", "FAIL", "FAILED"].includes(String(i.result));
 const isOpen = (i: Interview) => !i.result || i.result === "PENDING" || i.result === "SCHEDULED";
 
 const PRE_SCREENING_STATUSES: ApplicationStatus[] = [
@@ -46,6 +47,8 @@ export function deriveApplicationFlags(app: Application) {
   const pendingScreeningInterview = interviews.find((i) => i.type === "INITIAL_SCREENING" && isOpen(i) && active(i));
   const hasPassedFinalInterview = interviews.some((i) => i.type === "FINAL_INTERVIEW" && isPassed(i) && active(i));
   const pendingFinalInterview = interviews.find((i) => i.type === "FINAL_INTERVIEW" && isOpen(i) && active(i));
+  // The backend allows one final interview once a result is recorded, so scheduling closes for good.
+  const hasFinishedFinalInterview = interviews.some((i) => i.type === "FINAL_INTERVIEW" && isFinished(i));
 
   const isPendingClientReview = latestEndorsement?.outcome === "PENDING";
   const isClientDeclined = latestEndorsement?.outcome === "DECLINED";
@@ -76,7 +79,8 @@ export function deriveApplicationFlags(app: Application) {
 
   const isClientEndorsementStage = app.status === ApplicationStatus.CLIENT_ENDORSEMENT;
   const isFinalInterviewStage = app.status === ApplicationStatus.FINAL_INTERVIEW;
-  const canScheduleFinalInterview = isFinalInterviewStage && !hasPassedFinalInterview && !pendingFinalInterview && !isTerminal;
+  const canScheduleFinalInterview =
+    isFinalInterviewStage && !hasPassedFinalInterview && !hasFinishedFinalInterview && !pendingFinalInterview && !isTerminal;
   const canRecordFinalInterview =
     isFinalInterviewStage && !hasPassedFinalInterview && Boolean(pendingFinalInterview) && !isTerminal;
   const canAdvanceToCompliance = isFinalInterviewStage && hasPassedFinalInterview && !isTerminal;
@@ -85,6 +89,7 @@ export function deriveApplicationFlags(app: Application) {
     isClientEndorsementStage &&
     hasPassedScreening &&
     !hasPassedFinalInterview &&
+    !hasFinishedFinalInterview &&
     !pendingFinalInterview &&
     !isClientDeclined &&
     !isTerminal;
@@ -112,6 +117,8 @@ export function deriveApplicationFlags(app: Application) {
     (app.status as string) === "ONBOARDING" ||
     (app.status as string) === "HIRED";
   const isContractSigned = Boolean(app.contractSigned || app.contractSignedAt);
+  const canScheduleContractSigning = app.status === ApplicationStatus.CONTRACT_SIGNING && !isContractSigned && !isTerminal;
+  const hasContractSigningAppointment = Boolean(app.contractSigningAt);
   const isReadyForDeployment = !isTerminal && !hasUnapprovedMandatoryCompliance && isContractSigned;
   // Any scheduled/active deployment for this worker (from this or another application) blocks a new one.
   const openDeployment =
@@ -135,6 +142,7 @@ export function deriveApplicationFlags(app: Application) {
     hasPassedScreening,
     pendingScreeningInterview,
     hasPassedFinalInterview,
+    hasFinishedFinalInterview,
     pendingFinalInterview,
     isPendingClientReview,
     isClientDeclined,
@@ -160,6 +168,8 @@ export function deriveApplicationFlags(app: Application) {
     canAdvanceToContractSigning,
     isContractSigningStage,
     isContractSigned,
+    canScheduleContractSigning,
+    hasContractSigningAppointment,
     isReadyForDeployment,
     openDeployment,
     canDeployCandidate,
@@ -190,6 +200,8 @@ export type StageActionId =
   | "move-to-requirements"
   | "move-to-contract-signing"
   | "upload-contract"
+  | "schedule-contract-signing"
+  | "reschedule-contract-signing"
   | "activate-deployment"
   | "manage-contract-signing"
   | "requirements-pending";
@@ -257,6 +269,10 @@ export function getStageActions(
   }
 
   if (flags.isContractSigningStage) {
+    if (flags.canScheduleContractSigning && !onRequirementsTab) {
+      if (flags.hasContractSigningAppointment) add("reschedule-contract-signing", "Reschedule contract signing", "secondary");
+      else add("schedule-contract-signing", "Schedule contract signing", "secondary");
+    }
     if (flags.canDeployCandidate && !onRequirementsTab) add("activate-deployment", "Activate deployment", "primary");
     if (!flags.isReadyForDeployment && !onRequirementsTab) add("manage-contract-signing", "Manage contract signing", "secondary");
   }

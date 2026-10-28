@@ -9,7 +9,9 @@ import { logAudit } from '../../utils/audit.js';
 import { resolveDocumentSignedUrl, resolveDocumentSignedUrls, uploadAndStoreDocument } from '../document/document.service.js';
 import { buildContractPdfBuffer } from './contract-pdf-builder.js';
 import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
-import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
+import { formatManilaDateTime, isFutureDateTime, isValidDateOnly, isWorkingHours, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
+import { OFFICE_HOURS_MESSAGE } from "../../config/business-hours.js";
+import { resolvePendingRescheduleRequest } from "../scheduling/reschedule.service.js";
 import { JOB_OWNER_SELECT, ownedWhere, type Actor } from "./ownership.js";
 import { syncMRFFulfillmentStatus } from "./ta.mrf.service.js";
 import { stageEnteredAt } from "../analytics/metric-definitions.js";
@@ -595,6 +597,7 @@ export const getTAApplication = async (id: number, options: { generateRequiremen
         where: { isActive: true },
         orderBy: { createdAt: "desc" },
       },
+      rescheduleRequests: { orderBy: { createdAt: "desc" } },
       clientEndorsements: {
         orderBy: { createdAt: "desc" },
         include: { client: true, endorsedBy: { select: { id: true, email: true } } },
@@ -1206,6 +1209,77 @@ const CONTRACT_START_MAX_YEARS_AHEAD = 2;
 const shiftManilaDay = (day: string, shift: { days?: number; years?: number }): string => {
   const [year, month, dayOfMonth] = day.split("-").map(Number);
   return new Date(Date.UTC(year + (shift.years ?? 0), month - 1, dayOfMonth + (shift.days ?? 0))).toISOString().slice(0, 10);
+};
+
+// The TA sets (or moves) the paper contract signing appointment. It does not gate the signed upload.
+export const scheduleContractSigning = async (
+  applicationId: number,
+  scheduledAt: string,
+  location: string | undefined,
+  actorId?: string,
+  options: { skipApplicantNotice?: boolean } = {}
+) => {
+  const when = new Date(scheduledAt);
+  if (isNaN(when.getTime())) throw new Error("Enter a valid contract signing date and time.");
+  if (when.getUTCFullYear() < 1900 || when.getUTCFullYear() > 2100) {
+    throw new Error("Contract signing dates must be within 1900 through 2100.");
+  }
+  if (!isFutureDateTime(scheduledAt)) {
+    throw new Error("Cannot schedule contract signing in the past. Please select a future date and time.");
+  }
+  if (!isWorkingHours(scheduledAt)) throw new Error(OFFICE_HOURS_MESSAGE);
+
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: {
+      status: true,
+      isArchived: true,
+      userId: true,
+      contractSigned: true,
+      contractSigningAt: true,
+      contractSigningLocation: true,
+      jobPosting: { select: { id: true, title: true, ...JOB_OWNER_SELECT } },
+    },
+  });
+  if (!application) throw new Error("Application not found");
+  if (application.isArchived) throw new Error("Cannot schedule contract signing for an archived application.");
+  if (application.status !== "CONTRACT_SIGNING") {
+    throw new Error("Contract signing can only be scheduled while the application is in the Contract Signing stage.");
+  }
+  if (application.contractSigned) throw new Error("The contract is already signed.");
+
+  const place = location?.trim() || application.contractSigningLocation || "";
+  if (!place) throw new Error("Enter where the contract signing takes place.");
+
+  const previous = application.contractSigningAt;
+  const updated = await prisma.application.update({
+    where: { id: applicationId },
+    data: { contractSigningAt: when, contractSigningLocation: place },
+    select: { id: true, contractSigningAt: true, contractSigningLocation: true },
+  });
+
+  const isReschedule = !!previous;
+  if (!options.skipApplicantNotice) {
+    void sendNotification(
+      application.userId,
+      isReschedule ? "Contract Signing Rescheduled" : "Contract Signing Scheduled",
+      isReschedule
+        ? `Your contract signing moved from ${formatManilaDateTime(previous!)} to ${formatManilaDateTime(when)}. Location: ${place}.`
+        : `Your contract signing is set for ${formatManilaDateTime(when)}. Location: ${place}.`,
+      "INFO",
+      `/app/applications/${applicationId}`,
+      { sendEmail: true, ctaText: "View Details" }
+    );
+  }
+
+  void logAudit(actorId || application.userId, isReschedule ? "CONTRACT_SIGNING_RESCHEDULED" : "CONTRACT_SIGNING_SCHEDULED", "Application", applicationId, {
+    scheduledAt,
+    location: place,
+    previousScheduledAt: previous,
+  });
+
+  await resolvePendingRescheduleRequest(applicationId, "CONTRACT_SIGNING", scheduledAt, actorId);
+  return updated;
 };
 
 // The TA photographs or scans the signed paper contract. Saving it records the start date and deploys the candidate.

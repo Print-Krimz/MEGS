@@ -9,8 +9,6 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
-  JobContentRenderer,
-  JobImage,
   DataTable,
   ConfirmDialog,
   StatusBadge,
@@ -81,7 +79,6 @@ export const JobPostingsPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createModalTab, setCreateModalTab] = useState<"edit" | "preview">("edit");
   const [templateConfirmOpen, setTemplateConfirmOpen] = useState(false);
 
   const [selectedMrfId, setSelectedMrfId] = useState<number | null>(null);
@@ -207,14 +204,12 @@ export const JobPostingsPage: React.FC = () => {
     setFormRequirements("");
     setFormIsEvergreen(false);
     setBaseline({ title: "", location: "", requirements: "", description: "" });
-    setCreateModalTab("edit");
     setServerFieldErrors({});
   };
 
   const openCreateDialog = () => {
     setJustSavedJobId(null);
     setFormIsEvergreen(false);
-    setCreateModalTab("edit");
     setCreateModalOpen(true);
   };
 
@@ -249,17 +244,8 @@ export const JobPostingsPage: React.FC = () => {
   }, [justSavedJobId, navigate]);
 
   const createJobMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      const created = await taApi.createJob(payload);
-      if (selectedMrfId && created?.id) {
-        try {
-          await taApi.linkJobToMRF(selectedMrfId, created.id);
-        } catch {
-          // Non-blocking link error
-        }
-      }
-      return created;
-    },
+    // createJob already links the opening to its request through mrfId.
+    mutationFn: (payload: any) => taApi.createJob(payload),
     onSuccess: (newJob, payload) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "jobs"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
@@ -310,8 +296,7 @@ export const JobPostingsPage: React.FC = () => {
     }
     if (Object.keys(errors).length > 0) {
       setServerFieldErrors(errors);
-      setCreateModalTab("edit");
-      notify.error("Check the highlighted fields", Object.values(errors)[0]);
+        notify.error("Check the highlighted fields", Object.values(errors)[0]);
       return;
     }
 
@@ -581,38 +566,13 @@ export const JobPostingsPage: React.FC = () => {
           }}
           className="space-y-4"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3 mb-4">
-            <div className="inline-flex gap-1 bg-slate-100 p-1 text-sm font-medium text-slate-700" role="group" aria-label="Form view">
-              {(
-                [
-                  ["edit", "Edit details"],
-                  ["preview", "Preview"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={createModalTab === id}
-                  onClick={() => setCreateModalTab(id)}
-                  className={cn(
-                    "min-h-11 px-3 py-1.5 transition-colors focus-ring md:min-h-9",
-                    createModalTab === id
-                      ? "bg-white font-semibold text-navy shadow-xs"
-                      : "text-slate-700 hover:text-slate-950"
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
+          <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-200 pb-3 mb-4">
             <Button type="button" variant="outline" size="sm" onClick={handleLoadTemplate}>
               Load template
             </Button>
           </div>
 
-          {createModalTab === "edit" ? (
-            <div className="space-y-4">
+          <div className="space-y-4">
               <ComboBox
                 label="Manpower request"
                 placeholder="Search requests"
@@ -720,46 +680,7 @@ export const JobPostingsPage: React.FC = () => {
                 </label>
               </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-md space-y-4">
-                <div className="flex items-start gap-3 pb-3 border-b border-slate-200">
-                  <JobImage src={formImageUrl} title={formTitle || "Job opening"} alt={formTitle || "Job opening"} size="md" />
-                  <div className="space-y-1">
-                    <h3 className="text-base font-semibold text-slate-900">{formTitle || "Untitled job opening"}</h3>
-                    <p className="text-sm text-slate-600">
-                      {formLocation || "Philippines"}
-                      {formIsEvergreen ? " · Always open" : ""}
-                    </p>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-                  <div className="md:col-span-7 space-y-2">
-                    <h4 className="text-sm font-semibold text-slate-800">Description and responsibilities</h4>
-                    <div className="p-4 bg-white border border-slate-200 rounded-md min-h-[160px]">
-                      {formDescription ? (
-                        <JobContentRenderer content={formDescription} variant="ta" />
-                      ) : (
-                        <p className="text-sm text-slate-600 italic">No description entered yet.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-5 space-y-2">
-                    <h4 className="text-sm font-semibold text-slate-800">Required skills and qualifications</h4>
-                    <div className="p-4 bg-white border border-slate-200 rounded-md min-h-[160px]">
-                      {formRequirements ? (
-                        <JobContentRenderer content={formRequirements} variant="ta" />
-                      ) : (
-                        <p className="text-sm text-slate-600 italic">No requirements entered yet.</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="ghost" size="sm" onClick={closeCreateDialog}>

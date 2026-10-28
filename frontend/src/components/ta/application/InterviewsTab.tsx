@@ -44,13 +44,14 @@ const statusFor = (interview: Interview, now: number) => {
 
 const factsFor = (interview: Interview): TimelineItem["meta"] => [
   { label: "Scheduled", value: <span className="tabular-nums">{formatDateTime(interview.scheduledAt || interview.createdAt)}</span> },
+  ...(interview.location ? [{ label: "Location", value: <span className="break-words">{interview.location}</span> }] : []),
   ...(interview.conductedAt ? [{ label: "Conducted", value: <span className="tabular-nums">{formatDateTime(interview.conductedAt)}</span> }] : []),
 ];
 
 const notesBlock = (interview: Interview) =>
   interview.notes ? (
     <div>
-      <p className="text-xs font-medium text-slate-600">Notes</p>
+      <p className="text-xs font-medium text-slate-600">Outcome notes</p>
       <p className="mt-0.5 border-l-2 border-slate-400 pl-2.5 leading-relaxed text-slate-900">{interview.notes}</p>
     </div>
   ) : undefined;

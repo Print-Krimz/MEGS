@@ -31,7 +31,8 @@ import {
   Library,
 } from "lucide-react";
 import { ApplicationStatus } from "../../lib/types/enums";
-import type { ComplianceRequirement } from "../../lib/types/application.types";
+import type { ComplianceRequirement, RescheduleActivity } from "../../lib/types/application.types";
+import { RescheduleControl, RescheduleRequestDialog } from "../../components/applicant/RescheduleRequest";
 import { RequirementStatusBadge } from "../../components/applicant/RequirementStatusBadge";
 import { notify } from "../../lib/feedback";
 import { getApplicationRefetchInterval } from "../../lib/query-policies";
@@ -74,6 +75,7 @@ export const ApplicationDetailPage: React.FC = () => {
   } | null>(null);
   const [reuseTarget, setReuseTarget] = useState<RequirementRef | null>(null);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [rescheduleActivity, setRescheduleActivity] = useState<RescheduleActivity | null>(null);
 
   const applicationQuery = useQuery({
     queryKey: ["applicant", "application", applicationId],
@@ -125,6 +127,17 @@ export const ApplicationDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "applications"] });
     },
     onError: (err) => notify.error("Unable to withdraw application", err),
+  });
+
+  const rescheduleMutation = useMutation({
+    mutationFn: (data: { activity: RescheduleActivity; reason: string }) => applicantJobsApi.requestReschedule(applicationId, data),
+    onSuccess: () => {
+      setRescheduleActivity(null);
+      queryClient.invalidateQueries({ queryKey: ["applicant", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["applicant", "my-applications"] });
+      notify.success("Request sent", "Your recruiter will review your request and reply.");
+    },
+    onError: (err) => notify.error("Unable to send your request", err),
   });
 
   const reuseMutation = useMutation({
@@ -322,9 +335,26 @@ export const ApplicationDetailPage: React.FC = () => {
         {(application.status === ApplicationStatus.CONTRACT_SIGNING || application.status === ApplicationStatus.ONBOARDING) && (
           <div className="p-4 bg-[#F8FAFC] border-l-4 border-[#6D4FD3] border border-[#D9E2EC] rounded-lg space-y-1">
             <h4 className="text-sm font-semibold text-[#102A43]">Pre-employment documents approved</h4>
-            <p className="text-xs sm:text-sm text-[#627D98] leading-relaxed">
-              Your TA will contact you to sign your employment contract. Check your email for updates.
-            </p>
+            {application.contractSigningAt ? (
+              <>
+                <p className="text-xs sm:text-sm text-[#102A43] leading-relaxed">
+                  Contract signing: <span className="font-semibold">{formatDateTime(application.contractSigningAt)}</span>
+                  {application.contractSigningLocation ? ` at ${application.contractSigningLocation}` : ""}
+                </p>
+                <div className="pt-1">
+                  <RescheduleControl
+                    activity="CONTRACT_SIGNING"
+                    scheduledAt={application.contractSigningAt}
+                    requests={application.rescheduleRequests}
+                    onRequest={setRescheduleActivity}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="text-xs sm:text-sm text-[#627D98] leading-relaxed">
+                Your TA will contact you to sign your employment contract. Check your email for updates.
+              </p>
+            )}
           </div>
         )}
 
@@ -419,6 +449,23 @@ export const ApplicationDetailPage: React.FC = () => {
                         <Clock className="w-3.5 h-3.5 text-[#627D98]" />
                         <span>{formatDateTime(interview.scheduledAt || interview.createdAt)}</span>
                       </div>
+
+                      {interview.location && (
+                        <div className="text-[11px] text-[#627D98] flex items-start gap-2">
+                          <MapPin className="w-3.5 h-3.5 text-[#627D98] shrink-0" />
+                          <span className="break-words">{interview.location}</span>
+                        </div>
+                      )}
+
+                      {(!interview.result || interview.result === "PENDING" || interview.result === "SCHEDULED") && (
+                        <RescheduleControl
+                          activity={interview.type}
+                          interviewId={interview.id}
+                          scheduledAt={interview.scheduledAt}
+                          requests={application.rescheduleRequests}
+                          onRequest={setRescheduleActivity}
+                        />
+                      )}
 
                       {interview.notes && (
                         <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200/90 rounded-md space-y-1">
@@ -791,6 +838,16 @@ export const ApplicationDetailPage: React.FC = () => {
         onClose={() => setWithdrawOpen(false)}
         onSubmit={({ reason, notes }) => withdrawMutation.mutate({ reason, notes })}
         loading={withdrawMutation.isPending}
+      />
+
+      <RescheduleRequestDialog
+        open={rescheduleActivity !== null}
+        onClose={() => {
+          if (!rescheduleMutation.isPending) setRescheduleActivity(null);
+        }}
+        activity={rescheduleActivity}
+        isSubmitting={rescheduleMutation.isPending}
+        onSubmit={(reason) => rescheduleActivity && rescheduleMutation.mutate({ activity: rescheduleActivity, reason })}
       />
 
       {/* Reuse a document from the applicant's library */}

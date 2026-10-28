@@ -5,7 +5,10 @@ import { cn, formatDate } from "../../../lib/utils";
 export interface EndorsementData {
   id: number;
   outcome: string;
+  /** Written when the candidate was sent to the client. */
   notes?: string | null;
+  /** Written when the client's decision was recorded. */
+  decisionNotes?: string | null;
   createdAt?: string | null;
   client?: { name?: string | null } | null;
 }
@@ -97,7 +100,18 @@ export const ClientReviewSummary: React.FC<ClientReviewSummaryProps> = ({
                   <span className={cn("font-semibold", wordClass(end.outcome))}>{clientOutcomeWord(end.outcome)}</span>
                 </p>
                 {end.createdAt && <p className="text-xs text-slate-600">Sent {formatDate(end.createdAt)}</p>}
-                {end.notes && <p className="text-slate-700">{end.notes}</p>}
+                {end.notes && (
+                  <p className="text-slate-700">
+                    <span className="text-slate-600">Note sent with candidate: </span>
+                    {end.notes}
+                  </p>
+                )}
+                {end.decisionNotes && (
+                  <p className="text-slate-700">
+                    <span className="text-slate-600">Client decision note: </span>
+                    {end.decisionNotes}
+                  </p>
+                )}
               </div>
               {canRecordDecision && end !== latest && (
                 <button type="button" className={linkButton} onClick={() => onRecordDecision(end)}>

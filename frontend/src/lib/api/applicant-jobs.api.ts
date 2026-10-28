@@ -4,6 +4,8 @@ import type {
   JobPosting as BaseJobPosting,
   Application,
   ComplianceRequirement,
+  RescheduleActivity,
+  RescheduleRequest,
 } from "../types/application.types";
 import type { ApplicantJobInvitation, RespondInvitationDto } from "../types/applicant.types";
 import type { PaginatedListResponse } from "../types/api.types";
@@ -159,6 +161,10 @@ export const applicantJobsApi = {
   // Get specific application detail
   getApplicationDetail: (id: number | string, options?: RequestInit) =>
     api.get<ApplicationDetailResponse>(`/api/applicant-jobs/applications/${id}`, options),
+
+  // Ask the recruiter for a new interview or contract-signing time
+  requestReschedule: (id: number | string, data: { activity: RescheduleActivity; reason: string }) =>
+    api.post<RescheduleRequest>(`/api/applicant-jobs/applications/${id}/reschedule-requests`, data),
 
   // Upload compliance document
   uploadComplianceDocument: (requirementId: number | string, file: File) => {

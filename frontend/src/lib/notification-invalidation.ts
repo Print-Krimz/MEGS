@@ -28,6 +28,12 @@ const applicantApplicationEvents = new Set([
   "Orientation Completed",
   "Redeployment Fast-Tracked",
   "Deployment Update",
+  "Contract Signing Scheduled",
+  "Contract Signing Rescheduled",
+  "Reschedule Approved",
+  "Reschedule Declined",
+  "Interview Reminder",
+  "Contract Signing Reminder",
 ]);
 
 const taApplicationEvents = new Set([
@@ -42,6 +48,7 @@ const taApplicationEvents = new Set([
   "All Compliance Documents Submitted",
   "Candidate Matched by AI",
   "Candidate Matched",
+  "Reschedule Requested",
 ]);
 
 export function getNotificationInvalidationKeys(

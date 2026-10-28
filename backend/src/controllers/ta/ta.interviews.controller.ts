@@ -31,9 +31,10 @@ export const scheduleInterview = async (req: Request, res: Response): Promise<vo
       sendError(res, "Invalid application ID", 400);
       return;
     }
-    const { type, scheduledAt, notes } = req.body;
+    const { type, scheduledAt, location, notes } = req.body;
     const actorId = (req as any).user?.id;
-    const interview = await scheduleNewInterview(applicationId, type, scheduledAt, notes, actorId);
+    // Older clients sent the meeting place as notes.
+    const interview = await scheduleNewInterview(applicationId, type, scheduledAt, location ?? notes, actorId);
     sendSuccess(res, "Interview scheduled", interview);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;

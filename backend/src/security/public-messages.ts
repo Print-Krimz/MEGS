@@ -1,3 +1,5 @@
+import { OFFICE_HOURS_MESSAGE } from "../config/business-hours.js";
+
 export const CHECK_IN_BIODATA_MESSAGE = "Use a JPEG, PNG or WEBP photo, or a PDF, under 5 MB.";
 export const CHECK_IN_BIODATA_UNAVAILABLE_MESSAGE = "The applicant's biodata could not be loaded. Attach it again.";
 
@@ -6,6 +8,24 @@ export const publicMessages = new Set<string>([
   CHECK_IN_BIODATA_MESSAGE,
   CHECK_IN_BIODATA_UNAVAILABLE_MESSAGE,
   "Biodata not found",
+  OFFICE_HOURS_MESSAGE,
+  "Your request is already with your recruiter.",
+  "You've already rescheduled this once. Contact your recruiter for changes.",
+  "This application is closed, so it can't be rescheduled.",
+  "There's no upcoming contract signing to reschedule.",
+  "This request was already answered.",
+  "This interview is no longer scheduled, so it can't be moved.",
+  "Reschedule request not found",
+  "This application already had its final interview. A final interview can only happen once.",
+  "Interview result is finalized and can no longer be edited. Contact an administrator to request a correction.",
+  "Enter a valid contract signing date and time.",
+  "Contract signing dates must be within 1900 through 2100.",
+  "Cannot schedule contract signing in the past. Please select a future date and time.",
+  "Cannot schedule contract signing for an archived application.",
+  "Contract signing can only be scheduled while the application is in the Contract Signing stage.",
+  "The contract is already signed.",
+  "Enter where the contract signing takes place.",
+  "Attach the manpower request form (PDF, Word file or photo)",
   "This mobile number already has an account. Log in instead, or use Forgot password.",
   "No MEGS office account was found for this mobile number. Check the number, or ask the recruiter who encoded your application.",
   "A code was sent less than a minute ago. Please wait before requesting another.",

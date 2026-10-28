@@ -55,6 +55,12 @@ import {
 } from '../../controllers/ta/ta.interviews.controller.js';
 
 import {
+  scheduleContractSigningHandler,
+  approveRescheduleRequestHandler,
+  rejectRescheduleRequestHandler,
+} from '../../controllers/ta/ta.reschedule.controller.js';
+
+import {
   uploadPostHireDocument,
 } from '../../controllers/ta/ta.posthire.controller.js';
 import {
@@ -91,6 +97,7 @@ import {
   addMRFComplianceTemplatesBulkHandler,
   listMRFComplianceTemplatesHandler,
   removeMRFComplianceTemplateHandler,
+  readMRFFile,
 } from '../../controllers/ta/ta.mrf.controller.js';
 
 import {
@@ -153,7 +160,7 @@ router.use(requireRole("TALENT_ACQUISITION"));
 router.use(validateDateRangeQuery);
 router.use("/analytics", ...analyticsLimiters);
 router.use("/reports", ...reportLimiters);
-router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates", "/candidates/:id/parse-resume", "/walk-ins/read-biodata"], ...aiLimiters);
+router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates", "/candidates/:id/parse-resume", "/walk-ins/read-biodata", "/mrfs/read"], ...aiLimiters);
 
 router.get("/dashboard-counts", getTADashboardCountsHandler);
 
@@ -165,6 +172,8 @@ router.patch("/clients/:id", validate(taSchema.updateClient), requireOwned("clie
 
 router.get("/mrfs", validate(taSchema.listMRFs), listMRFsHandler);
 router.post("/mrfs", validate(taSchema.createMRF), createMRFHandler);
+// Reads an uploaded MRF file into suggested form values. Saves nothing.
+router.post("/mrfs/read", upload.single("file"), readMRFFile);
 router.get("/mrfs/:id", validate(taSchema.idParams), requireOwned("mrf"), getMRFDetailsHandler);
 router.patch("/mrfs/:id", validate(taSchema.updateMRF), requireOwned("mrf"), updateMRFHandler);
 router.post("/mrfs/:id/link-job", validate(taSchema.linkJobToMRF), requireOwned("mrf"), linkJobToMRFHandler);
@@ -251,6 +260,11 @@ router.get("/applications/:id/interviews", validate(taSchema.idParams), requireO
 router.post("/applications/:id/interviews", validate(taSchema.scheduleInterview), requireOwned("application"), scheduleInterview);
 router.post("/applications/:id/interviews/record", validate(taSchema.recordInterview), requireOwned("application"), recordInterviewDirectly);
 router.patch("/applications/:id/interviews/:interviewId/status", validate(taSchema.updateInterviewStatus), requireOwned("application"), requireOwned("interview", "interviewId"), updateInterviewStatus);
+
+// Contract signing appointment and reschedule requests (interviews and contract signing)
+router.post("/applications/:id/contract-signing/schedule", validate(taSchema.scheduleContractSigning), requireOwned("application"), scheduleContractSigningHandler);
+router.post("/applications/:id/reschedule-requests/:requestId/approve", validate(taSchema.approveRescheduleRequest), requireOwned("application"), approveRescheduleRequestHandler);
+router.post("/applications/:id/reschedule-requests/:requestId/reject", validate(taSchema.rejectRescheduleRequest), requireOwned("application"), rejectRescheduleRequestHandler);
 
 // Compliance Checklist
 router.get("/compliance/queue", validate(taSchema.complianceQueueQuery), getScopedApplicationsHandler);

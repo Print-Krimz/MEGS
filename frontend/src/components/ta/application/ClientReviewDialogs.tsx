@@ -144,7 +144,7 @@ export interface ClientDecisionDialogProps {
   clientName: string;
   jobTitle?: string | null;
   requestTitle?: string | null;
-  /** What was sent to the client. Shown as context, never copied into the notes. */
+  /** The note sent with the candidate. Shown as context, never copied into the decision note. */
   priorNote?: { notes: string; date: string } | null;
   initialOutcome: "" | "PENDING" | "APPROVED" | "DECLINED";
   initialNotes: string;
@@ -208,7 +208,7 @@ export const ClientDecisionDialog: React.FC<ClientDecisionDialogProps> = ({
           ]}
         />
         <Textarea
-          label="Client notes"
+          label="Client decision note"
           placeholder="Record client feedback, salary details, or interview notes..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}

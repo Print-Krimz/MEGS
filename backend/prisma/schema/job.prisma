@@ -92,6 +92,11 @@ model Application {
   contractSignedById     String?
   contractDocumentId     Int?
 
+  // Contract signing appointment. One pair = one active appointment; history lives in
+  // RescheduleRequest rows and the audit log.
+  contractSigningAt       DateTime?
+  contractSigningLocation String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -109,6 +114,7 @@ model Application {
   backout ApplicationBackout?
   closures ApplicationClosure[]
   walkInCheckIn WalkInCheckIn?
+  rescheduleRequests RescheduleRequest[]
   talentPoolMembershipsSourced TalentPoolMembership[] @relation("SourceApplication")
 
   @@unique([userId, jobPostingId, attemptNumber])
@@ -136,7 +142,8 @@ model Interview {
   scheduledAt DateTime?
   conductedAt DateTime?
   result      String?   // "PASS" | "FAIL" | "PENDING"
-  notes       String?
+  location    String?   // Where the interview happens or the meeting link, set when scheduling
+  notes       String?   // Outcome notes, written when the result is recorded
 
   // 7-day compliance — TA must act within 7 days of interview
   complianceDeadline DateTime?
@@ -145,8 +152,38 @@ model Interview {
   // Soft delete
   isActive Boolean @default(true)
 
+  rescheduleRequests RescheduleRequest[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// RESCHEDULE REQUEST
+// An applicant asks for a new time for an interview or the contract signing.
+// The rows double as the reschedule history for all three activities.
+// ─────────────────────────────────────────────
+
+model RescheduleRequest {
+  id                  Int              @id @default(autoincrement())
+  applicationId       Int
+  application         Application      @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  activity            ScheduleActivity
+  interviewId         Int?             // set for interviews, null for contract signing
+  interview           Interview?       @relation(fields: [interviewId], references: [id], onDelete: SetNull)
+  reason              String
+  previousScheduledAt DateTime
+  status              RescheduleStatus @default(PENDING)
+  requestedById       String           // applicant user id
+  decidedById         String?          // TA user id
+  decidedAt           DateTime?
+  decisionNote        String?
+  newScheduledAt      DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  // One PENDING request per (applicationId, activity) is enforced by a partial unique index in the migration.
+  @@index([applicationId, activity, status])
 }
 
 // ─────────────────────────────────────────────
@@ -163,7 +200,8 @@ model ClientEndorsement {
   outcome       String      @default("PENDING") // PENDING, ENDORSED, DECLINED
   endorsedById  String?
   endorsedBy    User?       @relation("EndorsementActor", fields: [endorsedById], references: [id])
-  notes         String?
+  notes         String?     // written when the TA sends the candidate to the client
+  decisionNotes String?     // written when the TA records the client's decision
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 

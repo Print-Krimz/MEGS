@@ -4,7 +4,7 @@ import { FileSignature, Truck, CheckCircle2, Lock, ExternalLink, Building2, IdCa
 import { Button } from "../ui/Button";
 import type { Application } from "../../lib/types";
 import { ApplicationStatus } from "../../lib/types";
-import { cn, formatDate as formatAppDate } from "../../lib/utils";
+import { cn, formatDate as formatAppDate, formatDateTime } from "../../lib/utils";
 import { deploymentStatusLabel } from "../../lib/labels";
 import { deploymentStartsOn } from "../../lib/ta-copy";
 import { describeRequirementProgress } from "./application/next-step";
@@ -311,7 +311,15 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                 ) : isComplianceStage ? (
                   <span>Available after the candidate moves to contract signing</span>
                 ) : (
-                  <span className="text-amber-900">Waiting for the signed copy. Saving it deploys the candidate.</span>
+                  <>
+                    {app.contractSigningAt && (
+                      <span className="block font-medium text-slate-900">
+                        Signing on <span className="tabular-nums">{formatDateTime(app.contractSigningAt)}</span>
+                        {app.contractSigningLocation ? ` at ${app.contractSigningLocation}` : ""}
+                      </span>
+                    )}
+                    <span className="text-amber-900">Waiting for the signed copy. Saving it deploys the candidate.</span>
+                  </>
                 )}
               </p>
             </div>

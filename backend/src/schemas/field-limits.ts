@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isWithinBusinessHours } from "../config/business-hours.js";
 
 export const FIELD_LIMITS = {
   name: 100,
@@ -357,23 +358,10 @@ export const isFutureDateTime = (value: string, now = Date.now()): boolean => {
 };
 
 /**
- * Strictly working hours check for Manila time (09:00 - 17:00).
- * Minutes from midnight must be between 9 * 60 (540) and 17 * 60 (1020).
+ * Office hours check for Manila time: Mon–Fri 9:00–17:00, Sat 9:00–12:00, closed Sunday.
+ * The hours live in config/business-hours.ts.
  */
-export const isWorkingHours = (dateOrIso: string | Date): boolean => {
-  const date = typeof dateOrIso === "string" ? new Date(dateOrIso) : dateOrIso;
-  if (!Number.isFinite(date.getTime())) return false;
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Manila",
-    hour: "numeric",
-    minute: "numeric",
-    hourCycle: "h23",
-  }).formatToParts(date);
-  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
-  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
-  const minutesFromMidnight = hour * 60 + minute;
-  return minutesFromMidnight >= 540 && minutesFromMidnight <= 1020;
-};
+export const isWorkingHours = (dateOrIso: string | Date): boolean => isWithinBusinessHours(dateOrIso);
 
 const ADULT_MIN_AGE = 18;
 const ADULT_MAX_AGE = 100;

@@ -1,10 +1,10 @@
-export type PersonalSectionId = "identity" | "background" | "address" | "summary" | "government" | "emergency" | "notes";
+export type PersonalSectionId = "basic" | "contact" | "physical" | "work" | "government" | "emergency" | "notes";
 
 export const PERSONAL_SECTION_ORDER: PersonalSectionId[] = [
-  "identity",
-  "background",
-  "address",
-  "summary",
+  "basic",
+  "contact",
+  "physical",
+  "work",
   "government",
   "emergency",
   "notes",
@@ -12,8 +12,8 @@ export const PERSONAL_SECTION_ORDER: PersonalSectionId[] = [
 
 /** Fields that count toward completion, per section. Sections not listed are optional. */
 export const PERSONAL_REQUIRED_FIELDS: Partial<Record<PersonalSectionId, string[]>> = {
-  identity: ["firstName", "lastName", "mobileNumber", "dateOfBirth"],
-  address: ["address", "province", "city", "barangay", "postalCode"],
+  basic: ["firstName", "lastName", "dateOfBirth"],
+  contact: ["mobileNumber", "address", "province", "city", "barangay", "postalCode"],
   emergency: ["emergencyContactName", "emergencyContactPhone", "emergencyContactRelationship"],
 };
 

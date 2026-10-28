@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { taApi } from "../../lib/api/ta.api";
+import { taApi, type MRFFileField, type MRFFileReading } from "../../lib/api/ta.api";
 import { PageHeader, ConfirmDialog, DateField } from "../../components/common";
 import { MRFCreateSummary, MRFStepList, type MRFStep } from "../../components/ta/recruitment/MRFCreateSummary";
 import { cn } from "../../lib/utils";
@@ -14,7 +14,7 @@ import {
   MRF_EXPERIENCE_OPTIONS,
 } from "../../lib/hr-constants";
 import { TA_COPY } from "../../lib/ta-copy";
-import { getManilaToday } from "../../lib/field-limits";
+import { getManilaToday, salaryTextError, salaryRangeError, SALARY_RANGE_MESSAGE } from "../../lib/field-limits";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
 import {
   validateStandardText,
@@ -67,7 +67,33 @@ const MORE_DETAILS_FIELDS = [
   "tattooPolicy",
 ];
 
+type FileNotes = Partial<Record<MRFFileField, "missing" | "invalid" | "uncertain">>;
+
+const FILE_NOTE_TEXT = {
+  uncertain: "Check this — read from the file.",
+  invalid: "Couldn't read a valid value. Enter it manually.",
+  missing: "Not found in the file.",
+} as const;
+
+const MRF_FILE_ACCEPT = "application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/webp";
+const MRF_FILE_MAX_BYTES = 5 * 1024 * 1024;
+
+/** Page defaults count as empty: a file may replace them without asking. */
+const FIELD_DEFAULTS: Partial<Record<MRFFileField, string>> = {
+  headcount: "1",
+  employmentType: "Contractual",
+  workArrangement: "On-site",
+  genderPreference: "ANY",
+  tattooPolicy: "ALLOWED",
+};
+
+const isEmptyField = (key: MRFFileField, values: Record<MRFFileField, string>): boolean => {
+  const value = values[key].trim();
+  return value === "" || value === FIELD_DEFAULTS[key];
+};
+
 type PendingFill =
+  | { kind: "file"; reading: MRFFileReading }
   | { kind: "preset"; presetId: string }
   | { kind: "clone"; mrf: ManpowerRequest; preserveClient: boolean };
 
@@ -103,6 +129,10 @@ export const MRFCreatePage: React.FC = () => {
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [pendingFill, setPendingFill] = useState<PendingFill | null>(null);
   const [createdId, setCreatedId] = useState<number | null>(null);
+  const [fileState, setFileState] = useState<"idle" | "reading" | "filled" | "nothing" | "unreadable" | "too-big">("idle");
+  const [fileNotes, setFileNotes] = useState<FileNotes>({});
+  const fileReadVersion = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const presetsByIndustry = useMemo(() => getPresetsByIndustry(), []);
 
   const clientsQuery = useQuery({
@@ -113,7 +143,16 @@ export const MRFCreatePage: React.FC = () => {
 
   const [validationError, setValidationError] = useState<string | null>(null);
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
-  const clearServerFieldError = (field: string) =>
+  const clearServerFieldError = (field: string) => {
+    setFileNotes((prev) => {
+      if (!(field in prev)) return prev;
+      const next = { ...prev };
+      delete next[field as MRFFileField];
+      return next;
+    });
+    clearServerError(field);
+  };
+  const clearServerError = (field: string) =>
     setServerFieldErrors((prev) => {
       if (!(field in prev)) return prev;
       const next = { ...prev };
@@ -347,9 +386,86 @@ export const MRFCreatePage: React.FC = () => {
     applyClonedMRF(mrf, preserveClient);
   };
 
+  // Latest typed values, so a file that finishes reading later never works from stale state.
+  const currentValues: Record<MRFFileField, string> = {
+    title, description, headcount: String(headcount), location, targetFillDate, employmentType, workArrangement,
+    requiredSkills, requiredExperience, requiredEducation, requiredCertifications,
+    salaryRangeMin: salaryMin, salaryRangeMax: salaryMax, ageMin, ageMax, genderPreference, tattooPolicy,
+  };
+  const valuesRef = useRef(currentValues);
+  valuesRef.current = currentValues;
+
+  const fileSetters: Record<MRFFileField, (value: string) => void> = {
+    title: setTitle, description: setDescription, headcount: setHeadcount, location: setLocation,
+    targetFillDate: setTargetFillDate, employmentType: setEmploymentType, workArrangement: setWorkArrangement,
+    requiredSkills: setRequiredSkills, requiredExperience: setRequiredExperience, requiredEducation: setRequiredEducation,
+    requiredCertifications: setRequiredCertifications, salaryRangeMin: setSalaryMin, salaryRangeMax: setSalaryMax,
+    ageMin: setAgeMin, ageMax: setAgeMax, genderPreference: setGenderPreference, tattooPolicy: setTattooPolicy,
+  };
+
+  const fillTargets = (reading: MRFFileReading) => Object.keys(reading.fields) as MRFFileField[];
+
+  /** Fills the form from a reading. Without overwrite, only empty fields are filled. Nothing is saved. */
+  const applyFileReading = (reading: MRFFileReading, overwrite: boolean) => {
+    const before = valuesRef.current;
+    const applied = new Set<MRFFileField>();
+    for (const key of fillTargets(reading)) {
+      if (!overwrite && !isEmptyField(key, before)) continue;
+      fileSetters[key](String(reading.fields[key]));
+      applied.add(key);
+    }
+    const notes: FileNotes = {};
+    for (const [key, issue] of Object.entries(reading.issues) as Array<[MRFFileField, "missing" | "invalid" | "uncertain"]>) {
+      if (issue === "uncertain" ? applied.has(key) : isEmptyField(key, before)) notes[key] = issue;
+    }
+    setFileNotes(notes);
+    setServerFieldErrors({});
+    if (MORE_DETAILS_FIELDS.some((key) => notes[key as MRFFileField])) setMoreDetailsOpen(true);
+    if (["ageMin", "ageMax", "genderPreference", "tattooPolicy"].some((key) => notes[key as MRFFileField])) setClientRequirementsOpen(true);
+    setFileState(applied.size > 0 ? "filled" : "nothing");
+  };
+
+  const readMRFFile = async (file: File) => {
+    const version = ++fileReadVersion.current;
+    setFileState("reading");
+    setFileNotes({});
+    try {
+      const reading = await taApi.readMRFFile(file);
+      if (version !== fileReadVersion.current) return;
+      if (reading.status !== "SUCCESS") {
+        setFileState("unreadable");
+        return;
+      }
+      const hasEntries = fillTargets(reading).some((key) => !isEmptyField(key, valuesRef.current));
+      if (hasEntries) {
+        setFileState("idle");
+        setPendingFill({ kind: "file", reading });
+        return;
+      }
+      applyFileReading(reading, false);
+    } catch {
+      // Includes "too many reads right now". The TA can type the details; creating the request still works.
+      if (version === fileReadVersion.current) setFileState("unreadable");
+    }
+  };
+
+  const handleMRFFileChange = (file: File | null) => {
+    fileReadVersion.current += 1;
+    if (!file) {
+      setFileState("idle");
+      return;
+    }
+    if (file.size > MRF_FILE_MAX_BYTES) {
+      setFileState("too-big");
+      return;
+    }
+    void readMRFFile(file);
+  };
+
   const confirmPendingFill = () => {
     if (!pendingFill) return;
-    if (pendingFill.kind === "preset") applyPreset(pendingFill.presetId);
+    if (pendingFill.kind === "file") applyFileReading(pendingFill.reading, true);
+    else if (pendingFill.kind === "preset") applyPreset(pendingFill.presetId);
     else applyClonedMRF(pendingFill.mrf, pendingFill.preserveClient);
     setPendingFill(null);
   };
@@ -357,6 +473,8 @@ export const MRFCreatePage: React.FC = () => {
   const cancelPendingFill = () => {
     // Put the template picker back where it was; nothing was replaced.
     if (pendingFill?.kind === "preset") setSelectedPresetId("");
+    // Keeping entries still fills whatever is empty.
+    if (pendingFill?.kind === "file") applyFileReading(pendingFill.reading, false);
     setPendingFill(null);
   };
 
@@ -412,18 +530,13 @@ export const MRFCreatePage: React.FC = () => {
       errors.headcount = "Enter a whole number from 1 to 1,000.";
     }
 
-    if (salaryMin !== "") {
-      const min = parseFloat(salaryMin);
-      if (isNaN(min) || min < 0 || min > 1000000) errors.salaryRangeMin = "Minimum monthly salary must be between 0 and 1,000,000 PHP.";
-    }
-
-    if (salaryMax !== "") {
-      const max = parseFloat(salaryMax);
-      if (isNaN(max) || max < 0 || max > 1000000) errors.salaryRangeMax = "Maximum monthly salary must be between 0 and 1,000,000 PHP.";
-    }
-
-    if (!errors.salaryRangeMin && !errors.salaryRangeMax && salaryMin && salaryMax && parseFloat(salaryMin) > parseFloat(salaryMax)) {
-      errors.salaryRangeMax = "Minimum monthly salary cannot exceed maximum monthly salary.";
+    const minSalaryProblem = salaryTextError(salaryMin);
+    const maxSalaryProblem = salaryTextError(salaryMax);
+    if (minSalaryProblem) errors.salaryRangeMin = minSalaryProblem;
+    if (maxSalaryProblem) errors.salaryRangeMax = maxSalaryProblem;
+    if (!minSalaryProblem && !maxSalaryProblem) {
+      const rangeProblem = salaryRangeError(salaryMin, salaryMax);
+      if (rangeProblem) errors.salaryRangeMax = rangeProblem;
     }
 
     if (ageMin !== "") {
@@ -507,6 +620,13 @@ export const MRFCreatePage: React.FC = () => {
     skillCount: activeSkillsList.length,
   };
 
+  const fileNote = (field: MRFFileField) => {
+    const issue = fileNotes[field];
+    // One note is enough when no salary was found.
+    if (field === "salaryRangeMax" && issue === "missing" && fileNotes.salaryRangeMin === "missing") return null;
+    return <FieldWarning show={Boolean(issue)}>{issue ? FILE_NOTE_TEXT[issue] : null}</FieldWarning>;
+  };
+
   const sectionClass = "scroll-mt-24 space-y-4 rounded-md border border-slate-300 bg-white p-4 sm:p-5";
   const sectionTitleClass = "text-lg font-semibold text-slate-950";
 
@@ -580,6 +700,29 @@ export const MRFCreatePage: React.FC = () => {
               </div>
             </div>
 
+            <div className="space-y-1.5">
+              <label htmlFor="mrf-file" className="block text-xs font-medium text-slate-600">
+                Fill from MRF file (optional)
+              </label>
+              <input
+                ref={fileInputRef}
+                id="mrf-file"
+                type="file"
+                accept={MRF_FILE_ACCEPT}
+                aria-describedby="mrf-file-help"
+                onChange={(e) => handleMRFFileChange(e.target.files?.[0] ?? null)}
+                className="block w-full min-h-11 md:min-h-10 rounded-md border border-slate-300 bg-white text-sm text-slate-900 transition-colors hover:border-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 file:mr-3 file:h-full file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-800"
+              />
+              <p id="mrf-file-help" role="status" className="text-xs text-slate-600">
+                {fileState === "reading" && "Reading the file…"}
+                {fileState === "filled" && "Filled from the file. Check every field before creating the request."}
+                {fileState === "nothing" && "Nothing new to fill in."}
+                {fileState === "unreadable" && "Couldn't read this file. Enter the details manually."}
+                {fileState === "too-big" && "The file is over 5 MB. Use a smaller file."}
+                {fileState === "idle" && "PDF, Word file or photo. Only empty fields are filled."}
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <ComboBox
                 id="mrf-client"
@@ -592,6 +735,7 @@ export const MRFCreatePage: React.FC = () => {
                 emptyText="No client accounts match your search"
                 required
               />
+              <div className="space-y-1.5">
               <Input
                 id="mrf-title"
                 label="Request title"
@@ -604,9 +748,12 @@ export const MRFCreatePage: React.FC = () => {
                 }}
                 required
               />
+                {fileNote("title")}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="space-y-1.5">
               <Input
                 id="mrf-headcount"
                 label="Number of workers needed"
@@ -618,6 +765,8 @@ export const MRFCreatePage: React.FC = () => {
                 onChange={handleHeadcountChange}
                 required
               />
+                {fileNote("headcount")}
+              </div>
               <Select
                 label="Priority"
                 value={priority}
@@ -633,6 +782,7 @@ export const MRFCreatePage: React.FC = () => {
                   { value: "URGENT", label: "Urgent (critical need)" },
                 ]}
               />
+              <div className="space-y-1.5">
               <DateField
                 label="Target fill date"
                 min={getManilaToday()}
@@ -643,6 +793,8 @@ export const MRFCreatePage: React.FC = () => {
                   clearServerFieldError("targetFillDate");
                 }}
               />
+                {fileNote("targetFillDate")}
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -659,6 +811,7 @@ export const MRFCreatePage: React.FC = () => {
                 }}
               />
               <FieldWarning show={locationLooksUnclear(location)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
+              {fileNote("location")}
             </div>
           </section>
 
@@ -682,6 +835,7 @@ export const MRFCreatePage: React.FC = () => {
                 }}
               />
               <FieldWarning show={skillsLookLikeTraits(requiredSkills)}>{SKILLS_TRAITS_WARNING}</FieldWarning>
+              {fileNote("requiredSkills")}
               {activeSkillsList.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                   <span className="text-xs text-slate-600">
@@ -719,6 +873,7 @@ export const MRFCreatePage: React.FC = () => {
               </summary>
               <div className="mt-3 space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
               <ComboBox
                 label="Required experience"
                 placeholder="Select or specify required experience"
@@ -731,6 +886,9 @@ export const MRFCreatePage: React.FC = () => {
                 options={MRF_EXPERIENCE_OPTIONS.map((e) => ({ value: e, label: e }))}
                 allowCustom
               />
+                {fileNote("requiredExperience")}
+              </div>
+              <div className="space-y-1.5">
               <ComboBox
                 label="Minimum education"
                 placeholder="Select minimum education"
@@ -743,8 +901,11 @@ export const MRFCreatePage: React.FC = () => {
                 options={MRF_EDUCATION_OPTIONS.map((ed) => ({ value: ed, label: ed }))}
                 allowCustom
               />
+                {fileNote("requiredEducation")}
+              </div>
             </div>
 
+            <div className="space-y-1.5">
             <Input
               id="mrf-certifications"
               label="Required certifications & licenses"
@@ -756,7 +917,10 @@ export const MRFCreatePage: React.FC = () => {
                 clearServerFieldError("requiredCertifications");
               }}
             />
+              {fileNote("requiredCertifications")}
+            </div>
 
+            <div className="space-y-1.5">
             <Textarea
               id="mrf-notes"
               label="Notes for this client"
@@ -770,6 +934,8 @@ export const MRFCreatePage: React.FC = () => {
               rows={4}
               maxLength={10000}
             />
+              {fileNote("description")}
+            </div>
 
             {/* Internal-only client requirements */}
             <details
@@ -786,6 +952,7 @@ export const MRFCreatePage: React.FC = () => {
                 <p className="text-sm text-slate-600">These preferences are for your team only and are never shown on job postings.</p>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
                   <Input
                     id="mrf-age-min"
                     label="Minimum age"
@@ -798,6 +965,9 @@ export const MRFCreatePage: React.FC = () => {
                     onChange={handleAgeMinChange}
                     helperText="Must be between 18 and 65"
                   />
+                    {fileNote("ageMin")}
+                  </div>
+                  <div className="space-y-1.5">
                   <Input
                     id="mrf-age-max"
                     label="Maximum age"
@@ -810,9 +980,12 @@ export const MRFCreatePage: React.FC = () => {
                     error={serverFieldErrors.ageMax || (isAgeRangeInvalid ? "Maximum age cannot be less than minimum age" : undefined)}
                     helperText="Must be between 18 and 65"
                   />
+                    {fileNote("ageMax")}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
                   <Select
                     label="Gender preference"
                     value={genderPreference}
@@ -827,6 +1000,9 @@ export const MRFCreatePage: React.FC = () => {
                       { value: "FEMALE", label: "Female preferred" },
                     ]}
                   />
+                    {fileNote("genderPreference")}
+                  </div>
+                  <div className="space-y-1.5">
                   <Select
                     label="Tattoo visibility policy"
                     value={tattooPolicy}
@@ -841,6 +1017,8 @@ export const MRFCreatePage: React.FC = () => {
                       { value: "NONE", label: "No tattoos permitted" },
                     ]}
                   />
+                    {fileNote("tattooPolicy")}
+                  </div>
                 </div>
               </div>
             </details>
@@ -854,6 +1032,7 @@ export const MRFCreatePage: React.FC = () => {
               Terms
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
               <ComboBox
                 label="Employment type"
                 placeholder="Select employment type"
@@ -867,6 +1046,9 @@ export const MRFCreatePage: React.FC = () => {
                 allowCustom
                 required
               />
+                {fileNote("employmentType")}
+              </div>
+              <div className="space-y-1.5">
               <ComboBox
                 label="Work arrangement"
                 placeholder="Select arrangement"
@@ -880,9 +1062,12 @@ export const MRFCreatePage: React.FC = () => {
                 allowCustom
                 required
               />
+                {fileNote("workArrangement")}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
               <Input
                 id="mrf-salary-min"
                 label="Minimum monthly salary (PHP)"
@@ -895,6 +1080,9 @@ export const MRFCreatePage: React.FC = () => {
                 error={serverFieldErrors.salaryRangeMin}
                 onChange={handleSalaryMinChange}
               />
+                {fileNote("salaryRangeMin")}
+              </div>
+              <div className="space-y-1.5">
               <Input
                 id="mrf-salary-max"
                 label="Maximum monthly salary (PHP)"
@@ -905,8 +1093,10 @@ export const MRFCreatePage: React.FC = () => {
                 placeholder="e.g. 25000"
                 value={salaryMax}
                 onChange={handleSalaryMaxChange}
-                error={serverFieldErrors.salaryRangeMax || (isSalaryRangeInvalid ? "Maximum salary cannot be less than minimum salary" : undefined)}
+                error={serverFieldErrors.salaryRangeMax || (isSalaryRangeInvalid ? SALARY_RANGE_MESSAGE : undefined)}
               />
+                {fileNote("salaryRangeMax")}
+              </div>
             </div>
           </section>
 

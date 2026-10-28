@@ -3,6 +3,7 @@ import { ApplicationStatus } from "@prisma/client";
 import { BACKOUT_REASONS_BY_PARTY, REJECTION_REASON_CODES } from "../services/ta/backout-rules.js";
 import { BULK_MAX_IDS } from "../services/ta/bulk-rules.js";
 import { resumeMergeAccept } from "./applicant.schema.js";
+import { OFFICE_HOURS_MESSAGE } from "../config/business-hours.js";
 import { manilaDateString, boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber, pageQueryFields, isWorkingHours } from "./field-limits.js";
 
 const phoneField = formattedPhone;
@@ -15,6 +16,11 @@ const salary = finiteNumber({ min: 0, max: 1_000_000, decimals: 2 }).optional().
 const age = finiteNumber({ min: 18, max: 65, integer: true }).optional().nullable();
 const BACKOUT_REASON_VALUES = [...new Set(Object.values(BACKOUT_REASONS_BY_PARTY).flat())] as [string, ...string[]];
 const idValue = finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true });
+const scheduleDateTime = z
+  .string()
+  .datetime({ offset: true })
+  .max(35)
+  .refine((val) => isWorkingHours(val), OFFICE_HOURS_MESSAGE);
 const bulkIds = z.array(idValue).min(1, "Select at least one record").max(BULK_MAX_IDS, `Select at most ${BULK_MAX_IDS} records at a time`);
 // Dropdown values match case-insensitively and are stored as the listed spelling; blank means no selection.
 const listedChoice = <T extends string>(options: readonly T[], message: string) =>
@@ -292,16 +298,30 @@ export const taSchema = {
     params: z.object({ id: boundedIdText }),
     body: z.object({
       type: z.enum(["INITIAL_SCREENING", "FINAL_INTERVIEW"]),
-      scheduledAt: z
-        .string()
-        .datetime({ offset: true })
-        .max(35)
-        .refine(
-          (val) => isWorkingHours(val),
-          "Interviews must be scheduled during strictly working hours (9:00 AM to 5:00 PM Manila time)."
-        ),
+      scheduledAt: scheduleDateTime,
+      // Where the interview happens: a room, address or meeting link.
+      location: boundedText(FIELD_LIMITS.address).optional(),
+      // Older clients sent the meeting place as notes; it is stored as the location.
       notes: boundedText(FIELD_LIMITS.notes).optional(),
     }).strict(),
+  }),
+  scheduleContractSigning: z.object({
+    params: z.object({ id: boundedIdText }),
+    body: z.object({
+      scheduledAt: scheduleDateTime,
+      location: requiredText("Location", FIELD_LIMITS.address),
+    }).strict(),
+  }),
+  approveRescheduleRequest: z.object({
+    params: z.object({ id: boundedIdText, requestId: boundedIdText }),
+    body: z.object({
+      scheduledAt: scheduleDateTime,
+      location: boundedText(FIELD_LIMITS.address).optional(),
+    }).strict(),
+  }),
+  rejectRescheduleRequest: z.object({
+    params: z.object({ id: boundedIdText, requestId: boundedIdText }),
+    body: z.object({ decisionNote: boundedText(FIELD_LIMITS.notes).optional() }).strict(),
   }),
   updateInterviewStatus: z.object({
     params: z.object({ id: boundedIdText, interviewId: boundedIdText }),

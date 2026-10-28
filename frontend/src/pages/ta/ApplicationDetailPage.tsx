@@ -29,7 +29,8 @@ import { PipelineIndicator } from "../../components/common/PipelineIndicator";
 import { APPLICATION_TAB_LABELS, defaultApplicationTab, normalizeApplicationTab, type ApplicationTab } from "../../components/ta/application/tabs";
 import { daysInStage, overdueInterviewCount, summarizeInterview } from "../../components/ta/application/summary";
 import { useIsDesktop } from "../../components/ta/application/useIsDesktop";
-import { ScheduleInterviewDialog } from "../../components/ta/application/ScheduleInterviewDialog";
+import { ScheduleInterviewDialog, type ScheduleActivity } from "../../components/ta/application/ScheduleInterviewDialog";
+import { RescheduleRequestNotice, DeclineRescheduleDialog } from "../../components/ta/application/RescheduleRequestNotice";
 import { SendToClientDialog, ClientDecisionDialog } from "../../components/ta/application/ClientReviewDialogs";
 import { AddRequirementDialog, EditDeadlineDialog } from "../../components/ta/application/RequirementDialogs";
 import { SkipToFinalDialog, FastTrackDialog } from "../../components/ta/application/StageDialogs";
@@ -43,7 +44,7 @@ import { CLOSURE_DISPOSITION_LABELS, CLOSURE_OUTCOME_LABELS, closureReasonLabel,
 import { formatDate, extractDocumentId, displayEmail } from "../../lib/utils";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
 import { ApplicationStatus, InterviewType } from "../../lib/types/enums";
-import type { Interview } from "../../lib/types/application.types";
+import type { Interview, RescheduleRequest } from "../../lib/types/application.types";
 import type { ReviewComplianceDto } from "../../lib/types/ta.types";
 import { notify } from "../../lib/feedback";
 import { SourceChip } from "../../components/ta/walk-in/SourceChip";
@@ -55,7 +56,16 @@ import { addManilaCalendarDays, getManilaToday } from "../../lib/field-limits";
 
 type DialogState =
   | null
-  | { kind: "schedule"; type: InterviewType; isReschedule: boolean; initialDate: string; initialNotes: string }
+  | {
+      kind: "schedule";
+      type: ScheduleActivity;
+      isReschedule: boolean;
+      initialDate: string;
+      initialLocation: string;
+      /** Set when the recruiter is answering an applicant's reschedule request. */
+      requestId?: number;
+    }
+  | { kind: "declineReschedule"; request: RescheduleRequest }
   | { kind: "outcome"; interview: Interview | null; type: InterviewType }
   | { kind: "sendToClient"; mode: "send" | "record" }
   | {
@@ -290,7 +300,33 @@ export const ApplicationDetailPage: React.FC = () => {
       type,
       isReschedule: Boolean(existing),
       initialDate: existing ? manilaIsoToDateTimeLocal(existing.scheduledAt) : "",
-      initialNotes: existing?.notes || "",
+      initialLocation: existing?.location || "",
+    });
+  const openContractSigningSchedule = () =>
+    setDialog({
+      kind: "schedule",
+      type: "CONTRACT_SIGNING",
+      isReschedule: Boolean(app.contractSigningAt),
+      initialDate: manilaIsoToDateTimeLocal(app.contractSigningAt),
+      initialLocation: app.contractSigningLocation || "",
+    });
+  const pendingReschedules = (app.rescheduleRequests || []).filter((r) => r.status === "PENDING");
+  const rescheduleCurrentTime = (request: RescheduleRequest) =>
+    request.activity === "CONTRACT_SIGNING"
+      ? app.contractSigningAt
+      : (app.interviews || []).find((i) => i.id === request.interviewId)?.scheduledAt;
+  // The recruiter picks a new time, so the date starts empty; the place carries over.
+  const openRescheduleAnswer = (request: RescheduleRequest) =>
+    setDialog({
+      kind: "schedule",
+      type: request.activity,
+      isReschedule: true,
+      initialDate: "",
+      initialLocation:
+        (request.activity === "CONTRACT_SIGNING"
+          ? app.contractSigningLocation
+          : (app.interviews || []).find((i) => i.id === request.interviewId)?.location) || "",
+      requestId: request.id,
     });
   const openOutcome = (interview: Interview | null, type: InterviewType) => setDialog({ kind: "outcome", interview, type });
   const openClientDecision = (end: NonNullable<typeof latestEndorsement>, fresh: boolean) =>
@@ -300,8 +336,9 @@ export const ApplicationDetailPage: React.FC = () => {
       clientName: end.client?.name || linkedClientName || "Client",
       // A decision that is still open starts empty; an existing decision opens with its values.
       initialOutcome: fresh ? "" : end.outcome === "ENDORSED" ? "APPROVED" : (end.outcome as "PENDING" | "APPROVED" | "DECLINED"),
-      initialNotes: fresh ? "" : end.notes || "",
-      priorNote: fresh && end.notes ? { notes: end.notes, date: end.createdAt ? formatDate(end.createdAt) : "" } : null,
+      // The decision note is separate from the note sent with the candidate, which only appears as context.
+      initialNotes: fresh ? "" : end.decisionNotes || "",
+      priorNote: end.notes ? { notes: end.notes, date: end.createdAt ? formatDate(end.createdAt) : "" } : null,
     });
 
   const runStageAction = (id: StageActionId) => {
@@ -334,6 +371,9 @@ export const ApplicationDetailPage: React.FC = () => {
         return m.updateStatus.mutate({ status: ApplicationStatus.CONTRACT_SIGNING, reason: "All mandatory clearances verified and approved." });
       case "upload-contract":
         return setDialog({ kind: "contract" });
+      case "schedule-contract-signing":
+      case "reschedule-contract-signing":
+        return openContractSigningSchedule();
       case "activate-deployment":
         return setDialog({ kind: "deploy" });
       case "manage-contract-signing":
@@ -530,6 +570,17 @@ export const ApplicationDetailPage: React.FC = () => {
         </div>
       )}
 
+      {pendingReschedules.map((request) => (
+        <RescheduleRequestNotice
+          key={request.id}
+          candidateName={candidateName}
+          request={request}
+          currentScheduledAt={rescheduleCurrentTime(request)}
+          onPickTime={openRescheduleAnswer}
+          onDecline={(r) => setDialog({ kind: "declineReschedule", request: r })}
+        />
+      ))}
+
       <StageBar
         status={app.status}
         stageLabel={contractSignedOnly ? "Contract signed" : undefined}
@@ -707,9 +758,8 @@ export const ApplicationDetailPage: React.FC = () => {
         onClose={closeDialog}
         candidateName={candidateName}
         jobTitle={jobTitle}
-        isFinalInterview={isFinalInterviewStage}
+        isFinalInterview={(outcomeDialog?.interview?.type ?? outcomeDialog?.type) === InterviewType.FINAL_INTERVIEW}
         scheduledAt={outcomeDialog?.interview?.scheduledAt}
-        defaultNotes={outcomeDialog?.interview?.notes || ""}
         isSubmitting={m.updateInterviewStatus.isPending}
         onSubmit={({ result, notes }) => {
           if (!outcomeDialog) return;
@@ -728,9 +778,36 @@ export const ApplicationDetailPage: React.FC = () => {
         type={dlg?.kind === "schedule" ? dlg.type : InterviewType.INITIAL_SCREENING}
         isReschedule={dlg?.kind === "schedule" ? dlg.isReschedule : false}
         initialDate={dlg?.kind === "schedule" ? dlg.initialDate : ""}
-        initialNotes={dlg?.kind === "schedule" ? dlg.initialNotes : ""}
-        isSubmitting={m.scheduleInterview.isPending}
-        onSubmit={(values) => m.scheduleInterview.mutate(values, { onSuccess: closeDialog })}
+        initialLocation={dlg?.kind === "schedule" ? dlg.initialLocation : ""}
+        isSubmitting={m.scheduleInterview.isPending || m.scheduleContractSigning.isPending || m.approveReschedule.isPending}
+        onSubmit={(values) => {
+          if (dlg?.kind !== "schedule") return;
+          if (dlg.requestId) {
+            m.approveReschedule.mutate(
+              { requestId: dlg.requestId, scheduledAt: values.scheduledAt, location: values.location },
+              { onSuccess: closeDialog }
+            );
+          } else if (values.type === "CONTRACT_SIGNING") {
+            m.scheduleContractSigning.mutate(
+              { scheduledAt: values.scheduledAt, location: values.location ?? "" },
+              { onSuccess: closeDialog }
+            );
+          } else {
+            m.scheduleInterview.mutate({ ...values, type: values.type }, { onSuccess: closeDialog });
+          }
+        }}
+      />
+
+      <DeclineRescheduleDialog
+        open={dlg?.kind === "declineReschedule"}
+        onClose={closeDialog}
+        candidateName={candidateName}
+        activity={dlg?.kind === "declineReschedule" ? dlg.request.activity : null}
+        isSubmitting={m.rejectReschedule.isPending}
+        onSubmit={(decisionNote) => {
+          if (dlg?.kind !== "declineReschedule") return;
+          m.rejectReschedule.mutate({ requestId: dlg.request.id, decisionNote }, { onSuccess: closeDialog });
+        }}
       />
 
       <SendToClientDialog

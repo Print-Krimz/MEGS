@@ -185,7 +185,19 @@ export interface UpdateJobDto {
 export interface ScheduleInterviewDto {
   type: InterviewType;
   scheduledAt: string;
+  /** Meeting place or link. */
+  location?: string;
   notes?: string;
+}
+
+export interface ScheduleContractSigningDto {
+  scheduledAt: string;
+  location: string;
+}
+
+export interface ApproveRescheduleDto {
+  scheduledAt: string;
+  location?: string;
 }
 
 export interface UpdateInterviewResultDto {

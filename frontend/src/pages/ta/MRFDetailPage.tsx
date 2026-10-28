@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
-import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
+import { getManilaToday, toManilaDateInput, salaryTextError, salaryRangeError, SALARY_RANGE_MESSAGE } from "../../lib/field-limits";
 import { adminApi } from "../../lib/api/admin.api";
 import {
   PageHeader,
@@ -342,32 +342,19 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       return;
     }
 
-    if (editSalaryMin !== "" && editSalaryMin != null) {
-      const min = String(editSalaryMin);
-      if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(min) || Number(min) > 1000000) {
-        notify.error("Check the highlighted fields", "Minimum monthly salary must be between 0 and 1,000,000 PHP.");
-        return;
-      }
-    }
-
-    if (editSalaryMax !== "" && editSalaryMax != null) {
-      const max = String(editSalaryMax);
-      if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(max) || Number(max) > 1000000) {
-        notify.error("Check the highlighted fields", "Maximum monthly salary must be between 0 and 1,000,000 PHP.");
-        return;
-      }
-    }
-
-    if (
-      editSalaryMin !== "" &&
-      editSalaryMin != null &&
-      editSalaryMax !== "" &&
-      editSalaryMax != null
-    ) {
-      if (parseFloat(String(editSalaryMin)) > parseFloat(String(editSalaryMax))) {
-        notify.error("Check the highlighted fields", "Minimum monthly salary cannot exceed maximum monthly salary.");
-        return;
-      }
+    const salaryMinText = editSalaryMin == null ? "" : String(editSalaryMin);
+    const salaryMaxText = editSalaryMax == null ? "" : String(editSalaryMax);
+    const salaryErrors: Record<string, string> = {};
+    const minSalaryProblem = salaryTextError(salaryMinText);
+    const maxSalaryProblem = salaryTextError(salaryMaxText);
+    if (minSalaryProblem) salaryErrors.salaryRangeMin = minSalaryProblem;
+    if (maxSalaryProblem) salaryErrors.salaryRangeMax = maxSalaryProblem;
+    const rangeProblem = !minSalaryProblem && !maxSalaryProblem ? salaryRangeError(salaryMinText, salaryMaxText) : null;
+    if (rangeProblem) salaryErrors.salaryRangeMax = rangeProblem;
+    if (Object.keys(salaryErrors).length > 0) {
+      setServerFieldErrors(salaryErrors);
+      notify.error("Check the highlighted fields", Object.values(salaryErrors)[0]);
+      return;
     }
 
     if (editAgeMin !== "" && editAgeMin != null) {
@@ -1124,7 +1111,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     placeholder="e.g. 25000"
                     value={editSalaryMax}
                     onChange={handleEditSalaryMaxChange}
-                    error={serverFieldErrors.salaryRangeMax || (isEditSalaryRangeInvalid ? "Maximum salary cannot be less than minimum salary" : undefined)}
+                    error={serverFieldErrors.salaryRangeMax || (isEditSalaryRangeInvalid ? SALARY_RANGE_MESSAGE : undefined)}
                   />
                 </div>
 

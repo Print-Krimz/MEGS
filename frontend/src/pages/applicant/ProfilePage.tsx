@@ -160,10 +160,10 @@ const manilaDateYearsAgo = (years: number): string => {
 const CONTACT_RELATIONSHIPS = ["Parent", "Spouse", "Sibling", "Child", "Guardian", "Relative", "Other"];
 
 const PERSONAL_SECTION_FIELDS: Record<string, string[]> = {
-  identity: ["firstName", "middleName", "lastName", "mobileNumber", "dateOfBirth", "birthPlace"],
-  background: ["gender", "civilStatus", "nationality", "religion", "height", "weight", "preferredWorkLocations"],
-  address: ["address", "province", "city", "barangay", "postalCode"],
-  summary: ["professionalSummary"],
+  basic: ["firstName", "middleName", "lastName", "dateOfBirth", "birthPlace", "gender", "civilStatus", "nationality", "religion"],
+  contact: ["mobileNumber", "address", "province", "city", "barangay", "postalCode"],
+  physical: ["height", "weight"],
+  work: ["preferredWorkLocations", "professionalSummary"],
   government: ["sss", "philhealth", "pagibig", "tin"],
   emergency: ["emergencyContactName", "emergencyContactPhone", "emergencyContactRelationship", "emergencyContactAddress"],
   notes: ["additionalNotes"],
@@ -225,7 +225,7 @@ export const ProfilePage: React.FC = () => {
     return "overview";
   });
 
-  const [openPersonalSection, setOpenPersonalSection] = useState("identity");
+  const [openPersonalSection, setOpenPersonalSection] = useState("basic");
   const [openQualificationSection, setOpenQualificationSection] = useState("experience");
 
   const handleSectionChange = (section: ProfileSection) => {
@@ -930,7 +930,7 @@ export const ProfilePage: React.FC = () => {
       setOpenQualificationSection("references");
       handleSectionChange("qualifications");
     } else {
-      setOpenPersonalSection("identity");
+      setOpenPersonalSection("basic");
       handleSectionChange("personal");
     }
   };
@@ -1111,18 +1111,14 @@ export const ProfilePage: React.FC = () => {
                   </p>
                 </div>
                 <ProfileDisclosure
-                  id="profile-personal-identity"
-                  title="Identity & contact"
-                  summary="Your legal name and primary contact details"
-                  open={openPersonalSection === "identity"}
-                  onToggle={() => setOpenPersonalSection(openPersonalSection === "identity" ? "" : "identity")}
-                  {...stepProps("identity")}
+                  id="profile-personal-basic"
+                  title="Basic information"
+                  summary="Your legal name and personal details"
+                  open={openPersonalSection === "basic"}
+                  onToggle={() => setOpenPersonalSection(openPersonalSection === "basic" ? "" : "basic")}
+                  {...stepProps("basic")}
                 >
-                {/* 1. Legal Name & Contact */}
                 <div className="space-y-3">
-                  <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
-                    1. Legal Identity & Contact Details
-                  </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Input
                       label="First Name"
@@ -1163,21 +1159,7 @@ export const ProfilePage: React.FC = () => {
                       required
                     />
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <PhoneInput
-                      label="Contact Number"
-                      value={personalForm.mobileNumber}
-                      error={personalFieldErrors.mobileNumber}
-                      mobileOnly
-                      helperText={autoFilledFields.has("mobileNumber") ? "✓ Extracted from resume" : undefined}
-                      onChange={(val) => {
-                        setPersonalForm((prev) => ({ ...prev, mobileNumber: val }));
-                        clearPersonalFieldError("mobileNumber");
-                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("mobileNumber"); return n; });
-                      }}
-                      required
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Input
                       label="Date of Birth"
                       type="date"
@@ -1205,22 +1187,6 @@ export const ProfilePage: React.FC = () => {
                       }}
                     />
                   </div>
-                </div>
-                </ProfileDisclosure>
-
-                {/* 2. Demographics & Background */}
-                <ProfileDisclosure
-                  id="profile-personal-background"
-                  title="Background"
-                  summary="Optional demographic and placement preferences"
-                  open={openPersonalSection === "background"}
-                  onToggle={() => setOpenPersonalSection(openPersonalSection === "background" ? "" : "background")}
-                  {...stepProps("background")}
-                >
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
-                    2. Demographics & Placement Background
-                  </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <Select
                       label="Gender"
@@ -1307,8 +1273,74 @@ export const ProfilePage: React.FC = () => {
                       />
                     )}
                   </div>
+                </div>
+                </ProfileDisclosure>
 
+                <ProfileDisclosure
+                  id="profile-personal-contact"
+                  title="Contact and address"
+                  summary="How we reach you and where you live"
+                  open={openPersonalSection === "contact"}
+                  onToggle={() => setOpenPersonalSection(openPersonalSection === "contact" ? "" : "contact")}
+                  {...stepProps("contact")}
+                >
+                <div className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <PhoneInput
+                      label="Contact Number"
+                      value={personalForm.mobileNumber}
+                      error={personalFieldErrors.mobileNumber}
+                      mobileOnly
+                      helperText={autoFilledFields.has("mobileNumber") ? "✓ Extracted from resume" : undefined}
+                      onChange={(val) => {
+                        setPersonalForm((prev) => ({ ...prev, mobileNumber: val }));
+                        clearPersonalFieldError("mobileNumber");
+                        setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("mobileNumber"); return n; });
+                      }}
+                      required
+                    />
+                  </div>
+                  <Input
+                    label="Complete Residential Address"
+                    maxLength={500}
+                    placeholder="House/Unit No., Street, Barangay"
+                    value={personalForm.address}
+                    error={personalFieldErrors.address}
+                    helperText={autoFilledFields.has("address") ? "✓ Extracted from resume" : undefined}
+                    onChange={(e) => {
+                      setPersonalForm((prev) => ({ ...prev, address: e.target.value }));
+                      clearPersonalFieldError("address");
+                      setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("address"); return n; });
+                    }}
+                  />
+                  <PhilippineAddressFields
+                    province={personalForm.province}
+                    city={personalForm.city}
+                    barangay={personalForm.barangay}
+                    postalCode={personalForm.postalCode}
+                    onChange={(patch) => {
+                      setPersonalForm((previous) => ({ ...previous, ...patch }));
+                      Object.keys(patch).forEach((field) => clearPersonalFieldError(field));
+                      setAutoFilledFields((previous) => {
+                        const next = new Set(previous);
+                        Object.keys(patch).forEach((field) => next.delete(field));
+                        return next;
+                      });
+                    }}
+                  />
+                </div>
+                </ProfileDisclosure>
+
+                <ProfileDisclosure
+                  id="profile-personal-physical"
+                  title="Physical details"
+                  summary="Optional height and weight"
+                  open={openPersonalSection === "physical"}
+                  onToggle={() => setOpenPersonalSection(openPersonalSection === "physical" ? "" : "physical")}
+                  {...stepProps("physical")}
+                >
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Input
                       label="Height (cm)"
                       type="number"
@@ -1357,6 +1389,20 @@ export const ProfilePage: React.FC = () => {
                         });
                       }}
                     />
+                  </div>
+                </div>
+                </ProfileDisclosure>
+
+                <ProfileDisclosure
+                  id="profile-personal-work"
+                  title="Work preferences"
+                  summary="Where you can work and a short introduction"
+                  open={openPersonalSection === "work"}
+                  onToggle={() => setOpenPersonalSection(openPersonalSection === "work" ? "" : "work")}
+                  {...stepProps("work")}
+                >
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
                     <ComboBox
                       label="Preferred Work Locations"
                       placeholder="e.g. Laguna, Quezon City, Makati City, Remote"
@@ -1373,66 +1419,6 @@ export const ProfilePage: React.FC = () => {
                       }}
                     />
                   </div>
-                </div>
-                </ProfileDisclosure>
-
-                {/* 3. Residential Address */}
-                <ProfileDisclosure
-                  id="profile-personal-address"
-                  title="Address & work preferences"
-                  summary="Where you live and where you can work"
-                  open={openPersonalSection === "address"}
-                  onToggle={() => setOpenPersonalSection(openPersonalSection === "address" ? "" : "address")}
-                  {...stepProps("address")}
-                >
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
-                    3. Residential Address
-                  </h4>
-                  <Input
-                    label="Complete Residential Address"
-                    maxLength={500}
-                    placeholder="House/Unit No., Street, Barangay"
-                    value={personalForm.address}
-                    error={personalFieldErrors.address}
-                    helperText={autoFilledFields.has("address") ? "✓ Extracted from resume" : undefined}
-                    onChange={(e) => {
-                      setPersonalForm((prev) => ({ ...prev, address: e.target.value }));
-                      clearPersonalFieldError("address");
-                      setAutoFilledFields((prev) => { const n = new Set(prev); n.delete("address"); return n; });
-                    }}
-                  />
-                  <PhilippineAddressFields
-                    province={personalForm.province}
-                    city={personalForm.city}
-                    barangay={personalForm.barangay}
-                    postalCode={personalForm.postalCode}
-                    onChange={(patch) => {
-                      setPersonalForm((previous) => ({ ...previous, ...patch }));
-                      Object.keys(patch).forEach((field) => clearPersonalFieldError(field));
-                      setAutoFilledFields((previous) => {
-                        const next = new Set(previous);
-                        Object.keys(patch).forEach((field) => next.delete(field));
-                        return next;
-                      });
-                    }}
-                  />
-                </div>
-                </ProfileDisclosure>
-
-                {/* 4. Professional Summary */}
-                <ProfileDisclosure
-                  id="profile-personal-summary"
-                  title="Professional summary"
-                  summary="A short introduction for recruiters"
-                  open={openPersonalSection === "summary"}
-                  onToggle={() => setOpenPersonalSection(openPersonalSection === "summary" ? "" : "summary")}
-                  {...stepProps("summary")}
-                >
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
-                    4. Professional Summary & Career Objective
-                  </h4>
                   <Textarea
                     label="Professional Summary"
                     rows={3}
@@ -1453,19 +1439,15 @@ export const ProfilePage: React.FC = () => {
                 </div>
                 </ProfileDisclosure>
 
-                {/* 5. Government Identification */}
                 <ProfileDisclosure
                   id="profile-personal-government"
-                  title="Government identification"
+                  title="Government IDs"
                   summary="Statutory numbers"
                   open={openPersonalSection === "government"}
                   onToggle={() => setOpenPersonalSection(openPersonalSection === "government" ? "" : "government")}
                   {...stepProps("government")}
                 >
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
-                    5. Government Identification
-                  </h4>
+                <div className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Input
                       label="SSS Number"
@@ -1523,7 +1505,6 @@ export const ProfilePage: React.FC = () => {
                 </div>
                 </ProfileDisclosure>
 
-                {/* 6. Emergency Contact */}
                 <ProfileDisclosure
                   id="profile-personal-emergency"
                   title="Emergency contact"
@@ -1532,10 +1513,7 @@ export const ProfilePage: React.FC = () => {
                   onToggle={() => setOpenPersonalSection(openPersonalSection === "emergency" ? "" : "emergency")}
                   {...stepProps("emergency")}
                 >
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
-                    6. Emergency Contact Person
-                  </h4>
+                <div className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Input
                       label="Contact Full Name"
@@ -1587,10 +1565,20 @@ export const ProfilePage: React.FC = () => {
                       )}
                     </div>
                   </div>
+                  <Input
+                    label="Emergency Contact Address"
+                    maxLength={500}
+                    placeholder="House/Unit No., Street, Barangay, City"
+                    value={personalForm.emergencyContactAddress}
+                    error={personalFieldErrors.emergencyContactAddress}
+                    onChange={(e) => {
+                      setPersonalForm((prev) => ({ ...prev, emergencyContactAddress: e.target.value }));
+                      clearPersonalFieldError("emergencyContactAddress");
+                    }}
+                  />
                 </div>
                 </ProfileDisclosure>
 
-                {/* 7. Additional Notes */}
                 <ProfileDisclosure
                   id="profile-personal-notes"
                   title="Additional notes"
@@ -1599,10 +1587,7 @@ export const ProfilePage: React.FC = () => {
                   onToggle={() => setOpenPersonalSection(openPersonalSection === "notes" ? "" : "notes")}
                   {...stepProps("notes")}
                 >
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <h4 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider">
-                    7. Additional Notes (Optional)
-                  </h4>
+                <div className="space-y-3">
                   <Textarea
                     label="Additional Notes / Remarks"
                     rows={2}

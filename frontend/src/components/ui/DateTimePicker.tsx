@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useId, useMemo } from "react";
 import { Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight, X, Check } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { isValidDateOnly } from "../../lib/field-limits";
+import { hoursForWeekday, OFFICE_HOURS_MESSAGE, type OpenHours } from "../../lib/business-hours";
 
 export interface DateTimePickerProps {
   value: string; // ISO string or YYYY-MM-DDTHH:mm
@@ -19,16 +20,34 @@ export interface DateTimePickerProps {
   workingHoursOnly?: boolean;
 }
 
-const BUSINESS_SLOTS = [
-  { hour: 9, minute: 0, label: "09:00 AM" },
-  { hour: 10, minute: 0, label: "10:00 AM" },
-  { hour: 11, minute: 0, label: "11:00 AM" },
-  { hour: 13, minute: 0, label: "01:00 PM" },
-  { hour: 14, minute: 0, label: "02:00 PM" },
-  { hour: 15, minute: 0, label: "03:00 PM" },
-  { hour: 16, minute: 0, label: "04:00 PM" },
-  { hour: 17, minute: 0, label: "05:00 PM" },
-] as const;
+function formatMinutes(total: number): string {
+  const hour24 = Math.floor(total / 60);
+  const minute = total % 60;
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${String(hour12).padStart(2, "0")}:${String(minute).padStart(2, "0")} ${hour24 >= 12 ? "PM" : "AM"}`;
+}
+
+/** Hourly start times for a weekday (Manila wall date). Noon is skipped on weekdays for lunch. */
+function slotsForWeekday(weekday: number): Array<{ hour: number; minute: number; label: string }> {
+  const hours = hoursForWeekday(weekday);
+  if (!hours) return [];
+  const slots: Array<{ hour: number; minute: number; label: string }> = [];
+  for (let m = hours.start; m <= hours.end; m += 60) {
+    if (weekday !== 6 && m === 12 * 60) continue;
+    slots.push({ hour: Math.floor(m / 60), minute: m % 60, label: formatMinutes(m) });
+  }
+  return slots;
+}
+
+/** 12-hour clock values offered for a period (AM/PM) within the open hours. */
+function hours12ForPeriod(period: "AM" | "PM", hours: OpenHours): number[] {
+  const result: number[] = [];
+  for (let h = Math.floor(hours.start / 60); h <= Math.floor(hours.end / 60); h++) {
+    if ((h >= 12 ? "PM" : "AM") !== period) continue;
+    result.push(h % 12 === 0 ? 12 : h % 12);
+  }
+  return result;
+}
 
 const DAYS_OF_WEEK = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
 
@@ -63,10 +82,10 @@ export function manilaIsoToDateTimeLocal(value?: string | null): string {
 
 export function isWithinWorkingHours(date: Date | null): boolean {
   if (!date || isNaN(date.getTime())) return false;
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  const totalMinutes = hours * 60 + minutes;
-  return totalMinutes >= 540 && totalMinutes <= 1020;
+  const open = hoursForWeekday(date.getDay());
+  if (!open) return false;
+  const totalMinutes = date.getHours() * 60 + date.getMinutes();
+  return totalMinutes >= open.start && totalMinutes <= open.end;
 }
 
 export function isWorkingHoursIso(isoOrLocal?: string | null): boolean {
@@ -286,8 +305,12 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   };
 
   const isTodayPastWorkingHours = useMemo(() => {
-    return workingHoursOnly && (now.getHours() > 17 || (now.getHours() === 17 && now.getMinutes() >= 0));
+    const open = hoursForWeekday(now.getDay());
+    return workingHoursOnly && (!open || now.getHours() * 60 + now.getMinutes() >= open.end);
   }, [workingHoursOnly, now]);
+
+  /** Sundays have no office hours, so they cannot be picked. */
+  const isClosedDay = (date: Date) => workingHoursOnly && !hoursForWeekday(date.getDay());
 
   // Calendar days calculation
   const calendarDays = useMemo(() => {
@@ -308,6 +331,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       const isDisabled =
         date.getTime() < minDateMidnight.getTime() ||
         date.getTime() > maxDateEnd.getTime() ||
+        isClosedDay(date) ||
         (isToday && isTodayPastWorkingHours);
       const isSelected = parsedValue ? isSameDay(date, parsedValue) : false;
 
@@ -324,7 +348,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       firstDayIndex,
       days,
     };
-  }, [viewYear, viewMonth, minDateMidnight, maxDateEnd, now, parsedValue, isTodayPastWorkingHours]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewYear, viewMonth, minDateMidnight, maxDateEnd, now, parsedValue, isTodayPastWorkingHours, workingHoursOnly]);
 
   // Helper to apply or update date while preserving or defaulting time
   const handleSelectDate = (date: Date) => {
@@ -338,7 +363,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
     if (workingHoursOnly) {
       const totalMinutes = hours * 60 + minutes;
-      if (totalMinutes < 540 || totalMinutes > 1020) {
+      const open = hoursForWeekday(date.getDay());
+      // A time that does not fit the new day (e.g. 2 PM moved to a Saturday) is reset to opening time.
+      if (!open || totalMinutes < open.start || totalMinutes > open.end) {
         hours = 9;
         minutes = 0;
       }
@@ -348,7 +375,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
     // If the candidate selected time is in the past for today, pick the next available future business slot
     if (manilaWallDateToEpoch(candidate) <= Date.now()) {
-      const nextSlot = BUSINESS_SLOTS.find((s) => {
+      const nextSlot = slotsForWeekday(date.getDay()).find((s) => {
         const slotTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), s.hour, s.minute, 0, 0);
         return manilaWallDateToEpoch(slotTime) > Date.now();
       });
@@ -383,17 +410,18 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
         disabled:
           today.getTime() < minDateMidnight.getTime() ||
           today.getTime() > maxDateEnd.getTime() ||
+          isClosedDay(today) ||
           isTodayPastWorkingHours,
       },
       {
         label: "Tomorrow",
         date: tomorrow,
-        disabled: tomorrow.getTime() < minDateMidnight.getTime() || tomorrow.getTime() > maxDateEnd.getTime(),
+        disabled: tomorrow.getTime() < minDateMidnight.getTime() || tomorrow.getTime() > maxDateEnd.getTime() || isClosedDay(tomorrow),
       },
       {
         label: "In 2 Days",
         date: inTwoDays,
-        disabled: inTwoDays.getTime() < minDateMidnight.getTime() || inTwoDays.getTime() > maxDateEnd.getTime(),
+        disabled: inTwoDays.getTime() < minDateMidnight.getTime() || inTwoDays.getTime() > maxDateEnd.getTime() || isClosedDay(inTwoDays),
       },
       {
         label: "Next Monday",
@@ -401,7 +429,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
         disabled: nextMonday.getTime() < minDateMidnight.getTime() || nextMonday.getTime() > maxDateEnd.getTime(),
       },
     ];
-  }, [now, minDateMidnight, maxDateEnd, isTodayPastWorkingHours]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now, minDateMidnight, maxDateEnd, isTodayPastWorkingHours, workingHoursOnly]);
 
   const handleShortcutClick = (date: Date) => {
     setViewYear(date.getFullYear());
@@ -425,19 +454,25 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   const currentHour12 = currentHour24 === 0 ? 12 : currentHour24 > 12 ? currentHour24 - 12 : currentHour24;
   const currentPeriod: "AM" | "PM" = currentHour24 >= 12 ? "PM" : "AM";
 
+  const activeHours: OpenHours = hoursForWeekday((parsedValue ?? now).getDay()) ?? hoursForWeekday(1)!;
+
   const availableHours12 = useMemo(() => {
     if (!workingHoursOnly) {
       return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     }
-    return currentPeriod === "AM" ? [9, 10, 11] : [12, 1, 2, 3, 4, 5];
-  }, [workingHoursOnly, currentPeriod]);
+    const forPeriod = hours12ForPeriod(currentPeriod, activeHours);
+    return forPeriod.length > 0 ? forPeriod : hours12ForPeriod(currentPeriod === "AM" ? "PM" : "AM", activeHours);
+  }, [workingHoursOnly, currentPeriod, activeHours]);
 
   const availableMinutes = useMemo(() => {
-    if (workingHoursOnly && currentHour24 === 17) {
-      return [0];
-    }
-    return [0, 15, 30, 45];
-  }, [workingHoursOnly, currentHour24]);
+    const all = [0, 15, 30, 45];
+    if (!workingHoursOnly) return all;
+    return all.filter((m) => currentHour24 * 60 + m <= activeHours.end);
+  }, [workingHoursOnly, currentHour24, activeHours]);
+
+  /** Minutes past the closing time are not allowed, so the closing hour only offers :00. */
+  const clampMinute = (hour24: number, minute: number) =>
+    workingHoursOnly && hour24 * 60 + minute > activeHours.end ? 0 : minute;
 
   const handleCustomHourChange = (newHour12: number) => {
     const base = parsedValue || (calendarDays.days.find((d) => !d.isDisabled)?.date ?? new Date());
@@ -447,19 +482,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
     } else {
       newHour24 = newHour12 === 12 ? 12 : newHour12 + 12;
     }
-    let newMinute = currentMinute;
-    if (workingHoursOnly && newHour24 === 17 && newMinute > 0) {
-      newMinute = 0;
-    }
+    const newMinute = clampMinute(newHour24, currentMinute);
     const updated = new Date(base.getFullYear(), base.getMonth(), base.getDate(), newHour24, newMinute, 0, 0);
     onChange(formatToValueString(updated));
   };
 
   const handleCustomMinuteChange = (newMinute: number) => {
     const base = parsedValue || (calendarDays.days.find((d) => !d.isDisabled)?.date ?? new Date());
-    if (workingHoursOnly && currentHour24 === 17 && newMinute > 0) {
-      newMinute = 0;
-    }
+    newMinute = clampMinute(currentHour24, newMinute);
     const updated = new Date(base.getFullYear(), base.getMonth(), base.getDate(), currentHour24, newMinute, 0, 0);
     onChange(formatToValueString(updated));
   };
@@ -469,11 +499,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
     const base = parsedValue || (calendarDays.days.find((d) => !d.isDisabled)?.date ?? new Date());
     let newHour12 = currentHour12;
     if (workingHoursOnly) {
-      if (period === "AM" && ![9, 10, 11].includes(currentHour12)) {
-        newHour12 = 9;
-      } else if (period === "PM" && ![12, 1, 2, 3, 4, 5].includes(currentHour12)) {
-        newHour12 = 1;
-      }
+      const allowed = hours12ForPeriod(period, activeHours);
+      if (allowed.length === 0) return;
+      if (!allowed.includes(currentHour12)) newHour12 = allowed[0];
     }
     let newHour24 = newHour12;
     if (period === "AM") {
@@ -481,10 +509,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
     } else {
       newHour24 = newHour12 === 12 ? 12 : newHour12 + 12;
     }
-    let newMinute = currentMinute;
-    if (workingHoursOnly && newHour24 === 17 && newMinute > 0) {
-      newMinute = 0;
-    }
+    const newMinute = clampMinute(newHour24, currentMinute);
     const updated = new Date(base.getFullYear(), base.getMonth(), base.getDate(), newHour24, newMinute, 0, 0);
     onChange(formatToValueString(updated));
   };
@@ -714,7 +739,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 gap-1.5">
-                  {BUSINESS_SLOTS.map((slot) => {
+                  {slotsForWeekday((parsedValue ?? now).getDay()).map((slot) => {
                     const isSelected =
                       parsedValue &&
                       parsedValue.getHours() === slot.hour &&
@@ -759,7 +784,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="block text-[11px] font-semibold text-slate-600">Custom Time</span>
                   {workingHoursOnly && (
-                    <span className="text-[10px] text-teal-700 font-medium">9 AM – 5 PM</span>
+                    <span className="text-[10px] text-teal-700 font-medium">
+                      {formatMinutes(activeHours.start)} – {formatMinutes(activeHours.end)}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -829,7 +856,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                 )}
                 {!isCurrentSelectionInPast && isCurrentSelectionOutsideWorkingHours && (
                   <p className="text-[11px] text-rose-600 font-medium">
-                    Interviews must be scheduled during working hours (9:00 AM to 5:00 PM).
+                    {OFFICE_HOURS_MESSAGE}
                   </p>
                 )}
               </div>

@@ -16,6 +16,7 @@ import type {
   WalkInBiodataRead,
   WalkInMatch,
   WalkInSlip,
+  RescheduleRequest,
 } from "../types/application.types";
 import type {
   ManpowerRequest,
@@ -26,6 +27,8 @@ import type {
   CreateJobDto,
   UpdateJobDto,
   ScheduleInterviewDto,
+  ScheduleContractSigningDto,
+  ApproveRescheduleDto,
   UpdateInterviewResultDto,
   EndorseCandidateDto,
   AddComplianceRequirementDto,
@@ -125,6 +128,24 @@ const toTalentPoolSearchResult = (
     requirementClarity: res?.requirementClarity,
   };
 };
+
+export type MRFFileField =
+  | "title" | "description" | "headcount" | "location" | "targetFillDate" | "employmentType" | "workArrangement"
+  | "requiredSkills" | "requiredExperience" | "requiredEducation" | "requiredCertifications"
+  | "salaryRangeMin" | "salaryRangeMax" | "ageMin" | "ageMax" | "genderPreference" | "tattooPolicy";
+
+/** What reading a manpower request form found. Nothing is saved. */
+export interface MRFFileReading {
+  status: "SUCCESS" | "UNREADABLE";
+  fields: Partial<{
+    title: string; description: string; headcount: number; location: string; targetFillDate: string;
+    employmentType: string; workArrangement: string; requiredSkills: string; requiredExperience: string;
+    requiredEducation: string; requiredCertifications: string; salaryRangeMin: number; salaryRangeMax: number;
+    ageMin: number; ageMax: number; genderPreference: "ANY" | "MALE" | "FEMALE";
+    tattooPolicy: "ALLOWED" | "NO_VISIBLE" | "NONE";
+  }>;
+  issues: Partial<Record<MRFFileField, "missing" | "invalid" | "uncertain">>;
+}
 
 export const taApi = {
   getDashboardCounts: (options?: RequestInit) =>
@@ -507,6 +528,13 @@ export const taApi = {
   createMRF: (data: CreateMRFDto) =>
     api.post<ManpowerRequest>("/api/ta/mrfs", data),
 
+  /** Reads a manpower request form (PDF, Word or photo) and returns what it says. Saves nothing. */
+  readMRFFile: (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return api.upload<MRFFileReading>("/api/ta/mrfs/read", body);
+  },
+
   getMRFDetails: (id: number | string) =>
     api.get<ManpowerRequest>(`/api/ta/mrfs/${id}`),
 
@@ -577,6 +605,18 @@ export const taApi = {
     applicationId: number | string,
     data: { type: string; result: string; conductedAt?: string | null; notes?: string }
   ) => api.post<Interview>(`/api/ta/applications/${applicationId}/interviews/record`, data),
+
+  scheduleContractSigning: (applicationId: number | string, data: ScheduleContractSigningDto) =>
+    api.post<{ id: number; contractSigningAt: string; contractSigningLocation: string }>(
+      `/api/ta/applications/${applicationId}/contract-signing/schedule`,
+      data
+    ),
+
+  approveRescheduleRequest: (applicationId: number | string, requestId: number | string, data: ApproveRescheduleDto) =>
+    api.post<RescheduleRequest>(`/api/ta/applications/${applicationId}/reschedule-requests/${requestId}/approve`, data),
+
+  rejectRescheduleRequest: (applicationId: number | string, requestId: number | string, data: { decisionNote?: string }) =>
+    api.post<RescheduleRequest>(`/api/ta/applications/${applicationId}/reschedule-requests/${requestId}/reject`, data),
 
   checkInterviewCompliance: () =>
     api.get<InterviewSLASummary>("/api/ta/compliance/interviews"),

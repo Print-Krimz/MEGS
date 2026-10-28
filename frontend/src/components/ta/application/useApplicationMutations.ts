@@ -178,7 +178,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
       const msg = `Interview outcome saved as ${interviewOutcomeWord(vars.result)}. ${interviewOutcomeNextStep(
         vars.result,
-        status === ApplicationStatus.FINAL_INTERVIEW
+        vars.type ? vars.type === InterviewType.FINAL_INTERVIEW : status === ApplicationStatus.FINAL_INTERVIEW
       )}`;
       setFeedback({ type: "success", message: msg });
       notify.success("Interview outcome saved", msg);
@@ -208,7 +208,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
   });
 
   const scheduleInterview = useMutation({
-    mutationFn: (data: { type: InterviewType; scheduledAt: string; notes?: string }) =>
+    mutationFn: (data: { type: InterviewType; scheduledAt: string; location?: string }) =>
       taApi.scheduleInterview(applicationId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: recordKey });
@@ -222,6 +222,58 @@ export function useApplicationMutations({ applicationId, status, candidateName }
     onError: (err: any) => {
       setFeedback({ type: "error", message: `Unable to schedule the interview. ${formatErrorMessage(err)}` });
       notify.error("Unable to schedule interview", err);
+    },
+  });
+
+  const scheduleContractSigning = useMutation({
+    mutationFn: (data: { scheduledAt: string; location: string }) => taApi.scheduleContractSigning(applicationId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: recordKey });
+      queryClient.invalidateQueries({ queryKey: ["applicant"] });
+      const msg = "Contract signing scheduled. The applicant was notified.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Contract signing scheduled", msg);
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: `Unable to schedule the contract signing. ${formatErrorMessage(err)}` });
+      notify.error("Unable to schedule contract signing", err);
+    },
+  });
+
+  const refreshAfterReschedule = () => {
+    queryClient.invalidateQueries({ queryKey: recordKey });
+    queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+    queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
+    queryClient.invalidateQueries({ queryKey: ["applicant"] });
+  };
+
+  const approveReschedule = useMutation({
+    mutationFn: (data: { requestId: number; scheduledAt: string; location?: string }) =>
+      taApi.approveRescheduleRequest(applicationId, data.requestId, { scheduledAt: data.scheduledAt, location: data.location }),
+    onSuccess: () => {
+      refreshAfterReschedule();
+      const msg = "The new time was saved and the applicant was notified.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Reschedule approved", msg);
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: `Unable to approve the reschedule. ${formatErrorMessage(err)}` });
+      notify.error("Unable to approve reschedule", err);
+    },
+  });
+
+  const rejectReschedule = useMutation({
+    mutationFn: (data: { requestId: number; decisionNote?: string }) =>
+      taApi.rejectRescheduleRequest(applicationId, data.requestId, { decisionNote: data.decisionNote }),
+    onSuccess: () => {
+      refreshAfterReschedule();
+      const msg = "The request was declined and the applicant was notified.";
+      setFeedback({ type: "success", message: msg });
+      notify.success("Reschedule declined", msg);
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: `Unable to decline the reschedule. ${formatErrorMessage(err)}` });
+      notify.error("Unable to decline reschedule", err);
     },
   });
 
@@ -255,7 +307,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
       queryClient.setQueryData<any>(recordKey, (old: any) => {
         if (!old) return old;
         const updated = (old.clientEndorsements || []).map((e: any) =>
-          e.id === vars.endorsementId ? { ...e, outcome: vars.outcome, notes: vars.notes } : e
+          e.id === vars.endorsementId ? { ...e, outcome: vars.outcome, decisionNotes: vars.notes } : e
         );
         return { ...old, clientEndorsements: updated };
       });
@@ -391,6 +443,9 @@ export function useApplicationMutations({ applicationId, status, candidateName }
     analyze,
     analysis: { runId: analysisRunId, open: analysisDialogOpen, setOpen: setAnalysisDialogOpen, onFinished: handleAnalysisFinished },
     scheduleInterview,
+    scheduleContractSigning,
+    approveReschedule,
+    rejectReschedule,
     endorse,
     updateEndorsement,
     addRequirement,

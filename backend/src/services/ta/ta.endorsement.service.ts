@@ -79,7 +79,8 @@ export const recordClientEndorsement = async (
       clientId: resolvedClientId,
       outcome,
       endorsedById: endorsedById || null,
-      notes: notes || null,
+      // A decision recorded with the client's answer keeps its text in decisionNotes, like updateClientEndorsement.
+      ...(outcome === "PENDING" ? { notes: notes || null } : { decisionNotes: notes || null }),
     },
     include: {
       client: { select: { id: true, name: true } },
@@ -102,7 +103,7 @@ export const recordClientEndorsement = async (
       applicationId,
       "CLIENT_ENDORSEMENT",
       endorsedById,
-      notes || `Endorsed to client: ${client.name}`
+      `Sent to client for review: ${client.name}`
     );
   }
 
@@ -111,7 +112,7 @@ export const recordClientEndorsement = async (
       applicationId,
       "FINAL_INTERVIEW",
       endorsedById,
-      notes || `Client approved endorsement - advancing to Final Interview`
+      "Client approved - advancing to Final Interview"
     );
   }
 
@@ -234,7 +235,7 @@ export const updateClientEndorsement = async (
     where: { id: endorsementId },
     data: {
       outcome,
-      notes: notes !== undefined ? notes : existing.notes,
+      ...(notes !== undefined ? { decisionNotes: notes || null } : {}),
       ...(actorId ? { endorsedById: actorId } : {}),
     },
     include: {
@@ -252,7 +253,7 @@ export const updateClientEndorsement = async (
         actorId: resolvedActorId,
         fromStatus: `${application.status} [ENDORSEMENT:${existing.outcome}]`,
         toStatus: `${application.status} [ENDORSEMENT:${outcome}]`,
-        reason: notes || `Client endorsement decision updated to ${outcome} for ${existing.client?.name || "Client"}`,
+        reason: `Client endorsement decision updated to ${outcome} for ${existing.client?.name || "Client"}`,
       },
     });
 
@@ -325,7 +326,7 @@ export const updateClientEndorsement = async (
           applicationId,
           "FINAL_INTERVIEW",
           actorId,
-          notes || `Client acceptance recorded as ${outcome} - advancing to Final Interview`
+          `Client approved - advancing to Final Interview`
         );
       }
     }

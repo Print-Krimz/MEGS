@@ -8,6 +8,7 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
+import { COMPANY_ADDRESS } from "../../config/business-hours.js";
 
 export interface ContractPdfData {
   employeeName: string;
@@ -19,7 +20,6 @@ export interface ContractPdfData {
 }
 
 const COMPANY_NAME = "MAR EMPLOYMENT FOR GOOD SERVICES, INC";
-const COMPANY_ADDRESS = "2nd Flr. PJAR Building #9 P. Gomez St. Oreta Subd. Malinta Valenzuela City";
 
 export const CONTRACT_CLAUSES = [
   "Ang iyong \u201Cwork assignment\u201D ay magiging epektibo sa {START_DATE}.",

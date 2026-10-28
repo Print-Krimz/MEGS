@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { boundedId, boundedText, boundedPageSize, finiteNumber, FIELD_LIMITS } from "./field-limits.js";
+import { boundedId, boundedText, boundedPageSize, finiteNumber, safeProseSchema, FIELD_LIMITS } from "./field-limits.js";
 import { APPLICANT_SELF_WITHDRAW_REASONS } from "../services/ta/backout-rules.js";
 import { talentPoolInvitationSchema } from "./talent-pool-invitation.schema.js";
 import { listSavedJobsQuerySchema } from "./applicant.schema.js";
@@ -12,8 +12,8 @@ export const applicantApplicationSchema = {
     query: z.object({
       search: boundedText(FIELD_LIMITS.search).optional(),
       location: boundedText(FIELD_LIMITS.shortText).optional(),
-      salaryMin: finiteNumber({ min: 0, max: 10_000_000, decimals: 2 }).optional(),
-      salaryMax: finiteNumber({ min: 0, max: 10_000_000, decimals: 2 }).optional(),
+      salaryMin: finiteNumber({ min: 0, max: 1_000_000, decimals: 2 }).optional(),
+      salaryMax: finiteNumber({ min: 0, max: 1_000_000, decimals: 2 }).optional(),
       page: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional(),
       limit: boundedPageSize.optional(),
     }).strict().refine(
@@ -43,6 +43,13 @@ export const applicantApplicationSchema = {
         ctx.addIssue({ code: "custom", path: ["notes"], message: "Please describe the reason." });
       }
     }),
+  }),
+  rescheduleRequest: z.object({
+    params: idParams,
+    body: z.object({
+      activity: z.enum(["INITIAL_SCREENING", "FINAL_INTERVIEW", "CONTRACT_SIGNING"]),
+      reason: safeProseSchema("Reason", 500).pipe(z.string().min(10, "Tell your recruiter why in at least 10 characters.")),
+    }).strict(),
   }),
   respondInvitation: z.object({
     params: z.object({ id: boundedId }).strict(),

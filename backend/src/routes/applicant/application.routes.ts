@@ -17,6 +17,7 @@ import {
   uploadComplianceDocumentHandler,
   getActiveDeployment,
 } from '../../controllers/applicant/application.controller.js';
+import { createRescheduleRequestHandler } from '../../controllers/applicant/reschedule.controller.js';
 import {
   saveJobHandler,
   unsaveJobHandler,
@@ -54,6 +55,7 @@ router.get("/my-documents/library", getMyDocumentLibrary);
 router.get("/my-applications/:id", validate(applicantApplicationSchema.jobParams), getMyApplicationDetails);
 router.get("/applications/:id", validate(applicantApplicationSchema.jobParams), getMyApplicationDetails);
 router.post("/applications/:id/withdraw", validate(applicantApplicationSchema.withdraw), withdrawApplicationHandler);
+router.post("/applications/:id/reschedule-requests", validate(applicantApplicationSchema.rescheduleRequest), createRescheduleRequestHandler);
 router.post("/compliance/:requirementId/reuse", validate(applicantApplicationSchema.complianceReuse), reuseComplianceDocumentHandler);
 router.post("/compliance/:requirementId/upload", validate(applicantApplicationSchema.complianceUploadParams), upload.single("file"), validate(applicantApplicationSchema.complianceUpload), uploadComplianceDocumentHandler);
 
