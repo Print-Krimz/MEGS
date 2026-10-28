@@ -22,6 +22,7 @@ import {
   formatAction,
   getActionCategory,
   formatIpAddress,
+  getAuditIp,
   formatTargetEntity,
   extractDisplayDetails,
   formatActor,
@@ -583,7 +584,7 @@ export const AuditLogsPage: React.FC = () => {
                 <div className="mt-1.5 space-y-1 rounded-md border border-slate-200 bg-slate-100 p-2 text-slate-600">
                   <div className="flex justify-between gap-3">
                     <span>IP address:</span>
-                    <span>{formatIpAddress(selectedLog.ipAddress)}</span>
+                    <span>{formatIpAddress(getAuditIp(selectedLog))}</span>
                   </div>
                   <div className="flex justify-between gap-3">
                     <span>Event code:</span>

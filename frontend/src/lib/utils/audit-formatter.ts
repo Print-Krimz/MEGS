@@ -222,6 +222,16 @@ export function parseDetails(details: any): Record<string, any> {
 }
 
 /**
+ * The client IP recorded for an event. The backend stores it inside the details JSON
+ * (as `ip`, only for sign-in events), not as a column, so read it from there.
+ */
+export function getAuditIp(log: AuditLog): string | null {
+  const details = parseDetails(log.details);
+  const ip = log.ipAddress ?? details.ip ?? details.ipAddress;
+  return typeof ip === "string" ? ip : null;
+}
+
+/**
  * Humanizes IP addresses (e.g., translates ::1 or 127.0.0.1 to Localhost).
  */
 export function formatIpAddress(ip?: string | null): string {
