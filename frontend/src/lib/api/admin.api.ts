@@ -41,19 +41,6 @@ export interface AdminUserListQuery {
 
 export type AdminUserLastLogin = "7d" | "30d" | "never";
 
-export interface AdminSystemHealth {
-  database: { ok: boolean; latencyMs: number };
-  uptimeSeconds: number;
-  memoryMb: number;
-  /** Share of one CPU core the server process used over a 200 ms sample. */
-  cpuPercent: number;
-  activeUsers: number;
-  failedJobs: number;
-  /** Applicant reschedule requests waiting on a recruiter. */
-  pendingRequests: number;
-  checkedAt: string;
-}
-
 export type AdminUserStatus = "active" | "inactive" | "invited";
 
 export interface AdminUserSummary {
@@ -63,6 +50,10 @@ export interface AdminUserSummary {
   pendingInvitations: number;
   expiredInvitations: number;
   inactiveAccounts: number;
+  /** Failed scoring revalidation jobs. */
+  failedJobs: number;
+  /** Applicant reschedule requests waiting on a recruiter. */
+  pendingRequests: number;
 }
 
 export interface InviteTADto {
@@ -116,9 +107,6 @@ export const adminApi = {
 
   getUserSummary: (options?: RequestInit) =>
     api.get<AdminUserSummary>("/api/admin/users/summary", options),
-
-  getSystemHealth: (options?: RequestInit) =>
-    api.get<AdminSystemHealth>("/api/admin/system/health", options),
 
   inviteTA: (data: InviteTADto) =>
     api.post<User>("/api/admin/invite-ta", data),

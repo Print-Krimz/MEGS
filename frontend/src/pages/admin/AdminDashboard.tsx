@@ -45,13 +45,6 @@ const MetricTile: React.FC<{ label: string; to?: string; search?: Record<string,
   </div>
 );
 
-const formatUptime = (seconds: number) => {
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return days > 0 ? `${days}d ${hours}h` : hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-};
-
 // Dates are longer than counts, so they step down a size to stay on one line in a half-width tile.
 const Value: React.FC<{ children: React.ReactNode; tone?: "default" | "alert"; date?: boolean }> = ({ children, tone = "default", date = false }) => (
   <div className={`mt-1 font-display font-semibold tabular-nums whitespace-nowrap ${date ? "text-lg leading-8 sm:text-2xl md:leading-9" : "text-2xl leading-8 md:text-[2rem] md:leading-9"} ${tone === "alert" ? "text-rose-700" : "text-slate-950"}`}>{children}</div>
@@ -66,22 +59,17 @@ const PanelHeader: React.FC<{ id: string; title: string; action?: React.ReactNod
   </div>
 );
 
-const WEIGHT_LABELS = [
-  ["Skills", "SKILLS"], ["Experience", "EXPERIENCE"], ["Location", "LOCATION"], ["Requirements", "COMPLIANCE"], ["Education", "EDUCATION_CERTIFICATIONS"],
-] as const;
-
 export const AdminDashboard: React.FC = () => {
   const userSummaryQuery = useQuery({
     queryKey: ["admin", "users", "summary"],
     queryFn: ({ signal }) => adminApi.getUserSummary({ signal }),
   });
-  // Refetches every minute; TanStack pauses it while the tab is hidden.
-  const healthQuery = useQuery({
-    queryKey: ["admin", "system", "health"],
-    queryFn: ({ signal }) => adminApi.getSystemHealth({ signal }),
-    refetchInterval: 60_000,
+  // Same key as the Reports page so the two share one cached response.
+  const teamQuery = useQuery({
+    queryKey: ["admin", "analytics", "dashboard", { range: "7d" }],
+    queryFn: ({ signal }) => adminApi.getDashboardSummary({ range: "7d" }, signal),
+    staleTime: 60_000,
   });
-  const configQuery = useQuery({ queryKey: ["admin", "scoring", "config"], queryFn: adminApi.getScoringConfig });
   const backupsQuery = useQuery({ queryKey: ["admin", "maintenance", "backups", 5], queryFn: () => adminApi.listDatabaseBackups(5) });
   const auditQuery = useQuery({ queryKey: ["admin", "audit", "recent"], queryFn: () => adminApi.listAuditLogs({ limit: 6 }) });
 
@@ -96,7 +84,7 @@ export const AdminDashboard: React.FC = () => {
 
       <section aria-labelledby="admin-needs-attention" className="space-y-2">
         <h2 id="admin-needs-attention" className="text-sm font-semibold text-slate-950">Needs attention</h2>
-        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 sm:grid-cols-2 lg:grid-cols-5">
           <MetricTile label="Invitations" to="/admin/users" search={{ status: "invited" }}>
             <MetricValue query={userSummaryQuery}>{users => <><Value tone={users.expiredInvitations > 0 ? "alert" : "default"}>{users.pendingInvitations + users.expiredInvitations}</Value><Caption>{users.pendingInvitations} pending · {users.expiredInvitations} expired</Caption></>}</MetricValue>
           </MetricTile>
@@ -104,34 +92,35 @@ export const AdminDashboard: React.FC = () => {
             <MetricValue query={userSummaryQuery}>{users => <><Value>{users.inactiveAccounts}</Value><Caption>Cannot sign in</Caption></>}</MetricValue>
           </MetricTile>
           <MetricTile label="Failed scoring jobs" to="/admin/scoring/quality">
-            <MetricValue query={healthQuery}>{health => <><Value tone={health.failedJobs > 0 ? "alert" : "default"}>{health.failedJobs}</Value><Caption>{health.failedJobs > 0 ? "Need a retry" : "None"}</Caption></>}</MetricValue>
+            <MetricValue query={userSummaryQuery}>{users => <><Value tone={users.failedJobs > 0 ? "alert" : "default"}>{users.failedJobs}</Value><Caption>{users.failedJobs > 0 ? "Need a retry" : "None"}</Caption></>}</MetricValue>
           </MetricTile>
           <MetricTile label="Applicant requests">
-            <MetricValue query={healthQuery}>{health => <><Value tone={health.pendingRequests > 0 ? "alert" : "default"}>{health.pendingRequests}</Value><Caption>{health.pendingRequests > 0 ? "Reschedules waiting on recruiters" : "None waiting"}</Caption></>}</MetricValue>
-          </MetricTile>
-        </div>
-      </section>
-
-      <section aria-labelledby="admin-system" className="space-y-2">
-        <h2 id="admin-system" className="text-sm font-semibold text-slate-950">System</h2>
-        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricTile label="Database">
-            <MetricValue query={healthQuery}>{health => health.database.ok
-              ? <><Value>{health.database.latencyMs} ms</Value><Caption>Responding</Caption></>
-              : <><Value tone="alert">Unreachable</Value><Caption>Check the database host</Caption></>}</MetricValue>
-          </MetricTile>
-          <MetricTile label="Server load">
-            <MetricValue query={healthQuery}>{health => <><Value tone={health.cpuPercent >= 85 ? "alert" : "default"}>{health.cpuPercent}%</Value><Caption>{health.memoryMb} MB · up {formatUptime(health.uptimeSeconds)}</Caption></>}</MetricValue>
-          </MetricTile>
-          <MetricTile label="Active users" to="/admin/users" search={{ status: "active" }}>
-            <MetricValue query={healthQuery}>{health => <><Value>{health.activeUsers}</Value><Caption>Can sign in</Caption></>}</MetricValue>
+            <MetricValue query={userSummaryQuery}>{users => <><Value tone={users.pendingRequests > 0 ? "alert" : "default"}>{users.pendingRequests}</Value><Caption>{users.pendingRequests > 0 ? "Reschedules waiting on recruiters" : "None waiting"}</Caption></>}</MetricValue>
           </MetricTile>
           <MetricTile label="Latest backup" to="/admin/maintenance">
             <MetricValue query={backupsQuery}>{backups => {
               const latest = backups[0];
-              if (!latest) return <><Value>—</Value><Caption>No backups yet</Caption></>;
+              if (!latest) return <><Value date>—</Value><Caption>No backups yet</Caption></>;
               return <><Value date tone={latest.status === "FAILED" ? "alert" : "default"}>{formatDate(latest.createdAt)}</Value><Caption>{formatAdminBackupStatus(latest.status)}</Caption></>;
             }}</MetricValue>
+          </MetricTile>
+        </div>
+      </section>
+
+      <section aria-labelledby="admin-team" className="space-y-2">
+        <h2 id="admin-team" className="text-sm font-semibold text-slate-950">Team</h2>
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricTile label="Overdue candidates" to="/admin/analytics">
+            <MetricValue query={teamQuery}>{data => <><Value tone={data.stuckTotal > 0 ? "alert" : "default"}>{data.stuckTotal}</Value><Caption>Past their stage limit</Caption></>}</MetricValue>
+          </MetricTile>
+          <MetricTile label="Open seats" to="/admin/analytics">
+            <MetricValue query={teamQuery}>{data => <><Value>{data.kpis.openSeats}</Value><Caption>{data.kpis.fillRate}% filled</Caption></>}</MetricValue>
+          </MetricTile>
+          <MetricTile label="Requests at risk" to="/admin/analytics">
+            <MetricValue query={teamQuery}>{data => <><Value tone={data.kpis.requisitions.overdue > 0 ? "alert" : "default"}>{data.kpis.requisitions.overdue + data.kpis.requisitions.atRisk}</Value><Caption>{data.kpis.requisitions.overdue} overdue · {data.kpis.requisitions.atRisk} at risk</Caption></>}</MetricValue>
+          </MetricTile>
+          <MetricTile label="Started this week" to="/admin/analytics">
+            <MetricValue query={teamQuery}>{data => <><Value>{data.kpis.placementsStarted}</Value><Caption>Last 7 days</Caption></>}</MetricValue>
           </MetricTile>
         </div>
       </section>
@@ -157,19 +146,21 @@ export const AdminDashboard: React.FC = () => {
           </SectionData>
         </section>
 
-        <section aria-labelledby="admin-matching-weights" className="overflow-hidden rounded-md border border-slate-300 bg-white">
-          <PanelHeader id="admin-matching-weights" title="Matching priorities"
-            action={<Button asChild variant="ghost" size="sm"><Link to="/admin/scoring">Edit</Link></Button>} />
-          <SectionData query={configQuery} subject="matching priorities">{config => {
-            if (!config) return <p className="p-3.5 text-sm text-slate-600">Matching priorities are not available.</p>;
-            const weights = Array.isArray(config.weights) ? Object.fromEntries(config.weights.map(weight => [weight.dimension, weight.weight])) : config.weights;
-            return <dl className="divide-y divide-slate-200">{WEIGHT_LABELS.map(([label, key]) => {
-              const value = weights?.[key as keyof typeof weights];
-              return <div key={key} className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm">
-                <dt className="text-slate-700">{label}</dt>
-                <dd className="font-semibold tabular-nums text-slate-950">{value != null ? value + "%" : "—"}</dd>
-              </div>;
-            })}</dl>;
+        <section aria-labelledby="admin-team-workload" className="overflow-hidden rounded-md border border-slate-300 bg-white">
+          <PanelHeader id="admin-team-workload" title="Team workload"
+            action={<Button asChild variant="ghost" size="sm"><Link to="/admin/analytics">View reports</Link></Button>} />
+          <SectionData query={teamQuery} subject="team workload">{data => {
+            if (data.team.length === 0) return <EmptyState title="No recruiters yet" description="Recruiters will appear here once they are invited." />;
+            const rows = [...data.team].sort((a, b) => b.overdue - a.overdue || b.active - a.active);
+            return <ul className="divide-y divide-slate-200">{rows.map(row => (
+              <li key={row.recruiterId} className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-slate-950" title={row.name}>{row.name}</p>
+                  <p className="text-xs text-slate-600 tabular-nums">{row.active} active · {row.fillRate}% filled</p>
+                </div>
+                <span className={`shrink-0 text-xs font-medium tabular-nums ${row.overdue > 0 ? "text-rose-700" : "text-slate-600"}`}>{row.overdue} overdue</span>
+              </li>
+            ))}</ul>;
           }}</SectionData>
         </section>
       </div>
