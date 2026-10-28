@@ -44,6 +44,7 @@ import { ReviewQueue } from "../../components/ta/recruitment/ReviewQueue";
 import { TA_COPY } from "../../lib/ta-copy";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import {
+  APPLICATION_IDLE_POLL_MS,
   normalizeServerSearch,
   REFERENCE_QUERY_STALE_TIME_MS,
   SERVER_SEARCH_DEBOUNCE_MS,
@@ -331,6 +332,8 @@ export const ApplicationsPage: React.FC = () => {
         summary: true,
       }, { signal }),
     placeholderData: keepPreviousData,
+    // Safety net for a change the live stream missed; the stage counts below poll the same way.
+    refetchInterval: APPLICATION_IDLE_POLL_MS,
   });
 
   const jobsQuery = useQuery({
@@ -383,6 +386,7 @@ export const ApplicationsPage: React.FC = () => {
           .then((result) => result.total),
       placeholderData: keepPreviousData,
       staleTime: 30_000,
+      refetchInterval: APPLICATION_IDLE_POLL_MS,
     })),
   });
   const stageStripItems: StageStripItem[] = stageStripValues.map((stage, index) => ({

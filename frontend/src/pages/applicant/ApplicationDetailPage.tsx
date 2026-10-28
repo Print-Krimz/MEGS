@@ -124,7 +124,8 @@ export const ApplicationDetailPage: React.FC = () => {
       setWithdrawOpen(false);
       notify.success("Application withdrawn");
       queryClient.invalidateQueries({ queryKey: ["applicant", "application", applicationId] });
-      queryClient.invalidateQueries({ queryKey: ["applicant", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["applicant", "my-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["applicant", "active-deployment"] });
     },
     onError: (err) => notify.error("Unable to withdraw application", err),
   });

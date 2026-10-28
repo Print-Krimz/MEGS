@@ -42,7 +42,7 @@ import { useApplicationMutations } from "../../components/ta/application/useAppl
 import type { RequirementRowData } from "../../components/ta/application/RequirementRow";
 import { CLOSURE_DISPOSITION_LABELS, CLOSURE_OUTCOME_LABELS, closureReasonLabel, type ClosureOutcome } from "../../lib/backout";
 import { formatDate, extractDocumentId, displayEmail } from "../../lib/utils";
-import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
+import { REFERENCE_QUERY_STALE_TIME_MS, getApplicationRefetchInterval } from "../../lib/query-policies";
 import { ApplicationStatus, InterviewType } from "../../lib/types/enums";
 import type { Interview, RescheduleRequest } from "../../lib/types/application.types";
 import type { ReviewComplianceDto } from "../../lib/types/ta.types";
@@ -180,6 +180,8 @@ export const ApplicationDetailPage: React.FC = () => {
     queryKey: ["ta", "application", applicationId],
     queryFn: () => taApi.getApplication(applicationId),
     enabled: Boolean(applicationId),
+    // Safety net for a change the live stream missed (applicant upload, another recruiter).
+    refetchInterval: (query) => getApplicationRefetchInterval(query.state.data),
   });
   const decisionsQuery = useQuery({
     queryKey: ["ta", "application", applicationId, "decisions"],

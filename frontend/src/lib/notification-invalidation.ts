@@ -14,6 +14,8 @@ const roleRoots: Record<Role, string> = {
   APPLICANT: "applicant",
 };
 
+export const getRoleRoot = (role: Role): string => roleRoots[role];
+
 const applicantApplicationEvents = new Set([
   "Application Received",
   "Application Update",

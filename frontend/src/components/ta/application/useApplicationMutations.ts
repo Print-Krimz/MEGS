@@ -38,11 +38,17 @@ export function useApplicationMutations({ applicationId, status, candidateName }
     });
   };
 
+  // Every view that shows an application's stage: the record, its history, the lists and stage counts,
+  // dashboard and sidebar counts, interviews, requirements, deployments and the redeployment queue.
   const refreshApplicationQueries = () => {
     queryClient.invalidateQueries({ queryKey: recordKey });
-    queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
     queryClient.invalidateQueries({ queryKey: decisionsKey });
+    queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+    queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+    queryClient.invalidateQueries({ queryKey: ["ta", "compliance"] });
+    queryClient.invalidateQueries({ queryKey: ["ta", "jobs"] });
     queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
+    queryClient.invalidateQueries({ queryKey: ["ta", "redeployment-queue"] });
   };
 
   const updateStatus = useMutation({
@@ -50,9 +56,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
     onSuccess: (_, vars) => {
       queryClient.setQueryData<any>(recordKey, (old: any) => (old ? { ...old, status: vars.status } : old));
       setListStatus((item) => ({ ...item, status: vars.status }));
-      queryClient.invalidateQueries({ queryKey: recordKey });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      refreshApplicationQueries();
       const msg = `Candidate stage moved to ${getApplicationStatusMeta(vars.status).label}.`;
       setFeedback({ type: "success", message: msg });
       notify.success("Stage updated", msg);
@@ -69,11 +73,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
       const message = vars.outcome === "REJECTED" ? "Applicant rejected" : "Marked as backed out";
       setFeedback({ type: "success", message });
       notify.success(message);
-      queryClient.invalidateQueries({ queryKey: recordKey });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: decisionsKey });
-      queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      refreshApplicationQueries();
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Unable to close this application. " + formatErrorMessage(err) });
@@ -170,11 +170,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
       if (vars.result === "NO_SHOW") {
         setListStatus((item) => ({ ...item, status: ApplicationStatus.ARCHIVED, isArchived: true }));
       }
-      queryClient.invalidateQueries({ queryKey: recordKey });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: decisionsKey });
-      queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      refreshApplicationQueries();
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
       const msg = `Interview outcome saved as ${interviewOutcomeWord(vars.result)}. ${interviewOutcomeNextStep(
         vars.result,
@@ -211,9 +207,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
     mutationFn: (data: { type: InterviewType; scheduledAt: string; location?: string }) =>
       taApi.scheduleInterview(applicationId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: recordKey });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: decisionsKey });
+      refreshApplicationQueries();
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
       const msg = "Interview scheduled successfully.";
       setFeedback({ type: "success", message: msg });
@@ -241,9 +235,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
   });
 
   const refreshAfterReschedule = () => {
-    queryClient.invalidateQueries({ queryKey: recordKey });
-    queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-    queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
+    refreshApplicationQueries();
     queryClient.invalidateQueries({ queryKey: ["applicant"] });
   };
 
@@ -285,11 +277,8 @@ export function useApplicationMutations({ applicationId, status, candidateName }
         old ? { ...old, status: ApplicationStatus.CLIENT_ENDORSEMENT } : old
       );
       setListStatus((item) => ({ ...item, status: ApplicationStatus.CLIENT_ENDORSEMENT }));
-      queryClient.invalidateQueries({ queryKey: recordKey });
-      queryClient.invalidateQueries({ queryKey: decisionsKey });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      refreshApplicationQueries();
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       const msg = "The candidate was sent to the client for review.";
       setFeedback({ type: "success", message: msg });
       notify.success("Candidate sent to client", msg);
@@ -311,11 +300,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
         );
         return { ...old, clientEndorsements: updated };
       });
-      queryClient.invalidateQueries({ queryKey: recordKey });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: decisionsKey });
-      queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      refreshApplicationQueries();
       const outcomeLabel =
         vars.outcome === "APPROVED"
           ? "Approved by client"
@@ -399,9 +384,8 @@ export function useApplicationMutations({ applicationId, status, candidateName }
       const msg = `Candidate advanced to ${targetLabel}; ${carriedCount} valid clearance document${carriedCount === 1 ? "" : "s"} carried over.`;
       setFeedback({ type: "success", message: msg });
       notify.success("Redeployment fast-tracked", msg);
-      queryClient.invalidateQueries({ queryKey: recordKey });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: decisionsKey });
+      refreshApplicationQueries();
+      queryClient.invalidateQueries({ queryKey: ["applicant"] });
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: `Unable to fast-track this redeployment. ${formatErrorMessage(err)}` });
@@ -418,10 +402,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
           ? { ...old, deployments: createdDeployment ? [createdDeployment, ...(old.deployments || [])] : old.deployments }
           : old
       );
-      queryClient.invalidateQueries({ queryKey: recordKey });
-      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      refreshApplicationQueries();
       const msg = "The employee was assigned to the client site.";
       setFeedback({ type: "success", message: msg });
       notify.success("Deployment activated", msg);

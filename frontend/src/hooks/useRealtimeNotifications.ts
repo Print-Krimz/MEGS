@@ -5,7 +5,7 @@ import { connectNotificationStream } from "../lib/notification-stream";
 import { notificationApi } from "../lib/api/notification.api";
 import { resolveApiBase } from "../lib/api/client";
 import { resolveNotificationLink } from "../lib/utils";
-import { getNotificationInvalidationKeys } from "../lib/notification-invalidation";
+import { getNotificationInvalidationKeys, getRoleRoot } from "../lib/notification-invalidation";
 import { NOTIFICATION_COUNT_POLL_MS } from "../lib/query-policies";
 import { useAuth } from "./useAuth";
 
@@ -69,6 +69,11 @@ export function useRealtimeNotifications() {
     return connectNotificationStream({
       url: `${API_BASE}/api/notifications/stream`,
       getToken: () => localStorage.getItem("access_token"),
+      // Anything sent while the stream was down is gone, so refresh what this role shows.
+      onReconnect() {
+        void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        void queryClient.invalidateQueries({ queryKey: [getRoleRoot(role)] });
+      },
       subscribeSession(restart) {
         // AuthProvider reloads the identity for cross-tab replacements; its user
         // update recreates this effect. Immediately stop a removed session here.
