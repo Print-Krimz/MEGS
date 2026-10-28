@@ -276,6 +276,9 @@ export const ApplicationsPage: React.FC = () => {
     }
   };
 
+  // The queue lists work still in progress; deployed and closed records stay in the table.
+  const openOnly = layout === "queue" && !showArchived;
+
   // Modal states for archive
   const [archiveModalApp, setArchiveModalApp] = useState<{ id: number; name: string; isArchived: boolean } | null>(null);
   const [archiveReason, setArchiveReason] = useState("");
@@ -295,6 +298,7 @@ export const ApplicationsPage: React.FC = () => {
       returningOnly,
       sort: sort ?? "match",
       needsAction,
+      openOnly,
     }],
     queryFn: ({ signal }) =>
       taApi.listApplicationsPage({
@@ -309,6 +313,7 @@ export const ApplicationsPage: React.FC = () => {
         returning: returningOnly || undefined,
         sort,
         needsAction: needsAction || undefined,
+        openOnly: openOnly || undefined,
         summary: true,
       }, { signal }),
     placeholderData: keepPreviousData,
@@ -330,8 +335,9 @@ export const ApplicationsPage: React.FC = () => {
   const stageStripValues = React.useMemo(() => {
     const current = filterValues.status;
     const known = (STAGE_STRIP_STAGES as readonly string[]).includes(current ?? "");
-    return ["", ...STAGE_STRIP_STAGES, ...(current && !known ? [current] : [])];
-  }, [filterValues.status]);
+    const stages = openOnly ? STAGE_STRIP_STAGES.filter((stage) => stage !== ApplicationStatus.DEPLOYED) : STAGE_STRIP_STAGES;
+    return ["", ...stages, ...(current && !known ? [current] : [])];
+  }, [filterValues.status, openOnly]);
   const stageCountQueries = useQueries({
     queries: stageStripValues.map((stage) => ({
       queryKey: ["ta", "applications", "stage-count", {
@@ -342,6 +348,7 @@ export const ApplicationsPage: React.FC = () => {
         source: filterValues.source || "",
         returningOnly,
         needsAction,
+        openOnly,
       }],
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         taApi
@@ -356,6 +363,7 @@ export const ApplicationsPage: React.FC = () => {
             isArchived: false,
             returning: returningOnly || undefined,
             needsAction: needsAction || undefined,
+            openOnly: openOnly || undefined,
             summary: true,
           }, { signal })
           .then((result) => result.total),

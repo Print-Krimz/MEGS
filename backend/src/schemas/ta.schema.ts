@@ -133,6 +133,7 @@ export const taSchema = {
       source: z.enum(["ONLINE", "WALK_IN"]).optional(),
       sort: z.enum(["match", "newest", "oldest", "waiting"]).optional(),
       needsAction: z.enum(["true", "false", "1", "0"]).optional(),
+      openOnly: z.enum(["true", "false", "1", "0"]).optional(),
       page: finiteNumber({ min: 1, max: FIELD_LIMITS.integerId, integer: true }).optional(),
       limit: finiteNumber({ min: 1, max: FIELD_LIMITS.pageSize, integer: true }).optional(),
       summary: z.enum(["true", "false"]).optional(),

@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { taApi } from "../../../lib/api/ta.api";
 import { ErrorState, ScoreBadge, StatusBadge } from "../../common";
 import { Button } from "../../ui";
-import { cn, displayEmail, formatDate } from "../../../lib/utils";
+import { cn, displayEmail } from "../../../lib/utils";
 import { ApplicationStatus, InterviewType } from "../../../lib/types/enums";
 import type { TAApplicationSummary } from "../../../lib/types/application.types";
 import type { TAApplicationSearch } from "../../../routes";
@@ -18,6 +18,9 @@ import { useIsDesktop } from "../application/useIsDesktop";
 import { MatchBreakdown, type ScoreExplanation } from "../application/MatchBreakdown";
 import { ScheduleInterviewDialog } from "../application/ScheduleInterviewDialog";
 import { CloseApplicationDialog } from "../CloseApplicationDialog";
+import { ResumeDrawerButton } from "../application/ResumePanel";
+import { SourceChip } from "../walk-in/SourceChip";
+import { CandidateSnapshot, HiringProgress, OtherApplications } from "./ReviewPanelDetails";
 
 const initialsOf = (name: string) =>
   name
@@ -65,10 +68,10 @@ const ReviewTag: React.FC<{ app: Pick<TAApplicationSummary, "status" | "isArchiv
 
 const daysLabel = (days?: number) => (days == null ? "-" : days <= 0 ? "Today" : days === 1 ? "1 day" : `${days} days`);
 
-/** Overdue gets the red chip; on track stays quiet text so only late rows stand out. */
+/** Only late candidates get a chip, so they stand out; on track needs no label. */
 const HealthChip: React.FC<{ status: ApplicationStatus; days?: number }> = ({ status, days }) => {
   const health = stageHealth(status, days);
-  if (!health) return null;
+  if (health !== "overdue") return null;
   const chip = HEALTH_CHIP[health];
   const limit = stageLimitDays(status);
   return (
@@ -98,17 +101,17 @@ const Avatar: React.FC<{ name: string; photoUrl?: string | null; size?: "sm" | "
 type ScheduleKind = typeof InterviewType.INITIAL_SCREENING | typeof InterviewType.FINAL_INTERVIEW;
 
 interface ReviewPanelProps {
-  applicationId: number;
-  /** Whole days in the current stage, from the list row (the record endpoint does not compute it). */
-  daysInStage?: number;
+  /** The list row: carries days in stage and returning-worker details the record endpoint does not compute. */
+  row: TAApplicationSummary;
   listSearch: TAApplicationSearch;
   /** Called after a reject or a scheduled interview so the queue can move to the next candidate. */
   onDone: () => void;
 }
 
 /** The selected candidate: who, where they stand, what is next, and the two actions a recruiter takes most. */
-const ReviewPanel: React.FC<ReviewPanelProps> = ({ applicationId, daysInStage, listSearch, onDone }) => {
-  const id = String(applicationId);
+const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) => {
+  const id = String(row.id);
+  const daysInStage = row.daysInStage;
   const query = useQuery({
     queryKey: ["ta", "application", id],
     queryFn: () => taApi.getApplication(id),
@@ -120,6 +123,7 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ applicationId, daysInStage, l
   const m = useApplicationMutations({ applicationId: id, status: app?.status, candidateName });
   const [schedule, setSchedule] = useState<ScheduleKind | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [resumeOpen, setResumeOpen] = useState(false);
 
   if (query.isPending) {
     return (
@@ -163,6 +167,9 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ applicationId, daysInStage, l
   const requirementsResult = flags.totalCompReqs > 0 ? { approved: flags.approvedCompReqs, total: flags.totalCompReqs } : null;
   const clientName = app.jobPosting?.mrf?.client?.name;
   const email = displayEmail(app.user?.email);
+  const matchedSkills = explanation?.dimensionExplanations?.SKILLS?.matched ?? [];
+  const resumeUrl = profile?.resumeUrl || app.resumeUrl;
+  const returning = row.returning;
 
   const recordLink = (variant: "primary" | "outline") => (
     <Button asChild variant={variant} size="sm" className="min-h-11 md:min-h-9">
@@ -175,7 +182,7 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ applicationId, daysInStage, l
   return (
     <article aria-labelledby="review-panel-name" className="space-y-5 p-5">
       <header className="flex items-start gap-3">
-        <Avatar name={candidateName} photoUrl={(profile as { photoUrl?: string | null } | undefined)?.photoUrl} size="md" />
+        <Avatar name={candidateName} photoUrl={profile?.photoUrl} size="md" />
         <div className="min-w-0 flex-1">
           <h2 id="review-panel-name" className="break-words font-display text-xl font-semibold text-slate-950">
             {candidateName}
@@ -188,6 +195,12 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ applicationId, daysInStage, l
             <ReviewTag app={{ status: app.status, isArchived: Boolean(app.isArchived) }} />
             <StatusBadge status={app.status} />
             <HealthChip status={app.status} days={daysInStage} />
+            <SourceChip source={app.source} />
+            {returning && (
+              <span className="inline-flex items-center rounded border border-navy-line bg-navy-soft px-1.5 py-0.5 text-xs font-medium text-navy">
+                {returning.sameClient ? "Redeployment" : "Previously deployed"} · {returning.clientName}
+              </span>
+            )}
           </div>
         </div>
         <ScoreBadge score={fitScore == null ? undefined : Math.round(Number(fitScore))} />
@@ -213,6 +226,18 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ applicationId, daysInStage, l
         ) : (
           recordLink("primary")
         )}
+        {(resumeUrl?.trim() || profile) && (
+          <ResumeDrawerButton
+            open={resumeOpen}
+            onOpenChange={setResumeOpen}
+            resumeUrl={resumeUrl}
+            candidateName={candidateName}
+            megs={profile ? { profile, email, reference: app.trackingCode } : undefined}
+            onFullscreen={() => {
+              if (resumeUrl) window.open(resumeUrl, "_blank", "noopener,noreferrer");
+            }}
+          />
+        )}
         {canReject && (
           <Button variant="outline" size="sm" className="min-h-11 md:min-h-9" onClick={() => setRejectOpen(true)}>
             Reject
@@ -220,26 +245,13 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ applicationId, daysInStage, l
         )}
       </div>
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-        <div>
-          <dt className="text-slate-600">In stage</dt>
-          <dd className="mt-0.5 text-slate-900">{daysLabel(daysInStage)}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-600">Applied</dt>
-          <dd className="mt-0.5 text-slate-900">{formatDate(app.createdAt)}</dd>
-        </div>
-        <div className="min-w-0">
-          <dt className="text-slate-600">Email</dt>
-          <dd className="mt-0.5 break-all text-slate-900">{email || "-"}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-600">Mobile</dt>
-          <dd className="mt-0.5 text-slate-900">{profile?.mobileNumber || "-"}</dd>
-        </div>
-      </dl>
+      <CandidateSnapshot app={app} email={email} matchedSkills={matchedSkills} />
+
+      <HiringProgress app={app} flags={flags} daysText={daysLabel(daysInStage)} limitDays={stageLimitDays(app.status)} />
 
       <MatchBreakdown scores={scores ?? null} explanation={explanation} requirementsResult={requirementsResult} />
+
+      <OtherApplications app={app} email={email} listSearch={listSearch} />
 
       <ScheduleInterviewDialog
         open={schedule != null}
@@ -368,32 +380,35 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ rows, nameOf, nextStep
                         <span className="truncate font-semibold text-slate-950">{name}</span>
                         <ScoreBadge score={scoreOf(app)} size="sm" />
                       </span>
-                      <span className="block truncate text-xs text-slate-600">
+                      <span className="block truncate text-xs text-slate-700" title={app.jobPosting?.title || undefined}>
                         {app.jobPosting?.title || "Job opening"}
-                        {app.jobPosting?.mrf?.client?.name ? ` · ${app.jobPosting.mrf.client.name}` : ""}
                       </span>
+                      {app.jobPosting?.mrf?.client?.name && (
+                        <span className="block truncate text-xs text-slate-600" title={app.jobPosting.mrf.client.name}>
+                          {app.jobPosting.mrf.client.name}
+                        </span>
+                      )}
                       <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        <ReviewTag app={app} />
                         <StatusBadge status={app.status} size="sm" />
                         <HealthChip status={app.status} days={app.daysInStage} />
                         <span className="text-xs text-slate-600">{daysLabel(app.daysInStage)}</span>
                       </span>
-                      <span className="mt-1 block truncate text-xs text-slate-700">{nextStepOf(app)}</span>
+                      {nextStepOf(app) !== "None" && (
+                        <span className="mt-1 block truncate text-xs text-slate-700">{nextStepOf(app)}</span>
+                      )}
                     </span>
                   </button>
                 </li>
               );
             })}
           </ul>
-          {footer && <div className="border-t border-slate-300">{footer}</div>}
         </div>
         {isDesktop && (
           <section aria-label="Selected candidate" className="min-w-0 lg:max-h-[calc(100dvh-12rem)] lg:overflow-y-auto">
             {selectedId != null && (
               <ReviewPanel
                 key={selectedId}
-                applicationId={selectedId}
-                daysInStage={rows.find((row) => row.id === selectedId)?.daysInStage}
+                row={rows.find((row) => row.id === selectedId) ?? rows[0]}
                 listSearch={listSearch}
                 onDone={onDone}
               />
@@ -401,6 +416,8 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ rows, nameOf, nextStep
           </section>
         )}
       </div>
+      {/* Full width under both columns: the list column is too narrow for the page-size control. */}
+      {footer && <div className="border-t border-slate-300">{footer}</div>}
     </div>
   );
 };
