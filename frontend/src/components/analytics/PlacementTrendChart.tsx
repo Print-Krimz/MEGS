@@ -1,9 +1,7 @@
 import React from "react";
-import { motion, useReducedMotion } from "motion/react";
-import type { Trend, TrendPoint } from "../../lib/types/analytics.types";
+import type { Trend } from "../../lib/types/analytics.types";
 import { CHART_AXIS_TEXT, CHART_GRID, TEXT_LOSS, TREND } from "../../lib/chart-palette";
 import { AnalyticsPanel } from "./AnalyticsPanel";
-import { FIRST_LOAD_MS, REPORT_EASE } from "./motion";
 import { ChartLegend, DataTableToggle } from "./chart-primitives";
 
 interface PlacementTrendChartProps {
@@ -12,154 +10,112 @@ interface PlacementTrendChartProps {
 }
 
 const W = 640;
-const H = 180;
-const PAD = { top: 10, right: 8, bottom: 24, left: 28 };
-const NICE = [4, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
-
-const niceMax = (v: number) => NICE.find((n) => n >= v) ?? Math.ceil(v / 1000) * 1000;
-
-const GRANULARITY_PREFIX = { day: "", week: "Week of ", month: "" } as const;
+const H = 150;
+const PAD = { top: 14, right: 8, bottom: 26, left: 28 };
 
 const SERIES = {
-  started: { label: "Started", fill: TREND.newStarts },
-  left: { label: "Left", fill: TREND.backouts },
+  newStarts: { label: "New starts", fill: TREND.newStarts },
+  redeployStarts: { label: "Redeployments", fill: TREND.redeployStarts },
+  backouts: { label: "Backed out after client review", fill: TREND.backouts },
+  withdrawals: { label: "Withdrew before client review", fill: TREND.withdrawals },
 } as const;
 
-/** A column that grows up from the baseline on first load. */
-const Column: React.FC<{ x: number; y: number; width: number; height: number; fill: string; index: number }> = ({ x, y, width, height, fill, index }) => {
-  const reduce = useReducedMotion();
-  if (height <= 0) return null;
-  return (
-    <motion.rect
-      x={x}
-      y={y}
-      width={width}
-      height={height}
-      fill={fill}
-      style={{ transformBox: "fill-box", transformOrigin: "center bottom" }}
-      initial={reduce ? false : { scaleY: 0 }}
-      animate={{ scaleY: 1 }}
-      transition={{ duration: FIRST_LOAD_MS / 1000, ease: REPORT_EASE, delay: Math.min(index, 12) * 0.03 }}
-    />
-  );
-};
-
-const bucketText = (p: TrendPoint, prefix: string): string => {
-  const started = p.newStarts + p.redeployStarts;
-  const left = p.backouts + p.withdrawals;
-  const part = (items: [number, string][]) => items.filter(([n]) => n > 0).map(([n, l]) => `${n} ${l}`).join(", ");
-  const group = (n: number, word: string, items: [number, string][]) => (n > 0 ? `${n} ${word} (${part(items)})` : `0 ${word}`);
-  return `${prefix}${p.label}: ${group(started, "started", [[p.newStarts, "new"], [p.redeployStarts, "redeployed"]])}, ${group(left, "left", [[p.backouts, "backed out"], [p.withdrawals, "withdrew"]])}`;
-};
+const GRANULARITY_TEXT = {
+  day: "By day.",
+  week: "By week, Monday to Sunday.",
+  month: "By month.",
+} as const;
 
 /**
- * Two columns per day, week or month on one baseline: people who started (new and redeployed) and people who left
- * (backed out and withdrew). The breakdown is in each column pair's tooltip and in the table.
+ * Starts (new and redeployment) stacked next to people who left (backed out or withdrew), one pair of columns
+ * per day, week or month depending on the selected range.
  */
 export const PlacementTrendChart: React.FC<PlacementTrendChartProps> = ({ trend, rangeLabel }) => {
   const { points, granularity } = trend;
-  const prefix = GRANULARITY_PREFIX[granularity];
+  const starts = points.reduce((s, p) => s + p.newStarts + p.redeployStarts, 0);
   const redeployments = points.reduce((s, p) => s + p.redeployStarts, 0);
-  const starts = points.reduce((s, p) => s + p.newStarts, 0) + redeployments;
   const backouts = points.reduce((s, p) => s + p.backouts, 0);
   const withdrawals = points.reduce((s, p) => s + p.withdrawals, 0);
-  const left = backouts + withdrawals;
-  const isEmpty = starts + left === 0;
+  const totals = { newStarts: starts - redeployments, redeployStarts: redeployments, backouts, withdrawals };
+  const isEmpty = starts + backouts + withdrawals === 0;
 
-  const top = Math.max(0, ...points.map((p) => p.newStarts + p.redeployStarts));
-  const bottom = Math.max(0, ...points.map((p) => p.backouts + p.withdrawals));
-  const max = niceMax(Math.max(top, bottom, 1));
-  const innerH = H - PAD.top - PAD.bottom;
-  const base = PAD.top + innerH;
-  const h = (v: number) => (v > 0 ? Math.max(2, (v / max) * innerH) : 0);
-  const ticks = max % 2 === 0 ? [0, max / 2, max] : [0, max];
-
+  const max = Math.max(4, ...points.flatMap((p) => [p.newStarts + p.redeployStarts, p.backouts + p.withdrawals]));
   const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
   const slot = innerW / Math.max(1, points.length);
-  const barW = Math.max(3, Math.min(18, slot / 2 - 3));
-
-  const labelW = Math.max(...points.map((p) => p.label.length), 1) * 6.5 + 10;
-  const every = Math.max(1, Math.ceil(labelW / slot));
-  const last = points.length - 1;
-  const showLabel = (i: number) => i === last || (i % every === 0 && (last - i >= every));
+  const barW = Math.max(3, Math.min(16, slot / 2 - 2));
+  const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
+  const base = PAD.top + innerH;
+  const ticks = [0, Math.ceil(max / 2), max];
+  const labelEvery = Math.max(1, Math.ceil(points.length / 8));
 
   return (
     <AnalyticsPanel
       id="trend"
       title="Starts and people who left"
-      subtitle={`${granularity === "day" ? "Daily" : granularity === "week" ? "Weekly" : "Monthly"}, ${rangeLabel}. Left means backed out after client review or withdrew before it. Hover a pair for the breakdown.`}
-      className="h-full flex flex-col"
+      subtitle={`${GRANULARITY_TEXT[granularity]} Starts use the actual start date. Covers ${rangeLabel}. Left of each pair of columns: starts. Right: people who left.`}
       aside={
-        <span className="tabular-nums">
-          <span className="font-bold text-slate-950">{starts}</span> started ·{" "}
-          <span className={`font-bold ${TEXT_LOSS}`}>{left}</span> left
+        <span>
+          <span className="font-bold text-slate-950 tabular-nums">{starts}</span> started ·{" "}
+          <span className={`font-bold ${TEXT_LOSS} tabular-nums`}>{backouts + withdrawals}</span> left
         </span>
       }
     >
       {isEmpty ? (
         <p className="px-3.5 py-3 text-xs text-slate-500 font-sans">No starts, backouts or withdrawals in this period.</p>
       ) : (
-        <div className="p-3.5 flex-1">
+        <div className="p-3.5">
           <ChartLegend
             className="mb-2"
-            items={(Object.keys(SERIES) as (keyof typeof SERIES)[]).map((key) => ({ key, label: SERIES[key].label, color: SERIES[key].fill }))}
+            items={(Object.keys(SERIES) as (keyof typeof SERIES)[]).map((key) => ({ key, label: SERIES[key].label, color: SERIES[key].fill, value: totals[key] }))}
           />
           <div className="overflow-x-auto">
-            <svg
-              viewBox={`0 0 ${W} ${H}`}
-              className="w-full min-w-[26rem] h-auto"
-              role="group"
-              aria-label={`${starts} starts, ${redeployments} of them redeployments, ${backouts} backouts after client review and ${withdrawals} withdrawals before client review in ${rangeLabel}. The table under the chart gives each ${granularity}.`}
-            >
-              {ticks.map((t) => {
-                const y = base - (t / max) * innerH;
-                return (
-                  <g key={t}>
-                    <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} stroke={t === 0 ? CHART_AXIS_TEXT : CHART_GRID} strokeWidth="1" />
-                    <text x={PAD.left - 6} y={y + 4} textAnchor="end" fontSize="12" fill={CHART_AXIS_TEXT} className="tabular-nums">
-                      {t}
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className="w-full min-w-[26rem] h-auto"
+            role="img"
+            aria-label={`${starts} starts, ${redeployments} of them redeployments, ${backouts} backouts after client review and ${withdrawals} withdrawals before client review in ${rangeLabel}. The table under the chart gives each ${granularity}.`}
+          >
+            {ticks.map((t) => (
+              <g key={t}>
+                <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke={CHART_GRID} strokeWidth="1" />
+                <text x={PAD.left - 6} y={y(t) + 3} textAnchor="end" fontSize="12" fill={CHART_AXIS_TEXT} className="tabular-nums">
+                  {t}
+                </text>
+              </g>
+            ))}
+            {points.map((p, i) => {
+              const cx = PAD.left + slot * i + slot / 2;
+              const startTotal = p.newStarts + p.redeployStarts;
+              const leftTotal = p.backouts + p.withdrawals;
+              return (
+                <g key={p.start}>
+                  <title>
+                    {`${p.label}: ${p.newStarts} new starts, ${p.redeployStarts} redeployments, ${p.backouts} backed out after client review, ${p.withdrawals} withdrew before client review`}
+                  </title>
+                  <rect x={cx - barW - 1} y={y(p.newStarts)} width={barW} height={base - y(p.newStarts)} fill={SERIES.newStarts.fill} />
+                  <rect
+                    x={cx - barW - 1}
+                    y={y(startTotal)}
+                    width={barW}
+                    height={y(p.newStarts) - y(startTotal)}
+                    fill={SERIES.redeployStarts.fill}
+                  />
+                  <rect x={cx + 1} y={y(p.backouts)} width={barW} height={base - y(p.backouts)} fill={SERIES.backouts.fill} />
+                  <rect x={cx + 1} y={y(leftTotal)} width={barW} height={y(p.backouts) - y(leftTotal)} fill={SERIES.withdrawals.fill} />
+                  {i % labelEvery === 0 && (
+                    <text x={cx} y={H - 8} textAnchor="middle" fontSize="12" fill={CHART_AXIS_TEXT}>
+                      {p.label}
                     </text>
-                  </g>
-                );
-              })}
-              {points.map((p, i) => {
-                const cx = PAD.left + slot * i + slot / 2;
-                const startTotal = p.newStarts + p.redeployStarts;
-                const leftTotal = p.backouts + p.withdrawals;
-                const hasData = startTotal + leftTotal > 0;
-                const text = bucketText(p, prefix);
-                return (
-                  <g key={p.start}>
-                    <Column index={i} x={cx - barW - 1} y={base - h(startTotal)} width={barW} height={h(startTotal)} fill={SERIES.started.fill} />
-                    <Column index={i} x={cx + 1} y={base - h(leftTotal)} width={barW} height={h(leftTotal)} fill={SERIES.left.fill} />
-                    {hasData && (
-                      <rect
-                        x={PAD.left + slot * i}
-                        y={PAD.top}
-                        width={slot}
-                        height={innerH}
-                        fill="transparent"
-                        role="img"
-                        aria-label={text}
-                        tabIndex={0}
-                        className="focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-slate-700"
-                      >
-                        <title>{text}</title>
-                      </rect>
-                    )}
-                    {showLabel(i) && (
-                      <text x={cx} y={H - 8} textAnchor="middle" fontSize="12" fill={CHART_AXIS_TEXT}>
-                        {p.label}
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
+                  )}
+                </g>
+              );
+            })}
+          </svg>
           </div>
           <DataTableToggle
             caption={`Starts and people who left, by ${granularity}`}
-            columns={["Period", "New", "Redeployed", "Backed out", "Withdrew"]}
+            columns={["Period", "New starts", "Redeployments", "Backed out after client review", "Withdrew before client review"]}
             rows={points.map((p) => ({ key: p.start, cells: [p.label, p.newStarts, p.redeployStarts, p.backouts, p.withdrawals] }))}
           />
         </div>

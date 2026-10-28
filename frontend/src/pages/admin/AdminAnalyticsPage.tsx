@@ -2,12 +2,12 @@ import React, { useCallback, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
 import { PageHeader, LoadingState, ErrorState } from "../../components/common";
+import { AnalyticsFilterBar, ExportMenu } from "../../components/analytics";
+// Admin Reports uses its own status-first versions; the TA Reports page keeps the originals.
 import {
-  AnalyticsFilterBar,
   AnalyticsKpi,
   AttentionStrip,
   BackoutPanel,
-  ExportMenu,
   KpiRow,
   OperationsWorkspace,
   PlacementTrendChart,
@@ -16,8 +16,8 @@ import {
   StuckList,
   TeamTable,
   TeamWorkloadChart,
-} from "../../components/analytics";
-import type { RequestHealthFilter } from "../../components/analytics";
+} from "../../components/analytics/admin";
+import type { RequestHealthFilter } from "../../components/analytics/admin";
 import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
 import { formatDate } from "../../lib/utils";
 

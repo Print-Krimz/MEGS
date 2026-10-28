@@ -1,6 +1,5 @@
 import React from "react";
 import { CHART_TRACK, hatchStyle } from "../../lib/chart-palette";
-import { GrowFill } from "./motion";
 
 /** One segment of a stacked bar, or the single fill of a plain bar. */
 export interface BarSegment {
@@ -28,15 +27,13 @@ interface BarMarkProps {
   /** True when the bar sits inside a link or button, so it is reachable by keyboard on its own. */
   focusable?: boolean;
   className?: string;
-  /** Position in a list, for the first-load stagger. */
-  index?: number;
 }
 
 /**
  * Horizontal bar. Announced as one image: "{label}: {value} ({pct})". The native tooltip repeats it.
  * The fill is anchored at the left edge; only the data end is rounded.
  */
-export const BarMark: React.FC<BarMarkProps> = ({ label, value, max, color, pct, hatched, heightClass = "h-3", focusable, className = "", index = 0 }) => {
+export const BarMark: React.FC<BarMarkProps> = ({ label, value, max, color, pct, hatched, heightClass = "h-3", focusable, className = "" }) => {
   const share = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   const text = `${label}: ${value} (${pct ?? pctText(value, max)})`;
   return (
@@ -48,9 +45,8 @@ export const BarMark: React.FC<BarMarkProps> = ({ label, value, max, color, pct,
       className={`${heightClass} w-full overflow-hidden rounded-r-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${className}`}
       style={{ backgroundColor: CHART_TRACK }}
     >
-      <GrowFill
-        index={index}
-        className="h-full rounded-r-[3px] motion-safe:transition-[width] motion-safe:duration-300 motion-safe:ease-out"
+      <div
+        className="h-full rounded-r-[3px]"
         style={{ width: `${share}%`, minWidth: value > 0 ? 3 : 0, ...(hatched ? hatchStyle(color) : { backgroundColor: color }) }}
       />
     </div>
@@ -65,12 +61,10 @@ interface StackedBarProps {
   heightClass?: string;
   focusable?: boolean;
   className?: string;
-  /** Position in a list, for the first-load stagger. */
-  index?: number;
 }
 
 /** Segments of one bar with a 2px gap between fills. Announced as "{label}: A 3, B 2". */
-export const StackedBar: React.FC<StackedBarProps> = ({ label, segments, max, heightClass = "h-3", focusable, className = "", index = 0 }) => {
+export const StackedBar: React.FC<StackedBarProps> = ({ label, segments, max, heightClass = "h-3", focusable, className = "" }) => {
   const total = segments.reduce((s, x) => s + x.value, 0);
   const scale = max ?? total;
   const used = segments.filter((s) => s.value > 0);
@@ -84,18 +78,15 @@ export const StackedBar: React.FC<StackedBarProps> = ({ label, segments, max, he
       className={`${heightClass} w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${className}`}
       style={{ backgroundColor: CHART_TRACK }}
     >
-      <GrowFill
-        index={index}
-        className="flex h-full gap-[2px] motion-safe:transition-[width] motion-safe:duration-300 motion-safe:ease-out"
-        style={{ width: `${scale > 0 ? Math.min(100, (total / scale) * 100) : 0}%` }}>
+      <div className="flex h-full gap-[2px]" style={{ width: `${scale > 0 ? Math.min(100, (total / scale) * 100) : 0}%` }}>
         {used.map((s) => (
           <div
             key={s.key}
-            className="h-full last:rounded-r-[3px] motion-safe:transition-[flex-grow] motion-safe:duration-300"
+            className="h-full last:rounded-r-[3px]"
             style={{ flexGrow: s.value, flexBasis: 0, minWidth: 3, ...(s.hatched ? hatchStyle(s.color) : { backgroundColor: s.color }) }}
           />
         ))}
-      </GrowFill>
+      </div>
     </div>
   );
 };
@@ -131,15 +122,13 @@ interface DataTableToggleProps {
   columns: string[];
   rows: { key: string; cells: React.ReactNode[] }[];
   className?: string;
-  /** Text on the disclosure. */
-  summary?: string;
 }
 
 /** Text alternative for a chart. The first column is the row header. */
-export const DataTableToggle: React.FC<DataTableToggleProps> = ({ caption, columns, rows, className = "", summary = "View as table" }) => (
+export const DataTableToggle: React.FC<DataTableToggleProps> = ({ caption, columns, rows, className = "" }) => (
   <details className={`group mt-3 ${className}`}>
     <summary className="inline-flex min-h-11 cursor-pointer list-none items-center text-xs font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8">
-      {summary}
+      View as table
     </summary>
     <div className="mt-1 overflow-x-auto">
       <table className="w-full min-w-[18rem] text-xs tabular-nums">

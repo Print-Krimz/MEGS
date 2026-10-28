@@ -17,4 +17,3 @@ export * from "./InfoTip";
 export * from "./OperationsWorkspace";
 export * from "./StagePipeline";
 export * from "./chart-primitives";
-export * from "./motion";

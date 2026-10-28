@@ -21,8 +21,8 @@ export const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ id, title, subti
       {children}
     </div>
   ) : (
-    <section id={id} className={`scroll-mt-4 rounded-md border border-slate-300 bg-white ${className}`}>
-      <div className="px-3.5 py-2.5 border-b border-slate-200 bg-white flex items-center justify-between gap-3">
+    <section id={id} className={`scroll-mt-4 rounded-md border border-navy-line bg-white ${className}`}>
+      <div className="px-3.5 py-2.5 border-b border-navy-line bg-navy-soft flex items-center justify-between gap-3">
         <div className="min-w-0 flex items-center gap-2">
           <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
           {subtitle && <InfoTip label={title}>{subtitle}</InfoTip>}

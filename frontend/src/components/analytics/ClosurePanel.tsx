@@ -22,10 +22,10 @@ export const ClosurePanel: React.FC<ClosurePanelProps> = ({ data, rangeLabel }) 
     <AnalyticsPanel
       id="closed-applications"
       title="Closed applications"
-      subtitle={`Closed ${rangeLabel}. Rejected: we turned them down. Backed out: they dropped out.`}
+      subtitle={`Closed ${rangeLabel}. Rejected means you turned the applicant down. Backed out means the applicant dropped out. Talent pool and Archive are what you decided for them afterwards.`}
     >
       {total === 0 ? (
-        <p className="px-3.5 py-3 text-xs text-slate-500 font-sans">None closed in this period.</p>
+        <p className="px-3.5 py-3 text-xs text-slate-500 font-sans">No applications were closed in this period.</p>
       ) : (
         <div className="p-3.5 space-y-3">
           <table className="w-full text-xs font-sans tabular-nums">

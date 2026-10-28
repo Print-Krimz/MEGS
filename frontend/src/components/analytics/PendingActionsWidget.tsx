@@ -27,7 +27,7 @@ export const PendingActionsWidget: React.FC<PendingActionsWidgetProps> = ({
   actions = [],
   total,
   title = "Pending work",
-  subtitle = "Oldest first.",
+  subtitle = "Interviews, client answers and document reviews waiting on you, oldest first.",
   bare = false,
 }) => (
   <AnalyticsPanel
@@ -49,14 +49,14 @@ export const PendingActionsWidget: React.FC<PendingActionsWidgetProps> = ({
   >
     {bare && total !== undefined && total > actions.length && (
       <p className="border-b border-slate-200 px-3.5 py-2.5 text-xs text-slate-600 font-sans">
-        Showing <span className="font-bold text-slate-950">{actions.length}</span> of <span className="font-bold text-slate-950">{total}</span> pending tasks. Finish some to see the rest.
+        Showing <span className="font-bold text-slate-950">{actions.length}</span> of <span className="font-bold text-slate-950">{total}</span> pending tasks, oldest first. Finish some to see the rest.
       </p>
     )}
     {actions.length === 0 ? (
       <div className="p-8 text-center flex flex-col items-center justify-center space-y-1.5">
         <CheckSquare className="w-6 h-6 text-slate-500" aria-hidden="true" />
         <p className="text-sm font-semibold text-slate-900">Nothing is waiting on you</p>
-        <p className="text-xs text-slate-600 font-sans">No interviews, client answers or document reviews.</p>
+        <p className="text-xs text-slate-600 font-sans">No interviews, client answers or document reviews need action.</p>
       </div>
     ) : (
       <ul className="divide-y divide-slate-200">
