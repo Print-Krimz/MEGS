@@ -4,8 +4,9 @@ import type { RequestRow } from "../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { formatDate } from "../../lib/utils";
 import { AnalyticsPanel } from "./AnalyticsPanel";
-import { CHART_TRACK, HEALTH_CHIP, OUTCOME, TEXT_AMBER, TEXT_LOSS } from "../../lib/chart-palette";
+import { HEALTH_CHIP, OUTCOME, TEXT_AMBER, TEXT_LOSS } from "../../lib/chart-palette";
 import { PaginationBar } from "./PaginationBar";
+import { BarMark } from "./chart-primitives";
 
 interface RequestProgressListProps {
   rows: RequestRow[];
@@ -47,8 +48,6 @@ const slaText = (row: RequestRow): string => {
   if (row.daysRemaining === 0) return "Due today";
   return `Due in ${row.daysRemaining} ${row.daysRemaining === 1 ? "day" : "days"}`;
 };
-
-const TH = "px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap";
 
 /** Open client requests, most urgent first, as one row each with a status filter, search and paging. */
 export const RequestProgressList = React.memo(function RequestProgressList({
@@ -111,7 +110,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
     <AnalyticsPanel
       id="client-requests"
       title="Client requests"
-      subtitle="Open requests, plus any filled in this period, most urgent first. A seat counts as filled while a placement holds it."
+      subtitle="Open requests and any filled this period, most urgent first."
       bare={bare}
       aside={<span className="tabular-nums">{rows.length} requests</span>}
     >
@@ -152,92 +151,62 @@ export const RequestProgressList = React.memo(function RequestProgressList({
       )}
 
       {rows.length === 0 ? (
-        <p className="p-6 text-center text-xs text-slate-500 font-sans">There are no client requests in this view.</p>
+        <p className="p-6 text-center text-xs text-slate-500 font-sans">No client requests in this view.</p>
       ) : pageRows.length === 0 ? (
-        <p className="p-6 text-center text-xs text-slate-500 font-sans">No request matches. Change the status or clear the search.</p>
+        <p className="p-6 text-center text-xs text-slate-500 font-sans">No match. Change the status or search.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full sm:min-w-[46rem] text-sm">
-            <thead>
-              <tr className="border-b border-slate-200">
-                <th scope="col" className={TH}>Role and client</th>
-                {showOwner && (
-                  <th scope="col" className={`${TH} hidden sm:table-cell`}>Recruiter</th>
-                )}
-                <th scope="col" className={TH}>Seats filled</th>
-                <th scope="col" className={`${TH} hidden sm:table-cell`}>Pipeline</th>
-                <th scope="col" className={TH}>Due</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {pageRows.map((row) => {
-                const style = HEALTH[row.health];
-                const pct = row.headcount > 0 ? Math.min(100, Math.round((row.filled / row.headcount) * 100)) : 0;
-                const owner = formatRecruiterName(row.ownerName);
-                const due = row.targetFillDate ? `Target ${formatDate(row.targetFillDate)}` : "No target date";
-                return (
-                  <tr key={row.mrfId} className="align-top">
-                    <th scope="row" className="px-3 py-2 text-left font-sans font-normal max-w-64">
-                      <Link
-                        to={linkTo}
-                        params={{ mrfId: String(row.mrfId) }}
-                        className="block truncate text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                      >
-                        {row.title}
-                      </Link>
-                      <span className="block truncate text-xs text-slate-600">{row.clientName}</span>
-                      {/* On a phone the recruiter and pipeline columns are folded into this cell. */}
-                      <span className="mt-0.5 block text-xs text-slate-700 sm:hidden">
-                        {showOwner && <>{row.ownerId === null ? "No owner" : owner.label} · </>}
-                        {row.attention ? ATTENTION[row.attention].label : `${row.pipeline} for ${row.openSeats} open`}
-                        {row.overdueCandidates > 0 && `, ${row.overdueCandidates} overdue`}
-                      </span>
-                    </th>
-                    {showOwner && (
-                      <td className="hidden sm:table-cell px-3 py-2 text-xs font-sans text-slate-800 whitespace-nowrap" title={owner.full}>
-                        {row.ownerId === null ? <span className={`font-semibold ${TEXT_AMBER}`}>No owner</span> : owner.label}
-                      </td>
-                    )}
-                    <td className="px-3 py-2 min-w-32">
-                      <span className="text-xs tabular-nums text-slate-800">
-                        <strong>{row.filled}</strong> of <strong>{row.headcount}</strong> seats
-                      </span>
-                      <div
-                        className="mt-1 h-2 w-28 overflow-hidden rounded-r-[3px]" style={{ backgroundColor: CHART_TRACK }}
-                        role="progressbar"
-                        aria-valuemin={0}
-                        aria-valuemax={row.headcount}
-                        aria-valuenow={Math.min(row.filled, row.headcount)}
-                        aria-label={`${row.title}: ${row.filled} of ${row.headcount} seats filled`}
-                      >
-                        <div className="h-full rounded-r-[3px]" style={{ width: `${pct}%`, backgroundColor: style.bar }} />
-                      </div>
-                    </td>
-                    <td className="hidden sm:table-cell px-3 py-2 text-xs font-sans text-slate-700">
-                      {row.attention ? (
-                        <span className={`inline-block border px-1.5 py-0.5 font-semibold ${ATTENTION[row.attention].badge}`}>{ATTENTION[row.attention].label}</span>
-                      ) : (
-                        <span className="tabular-nums" title={`${row.applicantCount} ${row.applicantCount === 1 ? "applicant" : "applicants"} in all`}>
-                          <strong>{row.pipeline}</strong> for {row.openSeats} open
-                        </span>
-                      )}
-                      {row.overdueCandidates > 0 && (
-                        <span className={`block ${TEXT_LOSS} tabular-nums`}>
-                          {row.overdueCandidates} overdue {row.overdueCandidates === 1 ? "candidate" : "candidates"}
-                        </span>
-                      )}
-                      {row.backoutsInPeriod > 0 && <span className={`block ${TEXT_LOSS} tabular-nums`}>{row.backoutsInPeriod} backed out</span>}
-                    </td>
-                    <td className="px-3 py-2 text-xs font-sans whitespace-nowrap" title={due}>
-                      <span className={`inline-block border px-1.5 py-0.5 text-xs font-semibold ${style.badge}`}>{style.label}</span>
-                      <span className={`block mt-0.5 tabular-nums ${row.health === "OVERDUE" ? `${TEXT_LOSS} font-semibold` : "text-slate-600"}`}>{slaText(row)}</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ul className="divide-y divide-slate-200">
+          {pageRows.map((row) => {
+            const style = HEALTH[row.health];
+            const owner = formatRecruiterName(row.ownerName);
+            const due = row.targetFillDate ? `Target ${formatDate(row.targetFillDate)}` : "No target date";
+            return (
+              <li key={row.mrfId} className="px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-baseline gap-2">
+                    <Link
+                      to={linkTo}
+                      params={{ mrfId: String(row.mrfId) }}
+                      className="truncate text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                    >
+                      {row.title}
+                    </Link>
+                    <span className="hidden truncate text-xs font-sans text-slate-600 sm:inline">{row.clientName}</span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2 text-xs font-sans" title={due}>
+                    <span className={`tabular-nums ${row.health === "OVERDUE" ? `${TEXT_LOSS} font-semibold` : "text-slate-600"}`}>{slaText(row)}</span>
+                    <span className={`border px-1.5 py-0.5 font-semibold ${style.badge}`}>{style.label}</span>
+                  </div>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-sans text-slate-700">
+                  <span className="sm:hidden truncate text-slate-600">{row.clientName}</span>
+                  <span className="flex items-center gap-2 tabular-nums">
+                    <span className="w-24">
+                      <BarMark label={`${row.title} seats filled`} value={Math.min(row.filled, row.headcount)} max={row.headcount} color={style.bar} heightClass="h-2" />
+                    </span>
+                    <span>
+                      <strong>{row.filled}</strong> of <strong>{row.headcount}</strong> seats
+                    </span>
+                  </span>
+                  {showOwner && (
+                    <span title={owner.full} className={row.ownerId === null ? `font-semibold ${TEXT_AMBER}` : undefined}>
+                      {row.ownerId === null ? "No owner" : owner.label}
+                    </span>
+                  )}
+                  {row.attention ? (
+                    <span className={`border px-1.5 py-0.5 font-semibold ${ATTENTION[row.attention].badge}`}>{ATTENTION[row.attention].label}</span>
+                  ) : (
+                    <span className="tabular-nums" title={`${row.applicantCount} ${row.applicantCount === 1 ? "applicant" : "applicants"} in all`}>
+                      <strong>{row.pipeline}</strong> in pipeline, {row.openSeats} open
+                    </span>
+                  )}
+                  {row.overdueCandidates > 0 && <span className={`${TEXT_LOSS} tabular-nums`}>{row.overdueCandidates} overdue</span>}
+                  {row.backoutsInPeriod > 0 && <span className={`${TEXT_LOSS} tabular-nums`}>{row.backoutsInPeriod} backed out</span>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
       <PaginationBar page={currentPage} pageSize={pageSize} total={visible.length} onPageChange={setPage} noun="requests" />
       {note && <p id="requests-note" className="scroll-mt-4 border-t border-slate-200 px-3.5 py-2.5 text-xs text-slate-600 font-sans">{note}</p>}

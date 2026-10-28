@@ -41,7 +41,7 @@ export const StuckList = React.memo(function StuckList({
   viewer = "admin",
   id = "waiting-too-long",
   title = "Waiting too long",
-  subtitle = "Candidates past the allowed days for their stage. Verified waits first, then longest wait. Critical means twice the limit or more.",
+  subtitle = "Past the stage limit, longest wait first. Critical is twice the limit or more.",
   bare = false,
   focus,
 }: StuckListProps) {
@@ -128,23 +128,23 @@ export const StuckList = React.memo(function StuckList({
       )}
 
       {rows.length === 0 ? (
-        <p className="p-6 text-center text-xs text-slate-500 font-sans">No candidate is past a stage limit.</p>
+        <p className="p-6 text-center text-xs text-slate-500 font-sans">No one is past a stage limit.</p>
       ) : pageRows.length === 0 ? (
-        <p className="p-6 text-center text-xs text-slate-500 font-sans">No candidate matches. Change the filters above.</p>
+        <p className="p-6 text-center text-xs text-slate-500 font-sans">No match. Change the filters.</p>
       ) : (
         <ul className="divide-y divide-slate-200">
           {pageRows.map((r) => {
             const style = URGENCY[r.urgency];
             return (
-              <li key={r.applicationId} className="p-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`px-1.5 py-0.5 text-xs font-semibold border ${style.badge}`}>{style.label}</span>
+              <li key={r.applicationId} className="px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold border ${style.badge}`}>{style.label}</span>
                     {admin ? (
                       <Link
                         to="/admin/applications/$applicationId"
                         params={{ applicationId: String(r.applicationId) }}
-                        className="text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                        className="truncate text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {r.candidateName}
                       </Link>
@@ -152,45 +152,45 @@ export const StuckList = React.memo(function StuckList({
                       <Link
                         to="/ta/applications/$applicationId"
                         params={{ applicationId: String(r.applicationId) }}
-                        className="text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                        className="truncate text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {r.candidateName}
                       </Link>
                     )}
                   </div>
-                  <p className="mt-0.5 text-xs text-slate-700 font-sans">
-                    {r.jobTitle}
-                    {r.clientName ? ` · ${r.clientName}` : ""}
-                    {r.mrfId !== null && (
-                      <>
-                        {" · "}
-                        <Link
-                          to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
-                          params={{ mrfId: String(r.mrfId) }}
-                          className="text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                        >
-                          View request
-                        </Link>
-                      </>
-                    )}
-                  </p>
-                  {admin && (
-                    <p className="text-xs text-slate-600 font-sans" title={formatRecruiterName(r.recruiterName).full}>
-                      Handled by {formatRecruiterName(r.recruiterName).label}
-                    </p>
-                  )}
+                  <span className={`shrink-0 text-xs font-semibold tabular-nums ${r.urgency === "critical" ? TEXT_LOSS : TEXT_AMBER}`}>
+                    {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over
+                  </span>
                 </div>
-                <div className="sm:shrink-0 sm:text-right">
-                  <p className={`text-xs font-semibold tabular-nums ${r.urgency === "critical" ? `${TEXT_LOSS}` : `${TEXT_AMBER}`}`}>
-                    {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over the limit
-                  </p>
-                  <p className="text-xs text-slate-600 font-sans tabular-nums">
-                    {r.stageLabel}: {r.daysInStage} days, limit {r.slaDays}
-                  </p>
+                <p className="mt-0.5 text-xs text-slate-600 font-sans tabular-nums">
+                  {r.stageLabel} · {r.daysInStage} {r.daysInStage === 1 ? "day" : "days"} (limit {r.slaDays})
                   {r.estimated && (
-                    <p className="text-xs text-slate-500 font-sans">Counted from the application date; no stage change was recorded.</p>
+                    <>
+                      {" "}
+                      <abbr title="Counted from the application date. No stage change was recorded." className="no-underline cursor-help">
+                        est.<span className="sr-only"> Counted from the application date. No stage change was recorded.</span>
+                      </abbr>
+                    </>
                   )}
-                </div>
+                  {" · "}
+                  {r.jobTitle}
+                  {r.clientName ? ` · ${r.clientName}` : ""}
+                  {admin && (
+                    <span title={formatRecruiterName(r.recruiterName).full}> · {formatRecruiterName(r.recruiterName).label}</span>
+                  )}
+                  {r.mrfId !== null && (
+                    <>
+                      {" · "}
+                      <Link
+                        to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
+                        params={{ mrfId: String(r.mrfId) }}
+                        className="text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                      >
+                        View request
+                      </Link>
+                    </>
+                  )}
+                </p>
               </li>
             );
           })}
@@ -200,9 +200,8 @@ export const StuckList = React.memo(function StuckList({
       <PaginationBar page={currentPage} pageSize={pageSize} total={visible.length} onPageChange={setPage} noun="candidates" />
       {(total > rows.length || closedOpenings > 0) && (
         <p className="border-t border-slate-200 px-3.5 py-2.5 text-xs text-slate-600 font-sans">
-          {total > rows.length && `Showing the ${rows.length} longest waits of ${total}. `}
-          {closedOpenings > 0 &&
-            `${closedOpenings} more ${closedOpenings === 1 ? "candidate is" : "candidates are"} on closed openings and ${closedOpenings === 1 ? "is" : "are"} not listed.`}
+          {total > rows.length && `Top ${rows.length} of ${total}. `}
+          {closedOpenings > 0 && `${closedOpenings} more on closed openings.`}
         </p>
       )}
     </AnalyticsPanel>

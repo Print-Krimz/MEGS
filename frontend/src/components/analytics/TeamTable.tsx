@@ -39,8 +39,8 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
   return (
     <AnalyticsPanel
       id="recruiter-table"
-      title="Recruiter workload and results"
-      subtitle={`Select a recruiter to filter the whole page. Active, overdue, open requests and seats are as of today. Sent, started, backed out and days to fill cover ${rangeLabel}.`}
+      title="Recruiters"
+      subtitle={`Pick a name to filter the page. Active, Overdue, Requests and Seats: today. The rest: ${rangeLabel}.`}
       bare={bare}
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 px-3.5 py-2.5">
@@ -61,7 +61,7 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
 
       {pageRows.length === 0 ? (
         <p className="p-6 text-center text-xs text-slate-500 font-sans">
-          {rows.length === 0 ? "No recruiter has candidates or open requests in this view." : "No recruiter matches the search."}
+          {rows.length === 0 ? "No recruiters in this view." : "No match."}
         </p>
       ) : (
         <div className="overflow-x-auto">
@@ -78,22 +78,22 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
                   Overdue
                 </th>
                 <th scope="col" className={TH}>
-                  Open requests
+                  Requests
                 </th>
                 <th scope="col" className={TH}>
-                  Seats filled
+                  Seats
                 </th>
                 <th scope="col" className={TH}>
-                  Sent to client
+                  Sent
                 </th>
                 <th scope="col" className={TH}>
-                  Started
+                  Starts
                 </th>
                 <th scope="col" className={TH}>
-                  Backed out
+                  Backouts
                 </th>
                 <th scope="col" className={TH}>
-                  Backout %
+                  Backout rate
                 </th>
                 <th scope="col" className={TH}>
                   Days to fill
@@ -120,7 +120,7 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
                     <td className={`px-3 py-2 text-right tabular-nums whitespace-nowrap ${row.overdue > 0 ? `font-bold ${TEXT_LOSS}` : "text-slate-500"}`}>
                       {row.overdue}
                       {row.overdueEstimated > 0 && (
-                        <span className={`block text-xs font-normal ${TEXT_AMBER}`}>+{row.overdueEstimated} by age only</span>
+                        <span className={`block text-xs font-normal ${TEXT_AMBER}`}>+{row.overdueEstimated} est.</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-700">{row.openRequisitions}</td>
@@ -139,7 +139,7 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
                       {row.placed}
                       {row.redeployStarts > 0 && (
                         <span className="block text-xs text-slate-500">
-                          {row.newStarts} new, {row.redeployStarts} redeployed
+                          {row.newStarts} new · {row.redeployStarts} redeploy
                         </span>
                       )}
                     </td>

@@ -6,6 +6,7 @@ import { formatDate } from "../../lib/utils";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 import { NEUTRAL_MARK, RESPONSIBILITY, TEXT_LOSS } from "../../lib/chart-palette";
 import { analyticsStageLabel } from "./stage-label";
+import { AnimatedNumber } from "./motion";
 import { BarMark, ChartLegend, DataTableToggle, StackedBar } from "./chart-primitives";
 
 interface BackoutPanelProps {
@@ -118,29 +119,24 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
     <AnalyticsPanel
       id="backouts"
       title="Withdrawals and backouts"
-      subtitle={`Recorded ${rangeLabel}. A candidate the client declined is not counted as a backout.`}
+      subtitle={`Recorded ${rangeLabel}. Client declines are not backouts.`}
     >
-      {clientDecisions && clientDecisions.accepted + clientDecisions.declined > 0 && (
-        <p className="border-b border-navy-line px-3.5 py-2.5 text-xs text-slate-700 font-sans tabular-nums">
-          Client answers: <strong>{clientDecisions.accepted}</strong> accepted, <strong>{clientDecisions.declined}</strong> declined.
-        </p>
-      )}
       {total === 0 ? (
-        <p className="px-3.5 py-3 text-xs text-slate-500 font-sans">No withdrawals or backouts were recorded in this period.</p>
+        <p className="px-3.5 py-3 text-xs text-slate-500 font-sans">None recorded in this period.</p>
       ) : (
         <div className="p-3.5 space-y-3">
           <dl className="grid grid-cols-3 gap-3">
             <div title="Applicants who left before the client reviewed them">
               <dt className="text-xs font-semibold text-slate-600">Before client review</dt>
-              <dd className="text-2xl font-bold tabular-nums text-slate-950">{data.withdrawals}</dd>
+              <dd className="text-2xl font-bold tabular-nums text-slate-950"><AnimatedNumber value={data.withdrawals} /></dd>
             </div>
             <div title="Candidates who left once the client had reviewed them, up to their start date">
               <dt className="text-xs font-semibold text-slate-600">After client review</dt>
-              <dd className={`text-2xl font-bold tabular-nums ${TEXT_LOSS}`}>{data.backouts}</dd>
+              <dd className={`text-2xl font-bold tabular-nums ${TEXT_LOSS}`}><AnimatedNumber value={data.backouts} /></dd>
             </div>
-            <div title="Recorded as no-show. Counted in the totals by stage, shown here on their own.">
+            <div title="Already counted in the stage totals. Shown here on their own.">
               <dt className="text-xs font-semibold text-slate-600">No-shows</dt>
-              <dd className="text-2xl font-bold tabular-nums text-slate-950">{data.noShows}</dd>
+              <dd className="text-2xl font-bold tabular-nums text-slate-950"><AnimatedNumber value={data.noShows} /></dd>
             </div>
           </dl>
 
@@ -154,10 +150,16 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, clientDecision
             }))}
           />
 
+          {clientDecisions && clientDecisions.accepted + clientDecisions.declined > 0 && (
+            <p className="text-xs text-slate-600 font-sans tabular-nums">
+              Client answers: <strong>{clientDecisions.accepted}</strong> accepted · <strong>{clientDecisions.declined}</strong> declined
+            </p>
+          )}
+
           {compact ? (
             <details className="group">
               <summary className="min-h-11 md:min-h-9 flex items-center text-sm font-semibold text-navy cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
-                Breakdown by stage, reason, client and request
+                Breakdown
               </summary>
               <div className="mt-3 space-y-5">{breakdown}</div>
             </details>

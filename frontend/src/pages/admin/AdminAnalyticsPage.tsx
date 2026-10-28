@@ -60,7 +60,6 @@ export const AdminAnalyticsPage: React.FC = () => {
     <PageHeader
       title="Reports"
       flush
-      description="Whether the team is delivering to clients, and who needs help."
       breadcrumbs={[{ label: "Administration", href: "/admin" }, { label: "Reports" }]}
       actions={
         <ExportMenu
@@ -102,8 +101,9 @@ export const AdminAnalyticsPage: React.FC = () => {
   const noOpening = data.requests.filter((r) => r.attention === "NO_OPENING").length;
   const staleNote =
     kpis.staleFilledRequisitions > 0
-      ? `${kpis.staleFilledRequisitions} ${kpis.staleFilledRequisitions === 1 ? "request is" : "requests are"} marked filled but ${kpis.staleFilledRequisitions === 1 ? "has" : "have"} no placement behind ${kpis.staleFilledRequisitions === 1 ? "it" : "them"}. They are left out of the seat counts.`
+      ? `${kpis.staleFilledRequisitions} marked filled with no placement. Left out of seat counts.`
       : undefined;
+  const periodCaption = `Seats and late requests: today · Others: ${label}`;
 
   return (
     <div className="space-y-5">
@@ -111,63 +111,73 @@ export const AdminAnalyticsPage: React.FC = () => {
 
       <AnalyticsFilterBar filters={filters} onChange={setFilters} options={data.filterOptions} showClientFilter showRecruiterFilter />
 
-      <p role="status" aria-live="polite" className={dashboardQuery.isFetching ? "text-xs text-slate-500 font-sans" : "sr-only"}>
-        {dashboardQuery.isFetching ? "Updating the numbers…" : ""}
+      <p role="status" aria-live="polite" className="sr-only">
+        {dashboardQuery.isFetching ? "Updating the numbers" : ""}
       </p>
 
-      <KpiRow columns="md:grid-cols-5">
+      <div className={`space-y-5 transition-opacity ${dashboardQuery.isFetching ? "opacity-70" : ""}`}>
+      <KpiRow columns="md:grid-cols-5" caption={periodCaption}>
         <AnalyticsKpi
           label="Seats filled"
-          kind="now"
           value={kpis.requestedSeats === 0 ? "—" : `${kpis.fillRate}%`}
           detail={`${kpis.filledSeats} of ${kpis.requestedSeats} seats · ${kpis.openSeats} open`}
-          definition="Seats a placement holds, out of seats requested on open requests and requests filled in these dates."
+          definition="Seats held by a placement, out of seats requested."
           anchor="operations"
           onActivate={() => showRequests("ALL")}
         />
         <AnalyticsKpi
           label="Late requests"
-          kind="now"
           value={lateRequests}
           detail={`${kpis.requisitions.overdue} overdue · ${kpis.requisitions.atRisk} at risk`}
-          definition="Overdue: past the target date. At risk: due within 7 days with too few candidates to fill the open seats."
+          definition="Overdue is past the target date. At risk is due within 7 days with too few candidates."
           tone={kpis.requisitions.overdue > 0 ? "alert" : "default"}
           anchor="operations"
           onActivate={() => showRequests("OVERDUE")}
         />
         <AnalyticsKpi
           label="Starts"
-          kind="period"
           value={kpis.placementsStarted}
           detail={`${kpis.newStarts} new · ${kpis.redeployStarts} redeployed`}
-          definition="Workers whose actual start date falls in the selected dates. A redeployed worker counts once."
+          definition="Workers whose start date falls in the selected dates."
           anchor="trend"
         />
         <AnalyticsKpi
           label="Days to fill"
-          kind="period"
           value={kpis.medianDaysToFill === null ? "—" : kpis.medianDaysToFill}
-          detail={kpis.daysToFillSample === 0 ? "No starts with a request" : `Median of ${kpis.daysToFillSample} ${kpis.daysToFillSample === 1 ? "start" : "starts"}`}
-          definition="Calendar days from the request being opened to the worker starting. 0 means the same day."
+          detail={kpis.daysToFillSample === 0 ? "No starts" : `Median, ${kpis.daysToFillSample} ${kpis.daysToFillSample === 1 ? "start" : "starts"}`}
+          definition="Days from request opened to worker start."
         />
         <AnalyticsKpi
           label="Backout rate"
-          kind="period"
           value={kpis.backoutRateBase === 0 ? "—" : `${kpis.backoutRate}%`}
           detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase}`}
-          definition="Backouts after client review, out of those backouts plus starts that came from an application."
+          definition="Backouts after client review, out of those plus starts."
           tone={kpis.backoutRate >= 20 ? "alert" : "default"}
           anchor="backouts"
         />
       </KpiRow>
 
+      <StagePipeline
+        rows={data.stageTable}
+        rangeLabel={label}
+        onSelectStage={(stage) => {
+          showWaiting({ stage });
+          scrollToWorkspace();
+        }}
+      />
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-stretch">
+        <TeamWorkloadChart rows={data.team} selectedRecruiterId={filters.recruiterId} onSelectRecruiter={selectRecruiter} />
+        <PlacementTrendChart trend={data.trend} rangeLabel={label} />
+      </div>
+
       <AttentionStrip
         items={[
           { id: "critical", label: "critical waits", singular: "critical wait", count: kpis.criticalCandidates, target: "operations", tone: "alert", onSelect: () => showWaiting({ urgency: "critical" }) },
-          { id: "late", label: "requests past their target date", singular: "request past its target date", count: kpis.requisitions.overdue, target: "operations", tone: "alert", onSelect: () => showRequests("OVERDUE") },
-          { id: "orphaned", label: "open requests with no owner", singular: "open request with no owner", count: noOwner, target: "operations", tone: "alert", onSelect: () => showRequests("UNOWNED") },
-          { id: "no-opening", label: "open requests with no opening", singular: "open request with no opening", count: noOpening, target: "operations", tone: "warn", onSelect: () => showRequests("NONE") },
-          { id: "stale", label: "requests marked filled with no placement", singular: "request marked filled with no placement", count: kpis.staleFilledRequisitions, target: "requests-note", tone: "warn", onSelect: () => showRequests("ALL") },
+          { id: "late", label: "overdue requests", singular: "overdue request", count: kpis.requisitions.overdue, target: "operations", tone: "alert", onSelect: () => showRequests("OVERDUE") },
+          { id: "orphaned", label: "no owner", singular: "no owner", count: noOwner, target: "operations", tone: "alert", onSelect: () => showRequests("UNOWNED") },
+          { id: "no-opening", label: "no opening", singular: "no opening", count: noOpening, target: "operations", tone: "warn", onSelect: () => showRequests("NONE") },
+          { id: "stale", label: "filled, no placement", singular: "filled, no placement", count: kpis.staleFilledRequisitions, target: "requests-note", tone: "warn", onSelect: () => showRequests("ALL") },
         ]}
       />
 
@@ -177,7 +187,7 @@ export const AdminAnalyticsPage: React.FC = () => {
         tabs={[
           {
             key: "waiting",
-            label: "Critical and waiting candidates",
+            label: "Waiting",
             shortLabel: "Waiting",
             count: data.stuckTotal,
             content: <StuckList bare rows={data.stuck} total={data.stuckTotal} closedOpenings={kpis.closedOpenings} focus={waitingFocus} />,
@@ -191,7 +201,7 @@ export const AdminAnalyticsPage: React.FC = () => {
           },
           {
             key: "recruiters",
-            label: "All recruiters",
+            label: "Recruiters",
             shortLabel: "Recruiters",
             count: data.team.length,
             content: <TeamTable bare rows={data.team} rangeLabel={label} selectedRecruiterId={filters.recruiterId} onSelectRecruiter={selectRecruiter} />,
@@ -199,21 +209,8 @@ export const AdminAnalyticsPage: React.FC = () => {
         ]}
       />
 
-      <StagePipeline
-        rows={data.stageTable}
-        rangeLabel={label}
-        onSelectStage={(stage) => {
-          showWaiting({ stage });
-          scrollToWorkspace();
-        }}
-      />
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
-        <TeamWorkloadChart rows={data.team} selectedRecruiterId={filters.recruiterId} onSelectRecruiter={selectRecruiter} />
-        <PlacementTrendChart trend={data.trend} rangeLabel={label} />
-      </div>
-
       <BackoutPanel data={data.backouts} clientDecisions={data.clientDecisions} rangeLabel={label} showStageBars compact />
+      </div>
     </div>
   );
 };

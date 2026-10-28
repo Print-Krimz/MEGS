@@ -24,13 +24,13 @@ export const DropOffChart: React.FC<DropOffChartProps> = ({ rows, rangeLabel }) 
   return (
     <AnalyticsPanel
       title="Stage progress"
-      subtitle={`Applicants who applied ${rangeLabel}. Returning applicants count once.`}
+      subtitle={`Applied ${rangeLabel}. Returning applicants count once.`}
     >
       <div className="p-3.5 space-y-3">
         <ChartLegend items={SEGMENTS.map((s) => ({ key: s.key, label: s.label, color: s.color }))} />
 
         {total === 0 ? (
-          <p className="py-6 text-center text-xs text-slate-500 font-sans">No applications were received in this period.</p>
+          <p className="py-6 text-center text-xs text-slate-500 font-sans">No applications in this period.</p>
         ) : (
           <>
             <ol className="space-y-2.5">
