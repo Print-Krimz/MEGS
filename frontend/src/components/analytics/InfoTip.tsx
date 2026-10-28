@@ -39,6 +39,7 @@ export const InfoTip: React.FC<InfoTipProps> = ({ children, label, align = "left
       <button
         type="button"
         aria-label={`About ${label}`}
+        data-own-hit-area
         aria-describedby={id}
         aria-expanded={open}
         onClick={() => setPinned((p) => !p)}

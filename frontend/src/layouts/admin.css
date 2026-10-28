@@ -28,6 +28,6 @@
 .admin-portal .admin-nav-link[data-status="active"] { border-left-color: var(--color-megs-red); color: white; background: rgb(255 255 255 / 0.05); }
 
 @media (max-width: 767px) {
-  .admin-portal main :where(button, [role="button"]) { min-height: 44px; }
+  .admin-portal main :where(button:not([data-own-hit-area]), [role="button"]) { min-height: 44px; }
   .admin-portal main :where(input:not([type="range"]):not([type="checkbox"]), select, textarea) { font-size: 16px; min-height: 44px; }
 }
