@@ -14,8 +14,8 @@ export const FeedbackToaster: React.FC = () => {
         success: <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />,
         error: <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />,
         warning: <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />,
-        info: <Info className="w-4 h-4 text-teal-600 shrink-0" />,
-        loading: <Loader2 className="w-4 h-4 text-teal-600 animate-spin shrink-0" />,
+        info: <Info className="w-4 h-4 text-navy shrink-0" />,
+        loading: <Loader2 className="w-4 h-4 text-navy animate-spin shrink-0" />,
       }}
       toastOptions={{
         unstyled: true,
@@ -25,7 +25,7 @@ export const FeedbackToaster: React.FC = () => {
           title: "font-sans text-sm font-semibold text-slate-900",
           description: "text-sm text-slate-600 leading-normal font-sans mt-0.5",
           actionButton:
-            "px-2.5 py-1 bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-semibold transition-colors",
+            "px-2.5 py-1 bg-navy hover:bg-navy-hover text-white text-xs font-semibold transition-colors",
           cancelButton:
             "px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium transition-colors",
           closeButton:
@@ -33,7 +33,7 @@ export const FeedbackToaster: React.FC = () => {
           success: "border border-emerald-200 bg-emerald-50/40",
           error: "border border-rose-200 bg-rose-50/40",
           warning: "border border-amber-200 bg-amber-50/40",
-          info: "border border-teal-200 bg-teal-50/40",
+          info: "border border-navy-line bg-navy-soft/40",
           loading: "border border-slate-200 bg-white",
         },
       }}

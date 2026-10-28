@@ -120,7 +120,7 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
                     <td className={`px-3 py-2 text-right tabular-nums whitespace-nowrap ${row.overdue > 0 ? `font-bold ${TEXT_LOSS}` : "text-slate-500"}`}>
                       {row.overdue}
                       {row.overdueEstimated > 0 && (
-                        <span className={`block text-[11px] font-normal ${TEXT_AMBER}`}>+{row.overdueEstimated} by age only</span>
+                        <span className={`block text-xs font-normal ${TEXT_AMBER}`}>+{row.overdueEstimated} by age only</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-700">{row.openRequisitions}</td>
@@ -130,7 +130,7 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
                       ) : (
                         <>
                           {row.filledSeats} of {row.requestedSeats}
-                          <span className="block text-[11px] text-slate-500">{row.fillRate}%</span>
+                          <span className="block text-xs text-slate-500">{row.fillRate}%</span>
                         </>
                       )}
                     </td>
@@ -138,7 +138,7 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
                     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-700">
                       {row.placed}
                       {row.redeployStarts > 0 && (
-                        <span className="block text-[11px] text-slate-500">
+                        <span className="block text-xs text-slate-500">
                           {row.newStarts} new, {row.redeployStarts} redeployed
                         </span>
                       )}

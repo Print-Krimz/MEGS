@@ -40,7 +40,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         {label && (
           <label htmlFor={textareaId} className="block text-xs font-semibold text-slate-700">
             {label}
-            {required && <span className="text-rose-500 ml-0.5">*</span>}
+            {required && <span className="text-rose-700 ml-0.5">*</span>}
           </label>
         )}
 

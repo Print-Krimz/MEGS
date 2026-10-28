@@ -19,7 +19,7 @@ interface AttentionStripProps {
 }
 
 const TONE = {
-  alert: `${HEALTH_CHIP.overdue.className} hover:brightness-90`,
+  alert: `${HEALTH_CHIP.overdue.className} hover:bg-[#FBE3E6]`,
   warn: `${HEALTH_CHIP.watch.className} hover:bg-navy-soft`,
 } as const;
 

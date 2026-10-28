@@ -86,7 +86,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
     <div className={cn("w-full space-y-1.5 text-left", className)}>
       {label && (
         <label htmlFor={inputId} className="block text-xs font-semibold text-slate-700">
-          {label} {required && <span className="text-rose-500 ml-0.5">*</span>}
+          {label} {required && <span className="text-rose-700 ml-0.5">*</span>}
         </label>
       )}
 

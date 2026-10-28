@@ -377,7 +377,7 @@ export const TALayout: React.FC = () => {
             role="dialog"
             aria-modal="true"
             aria-label="TA portal navigation"
-            className="relative flex-1 flex flex-col max-w-xs w-full border-t-4 border-megs-red bg-megs-navy-900 text-white/75 border-r border-white/10 shadow-2xl z-10 animate-in slide-in-from-left duration-200"
+            className="relative flex-1 flex flex-col max-w-xs w-full border-t-4 border-t-megs-red bg-megs-navy-900 text-white/75 border-r border-white/10 shadow-2xl z-10 animate-in slide-in-from-left duration-200"
           >
             {/* Drawer Header */}
             <div className="h-14 flex items-center justify-between px-4 border-b border-white/10">
@@ -400,7 +400,7 @@ export const TALayout: React.FC = () => {
 
       {/* Desktop Persistent Sidebar */}
       <aside
-        className={`hidden lg:flex fixed inset-y-0 left-0 z-40 border-t-4 border-megs-red bg-megs-navy-900 text-white/75 flex-col border-r border-white/10 transition-all duration-150 ${
+        className={`hidden lg:flex fixed inset-y-0 left-0 z-40 border-t-4 border-t-megs-red bg-megs-navy-900 text-white/75 flex-col border-r border-white/10 transition-all duration-150 ${
           collapsed ? "w-16" : "w-64"
         }`}
       >

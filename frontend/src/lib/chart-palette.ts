@@ -18,7 +18,7 @@
  * - Responsibility: AGENCY slate #3B4A63 is 8.35:1 vs surface, and sits between amber CLIENT and violet APPLICANT in
  *   stacks (violet vs slate is 1.46:1 by lightness, so the 2px gap, legend and table carry the split, as for every pair here).
  * - Stage chips: text on tint >= 4.5:1 (5.9 to 9.0, asserted in tests); Deployed is white on navy 13.2:1.
- * - Text on solid fills: white on BOTTLENECK >= 4.5:1; watch and at-risk chips use dark amber text on a light
+ * - Chip text: dark red on the light red BOTTLENECK/OVERDUE fill >= 4.5:1; watch and at-risk chips use dark amber text on a light
  *   fill, >= 4.5:1 (asserted in tests).
  * - Neutral grey is exempt from the chroma floor by design (it means "waiting / not a decision").
  */
@@ -108,14 +108,15 @@ export type HealthKey = "onTrack" | "watch" | "atRisk" | "bottleneck" | "overdue
 
 /**
  * Chips for state. Class strings are literal so Tailwind sees them. On track has no fill; watch is an amber outline;
- * at risk is a light amber fill; bottleneck and overdue are solid red with white text. Every chip also carries a word.
+ * at risk is a light amber fill; bottleneck and overdue are a light red fill with dark red text and a red outline
+ * (solid red read as too loud next to the charts). Every chip also carries a word.
  */
 export const HEALTH_CHIP: Record<HealthKey, { label: string; className: string }> = {
   onTrack: { label: "On track", className: "border-transparent bg-transparent text-slate-700" },
   watch: { label: "Watch", className: "border-[#9A5B00] bg-white text-[#7A4800]" },
   atRisk: { label: "At risk", className: "border-[#9A5B00]/40 bg-[#FFF4DC] text-[#7A4800]" },
-  bottleneck: { label: "Bottleneck", className: "border-[#B42318] bg-[#B42318] text-white" },
-  overdue: { label: "Overdue", className: "border-[#B42318] bg-[#B42318] text-white" },
+  bottleneck: { label: "Bottleneck", className: "border-[#B42318] bg-[#FDF1F2] text-[#B42318]" },
+  overdue: { label: "Overdue", className: "border-[#B42318] bg-[#FDF1F2] text-[#B42318]" },
   filled: { label: "Filled", className: "border-slate-300 bg-slate-100 text-slate-700" },
 };
 

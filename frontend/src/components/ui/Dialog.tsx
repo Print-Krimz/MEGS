@@ -14,6 +14,10 @@ export interface DialogProps {
   overflowVisible?: boolean;
 }
 
+const restoreFocus = (element: HTMLElement | null) => {
+  if (element?.isConnected) element.focus();
+};
+
 export const Dialog: React.FC<DialogProps> = ({
   open,
   onClose,
@@ -80,13 +84,15 @@ export const Dialog: React.FC<DialogProps> = ({
         wasOpenRef.current = true;
         requestAnimationFrame(() => {
           // If focus is already inside dialog, do not steal or jump focus
+          // Start on the first form field; with none, focus the dialog itself so the
+          // Close button or a destructive action is never the default target. A combobox
+          // or file picker opens on focus, so those also leave focus on the dialog.
           if (dialogRef.current && !dialogRef.current.contains(document.activeElement)) {
-            const first = getFocusableElements()[0];
-            if (first) {
-              first.focus();
-            } else {
-              dialogRef.current.focus();
-            }
+            const firstField = getFocusableElements().find((element) =>
+              element.matches("input, select, textarea") && (element as HTMLInputElement).type !== "hidden"
+            );
+            const opensOnFocus = firstField?.matches('[role="combobox"], [type="file"]');
+            (firstField && !opensOnFocus ? firstField : dialogRef.current).focus();
           }
         });
       }
@@ -94,7 +100,7 @@ export const Dialog: React.FC<DialogProps> = ({
       document.body.style.overflow = "";
       if (wasOpenRef.current) {
         wasOpenRef.current = false;
-        previousFocusRef.current?.focus();
+        restoreFocus(previousFocusRef.current);
       }
     }
 
@@ -103,6 +109,15 @@ export const Dialog: React.FC<DialogProps> = ({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [open]);
+
+  // Callers that unmount the dialog instead of passing open={false} still get focus back.
+  useEffect(() => {
+    const previousFocus = previousFocusRef;
+    const wasOpen = wasOpenRef;
+    return () => {
+      if (wasOpen.current) restoreFocus(previousFocus.current);
+    };
+  }, []);
 
   if (!open) return null;
 
@@ -128,7 +143,7 @@ export const Dialog: React.FC<DialogProps> = ({
         ref={dialogRef}
         tabIndex={-1}
         className={cn(
-          "relative w-full bg-white border border-slate-400 rounded-md transform transition-all shadow-modal mx-auto",
+          "relative w-full bg-white border border-slate-400 rounded-md transform transition-all shadow-modal mx-auto focus:outline-none",
           overflowVisible ? "overflow-visible" : "overflow-hidden",
           sizeStyles[size],
           className

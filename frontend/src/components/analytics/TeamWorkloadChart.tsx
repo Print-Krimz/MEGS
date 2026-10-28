@@ -57,7 +57,7 @@ export const TeamWorkloadChart: React.FC<TeamWorkloadChartProps> = ({ rows, sele
               type="button"
               aria-pressed={mode === m.key}
               onClick={() => setMode(m.key)}
-              className={`min-h-8 px-2 text-[11px] font-sans font-semibold border first:border-r-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+              className={`min-h-8 px-2 text-xs font-sans font-semibold border first:border-r-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                 mode === m.key ? "bg-navy text-white border-navy" : "bg-white text-slate-700 border-navy-line hover:bg-navy-soft"
               }`}
             >

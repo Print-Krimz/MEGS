@@ -92,7 +92,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(!open)}
-        className="relative min-h-11 min-w-11 inline-flex items-center justify-center rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-1"
+        className="relative min-h-11 min-w-11 inline-flex items-center justify-center rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1"
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
         aria-expanded={open}
         aria-controls={open ? dropdownId : undefined}
@@ -117,7 +117,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                 Notifications
               </span>
               {unreadCount > 0 && (
-                <span className="px-1.5 py-0.5 bg-teal-100 text-teal-900 border border-teal-300 text-xs font-medium shrink-0">
+                <span className="px-1.5 py-0.5 bg-navy-soft text-navy border border-navy-line text-xs font-medium shrink-0">
                   {unreadCount} unread
                 </span>
               )}
@@ -127,7 +127,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                 type="button"
                 onClick={() => markAllReadMutation.mutate()}
                 disabled={unreadCount === 0 || markAllReadMutation.isPending}
-                className="text-xs font-medium text-teal-700 hover:text-teal-900 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center gap-1 px-1.5 py-1 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 cursor-pointer"
+                className="text-xs font-medium text-navy hover:text-navy-hover disabled:text-slate-400 disabled:cursor-not-allowed flex items-center gap-1 px-1.5 py-1 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus cursor-pointer"
                 aria-label="Mark all notifications as read"
                 title="Mark all as read"
               >
@@ -137,7 +137,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
               <Link
                 to={resolvedViewAllLink}
                 onClick={() => setOpen(false)}
-                className="text-xs text-teal-700 hover:text-teal-900 font-medium flex items-center gap-1 px-1.5 py-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                className="text-xs text-navy hover:text-navy-hover font-medium flex items-center gap-1 px-1.5 py-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 <span>View all</span>
                 <ExternalLink className="w-3 h-3" />
@@ -155,18 +155,18 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
               notifications.slice(0, 5).map((n) => (
                 <li
                   key={n.id}
-                  className={`flex items-start justify-between gap-2 p-1.5 ${!n.isRead ? "bg-teal-50/30" : ""}`}
+                  className={`flex items-start justify-between gap-2 p-1.5 ${!n.isRead ? "bg-navy-soft/40" : ""}`}
                 >
                   <button
                     type="button"
                     onClick={() => handleItemClick(n)}
-                    className="min-h-11 flex-1 p-2 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700"
+                    className="min-h-11 flex-1 p-2 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
                   >
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-medium text-slate-900 truncate">
                          {formatNotificationTitle(n.title, user?.role)}
                       </span>
-                      {n.link && <ArrowUpRight className="w-3 h-3 text-teal-600 shrink-0" />}
+                      {n.link && <ArrowUpRight className="w-3 h-3 text-navy shrink-0" />}
                     </div>
                     <div className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
                       {formatNotificationMessage(n.message, user?.role)}
@@ -183,7 +183,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                         e.stopPropagation();
                         onMarkAsRead(n.id);
                       }}
-                      className="min-h-11 min-w-11 p-2 text-teal-700 hover:text-teal-900 rounded-md hover:bg-teal-100/50 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                      className="min-h-11 min-w-11 p-2 text-navy hover:text-navy-hover rounded-md hover:bg-navy-soft transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       aria-label={`Mark ${n.title} as read`}
                       title="Mark as read"
                     >

@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { StageTableRow } from "../../lib/types/analytics.types";
 import type { ApplicationStatus } from "../../lib/types/enums";
 import { AlertTriangle, Eye } from "lucide-react";
-import { HEALTH_CHIP, TEXT_LOSS, TEXT_AMBER, hatchStyle, stageColor } from "../../lib/chart-palette";
+import { HEALTH_CHIP, TEXT_LOSS, TEXT_AMBER, WORKLOAD, hatchStyle, stageColor } from "../../lib/chart-palette";
 import { analyticsStageLabel } from "./stage-label";
 import { BarMark, DataTableToggle } from "./chart-primitives";
 import { AnalyticsPanel } from "./AnalyticsPanel";
@@ -79,7 +79,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
                   <span className="block text-xs font-semibold font-sans text-slate-900 leading-tight">{stageLabel(row)}</span>
                   <span className="mt-1.5 block text-2xl font-bold tabular-nums text-slate-950">
                     {row.entered}
-                    <span className="ml-1 text-[11px] font-sans font-normal text-slate-600">entered</span>
+                    <span className="ml-1 text-xs font-sans font-normal text-slate-600">entered</span>
                   </span>
                   <span className="mt-1 block">
                     <BarMark label={`${stageLabel(row)} entered`} value={row.entered} max={maxEntered} color={color} pct={`during ${rangeLabel}`} heightClass="h-2.5" />
@@ -90,7 +90,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
                     {row.overdueEstimated > 0 && (
                       <span className={`font-normal ${TEXT_AMBER}`}>
                         {" "}
-                        <span className="mr-0.5 inline-block h-2 w-2 align-baseline" style={hatchStyle("#9A5B00")} aria-hidden="true" />+{row.overdueEstimated} by age only
+                        <span className="mr-0.5 inline-block h-2 w-2 align-baseline" style={hatchStyle(WORKLOAD.estimated)} aria-hidden="true" />+{row.overdueEstimated} by age only
                       </span>
                     )}
                   </span>
@@ -102,7 +102,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
                     </span>
                   )}
                   {details && (
-                    <span className="mt-1.5 block border-t border-navy-line pt-1.5 text-[11px] font-sans text-slate-700 tabular-nums">
+                    <span className="mt-1.5 block border-t border-navy-line pt-1.5 text-xs font-sans text-slate-700 tabular-nums">
                       <span className={`block ${row.backedOut > 0 ? TEXT_LOSS : ""}`}>{row.backedOut} backed out</span>
                       <span className="block text-slate-500">{limitText(row)}</span>
                     </span>

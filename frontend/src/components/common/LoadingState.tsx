@@ -17,7 +17,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
   if (variant === "spinner") {
     return (
       <div className={cn("py-12 flex flex-col items-center justify-center gap-3", className)} role="status" aria-live="polite">
-        <div className="w-6 h-6 border-2 border-teal-700 border-t-transparent animate-spin" aria-hidden="true" />
+        <div className="w-6 h-6 border-2 border-navy border-t-transparent animate-spin" aria-hidden="true" />
         <span className="text-sm text-slate-600">{message}</span>
       </div>
     );

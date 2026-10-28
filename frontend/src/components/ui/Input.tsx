@@ -45,6 +45,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
       rightIcon,
       disabled,
       required,
+      "aria-describedby": ariaDescribedBy,
       ...props
     },
     ref
@@ -95,7 +96,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label htmlFor={inputId} className="block text-xs font-medium text-slate-600">
             {label}
-            {required && <span className="text-rose-500 ml-0.5">*</span>}
+            {required && <span className="text-rose-700 ml-0.5">*</span>}
           </label>
         )}
 
@@ -117,7 +118,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             disabled={disabled}
             required={required}
             aria-invalid={Boolean(effectiveError)}
-            aria-describedby={effectiveError ? errorId : helperText ? helperId : undefined}
+            aria-describedby={[ariaDescribedBy, effectiveError ? errorId : helperText ? helperId : undefined].filter(Boolean).join(" ") || undefined}
             inputMode={isNumber ? (decimalPlaces > 0 ? "decimal" : "numeric") : inputMode}
             min={isNumber ? undefined : min ?? defaultMinDate}
             max={isNumber ? undefined : max ?? defaultMaxDate}

@@ -79,7 +79,7 @@ export const PlacementTrendChart: React.FC<PlacementTrendChartProps> = ({ trend,
             {ticks.map((t) => (
               <g key={t}>
                 <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke={CHART_GRID} strokeWidth="1" />
-                <text x={PAD.left - 6} y={y(t) + 3} textAnchor="end" fontSize="11" fill={CHART_AXIS_TEXT} className="tabular-nums">
+                <text x={PAD.left - 6} y={y(t) + 3} textAnchor="end" fontSize="12" fill={CHART_AXIS_TEXT} className="tabular-nums">
                   {t}
                 </text>
               </g>
@@ -104,7 +104,7 @@ export const PlacementTrendChart: React.FC<PlacementTrendChartProps> = ({ trend,
                   <rect x={cx + 1} y={y(p.backouts)} width={barW} height={base - y(p.backouts)} fill={SERIES.backouts.fill} />
                   <rect x={cx + 1} y={y(leftTotal)} width={barW} height={y(p.backouts) - y(leftTotal)} fill={SERIES.withdrawals.fill} />
                   {i % labelEvery === 0 && (
-                    <text x={cx} y={H - 8} textAnchor="middle" fontSize="11" fill={CHART_AXIS_TEXT}>
+                    <text x={cx} y={H - 8} textAnchor="middle" fontSize="12" fill={CHART_AXIS_TEXT}>
                       {p.label}
                     </text>
                   )}

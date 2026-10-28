@@ -29,13 +29,13 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const iconMap = {
     danger: <AlertTriangle className="w-5 h-5 text-rose-600" />,
     warning: <AlertCircle className="w-5 h-5 text-amber-600" />,
-    primary: <AlertCircle className="w-5 h-5 text-teal-600" />,
+    primary: <AlertCircle className="w-5 h-5 text-navy" />,
   };
 
   const bgMap = {
     danger: "bg-rose-100",
     warning: "bg-amber-100",
-    primary: "bg-teal-100",
+    primary: "bg-navy-soft",
   };
 
   return (

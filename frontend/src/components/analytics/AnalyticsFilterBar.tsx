@@ -434,7 +434,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
           <button
             type="button"
             onClick={handleClearAll}
-            className="text-[11px] text-slate-500 hover:text-rose-700 underline ml-2 cursor-pointer pointer-coarse:min-h-11 pointer-coarse:px-2"
+            className="text-xs text-slate-500 hover:text-rose-700 underline ml-2 cursor-pointer pointer-coarse:min-h-11 pointer-coarse:px-2"
           >
              Clear all
           </button>
