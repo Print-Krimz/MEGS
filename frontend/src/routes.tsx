@@ -605,6 +605,7 @@ export const adminAnalyticsRoute = createRoute({
 export interface AdminUsersSearch {
   status?: "active" | "inactive" | "invited";
   role?: Role;
+  lastLogin?: "7d" | "30d" | "never";
 }
 
 export const adminUsersRoute = createRoute({
@@ -613,6 +614,7 @@ export const adminUsersRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): AdminUsersSearch => ({
     status: search.status === "active" || search.status === "inactive" || search.status === "invited" ? search.status : undefined,
     role: Object.values(Role).includes(search.role as Role) ? (search.role as Role) : undefined,
+    lastLogin: search.lastLogin === "7d" || search.lastLogin === "30d" || search.lastLogin === "never" ? search.lastLogin : undefined,
   }),
   component: UsersPage,
 });

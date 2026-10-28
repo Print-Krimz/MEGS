@@ -18,6 +18,7 @@ import { useIsDesktop } from "../application/useIsDesktop";
 import { MatchBreakdown, type ScoreExplanation } from "../application/MatchBreakdown";
 import { ScheduleInterviewDialog } from "../application/ScheduleInterviewDialog";
 import { CloseApplicationDialog } from "../CloseApplicationDialog";
+import { ApplicationNotes } from "../application/ApplicationNotes";
 
 const initialsOf = (name: string) =>
   name
@@ -30,6 +31,37 @@ const initialsOf = (name: string) =>
 const scoreOf = (app: TAApplicationSummary) => {
   const score = app.candidateFitScore ?? app.aiScore;
   return score == null ? undefined : Math.round(score);
+};
+
+const PENDING_REVIEW: string[] = [
+  ApplicationStatus.SUBMITTED,
+  ApplicationStatus.PARSING,
+  ApplicationStatus.REVIEW,
+  ApplicationStatus.MATCHED,
+  ApplicationStatus.NEEDS_ATTENTION,
+];
+const CLOSED: string[] = [
+  ApplicationStatus.REJECTED,
+  ApplicationStatus.BACKOUT,
+  ApplicationStatus.TALENT_POOL,
+  ApplicationStatus.ARCHIVED,
+];
+
+/** Where the candidate is in the recruiter's review: not yet looked at, moving through hiring, or closed. */
+export const reviewStateOf = (app: Pick<TAApplicationSummary, "status" | "isArchived">) =>
+  app.isArchived || CLOSED.includes(app.status)
+    ? { label: "Closed", className: "border-slate-300 bg-slate-100 text-slate-700" }
+    : PENDING_REVIEW.includes(app.status)
+    ? { label: "Pending review", className: "border-navy bg-white text-navy" }
+    : { label: "Reviewed", className: "border-slate-300 bg-white text-slate-700" };
+
+const ReviewTag: React.FC<{ app: Pick<TAApplicationSummary, "status" | "isArchived"> }> = ({ app }) => {
+  const state = reviewStateOf(app);
+  return (
+    <span className={cn("inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-semibold", state.className)}>
+      {state.label}
+    </span>
+  );
 };
 
 const daysLabel = (days?: number) => (days == null ? "-" : days <= 0 ? "Today" : days === 1 ? "1 day" : `${days} days`);
@@ -154,6 +186,7 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ applicationId, daysInStage, l
             {clientName ? ` · ${clientName}` : ""}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
+            <ReviewTag app={{ status: app.status, isArchived: Boolean(app.isArchived) }} />
             <StatusBadge status={app.status} />
             <HealthChip status={app.status} days={daysInStage} />
           </div>
@@ -206,6 +239,8 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ applicationId, daysInStage, l
           <dd className="mt-0.5 text-slate-900">{profile?.mobileNumber || "-"}</dd>
         </div>
       </dl>
+
+      <ApplicationNotes applicationId={id} />
 
       <MatchBreakdown scores={scores ?? null} explanation={explanation} requirementsResult={requirementsResult} />
 
@@ -341,6 +376,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ rows, nameOf, nextStep
                         {app.jobPosting?.mrf?.client?.name ? ` · ${app.jobPosting.mrf.client.name}` : ""}
                       </span>
                       <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <ReviewTag app={app} />
                         <StatusBadge status={app.status} size="sm" />
                         <HealthChip status={app.status} days={app.daysInStage} />
                         <span className="text-xs text-slate-600">{daysLabel(app.daysInStage)}</span>

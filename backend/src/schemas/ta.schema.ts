@@ -319,6 +319,10 @@ export const taSchema = {
       location: boundedText(FIELD_LIMITS.address).optional(),
     }).strict(),
   }),
+  addApplicationNote: z.object({
+    params: z.object({ id: boundedIdText }).strict(),
+    body: z.object({ body: safeProseSchema("Note", FIELD_LIMITS.notes) }).strict(),
+  }),
   rejectRescheduleRequest: z.object({
     params: z.object({ id: boundedIdText, requestId: boundedIdText }),
     body: z.object({ decisionNote: boundedText(FIELD_LIMITS.notes).optional() }).strict(),

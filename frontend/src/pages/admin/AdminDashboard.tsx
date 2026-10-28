@@ -33,14 +33,25 @@ function MetricValue<T>({ query, children }: { query: UseQueryResult<T>; childre
 }
 
 /** One headline number, same anatomy as the TA overview tiles. The label link covers the tile. */
-const MetricTile: React.FC<{ label: string; to: string; search?: Record<string, string>; children: React.ReactNode }> = ({ label, to, search, children }) => (
-  <div className="relative bg-white p-3.5 transition-colors hover:bg-slate-50 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-inset has-[a:focus-visible]:ring-focus">
-    <Link to={to} search={search as never} className="text-xs font-medium text-slate-600 outline-none after:absolute after:inset-0 after:content-['']">
-      {label}
-    </Link>
+const MetricTile: React.FC<{ label: string; to?: string; search?: Record<string, string>; children: React.ReactNode }> = ({ label, to, search, children }) => (
+  <div className={`relative bg-white p-3.5 ${to ? "transition-colors hover:bg-slate-50 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-inset has-[a:focus-visible]:ring-focus" : ""}`}>
+    {to ? (
+      <Link to={to} search={search as never} className="text-xs font-medium text-slate-600 outline-none after:absolute after:inset-0 after:content-['']">
+        {label}
+      </Link>
+    ) : (
+      <span className="text-xs font-medium text-slate-600">{label}</span>
+    )}
     {children}
   </div>
 );
+
+const formatUptime = (seconds: number) => {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return days > 0 ? `${days}d ${hours}h` : hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+};
 
 // Dates are longer than counts, so they step down a size to stay on one line in a half-width tile.
 const Value: React.FC<{ children: React.ReactNode; tone?: "default" | "alert"; date?: boolean }> = ({ children, tone = "default", date = false }) => (
@@ -65,6 +76,12 @@ export const AdminDashboard: React.FC = () => {
     queryKey: ["admin", "users", "summary"],
     queryFn: ({ signal }) => adminApi.getUserSummary({ signal }),
   });
+  // Refetches every minute; TanStack pauses it while the tab is hidden.
+  const healthQuery = useQuery({
+    queryKey: ["admin", "system", "health"],
+    queryFn: ({ signal }) => adminApi.getSystemHealth({ signal }),
+    refetchInterval: 60_000,
+  });
   const configQuery = useQuery({ queryKey: ["admin", "scoring", "config"], queryFn: adminApi.getScoringConfig });
   const backupsQuery = useQuery({ queryKey: ["admin", "maintenance", "backups", 5], queryFn: () => adminApi.listDatabaseBackups(5) });
   const qualityQuery = useQuery({ queryKey: ["admin", "scoring", "quality"], queryFn: adminApi.getQualityMetrics });
@@ -81,12 +98,15 @@ export const AdminDashboard: React.FC = () => {
 
       <section aria-labelledby="admin-needs-attention" className="space-y-2">
         <h2 id="admin-needs-attention" className="text-sm font-semibold text-slate-950">Needs attention</h2>
-        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 sm:grid-cols-2 lg:grid-cols-4">
           <MetricTile label="Invitations" to="/admin/users" search={{ status: "invited" }}>
             <MetricValue query={userSummaryQuery}>{users => <><Value tone={users.expiredInvitations > 0 ? "alert" : "default"}>{users.pendingInvitations + users.expiredInvitations}</Value><Caption>{users.pendingInvitations} pending · {users.expiredInvitations} expired</Caption></>}</MetricValue>
           </MetricTile>
           <MetricTile label="Inactive accounts" to="/admin/users" search={{ status: "inactive" }}>
             <MetricValue query={userSummaryQuery}>{users => <><Value>{users.inactiveAccounts}</Value><Caption>Cannot sign in</Caption></>}</MetricValue>
+          </MetricTile>
+          <MetricTile label="Failed scoring jobs" to="/admin/scoring/quality">
+            <MetricValue query={healthQuery}>{health => <><Value tone={health.failedJobs > 0 ? "alert" : "default"}>{health.failedJobs}</Value><Caption>{health.failedJobs > 0 ? "Need a retry" : "None"}</Caption></>}</MetricValue>
           </MetricTile>
           <MetricTile label="Latest backup" to="/admin/maintenance">
             <MetricValue query={backupsQuery}>{backups => {
@@ -98,20 +118,28 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 sm:grid-cols-3">
-        <MetricTile label="User accounts" to="/admin/users">
-          <MetricValue query={userSummaryQuery}>{users => <><Value>{users.totalUsers}</Value><Caption>{plural(users.recruiters, "recruiter")} · {plural(users.administrators, "administrator")}</Caption></>}</MetricValue>
-        </MetricTile>
-        <MetricTile label="Average match score" to="/admin/scoring/quality">
-          <MetricValue query={qualityQuery}>{quality => {
-            const scored = quality?.totalCalculated > 0 && quality.averageFitScore != null && Number.isFinite(Number(quality.averageFitScore));
-            return <><Value>{scored ? Number(quality.averageFitScore).toFixed(1) + "%" : "—"}</Value><Caption>{quality?.totalCalculated ? plural(quality.totalCalculated, "candidate") + " scored" : "No candidates scored yet"}</Caption></>;
-          }}</MetricValue>
-        </MetricTile>
-        <MetricTile label="Matching settings" to="/admin/scoring">
-          <MetricValue query={configQuery}>{config => <><Value date>{config?.activatedAt ? formatDate(config.activatedAt) : "—"}</Value><Caption>{!config ? "Not available" : config.status === "ACTIVE" ? "Last updated" : "Not in use"}</Caption></>}</MetricValue>
-        </MetricTile>
-      </div>
+      <section aria-labelledby="admin-system" className="space-y-2">
+        <h2 id="admin-system" className="text-sm font-semibold text-slate-950">System</h2>
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricTile label="Database">
+            <MetricValue query={healthQuery}>{health => health.database.ok
+              ? <><Value>{health.database.latencyMs} ms</Value><Caption>Responding</Caption></>
+              : <><Value tone="alert">Unreachable</Value><Caption>Check the database host</Caption></>}</MetricValue>
+          </MetricTile>
+          <MetricTile label="Server memory">
+            <MetricValue query={healthQuery}>{health => <><Value>{health.memoryMb} MB</Value><Caption>Up {formatUptime(health.uptimeSeconds)}</Caption></>}</MetricValue>
+          </MetricTile>
+          <MetricTile label="Active users" to="/admin/users" search={{ status: "active" }}>
+            <MetricValue query={healthQuery}>{health => <><Value>{health.activeUsers}</Value><Caption>Can sign in</Caption></>}</MetricValue>
+          </MetricTile>
+          <MetricTile label="Average match score" to="/admin/scoring/quality">
+            <MetricValue query={qualityQuery}>{quality => {
+              const scored = quality?.totalCalculated > 0 && quality.averageFitScore != null && Number.isFinite(Number(quality.averageFitScore));
+              return <><Value>{scored ? Number(quality.averageFitScore).toFixed(1) + "%" : "—"}</Value><Caption>{quality?.totalCalculated ? plural(quality.totalCalculated, "candidate") + " scored" : "No candidates scored yet"}</Caption></>;
+            }}</MetricValue>
+          </MetricTile>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,13fr)_minmax(0,7fr)]">
         <section aria-labelledby="admin-recent-activity" className="overflow-hidden rounded-md border border-slate-300 bg-white">

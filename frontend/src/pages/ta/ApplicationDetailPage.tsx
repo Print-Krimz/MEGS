@@ -39,6 +39,7 @@ import { deriveApplicationFlags, pickStageBarActions, type StageActionId } from 
 import { getNextStep } from "../../components/ta/application/next-step";
 import { buildActivity } from "../../components/ta/application/activity";
 import { useApplicationMutations } from "../../components/ta/application/useApplicationMutations";
+import { ApplicationNotes } from "../../components/ta/application/ApplicationNotes";
 import type { RequirementRowData } from "../../components/ta/application/RequirementRow";
 import { CLOSURE_DISPOSITION_LABELS, CLOSURE_OUTCOME_LABELS, closureReasonLabel, type ClosureOutcome } from "../../lib/backout";
 import { formatDate, extractDocumentId, displayEmail } from "../../lib/utils";
@@ -732,7 +733,12 @@ export const ApplicationDetailPage: React.FC = () => {
               />
             )}
 
-            {activeTab === "activity" && <ActivityTab events={buildActivity(app, decisions)} isLoading={decisionsQuery.isLoading} />}
+            {activeTab === "activity" && (
+              <div className="space-y-6">
+                <ApplicationNotes applicationId={app.id} />
+                <ActivityTab events={buildActivity(app, decisions)} isLoading={decisionsQuery.isLoading} />
+              </div>
+            )}
           </div>
         }
       />

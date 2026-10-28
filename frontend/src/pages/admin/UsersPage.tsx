@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
-import type { AdminUserListItem, AdminUserStatus } from "../../lib/api/admin.api";
+import type { AdminUserListItem, AdminUserLastLogin, AdminUserStatus } from "../../lib/api/admin.api";
 import type { BulkSummary } from "../../lib/types/application.types";
 import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
@@ -19,7 +19,7 @@ import {
   SelectBox,
 } from "../../components/common";
 import { Button, Dialog, Input, Select } from "../../components/ui";
-import { formatDate } from "../../lib/utils";
+import { formatDate, formatDateTime } from "../../lib/utils";
 import { Role } from "../../lib/types/enums";
 import {
   Users,
@@ -74,9 +74,10 @@ export const UsersPage: React.FC = () => {
   const [search, setSearch] = useState("");
   // Role and status live in the URL so overview tiles can link to a filtered list.
   const navigate = useNavigate();
-  const urlSearch = useSearch({ strict: false }) as { role?: Role; status?: AdminUserStatus };
+  const urlSearch = useSearch({ strict: false }) as { role?: Role; status?: AdminUserStatus; lastLogin?: AdminUserLastLogin };
   const roleFilter = urlSearch.role ?? "";
   const statusFilter = urlSearch.status ?? "";
+  const lastLoginFilter = urlSearch.lastLogin ?? "";
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
@@ -112,13 +113,14 @@ export const UsersPage: React.FC = () => {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const usersQuery = useQuery({
-    queryKey: ["admin", "users", { page, pageSize, search: debouncedSearch, role: roleFilter, status: statusFilter }],
+    queryKey: ["admin", "users", { page, pageSize, search: debouncedSearch, role: roleFilter, status: statusFilter, lastLogin: lastLoginFilter }],
     queryFn: ({ signal }) => adminApi.listUsersPage({
       page,
       limit: pageSize,
       search: debouncedSearch || undefined,
       role: (roleFilter as Role) || undefined,
       status: statusFilter || undefined,
+      lastLogin: lastLoginFilter || undefined,
     }, { signal }),
     placeholderData: keepPreviousData,
   });
@@ -307,7 +309,7 @@ export const UsersPage: React.FC = () => {
     setPage(1);
   };
 
-  const setUrlFilters = (next: { role?: string; status?: string }) => {
+  const setUrlFilters = (next: { role?: string; status?: string; lastLogin?: string }) => {
     setPage(1);
     void navigate({
       to: "/admin/users",
@@ -320,11 +322,11 @@ export const UsersPage: React.FC = () => {
 
   const handleReset = () => {
     setSearch("");
-    setUrlFilters({ role: undefined, status: undefined });
+    setUrlFilters({ role: undefined, status: undefined, lastLogin: undefined });
   };
 
   // Bulk actions. Selection is dropped whenever the visible list changes (filters, search, page).
-  const selection = useRowSelection(JSON.stringify([page, debouncedSearch, roleFilter, statusFilter]));
+  const selection = useRowSelection(JSON.stringify([page, debouncedSearch, roleFilter, statusFilter, lastLoginFilter]));
   const selectedRows = users.filter((u) => selection.selectedIds.has(u.id));
   const selectableRows = users.filter((u) => u.id !== currentAdmin?.id);
   const allOnPageSelected = selectableRows.length > 0 && selectableRows.every((u) => selection.selectedIds.has(u.id));
@@ -371,6 +373,9 @@ export const UsersPage: React.FC = () => {
     },
     onError: (err: any) => notify.error("Unable to complete the bulk action", err),
   });
+
+  const renderLastSignIn = (u: AdminUserListItem) =>
+    u.lastLoginAt ? <time dateTime={u.lastLoginAt}>{formatDateTime(u.lastLoginAt)}</time> : "Never";
 
   const userLabel = (u: AdminUserListItem) =>
     u.applicantProfile ? `${u.applicantProfile.firstName} ${u.applicantProfile.lastName}` : u.email;
@@ -424,7 +429,7 @@ export const UsersPage: React.FC = () => {
         searchPlaceholder="Search users by name or email..."
         searchValue={search}
         onSearchChange={handleSearchChange}
-        filterValues={{ role: roleFilter, status: statusFilter }}
+        filterValues={{ role: roleFilter, status: statusFilter, lastLogin: lastLoginFilter }}
         onFilterChange={handleFilterChange}
         onReset={handleReset}
         filters={[
@@ -444,6 +449,15 @@ export const UsersPage: React.FC = () => {
               { value: "active", label: "Active" },
               { value: "inactive", label: "Inactive" },
               { value: "invited", label: "Invited" },
+            ],
+          },
+          {
+            key: "lastLogin",
+            label: "Last sign-in",
+            options: [
+              { value: "7d", label: "Past 7 days" },
+              { value: "30d", label: "Past 30 days" },
+              { value: "never", label: "Never" },
             ],
           },
         ]}
@@ -556,6 +570,10 @@ export const UsersPage: React.FC = () => {
                       <dd className="mt-0.5"><AccountStatus user={u} /></dd>
                     </div>
                     <div>
+                      <dt className="text-sm text-slate-600">Last sign-in</dt>
+                      <dd className="text-slate-700">{renderLastSignIn(u)}</dd>
+                    </div>
+                    <div>
                       <dt className="text-sm text-slate-600">Created</dt>
                       <dd className="text-slate-700">{formatDate(u.createdAt)}</dd>
                     </div>
@@ -580,6 +598,7 @@ export const UsersPage: React.FC = () => {
                   <th scope="col" className="px-3 py-2.5 font-medium">Account</th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Role</th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Status</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium">Last sign-in</th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Created</th>
                   <th scope="col" className="px-3 py-2.5 font-medium text-right">Actions</th>
                 </tr>
@@ -618,6 +637,9 @@ export const UsersPage: React.FC = () => {
                       </td>
                       <td className="px-3 py-3">
                         <AccountStatus user={u} />
+                      </td>
+                      <td className="px-3 py-3 text-slate-600 tabular-nums">
+                        {renderLastSignIn(u)}
                       </td>
                       <td className="px-3 py-3 text-slate-600 tabular-nums">
                         {formatDate(u.createdAt)}

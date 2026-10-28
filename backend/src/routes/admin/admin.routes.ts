@@ -11,6 +11,7 @@ import { taSchema } from '../../schemas/ta.schema.js';
 import {
   listUsers,
   getAdminUserSummaryHandler,
+  getSystemHealthHandler,
   updateUserRole,
   updateUserStatus,
   inviteTAHandler,
@@ -73,6 +74,7 @@ router.use(["/reports", "/audit-logs/export"], ...reportLimiters);
 // User & Role Management
 router.get("/users", validate(adminSchema.listUsers), listUsers);
 router.get("/users/summary", getAdminUserSummaryHandler);
+router.get("/system/health", getSystemHealthHandler);
 router.post("/invite-ta", validate(adminSchema.inviteTA), inviteTAHandler);
 router.post("/users/:id/resend-invite", validate(adminSchema.userParams), resendTAInvitationHandler);
 router.post("/users/:id/cancel-invite", validate(adminSchema.userParams), cancelTAInvitationHandler);

@@ -59,6 +59,7 @@ import {
   approveRescheduleRequestHandler,
   rejectRescheduleRequestHandler,
 } from '../../controllers/ta/ta.reschedule.controller.js';
+import { addApplicationNoteHandler, listApplicationNotesHandler } from '../../controllers/ta/ta.notes.controller.js';
 
 import {
   uploadPostHireDocument,
@@ -260,6 +261,10 @@ router.get("/applications/:id/interviews", validate(taSchema.idParams), requireO
 router.post("/applications/:id/interviews", validate(taSchema.scheduleInterview), requireOwned("application"), scheduleInterview);
 router.post("/applications/:id/interviews/record", validate(taSchema.recordInterview), requireOwned("application"), recordInterviewDirectly);
 router.patch("/applications/:id/interviews/:interviewId/status", validate(taSchema.updateInterviewStatus), requireOwned("application"), requireOwned("interview", "interviewId"), updateInterviewStatus);
+
+// Internal recruiter notes (Markdown)
+router.get("/applications/:id/notes", validate(taSchema.idParams), requireOwned("application"), listApplicationNotesHandler);
+router.post("/applications/:id/notes", validate(taSchema.addApplicationNote), requireOwned("application"), addApplicationNoteHandler);
 
 // Contract signing appointment and reschedule requests (interviews and contract signing)
 router.post("/applications/:id/contract-signing/schedule", validate(taSchema.scheduleContractSigning), requireOwned("application"), scheduleContractSigningHandler);

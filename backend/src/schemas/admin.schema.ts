@@ -20,6 +20,7 @@ export const adminSchema = {
       search: boundedText(FIELD_LIMITS.search).optional(),
       role: z.enum(["APPLICANT", "TALENT_ACQUISITION", "ADMINISTRATOR"]).optional(),
       status: z.enum(["active", "inactive", "invited"]).optional(),
+      lastLogin: z.enum(["7d", "30d", "never"]).optional(),
     }).strict(),
   }),
   userParams: z.object({ params: z.object({ id: userId }).strict() }),

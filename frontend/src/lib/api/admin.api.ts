@@ -20,6 +20,8 @@ export interface AdminUserListItem {
   accountStatus: string;
   invitationStatus?: string;
   createdAt: string;
+  /** Last sign-in from Supabase Auth; null when the person has never signed in. */
+  lastLoginAt?: string | null;
   applicantProfile?: {
     id?: number;
     firstName: string;
@@ -34,6 +36,18 @@ export interface AdminUserListQuery {
   search?: string;
   role?: Role | "";
   status?: AdminUserStatus | "";
+  lastLogin?: AdminUserLastLogin | "";
+}
+
+export type AdminUserLastLogin = "7d" | "30d" | "never";
+
+export interface AdminSystemHealth {
+  database: { ok: boolean; latencyMs: number };
+  uptimeSeconds: number;
+  memoryMb: number;
+  activeUsers: number;
+  failedJobs: number;
+  checkedAt: string;
 }
 
 export type AdminUserStatus = "active" | "inactive" | "invited";
@@ -88,6 +102,7 @@ export const adminApi = {
     if (search) params.append("search", search);
     if (filters?.role) params.append("role", filters.role);
     if (filters?.status) params.append("status", filters.status);
+    if (filters?.lastLogin) params.append("lastLogin", filters.lastLogin);
     const qs = params.toString();
     return api.get<PaginatedListResponse<AdminUserListItem>>(
       `/api/admin/users${qs ? `?${qs}` : ""}`,
@@ -97,6 +112,9 @@ export const adminApi = {
 
   getUserSummary: (options?: RequestInit) =>
     api.get<AdminUserSummary>("/api/admin/users/summary", options),
+
+  getSystemHealth: (options?: RequestInit) =>
+    api.get<AdminSystemHealth>("/api/admin/system/health", options),
 
   inviteTA: (data: InviteTADto) =>
     api.post<User>("/api/admin/invite-ta", data),

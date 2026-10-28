@@ -3,6 +3,7 @@ import { sendSuccess, sendError } from '../../utils/response.js';
 import {
   fetchAllUsers,
   getAdminUserSummary,
+  getSystemHealth,
   changeUserRole,
   changeUserStatus,
   inviteTA,
@@ -20,6 +21,7 @@ export const listUsers = async (req: Request, res: Response): Promise<void> => {
       search: req.query.search as string | undefined,
       role: req.query.role as "APPLICANT" | "TALENT_ACQUISITION" | "ADMINISTRATOR" | undefined,
       status: req.query.status as "active" | "inactive" | "invited" | undefined,
+      lastLogin: req.query.lastLogin as "7d" | "30d" | "never" | undefined,
     });
     sendSuccess(res, "Users retrieved successfully", users);
   } catch (error: any) {
@@ -31,6 +33,15 @@ export const getAdminUserSummaryHandler = async (_req: Request, res: Response): 
   try {
     const summary = await getAdminUserSummary();
     sendSuccess(res, "User summary retrieved successfully", summary);
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+// GET /api/admin/system/health - Database latency, process stats and counts that need a look
+export const getSystemHealthHandler = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    sendSuccess(res, "System health retrieved successfully", await getSystemHealth());
   } catch (error: any) {
     sendError(res, error.message, 500);
   }

@@ -344,6 +344,14 @@ export interface ReturningWorkerInfo {
   priorPlacements: number;
 }
 
+/** Internal recruiter note on an application, Markdown text. Never shown to the applicant. */
+export interface ApplicationNote {
+  id: number;
+  body: string;
+  createdAt: string;
+  authorName: string;
+}
+
 export interface TAApplicationSummary {
   id: number;
   source?: ApplicationSource;
