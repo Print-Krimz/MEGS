@@ -266,6 +266,10 @@ export interface ResumeChangeSummary {
   referencesAdded: number;
   referencesUpdated: number;
   referencesTotal: number;
+  /** Parsed jobs with no usable start date, which were not saved. */
+  skippedWorkExperiences?: Array<{ company: string; roleTitle: string }>;
+  /** Address fields from the resume that did not form a complete, valid address and were not saved. */
+  skippedAddressFields?: string[];
 }
 
 export type ResumePersonalStatus = "suggested" | "conflict" | "same";

@@ -64,6 +64,21 @@ export const parseLooseDate = (value: unknown): string | undefined => {
     const month = MONTHS.indexOf(m[1].slice(0, 3).toLowerCase()) + 1;
     return month ? buildDate(Number(m[3]), month, m[2] ? Number(m[2]) : 1) : undefined;
   }
+  // "19 February 2002", the day-first form common on Philippine resumes.
+  m = raw.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})$/);
+  if (m) {
+    const month = MONTHS.indexOf(m[2].slice(0, 3).toLowerCase()) + 1;
+    return month ? buildDate(Number(m[3]), month, Number(m[1])) : undefined;
+  }
+  // "03/2019" (month and year) and "02/19/2002" or "19/02/2002" (only when the order is unambiguous).
+  m = raw.match(/^(\d{1,2})[-/](\d{4})$/);
+  if (m) return buildDate(Number(m[2]), Number(m[1]), 1);
+  m = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (m) {
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    if (a > 12 && b <= 12) return buildDate(Number(m[3]), b, a);
+    if (b > 12 && a <= 12) return buildDate(Number(m[3]), a, b);
+  }
   return undefined;
 };
 

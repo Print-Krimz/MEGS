@@ -471,7 +471,8 @@ export const mapParsedProfileData = (parsed: any): ExtractedProfileData => {
     positionApplied: cleanTitleString(parsed.positionApplied || parsed.position_applied || parsed.positionAppliedFor || parsed.position),
     professionalSummary: cleanSentenceString(parsed.professionalSummary || parsed.professional_summary || parsed.summary || parsed.objective),
     skills: Array.isArray(parsed.skills)
-      ? parsed.skills.filter((s: unknown) => typeof s === "string").map((s: string) => normalizeSkill(s)).filter(Boolean)
+      // A skill over 100 characters is a sentence, not a skill; the apply request rejects any name over 200.
+      ? parsed.skills.filter((s: unknown) => typeof s === "string").map((s: string) => normalizeSkill(s)).filter((s: string) => s && s.length <= 100)
       : [],
     educations: Array.isArray(parsed.educations)
       ? parsed.educations

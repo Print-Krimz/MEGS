@@ -152,13 +152,35 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
 
   const refreshAfterSave = () => queryClient.invalidateQueries({ queryKey: ["ta", "application", applicationId] });
 
+  // The editors restart from the profile once the refreshed one has arrived. Restarting as soon as the refetch
+  // call resolves can still hand them the old profile, because the new one reaches this component a moment later.
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+  const profileBeforeApply = useRef<unknown>(null);
+  const [reloadWhenFresh, setReloadWhenFresh] = useState(false);
+  useEffect(() => {
+    if (reloadWhenFresh && profile !== profileBeforeApply.current) {
+      setReloadWhenFresh(false);
+      setReloadKey((k) => k + 1);
+    }
+  }, [reloadWhenFresh, profile]);
+
   const applyMutation = useMutation({
-    mutationFn: (accept: ResumeAccept) => taProfileReviewApi.applyResumeMerge(profileId, pending!.parseId, accept),
-    onSuccess: async () => {
+    mutationFn: (accept: ResumeAccept) => {
+      profileBeforeApply.current = profileRef.current;
+      return taProfileReviewApi.applyResumeMerge(profileId, pending!.parseId, accept);
+    },
+    onSuccess: async (result) => {
       await Promise.all([refreshAfterSave(), queryClient.invalidateQueries({ queryKey: proposalKey })]);
       setSuggestionsOpen(false);
-      setReloadKey((k) => k + 1);
+      // Unchanged data keeps its reference, so arm the reload only when the profile actually changed.
+      // A stale flag would fire on a later poll and wipe the recruiter's unsaved edits.
+      const fresh = queryClient.getQueryData<any>(["ta", "application", applicationId])?.user?.applicantProfile;
+      if (fresh && fresh !== profileBeforeApply.current) setReloadWhenFresh(true);
       notify.success("Resume details saved", "The details you picked were added to the profile.");
+      if (result?.changeSummary?.skippedAddressFields?.length) {
+        notify.warning("Address not saved", "The resume address was incomplete. Enter the province, city, barangay and postal code.");
+      }
     },
     onError: (err: unknown) => notify.error("Could not save resume details", err),
   });

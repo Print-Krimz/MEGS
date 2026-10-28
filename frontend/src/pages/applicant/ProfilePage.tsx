@@ -531,11 +531,17 @@ export const ProfilePage: React.FC = () => {
       if (result?.profile) queryClient.setQueryData(["applicant", "profile"], result.profile);
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
       void refreshUser();
-      setAutoFilledFields((prev) => new Set([...prev, ...accept.personal]));
+      const notSaved = new Set(result?.changeSummary?.skippedAddressFields ?? []);
+      setAutoFilledFields((prev) => new Set([...prev, ...accept.personal.filter((field) => !notSaved.has(field))]));
       setReviewOpen(false);
       setReviewProposal(null);
       setReviewError(null);
-      setFeedback({ type: "success", message: "Resume details saved to your profile." });
+      setFeedback({
+        type: "success",
+        message: result?.changeSummary?.skippedAddressFields?.length
+          ? "Resume details saved. The address was not saved because it was incomplete. Add the province, city, barangay and postal code under Contact and address."
+          : "Resume details saved to your profile.",
+      });
     },
     onError: (err: any) => {
       if (err?.status === 409) {

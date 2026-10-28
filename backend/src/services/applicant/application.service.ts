@@ -252,7 +252,8 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     // Read the resume before the resume update starts scoring. An identical file reuses its earlier parse.
     // Only the profile's first-ever parse fills blanks; later ones wait as a proposal for the applicant to review.
     try {
-      const isFirstParse = (await prisma.resumeParseResult.count({ where: { applicantProfileId: profile.id } })) === 0;
+      // A failed earlier read left nothing to fill, so it does not count as a parse.
+      const isFirstParse = (await prisma.resumeParseResult.count({ where: { applicantProfileId: profile.id, status: "PARSED" } })) === 0;
       const parse = await parseResumeToProposal({
         profileId: profile.id,
         buffer: file.buffer,

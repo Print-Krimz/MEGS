@@ -28,7 +28,8 @@ import {
 } from "../../utils/profile-normalizers.js";
 import { resumeDedupe } from "../../utils/resume-dedupe.js";
 import { findNcrBarangay, getNcrLocality, isNcrProvince } from "../../utils/ncr-address.js";
-import { displayCityName, findCity } from "../../utils/ph-address.js";
+import { displayCityName, findCity, getCityPostalCodes } from "../../utils/ph-address.js";
+import { getNcrPostalZones } from "../../utils/ncr-postal-reference.js";
 
 export type { ExtractedProfileData };
 
@@ -542,8 +543,10 @@ export const processResumeExtractionService = async (
 // Rewrites city/province/barangay to the bundled address dataset's spelling when they match it
 // (case-insensitive), so the profile's address selects can show them. Unmatched values pass through
 // and are rejected later by validateStructuredAddress.
-const canonicalAddress = <T extends { province?: string; city?: string; barangay?: string }>(addr: T): T => {
+const canonicalAddress = <T extends { province?: string; city?: string; barangay?: string; postalCode?: string }>(addr: T): T => {
   const out = { ...addr };
+  // A listed NCR city fixes the region, so a resume that names only the city still gets a province.
+  if (!out.province && out.city && getNcrLocality(out.city)) out.province = "Metro Manila (NCR)";
   if (isNcrProvince(out.province)) {
     out.province = "Metro Manila (NCR)";
     const locality = getNcrLocality(out.city);
@@ -555,6 +558,13 @@ const canonicalAddress = <T extends { province?: string; city?: string; barangay
   } else if (out.province && out.city) {
     const city = findCity(out.province, out.city);
     if (city) out.city = displayCityName(city.name);
+  }
+  // Resumes rarely print a postal code. Use the city's only code when there is exactly one, as the profile form does.
+  if (!out.postalCode && out.province && out.city) {
+    const codes = isNcrProvince(out.province)
+      ? [...new Set(getNcrPostalZones(out.city).map((zone) => zone.postalCode))]
+      : getCityPostalCodes(out.province, out.city);
+    if (codes.length === 1) out.postalCode = codes[0];
   }
   return out;
 };
@@ -641,6 +651,8 @@ export interface ResumeChangeSummary {
   referencesTotal: number;
   /** Parsed work experiences that had no usable start date and were not saved. */
   skippedWorkExperiences: Array<{ company: string; roleTitle: string }>;
+  /** Address fields from the resume that were not saved because they did not form a complete, valid address. */
+  skippedAddressFields: string[];
 }
 
 export interface ApplyExtractedProfileResult {
@@ -692,6 +704,7 @@ export const applyExtractedProfileService = async (
       referencesUpdated: 0,
       referencesTotal: 0,
       skippedWorkExperiences: [],
+      skippedAddressFields: [],
     };
 
     const sanitizeString = (val: any) => (val !== undefined && val !== null ? String(val).trim() || null : undefined);
@@ -816,9 +829,14 @@ export const applyExtractedProfileService = async (
           for (const field of touchedAddress) {
             delete updateData[field];
             const idx = changeSummary.changedPersonalFields.indexOf(field);
-            if (idx >= 0) changeSummary.changedPersonalFields.splice(idx, 1);
-            changeSummary.personalFieldsAdded--;
+            if (idx >= 0) {
+              changeSummary.changedPersonalFields.splice(idx, 1);
+              const existingVal = (profile as any)[field];
+              if (existingVal === null || existingVal === undefined || String(existingVal).trim() === "") changeSummary.personalFieldsAdded--;
+              else changeSummary.personalFieldsUpdated--;
+            }
           }
+          changeSummary.skippedAddressFields = [...touchedAddress];
         }
       }
 
@@ -1140,20 +1158,19 @@ export const applyExtractedProfileService = async (
         if (!ref || !ref.name || !ref.name.trim()) continue;
         const existing = existingRefs.find((r) => resumeDedupe.referenceMatches(ref, r));
 
-        let relationship = sanitizeString(ref.relationship);
+        const relationship = sanitizeString(ref.relationship);
         const company = sanitizeString(ref.company);
-        if (company) {
-          relationship = relationship ? `${relationship} at ${company}` : company;
-        }
 
         if (existing) {
           const nextRel = relationship ?? existing.relationship;
+          const nextCompany = company ?? existing.company;
           const nextPhone = sanitizeString(ref.phone) ?? existing.phone;
           const nextEmail = sanitizeString(ref.email) ?? existing.email;
           const nextNotes = sanitizeString(ref.notes) ?? existing.notes;
 
           const hasChanged =
             (nextRel || "") !== (existing.relationship || "") ||
+            (nextCompany || "") !== (existing.company || "") ||
             (nextPhone || "") !== (existing.phone || "") ||
             (nextEmail || "") !== (existing.email || "") ||
             (nextNotes || "") !== (existing.notes || "");
@@ -1166,6 +1183,7 @@ export const applyExtractedProfileService = async (
             where: { id: existing.id },
             data: {
               relationship: nextRel,
+              company: nextCompany,
               phone: nextPhone,
               email: nextEmail,
               notes: nextNotes,
@@ -1178,6 +1196,7 @@ export const applyExtractedProfileService = async (
               applicantProfileId: profile.id,
               name: normalizeTitleCase(ref.name.trim()) || ref.name.trim(),
               relationship: relationship ? (normalizeTitleCase(relationship) || relationship) : null,
+              company: company ? (normalizeTitleCase(company) || company) : null,
               phone: sanitizeString(ref.phone) ?? null,
               email: sanitizeString(ref.email)?.toLowerCase() ?? null,
               notes: ref.notes ? (normalizeSentenceCase(ref.notes.trim()) || ref.notes.trim()) : null,
