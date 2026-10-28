@@ -17,7 +17,6 @@ import type {
   WalkInMatch,
   WalkInSlip,
   RescheduleRequest,
-  ApplicationNote,
 } from "../types/application.types";
 import type {
   ManpowerRequest,
@@ -615,12 +614,6 @@ export const taApi = {
 
   approveRescheduleRequest: (applicationId: number | string, requestId: number | string, data: ApproveRescheduleDto) =>
     api.post<RescheduleRequest>(`/api/ta/applications/${applicationId}/reschedule-requests/${requestId}/approve`, data),
-
-  listApplicationNotes: (applicationId: number | string) =>
-    api.get<ApplicationNote[]>(`/api/ta/applications/${applicationId}/notes`),
-
-  addApplicationNote: (applicationId: number | string, body: string) =>
-    api.post<ApplicationNote>(`/api/ta/applications/${applicationId}/notes`, { body }),
 
   rejectRescheduleRequest: (applicationId: number | string, requestId: number | string, data: { decisionNote?: string }) =>
     api.post<RescheduleRequest>(`/api/ta/applications/${applicationId}/reschedule-requests/${requestId}/reject`, data),

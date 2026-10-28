@@ -115,7 +115,6 @@ model Application {
   closures ApplicationClosure[]
   walkInCheckIn WalkInCheckIn?
   rescheduleRequests RescheduleRequest[]
-  notes ApplicationNote[]
   talentPoolMembershipsSourced TalentPoolMembership[] @relation("SourceApplication")
 
   @@unique([userId, jobPostingId, attemptNumber])
@@ -430,23 +429,4 @@ model WalkInCheckIn {
 
   @@unique([queueDate, queueSeq])
   @@index([status, expiresAt])
-}
-
-// ─────────────────────────────────────────────
-// APPLICATION NOTE
-// Internal recruiter notes on an application, written in Markdown.
-// TA and Admin only; never returned to the applicant. Notes are not edited
-// or deleted, so the list is a record of what was written and when.
-// ─────────────────────────────────────────────
-
-model ApplicationNote {
-  id            Int         @id @default(autoincrement())
-  applicationId Int
-  application   Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
-  authorId      String
-  author        User        @relation("NoteAuthor", fields: [authorId], references: [id])
-  body          String
-  createdAt     DateTime    @default(now())
-
-  @@index([applicationId, createdAt])
 }

@@ -18,7 +18,6 @@ import { useIsDesktop } from "../application/useIsDesktop";
 import { MatchBreakdown, type ScoreExplanation } from "../application/MatchBreakdown";
 import { ScheduleInterviewDialog } from "../application/ScheduleInterviewDialog";
 import { CloseApplicationDialog } from "../CloseApplicationDialog";
-import { ApplicationNotes } from "../application/ApplicationNotes";
 
 const initialsOf = (name: string) =>
   name
@@ -239,8 +238,6 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ applicationId, daysInStage, l
           <dd className="mt-0.5 text-slate-900">{profile?.mobileNumber || "-"}</dd>
         </div>
       </dl>
-
-      <ApplicationNotes applicationId={id} />
 
       <MatchBreakdown scores={scores ?? null} explanation={explanation} requirementsResult={requirementsResult} />
 

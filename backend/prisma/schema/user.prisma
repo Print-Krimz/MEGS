@@ -39,7 +39,6 @@ model User {
   assignedMRFs ManpowerRequest[] @relation("MRFAssignedTa")
   assignedClients Client[] @relation("ClientAssignedTa")
   recruiterDecisions RecruiterDecision[] @relation("DecisionActor")
-  applicationNotes   ApplicationNote[]   @relation("NoteAuthor")
   recordedBackouts ApplicationBackout[] @relation("BackoutRecordedBy")
   recordedClosures ApplicationClosure[] @relation("ClosureRecordedBy")
   endorsedCandidates ClientEndorsement[] @relation("EndorsementActor")
