@@ -60,9 +60,10 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
   }, [open]);
 
   const stageLabel = isFinalInterview ? "Final interview" : "Initial screening";
-  const notesRequired = result === "FAIL";
-  const notesError = notesRequired && showNotesError && !notes.trim()
-    ? "Add a note explaining why the candidate did not pass."
+  const notesError = showNotesError && !notes.trim()
+    ? result === "FAIL"
+      ? "Add a note explaining why the candidate did not pass."
+      : "Add a note about this interview."
     : undefined;
 
   const choose = { value: "", label: "Choose an outcome" };
@@ -82,7 +83,7 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
 
   const handleSave = () => {
     if (!result) return;
-    if (notesRequired && !notes.trim()) {
+    if (!notes.trim()) {
       setShowNotesError(true);
       return;
     }
@@ -133,7 +134,7 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           error={notesError}
-          required={notesRequired}
+          required
           rows={3}
         />
 

@@ -8,6 +8,16 @@ import { formatManilaDateTime, isFutureDateTime, isWorkingHours } from "../../sc
 import { JOB_OWNER_SELECT, ownedWhere, type Actor } from "./ownership.js";
 import { isPageRequested, paginateArray, type PageRequest } from "../../utils/pagination.js";
 
+const interviewLabel = (type: string) => (type === "FINAL_INTERVIEW" ? "Final interview" : "Initial interview");
+
+/** One-line applicant message for a recorded interview result. */
+const interviewResultMessage = (type: string, result: string) => {
+  const label = type === "FINAL_INTERVIEW" ? "Final interview" : "Initial screening";
+  if (["PASS", "PASSED"].includes(result)) return `${label} completed.`;
+  if (["FAIL", "FAILED"].includes(result)) return `${label} was not passed.`;
+  return `${label} result is pending.`;
+};
+
 export const fetchInterviews = async (applicationId: number) => {
   return await prisma.interview.findMany({
     where: { applicationId, isActive: true },
@@ -84,7 +94,9 @@ export const scheduleNewInterview = async (
         applicationId,
         "INITIAL_SCREENING",
         actorId,
-        "Initial screening interview scheduled"
+        "Initial screening interview scheduled",
+        undefined,
+        { notifyApplicant: false }
       );
     }
   } else if (type === "FINAL_INTERVIEW") {
@@ -140,7 +152,9 @@ export const scheduleNewInterview = async (
         applicationId,
         "FINAL_INTERVIEW",
         actorId,
-        "Final client interview scheduled"
+        "Final client interview scheduled",
+        undefined,
+        { notifyApplicant: false }
       );
     }
   }
@@ -175,7 +189,7 @@ export const scheduleNewInterview = async (
       sendNotification(
         application.userId,
         "Interview Rescheduled",
-        `Your ${type.replace("_", " ")} has been rescheduled to ${formatManilaDateTime(new Date(scheduledAt))}.${interview.location ? ` Location: ${interview.location}.` : ""}`,
+        `${interviewLabel(type)} rescheduled to ${formatManilaDateTime(new Date(scheduledAt))}.${interview.location ? ` Location: ${interview.location}.` : ""}`,
         "INFO",
         `/app/applications/${applicationId}`,
         {
@@ -210,7 +224,7 @@ export const scheduleNewInterview = async (
     sendNotification(
       application.userId,
       "Interview Scheduled",
-      `Your ${type.replace("_", " ")} has been scheduled for ${formatManilaDateTime(new Date(scheduledAt))}.${place ? ` Location: ${place}.` : ""}`,
+      `${interviewLabel(type)} scheduled for ${formatManilaDateTime(new Date(scheduledAt))}.${place ? ` Location: ${place}.` : ""}`,
       "INFO",
       `/app/applications/${applicationId}`,
       {
@@ -381,7 +395,9 @@ export const recordDirectInterviewResult = async (
           applicationId,
           "INITIAL_SCREENING",
           actorId,
-          "Passed initial screening interview"
+          "Passed initial screening interview",
+          undefined,
+          { notifyApplicant: false }
         );
         applicationUpdateMessage = " Application moved to INITIAL_SCREENING stage.";
       } catch (err: any) {
@@ -396,11 +412,13 @@ export const recordDirectInterviewResult = async (
     ? "WARNING"
     : "INFO";
 
-  if (application.userId) {
+  // A recorded no-show closes the application, and that closure already notifies the applicant.
+  const backoutNotified = result === "NO_SHOW" && applicationUpdateMessage.includes("Recorded");
+  if (application.userId && !backoutNotified) {
     void sendNotification(
       application.userId,
       "Interview Update",
-      `Your ${type.replace(/_/g, " ")} result has been recorded as ${result}.`,
+      interviewResultMessage(type, result),
       notifType,
       `/app/applications/${applicationId}`,
       {
@@ -540,7 +558,9 @@ export const updateInterviewResult = async (
           applicationId,
           "INITIAL_SCREENING",
           actorId,
-          "Passed initial screening interview"
+          "Passed initial screening interview",
+          undefined,
+          { notifyApplicant: false }
         );
         applicationUpdateMessage = " Application moved to INITIAL_SCREENING stage.";
       } catch (err: any) {
@@ -555,11 +575,13 @@ export const updateInterviewResult = async (
     ? "WARNING"
     : "INFO";
 
-  if (interview.application?.userId) {
+  // A recorded no-show closes the application, and that closure already notifies the applicant.
+  const backoutNotified = result === "NO_SHOW" && applicationUpdateMessage.includes("Recorded");
+  if (interview.application?.userId && !backoutNotified) {
     void sendNotification(
       interview.application.userId,
       "Interview Update",
-      `Your ${interview.type.replace(/_/g, " ")} result has been recorded as ${result}.`,
+      interviewResultMessage(interview.type, result),
       notifType,
       `/app/applications/${applicationId}`,
       {

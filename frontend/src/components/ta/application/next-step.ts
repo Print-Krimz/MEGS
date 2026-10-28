@@ -44,6 +44,9 @@ export function getNextStep(app: Application, flags: ApplicationFlags): NextStep
 
   if (flags.isPreScreeningOrScreening) {
     if (flags.canRecordInitialInterview) return { text: "Next: record the screening outcome.", needsTa: true };
+    if (flags.canAdvanceToClientEndorsement && !flags.requiresClientReview) {
+      return { text: "Next: move the candidate to the final interview.", needsTa: true };
+    }
     if (flags.canAdvanceToClientEndorsement) return { text: "Next: send the candidate to the client, or skip to final interview.", needsTa: true };
     return { text: "Next: schedule the initial screening.", needsTa: true };
   }

@@ -59,7 +59,8 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
   const [verifyIds, setVerifyIds] = useState<number[]>([]);
   const [manualExpanded, setManualExpanded] = useState<boolean | null>(null);
   // Before compliance a waiting decision is already the stage bar's action, so the row would only repeat it.
-  const hideClientReview = Boolean(clientReview.stageBarOwnsDecision) && !clientReview.isPastClientReview && clientReview.endorsements.length <= 1;
+  const hideClientReview = (Boolean(clientReview.notRequired) && clientReview.endorsements.length === 0) ||
+    (Boolean(clientReview.stageBarOwnsDecision) && !clientReview.isPastClientReview && clientReview.endorsements.length <= 1);
   const toVerify = !canManage ? [] : requirements.filter((r) => verifyIds.includes(r.id) && r.documentId && r.reviewStatus !== "APPROVED" && r.reviewStatus !== "REJECTED");
   const canBulkUpload = canManage && requirements.filter(canTakeUpload).length > 1;
   // A closed application that reached Requirements keeps its list and contract steps; one that never did has neither.

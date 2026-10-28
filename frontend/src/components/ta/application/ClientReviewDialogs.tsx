@@ -20,7 +20,7 @@ export interface SendToClientDialogProps {
   clients: ClientOption[];
   /** Client to start with when the opening has no linked client. */
   initialClientId?: number | null;
-  onSubmit: (values: { clientId: number; outcome: "PENDING" | "APPROVED" | "DECLINED"; notes?: string }) => void;
+  onSubmit: (values: { clientId: number; outcome: "PENDING" | "APPROVED" | "DECLINED"; notes: string }) => void;
   isSubmitting?: boolean;
 }
 
@@ -41,12 +41,14 @@ export const SendToClientDialog: React.FC<SendToClientDialogProps> = ({
   const [manualClientId, setManualClientId] = useState<number | null>(initialClientId);
   const [outcome, setOutcome] = useState<"" | "PENDING" | "APPROVED" | "DECLINED">(mode === "send" ? "PENDING" : "");
   const [notes, setNotes] = useState("");
+  const [showNotesError, setShowNotesError] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setManualClientId(initialClientId);
     setOutcome(mode === "send" ? "PENDING" : "");
     setNotes("");
+    setShowNotesError(false);
     // Only reopening resets the form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -114,6 +116,8 @@ export const SendToClientDialog: React.FC<SendToClientDialogProps> = ({
           }
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
+          error={showNotesError && !notes.trim() ? (isSend ? "Add a note for the client." : "Add a note about the client's decision.") : undefined}
+          required
           rows={2}
         />
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
@@ -127,7 +131,11 @@ export const SendToClientDialog: React.FC<SendToClientDialogProps> = ({
             loading={isSubmitting}
             onClick={() => {
               if (!targetClientId || !outcome) return;
-              onSubmit({ clientId: targetClientId, outcome, notes: notes || undefined });
+              if (!notes.trim()) {
+                setShowNotesError(true);
+                return;
+              }
+              onSubmit({ clientId: targetClientId, outcome, notes: notes.trim() });
             }}
           >
             {isSend ? "Send to client" : "Save client decision"}
@@ -148,7 +156,7 @@ export interface ClientDecisionDialogProps {
   priorNote?: { notes: string; date: string } | null;
   initialOutcome: "" | "PENDING" | "APPROVED" | "DECLINED";
   initialNotes: string;
-  onSubmit: (values: { outcome: "PENDING" | "APPROVED" | "DECLINED"; notes?: string }) => void;
+  onSubmit: (values: { outcome: "PENDING" | "APPROVED" | "DECLINED"; notes: string }) => void;
   isSubmitting?: boolean;
 }
 
@@ -166,11 +174,13 @@ export const ClientDecisionDialog: React.FC<ClientDecisionDialogProps> = ({
 }) => {
   const [outcome, setOutcome] = useState(initialOutcome);
   const [notes, setNotes] = useState(initialNotes);
+  const [showNotesError, setShowNotesError] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setOutcome(initialOutcome);
     setNotes(initialNotes);
+    setShowNotesError(false);
     // Only reopening resets the form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -212,6 +222,8 @@ export const ClientDecisionDialog: React.FC<ClientDecisionDialogProps> = ({
           placeholder="Record client feedback, salary details, or interview notes..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
+          error={showNotesError && !notes.trim() ? "Add a note about the client's decision." : undefined}
+          required
           rows={3}
         />
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
@@ -224,7 +236,12 @@ export const ClientDecisionDialog: React.FC<ClientDecisionDialogProps> = ({
             loading={isSubmitting}
             disabled={!outcome}
             onClick={() => {
-              if (outcome) onSubmit({ outcome, notes: notes || undefined });
+              if (!outcome) return;
+              if (!notes.trim()) {
+                setShowNotesError(true);
+                return;
+              }
+              onSubmit({ outcome, notes: notes.trim() });
             }}
           >
             Save client decision

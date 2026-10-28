@@ -55,7 +55,7 @@ export interface DeclineRescheduleDialogProps {
   onClose: () => void;
   candidateName: string;
   activity?: RescheduleActivity | null;
-  onSubmit: (decisionNote?: string) => void;
+  onSubmit: (decisionNote: string) => void;
   isSubmitting?: boolean;
 }
 
@@ -68,8 +68,12 @@ export const DeclineRescheduleDialog: React.FC<DeclineRescheduleDialogProps> = (
   isSubmitting = false,
 }) => {
   const [note, setNote] = useState("");
+  const [showError, setShowError] = useState(false);
   useEffect(() => {
-    if (open) setNote("");
+    if (open) {
+      setNote("");
+      setShowError(false);
+    }
   }, [open]);
 
   return (
@@ -81,7 +85,9 @@ export const DeclineRescheduleDialog: React.FC<DeclineRescheduleDialogProps> = (
     >
       <div className="space-y-4">
         <Textarea
-          label="Note for the applicant (optional)"
+          label="Note for the applicant"
+          required
+          error={showError && !note.trim() ? "Add a note explaining why." : undefined}
           placeholder="e.g. The panel is only available at this time."
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -92,7 +98,14 @@ export const DeclineRescheduleDialog: React.FC<DeclineRescheduleDialogProps> = (
           <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button variant="danger" size="sm" loading={isSubmitting} onClick={() => onSubmit(note.trim() || undefined)}>
+          <Button variant="danger" size="sm" loading={isSubmitting} onClick={() => {
+              if (!note.trim()) {
+                setShowError(true);
+                return;
+              }
+              onSubmit(note.trim());
+            }}
+          >
             Decline request
           </Button>
         </div>

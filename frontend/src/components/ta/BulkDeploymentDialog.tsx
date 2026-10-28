@@ -8,7 +8,7 @@ export interface BulkDeploymentSubmission {
   startMode: "each" | "same";
   /** The shared start date. */
   date: string;
-  notes?: string;
+  notes: string;
 }
 
 interface BulkDeploymentDialogProps {
@@ -38,6 +38,7 @@ export const BulkDeploymentDialog: React.FC<BulkDeploymentDialogProps> = ({ open
   const today = getManilaToday();
   const needsDate = startMode === "same";
   const dateValid = !needsDate || (Boolean(date) && date >= today);
+  const notesValid = notes.trim().length > 0;
 
   return (
     <Dialog
@@ -67,12 +68,13 @@ export const BulkDeploymentDialog: React.FC<BulkDeploymentDialogProps> = ({ open
           />
         )}
         <Textarea
-          label="Notes (optional)"
+          label="Notes"
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           maxLength={FIELD_LIMITS.notes}
           rows={3}
           placeholder="Added to every selected deployment."
+          required
         />
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
           <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>
@@ -82,8 +84,8 @@ export const BulkDeploymentDialog: React.FC<BulkDeploymentDialogProps> = ({ open
             variant="primary"
             size="sm"
             loading={loading}
-            disabled={!dateValid}
-            onClick={() => onSubmit({ startMode, date, notes: notes.trim() || undefined })}
+            disabled={!dateValid || !notesValid}
+            onClick={() => onSubmit({ startMode, date, notes: notes.trim() })}
           >
             {`Confirm ${count} ${count === 1 ? "start" : "starts"}`}
           </Button>

@@ -22,7 +22,7 @@ export const recordEndorsementHandler = async (req: Request, res: Response) => {
     );
     return sendSuccess(res, "Client endorsement recorded successfully", endorsement, 201);
   } catch (error: any) {
-    return sendError(res, error.message, 400);
+    return sendError(res, error.message, error.statusCode === 409 ? 409 : 400);
   }
 };
 

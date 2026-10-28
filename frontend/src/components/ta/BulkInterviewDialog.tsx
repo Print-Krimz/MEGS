@@ -11,7 +11,7 @@ interface BulkInterviewDialogProps {
   isFinalInterview: boolean;
   loading?: boolean;
   onClose: () => void;
-  onSubmit: (notes: string | undefined) => void;
+  onSubmit: (notes: string) => void;
 }
 
 const plural = (count: number) => (count === 1 ? "1 interview" : `${count} interviews`);
@@ -29,9 +29,13 @@ export const BulkInterviewDialog: React.FC<BulkInterviewDialogProps> = ({
   onSubmit,
 }) => {
   const [notes, setNotes] = useState("");
+  const [showError, setShowError] = useState(false);
 
   useEffect(() => {
-    if (action) setNotes("");
+    if (action) {
+      setNotes("");
+      setShowError(false);
+    }
   }, [action]);
 
   if (!action) return null;
@@ -50,7 +54,9 @@ export const BulkInterviewDialog: React.FC<BulkInterviewDialogProps> = ({
     >
       <div className="space-y-4">
         <Textarea
-          label="Notes (optional)"
+          label="Notes"
+          required
+          error={showError && !notes.trim() ? "Add a note for these interviews." : undefined}
           placeholder={noShow ? "Added to every selected interview." : "Added to every selected interview, for example a shared remark."}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -65,7 +71,13 @@ export const BulkInterviewDialog: React.FC<BulkInterviewDialogProps> = ({
             variant={noShow ? "danger" : "primary"}
             size="sm"
             loading={loading}
-            onClick={() => onSubmit(notes.trim() || undefined)}
+            onClick={() => {
+              if (!notes.trim()) {
+                setShowError(true);
+                return;
+              }
+              onSubmit(notes.trim());
+            }}
           >
             {noShow ? `Mark ${count} as no show` : `Mark ${count} as passed`}
           </Button>

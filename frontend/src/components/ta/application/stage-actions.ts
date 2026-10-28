@@ -41,6 +41,9 @@ export function deriveApplicationFlags(app: Application) {
   const requirements = app.complianceRequirements || [];
   const active = (i: Interview) => i.isActive !== false;
 
+  // Requests without a client review step go from screening straight to the final interview.
+  const requiresClientReview = app.jobPosting?.mrf?.requiresClientReview !== false;
+
   const latestEndorsement = app.clientEndorsements && app.clientEndorsements.length > 0 ? app.clientEndorsements[0] : null;
 
   const hasPassedScreening = interviews.some((i) => i.type === "INITIAL_SCREENING" && isPassed(i) && active(i));
@@ -138,6 +141,7 @@ export function deriveApplicationFlags(app: Application) {
   const canRecordClientReview = !CLIENT_DECISION_CLOSED.includes(app.status as ApplicationStatus);
 
   return {
+    requiresClientReview,
     latestEndorsement,
     hasPassedScreening,
     pendingScreeningInterview,
@@ -191,6 +195,7 @@ export type StageActionId =
   | "reschedule-initial"
   | "send-to-client"
   | "skip-to-final"
+  | "move-to-final"
   | "fast-track"
   | "record-client-decision"
   | "update-client-decision"
@@ -226,26 +231,33 @@ export interface StageActionOptions {
  * Kept as the single source for the stage bar; pickStageBarActions trims it to one primary and one secondary.
  */
 export function getStageActions(
-  _app: Application,
+  app: Application,
   flags: ApplicationFlags,
   options: StageActionOptions = {}
 ): StageAction[] {
   const { onRequirementsTab = false } = options;
   const out: StageAction[] = [];
   const add = (id: StageActionId, label: string, kind: StageAction["kind"]) => out.push({ id, label, kind });
+  // Walk-in applicants cannot request a new schedule themselves, so the TA moves it after a phone call.
+  const rescheduleLabel = app.source === "WALK_IN" ? "Reschedule (by phone)" : "Reschedule";
 
   if (flags.canScheduleInitialInterview) add("schedule-initial", "Schedule interview", "primary");
   if (flags.canRecordInitialInterview) {
     add("record-initial-outcome", "Record screening outcome", "primary");
-    add("reschedule-initial", "Reschedule", "secondary");
+    add("reschedule-initial", rescheduleLabel, "secondary");
   }
   if (flags.canAdvanceToClientEndorsement) {
-    add("send-to-client", "Send to client", "primary");
-    add("skip-to-final", "Skip to final interview", "secondary");
+    if (flags.requiresClientReview) {
+      add("send-to-client", "Send to client", "primary");
+      add("skip-to-final", "Skip to final interview", "secondary");
+    } else {
+      add("move-to-final", "Move to final interview", "primary");
+    }
   }
   if (flags.canFastTrackRedeployment) add("fast-track", "Fast-track redeployment", "secondary");
 
-  if (flags.isClientEndorsementStage) {
+  // A request without client review never records client decisions.
+  if (flags.isClientEndorsementStage && flags.requiresClientReview) {
     if (!flags.latestEndorsement) add("send-to-client", "Send to client", "primary");
     if (flags.latestEndorsement && flags.isPendingClientReview) add("record-client-decision", "Record client decision", "primary");
     if (flags.latestEndorsement && (flags.isClientApproved || flags.isClientDeclined)) {
@@ -259,7 +271,7 @@ export function getStageActions(
   }
   if (flags.canRecordFinalInterview) {
     add("record-final-outcome", "Record client interview outcome", "primary");
-    add("reschedule-final", "Reschedule", "secondary");
+    add("reschedule-final", rescheduleLabel, "secondary");
   }
   if (flags.canAdvanceToCompliance) add("move-to-requirements", "Move to requirements", "primary");
 

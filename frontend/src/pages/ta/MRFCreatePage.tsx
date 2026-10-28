@@ -122,6 +122,7 @@ export const MRFCreatePage: React.FC = () => {
   const [ageMax, setAgeMax] = useState<string>("");
   const [genderPreference, setGenderPreference] = useState<string>("ANY");
   const [tattooPolicy, setTattooPolicy] = useState<string>("ALLOWED");
+  const [requiresClientReview, setRequiresClientReview] = useState(true);
   const [clientRequirementsOpen, setClientRequirementsOpen] = useState(false);
   const [moreDetailsOpen, setMoreDetailsOpen] = useState(false);
   const [cloneModalOpen, setCloneModalOpen] = useState(false);
@@ -181,7 +182,8 @@ export const MRFCreatePage: React.FC = () => {
       ageMin !== "" ||
       ageMax !== "" ||
       genderPreference !== "ANY" ||
-      tattooPolicy !== "ALLOWED");
+      tattooPolicy !== "ALLOWED" ||
+      !requiresClientReview);
   const { discardDialog } = useDirtyGuard({
     isDirty,
     message: "You have unsaved changes in this manpower request.",
@@ -343,6 +345,7 @@ export const MRFCreatePage: React.FC = () => {
     if (mrf.priority) {
       setPriority(mrf.priority);
     }
+    setRequiresClientReview(mrf.requiresClientReview !== false);
     setRequiredSkills(formatSkillsList(mrf.requiredSkills));
     setRequiredExperience(mrf.requiredExperience || "");
     setRequiredEducation(mrf.requiredEducation || "");
@@ -587,6 +590,7 @@ export const MRFCreatePage: React.FC = () => {
       ageMax: ageMax ? parseInt(ageMax, 10) : null,
       genderPreference: genderPreference || "ANY",
       tattooPolicy: tattooPolicy || "ALLOWED",
+      requiresClientReview,
     });
   };
 
@@ -812,6 +816,22 @@ export const MRFCreatePage: React.FC = () => {
               />
               <FieldWarning show={locationLooksUnclear(location)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
               {fileNote("location")}
+            </div>
+
+            <div className="flex items-start gap-3">
+              <input
+                id="mrf-requires-client-review"
+                type="checkbox"
+                checked={requiresClientReview}
+                onChange={(e) => setRequiresClientReview(e.target.checked)}
+                className="mt-0.5 h-5 w-5 rounded border-slate-400 text-navy focus-ring"
+              />
+              <label htmlFor="mrf-requires-client-review" className="min-w-0 text-sm text-slate-900">
+                <span className="font-medium">Requires client review</span>
+                <span className="block text-xs text-slate-600">
+                  Turn this off when the client does not review candidates, such as MEGS itself. Candidates then go from screening straight to the final interview.
+                </span>
+              </label>
             </div>
           </section>
 

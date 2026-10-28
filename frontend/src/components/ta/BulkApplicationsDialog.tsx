@@ -47,8 +47,7 @@ export const BulkApplicationsDialog: React.FC<BulkApplicationsDialogProps> = ({ 
 
   if (!action) return null;
 
-  const notesRequired = action === "reject" && reasonCode === "OTHER";
-  const notesMissing = notesRequired && !notes.trim();
+  const notesMissing = action === "reject" && !notes.trim();
   const ready =
     (action === "reject" && Boolean(reasonCode) && !notesMissing) ||
     ((action === "archive" || action === "restore") && Boolean(reason.trim()));
@@ -66,7 +65,7 @@ export const BulkApplicationsDialog: React.FC<BulkApplicationsDialogProps> = ({ 
   }[action];
 
   const submit = () => {
-    if (action === "reject") onSubmit({ reasonCode, disposition, notes: notes.trim() || undefined });
+    if (action === "reject") onSubmit({ reasonCode, disposition, notes: notes.trim() });
     else if (action === "archive" || action === "restore") onSubmit({ reason: reason.trim() });
   };
 
@@ -92,13 +91,13 @@ export const BulkApplicationsDialog: React.FC<BulkApplicationsDialogProps> = ({ 
               ]}
             />
             <Textarea
-              label={notesRequired ? "Notes" : "Notes (optional)"}
+              label="Notes"
               placeholder="Add details..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              required={notesRequired}
+              required
               maxLength={FIELD_LIMITS.notes}
-              error={notesMissing ? "Please describe the reason." : undefined}
+              error={notesMissing && reasonCode ? "Add a note explaining the reason." : undefined}
               rows={3}
             />
           </>

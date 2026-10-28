@@ -46,6 +46,14 @@ export const assertRequirementStage = (status: string): void => {
  */
 export const SKIPPABLE_STAGES: readonly string[] = ["CLIENT_ENDORSEMENT"];
 
+/** Thrown when a request that skips client review is asked to enter the client review step. Controllers answer 409. */
+export class ClientReviewNotRequiredError extends Error {
+  readonly statusCode = 409;
+  constructor(message = "This request does not need client review.") {
+    super(message);
+  }
+}
+
 export type TransitionType = "NORMAL" | "SKIP" | "FAST_TRACK";
 
 /** Stages strictly between `from` and `to` on the main pipeline (empty if either is off-pipeline). */

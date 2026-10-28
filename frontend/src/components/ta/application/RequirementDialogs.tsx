@@ -53,7 +53,7 @@ export const AddRequirementDialog: React.FC<AddRequirementDialogProps> = ({
         <div className="space-y-1.5 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
           <span className="block text-xs font-medium text-slate-700">Standard requirements</span>
           <p className="text-slate-600">
-            Government IDs, NBI clearance, medical exam, SSS, PhilHealth, Pag-IBIG, and contract documents are added automatically. Use this form for extra requirements only.
+            Government IDs, NBI / Police clearance, medical exam, SSS, PhilHealth, Pag-IBIG, and contract documents are added automatically. Use this form for extra requirements only.
           </p>
         </div>
 

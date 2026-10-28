@@ -2,7 +2,7 @@ import prisma from "../../utils/prisma.js";
 import { notifyJobOwner, sendNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
 import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
-import { PIPELINE_STAGE_ORDER } from "./pipeline-rules.js";
+import { ClientReviewNotRequiredError, PIPELINE_STAGE_ORDER } from "./pipeline-rules.js";
 import { JOB_OWNER_SELECT } from "./ownership.js";
 
 // Client decisions can't be recorded or changed once the candidate is backed out, rejected, archived, or past FINAL_INTERVIEW.
@@ -40,6 +40,7 @@ export const recordClientEndorsement = async (
 
   if (!application) throw new Error("Application not found");
   if (application.isArchived) throw new Error("Cannot endorse an archived application");
+  if (application.jobPosting?.mrf?.requiresClientReview === false) throw new ClientReviewNotRequiredError();
 
   const invalidStages = ["COMPLIANCE", "DEPLOYED", "ARCHIVED", "BACKOUT", "REJECTED"];
   if (invalidStages.includes(application.status)) {
@@ -96,14 +97,18 @@ export const recordClientEndorsement = async (
         applicationId,
         "INITIAL_SCREENING",
         endorsedById,
-        "Auto-transition to INITIAL_SCREENING prior to client endorsement"
+        "Auto-transition to INITIAL_SCREENING prior to client endorsement",
+        undefined,
+        { notifyApplicant: false }
       );
     }
     await updateTAApplicationStatus(
       applicationId,
       "CLIENT_ENDORSEMENT",
       endorsedById,
-      `Sent to client for review: ${client.name}`
+      `Sent to client for review: ${client.name}`,
+      undefined,
+      { notifyApplicant: false }
     );
   }
 
@@ -112,22 +117,22 @@ export const recordClientEndorsement = async (
       applicationId,
       "FINAL_INTERVIEW",
       endorsedById,
-      "Client approved - advancing to Final Interview"
+      "Client approved - advancing to Final Interview",
+      undefined,
+      { notifyApplicant: false }
     );
   }
 
-  // 3. Send persistent and real-time SSE notification to the candidate
-  let notifTitle = "Client Endorsement";
-  let notifMessage = `Your application has been endorsed to ${client.name} for evaluation and is currently under client review.`;
+  // 3. Send exactly one applicant notification for this step (the status updates above are silent)
+  const notifTitle = "Application Update";
+  let notifMessage = "Initial screening completed.";
   let notifType: "INFO" | "SUCCESS" | "WARNING" = "INFO";
 
   if (outcome === "APPROVED" || outcome === "ENDORSED") {
-    notifTitle = "Client Endorsement Approved";
-    notifMessage = `Good news! Your endorsement to ${client.name} has been approved by the client.`;
+    notifMessage = "Client review completed.";
     notifType = "SUCCESS";
   } else if (outcome === "DECLINED") {
-    notifTitle = "Client Endorsement Update";
-    notifMessage = `Your application endorsement for ${client.name} has been declined.`;
+    notifMessage = "You were not selected for this role by the client.";
     notifType = "WARNING";
   }
 
@@ -258,17 +263,15 @@ export const updateClientEndorsement = async (
     });
 
     // Notify candidate
-    let notifTitle = "Client Endorsement Update";
-    let notifMessage = `Your endorsement with ${existing.client?.name || "the client"} status has been updated to ${outcome}.`;
+    const notifTitle = "Application Update";
+    let notifMessage = "Client review is still pending.";
     let notifType: "INFO" | "SUCCESS" | "WARNING" = "INFO";
 
     if (outcome === "APPROVED" || outcome === "ENDORSED") {
-      notifTitle = "Client Endorsement Approved";
-      notifMessage = `Great news! ${existing.client?.name || "The client"} has approved your endorsement.`;
+      notifMessage = "Client review completed.";
       notifType = "SUCCESS";
     } else if (outcome === "DECLINED") {
-      notifTitle = "Client Endorsement Declined";
-      notifMessage = `${existing.client?.name || "The client"} has declined the endorsement for this role.`;
+      notifMessage = "You were not selected for this role by the client.";
       notifType = "WARNING";
     }
 
@@ -318,7 +321,9 @@ export const updateClientEndorsement = async (
           applicationId,
           "CLIENT_ENDORSEMENT",
           actorId,
-          "Transition to CLIENT_ENDORSEMENT prior to client approval"
+          "Transition to CLIENT_ENDORSEMENT prior to client approval",
+          undefined,
+          { notifyApplicant: false }
         );
       }
       if (currentApp.status !== "FINAL_INTERVIEW") {
@@ -326,7 +331,9 @@ export const updateClientEndorsement = async (
           applicationId,
           "FINAL_INTERVIEW",
           actorId,
-          `Client approved - advancing to Final Interview`
+          `Client approved - advancing to Final Interview`,
+          undefined,
+          { notifyApplicant: false }
         );
       }
     }

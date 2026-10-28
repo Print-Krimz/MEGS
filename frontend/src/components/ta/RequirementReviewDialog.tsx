@@ -130,6 +130,7 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
       if (validity === "HAS_EXPIRY" && !expiresAt) return "Enter the expiry date.";
       if (isMedical && !issuedAt) return "Enter the issue date for this document.";
     }
+    if (decision === "APPROVED" && !notes.trim()) return "Add a note about what you verified.";
     if (decision === "REJECTED" && !notes.trim()) return "Add a note explaining why this was rejected.";
     return null;
   })();
@@ -255,16 +256,23 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
       )}
 
       <Textarea
-        label={decision === "REJECTED" ? "Notes for the candidate (required)" : "Notes for the candidate (optional)"}
+        label={decision === "TO_FOLLOW" || !decision ? "Notes for the candidate (optional)" : "Notes for the candidate"}
+        required={decision === "APPROVED" || decision === "REJECTED"}
         placeholder="Explain what was verified, or what needs to be corrected."
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
-        error={decision === "REJECTED" && !notes.trim() ? "Add a note explaining why this was rejected." : undefined}
+        error={
+          decision === "REJECTED" && !notes.trim()
+            ? "Add a note explaining why this was rejected."
+            : decision === "APPROVED" && !notes.trim()
+              ? "Add a note about what you verified."
+              : undefined
+        }
         rows={2}
       />
 
       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
-        {blockReason && decision !== "" && decision !== "REJECTED" && (
+        {blockReason && decision !== "" && decision !== "REJECTED" && !(decision === "APPROVED" && !notes.trim()) && (
           <p className="mr-auto text-sm text-slate-600" role="status">
             {blockReason}
           </p>

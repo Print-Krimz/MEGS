@@ -4,6 +4,7 @@ import {
   verifyOtp,
   resendOtp,
   login,
+  refresh,
   logout,
   forgotPassword,
   resetPassword,
@@ -47,6 +48,8 @@ router.post("/register", authLimiter, verifyTurnstile, validate(authSchema.regis
 router.post("/verify-otp", authLimiter, validate(authSchema.verifyOtp), verifyOtp);
 router.post("/resend-otp", forgotPasswordLimiter, validate(authSchema.resendOtp), resendOtp);
 router.post("/login", authLimiter, verifyTurnstile, validate(authSchema.login), login);
+// No authLimiter: refresh has no email, so it would key by IP and cap a shared office IP at 5 per 15 minutes.
+router.post("/refresh", validate(authSchema.refresh), refresh);
 router.post(
   "/forgot-password",
   forgotPasswordLimiter,

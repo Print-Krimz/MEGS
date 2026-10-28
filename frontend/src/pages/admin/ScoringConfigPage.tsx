@@ -112,7 +112,7 @@ export const ScoringConfigPage: React.FC = () => {
   const totalWeight = weightSum;
   const leftToAllocate = remainingWeight(weights);
   const allocationText = leftToAllocate === 0
-    ? "100% allocated"
+    ? "Total: 100%"
     : leftToAllocate > 0
       ? `${leftToAllocate}% left to allocate`
       : `Over by ${-leftToAllocate}%. Lower a metric to save.`;

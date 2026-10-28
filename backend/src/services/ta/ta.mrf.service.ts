@@ -379,6 +379,7 @@ export const createMRF = async (
     ageMax?: number | null;
     genderPreference?: string | null;
     tattooPolicy?: string | null;
+    requiresClientReview?: boolean;
   },
   actor?: Actor
 ) => {
@@ -417,6 +418,7 @@ export const createMRF = async (
       ageMax: (data.ageMax as any) === "" || data.ageMax === null || data.ageMax === undefined ? null : Number(data.ageMax),
       genderPreference: (data.genderPreference as any) === "" || data.genderPreference === null ? null : data.genderPreference,
       tattooPolicy: (data.tattooPolicy as any) === "" || data.tattooPolicy === null ? null : data.tattooPolicy,
+      requiresClientReview: data.requiresClientReview ?? true,
     },
     include: {
       client: { select: { id: true, name: true } },
@@ -546,6 +548,7 @@ export const updateMRF = async (
     ageMax?: number | null;
     genderPreference?: string | null;
     tattooPolicy?: string | null;
+    requiresClientReview?: boolean;
     status?: string;
   },
   actorId?: string

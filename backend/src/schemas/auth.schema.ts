@@ -59,6 +59,9 @@ export const authSchema = {
       password: z.string().min(1, "Password is required").max(FIELD_LIMITS.password),
     }),
   }),
+  refresh: z.object({
+    body: z.object({ refresh_token: z.string().min(1).max(FIELD_LIMITS.authToken) }).strict(),
+  }),
   forgotPassword: z.object({
     body: withIdentifierFallback({
       email,

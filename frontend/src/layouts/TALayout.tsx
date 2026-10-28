@@ -449,11 +449,11 @@ export const TALayout: React.FC = () => {
           </div>
 
           <div className="flex flex-1 items-center justify-end gap-2 md:justify-start min-w-0 px-2 md:px-4">
-            <div className="flex w-full min-w-0 items-center gap-2 md:max-w-[480px]">
+            <div className="group flex w-full min-w-0 items-center gap-2 md:max-w-[480px]">
               <TAGlobalSearch />
               <kbd
                 aria-hidden="true"
-                className="hidden shrink-0 select-none rounded border border-slate-300 bg-slate-50 font-sans px-1.5 py-0.5 text-[11px] font-medium text-slate-600 xl:inline-block"
+                className="hidden shrink-0 select-none rounded border border-slate-300 bg-slate-50 font-sans px-1.5 py-0.5 text-[11px] font-medium text-slate-600 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 xl:inline-block"
               >
                 {SEARCH_HINT}
               </kbd>

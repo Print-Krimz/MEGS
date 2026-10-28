@@ -199,15 +199,12 @@ export const taSchema = {
       // Only the applicant backs out; client or agency decisions go through the archive flow.
       party: z.literal("APPLICANT"),
       reason: z.enum(BACKOUT_REASON_VALUES),
-      notes: boundedText(FIELD_LIMITS.notes).optional(),
+      notes: requiredText("Notes", FIELD_LIMITS.notes),
       occurredOn: dateOnly.optional(), // Manila calendar date; defaults to now
       keepInTalentPool: z.boolean().optional(), // defaults to true unless the applicant pulled out
     }).superRefine((body, ctx) => {
       if (!BACKOUT_REASONS_BY_PARTY[body.party].includes(body.reason)) {
         ctx.addIssue({ code: "custom", path: ["reason"], message: `Reason ${body.reason} is not valid when the responsible party is ${body.party}` });
-      }
-      if (body.reason === "OTHER" && !body.notes) {
-        ctx.addIssue({ code: "custom", path: ["notes"], message: "Please describe the reason." });
       }
     }),
   }),
@@ -218,7 +215,7 @@ export const taSchema = {
         outcome: z.enum(["REJECTED", "BACKED_OUT"]),
         reasonCode: z.string().min(1).max(64),
         disposition: z.enum(["TALENT_POOL", "ARCHIVE"]),
-        notes: boundedText(FIELD_LIMITS.notes).optional(),
+        notes: requiredText("Notes", FIELD_LIMITS.notes),
         occurredOn: dateOnly.optional(), // Backed Out only; Manila calendar date, defaults to now
       })
       .superRefine((body, ctx) => {
@@ -232,17 +229,15 @@ export const taSchema = {
         if (body.outcome === "REJECTED" && body.occurredOn) {
           ctx.addIssue({ code: "custom", path: ["occurredOn"], message: "Date only applies to a backout" });
         }
-        if (body.reasonCode === "OTHER" && !body.notes) {
-          ctx.addIssue({ code: "custom", path: ["notes"], message: "Please describe the reason." });
-        }
       }),
   }),
   archiveRestore: z.object({
     params: z.object({ id: boundedIdText }),
+    // The reason is the note; `notes` is accepted as an alias for older callers.
     body: z.object({
       notes: boundedText(FIELD_LIMITS.notes).optional(),
       reason: boundedText(FIELD_LIMITS.notes).optional(),
-    }).optional(),
+    }).refine((body) => Boolean(body.reason || body.notes), { path: ["reason"], message: "Reason is required" }),
   }),
   bulkRejectApplications: z.object({
     body: z
@@ -250,12 +245,7 @@ export const taSchema = {
         ids: bulkIds,
         reasonCode: z.enum(REJECTION_REASON_CODES),
         disposition: z.enum(["TALENT_POOL", "ARCHIVE"]),
-        notes: boundedText(FIELD_LIMITS.notes).optional(),
-      })
-      .superRefine((body, ctx) => {
-        if (body.reasonCode === "OTHER" && !body.notes) {
-          ctx.addIssue({ code: "custom", path: ["notes"], message: "Please describe the reason." });
-        }
+        notes: requiredText("Notes", FIELD_LIMITS.notes),
       }),
   }),
   bulkArchiveRestoreApplications: z.object({
@@ -276,7 +266,7 @@ export const taSchema = {
   bulkConfirmDeploymentStart: z.object({
     body: z.object({
       items: z.array(z.object({ id: idValue, actualStart: dateOnly })).min(1, "Select at least one deployment").max(BULK_MAX_IDS, `Select at most ${BULK_MAX_IDS} deployments at a time`),
-      notes: boundedText(FIELD_LIMITS.notes).optional(),
+      notes: requiredText("Notes", FIELD_LIMITS.notes),
     }),
   }),
   bulkEndDeployments: z.object({
@@ -292,7 +282,7 @@ export const taSchema = {
       items: z.array(z.object({ applicationId: idValue, interviewId: idValue })).min(1, "Select at least one interview").max(BULK_MAX_IDS, `Select at most ${BULK_MAX_IDS} interviews at a time`),
       // Fail needs a note per candidate, so it stays one by one.
       result: z.enum(["PASS", "NO_SHOW"]),
-      notes: boundedText(FIELD_LIMITS.notes).optional(),
+      notes: requiredText("Notes", FIELD_LIMITS.notes),
     }),
   }),
   scheduleInterview: z.object({
@@ -322,14 +312,14 @@ export const taSchema = {
   }),
   rejectRescheduleRequest: z.object({
     params: z.object({ id: boundedIdText, requestId: boundedIdText }),
-    body: z.object({ decisionNote: boundedText(FIELD_LIMITS.notes).optional() }).strict(),
+    body: z.object({ decisionNote: requiredText("Note", FIELD_LIMITS.notes) }).strict(),
   }),
   updateInterviewStatus: z.object({
     params: z.object({ id: boundedIdText, interviewId: boundedIdText }),
     body: z.object({
       result: z.enum(["PASS", "PASSED", "FAIL", "FAILED", "NO_SHOW", "PENDING"]),
       conductedAt: z.string().datetime({ offset: true }).max(35).optional().nullable(),
-      notes: boundedText(FIELD_LIMITS.notes).optional(),
+      notes: requiredText("Notes", FIELD_LIMITS.notes),
     }),
   }),
   recordInterview: z.object({
@@ -338,7 +328,7 @@ export const taSchema = {
       type: z.string().trim().min(1, "Type is required").max(FIELD_LIMITS.shortText),
       result: z.string().trim().min(1, "Result is required").max(FIELD_LIMITS.shortText),
       conductedAt: z.string().datetime({ offset: true }).max(35).optional().nullable(),
-      notes: boundedText(FIELD_LIMITS.notes).optional(),
+      notes: requiredText("Notes", FIELD_LIMITS.notes),
     }),
   }),
   uploadPostHireDocument: z.object({
@@ -353,14 +343,14 @@ export const taSchema = {
     body: z.object({
       clientId: idValue.optional(),
       outcome: z.enum(["PENDING", "APPROVED", "DECLINED", "ENDORSED"]).optional().default("PENDING"),
-      notes: boundedText(FIELD_LIMITS.notes).optional(),
+      notes: requiredText("Notes", FIELD_LIMITS.notes),
     }),
   }),
   updateEndorsement: z.object({
     params: z.object({ id: boundedIdText, endorsementId: boundedIdText }),
     body: z.object({
       outcome: z.enum(["PENDING", "APPROVED", "DECLINED", "ENDORSED"]),
-      notes: boundedText(FIELD_LIMITS.notes).optional(),
+      notes: requiredText("Notes", FIELD_LIMITS.notes),
     }),
   }),
   createComplianceTemplate: z.object({
@@ -454,7 +444,12 @@ export const taSchema = {
       issuedAt: dateOnly.optional().nullable(),
       validityStatus: z.enum(["UNKNOWN", "HAS_EXPIRY", "NO_EXPIRY"]).optional(),
       toFollowExpectedAt: dateOnly.optional().nullable(),
-    }).strict(),
+    }).strict().superRefine((body, ctx) => {
+      // Approving and rejecting both need a note. To follow and the other states do not.
+      if ((body.reviewStatus === "APPROVED" || body.reviewStatus === "REJECTED") && !body.reviewNotes) {
+        ctx.addIssue({ code: "custom", path: ["reviewNotes"], message: "Notes are required" });
+      }
+    }),
   }),
   requestDocumentUpdate: z.object({
     params: z.object({ requirementId: boundedIdText }).strict(),
@@ -480,7 +475,7 @@ export const taSchema = {
       site: boundedText(FIELD_LIMITS.shortText).optional().nullable(),
       contractStart: dateOnly,
       contractEnd: dateOnly.optional().nullable(),
-      notes: boundedText(FIELD_LIMITS.notes).optional().nullable(),
+      notes: requiredText("Notes", FIELD_LIMITS.notes),
     }).strict().superRefine((value, ctx) => {
       if (value.contractEnd && value.contractStart > value.contractEnd) {
         ctx.addIssue({ code: "custom", path: ["contractEnd"], message: "Contract end must be on or after the start date" });
@@ -508,6 +503,7 @@ export const taSchema = {
       ageMax: age,
       genderPreference: z.enum(["ANY", "MALE", "FEMALE"]).optional(),
       tattooPolicy: z.enum(["ALLOWED", "NO_VISIBLE", "NONE"]).optional(),
+      requiresClientReview: z.boolean().optional(),
     }).strict().superRefine((value, ctx) => {
       if (value.salaryRangeMin != null && value.salaryRangeMax != null && value.salaryRangeMin > value.salaryRangeMax) {
         ctx.addIssue({ code: "custom", path: ["salaryRangeMax"], message: "Maximum salary cannot be less than minimum salary" });
@@ -538,6 +534,7 @@ export const taSchema = {
       ageMax: age,
       genderPreference: z.enum(["ANY", "MALE", "FEMALE"]).optional(),
       tattooPolicy: z.enum(["ALLOWED", "NO_VISIBLE", "NONE"]).optional(),
+      requiresClientReview: z.boolean().optional(),
       status: z.enum(["OPEN", "IN_PROGRESS", "ON_HOLD", "FILLED", "CANCELLED"]).optional(),
     }).strict().superRefine((value, ctx) => {
       if (value.salaryRangeMin != null && value.salaryRangeMax != null && value.salaryRangeMin > value.salaryRangeMax) {

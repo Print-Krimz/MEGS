@@ -16,6 +16,8 @@ export const ACTIVITY_LABEL: Record<ScheduleActivityName, string> = {
 
 export const PENDING_REQUEST_MESSAGE = "Your request is already with your recruiter.";
 export const ALREADY_RESCHEDULED_MESSAGE = "You've already rescheduled this once. Contact your recruiter for changes.";
+export const ONCE_PER_STAGE_MESSAGE = "You can request a new schedule once per stage. Contact your recruiter for changes.";
+export const WALK_IN_RESCHEDULE_MESSAGE = "Walk-in applicants reschedule by phone. Contact your recruiter to change your schedule.";
 
 /** An error that carries the HTTP status the controller should answer with. */
 export class SchedulingError extends Error {
@@ -62,6 +64,7 @@ export const createRescheduleRequest = async (
       id: true,
       status: true,
       isArchived: true,
+      source: true,
       contractSigningAt: true,
       contractSigningLocation: true,
       user: { select: { applicantProfile: { select: { firstName: true, lastName: true } } } },
@@ -72,6 +75,8 @@ export const createRescheduleRequest = async (
   if (application.isArchived || CLOSED_STATUSES.includes(application.status)) {
     throw new SchedulingError("This application is closed, so it can't be rescheduled.");
   }
+
+  if (application.source === "WALK_IN") throw new SchedulingError(WALK_IN_RESCHEDULE_MESSAGE, 403);
 
   const now = new Date();
   let interviewId: number | null = null;
@@ -106,12 +111,21 @@ export const createRescheduleRequest = async (
     select: { id: true },
   });
   if (pending) throw new SchedulingError(PENDING_REQUEST_MESSAGE, 409);
-  // One approved move per interview (a new interview round gets its own); contract signing is once per application.
-  const approved = await prisma.rescheduleRequest.findFirst({
-    where: { applicationId, activity, status: "APPROVED", ...(interviewId !== null ? { interviewId } : {}) },
-    select: { id: true },
-  });
-  if (approved) throw new SchedulingError(ALREADY_RESCHEDULED_MESSAGE, 409);
+  if (activity === "CONTRACT_SIGNING") {
+    // Contract signing: one approved move per application.
+    const approved = await prisma.rescheduleRequest.findFirst({
+      where: { applicationId, activity, status: "APPROVED" },
+      select: { id: true },
+    });
+    if (approved) throw new SchedulingError(ALREADY_RESCHEDULED_MESSAGE, 409);
+  } else {
+    // Interviews: one request per stage, whatever the outcome (waiting, approved or rejected).
+    const any = await prisma.rescheduleRequest.findFirst({
+      where: { applicationId, activity },
+      select: { id: true },
+    });
+    if (any) throw new SchedulingError(ONCE_PER_STAGE_MESSAGE, 409);
+  }
 
   let request;
   try {

@@ -230,6 +230,11 @@ const COMPLIANCE_AND_LATER_STAGES = new Set([
 const calculateComplianceDimension: DimensionCalculator = (candidate, job) => {
   const target = requiredDocuments(job);
   const documents = normalizedSet(candidate.complianceDocuments);
+  // "NBI / Police Clearance" is one requirement: either clearance satisfies it.
+  if (documents.has("nbi") || documents.has("police")) {
+    documents.add("nbi");
+    documents.add("police");
+  }
   if (!target.size) {
     return {
       dimension: "COMPLIANCE",

@@ -1,3 +1,4 @@
+import { VenueMap } from "../../components/applicant/VenueMap";
 import React, { useRef, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -342,14 +343,17 @@ export const ApplicationDetailPage: React.FC = () => {
                   Contract signing: <span className="font-semibold">{formatDateTime(application.contractSigningAt)}</span>
                   {application.contractSigningLocation ? ` at ${application.contractSigningLocation}` : ""}
                 </p>
-                <div className="pt-1">
-                  <RescheduleControl
-                    activity="CONTRACT_SIGNING"
-                    scheduledAt={application.contractSigningAt}
-                    requests={application.rescheduleRequests}
-                    onRequest={setRescheduleActivity}
-                  />
-                </div>
+                <VenueMap location={application.contractSigningLocation} />
+                {application.source !== "WALK_IN" && (
+                  <div className="pt-1">
+                    <RescheduleControl
+                      activity="CONTRACT_SIGNING"
+                      scheduledAt={application.contractSigningAt}
+                      requests={application.rescheduleRequests}
+                      onRequest={setRescheduleActivity}
+                    />
+                  </div>
+                )}
               </>
             ) : (
               <p className="text-xs sm:text-sm text-[#627D98] leading-relaxed">
@@ -458,7 +462,8 @@ export const ApplicationDetailPage: React.FC = () => {
                         </div>
                       )}
 
-                      {(!interview.result || interview.result === "PENDING" || interview.result === "SCHEDULED") && (
+                      {application.source !== "WALK_IN" &&
+                        (!interview.result || interview.result === "PENDING" || interview.result === "SCHEDULED") && (
                         <RescheduleControl
                           activity={interview.type}
                           interviewId={interview.id}

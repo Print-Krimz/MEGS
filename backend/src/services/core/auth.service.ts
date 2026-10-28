@@ -625,6 +625,45 @@ export const loginUser = async (emailOrPhone: string, password: string, ip?: str
   };
 };
 
+/** Exchanges a Supabase refresh token for a new session. Returns null for any invalid/expired token or inactive account. */
+export const refreshUserSession = async (refreshToken: string) => {
+  let data: Awaited<ReturnType<typeof supabase.auth.refreshSession>>["data"] | null = null;
+  try {
+    const result = await supabase.auth.refreshSession({ refresh_token: refreshToken });
+    data = result.error ? null : result.data;
+  } catch {
+    return null;
+  }
+  if (!data?.session || !data.user) return null;
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: data.user.id },
+    select: {
+      id: true,
+      email: true,
+      phoneNumber: true,
+      role: true,
+      isActive: true,
+      accountStatus: true,
+      mustChangePassword: true,
+    },
+  });
+  if (!dbUser || !isActiveAccount(dbUser.isActive, dbUser.accountStatus)) return null;
+
+  return {
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+    expires_in: data.session.expires_in,
+    user: {
+      id: dbUser.id,
+      email: dbUser.email,
+      phoneNumber: dbUser.phoneNumber,
+      role: dbUser.role,
+      accountStatus: dbUser.accountStatus,
+      mustChangePassword: dbUser.mustChangePassword,
+    },
+  };
+};
 
 export const logoutUser = async (token?: string, userId?: string) => {
   if (token) {

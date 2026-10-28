@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button, Dialog, Select, Textarea } from "../ui";
@@ -39,7 +38,6 @@ export const EndAssignmentDialog: React.FC<{
   const earliestEnd = earlyEndAllowed ? "" : toManilaDateInput(actualStart);
   const startsLater = Boolean(earliestEnd) && earliestEnd > getManilaToday();
   const cache = useQueryClient();
-  const navigate = useNavigate();
   const [actualEnd, setActualEnd] = useState(getManilaToday());
   const [reason, setReason] = useState("");
   const [disposition, setDisposition] = useState<Disposition | "">("");
@@ -63,14 +61,7 @@ export const EndAssignmentDialog: React.FC<{
       onClose();
       const description = disposition ? DISPOSITION_RESULT[disposition] : undefined;
       if (disposition === "AVAILABLE_FOR_REDEPLOYMENT") {
-        // notify.* has no action slot, so this one toast goes straight to sonner.
-        toast.success("Assignment ended", {
-          description,
-          action: {
-            label: TA_COPY.workforce.actions.findJob,
-            onClick: () => void navigate({ to: "/ta/workforce", search: { tab: "redeployment" } }),
-          },
-        });
+        toast.success("Assignment ended", { description });
       } else {
         notify.success("Assignment ended", description);
       }

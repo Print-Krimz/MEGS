@@ -12,15 +12,9 @@ export interface CompliancePreset {
 
 export const COMPLIANCE_201_PRESETS: CompliancePreset[] = [
   {
-    label: "NBI Clearance",
+    label: "NBI / Police Clearance",
     category: "LEGAL",
-    description: "National Bureau of Investigation Clearance (Valid within 6 months)",
-    defaultRequired: true,
-  },
-  {
-    label: "Police Clearance",
-    category: "LEGAL",
-    description: "Local PNP Police Clearance Certificate",
+    description: "NBI Clearance or PNP Police Clearance Certificate (valid within 6 months)",
     defaultRequired: true,
   },
   {

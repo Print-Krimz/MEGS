@@ -355,6 +355,8 @@ export const ApplicationDetailPage: React.FC = () => {
         return setDialog({ kind: "sendToClient", mode: "send" });
       case "skip-to-final":
         return setDialog({ kind: "skip" });
+      case "move-to-final":
+        return m.updateStatus.mutate({ status: ApplicationStatus.FINAL_INTERVIEW });
       case "fast-track":
         return setDialog({ kind: "fastTrack" });
       case "record-client-decision":
@@ -663,6 +665,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 clientReview={{
                   endorsements: (app.clientEndorsements || []) as any,
                   fallbackClientName: linkedClientName,
+                  notRequired: !flags.requiresClientReview,
                   isPastClientReview: flags.isPastClientReview,
                   canRecordDecision: flags.canRecordClientReview,
                   stageBarOwnsDecision: flags.isClientEndorsementStage && flags.isPendingClientReview,

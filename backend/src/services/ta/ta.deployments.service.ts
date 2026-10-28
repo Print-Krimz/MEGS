@@ -925,7 +925,7 @@ export const fastTrackRedeployment = async (
     if (exact) return exact;
 
     const keywords = [
-      { key: "nbi", test: (s: string) => s.includes("nbi") },
+      { key: "nbi", test: (s: string) => s.includes("nbi") || s.includes("police") },
       { key: "philhealth", test: (s: string) => s.includes("philhealth") },
       { key: "sss", test: (s: string) => s.includes("sss") },
       { key: "pagibig", test: (s: string) => s.includes("pag-ibig") || s.includes("pagibig") },

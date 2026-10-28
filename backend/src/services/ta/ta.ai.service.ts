@@ -25,7 +25,7 @@ export const queueApplicationAnalysis = async (applicationId: number) => {
   const transitionToParsingStatuses = ["SUBMITTED", "NEEDS_ATTENTION"];
   if (transitionToParsingStatuses.includes(application.status)) {
     const { updateTAApplicationStatus } = await import("./ta.applications.service.js");
-    await updateTAApplicationStatus(applicationId, "PARSING", undefined, "Queued for AI resume parsing");
+    await updateTAApplicationStatus(applicationId, "PARSING", undefined, "Queued for AI resume parsing", undefined, { notifyApplicant: false });
   }
 
   try { await enqueueResumeAnalysis(applicationId); }

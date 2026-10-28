@@ -16,7 +16,7 @@ import { JOB_OWNER_SELECT, ownedWhere, type Actor } from "./ownership.js";
 import { syncMRFFulfillmentStatus } from "./ta.mrf.service.js";
 import { stageEnteredAt } from "../analytics/metric-definitions.js";
 
-import { ALLOWED_TRANSITIONS, SKIPPABLE_STAGES, stagesBetween, type TransitionType } from "./pipeline-rules.js";
+import { ALLOWED_TRANSITIONS, ClientReviewNotRequiredError, SKIPPABLE_STAGES, stagesBetween, type TransitionType } from "./pipeline-rules.js";
 import { displayEmail } from "../../utils/display-email.js";
 export { ALLOWED_TRANSITIONS };
 
@@ -445,6 +445,7 @@ export const listTAApplications = async (
                 id: true,
                 title: true,
                 clientId: true,
+                requiresClientReview: true,
                 client: { select: { id: true, name: true } },
               },
             },
@@ -554,6 +555,7 @@ export const getTAApplication = async (id: number, options: { generateRequiremen
               id: true,
               title: true,
               clientId: true,
+              requiresClientReview: true,
               client: {
                 select: {
                   id: true,
@@ -754,6 +756,47 @@ export const resolveDeploymentClientId = (app: {
   clientEndorsements?: { clientId: number }[] | null;
 }): number | null => app.jobPosting?.mrf?.clientId ?? app.clientEndorsements?.[0]?.clientId ?? null;
 
+/** Hiring step the applicant just finished when leaving each stage. */
+const COMPLETED_STEP_LABEL: Record<string, string> = {
+  INITIAL_SCREENING: "Initial screening",
+  CLIENT_ENDORSEMENT: "Client review",
+  FINAL_INTERVIEW: "Final interview",
+  COMPLIANCE: "Requirements",
+  CONTRACT_SIGNING: "Contract signing",
+};
+
+/**
+ * One-line applicant message for a status change, or null when the applicant should not hear about it.
+ * Matching and parsing are internal, so they stay silent until the applicant is advanced.
+ */
+const getCandidateStatusMessage = (fromStatus: string, toStatus: string): string | null => {
+  switch (toStatus) {
+    case "PARSING":
+    case "MATCHED":
+      return null;
+    case "TALENT_POOL":
+      return "You were not selected for this position, but your profile stays in our talent pool.";
+    case "REVIEW":
+      return "Your application is under review.";
+    case "ARCHIVED":
+      return "Your application has been closed.";
+    case "INITIAL_SCREENING":
+      return "Application review completed.";
+    default: {
+      const label = COMPLETED_STEP_LABEL[fromStatus];
+      if (!label) return `Your application moved to ${toStatus.toLowerCase().replace(/_/g, " ")}.`;
+      return toStatus === "COMPLIANCE"
+        ? `${label} completed. Please upload your pre-employment documents.`
+        : `${label} completed.`;
+    }
+  }
+};
+
+export interface UpdateApplicationStatusOptions {
+  /** Set false when the caller sends its own applicant message for this step. Defaults to true. */
+  notifyApplicant?: boolean;
+}
+
 /**
  * Authoritative Application State Transition Engine.
  * Enforces valid stage progression, pre-transition validation gates, and post-transition side effects.
@@ -763,14 +806,23 @@ export const updateTAApplicationStatus = async (
   status: any,
   actorId?: string,
   reason?: string,
-  reasonCode?: string
+  reasonCode?: string,
+  options: UpdateApplicationStatusOptions = {}
 ) => {
   const application = await prisma.application.findUnique({
     where: { id },
-    select: { id: true, status: true, isArchived: true, userId: true },
+    select: {
+      id: true,
+      status: true,
+      isArchived: true,
+      userId: true,
+      jobPosting: { select: { mrf: { select: { requiresClientReview: true } } } },
+    },
   });
 
   if (!application) throw new Error("Application not found");
+  // Requests created without a client review step go straight from screening to the final interview.
+  const requiresClientReview = application.jobPosting?.mrf?.requiresClientReview !== false;
   if (status === "BACKOUT" || status === "REJECTED") {
     throw new Error("Use Reject Applicant or Mark as Backed Out so the stage, reason and disposition are recorded.");
   }
@@ -791,6 +843,7 @@ export const updateTAApplicationStatus = async (
 
   // Pre-transition rule: INITIAL_SCREENING -> CLIENT_ENDORSEMENT requires PASS screening interview
   if (status === "CLIENT_ENDORSEMENT") {
+    if (!requiresClientReview) throw new ClientReviewNotRequiredError();
     const screening = await prisma.interview.findFirst({
       where: {
         applicationId: id,
@@ -834,7 +887,8 @@ export const updateTAApplicationStatus = async (
 
   // Authorised skip detection: stages bypassed on the main pipeline (Client review / Final interview only).
   let transitionType: TransitionType = "NORMAL";
-  let skippedStages: string[] = stagesBetween(currentStatus, status);
+  // Not a skip when the request never had a client review step.
+  let skippedStages: string[] = requiresClientReview ? stagesBetween(currentStatus, status) : [];
 
   // Pre-transition rule: FINAL_INTERVIEW -> COMPLIANCE requires a PASS from the client final evaluation.
   // (Redeployed / same-client candidates reach Requirements through Fast Track, which is recorded separately.)
@@ -957,7 +1011,8 @@ export const updateTAApplicationStatus = async (
   // Post-transition hook: Generate compliance requirements when entering COMPLIANCE
   if (status === "COMPLIANCE") {
     try {
-      await generateComplianceRequirementsFromMRF(id);
+      // The status update above already tells the applicant, so the checklist notice is skipped here.
+      await generateComplianceRequirementsFromMRF(id, { notifyApplicant: false });
     } catch (err: any) {
       console.error("[Workflow] Failed to auto-generate compliance requirements:", err.message);
     }
@@ -1125,47 +1180,23 @@ export const updateTAApplicationStatus = async (
     }
   }
 
-  const getCandidateStatusMessage = (statusStr: string) => {
-    switch (statusStr) {
-      case "TALENT_POOL":
-        return "You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications.";
-      case "REVIEW":
-        return "Your application is currently under review.";
-      case "INITIAL_SCREENING":
-        return "Your application has advanced to Initial Screening.";
-      case "CLIENT_ENDORSEMENT":
-        return "Your application has been endorsed for client review.";
-      case "FINAL_INTERVIEW":
-        return "Your application has advanced to Final Interview.";
-      case "COMPLIANCE":
-        return "Employment documents (201) are needed. Please submit the requested documents.";
-      case "CONTRACT_SIGNING":
-        return "Your application has advanced to Contract Signing. Your TA will contact you to sign your employment contract.";
-      case "DEPLOYED":
-        return "You have been placed at your work site. Your employee record is ready.";
-      case "ARCHIVED":
-        return "Your application consideration has concluded.";
-      default:
-        return `Your application has been updated to ${statusStr.toLowerCase().replace(/_/g, " ")}.`;
+  // Callers that send their own applicant message for the step pass notifyApplicant: false.
+  if (options.notifyApplicant !== false) {
+    const notificationMessage = getCandidateStatusMessage(currentStatus, status);
+    if (notificationMessage) {
+      await sendNotification(
+        application.userId,
+        "Application Update",
+        notificationMessage,
+        "INFO",
+        `/app/applications/${application.id}`,
+        {
+          sendEmail: true,
+          ctaText: "View Application",
+        }
+      );
     }
-  };
-
-  const notificationMessage = getCandidateStatusMessage(status);
-
-  await sendNotification(
-    application.userId,
-    "Application Update",
-    notificationMessage,
-    "INFO",
-    `/app/applications/${application.id}`,
-    {
-      sendEmail: true,
-      ctaText: "View Application",
-    }
-  );
-
-
-
+  }
 
   return updated;
 };
@@ -1544,7 +1575,9 @@ export const applyScoreCategorization = async (applicationId: number, score: num
       applicationId, 
       nextStatus, 
       undefined, 
-      `Match score (${formatScore(score)}) resulted in categorization: ${nextStatus}`
+      `Match score (${formatScore(score)}) resulted in categorization: ${nextStatus}`,
+      undefined,
+      { notifyApplicant: false }
     );
 
     if (nextStatus === "MATCHED") {

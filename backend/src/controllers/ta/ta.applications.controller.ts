@@ -91,7 +91,7 @@ export const updateApplicationStatus = async (req: Request, res: Response): Prom
     const updated = await updateTAApplicationStatus(id, status, req.user!.id, reason, reasonCode);
     sendSuccess(res, `Application moved to ${updated.status}`, updated);
   } catch (error: any) {
-    const statusCode = error.message.includes("not found") ? 404 : 400;
+    const statusCode = error.statusCode === 409 ? 409 : error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, statusCode);
   }
 };

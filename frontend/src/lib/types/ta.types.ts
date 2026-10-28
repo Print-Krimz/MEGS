@@ -106,6 +106,8 @@ export interface ManpowerRequest {
   ageMax?: number | null;
   genderPreference?: string | null;
   tattooPolicy?: string | null;
+  /** false = no client review step for this request. Existing requests are true. */
+  requiresClientReview?: boolean;
   status: "OPEN" | "IN_PROGRESS" | "FILLED" | "CANCELLED" | "ON_HOLD";
   createdById: string;
   createdAt: string;
@@ -150,6 +152,7 @@ export interface CreateMRFDto {
   ageMax?: number | null;
   genderPreference?: string | null;
   tattooPolicy?: string | null;
+  requiresClientReview?: boolean;
 }
 
 export interface UpdateMRFDto extends Partial<CreateMRFDto> {

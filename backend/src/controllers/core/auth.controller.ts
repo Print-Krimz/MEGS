@@ -7,6 +7,7 @@ import {
   verifyOtp as verifyOtpService,
   resendOtp as resendOtpService,
   loginUser,
+  refreshUserSession,
   logoutUser,
   requestPasswordReset,
   resetUserPassword,
@@ -79,6 +80,20 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   } catch (error: any) {
     const status = error.message.includes("verify") ? 403 : 401;
     sendError(res, error.message, status);
+  }
+};
+
+// POST /api/auth/refresh - Exchanges a refresh token for a new session (access token is expired, so unauthenticated)
+export const refresh = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const session = await refreshUserSession(req.body.refresh_token);
+    if (!session) {
+      sendError(res, "Session expired. Please log in again.", 401);
+      return;
+    }
+    sendSuccess(res, "Session refreshed", session);
+  } catch {
+    sendError(res, "Session expired. Please log in again.", 401);
   }
 };
 

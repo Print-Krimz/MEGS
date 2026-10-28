@@ -32,6 +32,9 @@ export const OFFICE_HOURS_SHORT = `Mon–Fri ${clock(SCHEDULE_HOURS.weekday.star
 /** MEGS main office, used as the default contract-signing location. */
 export const COMPANY_ADDRESS = "2nd Flr. PJAR Building #9 P. Gomez St. Oreta Subd. Malinta Valenzuela City";
 
+/** Map position of the main office (matches the Valenzuela pin on the landing page). */
+export const COMPANY_LAT_LNG = [14.6991, 120.984] as const;
+
 /** Open hours for a weekday number (0 = Sunday … 6 = Saturday), or null when closed. */
 export const hoursForWeekday = (weekday: number): OpenHours | null => {
   if (weekday === 0) return SCHEDULE_HOURS.sunday;

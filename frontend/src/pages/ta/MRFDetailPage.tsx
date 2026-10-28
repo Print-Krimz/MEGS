@@ -99,6 +99,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const [editPriority, setEditPriority] = useState<any>("NORMAL");
   const [editTargetFillDate, setEditTargetFillDate] = useState("");
   const [editLocation, setEditLocation] = useState("");
+  const [editRequiresClientReview, setEditRequiresClientReview] = useState(true);
   const [editEmploymentType, setEditEmploymentType] = useState("Contractual");
   const [editWorkArrangement, setEditWorkArrangement] = useState("On-site");
   const [editSalaryMin, setEditSalaryMin] = useState<number | string>("");
@@ -277,6 +278,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     setEditAgeMax(m.ageMax != null ? m.ageMax : "");
     setEditGenderPreference(m.genderPreference || "ANY");
     setEditTattooPolicy(m.tattooPolicy || "ALLOWED");
+    setEditRequiresClientReview(m.requiresClientReview !== false);
     setEditDescription(m.description || "");
     setEditSkills(m.requiredSkills || "");
     setEditExperience(m.requiredExperience || "");
@@ -402,6 +404,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       ageMax: editAgeMax !== "" && editAgeMax != null ? Number(editAgeMax) : null,
       genderPreference: editGenderPreference || "ANY",
       tattooPolicy: editTattooPolicy || "ALLOWED",
+      requiresClientReview: editRequiresClientReview,
       description: editDescription.trim(),
       requiredSkills: editSkills.trim() || null,
       requiredExperience: editExperience.trim() || null,
@@ -596,6 +599,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           },
           { label: "Priority", value: <StatusBadge status={mrf.priority} type="priority" size="sm" appearance="text" /> },
           { label: "Remaining", value: plural(remainingCount, "position") },
+          { label: "Client review", value: mrf.requiresClientReview === false ? "Not required" : "Required" },
           { label: "Created", value: formatDate(mrf.createdAt) },
         ]}
         actions={
@@ -1251,6 +1255,21 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                       { value: "NONE", label: "No tattoos permitted" },
                     ]}
                   />
+                  <div className="flex items-start gap-3 sm:col-span-2">
+                    <input
+                      id="mrf-edit-requires-client-review"
+                      type="checkbox"
+                      checked={editRequiresClientReview}
+                      onChange={(e) => setEditRequiresClientReview(e.target.checked)}
+                      className="mt-0.5 h-5 w-5 rounded border-slate-400 text-navy focus-ring"
+                    />
+                    <label htmlFor="mrf-edit-requires-client-review" className="min-w-0 text-sm text-slate-900">
+                      <span className="font-medium">Requires client review</span>
+                      <span className="block text-xs text-slate-600">
+                        Turn this off when the client does not review candidates. Candidates go from screening straight to the final interview.
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </div>
 

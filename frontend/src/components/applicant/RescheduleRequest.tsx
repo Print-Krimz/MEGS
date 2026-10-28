@@ -31,18 +31,22 @@ export interface RescheduleControlProps {
 
 /**
  * Under an upcoming appointment: the "Request a new schedule" button, or one line saying why it is not available.
- * One change per activity: a waiting request or an approved one blocks another request.
+ * One request per interview stage, whatever the answer. Contract signing: a waiting or approved request blocks another.
  */
 export const RescheduleControl: React.FC<RescheduleControlProps> = ({ activity, interviewId, scheduledAt, requests, onRequest }) => {
   const upcoming = Boolean(scheduledAt) && Date.parse(scheduledAt as string) > Date.now();
   if (!upcoming) return null;
 
-  const latest = latestRequestFor(requests, activity, interviewId);
+  // Interview stages allow one request in total, whatever the answer. Contract signing blocks only while waiting or after an approval.
+  const latest = latestRequestFor(requests, activity);
+  const oncePerStage = activity !== "CONTRACT_SIGNING";
   const blockedText =
     latest?.status === "PENDING"
       ? "Request sent. Waiting for your recruiter."
       : latest?.status === "APPROVED"
       ? "You've already rescheduled once."
+      : latest && oncePerStage
+      ? "You can request a new schedule once per stage. Contact your recruiter for changes."
       : null;
 
   return (

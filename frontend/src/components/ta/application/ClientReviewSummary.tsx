@@ -19,6 +19,8 @@ export interface ClientReviewSummaryProps {
   fallbackClientName: string;
   /** The application is past the client review stage (a decision can still be written down, never sent). */
   isPastClientReview: boolean;
+  /** The request skips client review, so the section is hidden unless an older decision exists. */
+  notRequired?: boolean;
   canRecordDecision: boolean;
   /** The stage bar already offers "Record client decision" for a waiting decision, so the row does not repeat it. */
   stageBarOwnsDecision?: boolean;

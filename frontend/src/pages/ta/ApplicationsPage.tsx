@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import React, { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ChevronRight, X } from "lucide-react";
 import { keepPreviousData, useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
@@ -42,7 +42,6 @@ import { CheckInsPanel, useCheckIns } from "../../components/ta/walk-in/CheckIns
 import { CheckInPosterDialog } from "../../components/ta/walk-in/CheckInPoster";
 import { ReviewQueue } from "../../components/ta/recruitment/ReviewQueue";
 import { TA_COPY } from "../../lib/ta-copy";
-import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import {
   APPLICATION_IDLE_POLL_MS,
   normalizeServerSearch,
@@ -194,75 +193,71 @@ export const readApplicationSearch = (): TAApplicationSearch => {
 export const ApplicationsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  // Re-read on router renders so browser back/forward and in-place search
-  // navigation restore the visible filters instead of keeping a stale snapshot.
+  // The URL is the single source of truth for every applied filter, the sort and the page.
+  // useSearch subscribes to router location changes; the values are read from the raw URL
+  // (see readApplicationSearch) so numeric-looking search text survives.
+  useSearch({ strict: false });
   const routeSearch = readApplicationSearch();
+  const routeRef = useRef(routeSearch);
+  routeRef.current = routeSearch;
 
-  const [page, setPage] = useState(routeSearch.page || 1);
+  const page = routeSearch.page || 1;
   const [pageSize, setPageSize] = useState(10);
-  const [search, setSearch] = useState(routeSearch.q || "");
-  const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
-  const [filterValues, setFilterValues] = useState<Record<string, string>>(() => ({
-    ...(routeSearch.stage ? { status: routeSearch.stage } : {}),
-    ...(routeSearch.clientId ? { clientId: String(routeSearch.clientId) } : {}),
-    ...(routeSearch.jobId ? { jobId: String(routeSearch.jobId) } : {}),
-    ...(routeSearch.source ? { source: routeSearch.source } : {}),
-  }));
-  const [showArchived, setShowArchived] = useState(Boolean(routeSearch.archived));
-  const [returningOnly, setReturningOnly] = useState(Boolean(routeSearch.returning));
-  const [sort, setSort] = useState<ListSort | undefined>(routeSearch.sort);
-  const [needsAction, setNeedsAction] = useState(Boolean(routeSearch.needsAction));
-
-  useEffect(() => {
-    setPage(routeSearch.page || 1);
-    setSearch(routeSearch.q || "");
-    setFilterValues({
+  const debouncedSearch = normalizeServerSearch(routeSearch.q ?? "");
+  const filterValues = React.useMemo<Record<string, string>>(
+    () => ({
       ...(routeSearch.stage ? { status: routeSearch.stage } : {}),
       ...(routeSearch.clientId ? { clientId: String(routeSearch.clientId) } : {}),
       ...(routeSearch.jobId ? { jobId: String(routeSearch.jobId) } : {}),
       ...(routeSearch.source ? { source: routeSearch.source } : {}),
-    });
-    setShowArchived(Boolean(routeSearch.archived));
-    setReturningOnly(Boolean(routeSearch.returning));
-    setSort(routeSearch.sort);
-    setNeedsAction(Boolean(routeSearch.needsAction));
-  }, [routeSearch.page, routeSearch.q, routeSearch.stage, routeSearch.clientId, routeSearch.jobId, routeSearch.archived, routeSearch.returning, routeSearch.sort, routeSearch.needsAction, routeSearch.source]);
+    }),
+    [routeSearch.stage, routeSearch.clientId, routeSearch.jobId, routeSearch.source],
+  );
+  const showArchived = Boolean(routeSearch.archived);
+  const returningOnly = Boolean(routeSearch.returning);
+  const sort: ListSort | undefined = routeSearch.sort;
+  const needsAction = Boolean(routeSearch.needsAction);
+
+  // Search text is typed locally and written to the URL after a pause. An outside URL change
+  // (back/forward, a link) replaces the text; the echo of our own write never does.
+  const [search, setSearch] = useState(routeSearch.q || "");
+  const searchRef = useRef(search);
+  const writtenQ = useRef<string | undefined>(routeSearch.q);
+  const searchTimer = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if ((routeSearch.q ?? "") === (writtenQ.current ?? "")) return;
+    writtenQ.current = routeSearch.q;
+    searchRef.current = routeSearch.q ?? "";
+    setSearch(routeSearch.q ?? "");
+  }, [routeSearch.q]);
+  useEffect(() => () => window.clearTimeout(searchTimer.current), []);
 
   const updateListUrl = (next: Partial<TAApplicationSearch>) => {
-    const valueFor = <K extends keyof TAApplicationSearch>(key: K, fallback: TAApplicationSearch[K]) =>
-      Object.prototype.hasOwnProperty.call(next, key) ? next[key] : fallback;
+    window.clearTimeout(searchTimer.current);
+    const pendingQ = searchRef.current.trim() ? searchRef.current : undefined;
+    const merged: TAApplicationSearch = { ...routeRef.current, q: pendingQ, ...next };
+    writtenQ.current = merged.q;
     void navigate({
       to: "/ta/applications",
-      search: {
-        q: valueFor("q", search || undefined),
-        stage: valueFor("stage", filterValues.status as ApplicationStatus | undefined),
-        clientId: valueFor("clientId", filterValues.clientId ? Number(filterValues.clientId) : undefined),
-        jobId: valueFor("jobId", filterValues.jobId ? Number(filterValues.jobId) : undefined),
-        source: valueFor("source", filterValues.source as ApplicationSourceFilter | undefined),
-        archived: valueFor("archived", showArchived || undefined),
-        returning: valueFor("returning", returningOnly || undefined),
-        sort: valueFor("sort", sort),
-        needsAction: valueFor("needsAction", needsAction || undefined),
-        page: valueFor("page", page > 1 ? page : undefined),
-      },
+      search: merged,
       replace: true,
       // Only the list changes; keep the recruiter where they are instead of jumping to the top.
       resetScroll: false,
     });
   };
 
-  const listSearch = {
-    q: search || undefined,
-    stage: (filterValues.status as ApplicationStatus | undefined) || undefined,
-    clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
-    jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
-    source: (filterValues.source as ApplicationSourceFilter | undefined) || undefined,
-    archived: showArchived || undefined,
-    returning: returningOnly || undefined,
-    sort,
-    needsAction: needsAction || undefined,
-    page: page > 1 ? page : undefined,
+  const changeSearch = (value: string) => {
+    setSearch(value);
+    searchRef.current = value;
+    window.clearTimeout(searchTimer.current);
+    if (!value) {
+      updateListUrl({ q: undefined, page: undefined });
+      return;
+    }
+    searchTimer.current = window.setTimeout(() => updateListUrl({ page: undefined }), SERVER_SEARCH_DEBOUNCE_MS);
   };
+
+  const listSearch = routeSearch;
 
   const [encodeOpen, setEncodeOpen] = useState(false);
   // Slip for a confirmed self check-in (encoding prints its own A4 slips).
@@ -292,7 +287,11 @@ export const ApplicationsPage: React.FC = () => {
   }, [layout]);
 
   // The queue lists work still in progress; deployed and closed records stay in the table.
-  const openOnly = layout === "queue" && !showArchived;
+  const stageFilter = filterValues.status as ApplicationStatus | undefined;
+  // An archived row has isArchived set, so the Archived stage has to ask for archived rows.
+  const archivedRows = showArchived || stageFilter === ApplicationStatus.ARCHIVED;
+  // Picking a closed stage overrides the queue's open-work-only rule, which would otherwise hide every row.
+  const openOnly = layout === "queue" && !archivedRows && !(stageFilter && CLOSED_STATUSES.includes(stageFilter));
 
   // Modal states for archive
   const [archiveModalApp, setArchiveModalApp] = useState<{ id: number; name: string; isArchived: boolean } | null>(null);
@@ -309,7 +308,7 @@ export const ApplicationsPage: React.FC = () => {
       clientId: filterValues.clientId || "",
       jobId: filterValues.jobId || "",
       source: filterValues.source || "",
-      showArchived,
+      showArchived: archivedRows,
       returningOnly,
       sort: sort ?? "match",
       needsAction,
@@ -324,7 +323,7 @@ export const ApplicationsPage: React.FC = () => {
         jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
         clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
         source: (filterValues.source as ApplicationSourceFilter) || undefined,
-        isArchived: showArchived,
+        isArchived: archivedRows,
         returning: returningOnly || undefined,
         sort,
         needsAction: needsAction || undefined,
@@ -377,7 +376,7 @@ export const ApplicationsPage: React.FC = () => {
             jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
             clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
             source: (filterValues.source as ApplicationSourceFilter) || undefined,
-            isArchived: false,
+            isArchived: stage === ApplicationStatus.ARCHIVED,
             returning: returningOnly || undefined,
             needsAction: needsAction || undefined,
             openOnly: openOnly || undefined,
@@ -556,28 +555,20 @@ export const ApplicationsPage: React.FC = () => {
 
 
   const hasListFilters = Boolean(search) || returningOnly || Object.keys(filterValues).length > 0;
+  // Sort only orders the list, so it is not counted as a filter.
   const activeFilterCount =
-    (search ? 1 : 0) + (returningOnly ? 1 : 0) + (needsAction ? 1 : 0) + (sort ? 1 : 0) + Object.keys(filterValues).length;
+    (search.trim() ? 1 : 0) + (returningOnly ? 1 : 0) + (needsAction ? 1 : 0) + Object.keys(filterValues).length;
   const hasActiveFilters = activeFilterCount > 0;
   // Only "Needs action" is hiding rows, so the empty state can say so directly.
   const onlyNeedsActionActive = needsAction && !hasListFilters;
 
   const changeStage = (stage: string) => {
-    const nextValues = { ...filterValues };
-    if (stage) nextValues.status = stage;
-    else delete nextValues.status;
-    setFilterValues(nextValues);
-    setPage(1);
     updateListUrl({ stage: (stage as ApplicationStatus) || undefined, page: undefined });
   };
 
   const resetFilters = () => {
     setSearch("");
-    setFilterValues({});
-    setReturningOnly(false);
-    setNeedsAction(false);
-    setSort(undefined);
-    setPage(1);
+    searchRef.current = "";
     updateListUrl({
       returning: undefined,
       q: undefined,
@@ -824,11 +815,9 @@ export const ApplicationsPage: React.FC = () => {
       pageSize={pageSize}
       onPageSizeChange={(size) => {
         setPageSize(size);
-        setPage(1);
         updateListUrl({ page: undefined });
       }}
       onPageChange={(nextPage) => {
-        setPage(nextPage);
         updateListUrl({ page: nextPage > 1 ? nextPage : undefined });
       }}
       itemLabel="applications"
@@ -953,14 +942,10 @@ export const ApplicationsPage: React.FC = () => {
         <SearchFilters
           className="mb-0"
           collapsed={layout === "queue"}
-          activeCount={activeFilterCount - (search ? 1 : 0)}
+          activeCount={activeFilterCount - (search.trim() ? 1 : 0)}
           searchPlaceholder="Search candidate, email or job"
           searchValue={search}
-          onSearchChange={(v) => {
-            setSearch(v);
-            setPage(1);
-            updateListUrl({ q: v || undefined, page: undefined });
-          }}
+          onSearchChange={changeSearch}
           filterValues={filterValues}
           onFilterChange={(k, v) => {
             const nextValues = { ...filterValues };
@@ -971,10 +956,8 @@ export const ApplicationsPage: React.FC = () => {
               const jobBelongs = jobs.some((j: any) => String(j.id) === nextValues.jobId && (!v || j.mrf?.clientId === Number(v)));
               if (!jobBelongs) delete nextValues.jobId;
             }
-            setFilterValues(nextValues);
-            setPage(1);
             updateListUrl({
-              stage: k === "status" ? (v as ApplicationStatus) || undefined : (nextValues.status as ApplicationStatus | undefined),
+              stage: nextValues.status as ApplicationStatus | undefined,
               clientId: nextValues.clientId ? Number(nextValues.clientId) : undefined,
               jobId: nextValues.jobId ? Number(nextValues.jobId) : undefined,
               source: nextValues.source as ApplicationSourceFilter | undefined,
@@ -994,8 +977,6 @@ export const ApplicationsPage: React.FC = () => {
                   clearable={false}
                   onChange={(v) => {
                     const next = v === "newest" || v === "oldest" || v === "waiting" ? v : undefined;
-                    setSort(next);
-                    setPage(1);
                     updateListUrl({ sort: next, page: undefined });
                   }}
                 />
@@ -1009,8 +990,6 @@ export const ApplicationsPage: React.FC = () => {
                 aria-pressed={needsAction}
                 onClick={() => {
                   const next = !needsAction;
-                  setNeedsAction(next);
-                  setPage(1);
                   updateListUrl({ needsAction: next || undefined, page: undefined });
                 }}
               >
@@ -1022,8 +1001,6 @@ export const ApplicationsPage: React.FC = () => {
                 aria-pressed={returningOnly}
                 onClick={() => {
                   const next = !returningOnly;
-                  setReturningOnly(next);
-                  setPage(1);
                   updateListUrl({ returning: next || undefined, page: undefined });
                 }}
               >
@@ -1035,8 +1012,6 @@ export const ApplicationsPage: React.FC = () => {
                 aria-pressed={showArchived}
                 onClick={() => {
                   const nextArchived = !showArchived;
-                  setShowArchived(nextArchived);
-                  setPage(1);
                   updateListUrl({ archived: nextArchived || undefined, page: undefined });
                 }}
               >

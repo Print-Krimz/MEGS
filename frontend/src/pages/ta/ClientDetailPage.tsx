@@ -441,7 +441,7 @@ export const ClientDetailPage: React.FC = () => {
               <div className="mt-4 border-t border-slate-200 pt-4 text-sm">
                 <p className="mb-1 text-xs font-medium text-slate-600">Standard 201 requirements</p>
                 <p className="leading-relaxed text-slate-700">
-                  Government Issued ID, NBI Clearance, Fit to Work Medical Exam, SSS Document, PhilHealth Member Data Record, Pag-IBIG Member ID, Client NDA & Security Briefing
+                  Government Issued ID, NBI / Police Clearance, Fit to Work Medical Exam, SSS Document, PhilHealth Member Data Record, Pag-IBIG Member ID, Client NDA & Security Briefing
                 </p>
               </div>
             )}

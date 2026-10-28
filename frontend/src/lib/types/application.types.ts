@@ -24,6 +24,8 @@ export interface JobPosting {
     id: number;
     title: string;
     clientId: number;
+    /** false = no client review step; screening goes straight to the final interview. */
+    requiresClientReview?: boolean;
     location?: string | null;
     salaryRangeMin?: number | null;
     salaryRangeMax?: number | null;
@@ -380,6 +382,7 @@ export interface TAApplicationSummary {
       id: number;
       title: string;
       clientId: number;
+      requiresClientReview?: boolean;
       client?: { id: number; name: string } | null;
     } | null;
   } | null;

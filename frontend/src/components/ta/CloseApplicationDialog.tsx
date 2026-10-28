@@ -14,7 +14,7 @@ export interface CloseSubmission {
   outcome: ClosureOutcome;
   reasonCode: string;
   disposition: ClosureDisposition;
-  notes?: string;
+  notes: string;
   /** Backed Out only: the day it happened. */
   occurredOn?: string;
 }
@@ -74,9 +74,8 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
     : REJECTION_REASON_OPTIONS;
   // A no-show is never added to the talent pool, so the only disposition left is Archive.
   const noShow = isBackout && reason === "NO_SHOW";
-  // An "Other" reason must be explained in the notes.
-  const notesRequired = reason === "OTHER";
-  const notesMissing = notesRequired && !notes.trim();
+  // Every closure needs a note explaining the reason.
+  const notesMissing = !notes.trim();
   const copy = COPY[outcome];
 
   useEffect(() => {
@@ -124,13 +123,13 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
           />
         )}
         <Textarea
-          label={notesRequired ? "Notes" : "Notes (optional)"}
+          label="Notes"
           placeholder="Add details..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          required={notesRequired}
+          required
           maxLength={FIELD_LIMITS.notes}
-          error={notesMissing ? "Please describe the reason." : undefined}
+          error={notesMissing && reason ? "Add a note explaining the reason." : undefined}
           rows={3}
         />
         <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
@@ -147,7 +146,7 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
                 outcome,
                 reasonCode: reason,
                 disposition: noShow || !poolAllowed ? "ARCHIVE" : disposition,
-                notes: notes.trim() || undefined,
+                notes: notes.trim(),
                 occurredOn: isBackout ? occurredOn : undefined,
               })
             }

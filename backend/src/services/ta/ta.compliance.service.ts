@@ -676,7 +676,7 @@ export const resolveComplianceTemplatesForApplication = async (
     source = "STANDARD_DEFAULTS";
     const defaultTemplates: ResolvedComplianceTemplate[] = [
       { documentLabel: "Government Issued ID", isRequired: true },
-      { documentLabel: "NBI Clearance", isRequired: true },
+      { documentLabel: "NBI / Police Clearance", isRequired: true },
       { documentLabel: "Fit to Work Medical Exam", isRequired: true },
       { documentLabel: "SSS Document", isRequired: true },
       { documentLabel: "PhilHealth Member Data Record", isRequired: true },
@@ -699,7 +699,10 @@ export const resolveComplianceTemplatesForApplication = async (
   return { app, templatesToApply, defaultDeadline, source };
 };
 
-export const generateComplianceRequirementsFromMRF = async (applicationId: number) => {
+export const generateComplianceRequirementsFromMRF = async (
+  applicationId: number,
+  options: { notifyApplicant?: boolean } = {}
+) => {
   const { app, templatesToApply, defaultDeadline } = await resolveComplianceTemplatesForApplication(applicationId);
 
   if (!app || !app.jobPosting) return [];
@@ -718,11 +721,11 @@ export const generateComplianceRequirementsFromMRF = async (applicationId: numbe
     created.push(rec);
   }
 
-  if (created.length > 0 && app.userId) {
+  if (created.length > 0 && app.userId && options.notifyApplicant !== false) {
     void sendNotification(
       app.userId,
       "Pre-Employment Checklist Available",
-      'Pre-employment compliance requirements (' + created.length + ' items) have been assigned to your application.',
+      `${created.length} pre-employment ${created.length === 1 ? "requirement was" : "requirements were"} added to your application.`,
       "INFO",
       '/app/applications/' + applicationId
     );

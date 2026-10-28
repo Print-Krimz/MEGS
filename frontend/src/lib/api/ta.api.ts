@@ -308,7 +308,7 @@ export const taApi = {
   bulkCancelInvitations: (data: { ids: number[] }) =>
     api.post<BulkSummary>("/api/ta/bulk/invitations/cancel", data),
 
-  bulkConfirmDeploymentStart: (data: { items: { id: number; actualStart: string }[]; notes?: string }) =>
+  bulkConfirmDeploymentStart: (data: { items: { id: number; actualStart: string }[]; notes: string }) =>
     api.post<BulkSummary>("/api/ta/bulk/deployments/confirm-start", data),
 
   bulkEndDeployments: (data: {

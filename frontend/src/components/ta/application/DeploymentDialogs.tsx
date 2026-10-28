@@ -24,7 +24,7 @@ export interface ActivateDeploymentDialogProps {
   mrfLocation?: string | null;
   jobLocation?: string | null;
   linkedClientAddress?: string | null;
-  onSubmit: (values: { clientId: number; site?: string; contractStart?: string; contractEnd?: string; notes?: string }) => void;
+  onSubmit: (values: { clientId: number; site?: string; contractStart?: string; contractEnd?: string; notes: string }) => void;
   isSubmitting?: boolean;
 }
 
@@ -50,9 +50,11 @@ export const ActivateDeploymentDialog: React.FC<ActivateDeploymentDialogProps> =
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [notes, setNotes] = useState("");
+  const [showNotesError, setShowNotesError] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    setShowNotesError(false);
     setClientId(initialClientId);
     setSite(initialSite);
     setStart("");
@@ -129,7 +131,9 @@ export const ActivateDeploymentDialog: React.FC<ActivateDeploymentDialogProps> =
         </div>
 
         <Textarea
-          label="Deployment notes (optional)"
+          label="Deployment notes"
+          required
+          error={showNotesError && !notes.trim() ? "Add a note for this deployment." : undefined}
           placeholder="Add shift, supervisor, or reporting instructions..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -158,12 +162,16 @@ export const ActivateDeploymentDialog: React.FC<ActivateDeploymentDialogProps> =
                 notify.error("Invalid dates", "Contract start date cannot be after contract end date.");
                 return;
               }
+              if (!notes.trim()) {
+                setShowNotesError(true);
+                return;
+              }
               onSubmit({
                 clientId: targetClientId,
                 site: site || undefined,
                 contractStart: start || undefined,
                 contractEnd: end || undefined,
-                notes: notes || undefined,
+                notes: notes.trim(),
               });
             }}
           >

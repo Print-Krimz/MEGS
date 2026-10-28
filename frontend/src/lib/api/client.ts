@@ -26,9 +26,50 @@ const API_BASE = resolveApiBase(import.meta.env.VITE_API_URL);
 /** Absolute URL for an API path, built the same way apiRequest builds it. */
 export const apiUrl = (path: string): string => `${API_BASE}${path}`;
 
+let refreshInFlight: Promise<boolean> | null = null;
+
+/**
+ * Exchanges the stored refresh token for a new access token. One call is shared by all
+ * concurrent 401s. Resolves true when a usable access token is now in localStorage.
+ */
+export function refreshAccessToken(staleToken: string | null): Promise<boolean> {
+  const current = localStorage.getItem("access_token");
+  // Another request already replaced the token this one used: just retry with it.
+  if (current && staleToken && current !== staleToken) return Promise.resolve(true);
+
+  const refreshToken = localStorage.getItem("refresh_token");
+  if (!refreshToken) return Promise.resolve(false);
+
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (!res.ok) return false;
+        const json = (await res.json()) as ApiResponse<{ access_token?: string; refresh_token?: string }>;
+        const data = json?.data;
+        if (!json?.success || !data?.access_token) return false;
+        localStorage.setItem("access_token", data.access_token);
+        if (data.refresh_token) localStorage.setItem("refresh_token", data.refresh_token);
+        window.dispatchEvent(new Event("auth-token-changed"));
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+  }
+  return refreshInFlight;
+}
+
 export async function apiRequest<T>(
   path: string,
-  options?: RequestInit
+  options?: RequestInit,
+  _retried = false
 ): Promise<T> {
   const token = localStorage.getItem("access_token");
 
@@ -49,8 +90,10 @@ export async function apiRequest<T>(
     path.startsWith("/api/public/");
 
   // Only inject localStorage token if NO explicit Authorization header was passed and path is not public/isolated auth
+  let injectedToken = false;
   if (token && !isPublicAuthPath && !headers["Authorization"]) {
     headers["Authorization"] = `Bearer ${token}`;
+    injectedToken = true;
   }
 
   // Set application/json only if body is NOT FormData
@@ -78,6 +121,15 @@ export async function apiRequest<T>(
 
     // Handle 401 Unauthorized
     if (res.status === 401) {
+      if (
+        !isPublicAuthPath &&
+        injectedToken &&
+        !_retried &&
+        !path.startsWith("/api/auth/logout") &&
+        (await refreshAccessToken(token))
+      ) {
+        return apiRequest<T>(path, options, true);
+      }
       if (!isPublicAuthPath) {
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
@@ -119,7 +171,8 @@ export async function apiRequest<T>(
 
 export async function apiRequestBlob(
   path: string,
-  options?: RequestInit
+  options?: RequestInit,
+  _retried = false
 ): Promise<Blob> {
   const token = localStorage.getItem("access_token");
 
@@ -138,6 +191,9 @@ export async function apiRequestBlob(
     });
 
     if (res.status === 401) {
+      if (token && !_retried && (await refreshAccessToken(token))) {
+        return apiRequestBlob(path, options, true);
+      }
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
       if (!window.location.pathname.startsWith("/login")) {

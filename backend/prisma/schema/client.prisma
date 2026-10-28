@@ -57,6 +57,8 @@ model ManpowerRequest {
   genderPreference       String?  // "ANY", "MALE", "FEMALE"
   tattooPolicy           String?  // "NONE", "NO_VISIBLE", "ALLOWED"
   status                 String    @default("OPEN") // OPEN, FILLED, CANCELLED
+  // false = the client does not review candidates (e.g. MEGS itself); screening goes straight to the final interview.
+  requiresClientReview   Boolean   @default(true)
   createdById            String
   createdBy              User      @relation("MRFCreatedBy", fields: [createdById], references: [id])
   // The TA who owns this requisition, its job postings, applicants and deployments. Null = not owned by a TA.
