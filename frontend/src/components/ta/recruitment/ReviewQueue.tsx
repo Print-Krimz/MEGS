@@ -303,13 +303,15 @@ export interface ReviewQueueProps {
   isFetching?: boolean;
   empty: React.ReactNode;
   footer?: React.ReactNode;
+  /** Take the full height of the parent (expanded view); otherwise each column stops at the window height. */
+  fill?: boolean;
 }
 
 /**
  * Split view of the current list: candidates on the left, the selected one on the right.
  * Arrow keys move through the list. Below 1024px there is no room for the panel, so a row opens the record.
  */
-export const ReviewQueue: React.FC<ReviewQueueProps> = ({ rows, nameOf, nextStepOf, listSearch, isFetching, empty, footer }) => {
+export const ReviewQueue: React.FC<ReviewQueueProps> = ({ rows, nameOf, nextStepOf, listSearch, isFetching, empty, footer, fill = false }) => {
   const isDesktop = useIsDesktop();
   const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState<number | null>(rows[0]?.id ?? null);
@@ -354,10 +356,16 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ rows, nameOf, nextStep
 
   if (rows.length === 0) return <div className="rounded-md border border-slate-300 bg-white">{empty}</div>;
 
+  // Each column scrolls on its own: to the parent's height when filling, else to what is left of the window.
+  const columnHeight = fill ? "lg:h-full lg:min-h-0" : "lg:max-h-[calc(100dvh-9rem)]";
+
   return (
-    <div className="overflow-hidden rounded-md border border-slate-300 bg-white" aria-busy={isFetching || undefined}>
-      <div className="lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-        <div className="border-slate-300 lg:max-h-[calc(100dvh-12rem)] lg:overflow-y-auto lg:border-r">
+    <div
+      className={cn("overflow-hidden rounded-md border border-slate-300 bg-white", fill && "flex h-full min-h-0 flex-col")}
+      aria-busy={isFetching || undefined}
+    >
+      <div className={cn("lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]", fill && "min-h-0 flex-1")}>
+        <div className={cn("border-slate-300 lg:overflow-y-auto lg:border-r", columnHeight)}>
           <ul ref={listRef} aria-label="Candidates" onKeyDown={onKeyDown} className="divide-y divide-slate-200">
             {rows.map((app) => {
               const name = nameOf(app);
@@ -404,7 +412,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ rows, nameOf, nextStep
           </ul>
         </div>
         {isDesktop && (
-          <section aria-label="Selected candidate" className="min-w-0 lg:max-h-[calc(100dvh-12rem)] lg:overflow-y-auto">
+          <section aria-label="Selected candidate" className={cn("min-w-0 lg:overflow-y-auto", columnHeight)}>
             {selectedId != null && (
               <ReviewPanel
                 key={selectedId}

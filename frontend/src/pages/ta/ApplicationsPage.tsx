@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight, Maximize2, Minimize2, X } from "lucide-react";
 import { keepPreviousData, useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
@@ -41,6 +41,7 @@ import { WalkInSlipDialog } from "../../components/ta/walk-in/WalkInSlipDialog";
 import { CheckInsPanel, useCheckIns } from "../../components/ta/walk-in/CheckInsPanel";
 import { CheckInPosterDialog } from "../../components/ta/walk-in/CheckInPoster";
 import { ReviewQueue } from "../../components/ta/recruitment/ReviewQueue";
+import { useIsDesktop } from "../../components/ta/application/useIsDesktop";
 import { TA_COPY } from "../../lib/ta-copy";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import {
@@ -126,6 +127,14 @@ const SORT_OPTIONS = [
 
 type ListLayout = "table" | "queue";
 const LAYOUT_STORAGE_KEY = "megs_ta_applications_layout";
+const EXPANDED_STORAGE_KEY = "megs_ta_queue_expanded";
+const readExpanded = (): boolean => {
+  try {
+    return window.localStorage.getItem(EXPANDED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+};
 const readLayout = (): ListLayout => {
   try {
     return window.localStorage.getItem(LAYOUT_STORAGE_KEY) === "queue" ? "queue" : "table";
@@ -267,14 +276,54 @@ export const ApplicationsPage: React.FC = () => {
   const [view, setView] = useState<"applications" | "check-ins">("applications");
   const checkInCount = useCheckIns().data?.items.length ?? 0;
   const [layout, setLayoutState] = useState<ListLayout>(readLayout);
+  const queueRef = React.useRef<HTMLDivElement>(null);
+  const scrollToQueue = React.useRef(false);
   const setLayout = (next: ListLayout) => {
     setLayoutState(next);
+    scrollToQueue.current = next === "queue";
     try {
       window.localStorage.setItem(LAYOUT_STORAGE_KEY, next);
     } catch {
       // The choice still applies for this visit.
     }
   };
+
+  // Expanded: the queue covers the page (header, filters and sidebar) so the list and panel fill the screen.
+  const isDesktop = useIsDesktop();
+  const [queueExpanded, setQueueExpandedState] = useState(readExpanded);
+  const setQueueExpanded = (next: boolean) => {
+    setQueueExpandedState(next);
+    try {
+      window.localStorage.setItem(EXPANDED_STORAGE_KEY, String(next));
+    } catch {
+      // The choice still applies for this visit.
+    }
+  };
+  const expanded = view === "applications" && layout === "queue" && queueExpanded && isDesktop;
+
+  useEffect(() => {
+    if (!expanded) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      // Esc belongs to an open dialog or menu first; only a bare Esc leaves the expanded view.
+      if (event.key !== "Escape" || event.defaultPrevented || document.querySelector('[role="dialog"], [role="listbox"]')) return;
+      setQueueExpanded(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [expanded]);
+
+  // Switching to Queue scrolls it to the top of the window so the list and panel fit on screen.
+  useEffect(() => {
+    if (layout !== "queue" || !scrollToQueue.current || expanded) return;
+    scrollToQueue.current = false;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    queueRef.current?.scrollIntoView?.({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  }, [layout, expanded]);
 
   // The queue lists work still in progress; deployed and closed records stay in the table.
   const openOnly = layout === "queue" && !showArchived;
@@ -883,6 +932,7 @@ export const ApplicationsPage: React.FC = () => {
           </Button>
         ))}
       </div>
+      <div className="flex items-center gap-2">
       {view === "applications" && (
         <div role="group" aria-label="Layout" className="inline-flex overflow-hidden rounded-md border border-slate-300">
           {(
@@ -905,6 +955,19 @@ export const ApplicationsPage: React.FC = () => {
           ))}
         </div>
       )}
+      {view === "applications" && layout === "queue" && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="hidden min-h-9 lg:inline-flex"
+          leftIcon={<Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />}
+          onClick={() => setQueueExpanded(true)}
+        >
+          Expand
+        </Button>
+      )}
+      </div>
       </div>
 
       {/* Self check-ins are not applications until a recruiter confirms them, so say where they wait. */}
@@ -928,10 +991,34 @@ export const ApplicationsPage: React.FC = () => {
           <CheckInsPanel onConfirmed={setWalkInSlip} />
         </div>
       ) : (
-      <div id="applications-view" className="space-y-6">
+      <div
+        id="applications-view"
+        role={expanded ? "region" : undefined}
+        aria-label={expanded ? "Review queue, expanded" : undefined}
+        className={expanded ? "fixed inset-0 z-[45] flex flex-col gap-3 overflow-hidden bg-slate-50 p-4" : "space-y-6"}
+      >
+      {expanded && (
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-display text-lg font-semibold text-slate-950">Review queue</h2>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-600">Esc to exit</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              leftIcon={<Minimize2 className="h-3.5 w-3.5" aria-hidden="true" />}
+              onClick={() => setQueueExpanded(false)}
+            >
+              Exit
+            </Button>
+          </div>
+        </div>
+      )}
       <div>
         <SearchFilters
           className="mb-0"
+          collapsed={layout === "queue"}
+          activeCount={activeFilterCount - (search ? 1 : 0)}
           searchPlaceholder="Search candidate, email or job"
           searchValue={search}
           onSearchChange={(v) => {
@@ -1113,7 +1200,9 @@ export const ApplicationsPage: React.FC = () => {
           )}
         </div>
       ) : layout === "queue" ? (
+        <div ref={queueRef} className={expanded ? "flex min-h-0 flex-1 flex-col" : "scroll-mt-20"}>
         <ReviewQueue
+          fill={expanded}
           rows={applications}
           nameOf={candidateNameOf}
           nextStepOf={nextStepFor}
@@ -1122,6 +1211,7 @@ export const ApplicationsPage: React.FC = () => {
           empty={listEmpty}
           footer={listPagination}
         />
+        </div>
       ) : (
         <DataTable
           caption="Applications"

@@ -36,6 +36,13 @@ export interface SearchFiltersProps {
   layout?: "inline" | "stacked";
   /** Rendered at the end of the search row in the stacked layout (e.g. a sort control). */
   trailing?: React.ReactNode;
+  /**
+   * Keep the filters, `trailing` and `actions` behind the Filters button at every width, so only the
+   * search box shows. Used where vertical space matters more than seeing every filter at once.
+   */
+  collapsed?: boolean;
+  /** Active-filter count for the Filters button when the page tracks more than the filter selects (sort, toggles). */
+  activeCount?: number;
 }
 
 export const SearchFilters: React.FC<SearchFiltersProps> = ({
@@ -51,14 +58,20 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
   className,
   layout = "inline",
   trailing,
+  collapsed = false,
+  activeCount,
 }) => {
   const stacked = layout === "stacked";
   const idPrefix = useId();
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const activeFilterCount = filters.filter((f) => {
-    const v = filterValues[f.key];
-    return Boolean(v) && v !== "ALL";
-  }).length;
+  const activeFilterCount =
+    activeCount ??
+    filters.filter((f) => {
+      const v = filterValues[f.key];
+      return Boolean(v) && v !== "ALL";
+    }).length;
+  // Collapsed: everything but the search box waits behind the Filters button until it is opened.
+  const showExtras = !collapsed || filtersOpen;
   const filtersId = `${idPrefix}-filters`;
   const hasActiveFilters =
     Boolean(searchValue) ||
@@ -106,14 +119,14 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
           </div>
         )}
 
-        {/* Below md the filters collapse behind a disclosure; the search box stays visible. */}
+        {/* Below md (or always, when collapsed) the filters sit behind a disclosure; the search box stays visible. */}
         {filters.length > 0 && (
           <button
             type="button"
             aria-expanded={filtersOpen}
             aria-controls={filtersId}
             onClick={() => setFiltersOpen((v) => !v)}
-            className="md:hidden inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-1"
+            className={cn(collapsed ? "" : "md:hidden", "inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-1 md:min-h-10")}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
             {activeFilterCount > 0 ? `Filters (${activeFilterCount} active)` : "Filters"}
@@ -123,7 +136,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
 
         <div
           id={filtersId}
-          className={cn("w-full flex-wrap items-center gap-2.5 md:flex md:w-auto", filtersOpen ? "flex" : "hidden")}
+          className={cn("w-full flex-wrap items-center gap-2.5 md:w-auto", !collapsed && "md:flex", filtersOpen ? "flex" : "hidden")}
         >
         {filters.map((filter) => (
           <div key={filter.key} className={stacked ? "w-full sm:w-auto sm:min-w-52" : "w-full sm:w-auto min-w-[150px]"}>
@@ -164,7 +177,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
         ))}
         </div>
 
-        {stacked && trailing}
+        {stacked && showExtras && trailing}
 
         {/* Clear Filters CTA */}
         {hasActiveFilters && onReset && (
@@ -180,7 +193,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
       </div>
 
       {/* Extra Action Buttons slot */}
-      {actions && (
+      {actions && showExtras && (
         <div
           className={
             stacked
