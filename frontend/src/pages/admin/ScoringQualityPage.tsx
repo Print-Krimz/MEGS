@@ -13,13 +13,14 @@ import { AnalyticsPanel, KpiRow } from "../../components/analytics";
 import { BarMark } from "../../components/analytics/chart-primitives";
 import { BarChart3, RotateCcw } from "lucide-react";
 
-// One hue, darker for stronger matches, so the bars read as one scale.
+// Two-sided scale: navy/blue for good matches, neutral grey in the middle, amber for weak
+// matches (red stays reserved for backed out and overdue). Every mark is >= 3:1 on white.
 const BUCKETS = [
   { range: "80–100%", label: "Strong match", key: "80-100", color: "#0B315D" },
-  { range: "60–79%", label: "Good match", key: "60-79", color: "#1A4A80" },
-  { range: "40–59%", label: "Needs review", key: "40-59", color: "#33689C" },
-  { range: "20–39%", label: "Low match", key: "20-39", color: "#4E80B2" },
-  { range: "0–19%", label: "Very low match", key: "0-19", color: "#698FBF" },
+  { range: "60–79%", label: "Good match", key: "60-79", color: "#4E80B2" },
+  { range: "40–59%", label: "Needs review", key: "40-59", color: "#7B8494" },
+  { range: "20–39%", label: "Low match", key: "20-39", color: "#B7791F" },
+  { range: "0–19%", label: "Very low match", key: "0-19", color: "#7A4800" },
 ];
 
 const Kpi: React.FC<{ label: string; value: React.ReactNode; detail?: string }> = ({ label, value, detail }) => (
