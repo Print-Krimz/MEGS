@@ -48,7 +48,7 @@ const FIELD_ORDER: Array<[string, string]> = [
   ["location", "mrf-location"],
   ["requiredSkills", "mrf-skills"],
   ["requiredCertifications", "mrf-certifications"],
-  ["description", "mrf-notes"],
+  ["description", "mrf-description"],
   ["ageMin", "mrf-age-min"],
   ["ageMax", "mrf-age-max"],
   ["salaryRangeMin", "mrf-salary-min"],
@@ -60,7 +60,6 @@ const MORE_DETAILS_FIELDS = [
   "requiredExperience",
   "requiredEducation",
   "requiredCertifications",
-  "description",
   "ageMin",
   "ageMax",
   "genderPreference",
@@ -509,8 +508,9 @@ export const MRFCreatePage: React.FC = () => {
       if (skillsErr) errors.requiredSkills = skillsErr;
     }
 
-    if (description.trim()) {
-      const descErr = validateProseText(description, "Job description", { maxLength: 10000 });
+    if (!description.trim()) errors.description = "Describe the role and its responsibilities.";
+    else {
+      const descErr = validateProseText(description, "Job description and responsibilities", { maxLength: 10000 });
       if (descErr) errors.description = descErr;
     }
 
@@ -578,7 +578,7 @@ export const MRFCreatePage: React.FC = () => {
       requiredExperience: requiredExperience || undefined,
       requiredEducation: requiredEducation || undefined,
       requiredCertifications: requiredCertifications || undefined,
-      description: description || undefined,
+      description: description.trim(),
       salaryRangeMin: salaryMin ? Number(salaryMin) : undefined,
       salaryRangeMax: salaryMax ? Number(salaryMax) : undefined,
       employmentType,
@@ -602,7 +602,7 @@ export const MRFCreatePage: React.FC = () => {
   const selectedClient = clients.find((c) => c.id === clientId);
   const steps: MRFStep[] = [
     { id: "mrf-step-role", label: "Client & role", done: Boolean(clientId && title.trim() && Number(headcount) >= 1) },
-    { id: "mrf-step-requirements", label: "Requirements", done: Boolean(requiredSkills.trim()), optional: true },
+    { id: "mrf-step-requirements", label: "Requirements", done: Boolean(description.trim()) },
     { id: "mrf-step-terms", label: "Terms", done: Boolean(employmentType && workArrangement && (salaryMin || salaryMax)) },
     { id: "mrf-step-review", label: "Review", done: false },
   ];
@@ -861,6 +861,24 @@ export const MRFCreatePage: React.FC = () => {
               )}
             </div>
 
+            <div className="space-y-1.5">
+              <Textarea
+                id="mrf-description"
+                label="Job description and responsibilities"
+                required
+                placeholder="Describe role responsibilities..."
+                value={description}
+                error={serverFieldErrors.description}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  clearServerFieldError("description");
+                }}
+                rows={5}
+                maxLength={10000}
+              />
+              {fileNote("description")}
+            </div>
+
             <details
               className="group border-t border-slate-200 pt-4"
               open={moreDetailsOpen}
@@ -918,23 +936,6 @@ export const MRFCreatePage: React.FC = () => {
               }}
             />
               {fileNote("requiredCertifications")}
-            </div>
-
-            <div className="space-y-1.5">
-            <Textarea
-              id="mrf-notes"
-              label="Notes for this client"
-              placeholder="Specify shift schedules, client site notes, uniform provisions..."
-              value={description}
-              error={serverFieldErrors.description}
-              onChange={(e) => {
-                setDescription(e.target.value);
-                clearServerFieldError("description");
-              }}
-              rows={4}
-              maxLength={10000}
-            />
-              {fileNote("description")}
             </div>
 
             {/* Internal-only client requirements */}

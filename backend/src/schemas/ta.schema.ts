@@ -75,7 +75,8 @@ export const taSchema = {
   createJob: z.object({
     body: z.object({
       title: safeTextSchema("Title", FIELD_LIMITS.shortText),
-      description: safeProseSchema("Description", FIELD_LIMITS.longText),
+      // Mirrored from the manpower request on the server; kept optional for requests without one.
+      description: optionalSafeProse("Description", FIELD_LIMITS.longText),
       requirements: safeProseSchema("Requirements", FIELD_LIMITS.longText),
       location: optionalSafeText("Location", FIELD_LIMITS.shortText),
       imageUrl: optionalSafeUrl("Image web address", FIELD_LIMITS.url),
@@ -88,7 +89,6 @@ export const taSchema = {
     params: z.object({ id: boundedIdText }),
     body: z.object({
       title: optionalSafeText("Title", FIELD_LIMITS.shortText),
-      description: optionalSafeProse("Description", FIELD_LIMITS.longText),
       requirements: optionalSafeProse("Requirements", FIELD_LIMITS.longText),
       location: optionalSafeText("Location", FIELD_LIMITS.shortText),
       imageUrl: optionalSafeUrl("Image web address", FIELD_LIMITS.url),
@@ -499,7 +499,7 @@ export const taSchema = {
       requiredExperience: optionalSafeText("Required experience", FIELD_LIMITS.shortText),
       requiredEducation: optionalSafeText("Required education", FIELD_LIMITS.shortText),
       requiredCertifications: optionalSafeProse("Required certifications", FIELD_LIMITS.notes),
-      description: optionalSafeProse("MRF description", FIELD_LIMITS.longText),
+      description: safeProseSchema("Job description and responsibilities", FIELD_LIMITS.longText),
       salaryRangeMin: salary,
       salaryRangeMax: salary,
       employmentType: optionalSafeText("Employment type", FIELD_LIMITS.shortText),
@@ -529,7 +529,7 @@ export const taSchema = {
       requiredExperience: optionalSafeText("Required experience", FIELD_LIMITS.shortText),
       requiredEducation: optionalSafeText("Required education", FIELD_LIMITS.shortText),
       requiredCertifications: optionalSafeProse("Required certifications", FIELD_LIMITS.notes),
-      description: optionalSafeProse("MRF description", FIELD_LIMITS.longText),
+      description: optionalSafeProse("Job description and responsibilities", FIELD_LIMITS.longText).refine(omittedOrNonBlank, "Job description and responsibilities are required."),
       salaryRangeMin: salary,
       salaryRangeMax: salary,
       employmentType: optionalSafeText("Employment type", FIELD_LIMITS.shortText),
@@ -616,10 +616,6 @@ export const taSchema = {
       pagibig: pagibigNumber,
       tin: tinNumber,
       address: optionalSafeAddress("Residential Address"),
-      emergencyContactName: optionalPersonNameSchema("Emergency Contact Name"),
-      emergencyContactPhone: phoneField,
-      emergencyContactRelationship: optionalSafeText("Emergency Contact Relationship", FIELD_LIMITS.name),
-      emergencyContactAddress: optionalSafeAddress("Emergency Contact Address"),
       professionalSummary: optionalSafeProse("Professional Summary", FIELD_LIMITS.summary),
       // Rows to create (no id) or update (id). Rows not listed are left alone.
       workExperiences: z.array(reviewWorkExperience).max(FIELD_LIMITS.records).optional(),

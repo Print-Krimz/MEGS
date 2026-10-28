@@ -64,6 +64,7 @@ export interface CharacterReference {
   applicantProfileId: number;
   name: string;
   relationship?: string | null;
+  company?: string | null;
   phone?: string | null;
   email?: string | null;
   notes?: string | null;
@@ -101,10 +102,6 @@ export interface ApplicantProfile {
   photoUrl?: string | null;
   resumeUrl?: string | null;
   professionalSummary?: string | null;
-  emergencyContactName?: string | null;
-  emergencyContactRelationship?: string | null;
-  emergencyContactPhone?: string | null;
-  emergencyContactAddress?: string | null;
   additionalNotes?: string | null;
   tattooStatus?: "NONE" | "NON_VISIBLE" | "VISIBLE" | string | null;
   hasNoShowHistory?: boolean;
@@ -143,10 +140,6 @@ export interface UpsertProfileDto {
   sss?: string;
   tin?: string;
   professionalSummary?: string;
-  emergencyContactName?: string;
-  emergencyContactRelationship?: string;
-  emergencyContactPhone?: string;
-  emergencyContactAddress?: string;
   additionalNotes?: string;
 }
 
@@ -179,6 +172,7 @@ export interface AddTrainingDto {
 export interface AddReferenceDto {
   name: string;
   relationship: string;
+  company?: string;
   phone?: string;
   email?: string;
   notes?: string;

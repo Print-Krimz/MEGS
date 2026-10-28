@@ -151,10 +151,6 @@ export const upsertApplicantProfile = async (userId: string, data: any) => {
   if (data.sss !== undefined) updateData.sss = sanitizeString(data.sss);
   if (data.tin !== undefined) updateData.tin = sanitizeString(data.tin);
   if (data.professionalSummary !== undefined) updateData.professionalSummary = sanitizeString(data.professionalSummary);
-  if (data.emergencyContactName !== undefined) updateData.emergencyContactName = sanitizeString(data.emergencyContactName);
-  if (data.emergencyContactRelationship !== undefined) updateData.emergencyContactRelationship = sanitizeString(data.emergencyContactRelationship);
-  if (data.emergencyContactPhone !== undefined) updateData.emergencyContactPhone = sanitizeString(data.emergencyContactPhone);
-  if (data.emergencyContactAddress !== undefined) updateData.emergencyContactAddress = sanitizeString(data.emergencyContactAddress);
   if (data.additionalNotes !== undefined) updateData.additionalNotes = sanitizeString(data.additionalNotes);
 
   const existing = await prisma.applicantProfile.findUnique({ where: { userId } });
@@ -207,10 +203,6 @@ export const upsertApplicantProfile = async (userId: string, data: any) => {
         sss: updateData.sss ?? null,
         tin: updateData.tin ?? null,
         professionalSummary: updateData.professionalSummary ?? null,
-        emergencyContactName: updateData.emergencyContactName ?? null,
-        emergencyContactRelationship: updateData.emergencyContactRelationship ?? null,
-        emergencyContactPhone: updateData.emergencyContactPhone ?? null,
-        emergencyContactAddress: updateData.emergencyContactAddress ?? null,
         additionalNotes: updateData.additionalNotes ?? null,
       },
     });
@@ -342,6 +334,7 @@ export const addReferenceService = async (userId: string, data: any) => {
       applicantProfileId: profile.id,
       name: data.name,
       relationship: data.relationship,
+      company: data.company || null,
       phone: data.phone,
       email: data.email,
       notes: data.notes,

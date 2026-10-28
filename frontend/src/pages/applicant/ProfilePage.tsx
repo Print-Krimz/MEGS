@@ -42,7 +42,6 @@ import { fieldErrorsFrom } from "../../lib/feedback";
 import { validatePhilippineMobile } from "../../lib/phone-utils";
 import {
   validateDateOfBirth,
-  validateEmergencyPhone,
   validatePagIbigNumber,
   validatePersonName,
   validatePhilHealthNumber,
@@ -157,15 +156,12 @@ const manilaDateYearsAgo = (years: number): string => {
   return isValidDateOnly(candidate) ? candidate : `${year - years}-02-28`;
 };
 
-const CONTACT_RELATIONSHIPS = ["Parent", "Spouse", "Sibling", "Child", "Guardian", "Relative", "Other"];
-
 const PERSONAL_SECTION_FIELDS: Record<string, string[]> = {
   basic: ["firstName", "middleName", "lastName", "dateOfBirth", "birthPlace", "gender", "civilStatus", "nationality", "religion"],
   contact: ["mobileNumber", "address", "province", "city", "barangay", "postalCode"],
   physical: ["height", "weight"],
   work: ["preferredWorkLocations", "professionalSummary"],
   government: ["sss", "philhealth", "pagibig", "tin"],
-  emergency: ["emergencyContactName", "emergencyContactPhone", "emergencyContactRelationship", "emergencyContactAddress"],
   notes: ["additionalNotes"],
 };
 
@@ -184,7 +180,6 @@ const personalFieldErrorsFor = (form: {
   philhealth: string;
   pagibig: string;
   tin: string;
-  emergencyContactPhone: string;
 }): Record<string, string> => {
   const errors: Record<string, string> = {};
   const firstName = form.firstName.trim() ? validatePersonName(form.firstName, "First name") : "First name is required.";
@@ -203,12 +198,10 @@ const personalFieldErrorsFor = (form: {
   const philhealth = validatePhilHealthNumber(form.philhealth);
   const pagibig = validatePagIbigNumber(form.pagibig);
   const tin = validateTINNumber(form.tin);
-  const emergencyPhone = validateEmergencyPhone(form.emergencyContactPhone);
   if (sss) errors.sss = sss;
   if (philhealth) errors.philhealth = philhealth;
   if (pagibig) errors.pagibig = pagibig;
   if (tin) errors.tin = tin;
-  if (emergencyPhone) errors.emergencyContactPhone = emergencyPhone;
   return errors;
 };
 
@@ -281,7 +274,6 @@ export const ProfilePage: React.FC = () => {
 
   // Inline field errors: pre-submit checks, then backend validation errors. Cleared per field on edit.
   const [personalFieldErrors, setPersonalFieldErrors] = useState<Record<string, string>>({});
-  const [relationshipOther, setRelationshipOther] = useState(false);
   const clearPersonalFieldError = (field: string) => setPersonalFieldErrors((prev) => withoutKey(prev, field));
 
   const [expErrors, setExpErrors] = useState<Record<string, string>>({});
@@ -331,10 +323,6 @@ export const ProfilePage: React.FC = () => {
     philhealth: "",
     pagibig: "",
     tin: "",
-    emergencyContactName: "",
-    emergencyContactPhone: "",
-    emergencyContactRelationship: "",
-    emergencyContactAddress: "",
     additionalNotes: "",
   });
 
@@ -350,15 +338,6 @@ export const ProfilePage: React.FC = () => {
     joinReligion(RELIGION_OTHER, religionOtherDraft) === personalForm.religion
       ? religionOtherDraft
       : religionParts.other;
-
-  // Relationship of the emergency contact: a fixed list, with free text only under "Other".
-  const relationshipPreset = CONTACT_RELATIONSHIPS.find(
-    (r) => r !== "Other" && r.toLowerCase() === personalForm.emergencyContactRelationship.trim().toLowerCase(),
-  );
-  const relationshipSelected =
-    relationshipOther || (personalForm.emergencyContactRelationship.trim() && !relationshipPreset)
-      ? "Other"
-      : relationshipPreset ?? "";
 
   const profileProgress = computeProfileProgress(personalForm, personalFieldErrors, personalSectionOf);
   const goToPersonalSection = (id: PersonalSectionId) => {
@@ -461,10 +440,6 @@ export const ProfilePage: React.FC = () => {
           philhealth: profile.philhealth ? formatPhilHealthNumber(profile.philhealth) : prev.philhealth || "",
           pagibig: profile.pagibig ? formatPagIbigNumber(profile.pagibig) : prev.pagibig || "",
           tin: profile.tin ? formatTINNumber(profile.tin) : prev.tin || "",
-          emergencyContactName: profile.emergencyContactName || prev.emergencyContactName || "",
-          emergencyContactPhone: profile.emergencyContactPhone || prev.emergencyContactPhone || "",
-          emergencyContactRelationship: profile.emergencyContactRelationship || prev.emergencyContactRelationship || "",
-          emergencyContactAddress: profile.emergencyContactAddress || prev.emergencyContactAddress || "",
           additionalNotes: profile.additionalNotes || prev.additionalNotes || "",
         };
         })(current);
@@ -713,7 +688,7 @@ export const ProfilePage: React.FC = () => {
   });
 
   const addRefMutation = useMutation({
-    mutationFn: async (payload: { name: string; relationship: string; phone: string; email?: string; previousId?: number | string }) => {
+    mutationFn: async (payload: { name: string; relationship: string; company?: string; phone: string; email?: string; previousId?: number | string }) => {
       const saved = await applicantApi.addReference(payload);
       if (payload.previousId) {
         await applicantApi.deleteReference(payload.previousId);
@@ -781,10 +756,6 @@ export const ProfilePage: React.FC = () => {
         philhealth: profile.philhealth ? formatPhilHealthNumber(profile.philhealth) : "",
         pagibig: profile.pagibig ? formatPagIbigNumber(profile.pagibig) : "",
         tin: profile.tin ? formatTINNumber(profile.tin) : "",
-        emergencyContactName: profile.emergencyContactName || "",
-        emergencyContactPhone: profile.emergencyContactPhone || "",
-        emergencyContactRelationship: profile.emergencyContactRelationship || "",
-        emergencyContactAddress: profile.emergencyContactAddress || "",
         additionalNotes: profile.additionalNotes || "",
       }
     : null;
@@ -882,6 +853,7 @@ export const ProfilePage: React.FC = () => {
     addRefMutation.mutate({
       name: formData.get("name") as string,
       relationship: formData.get("relationship") as string,
+      company: (formData.get("company") as string) || undefined,
       phone: refPhone,
       email: (formData.get("email") as string) || undefined,
       previousId: editingRef?.id,
@@ -927,8 +899,8 @@ export const ProfilePage: React.FC = () => {
       setOpenQualificationSection("trainings");
       handleSectionChange("qualifications");
     } else if (target === "references" || target.includes("reference")) {
-      setOpenQualificationSection("references");
-      handleSectionChange("qualifications");
+      setOpenPersonalSection("references");
+      handleSectionChange("personal");
     } else {
       setOpenPersonalSection("basic");
       handleSectionChange("personal");
@@ -1506,76 +1478,83 @@ export const ProfilePage: React.FC = () => {
                 </ProfileDisclosure>
 
                 <ProfileDisclosure
-                  id="profile-personal-emergency"
-                  title="Emergency contact"
-                  summary="A contact we can reach if needed"
-                  open={openPersonalSection === "emergency"}
-                  onToggle={() => setOpenPersonalSection(openPersonalSection === "emergency" ? "" : "emergency")}
-                  {...stepProps("emergency")}
+                  id="profile-personal-references"
+                  title="References"
+                  summary={`${profile?.characterReferences?.length || 0} ${profile?.characterReferences?.length === 1 ? "reference" : "references"}`}
+                  open={openPersonalSection === "references"}
+                  onToggle={() => setOpenPersonalSection(openPersonalSection === "references" ? "" : "references")}
+                  {...stepProps("references")}
                 >
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Input
-                      label="Contact Full Name"
-                      nameInput
-                      placeholder="Full Name"
-                      value={personalForm.emergencyContactName}
-                      error={personalFieldErrors.emergencyContactName}
-                      onChange={(e) => {
-                        setPersonalForm((prev) => ({ ...prev, emergencyContactName: e.target.value }));
-                        clearPersonalFieldError("emergencyContactName");
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between gap-3 border-b border-[#D9E2EC] pb-3">
+                    <p className="text-xs text-[#627D98]">People who can speak to your work, such as a former supervisor.</p>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={<Plus className="w-3.5 h-3.5" />}
+                      onClick={() => {
+                        setEditingRef(null);
+                        setRefPhone("");
+                        setRefModalOpen(true);
                       }}
-                    />
-                    <PhoneInput
-                      label="Contact Number"
-                      value={personalForm.emergencyContactPhone}
-                      error={personalFieldErrors.emergencyContactPhone}
-                      onChange={(val) => {
-                        setPersonalForm((prev) => ({ ...prev, emergencyContactPhone: val }));
-                        clearPersonalFieldError("emergencyContactPhone");
-                      }}
-                    />
-                    <div className="space-y-3">
-                      <ComboBox
-                        label="Relationship"
-                        placeholder="Select relationship"
-                        allowCustom={false}
-                        options={CONTACT_RELATIONSHIPS.map((r) => ({ value: r, label: r }))}
-                        value={relationshipSelected}
-                        error={relationshipSelected === "Other" ? undefined : personalFieldErrors.emergencyContactRelationship}
-                        onChange={(val) => {
-                          const isOther = val === "Other";
-                          setRelationshipOther(isOther);
-                          setPersonalForm((prev) => ({ ...prev, emergencyContactRelationship: isOther ? "" : val || "" }));
-                          clearPersonalFieldError("emergencyContactRelationship");
-                        }}
-                      />
-                      {relationshipSelected === "Other" && (
-                        <Input
-                          label="Please specify"
-                          placeholder="e.g. Cousin, Aunt"
-                          maxLength={100}
-                          value={personalForm.emergencyContactRelationship}
-                          error={personalFieldErrors.emergencyContactRelationship}
-                          onChange={(e) => {
-                            setPersonalForm((prev) => ({ ...prev, emergencyContactRelationship: e.target.value }));
-                            clearPersonalFieldError("emergencyContactRelationship");
-                          }}
-                        />
-                      )}
-                    </div>
+                    >
+                      Add Reference
+                    </Button>
                   </div>
-                  <Input
-                    label="Emergency Contact Address"
-                    maxLength={500}
-                    placeholder="House/Unit No., Street, Barangay, City"
-                    value={personalForm.emergencyContactAddress}
-                    error={personalFieldErrors.emergencyContactAddress}
-                    onChange={(e) => {
-                      setPersonalForm((prev) => ({ ...prev, emergencyContactAddress: e.target.value }));
-                      clearPersonalFieldError("emergencyContactAddress");
-                    }}
-                  />
+
+                  {!profile?.characterReferences || profile.characterReferences.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-[#627D98] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
+                      No references listed. Click "Add Reference" to record contacts.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[#D9E2EC]">
+                      {profile.characterReferences.map((r: any) => (
+                        <div key={r.id} className="py-4 flex items-start justify-between gap-4">
+                          <div className="space-y-1 flex-1">
+                            <div className="text-sm font-bold text-[#102A43]">{r.name}</div>
+                            <div className="text-xs text-[#102A43] font-medium">
+                              {[r.relationship, r.company].filter(Boolean).join(" at ")}
+                            </div>
+                            <div className="text-[11px] text-[#627D98] font-mono">
+                              <span>Phone: {r.phone}</span>
+                              {r.email && <span> • Email: {r.email}</span>}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label={`Edit ${r.name}`}
+                              onClick={() => {
+                                setEditingRef(r);
+                                setRefPhone(r.phone || "");
+                                setRefModalOpen(true);
+                              }}
+                              className="text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7]"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label={`Delete ${r.name}`}
+                              onClick={() =>
+                                setDeleteTarget({
+                                  type: "reference",
+                                  id: r.id,
+                                  label: r.name,
+                                })
+                              }
+                              className="text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 </ProfileDisclosure>
 
@@ -1897,88 +1876,6 @@ export const ProfilePage: React.FC = () => {
             </ProfileDisclosure>
           )}
 
-          {/* TAB 7: CHARACTER REFERENCES */}
-          {activeSection === "qualifications" && (
-            <ProfileDisclosure
-              id="profile-qualification-references"
-              title="References"
-              summary={`${profile?.characterReferences?.length || 0} ${profile?.characterReferences?.length === 1 ? "contact" : "contacts"}`}
-              open={openQualificationSection === "references"}
-              onToggle={() => setOpenQualificationSection(openQualificationSection === "references" ? "" : "references")}
-            >
-              <div className="space-y-5">
-                <div className="flex justify-end border-b border-[#D9E2EC] pb-3">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => {
-                    setEditingRef(null);
-                    setRefPhone("");
-                    setRefModalOpen(true);
-                  }}
-                >
-                  Add Reference
-                </Button>
-                </div>
-
-              {!profile?.characterReferences || profile.characterReferences.length === 0 ? (
-                <div className="py-8 text-center text-xs text-[#627D98] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
-                  No references listed. Click "Add Reference" to record contacts.
-                </div>
-              ) : (
-                <div className="divide-y divide-[#D9E2EC]">
-                  {profile.characterReferences.map((r: any) => (
-                    <div key={r.id} className="py-4 flex items-start justify-between gap-4">
-                      <div className="space-y-1 flex-1">
-                        <div className="text-sm font-bold text-[#102A43]">{r.name}</div>
-                        <div className="text-xs text-[#102A43] font-medium">
-                          {r.relationship}
-                        </div>
-                        <div className="text-[11px] text-[#627D98] font-mono">
-                          <span>Phone: {r.phone}</span>
-                          {r.email && <span> • Email: {r.email}</span>}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`Edit ${r.name}`}
-                          onClick={() => {
-                            setEditingRef(r);
-                            setRefPhone(r.phone || "");
-                            setRefModalOpen(true);
-                          }}
-                          className="text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7]"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`Delete ${r.name}`}
-                          onClick={() =>
-                            setDeleteTarget({
-                              type: "reference",
-                              id: r.id,
-                              label: r.name,
-                            })
-                          }
-                          className="text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              </div>
-            </ProfileDisclosure>
-          )}
-
           {activeSection === "applications" && <ProfileApplications />}
 
         </div>
@@ -2235,6 +2132,15 @@ export const ProfilePage: React.FC = () => {
             error={refErrors.relationship}
             onChange={() => clearRefError("relationship")}
             required
+          />
+          <Input
+            label="Company"
+            name="company"
+            placeholder="e.g. ABC Manufacturing"
+            defaultValue={editingRef?.company || ""}
+            maxLength={FIELD_LIMITS.name}
+            error={refErrors.company}
+            onChange={() => clearRefError("company")}
           />
           <PhoneInput
             label="Contact Phone Number"

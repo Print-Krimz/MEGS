@@ -15,7 +15,6 @@ import {
   validateTINNumber,
   validateDateOfBirth,
   validatePhilippineContactPhone,
-  validateEmergencyPhone,
   validatePersonName,
   validateAddressText,
 } from "../../../lib/statutory-validation";
@@ -59,8 +58,6 @@ const startingForm = (profile: any) => ({
   philhealth: profile.philhealth ? formatPhilHealthNumber(profile.philhealth) : "",
   pagibig: profile.pagibig ? formatPagIbigNumber(profile.pagibig) : "",
   tin: profile.tin ? formatTINNumber(profile.tin) : "",
-  emergencyContactName: profile.emergencyContactName || "",
-  emergencyContactPhone: profile.emergencyContactPhone || "",
 });
 
 /** The personal fields of Verify details. The recruiter checks them against the resume and corrects what differs. */
@@ -85,11 +82,6 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, formR
     if (profileForm.address.trim()) {
       const addrErr = validateAddressText(profileForm.address, "Residential Address");
       if (addrErr) errors.address = addrErr;
-    }
-
-    if (profileForm.emergencyContactName.trim()) {
-      const emergNameErr = validatePersonName(profileForm.emergencyContactName, "Emergency Contact Name");
-      if (emergNameErr) errors.emergencyContactName = emergNameErr;
     }
 
     if (profileForm.mobileNumber.trim()) {
@@ -122,11 +114,6 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, formR
       if (tinErr) errors.tin = tinErr;
     }
 
-    if (profileForm.emergencyContactPhone.trim()) {
-      const emergPhoneErr = validateEmergencyPhone(profileForm.emergencyContactPhone);
-      if (emergPhoneErr) errors.emergencyContactPhone = emergPhoneErr;
-    }
-
     const addressChanged = ["address", "city", "province", "barangay", "postalCode"].some((field) => {
       const key = field as keyof typeof profileForm;
       const original = profile?.[key as keyof typeof profile];
@@ -156,16 +143,6 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, formR
       }
     }
 
-    let cleanedEmergencyPhone = profileForm.emergencyContactPhone.trim();
-    if (cleanedEmergencyPhone) {
-      const digits = cleanedEmergencyPhone.replace(/\D/g, "");
-      if (digits.startsWith("09") && digits.length === 11) {
-        cleanedEmergencyPhone = digits;
-      } else if (digits.startsWith("9") && digits.length === 10) {
-        cleanedEmergencyPhone = "0" + digits;
-      }
-    }
-
     return {
       firstName: profileForm.firstName.trim(),
       lastName: profileForm.lastName.trim(),
@@ -183,8 +160,6 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, formR
       philhealth: profileForm.philhealth.trim() || null,
       pagibig: profileForm.pagibig.trim() || null,
       tin: profileForm.tin.trim() || null,
-      emergencyContactName: profileForm.emergencyContactName.trim() || null,
-      emergencyContactPhone: cleanedEmergencyPhone || null,
     };
   };
 
@@ -373,32 +348,7 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, formR
           />
         </div>
       </div>
-    
-      <div className="pt-2 border-t border-slate-100">
-        <p className="text-xs font-semibold text-slate-700 mb-2">Emergency Contact</p>
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            label="Emergency Contact Name"
-            nameInput
-            value={profileForm.emergencyContactName}
-            onChange={(e) => setProfileForm((f) => ({ ...f, emergencyContactName: e.target.value }))}
-            placeholder="Full name"
-          />
-          <PhoneInput
-            label="Emergency Contact Phone"
-            value={profileForm.emergencyContactPhone}
-            mobileOnly
-            error={profileFormErrors.emergencyContactPhone}
-            onChange={(val) => {
-              setProfileForm((f) => ({ ...f, emergencyContactPhone: val }));
-              if (profileFormErrors.emergencyContactPhone) setProfileFormErrors((prev) => ({ ...prev, emergencyContactPhone: "" }));
-            }}
-            placeholder="0917-123-4567"
-            helperText="e.g. 0917-123-4567"
-          />
-        </div>
-      </div>
-    
+
     </form>
   );
 };

@@ -112,18 +112,6 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ profile, onVer
         <Row label="TIN">
           <MaskedId value={profile?.tin ? formatTINNumber(profile.tin) : null} label="TIN" />
         </Row>
-        <Row label="Emergency contact">
-          {profile?.emergencyContactName || profile?.emergencyContactPhone ? (
-            <span>
-              {profile.emergencyContactName || "Contact"}
-              {profile.emergencyContactPhone && (
-                <span className="ml-1.5 inline-block text-xs tabular-nums text-slate-600">({profile.emergencyContactPhone})</span>
-              )}
-            </span>
-          ) : (
-            "Not provided"
-          )}
-        </Row>
         {profile?.photoUrl && onOpenPhoto && (
           <Row label="Identification photo">
             <button

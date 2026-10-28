@@ -314,9 +314,12 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       }
     }
 
-    if (editDescription.trim()) {
-      const descErr = validateProseText(editDescription, "Job description", { maxLength: 10000 });
+    {
+      const descErr = !editDescription.trim()
+        ? "Describe the role and its responsibilities."
+        : validateProseText(editDescription, "Job description and responsibilities", { maxLength: 10000 });
       if (descErr) {
+        setServerFieldErrors((prev) => ({ ...prev, description: descErr }));
         notify.error("Check the highlighted fields", descErr);
         return;
       }
@@ -399,7 +402,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       ageMax: editAgeMax !== "" && editAgeMax != null ? Number(editAgeMax) : null,
       genderPreference: editGenderPreference || "ANY",
       tattooPolicy: editTattooPolicy || "ALLOWED",
-      description: editDescription.trim() || null,
+      description: editDescription.trim(),
       requiredSkills: editSkills.trim() || null,
       requiredExperience: editExperience.trim() || null,
       requiredEducation: editEducation.trim() || null,
@@ -1116,8 +1119,9 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                 </div>
 
                 <Textarea
-                  label="Description and notes"
-                  placeholder="Specify shift schedules, client site notes, uniform provisions..."
+                  label="Job description and responsibilities"
+                  required
+                  placeholder="Describe role responsibilities..."
                   value={editDescription}
                   error={serverFieldErrors.description}
                   onChange={(e) => {

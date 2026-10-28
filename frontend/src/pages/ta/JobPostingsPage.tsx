@@ -30,25 +30,11 @@ import {
 } from "../../lib/statutory-validation";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useDirtyGuard } from "../../hooks/useDirtyGuard";
-import { buildJobDescriptionDraft } from "../../lib/job-description-draft";
 import {
   normalizeServerSearch,
   REFERENCE_QUERY_STALE_TIME_MS,
   SERVER_SEARCH_DEBOUNCE_MS,
 } from "../../lib/query-policies";
-
-const JOB_TEMPLATE_DESCRIPTION = `### About the Role
-We are seeking a dedicated and qualified professional to join our operations team. In this position, you will collaborate with cross-functional team members and client stakeholders to deliver exceptional outcomes and maintain operational standards.
-
-### Key Responsibilities
-- Execute day-to-day operational responsibilities ensuring high standards of quality and accuracy
-- Collaborate closely with site leads, supervisors, and client representatives to resolve issues promptly
-- Prepare and maintain accurate activity logs, status reports, and required documentation
-- Follow all safety, compliance, and procedural standards established for the facility
-
-### Work Environment
-- Collaborative on-site work environment with modern equipment and safety standards
-- Structured onboarding with opportunities for skill building and career progression`;
 
 const JOB_TEMPLATE_REQUIREMENTS = `### Qualifications
 - Relevant vocational diploma, technical certification, or bachelor's degree
@@ -182,8 +168,8 @@ export const JobPostingsPage: React.FC = () => {
           title: chosen.title || "",
           location: chosen.location || "",
           requirements: sections.join("\n\n") || chosen.requiredSkills || "",
-          // Role facts only. The request's client notes are internal and are never copied here.
-          description: buildJobDescriptionDraft(chosen),
+          // Mirrored from the request. The posting cannot change it.
+          description: chosen.description?.trim() || "",
         };
         setFormTitle(next.title);
         setFormLocation(next.location);
@@ -282,12 +268,8 @@ export const JobPostingsPage: React.FC = () => {
       const locErr = validateStandardText(formLocation, "Work site", { maxLength: 200 });
       if (locErr) errors.location = locErr;
     }
-    if (!formDescription.trim()) errors.description = "Describe the role and its responsibilities.";
-    else if (status !== JobStatus.DRAFT && baseline.description && formDescription.trim() === baseline.description.trim()) {
-      errors.description = "Add the responsibilities for this role. The text so far only lists the request's details.";
-    } else {
-      const descErr = validateProseText(formDescription, "Description and responsibilities", { maxLength: 10000 });
-      if (descErr) errors.description = descErr;
+    if (selectedMrfId && !formDescription.trim()) {
+      errors.description = "This request has no job description yet. Add it to the request, then post the opening.";
     }
     if (!formRequirements.trim()) errors.requirements = "List the required skills and qualifications.";
     else {
@@ -313,15 +295,13 @@ export const JobPostingsPage: React.FC = () => {
   };
 
   const applyTemplate = () => {
-    setFormDescription(JOB_TEMPLATE_DESCRIPTION);
     setFormRequirements(JOB_TEMPLATE_REQUIREMENTS);
-    clearServerFieldError("description");
     clearServerFieldError("requirements");
-    notify.info("Template loaded", "Job posting outline inserted into description and requirements.");
+    notify.info("Template loaded", "Qualifications outline inserted into the requirements.");
   };
 
   const handleLoadTemplate = () => {
-    if (formDescription.trim() || formRequirements.trim()) {
+    if (formRequirements.trim()) {
       setTemplateConfirmOpen(true);
       return;
     }
@@ -588,7 +568,7 @@ export const JobPostingsPage: React.FC = () => {
                   subtitle: `Client: ${m.client?.name || "Client"} • ${m.location || "Nationwide"} • ${plural(m.headcount, "position")}`,
                   badge: formatStatusWord(m.status),
                 }))}
-                helperText="The opening is posted under this request. Choosing one fills the title, work site, skills, and the start of the description."
+                helperText="The opening is posted under this request. Choosing one fills the title, work site, skills, and the job description."
                 required
                 emptyText="No open manpower requests found"
               />
@@ -631,24 +611,22 @@ export const JobPostingsPage: React.FC = () => {
                 />
               </div>
 
-              <Textarea
-                label="Description and responsibilities"
-                placeholder="Describe role responsibilities..."
-                value={formDescription}
-                error={serverFieldErrors.description}
-                onChange={(e) => {
-                  setFormDescription(e.target.value);
-                  clearServerFieldError("description");
-                }}
-                rows={4}
-                maxLength={10000}
-                helperText={
-                  baseline.description && formDescription.trim() === baseline.description.trim()
-                    ? "Drafted from the request's details. Add the day-to-day responsibilities before you publish."
-                    : undefined
-                }
-                required
-              />
+              <div className="space-y-1.5">
+                <div className="text-sm font-medium text-slate-800">Description and responsibilities</div>
+                <div
+                  className={`max-h-48 overflow-y-auto whitespace-pre-line rounded-md border bg-slate-50 px-3 py-2 text-sm leading-relaxed ${
+                    serverFieldErrors.description ? "border-rose-400 text-rose-800" : "border-slate-200 text-slate-800"
+                  }`}
+                >
+                  {formDescription.trim() ||
+                    (selectedMrfId
+                      ? "This request has no job description yet."
+                      : "Choose a manpower request to show its job description.")}
+                </div>
+                <p className={`text-xs ${serverFieldErrors.description ? "text-rose-700" : "text-slate-600"}`}>
+                  {serverFieldErrors.description || "Copied from the manpower request. Edit it on the request."}
+                </p>
+              </div>
               <Textarea
                 label="Required skills and qualifications"
                 placeholder="e.g. TESDA NC II, 2+ years experience..."

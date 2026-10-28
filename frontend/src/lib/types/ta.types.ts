@@ -396,10 +396,6 @@ export interface UpdateCandidateProfileDto {
   pagibig?: string | null;
   tin?: string | null;
   address?: string | null;
-  emergencyContactName?: string | null;
-  emergencyContactPhone?: string | null;
-  emergencyContactRelationship?: string | null;
-  emergencyContactAddress?: string | null;
 }
 
 export interface HireCandidateDto {

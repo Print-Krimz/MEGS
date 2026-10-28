@@ -278,10 +278,6 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       pagibig,
       tin,
       address,
-      emergencyContactName,
-      emergencyContactPhone,
-      emergencyContactRelationship,
-      emergencyContactAddress,
       professionalSummary,
       workExperiences,
       removeWorkExperienceIds,
@@ -496,45 +492,6 @@ export const updateCandidateProfileHandler = async (req: Request, res: Response)
       if (profile.postalCode !== val) {
         changes.postalCode = { from: profile.postalCode, to: val };
         updateData.postalCode = val;
-      }
-    }
-
-    if (emergencyContactName !== undefined) {
-      const val = typeof emergencyContactName === "string" ? emergencyContactName.trim() || null : null;
-      if (profile.emergencyContactName !== val) {
-        changes.emergencyContactName = { from: profile.emergencyContactName, to: val };
-        updateData.emergencyContactName = val;
-      }
-    }
-
-    if (emergencyContactPhone !== undefined) {
-      const val = typeof emergencyContactPhone === "string" ? emergencyContactPhone.trim() || null : null;
-      if (val) {
-        const digits = val.replace(/\D/g, "");
-        if (digits.length < 7 || digits.length > 12) {
-          sendError(res, "Contact phone must not exceed 11 digits", 400);
-          return;
-        }
-      }
-      if (profile.emergencyContactPhone !== val) {
-        changes.emergencyContactPhone = { from: profile.emergencyContactPhone, to: val };
-        updateData.emergencyContactPhone = val;
-      }
-    }
-
-    if (emergencyContactRelationship !== undefined) {
-      const val = typeof emergencyContactRelationship === "string" ? emergencyContactRelationship.trim() || null : null;
-      if (profile.emergencyContactRelationship !== val) {
-        changes.emergencyContactRelationship = { from: profile.emergencyContactRelationship, to: val };
-        updateData.emergencyContactRelationship = val;
-      }
-    }
-
-    if (emergencyContactAddress !== undefined) {
-      const val = typeof emergencyContactAddress === "string" ? emergencyContactAddress.trim() || null : null;
-      if (profile.emergencyContactAddress !== val) {
-        changes.emergencyContactAddress = { from: profile.emergencyContactAddress, to: val };
-        updateData.emergencyContactAddress = val;
       }
     }
 

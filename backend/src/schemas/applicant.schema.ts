@@ -120,10 +120,6 @@ export const applicantSchema = {
       philhealth: philhealthNumber,
       sss: sssNumber,
       tin: tinNumber,
-      emergencyContactName: optionalPersonNameSchema("Emergency Contact Name"),
-      emergencyContactRelationship: optionalSafeText("Emergency Contact Relationship", FIELD_LIMITS.name),
-      emergencyContactPhone: phoneValidation,
-      emergencyContactAddress: optionalSafeAddress("Emergency Contact Address"),
       professionalSummary: optionalSafeProse("Professional Summary", FIELD_LIMITS.summary),
       additionalNotes: optionalSafeProse("Additional Notes", FIELD_LIMITS.notes),
     }),
@@ -174,6 +170,7 @@ export const applicantSchema = {
     body: z.object({
       name: personNameSchema("Reference Name"),
       relationship: safeTextSchema("Relationship", FIELD_LIMITS.name),
+      company: optionalSafeText("Company", FIELD_LIMITS.name),
       phone: phoneValidation,
       email: z.string().email("Invalid email format").max(FIELD_LIMITS.email).optional().or(z.literal("")),
       notes: optionalSafeProse("Notes", FIELD_LIMITS.notes),

@@ -361,7 +361,7 @@ export const createMRF = async (
   data: {
     clientId: number;
     title: string;
-    description?: string;
+    description: string;
     headcount?: number;
     location?: string;
     targetFillDate?: string | Date;
@@ -382,6 +382,7 @@ export const createMRF = async (
   },
   actor?: Actor
 ) => {
+  if (!data.description?.trim()) throw new Error("Job description and responsibilities are required.");
   if (data.targetFillDate) {
     const target = String(data.targetFillDate).slice(0, 10);
     if (!isValidDateOnly(target) || target < manilaDateString()) {
@@ -398,7 +399,7 @@ export const createMRF = async (
       createdById,
       ...(actor?.role === "TALENT_ACQUISITION" ? { assignedTaId: actor.id } : {}),
       title: data.title,
-      description: data.description,
+      description: data.description.trim(),
       headcount: data.headcount ?? 1,
       location: data.location,
       targetFillDate: data.targetFillDate ? parseManilaDateOnly(String(data.targetFillDate).slice(0, 10)) : null,
@@ -551,6 +552,7 @@ export const updateMRF = async (
 ) => {
   // The schema rejects a blank title too; this guards direct callers because title is a required column.
   if (data.title !== undefined && !(data.title ?? "").trim()) throw new Error("Request title is required.");
+  if (data.description !== undefined && !(data.description ?? "").trim()) throw new Error("Job description and responsibilities are required.");
   const currentMrf = await prisma.manpowerRequest.findUnique({
     where: { id },
     select: { targetFillDate: true, headcount: true, salaryRangeMin: true, salaryRangeMax: true, ageMin: true, ageMax: true, status: true },
@@ -629,6 +631,11 @@ export const updateMRF = async (
       complianceTemplates: true,
     },
   });
+
+  // Job postings mirror the request's description, so a change here reaches every posting under it.
+  if (data.description !== undefined) {
+    await prisma.jobPosting.updateMany({ where: { mrfId: id }, data: { description: data.description.trim() } });
+  }
 
   void logAudit(actorId || null, "MRF_UPDATED", "ManpowerRequest", id, {
     mrfId: id,

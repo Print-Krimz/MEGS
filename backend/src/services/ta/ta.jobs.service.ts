@@ -142,7 +142,7 @@ const assertRequestAcceptsJobs = async (mrfId: number) => {
 };
 
 export const createTAJob = async (postedById: string, data: any, actor?: Actor) => {
-  const { title, description, requirements, location, imageUrl, mrfId, status, isEvergreen } = data;
+  const { title, requirements, location, imageUrl, mrfId, status, isEvergreen } = data;
 
   // Client -> MRF -> job posting: a TA posts openings only under a requisition they own.
   if (actor) {
@@ -150,13 +150,22 @@ export const createTAJob = async (postedById: string, data: any, actor?: Actor) 
     await assertOwns("mrf", Number(mrfId), actor);
   }
 
-  if (!title || !description || !requirements) {
-    throw new Error("Enter the job title, description, and requirements.");
+  if (mrfId) await assertRequestAcceptsJobs(Number(mrfId));
+
+  // The description comes from the manpower request. Only a request that predates the required field
+  // (or a posting without one) falls back to the text sent with the form.
+  let description: string | undefined = data.description;
+  if (mrfId) {
+    const mrf = await prisma.manpowerRequest.findUnique({ where: { id: Number(mrfId) }, select: { description: true } });
+    if (mrf?.description?.trim()) description = mrf.description;
+  }
+
+  if (!title || !description?.trim() || !requirements) {
+    throw new Error("Add the job description to the manpower request first, then enter the job title and requirements.");
   }
 
   const allowedStatuses = ["DRAFT", "OPEN"];
   const resolvedStatus = status && allowedStatuses.includes(status) ? status : "DRAFT";
-  if (mrfId) await assertRequestAcceptsJobs(Number(mrfId));
 
   const job = await prisma.jobPosting.create({
     data: {
@@ -259,7 +268,8 @@ export const updateTAJob = async (jobId: number, data: any, actor?: Actor) => {
     throw new Error("Cannot edit a closed job posting. Re-open it first.");
   }
 
-  const { title, description, requirements, location, imageUrl, mrfId, isEvergreen } = data;
+  // The description is not edited here: it mirrors the manpower request.
+  const { title, requirements, location, imageUrl, mrfId, isEvergreen } = data;
   if (actor && mrfId !== undefined) {
     if (!mrfId) throw new Error("A job posting must stay linked to a manpower request");
     await assertOwns("mrf", Number(mrfId), actor);
@@ -270,7 +280,6 @@ export const updateTAJob = async (jobId: number, data: any, actor?: Actor) => {
     where: { id: jobId },
     data: {
       ...(title && { title: title.trim() }),
-      ...(description && { description: description.trim() }),
       ...(requirements && { requirements: requirements.trim() }),
       ...(location !== undefined && { location: location?.trim() ?? null }),
       ...(imageUrl !== undefined && { imageUrl: imageUrl?.trim() ?? null }),

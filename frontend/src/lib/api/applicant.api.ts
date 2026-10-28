@@ -77,6 +77,7 @@ export const applicantApi = {
     api.post<CharacterReference>("/api/applicants/profile/references", {
       name: data.name,
       relationship: data.relationship,
+      company: data.company,
       phone: data.phone,
       email: data.email,
       notes: data.notes,

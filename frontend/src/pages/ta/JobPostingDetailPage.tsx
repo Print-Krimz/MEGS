@@ -9,7 +9,6 @@ import {
   ErrorState,
   EmptyState,
   Pagination,
-  JobImage,
   StatusBadge,
   Tabs,
   JobContentRenderer,
@@ -23,17 +22,14 @@ import {
 import { StageStrip, type StageStripItem } from "../../components/ta/recruitment/StageStrip";
 import { RecordBreadcrumb } from "../../components/ta/recruitment/RecordBreadcrumb";
 import type { DataTableColumn } from "../../components/common";
-import { Button, Dialog, Input, Textarea } from "../../components/ui";
+import { Button } from "../../components/ui";
 import { PoolCandidateCard } from "../../components/ta/PoolCandidateCard";
 import { RequirementClarityNotice } from "../../components/ta/RequirementClarityNotice";
-import { FieldWarning } from "../../components/ta/FieldWarning";
-import { LOCATION_HINT, LOCATION_UNCLEAR_WARNING, locationLooksUnclear } from "../../lib/requirement-hints";
 import {
   formatDate,
   formatSalaryRange,
   formatEmploymentType,
   formatWorkArrangement,
-  cn,
 } from "../../lib/utils";
 import { ApplicationStatus, JobStatus } from "../../lib/types/enums";
 import { plural } from "../../lib/plural";
@@ -59,7 +55,7 @@ const DEPLOYED_STAGES: string[] = [
   ApplicationStatus.DEPLOYED,
   ApplicationStatus.HIRED,
 ];
-import { notify, fieldErrorsFrom } from "../../lib/feedback";
+import { notify } from "../../lib/feedback";
 import { TalentPoolCandidate } from "../../lib/types/ta.types";
 import type { CandidateScore } from "../../lib/types/application.types";
 import { SendInvitationModal } from "../../components/ta/SendInvitationModal";
@@ -70,14 +66,9 @@ import { useRowSelection } from "../../hooks/useRowSelection";
 import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTrackerDrawer";
 import { TA_COPY } from "../../lib/ta-copy";
 import { useJobCandidateQueries } from "../../hooks/useJobCandidateQueries";
-import {
-  validateStandardText,
-  validateProseText,
-} from "../../lib/statutory-validation";
 import { getInitialJobCandidateView } from "../../lib/job-candidate-query-policy";
 
 // Backend fields that have an inline input on this form. Any other field's message goes in the toast.
-const JOB_INLINE_FIELDS = ["title", "location", "imageUrl", "status", "description", "requirements"];
 
 type ScoreRow = { score: CandidateScore; rank: number };
 
@@ -99,14 +90,6 @@ export const JobPostingDetailPage: React.FC = () => {
     getInitialJobCandidateView(typeof window === "undefined" ? "" : window.location.search)
   );
 
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editLocation, setEditLocation] = useState("");
-  const [editImageUrl, setEditImageUrl] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editRequirements, setEditRequirements] = useState("");
-  const [editIsEvergreen, setEditIsEvergreen] = useState(false);
-  const [editModalTab, setEditModalTab] = useState<"edit" | "preview">("edit");
   const [pendingClose, setPendingClose] = useState(false);
 
   // Invitation Modal & Tracker Drawer State
@@ -139,37 +122,6 @@ export const JobPostingDetailPage: React.FC = () => {
     },
     onError: (err: any) => {
       notify.error("Unable to update candidate matches", err);
-    },
-  });
-
-  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
-  const clearServerFieldError = (field: string) =>
-    setServerFieldErrors((prev) => {
-      if (!(field in prev)) return prev;
-      const next = { ...prev };
-      delete next[field];
-      return next;
-    });
-
-  const updateJobMutation = useMutation({
-    mutationFn: (data: any) => taApi.updateJob(jobId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ta", "job", jobId] });
-      queryClient.invalidateQueries({ queryKey: ["ta", "jobs"] });
-      setEditModalOpen(false);
-      setServerFieldErrors({});
-      notify.success("Job opening updated", "The job details were saved.");
-    },
-    onError: (err: any) => {
-      const fieldErrors = fieldErrorsFrom(err);
-      const entries = Object.entries(fieldErrors);
-      if (entries.length > 0) {
-        setServerFieldErrors(fieldErrors);
-        const toastEntry = entries.find(([field]) => !JOB_INLINE_FIELDS.includes(field)) ?? entries[0];
-        notify.error("Check the highlighted fields", toastEntry[1]);
-        return;
-      }
-      notify.error("Unable to update job opening", err);
     },
   });
 
@@ -207,18 +159,6 @@ export const JobPostingDetailPage: React.FC = () => {
   });
 
   const job = jobQuery.data;
-
-  // Initialize edit form when job loads
-  React.useEffect(() => {
-    if (job) {
-      setEditTitle(job.title);
-      setEditLocation(job.location || "");
-      setEditImageUrl(job.imageUrl || "");
-      setEditDescription(job.description);
-      setEditRequirements(job.requirements);
-      setEditIsEvergreen(Boolean(job.isEvergreen));
-    }
-  }, [job]);
 
   const rankedScores = React.useMemo(
     () => rankedCandidatesQuery.data || [],
@@ -414,17 +354,6 @@ export const JobPostingDetailPage: React.FC = () => {
     </div>
   );
 
-  const openEditDialog = () => {
-    setEditTitle(job.title);
-    setEditLocation(job.location || "");
-    setEditImageUrl(job.imageUrl || "");
-    setEditDescription(job.description);
-    setEditRequirements(job.requirements);
-    setEditIsEvergreen(Boolean(job.isEvergreen));
-    setEditModalTab("edit");
-    setEditModalOpen(true);
-  };
-
   const handleStatusChange = (next: JobStatus) => {
     if (next === job.status) return;
     if (next === JobStatus.CLOSED) {
@@ -455,11 +384,7 @@ export const JobPostingDetailPage: React.FC = () => {
 
       <RequirementClarityNotice
         clarity={job.requirementClarity}
-        fixHint={
-          job.requirementClarity?.skillsAreTraits
-            ? "Edit the required skills on the client request, and the location here."
-            : "Edit the location here."
-        }
+        fixHint="This opening is view-only. Change its details on the client request."
       />
 
       {/* One summary strip. The narrative is collapsed so candidates sit in the first screen. */}
@@ -475,9 +400,6 @@ export const JobPostingDetailPage: React.FC = () => {
         }
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={openEditDialog}>
-              Edit job opening
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -763,221 +685,6 @@ export const JobPostingDetailPage: React.FC = () => {
         confirmLabel="Close opening"
         variant="warning"
       />
-
-      {/* Edit Job Modal */}
-      <Dialog
-        open={editModalOpen}
-        onClose={() => {
-          setEditModalOpen(false);
-          setServerFieldErrors({});
-        }}
-        title="Edit job opening"
-        description="Update the details applicants see."
-        size="xl"
-      >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!editTitle.trim()) return;
-
-            const titleErr = validateStandardText(editTitle, "Title", { maxLength: 200 });
-            if (titleErr) {
-              notify.error("Check the highlighted fields", titleErr);
-              return;
-            }
-
-            if (editLocation.trim()) {
-              const locErr = validateStandardText(editLocation, "Location", { maxLength: 200 });
-              if (locErr) {
-                notify.error("Check the highlighted fields", locErr);
-                return;
-              }
-            }
-
-            if (editDescription.trim()) {
-              const descErr = validateProseText(editDescription, "Description", { maxLength: 10000 });
-              if (descErr) {
-                notify.error("Check the highlighted fields", descErr);
-                return;
-              }
-            }
-
-            if (editRequirements.trim()) {
-              const reqErr = validateProseText(editRequirements, "Requirements", { maxLength: 10000 });
-              if (reqErr) {
-                notify.error("Check the highlighted fields", reqErr);
-                return;
-              }
-            }
-
-            updateJobMutation.mutate({
-              title: editTitle.trim(),
-              location: editLocation.trim() || undefined,
-              imageUrl: editImageUrl.trim() || undefined,
-              description: editDescription.trim(),
-              requirements: editRequirements.trim(),
-              isEvergreen: editIsEvergreen,
-            });
-          }}
-          className="space-y-4"
-        >
-          <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
-            <div className="inline-flex gap-1 bg-slate-100 p-1 text-sm font-medium text-slate-700" role="group" aria-label="Form view">
-              {(
-                [
-                  ["edit", "Edit details"],
-                  ["preview", "Preview"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={editModalTab === id}
-                  onClick={() => setEditModalTab(id)}
-                  className={cn(
-                    "min-h-11 px-3 py-1.5 transition-colors focus-ring md:min-h-9",
-                    editModalTab === id ? "bg-white font-semibold text-navy shadow-xs" : "text-slate-700 hover:text-slate-950"
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {editModalTab === "edit" ? (
-            <div className="space-y-4">
-              <Input
-                label="Title"
-                value={editTitle}
-                error={serverFieldErrors.title}
-                onChange={(e) => {
-                  setEditTitle(e.target.value);
-                  clearServerFieldError("title");
-                }}
-                required
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Input
-                    label="Work site"
-                    helperText={LOCATION_HINT}
-                    value={editLocation}
-                    error={serverFieldErrors.location}
-                    onChange={(e) => {
-                      setEditLocation(e.target.value);
-                      clearServerFieldError("location");
-                    }}
-                  />
-                  <FieldWarning show={locationLooksUnclear(editLocation)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
-                </div>
-                <Input
-                  label="Image web address (optional)"
-                  placeholder="https://example.com/company-banner.jpg"
-                  value={editImageUrl}
-                  error={serverFieldErrors.imageUrl}
-                  onChange={(e) => {
-                    setEditImageUrl(e.target.value);
-                    clearServerFieldError("imageUrl");
-                  }}
-                />
-              </div>
-
-
-              <Textarea
-                label="Description and responsibilities"
-                value={editDescription}
-                error={serverFieldErrors.description}
-                onChange={(e) => {
-                  setEditDescription(e.target.value);
-                  clearServerFieldError("description");
-                }}
-                rows={4}
-                maxLength={10000}
-                required
-              />
-              <Textarea
-                label="Required skills and qualifications"
-                value={editRequirements}
-                error={serverFieldErrors.requirements}
-                onChange={(e) => {
-                  setEditRequirements(e.target.value);
-                  clearServerFieldError("requirements");
-                }}
-                rows={4}
-                maxLength={10000}
-                required
-              />
-
-              {/* Keep Open After Fill Toggle */}
-              <div className="pt-2 border-t border-slate-100">
-                <label className="flex min-h-11 cursor-pointer items-start gap-2.5">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-navy focus-ring"
-                    checked={editIsEvergreen}
-                    onChange={(e) => setEditIsEvergreen(e.target.checked)}
-                  />
-                  <span>
-                    <span className="block text-sm font-semibold text-slate-800">Keep open after positions are filled</span>
-                    <span className="block text-xs leading-tight text-slate-600">
-                      Leave this opening open for future applicants.
-                    </span>
-                  </span>
-                </label>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-4 border border-slate-200 bg-slate-50 p-4">
-                <div className="flex items-start gap-3 border-b border-slate-200 pb-3">
-                  <JobImage src={editImageUrl} title={editTitle || "Job opening"} alt={editTitle || "Job opening"} size="md" />
-                  <div className="space-y-1">
-                    <h3 className="text-base font-semibold text-slate-900">{editTitle || "Untitled job opening"}</h3>
-                    <p className="text-sm text-slate-600">
-                      {editLocation || "Philippines"} · {job.status.charAt(0) + job.status.slice(1).toLowerCase()}
-                      {editIsEvergreen ? " · Always open" : ""}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-12">
-                  <div className="space-y-2 md:col-span-7">
-                    <h4 className="text-sm font-semibold text-slate-800">Description and responsibilities</h4>
-                    <div className="min-h-[160px] border border-slate-200 bg-white p-4">
-                      {editDescription ? (
-                        <JobContentRenderer content={editDescription} variant="ta" />
-                      ) : (
-                        <p className="text-sm italic text-slate-600">No description entered yet.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 md:col-span-5">
-                    <h4 className="text-sm font-semibold text-slate-800">Required skills and qualifications</h4>
-                    <div className="min-h-[160px] border border-slate-200 bg-white p-4">
-                      {editRequirements ? (
-                        <JobContentRenderer content={editRequirements} variant="ta" />
-                      ) : (
-                        <p className="text-sm italic text-slate-600">No requirements entered yet.</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setEditModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" type="submit" loading={updateJobMutation.isPending}>
-              Save job opening
-            </Button>
-          </div>
-        </form>
-      </Dialog>
 
       {/* Send Job Invitation Modal */}
       <SendInvitationModal
