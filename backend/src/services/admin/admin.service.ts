@@ -560,7 +560,18 @@ export const getAdminUserSummary = async () => {
   };
 };
 
+/** Share of one CPU core this process used over a short window, in percent. */
+const sampleCpuPercent = async (windowMs = 200): Promise<number> => {
+  const startUsage = process.cpuUsage();
+  const startTime = process.hrtime.bigint();
+  await new Promise((resolve) => setTimeout(resolve, windowMs));
+  const used = process.cpuUsage(startUsage);
+  const elapsedMicros = Number(process.hrtime.bigint() - startTime) / 1000;
+  return elapsedMicros > 0 ? Math.round(((used.user + used.system) / elapsedMicros) * 100) : 0;
+};
+
 export const getSystemHealth = async () => {
+  const cpuSample = sampleCpuPercent();
   const started = Date.now();
   let dbOk = true;
   try {
@@ -569,18 +580,22 @@ export const getSystemHealth = async () => {
     dbOk = false;
   }
   const latencyMs = Date.now() - started;
-  const [activeUsers, failedJobs] = dbOk
+  const [activeUsers, failedJobs, pendingRequests] = dbOk
     ? await Promise.all([
         prisma.user.count({ where: buildAdminUserStatusFilter("active") as any }),
         prisma.scoringRevalidationTask.count({ where: { status: "FAILED" } }),
+        // Applicant requests waiting on a recruiter (reschedule requests are the only request applicants raise).
+        prisma.rescheduleRequest.count({ where: { status: "PENDING" } }),
       ])
-    : [0, 0];
+    : [0, 0, 0];
   return {
     database: { ok: dbOk, latencyMs },
     uptimeSeconds: Math.round(process.uptime()),
     memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    cpuPercent: await cpuSample,
     activeUsers,
     failedJobs,
+    pendingRequests,
     checkedAt: new Date().toISOString(),
   };
 };

@@ -45,8 +45,12 @@ export interface AdminSystemHealth {
   database: { ok: boolean; latencyMs: number };
   uptimeSeconds: number;
   memoryMb: number;
+  /** Share of one CPU core the server process used over a 200 ms sample. */
+  cpuPercent: number;
   activeUsers: number;
   failedJobs: number;
+  /** Applicant reschedule requests waiting on a recruiter. */
+  pendingRequests: number;
   checkedAt: string;
 }
 

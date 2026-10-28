@@ -7,7 +7,6 @@ import { Button } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
 import { formatAdminBackupStatus, formatAdminRole } from "../../lib/admin-copy";
 import { formatAction, formatTargetEntity } from "../../lib/utils/audit-formatter";
-import { plural } from "../../lib/plural";
 
 function SectionData<T>({ query, subject, children }: { query: UseQueryResult<T>; subject: string; children: (data: T) => React.ReactNode }) {
   if (query.isError) return <ErrorState compact subject={subject} error={query.error as Error} onRetry={() => { void query.refetch(); }} />;
@@ -84,7 +83,6 @@ export const AdminDashboard: React.FC = () => {
   });
   const configQuery = useQuery({ queryKey: ["admin", "scoring", "config"], queryFn: adminApi.getScoringConfig });
   const backupsQuery = useQuery({ queryKey: ["admin", "maintenance", "backups", 5], queryFn: () => adminApi.listDatabaseBackups(5) });
-  const qualityQuery = useQuery({ queryKey: ["admin", "scoring", "quality"], queryFn: adminApi.getQualityMetrics });
   const auditQuery = useQuery({ queryKey: ["admin", "audit", "recent"], queryFn: () => adminApi.listAuditLogs({ limit: 6 }) });
 
   return (
@@ -108,12 +106,8 @@ export const AdminDashboard: React.FC = () => {
           <MetricTile label="Failed scoring jobs" to="/admin/scoring/quality">
             <MetricValue query={healthQuery}>{health => <><Value tone={health.failedJobs > 0 ? "alert" : "default"}>{health.failedJobs}</Value><Caption>{health.failedJobs > 0 ? "Need a retry" : "None"}</Caption></>}</MetricValue>
           </MetricTile>
-          <MetricTile label="Latest backup" to="/admin/maintenance">
-            <MetricValue query={backupsQuery}>{backups => {
-              const latest = backups[0];
-              if (!latest) return <><Value>—</Value><Caption>No backups yet</Caption></>;
-              return <><Value date tone={latest.status === "FAILED" ? "alert" : "default"}>{formatDate(latest.createdAt)}</Value><Caption>{formatAdminBackupStatus(latest.status)}</Caption></>;
-            }}</MetricValue>
+          <MetricTile label="Applicant requests">
+            <MetricValue query={healthQuery}>{health => <><Value tone={health.pendingRequests > 0 ? "alert" : "default"}>{health.pendingRequests}</Value><Caption>{health.pendingRequests > 0 ? "Reschedules waiting on recruiters" : "None waiting"}</Caption></>}</MetricValue>
           </MetricTile>
         </div>
       </section>
@@ -126,16 +120,17 @@ export const AdminDashboard: React.FC = () => {
               ? <><Value>{health.database.latencyMs} ms</Value><Caption>Responding</Caption></>
               : <><Value tone="alert">Unreachable</Value><Caption>Check the database host</Caption></>}</MetricValue>
           </MetricTile>
-          <MetricTile label="Server memory">
-            <MetricValue query={healthQuery}>{health => <><Value>{health.memoryMb} MB</Value><Caption>Up {formatUptime(health.uptimeSeconds)}</Caption></>}</MetricValue>
+          <MetricTile label="Server load">
+            <MetricValue query={healthQuery}>{health => <><Value tone={health.cpuPercent >= 85 ? "alert" : "default"}>{health.cpuPercent}%</Value><Caption>{health.memoryMb} MB · up {formatUptime(health.uptimeSeconds)}</Caption></>}</MetricValue>
           </MetricTile>
           <MetricTile label="Active users" to="/admin/users" search={{ status: "active" }}>
             <MetricValue query={healthQuery}>{health => <><Value>{health.activeUsers}</Value><Caption>Can sign in</Caption></>}</MetricValue>
           </MetricTile>
-          <MetricTile label="Average match score" to="/admin/scoring/quality">
-            <MetricValue query={qualityQuery}>{quality => {
-              const scored = quality?.totalCalculated > 0 && quality.averageFitScore != null && Number.isFinite(Number(quality.averageFitScore));
-              return <><Value>{scored ? Number(quality.averageFitScore).toFixed(1) + "%" : "—"}</Value><Caption>{quality?.totalCalculated ? plural(quality.totalCalculated, "candidate") + " scored" : "No candidates scored yet"}</Caption></>;
+          <MetricTile label="Latest backup" to="/admin/maintenance">
+            <MetricValue query={backupsQuery}>{backups => {
+              const latest = backups[0];
+              if (!latest) return <><Value>—</Value><Caption>No backups yet</Caption></>;
+              return <><Value date tone={latest.status === "FAILED" ? "alert" : "default"}>{formatDate(latest.createdAt)}</Value><Caption>{formatAdminBackupStatus(latest.status)}</Caption></>;
             }}</MetricValue>
           </MetricTile>
         </div>
