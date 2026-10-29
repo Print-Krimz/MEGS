@@ -11,6 +11,33 @@ export interface ScheduledJob {
 // Fixed key for pg_try_advisory_xact_lock. Any number works as long as nothing else uses it.
 export const SCHEDULED_JOBS_LOCK_KEY = 48_120_001;
 
+export const STALE_ANALYSIS_MINUTES = 30;
+
+/**
+ * Exposes interrupted resume analysis (for example after a restart that emptied the in-memory
+ * worker queue) by marking it NEEDS_ATTENTION so staff can use the existing retry. This is not a
+ * durable queue: nothing is re-run automatically. Only initial-stage applications that have sat
+ * unfinished past the cutoff are touched. The worker always writes `aiSummary` (and `aiScore` on success),
+ * so SUBMITTED with no `aiSummary` never finished analysis, with or without dynamic scoring; the same conditions are the update guard, so it is
+ * idempotent and never changes advanced stages or an application changed since the cutoff.
+ */
+export const reconcileStaleResumeAnalysis = async (now: Date = new Date()): Promise<Record<string, unknown>> => {
+  const cutoff = new Date(now.getTime() - STALE_ANALYSIS_MINUTES * 60_000);
+  const { count } = await prisma.application.updateMany({
+    where: {
+      isArchived: false,
+      resumeUrl: { not: null },
+      updatedAt: { lt: cutoff },
+      OR: [{ status: "PARSING" }, { status: "SUBMITTED", aiSummary: null }],
+    },
+    data: {
+      status: "NEEDS_ATTENTION",
+      aiSummary: "Resume analysis did not finish. Retry resume analysis or review manually.",
+    },
+  });
+  return { staleAnalysisMarked: count };
+};
+
 export const SCHEDULED_JOBS: ScheduledJob[] = [
   {
     name: "review-sla",
@@ -19,6 +46,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
       return { ...counts };
     },
   },
+  { name: "stale-resume-analysis", run: () => reconcileStaleResumeAnalysis() },
   ...REMINDER_JOBS,
 ];
 

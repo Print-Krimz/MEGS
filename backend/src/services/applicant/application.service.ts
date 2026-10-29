@@ -5,7 +5,7 @@ import { uploadFileToSupabaseWithInfo } from '../../middleware/upload.middleware
 import { logAudit } from '../../utils/audit.js';
 import { assertOwns, JOB_OWNER_SELECT } from '../ta/ownership.js';
 import { notifyJobOwner, sendNotification } from '../../utils/notification.js';
-import { enqueueResumeAnalysis, trackFitRevalidation } from '../../workers/resume.worker.js';
+import { enqueueResumeAnalysis, enqueueResumeSideTask, trackFitRevalidation } from '../../workers/resume.worker.js';
 import { revalidateApplication } from "../scoring/scoring-configuration.service.js";
 import {
   ensureApplicantProfile,
@@ -238,6 +238,8 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
   const job = await assertCanApply(userId, jobId);
 
   let resolvedResumeUrl: string | null = null;
+  // Set when a file was uploaded: reads the resume into the profile before the application is scored.
+  let optionalReadAndScore: (() => Promise<void>) | undefined;
 
   if (file) {
     const profile = await ensureApplicantProfile(userId);
@@ -249,24 +251,26 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     }
     resolvedResumeUrl = uploaded.url;
 
-    // Read the resume before the resume update starts scoring. An identical file reuses its earlier parse.
-    // Only the profile's first-ever parse fills blanks; later ones wait as a proposal for the applicant to review.
-    try {
-      // A failed earlier read left nothing to fill, so it does not count as a parse.
-      const isFirstParse = (await prisma.resumeParseResult.count({ where: { applicantProfileId: profile.id, status: "PARSED" } })) === 0;
-      const parse = await parseResumeToProposal({
-        profileId: profile.id,
-        buffer: file.buffer,
-        mimeType: file.mimetype,
-        originalName: file.originalname,
-        documentId: uploaded.documentId,
-        sha256: uploaded.sha256,
-        source: "APPLICATION_SUBMIT",
-      });
-      if (parse.status === "PARSED" && isFirstParse) await fillBlanksFromParse(parse.id);
-    } catch (extractErr: any) {
-      console.warn("[Application Submission] Profile extraction/auto-fill non-blocking failure:", extractErr.message);
-    }
+    // Reading the resume into the profile is optional, so it runs after the application is saved.
+    optionalReadAndScore = async () => {
+      // Only the profile's first-ever parse fills blanks; later ones wait as a proposal for the applicant to review.
+      try {
+        // A failed earlier read left nothing to fill, so it does not count as a parse.
+        const isFirstParse = (await prisma.resumeParseResult.count({ where: { applicantProfileId: profile.id, status: "PARSED" } })) === 0;
+        const parse = await parseResumeToProposal({
+          profileId: profile.id,
+          buffer: file.buffer,
+          mimeType: file.mimetype,
+          originalName: file.originalname,
+          documentId: uploaded.documentId,
+          sha256: uploaded.sha256,
+          source: "APPLICATION_SUBMIT",
+        });
+        if (parse.status === "PARSED" && isFirstParse) await fillBlanksFromParse(parse.id);
+      } catch (extractErr: any) {
+        console.warn("[Application Submission] Profile extraction/auto-fill non-blocking failure:", extractErr.message);
+      }
+    };
 
     try {
       await updateProfileResumeService(userId, uploaded.url);
@@ -292,24 +296,39 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     },
   });
 
+  const queueScoring = () => {
+    const revalidation = revalidateApplication(application.id, jobId);
+    trackFitRevalidation(application.id, revalidation);
+    void revalidation.catch((error) => console.error("[Scoring] failed to queue application revalidation", error));
+  };
+  // Runs in the bounded worker slot after the application is saved, so a slow provider never delays submission.
+  // Scoring starts only after the optional read, so it sees any blanks that read filled.
+  const readThenScore = optionalReadAndScore && (async () => { await optionalReadAndScore!(); queueScoring(); });
+
   if (sameClientDeployment) {
     const { generateComplianceRequirementsFromMRF, reuseValidSameClientDocuments } = await import("../ta/ta.compliance.service.js");
     await generateComplianceRequirementsFromMRF(application.id);
     const priorApplicationIds = [...new Set(sameClientDeployments.map((item) => item.applicationId).filter((id): id is number => id !== null))];
     await reuseValidSameClientDocuments(application.id, priorApplicationIds);
+    if (readThenScore) {
+      // The read is optional; the saved application stays valid if it cannot be queued.
+      try { await enqueueResumeSideTask(`application #${application.id} resume read`, readThenScore); }
+      catch { queueScoring(); }
+    } else queueScoring();
   } else {
-    try { await enqueueResumeAnalysis(application.id); }
+    let queueRefused = false;
+    try { await (readThenScore ? enqueueResumeAnalysis(application.id, readThenScore) : enqueueResumeAnalysis(application.id)); }
     catch {
+      queueRefused = true;
       // Submission is already saved. Preserve it for staff review rather than
       // falsely reporting failure and encouraging a duplicate application.
       application = await prisma.application.update({ where: { id: application.id }, data: {
         status: "NEEDS_ATTENTION", aiSummary: "Automatic analysis is busy. The saved application requires manual review or a later staff retry.",
       } });
     }
+    // With an optional read, scoring follows it inside the queue; if the queue refused the work, score now.
+    if (!readThenScore || queueRefused) queueScoring();
   }
-  const revalidation = revalidateApplication(application.id, jobId);
-  trackFitRevalidation(application.id, revalidation);
-  void revalidation.catch((error) => console.error("[Scoring] failed to queue application revalidation", error));
 
   logAudit(userId, "APPLICATION_SUBMITTED", "Application", application.id, {
     jobPostingId: jobId,

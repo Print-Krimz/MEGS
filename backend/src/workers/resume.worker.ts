@@ -175,6 +175,31 @@ export const detectDocumentFormat = (
   return { isDocx, isImage, isPdf, detectedMime };
 };
 
+// Only these applications may be moved to NEEDS_ATTENTION by a failed analysis.
+// Later stages (interview, requirements, deployed, backout...) keep their status.
+export const ANALYSIS_FAILURE_ELIGIBLE_STATUSES = ["SUBMITTED", "PARSING", "NEEDS_ATTENTION"] as const;
+
+// The resume each running analysis was started for, so a late failure cannot touch a replaced resume.
+const analyzedResumeUrls = new Map<number, string>();
+
+/**
+ * One failure policy for every worker branch. The row is changed only while it is still in an
+ * initial status AND still points at the analyzed resume. When it is not (advanced stage or
+ * replaced resume) nothing is written, so an earlier successful summary stays visible; the failure
+ * is only logged under the same reference. Returns true when the application was flagged.
+ */
+const recordAnalysisFailure = async (applicationId: number, resumeUrl: string | null | undefined, aiSummary: string, reference: string): Promise<boolean> => {
+  if (resumeUrl) {
+    const flagged = await prisma.application.updateMany({
+      where: { id: applicationId, resumeUrl, status: { in: [...ANALYSIS_FAILURE_ELIGIBLE_STATUSES] } },
+      data: { status: "NEEDS_ATTENTION", aiSummary },
+    });
+    if (flagged.count > 0) return true;
+  }
+  safeLogError(`Worker: failure for application #${applicationId} not recorded (stage advanced or resume replaced)`, null, reference);
+  return false;
+};
+
 const notifyNeedsAttention = async (
   applicationId: number,
   jobTitle: string,
@@ -238,18 +263,17 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
 
   if (!application.resumeUrl) {
     console.error(`[Worker] Application #${applicationId} has no resume URL. Skipping.`);
-    await prisma.application.update({
-      where: { id: applicationId },
-      data: {
-        aiSummary: "Analysis failed: No resume was attached to this application.",
-        status: "NEEDS_ATTENTION",
-      },
+    // No resume to match against, so only an initial-status row is flagged.
+    const flagged = await prisma.application.updateMany({
+      where: { id: applicationId, resumeUrl: null, status: { in: [...ANALYSIS_FAILURE_ELIGIBLE_STATUSES] } },
+      data: { aiSummary: "Analysis failed: No resume was attached to this application.", status: "NEEDS_ATTENTION" },
     });
     setPhase(applicationId, "FAILED", { failureReason: "NO_RESUME" });
-    await notifyNeedsAttention(applicationId, jobTitle, jobPosting);
+    if (flagged.count > 0) await notifyNeedsAttention(applicationId, jobTitle, jobPosting);
     return;
   }
 
+  analyzedResumeUrls.set(applicationId, application.resumeUrl);
   let payload: ResumeFilePayload;
   try {
     payload = await fetchResumePayload(application.resumeUrl, application.userId);
@@ -260,15 +284,14 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
     payload.mimeType = validated.mimeType;
   } catch (err: any) {
     const reference = safeLogError(`Worker: read resume for application #${applicationId}`, err);
-    await prisma.application.update({
-      where: { id: applicationId },
-      data: {
-        aiSummary: `Analysis failed: Could not read the resume file. Manual review required. Reference: ${reference}`,
-        status: "NEEDS_ATTENTION",
-      },
-    });
+    const flagged = await recordAnalysisFailure(
+      applicationId,
+      application.resumeUrl,
+      `Analysis failed: Could not read the resume file. Manual review required. Reference: ${reference}`,
+      reference
+    );
     setPhase(applicationId, "FAILED", { failureReason: "UNREADABLE_RESUME" });
-    await notifyNeedsAttention(applicationId, jobTitle, jobPosting);
+    if (flagged) await notifyNeedsAttention(applicationId, jobTitle, jobPosting);
     return;
   }
 
@@ -345,14 +368,13 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
     const reference = safeLogError(`Worker: analyze application #${applicationId}`, err);
     setPhase(applicationId, "FAILED", { failureReason: "AI_UNAVAILABLE" });
     try {
-      await prisma.application.update({
-        where: { id: applicationId },
-        data: {
-          status: "NEEDS_ATTENTION",
-          aiSummary: `Analysis failed: Could not process resume. Manual review required. Reference: ${reference}`,
-        },
-      });
-      await notifyNeedsAttention(applicationId, jobTitle, jobPosting);
+      const flagged = await recordAnalysisFailure(
+        applicationId,
+        application.resumeUrl,
+        `Analysis failed: Could not process resume. Manual review required. Reference: ${reference}`,
+        reference
+      );
+      if (flagged) await notifyNeedsAttention(applicationId, jobTitle, jobPosting);
     } catch {
       // ignore if record was deleted concurrently
     }
@@ -410,24 +432,46 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
 };
 
 const admittedApplications = new Set<number>();
-export const enqueueResumeAnalysis = async (applicationId: number): Promise<void> => {
+
+const failAdmittedJob = async (applicationId: number, error: unknown) => {
+  const reference = safeLogError(`Worker: application #${applicationId}`, error);
+  setPhase(applicationId, "FAILED", { failureReason: "SAVE_FAILED" });
+  try {
+    await recordAnalysisFailure(applicationId, analyzedResumeUrls.get(applicationId),
+      `Analysis could not be saved. Retry resume analysis or review manually. Reference: ${reference}`, reference);
+  } catch (failureError) { safeLogError(`Worker: record failure for application #${applicationId}`, failureError); }
+};
+
+/**
+ * Queues one analysis. `beforeAnalysis` is optional work that must finish first (for example
+ * reading the resume into the profile) and runs inside the same bounded slot. Its failure is
+ * logged and never blocks the analysis.
+ */
+export const enqueueResumeAnalysis = async (applicationId: number, beforeAnalysis?: () => Promise<void>): Promise<void> => {
   if (admittedApplications.has(applicationId)) return;
   admittedApplications.add(applicationId);
   setPhase(applicationId, "QUEUED");
   try {
     await queue.admit(async () => {
-      try { await processResumeJob(applicationId); }
-      catch (error) {
-        safeLogError(`Worker: application #${applicationId}`, error);
-        setPhase(applicationId, "FAILED", { failureReason: "SAVE_FAILED" });
-        await prisma.application.updateMany({ where: { id: applicationId }, data: {
-          status: "NEEDS_ATTENTION", aiSummary: "Analysis could not be saved. Retry resume analysis or review manually.",
-        } });
+      try {
+        if (beforeAnalysis) {
+          try { await beforeAnalysis(); }
+          catch (error) { safeLogError(`Worker: pre-analysis step for application #${applicationId}`, error); }
+        }
+        await processResumeJob(applicationId);
       }
-      finally { admittedApplications.delete(applicationId); }
+      catch (error) { await failAdmittedJob(applicationId, error); }
+      finally { admittedApplications.delete(applicationId); analyzedResumeUrls.delete(applicationId); }
     });
   } catch (error) { admittedApplications.delete(applicationId); analysisProgress.delete(applicationId); throw error; }
   console.log(`[Worker] Application #${applicationId} queued for analysis. Queue size: ${queue.size + queue.pending}`);
+};
+
+/** Runs optional side work (no analysis) in the same bounded slot. Failures are logged only. */
+export const enqueueResumeSideTask = async (label: string, task: () => Promise<void>): Promise<void> => {
+  await queue.admit(async () => {
+    try { await task(); } catch (error) { safeLogError(`Worker: ${label}`, error); }
+  });
 };
 export const waitForResumeQueue = () => queue.onIdle();
 
