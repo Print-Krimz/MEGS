@@ -112,8 +112,8 @@ export async function apiRequest<T>(
     injectedToken = true;
   }
 
-  // Set application/json only if body is NOT FormData
-  if (!(options?.body instanceof FormData) && !headers["Content-Type"]) {
+  // JSON content type only for a JSON body: a bodyless GET with it forces a CORS preflight
+  if (options?.body != null && !(options.body instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
 
