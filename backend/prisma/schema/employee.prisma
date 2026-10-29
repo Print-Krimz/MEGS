@@ -47,7 +47,6 @@ model Employee {
   employmentEvents        EmploymentEvent[]
 
   @@index([status])
-  @@index([employeeNumber])
   @@index([redeploymentOwnerId])
 }
 

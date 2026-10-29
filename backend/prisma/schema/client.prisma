@@ -141,6 +141,7 @@ model Deployment {
   @@index([employeeId])
   @@index([applicationId])
   @@index([clientId, status])
+  @@index([status, contractEnd])
 }
 
 // ─────────────────────────────────────────────

@@ -83,6 +83,8 @@ model AuditLog {
 
   createdAt DateTime @default(now())
   @@index([action, createdAt])
+  @@index([createdAt(sort: Desc)])
+  @@index([userId, createdAt])
   // No updatedAt — audit logs are never modified
 }
 

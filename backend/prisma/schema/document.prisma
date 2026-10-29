@@ -37,6 +37,7 @@ model StoredDocument {
 
   @@index([ownerId, category])
   @@index([sha256])
+  @@index([storagePath])
 }
 
 model ComplianceDocumentVersion {
