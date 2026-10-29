@@ -17,7 +17,6 @@ import {
   writeWorkbookToBuffer,
   ExcelColumnDef,
 } from "../analytics/report-excel-builder.js";
-import ExcelJS from "exceljs";
 
 const safeFormatDate = (date: Date | string | null | undefined): string => {
   if (!date) return "N/A";
@@ -110,7 +109,7 @@ export const generateAuditReportPDF = async (
     filterSummary,
   });
 
-  const doc = createHRDocument({ orientation: "landscape" });
+  const doc = await createHRDocument({ orientation: "landscape" });
   renderCorporateHeader(doc, meta);
 
   // Compute summary KPI metrics
@@ -190,7 +189,7 @@ export const generateAuditReportXLSX = async (
     filterSummary,
   });
 
-  const { workbook, worksheet } = createHRExcelWorkbook(meta, "Audit Trail");
+  const { workbook, worksheet } = await createHRExcelWorkbook(meta, "Audit Trail");
   applySpreadsheetHeaderBlock(worksheet, meta);
 
   const columns: ExcelColumnDef[] = [
@@ -250,6 +249,7 @@ export const generateAuditReportCSV = async (
     limit: filters?.limit ? parseInt(String(filters.limit), 10) : 5000,
   });
 
+  const { default: ExcelJS } = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Security Audit Trail");
 

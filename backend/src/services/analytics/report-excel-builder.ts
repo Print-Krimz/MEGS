@@ -1,4 +1,4 @@
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
 import { ReportMetadata } from "./report-theme.js";
 
 export interface ExcelColumnDef {
@@ -9,11 +9,13 @@ export interface ExcelColumnDef {
   numFmt?: string;
 }
 
-export function createHRExcelWorkbook(meta: ReportMetadata, sheetName: string): {
+export async function createHRExcelWorkbook(meta: ReportMetadata, sheetName: string): Promise<{
   workbook: ExcelJS.Workbook;
   worksheet: ExcelJS.Worksheet;
-} {
-  const workbook = new ExcelJS.Workbook();
+}> {
+  // Loaded on first export so exceljs stays out of server boot memory.
+  const { default: ExcelJSRuntime } = await import("exceljs");
+  const workbook = new ExcelJSRuntime.Workbook();
   workbook.creator = "MEGS Recruitment Management System";
   workbook.lastModifiedBy = meta.requestedByEmail;
   workbook.created = new Date();

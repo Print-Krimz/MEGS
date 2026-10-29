@@ -689,7 +689,7 @@ function columnWidths(doc: PDFKit.PDFDocument, columns: Column[], contentWidth: 
 }
 
 async function writePdf(meta: ReportMetadata, model: ReportModel): Promise<Buffer> {
-  const doc = createHRDocument({ orientation: "landscape" });
+  const doc = await createHRDocument({ orientation: "landscape" });
   renderCorporateHeader(doc, meta);
   const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   // Nothing is shortened: long labels and cells wrap onto extra lines so every word stays readable.
@@ -728,7 +728,7 @@ async function writePdf(meta: ReportMetadata, model: ReportModel): Promise<Buffe
 }
 
 async function writeXlsx(meta: ReportMetadata, model: ReportModel): Promise<Buffer> {
-  const { workbook, worksheet } = createHRExcelWorkbook(meta, "Summary");
+  const { workbook, worksheet } = await createHRExcelWorkbook(meta, "Summary");
   applySpreadsheetHeaderBlock(worksheet, meta);
   const kpiColumns: ExcelColumnDef[] = [
     { header: "What we count", key: "label", minWidth: 28 },

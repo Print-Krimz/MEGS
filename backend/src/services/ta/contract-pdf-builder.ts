@@ -5,7 +5,6 @@
  * and presses a right thumbmark, and the signed scan is uploaded back to the application.
  */
 
-import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
 import { COMPANY_ADDRESS } from "../../config/business-hours.js";
@@ -54,8 +53,10 @@ const formatRate = (rate?: number | string | null): string =>
     ? BLANK_RATE
     : Number(rate).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export const buildContractPdfBuffer = (data: ContractPdfData): Promise<Buffer> =>
-  new Promise((resolve, reject) => {
+export const buildContractPdfBuffer = async (data: ContractPdfData): Promise<Buffer> => {
+  // Loaded on first use so pdfkit stays out of server boot memory.
+  const { default: PDFDocument } = await import("pdfkit");
+  return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 56, info: { Title: "MEGS Employment Contract" } });
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -120,3 +121,4 @@ export const buildContractPdfBuffer = (data: ContractPdfData): Promise<Buffer> =
 
     doc.end();
   });
+};

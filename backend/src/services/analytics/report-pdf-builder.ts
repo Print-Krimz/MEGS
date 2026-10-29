@@ -1,4 +1,3 @@
-import PDFDocument from "pdfkit";
 import { HR_THEME, ReportMetadata, getStatusBadgeTheme } from "./report-theme.js";
 
 export interface ColumnDef {
@@ -27,8 +26,10 @@ export interface CreateHRDocumentOptions {
 /**
  * Instantiate an A4 PDFKit Document with buffered pages enabled for two-pass page numbering
  */
-export function createHRDocument(options?: CreateHRDocumentOptions): PDFKit.PDFDocument {
+export async function createHRDocument(options?: CreateHRDocumentOptions): Promise<PDFKit.PDFDocument> {
   const layout = options?.orientation || "landscape";
+  // Loaded on first export so pdfkit stays out of server boot memory.
+  const { default: PDFDocument } = await import("pdfkit");
   return new PDFDocument({
     size: "A4",
     layout,
