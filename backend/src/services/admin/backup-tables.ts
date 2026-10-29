@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { assertBackupRecordCount } from "../../security/backup-limits.js";
 
 // Dependency order also determines restoration order. Only these models can
 // be restored; fields are further restricted by the generated Prisma schema.
@@ -10,10 +11,11 @@ export const BACKUP_TABLES = [
   ["educations", "Education"], ["trainingCertifications", "TrainingCertification"],
   ["characterReferences", "CharacterReference"], ["assets", "Asset"],
   ["manpowerRequests", "ManpowerRequest"], ["jobPostings", "JobPosting"], ["savedJobs", "SavedJob"],
-  ["applications", "Application"], ["applicationBackouts", "ApplicationBackout"], ["postHireDocuments", "PostHireDocument"],
+  ["applications", "Application"], ["applicationBackouts", "ApplicationBackout"], ["applicationClosures", "ApplicationClosure"],
+  ["walkInCheckIns", "WalkInCheckIn"], ["postHireDocuments", "PostHireDocument"],
   ["employees", "Employee"],
-  ["storedDocuments", "StoredDocument"], ["applicantSkills", "ApplicantSkill"], ["workExperiences", "WorkExperience"],
-  ["interviews", "Interview"], ["recruiterDecisions", "RecruiterDecision"], ["clientEndorsements", "ClientEndorsement"],
+  ["storedDocuments", "StoredDocument"], ["resumeParseResults", "ResumeParseResult"], ["applicantSkills", "ApplicantSkill"], ["workExperiences", "WorkExperience"],
+  ["interviews", "Interview"], ["rescheduleRequests", "RescheduleRequest"], ["recruiterDecisions", "RecruiterDecision"], ["clientEndorsements", "ClientEndorsement"],
   ["complianceRequirements", "ComplianceRequirement"], ["deployments", "Deployment"],
   ["employmentEvents", "EmploymentEvent"], ["deploymentStatusHistory", "DeploymentStatusHistory"],
   ["mrfComplianceTemplates", "MRFComplianceTemplate"], ["complianceDocumentVersions", "ComplianceDocumentVersion"],
@@ -21,6 +23,28 @@ export const BACKUP_TABLES = [
   ["talentPoolMemberships", "TalentPoolMembership"], ["talentPoolContacts", "TalentPoolContact"], ["talentPoolInvitations", "TalentPoolInvitation"],
   ["candidateScores", "CandidateScore"], ["auditLogs", "AuditLog"], ["notifications", "Notification"],
 ] as const;
+
+// Every Prisma model not in BACKUP_TABLES, with the reason. A test fails when a new
+// model is in neither list, so each addition is a conscious backup decision.
+export const BACKUP_EXCLUDED_MODELS: Record<string, string> = {
+  DatabaseBackupRecord: "Backup bookkeeping; restoring it would resurrect stale job state and storage paths.",
+  DatabaseRestoreRecord: "Restore bookkeeping; describes jobs of the running system only.",
+  CandidateFeatureProfile: "Derived scoring data, rebuilt by rescoring.",
+  ScoringRevalidationTask: "Job queue; transient work items.",
+  SecurityCounter: "Rate-limit counters; transient.",
+  SessionRevocation: "Auth session state; restoring could re-open or wrongly revoke sessions.",
+  NotificationOutbox: "Email delivery queue; replaying would resend messages.",
+  AuthOtp: "One-time authentication secrets.",
+  PasswordResetSession: "Password reset secrets.",
+  UserMfaRecoveryCode: "MFA recovery secrets.",
+  UserInvitation: "Invitation tokens (secrets) with short lifetimes.",
+};
+
+// Rows to include per model. Parse results are bulky and re-derivable, so only
+// those a person reviewed (a decision worth keeping) are preserved.
+export const BACKUP_ROW_FILTERS: Record<string, Record<string, unknown>> = {
+  ResumeParseResult: { reviewedAt: { not: null } },
+};
 
 export type BackupProgress = { table: string; tableIndex: number; tableCount: number; rowsDone: number; rowsTotal?: number };
 export type OnBackupProgress = (progress: BackupProgress) => void | Promise<void>;
@@ -36,6 +60,10 @@ const primaryKeyFields = (modelName: string) => {
   if (!fields.length) throw new Error(`Backup table has no primary key: ${modelName}`);
   return fields;
 };
+
+export class MaintenanceCancelledError extends Error {
+  constructor() { super("Cancelled by administrator"); }
+}
 
 const describeError = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -59,24 +87,52 @@ const readPage = async (delegate: any, args: Record<string, unknown>) => {
   }
 };
 
-// Reads every table in short, primary-key-ordered pages. One long transaction
-// held a pooled connection for minutes on slow links and was dropped by the
-// pooler ("Connection terminated unexpectedly"); short retried queries are not.
-export async function collectBackupTables(db: PrismaClient, onProgress?: OnBackupProgress) {
+// Where the next page starts: rows whose key is greater than the last row read.
+// Composite keys compare field by field. Unlike OFFSET, concurrent deletes or
+// inserts cannot make a page skip or repeat rows.
+export const keysetWhere = (fields: string[], last: Record<string, unknown>): Record<string, unknown> => ({
+  OR: fields.map((field, index) => ({
+    ...Object.fromEntries(fields.slice(0, index).map((earlier) => [earlier, last[earlier]])),
+    [field]: { gt: last[field] },
+  })),
+});
+
+export type CollectOptions = {
+  // Called before every page; throw to stop (cancellation).
+  beforePage?: () => void | Promise<void>;
+};
+
+// Reads every table in short, primary-key-ordered keyset pages. One long
+// transaction held a pooled connection for minutes on slow links and was
+// dropped by the pooler ("Connection terminated unexpectedly"); short retried
+// queries are not. Reads are NOT one repeatable-read snapshot (see plan T10).
+// Exceeding the restorable record limit fails the backup; rows are never dropped.
+export async function collectBackupTables(db: PrismaClient, onProgress?: OnBackupProgress, options: CollectOptions = {}) {
   const data: Record<string, any[]> = {};
+  let total = 0;
   for (const [tableIndex, [key, model]] of BACKUP_TABLES.entries()) {
     const delegate = (db as any)[delegateName(model)];
-    const orderBy = primaryKeyFields(model).map((field) => ({ [field]: "asc" }));
+    const keyFields = primaryKeyFields(model);
+    const orderBy = keyFields.map((field) => ({ [field]: "asc" }));
+    const filter = BACKUP_ROW_FILTERS[model];
     const rows: any[] = [];
     const pageSize = getBackupPageSize(model);
     try {
-      for (let skip = 0; ; skip += pageSize) {
+      for (let last: Record<string, unknown> | undefined; ;) {
+        await options.beforePage?.();
         await onProgress?.({ table: model, tableIndex, tableCount: BACKUP_TABLES.length, rowsDone: rows.length });
-        const page = await readPage(delegate, { orderBy, skip, take: pageSize });
+        const conditions = [filter, last && keysetWhere(keyFields, last)].filter(Boolean);
+        const args: Record<string, unknown> = { orderBy, take: pageSize };
+        if (conditions.length) args.where = conditions.length === 1 ? conditions[0] : { AND: conditions };
+        const page = await readPage(delegate, args);
         rows.push(...page);
+        total += page.length;
+        assertBackupRecordCount(total);
         if (page.length < pageSize) break;
+        last = page[page.length - 1];
       }
     } catch (error) {
+      if (error instanceof MaintenanceCancelledError) throw error;
       throw new Error(`Reading ${model}: ${describeError(error)}`, { cause: error });
     }
     data[key] = rows;
@@ -152,7 +208,8 @@ const buildUpsert = (modelName: string, rows: Record<string, unknown>[], columnT
 
 export const RESTORE_TIMEOUT_MS = 45 * 60 * 1000;
 
-export async function restoreBackupTables(db: PrismaClient, snapshot: Record<string, unknown>, onProgress?: OnBackupProgress) {
+// beforeChunk runs before every chunk and once more before commit; throwing rolls the whole restore back.
+export async function restoreBackupTables(db: PrismaClient, snapshot: Record<string, unknown>, onProgress?: OnBackupProgress, beforeChunk?: (beforeCommit?: boolean) => void | Promise<void>) {
   const hasRows = BACKUP_TABLES.some(([key]) => Array.isArray(snapshot[key]) && (snapshot[key] as unknown[]).length > 0);
   if (!hasRows) return { recordsRestored: {} as Record<string, number>, totalRecords: 0 };
   return db.$transaction(async (tx) => {
@@ -174,6 +231,7 @@ export async function restoreBackupTables(db: PrismaClient, snapshot: Record<str
           const columnCount = model.fields.filter((field) => field.kind === "scalar" || field.kind === "enum").length;
           const chunkSize = Math.max(1, Math.min(BACKUP_PAGE_SIZE, Math.floor(MAX_PARAMS / Math.max(1, columnCount))));
           for (let start = 0; start < formatted.length; start += chunkSize) {
+            await beforeChunk?.();
             await onProgress?.({ table: modelName, tableIndex, tableCount: BACKUP_TABLES.length, rowsDone: start, rowsTotal: formatted.length });
             await (tx as any).$executeRaw(buildUpsert(modelName, formatted.slice(start, start + chunkSize), columnTypes));
           }
@@ -183,12 +241,14 @@ export async function restoreBackupTables(db: PrismaClient, snapshot: Record<str
             await tx.$queryRaw(Prisma.sql`SELECT setval(pg_get_serial_sequence(${quotedName(table)}, ${column}), COALESCE(MAX(${identifier(column)}), 1), COUNT(*) > 0) FROM ${identifier(table)}`);
           }
         } catch (error) {
+          if (error instanceof MaintenanceCancelledError) throw error;
           throw new Error(`Could not restore ${modelName}; the backup may be incomplete or conflict with current records. (${describeError(error)})`, { cause: error });
         }
       }
       recordsRestored[modelName] = formatted.length;
       totalRecords += formatted.length;
     }
+    await beforeChunk?.(true);
     return { recordsRestored, totalRecords };
   }, { maxWait: 10_000, timeout: RESTORE_TIMEOUT_MS });
 }

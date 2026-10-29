@@ -3,6 +3,19 @@ import { Readable } from "node:stream";
 
 export const MAX_BACKUP_BYTES = 50 * 1024 * 1024;
 export const MAX_BACKUP_EXPANDED_BYTES = 128 * 1024 * 1024;
+export const MAX_BACKUP_RECORDS = 250_000;
+
+// Creation must never produce a file that restore validation would reject.
+// Each check passes at the limit and fails above it; nothing is truncated.
+export function assertBackupRecordCount(records: number): void {
+  if (records > MAX_BACKUP_RECORDS) throw new Error(`Backup has ${records} records, above the restorable limit of ${MAX_BACKUP_RECORDS}. No backup was saved.`);
+}
+export function assertBackupExpandedSize(bytes: number): void {
+  if (bytes > MAX_BACKUP_EXPANDED_BYTES) throw new Error("Backup data is larger than the restorable limit of 128 MiB. No backup was saved.");
+}
+export function assertBackupFileSize(bytes: number): void {
+  if (bytes > MAX_BACKUP_BYTES) throw new Error("Encrypted backup is larger than the restorable limit of 50 MiB. No backup was saved.");
+}
 
 export async function decompressBackupPayload(compressed: Buffer): Promise<Buffer> {
   if (!compressed.length || compressed.length > MAX_BACKUP_BYTES) throw new Error("Backup exceeds supported size limits");
@@ -33,6 +46,6 @@ export function validateBackupStructure(snapshot: unknown): void {
   for (const value of Object.values(data)) {
     if (!Array.isArray(value)) throw new Error("Invalid backup data section");
     records += value.length;
-    if (records > 250_000 || value.some(row => !row || typeof row !== "object" || Array.isArray(row))) throw new Error("Backup record limit or structure is invalid");
+    if (records > MAX_BACKUP_RECORDS || value.some(row => !row || typeof row !== "object" || Array.isArray(row))) throw new Error("Backup record limit or structure is invalid");
   }
 }

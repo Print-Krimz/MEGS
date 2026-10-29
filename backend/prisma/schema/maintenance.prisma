@@ -28,6 +28,7 @@ model DatabaseBackupRecord {
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @default(now()) @updatedAt
   completedAt      DateTime?
+  cancelRequestedAt DateTime?
 
   @@index([status, createdAt])
 }
@@ -47,6 +48,7 @@ model DatabaseRestoreRecord {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @default(now()) @updatedAt
   completedAt   DateTime?
+  cancelRequestedAt DateTime?
 
   @@index([status, createdAt])
 }

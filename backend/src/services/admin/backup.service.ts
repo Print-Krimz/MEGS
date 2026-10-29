@@ -1,4 +1,4 @@
-import { BACKUP_TABLES, collectBackupTables, restoreBackupTables, type BackupProgress } from "./backup-tables.js";
+import { BACKUP_TABLES, MaintenanceCancelledError, collectBackupTables, restoreBackupTables, type BackupProgress } from "./backup-tables.js";
 import crypto from "crypto";
 import zlib from "zlib";
 import { Readable } from "stream";
@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
 import supabase from "../../utils/supabase.js";
 import { logAudit } from "../../utils/audit.js";
-import { decompressBackupPayload, validateBackupStructure, MAX_BACKUP_BYTES } from "../../security/backup-limits.js";
+import { assertBackupExpandedSize, assertBackupFileSize, decompressBackupPayload, validateBackupStructure, MAX_BACKUP_BYTES } from "../../security/backup-limits.js";
 import {
   decryptBackupPayload,
   encryptBackupPayload,
@@ -78,7 +78,7 @@ const progressReporter = (write: (progress: BackupProgress) => Promise<unknown>)
   };
 };
 
-export const sweepStaleJobs = async () => {
+export const sweepStaleJobs = async (db: Pick<typeof prisma, "databaseBackupRecord" | "databaseRestoreRecord"> = prisma) => {
   const where = { status: "IN_PROGRESS" as const, updatedAt: { lt: new Date(Date.now() - STALE_JOB_MS) } };
   const data = {
     status: "FAILED" as const,
@@ -86,21 +86,19 @@ export const sweepStaleJobs = async () => {
     completedAt: new Date(),
     progress: Prisma.DbNull,
   };
-  await prisma.databaseBackupRecord.updateMany({ where, data });
-  await prisma.databaseRestoreRecord.updateMany({ where, data });
+  await db.databaseBackupRecord.updateMany({ where, data });
+  await db.databaseRestoreRecord.updateMany({ where, data });
 };
 
+// Cancellation is a request, not a status change: the job stays IN_PROGRESS (and keeps
+// blocking new admissions) until its worker notices, stops and rolls back. A worker that
+// died is cleared by the stale-job sweep.
 export const cancelMaintenance = async (actorId?: string) => {
-  const now = new Date();
-  const data = {
-    status: "FAILED" as const,
-    errorMessage: "Cancelled by administrator",
-    completedAt: now,
-    progress: Prisma.DbNull,
-  };
+  const where = { status: "IN_PROGRESS" as const, cancelRequestedAt: null };
+  const data = { cancelRequestedAt: new Date() };
   const [backups, restores] = await Promise.all([
-    prisma.databaseBackupRecord.updateMany({ where: { status: "IN_PROGRESS" }, data }),
-    prisma.databaseRestoreRecord.updateMany({ where: { status: "IN_PROGRESS" }, data }),
+    prisma.databaseBackupRecord.updateMany({ where, data }),
+    prisma.databaseRestoreRecord.updateMany({ where, data }),
   ]);
 
   if (actorId && (backups.count > 0 || restores.count > 0)) {
@@ -122,14 +120,34 @@ export const cancelMaintenance = async (actorId?: string) => {
   };
 };
 
-const assertNothingRunning = async () => {
-  await sweepStaleJobs();
-  const [backups, restores] = await Promise.all([
-    prisma.databaseBackupRecord.count({ where: { status: "IN_PROGRESS" } }),
-    prisma.databaseRestoreRecord.count({ where: { status: "IN_PROGRESS" } }),
-  ]);
-  if (backups || restores) throw new MaintenanceBusyError();
+export const CANCEL_CHECK_INTERVAL_MS = 2000;
+
+// Returns a function the worker calls between pages/chunks. It reads the job's own row
+// (outside any restore transaction) and throws once cancellation was requested.
+const cancellationCheck = (kind: "backup" | "restore", id: string) => {
+  let lastCheck = 0;
+  return async (force = false) => {
+    if (!force && Date.now() - lastCheck < CANCEL_CHECK_INTERVAL_MS) return;
+    lastCheck = Date.now();
+    const table: any = kind === "backup" ? prisma.databaseBackupRecord : prisma.databaseRestoreRecord;
+    const row = await table.findUnique({ where: { id }, select: { cancelRequestedAt: true } }).catch(() => null);
+    if (row?.cancelRequestedAt) throw new MaintenanceCancelledError();
+  };
 };
+
+// Admission check and job creation share one transaction-scoped advisory lock, so two
+// simultaneous requests cannot both see "nothing running".
+const admitMaintenance = <T>(create: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> =>
+  prisma.$transaction(async (tx) => {
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext('megs:maintenance-admission'))`);
+    await sweepStaleJobs(tx);
+    const [backups, restores] = await Promise.all([
+      tx.databaseBackupRecord.count({ where: { status: "IN_PROGRESS" } }),
+      tx.databaseRestoreRecord.count({ where: { status: "IN_PROGRESS" } }),
+    ]);
+    if (backups || restores) throw new MaintenanceBusyError();
+    return create(tx);
+  }, { maxWait: 10_000, timeout: 15_000 });
 
 type BackupType = "MANUAL" | "SCHEDULED_ROUTINE";
 
@@ -138,7 +156,7 @@ export const triggerDatabaseBackupRoutine = async (
   backupType: BackupType = "MANUAL",
   customName?: string
 ) => {
-  const backupRecord = await createBackupRecord(initiatedById, backupType, customName);
+  const backupRecord = await admitMaintenance((tx) => createBackupRecord(tx, initiatedById, backupType, customName));
   return runDatabaseBackup(backupRecord, initiatedById, backupType);
 };
 
@@ -148,8 +166,7 @@ export const startDatabaseBackupInBackground = async (
   backupType: BackupType = "MANUAL",
   customName?: string
 ) => {
-  await assertNothingRunning();
-  const backupRecord = await createBackupRecord(initiatedById, backupType, customName);
+  const backupRecord = await admitMaintenance((tx) => createBackupRecord(tx, initiatedById, backupType, customName));
   runDatabaseBackup(backupRecord, initiatedById, backupType).catch((err) => {
     console.error(`[Backup] ${backupRecord.filename} failed:`, err?.message || err);
   });
@@ -157,6 +174,7 @@ export const startDatabaseBackupInBackground = async (
 };
 
 const createBackupRecord = async (
+  db: Pick<Prisma.TransactionClient, "databaseBackupRecord">,
   initiatedById: string | undefined,
   backupType: BackupType,
   customName?: string
@@ -169,7 +187,7 @@ const createBackupRecord = async (
 
   const filename = `megs_backup_${timestamp}_${crypto.randomUUID()}.enc.gz`;
 
-  return prisma.databaseBackupRecord.create({
+  return db.databaseBackupRecord.create({
     data: {
       filename,
       displayName: customName?.trim() || null,
@@ -197,7 +215,8 @@ const runDatabaseBackup = async (
     const reportProgress = progressReporter((progress) =>
       prisma.databaseBackupRecord.update({ where: { id: backupRecord.id }, data: { progress } })
     );
-    const data = await collectBackupTables(prisma, reportProgress);
+    const checkCancelled = cancellationCheck("backup", backupRecord.id);
+    const data = await collectBackupTables(prisma, reportProgress, { beforePage: () => checkCancelled() });
     const tablesIncluded = BACKUP_TABLES.map(([, model]) => model);
     const snapshotPayload = {
       meta: {
@@ -212,10 +231,13 @@ const runDatabaseBackup = async (
     const jsonString = JSON.stringify(snapshotPayload, (_key, value) =>
       typeof value === "bigint" ? value.toString() : value
     );
+    // Restore rejects anything over its limits, so refuse to save such a file.
+    assertBackupExpandedSize(Buffer.byteLength(jsonString, "utf-8"));
     const compressedBuffer = await gzipAsync(Buffer.from(jsonString, "utf-8"));
 
     // Step 4: AES-256-GCM Encryption
     const finalEncryptedFileBuffer = encryptBackupPayload(compressedBuffer);
+    assertBackupFileSize(finalEncryptedFileBuffer.length);
 
     // Step 5: Calculate SHA-256 Checksum
     const checksumSha256 = crypto
@@ -224,6 +246,7 @@ const runDatabaseBackup = async (
       .digest("hex");
 
     // Step 6: Upload directly to Supabase Storage
+    await checkCancelled(true);
     const storagePath = filename;
     let { error: uploadErr } = await supabase.storage
       .from(BACKUP_BUCKET)
@@ -262,8 +285,9 @@ const runDatabaseBackup = async (
     const durationMs = Date.now() - startTime;
 
     // Step 7: Update Backup Record with SUCCESS
-    const updatedRecord = await prisma.databaseBackupRecord.update({
-      where: { id: backupRecord.id },
+    // Conditional: a cancelled, failed or swept job must never become SUCCESS.
+    const completed = await prisma.databaseBackupRecord.updateMany({
+      where: { id: backupRecord.id, status: "IN_PROGRESS", cancelRequestedAt: null },
       data: {
         status: "SUCCESS",
         sizeBytes: BigInt(finalEncryptedFileBuffer.length),
@@ -275,6 +299,11 @@ const runDatabaseBackup = async (
         completedAt: new Date(),
       },
     });
+    if (completed.count === 0) {
+      await supabase.storage.from(BACKUP_BUCKET).remove([storagePath]).catch(() => null);
+      throw new MaintenanceCancelledError();
+    }
+    const updatedRecord = await prisma.databaseBackupRecord.findUniqueOrThrow({ where: { id: backupRecord.id } });
 
     // Step 8: Log Audit Event
     await logAudit(
@@ -297,10 +326,11 @@ const runDatabaseBackup = async (
     const durationMs = Date.now() - startTime;
     const errorMessage = err?.message || "Failed to generate database backup snapshot";
 
-    await prisma.databaseBackupRecord.update({
-      where: { id: backupRecord.id },
+    await prisma.databaseBackupRecord.updateMany({
+      where: { id: backupRecord.id, status: "IN_PROGRESS" },
       data: {
         status: "FAILED",
+        progress: Prisma.DbNull,
         errorMessage,
         durationMs,
         completedAt: new Date(),
@@ -475,10 +505,11 @@ const decodeBackupBuffer = async (buffer: Buffer): Promise<Record<string, unknow
 const restoreSnapshotData = async (
   data: Record<string, unknown>,
   initiatedById?: string,
-  onProgress?: (progress: BackupProgress) => Promise<void>
+  onProgress?: (progress: BackupProgress) => Promise<void>,
+  beforeChunk?: (beforeCommit?: boolean) => Promise<void>
 ): Promise<RestoreResult> => {
   const startTime = Date.now();
-  const { recordsRestored, totalRecords } = await restoreBackupTables(prisma, data, onProgress);
+  const { recordsRestored, totalRecords } = await restoreBackupTables(prisma, data, onProgress, beforeChunk);
 
   const durationMs = Date.now() - startTime;
 
@@ -561,8 +592,7 @@ export const startRestoreInBackground = async (source: RestoreSource, initiatedB
     load = async () => data;
   }
 
-  await assertNothingRunning();
-  const restoreRecord = await prisma.databaseRestoreRecord.create({
+  const restoreRecord = await admitMaintenance((tx) => tx.databaseRestoreRecord.create({
     data: {
       status: "IN_PROGRESS",
       source: "backupId" in source ? "BACKUP" : "UPLOAD",
@@ -570,7 +600,8 @@ export const startRestoreInBackground = async (source: RestoreSource, initiatedB
       filename,
       initiatedById,
     },
-  });
+  }));
+  const checkCancelled = cancellationCheck("restore", restoreRecord.id);
 
   const startTime = Date.now();
   const reportProgress = progressReporter((progress) =>
@@ -579,9 +610,12 @@ export const startRestoreInBackground = async (source: RestoreSource, initiatedB
 
   (async () => {
     try {
-      const result = await restoreSnapshotData(await load(), initiatedById, reportProgress);
-      await prisma.databaseRestoreRecord.update({
-        where: { id: restoreRecord.id },
+      await checkCancelled(true);
+      // restoreBackupTables also runs a last check inside the transaction just before
+      // commit, so a cancel rolls back; admission is released only after that rollback.
+      const result = await restoreSnapshotData(await load(), initiatedById, reportProgress, (beforeCommit) => checkCancelled(beforeCommit));
+      const completed = await prisma.databaseRestoreRecord.updateMany({
+        where: { id: restoreRecord.id, status: "IN_PROGRESS", cancelRequestedAt: null },
         data: {
           status: "SUCCESS",
           totalRecords: result.totalRecords,
@@ -590,13 +624,25 @@ export const startRestoreInBackground = async (source: RestoreSource, initiatedB
           completedAt: new Date(),
         },
       });
+      if (completed.count === 0) {
+        // Cancel arrived after the restore committed; say so rather than report SUCCESS.
+        await prisma.databaseRestoreRecord.updateMany({
+          where: { id: restoreRecord.id, status: "IN_PROGRESS" },
+          data: {
+            status: "FAILED",
+            errorMessage: "Cancel arrived after the restore had already been applied. Check the data before retrying.",
+            progress: Prisma.DbNull,
+            completedAt: new Date(),
+          },
+        });
+      }
     } catch (err: any) {
       const errorMessage = err?.message || "Failed to restore database backup.";
       const durationMs = Date.now() - startTime;
       console.error(`[Restore] ${filename} failed:`, errorMessage);
-      await prisma.databaseRestoreRecord.update({
-        where: { id: restoreRecord.id },
-        data: { status: "FAILED", errorMessage, durationMs, completedAt: new Date() },
+      await prisma.databaseRestoreRecord.updateMany({
+        where: { id: restoreRecord.id, status: "IN_PROGRESS" },
+        data: { status: "FAILED", errorMessage, durationMs, progress: Prisma.DbNull, completedAt: new Date() },
       }).catch(() => null);
       await logAudit(initiatedById, "DATABASE_RESTORE_FAILURE", "DatabaseRestoreRecord", restoreRecord.id, {
         filename,
