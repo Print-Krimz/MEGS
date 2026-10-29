@@ -13,13 +13,13 @@ export const AppContent: React.FC = () => {
 
   // Public pages (landing, auth, tracking slip, offer link) never need the session, so skip the staff loader.
   const isPublicPath =
-    /^\/($|t\/|offer\/|check-in(\/|$)|login|register|forgot-password|reset-password)/.test(window.location.pathname);
+    /^\/($|t\/|offer\/|check-in(\/|$)|(login|register|forgot-password|reset-password)(\/|$))/.test(window.location.pathname);
   const showLoader = auth.isLoading && !isPublicPath;
 
-  // The login/register guards ran with a loading session; re-run them with the real one.
+  // Public pages mount the router while the session loads, so re-run the login/register guards with the real one.
   useEffect(() => {
-    if (!auth.isLoading) void router.invalidate();
-  }, [auth.isLoading]);
+    if (!auth.isLoading && isPublicPath) void router.invalidate();
+  }, [auth.isLoading, isPublicPath]);
 
   // While the spinner waits for /api/me, fetch the page's code. loadRouteChunk skips beforeLoad and loaders.
   useEffect(() => {
