@@ -12,10 +12,27 @@ export interface DialogProps {
   className?: string;
   bodyClassName?: string;
   overflowVisible?: boolean;
+  /** For dialogs that render their own heading instead of `title`. */
+  ariaLabelledBy?: string;
+  ariaDescribedBy?: string;
 }
 
 const restoreFocus = (element: HTMLElement | null) => {
   if (element?.isConnected) element.focus();
+};
+
+// Open dialogs, oldest first. Only the last one handles Escape and Tab.
+const modalStack: string[] = [];
+let scrollLocks = 0;
+
+const lockBodyScroll = () => {
+  scrollLocks += 1;
+  document.body.style.overflow = "hidden";
+};
+
+const unlockBodyScroll = () => {
+  scrollLocks = Math.max(0, scrollLocks - 1);
+  if (scrollLocks === 0) document.body.style.overflow = "";
 };
 
 export const Dialog: React.FC<DialogProps> = ({
@@ -28,11 +45,14 @@ export const Dialog: React.FC<DialogProps> = ({
   className,
   bodyClassName,
   overflowVisible,
+  ariaLabelledBy,
+  ariaDescribedBy,
 }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const modalId = useId();
 
   const onCloseRef = useRef(onClose);
   useEffect(() => {
@@ -50,11 +70,14 @@ export const Dialog: React.FC<DialogProps> = ({
       ).filter((element) => !element.hasAttribute("hidden"));
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && open) {
+      // Only the topmost open dialog owns Escape and focus containment.
+      if (!open || modalStack[modalStack.length - 1] !== modalId) return;
+
+      if (e.key === "Escape") {
         onCloseRef.current?.();
       }
 
-      if (e.key !== "Tab" || !open) return;
+      if (e.key !== "Tab") return;
 
       const focusableElements = getFocusableElements();
       if (focusableElements.length === 0) {
@@ -65,17 +88,22 @@ export const Dialog: React.FC<DialogProps> = ({
 
       const first = focusableElements[0];
       const last = focusableElements[focusableElements.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
+      const active = document.activeElement;
+      if (!dialogRef.current?.contains(active)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      } else if (e.shiftKey && active === first) {
         e.preventDefault();
         last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
+      } else if (!e.shiftKey && active === last) {
         e.preventDefault();
         first.focus();
       }
     };
 
     if (open) {
-      document.body.style.overflow = "hidden";
+      modalStack.push(modalId);
+      lockBodyScroll();
       window.addEventListener("keydown", handleKeyDown);
 
       // Only perform initial auto-focus when transitioning from closed to open
@@ -96,19 +124,20 @@ export const Dialog: React.FC<DialogProps> = ({
           }
         });
       }
-    } else {
-      document.body.style.overflow = "";
-      if (wasOpenRef.current) {
-        wasOpenRef.current = false;
-        restoreFocus(previousFocusRef.current);
-      }
+    } else if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      restoreFocus(previousFocusRef.current);
     }
 
     return () => {
-      document.body.style.overflow = "";
       window.removeEventListener("keydown", handleKeyDown);
+      if (open) {
+        const index = modalStack.indexOf(modalId);
+        if (index !== -1) modalStack.splice(index, 1);
+        unlockBodyScroll();
+      }
     };
-  }, [open]);
+  }, [open, modalId]);
 
   // Callers that unmount the dialog instead of passing open={false} still get focus back.
   useEffect(() => {
@@ -136,8 +165,8 @@ export const Dialog: React.FC<DialogProps> = ({
       }}
       role="dialog"
       aria-modal="true"
-      aria-labelledby={title ? titleId : undefined}
-      aria-describedby={description ? descriptionId : undefined}
+      aria-labelledby={title ? titleId : ariaLabelledBy}
+      aria-describedby={description ? descriptionId : ariaDescribedBy}
     >
       <div
         ref={dialogRef}

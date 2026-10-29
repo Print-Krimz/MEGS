@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 import { AlertCircle, AlertTriangle } from "lucide-react";
 import { Dialog } from "../ui/Dialog";
 import { Button } from "../ui/Button";
@@ -26,6 +26,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   variant = "primary",
   loading = false,
 }) => {
+  const titleId = useId();
+  const descriptionId = useId();
+
   const iconMap = {
     danger: <AlertTriangle className="w-5 h-5 text-rose-600" />,
     warning: <AlertCircle className="w-5 h-5 text-amber-600" />,
@@ -39,15 +42,21 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} size="sm">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      size="sm"
+      ariaLabelledBy={titleId}
+      ariaDescribedBy={description ? descriptionId : undefined}
+    >
       <div className="flex items-start gap-3.5">
         <div className={`p-2 ${bgMap[variant]} border border-slate-300 rounded-md shrink-0`}>
           {iconMap[variant]}
         </div>
         <div className="space-y-1 flex-1">
-          <h3 className="text-base font-semibold text-slate-950">{title}</h3>
+          <h3 id={titleId} className="text-base font-semibold text-slate-950">{title}</h3>
           {description && (
-            <p className="text-sm text-slate-600 leading-normal">{description}</p>
+            <p id={descriptionId} className="text-sm text-slate-600 leading-normal">{description}</p>
           )}
         </div>
       </div>
