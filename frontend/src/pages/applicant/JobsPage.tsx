@@ -101,24 +101,44 @@ export const JobsPage: React.FC = () => {
 
   const savedJobIds = new Set(savedJobIdsQuery.data || []);
 
+  // Flip the id in the cache at once so the bookmark fills without waiting for the server.
+  const savedIdsKey = ["applicant", "saved-jobs", "ids"];
+  const optimisticallySetSaved = async (jobId: number, saved: boolean) => {
+    await queryClient.cancelQueries({ queryKey: savedIdsKey });
+    const previous = queryClient.getQueryData<number[]>(savedIdsKey);
+    queryClient.setQueryData<number[]>(savedIdsKey, (ids = []) =>
+      saved ? [...new Set([...ids, jobId])] : ids.filter((id) => id !== jobId),
+    );
+    return { previous };
+  };
+  const rollbackSaved = (context?: { previous?: number[] }) => {
+    if (context?.previous) queryClient.setQueryData(savedIdsKey, context.previous);
+  };
+  const refreshSaved = () => {
+    queryClient.invalidateQueries({ queryKey: ["applicant", "jobs"] });
+    queryClient.invalidateQueries({ queryKey: ["applicant", "saved-jobs"] });
+  };
+
   const saveMutation = useMutation({
     mutationFn: (jobId: number) => applicantJobsApi.saveJob(jobId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applicant", "jobs"] });
-      queryClient.invalidateQueries({ queryKey: ["applicant", "saved-jobs"] });
-      notify.success("Job Saved", "Position added to your saved jobs.");
+    onMutate: (jobId) => optimisticallySetSaved(jobId, true),
+    onSuccess: () => notify.success("Job Saved", "Position added to your saved jobs."),
+    onError: (err: any, _jobId, context) => {
+      rollbackSaved(context);
+      notify.error("Save Failed", err);
     },
-    onError: (err: any) => notify.error("Save Failed", err),
+    onSettled: refreshSaved,
   });
 
   const unsaveMutation = useMutation({
     mutationFn: (jobId: number) => applicantJobsApi.unsaveJob(jobId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applicant", "jobs"] });
-      queryClient.invalidateQueries({ queryKey: ["applicant", "saved-jobs"] });
-      notify.success("Job Removed", "Position removed from your saved jobs.");
+    onMutate: (jobId) => optimisticallySetSaved(jobId, false),
+    onSuccess: () => notify.success("Job Removed", "Position removed from your saved jobs."),
+    onError: (err: any, _jobId, context) => {
+      rollbackSaved(context);
+      notify.error("Action Failed", err);
     },
-    onError: (err: any) => notify.error("Action Failed", err),
+    onSettled: refreshSaved,
   });
 
   const [confirmClearSaved, setConfirmClearSaved] = useState(false);
@@ -137,6 +157,7 @@ export const JobsPage: React.FC = () => {
   const atSaveLimit = savedCount >= MAX_SAVED_JOBS;
 
   const toggleBookmark = (jobId: number) => {
+    if (saveMutation.isPending || unsaveMutation.isPending) return;
     if (!savedJobIds.has(jobId) && atSaveLimit) {
       notify.error("Saved Jobs Limit", `You can save up to ${MAX_SAVED_JOBS} jobs. Remove one to save another.`);
       return;
