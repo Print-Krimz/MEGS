@@ -57,52 +57,49 @@ export const generateRecoveryCodes = (count: number = 8): { plainCodes: string[]
   return { plainCodes, hashedCodes };
 };
 
+// Reads the aal claim of an access token already validated via supabase.auth.getUser.
+const getTokenAal = (token: string): string | null => {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1] || "", "base64url").toString("utf8"));
+    return typeof payload.aal === "string" ? payload.aal : null;
+  } catch {
+    return null;
+  }
+};
+
 export const enrollMfa = async (userToken: string, issuer: string = "MEGS Recruitment") => {
   const userClient = getUserSupabaseClient(userToken);
 
-  // Clean up any unverified or conflicting factors using admin client
-  const { data: userData } = await supabase.auth.getUser(userToken);
-  if (userData?.user?.id) {
-    const userId = userData.user.id;
-    try {
-      const { data: factorsData } = await supabase.auth.admin.mfa.listFactors({ userId });
-      if (factorsData?.factors) {
-        for (const factor of factorsData.factors) {
-          if (factor.status === "unverified") {
-            await supabase.auth.admin.mfa.deleteFactor({ id: factor.id, userId });
-          }
-        }
-      }
-    } catch {
-      // Non-blocking cleanup
+  const { data: userData, error: userError } = await supabase.auth.getUser(userToken);
+  const userId = userData?.user?.id;
+  if (userError || !userId) {
+    throw new Error("Invalid or expired session token");
+  }
+
+  // Fail closed: if the factor list cannot be read, do not enroll or delete anything.
+  const { data: factorsData, error: listError } = await supabase.auth.admin.mfa.listFactors({ userId });
+  if (listError || !factorsData) {
+    throw new Error("Unable to verify existing multi-factor authentication");
+  }
+  const factors = factorsData.factors || [];
+
+  // An already-protected account needs a verified AAL2 session to add another factor.
+  if (factors.some((f) => f.status === "verified") && getTokenAal(userToken) !== "aal2") {
+    throw new Error("Verify your current authentication code before adding another factor");
+  }
+
+  // Remove abandoned unverified factors only; verified factors are never deleted here.
+  for (const factor of factors) {
+    if (factor.status === "unverified") {
+      const { error: deleteError } = await supabase.auth.admin.mfa.deleteFactor({ id: factor.id, userId });
+      if (deleteError) throw new Error("Unable to clear previous MFA setup");
     }
   }
 
-  let { data, error } = await userClient.auth.mfa.enroll({
+  const { data, error } = await userClient.auth.mfa.enroll({
     factorType: "totp",
     issuer,
   });
-
-  // If factor still conflicts, wipe unverified/stale factors and retry once
-  if (error && userData?.user?.id) {
-    const userId = userData.user.id;
-    try {
-      const { data: factorsData } = await supabase.auth.admin.mfa.listFactors({ userId });
-      if (factorsData?.factors) {
-        for (const factor of factorsData.factors) {
-          await supabase.auth.admin.mfa.deleteFactor({ id: factor.id, userId });
-        }
-      }
-      const retry = await userClient.auth.mfa.enroll({
-        factorType: "totp",
-        issuer,
-      });
-      data = retry.data;
-      error = retry.error;
-    } catch {
-      // Retain original error if retry fails
-    }
-  }
 
   if (error || !data) {
     throw new Error(error?.message || "Failed to enroll in MFA");
