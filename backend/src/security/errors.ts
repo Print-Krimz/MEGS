@@ -29,11 +29,56 @@ export const publicErrorMessage = (message: unknown, status: number): string => 
   return "The request could not be completed. Check the supplied information and try again.";
 };
 
-export const safeLogError = (operation: string, _error: unknown): string => {
-  const correlationId = randomUUID();
-  // Keep operation and correlation data; omit exception payloads and stack arguments.
-  console.error(`[${redactSensitiveText(operation)}] Request failed; reference ${correlationId}`);
-  return correlationId;
+// Only these exception class names, plus Prisma's, may appear in a log line.
+const ERROR_KINDS = new Set(["Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError", "URIError", "AbortError", "TimeoutError", "ZodError", "MulterError"]);
+const ERROR_CODE = /^(?:P\d{4}|E[A-Z0-9_]{2,30}|[A-Z][A-Z0-9_]{2,40}|[A-Za-z]{1,20}\.[A-Za-z_]{1,30})$/;
+const PROVIDERS = [
+  ["prisma", /^PrismaClient/],
+  ["supabase", /^(?:Auth|Storage|Postgrest|Functions)[A-Za-z]*Error$/],
+  ["gemini", /^(?:GoogleGenerativeAI|GoogleGenAI|ApiError|ClientError)/],
+] as const;
+
+/**
+ * Bounded, allowlisted facts about an exception: class name, short error code, HTTP status and
+ * provider family. Messages, stacks and any other payload are never read, so nothing sensitive
+ * can reach a log line through here.
+ */
+export const safeDiagnostic = (error: unknown): string => {
+  if (!error || typeof error !== "object") return "";
+  const source = error as { name?: unknown; code?: unknown; status?: unknown; statusCode?: unknown };
+  const name = typeof source.name === "string" ? source.name.slice(0, 60) : "";
+  const provider = PROVIDERS.find(([, pattern]) => pattern.test(name))?.[0];
+  const parts: string[] = [];
+  if (ERROR_KINDS.has(name) || provider) parts.push(`kind=${name.replace(/[^A-Za-z]/g, "")}`);
+  if (typeof source.code === "string" && ERROR_CODE.test(source.code)) parts.push(`cause=${source.code}`);
+  const http = typeof source.status === "number" ? source.status : source.statusCode;
+  if (typeof http === "number" && Number.isInteger(http) && http >= 100 && http <= 599) parts.push(`http=${http}`);
+  if (provider) parts.push(`via=${provider}`);
+  return parts.join(" ");
+};
+
+/** Logs a safe, redacted line and returns the reference. Pass `reference` to reuse an existing one. */
+export const safeLogError = (operation: string, error: unknown, reference: string = randomUUID()): string => {
+  const detail = safeDiagnostic(error);
+  console.error(`[${redactSensitiveText(operation)}] Request failed; reference ${reference}${detail ? `; ${detail}` : ""}`);
+  return reference;
+};
+
+let fatalHandlersInstalled = false;
+/**
+ * A fatal process error leaves unknown state, so log one safe line and exit nonzero after a short
+ * flush window; the platform restarts the process. Handled request errors never reach here.
+ */
+export const installFatalErrorHandlers = (flushMs = 200): void => {
+  if (fatalHandlersInstalled) return;
+  fatalHandlersInstalled = true;
+  const fail = (operation: string) => (error: unknown) => {
+    safeLogError(operation, error);
+    process.exitCode = 1;
+    setTimeout(() => process.exit(1), flushMs);
+  };
+  process.on("unhandledRejection", fail("Unhandled rejection"));
+  process.on("uncaughtException", fail("Uncaught exception"));
 };
 
 export const installSafeErrorLogging = (): void => {

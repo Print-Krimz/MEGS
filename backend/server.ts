@@ -7,7 +7,7 @@ import authRoutes from "./src/routes/core/auth.routes.js";
 import { authenticateJWT } from "./src/middleware/auth.middleware.js";
 import { sendSuccess, sendError } from "./src/utils/response.js";
 import { allowedOrigins, proxyTrust, validateRuntimeSecurity } from "./src/security/runtime-config.js";
-import { installSafeErrorLogging, safeLogError } from "./src/security/errors.js";
+import { installFatalErrorHandlers, installSafeErrorLogging, safeLogError } from "./src/security/errors.js";
 import { connectSharedStore, cleanupSecurityState } from "./src/security/shared-store.js";
 import { startEmailWorker } from "./src/workers/email.worker.js";
 
@@ -137,8 +137,9 @@ app.use((err: any, _req: express.Request, res: express.Response, next: express.N
         : "The upload has invalid fields or too many files. Please select one supported file.",
     });
   }
-  safeLogError("Request processing", err);
-  return sendError(res, err.message, err.status || 500);
+  // One reference for this request error: logged once and returned in the response.
+  const reference = safeLogError("Request processing", err);
+  return sendError(res, err.message, err.status || 500, err, reference);
 });
 
 const PORT = process.env.PORT ?? 3000;
@@ -162,13 +163,7 @@ if (process.env.NODE_ENV !== "test") {
   });
 }
 
-process.on("unhandledRejection", (reason) => {
-  safeLogError("Unhandled rejection", reason);
-});
-
-process.on("uncaughtException", (error) => {
-  safeLogError("Uncaught exception", error);
-});
+installFatalErrorHandlers();
 
 export { app };
 export default app;
