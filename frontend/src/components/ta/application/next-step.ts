@@ -83,8 +83,7 @@ export function getNextStep(app: Application, flags: ApplicationFlags): NextStep
 
   if (flags.isContractSigningStage) {
     if (!flags.isContractSigned) {
-      if (flags.contractSigningPassed) return { text: "Next: deploy the applicant.", needsTa: !flags.hasUnapprovedMandatoryCompliance };
-      if (flags.hasContractSigningAppointment) return { text: "Next: deploy the applicant after the scheduled contract signing.", needsTa: false };
+      if (flags.hasContractSigningAppointment) return { text: "Next: deploy the applicant once the contract is signed.", needsTa: !flags.hasUnapprovedMandatoryCompliance };
       return { text: "Next: schedule the contract signing.", needsTa: !flags.hasUnapprovedMandatoryCompliance };
     }
     if (flags.openDeployment) return { text: "Next: confirm the start date on the deployment record.", needsTa: true };

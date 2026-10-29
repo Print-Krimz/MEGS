@@ -1368,7 +1368,7 @@ export const scheduleContractSigning = async (
   return updated;
 };
 
-// The TA confirms the contract was signed, after the scheduled signing time. Saving it records the start date and deploys the candidate.
+// The TA confirms the contract was signed. A signing must be booked; its time is not enforced yet (capstone demo). Saving it records the start date and deploys the candidate.
 export const recordSignedContract = async (
   applicationId: number,
   data: { startDate: string },
@@ -1396,9 +1396,6 @@ export const recordSignedContract = async (
   }
   if (!application.contractSigningAt) {
     throw new Error("Schedule the contract signing before deploying the candidate.");
-  }
-  if (application.contractSigningAt > new Date()) {
-    throw new Error("The scheduled contract signing has not happened yet. Deploy the candidate after it.");
   }
   const contractStartDate = parseContractStartDate(data.startDate);
   const startDay = toManilaDateOnly(contractStartDate);

@@ -324,7 +324,6 @@ export const publicMessages = new Set<string>([
   "A valid start date is required.",
   "Cannot deploy candidate. Confirm the contract signing first.",
   "Schedule the contract signing before deploying the candidate.",
-  "The scheduled contract signing has not happened yet. Deploy the candidate after it.",
   "Client name is required.",
   "Request title is required.",
   "Choose either Initial Screening or Final Interview.",

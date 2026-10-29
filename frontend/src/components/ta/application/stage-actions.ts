@@ -122,8 +122,6 @@ export function deriveApplicationFlags(app: Application) {
   const isContractSigned = Boolean(app.contractSigned || app.contractSignedAt);
   const canScheduleContractSigning = app.status === ApplicationStatus.CONTRACT_SIGNING && !isContractSigned && !isTerminal;
   const hasContractSigningAppointment = Boolean(app.contractSigningAt);
-  // Deploying unlocks once the scheduled signing time has passed.
-  const contractSigningPassed = hasContractSigningAppointment && Date.parse(app.contractSigningAt as string) <= Date.now();
   const isReadyForDeployment = !isTerminal && !hasUnapprovedMandatoryCompliance && isContractSigned;
   // Any scheduled/active deployment for this worker (from this or another application) blocks a new one.
   const openDeployment =
@@ -176,7 +174,6 @@ export function deriveApplicationFlags(app: Application) {
     isContractSigned,
     canScheduleContractSigning,
     hasContractSigningAppointment,
-    contractSigningPassed,
     isReadyForDeployment,
     openDeployment,
     canDeployCandidate,
@@ -297,7 +294,7 @@ export function getStageActions(
 /**
  * What the sticky stage bar shows: exactly one primary and at most one secondary; the rest go to the More menu.
  * Extra rules over getStageActions:
- *  - Contract signing, once the scheduled signing time has passed: "Deploy applicant" is the primary (the old header only offered
+ *  - Contract signing with a signing booked: "Deploy applicant" is the primary (the old header only offered
  *    "Manage contract signing", while the real action sat on the second tab).
  *  - Client review approved: "Schedule final interview" is the primary (it used to live only in the interview list).
  */
@@ -309,7 +306,8 @@ export function pickStageBarActions(
 
   if (flags.isContractSigningStage && !flags.isContractSigned && !flags.hasUnapprovedMandatoryCompliance && !flags.isTerminal) {
     const rest = actions.filter((a) => a.id !== "manage-contract-signing");
-    if (flags.contractSigningPassed) {
+    // shortcut: capstone demo, deploying only needs a booked signing, not a past one; to restore the wait, require the booked time to have passed here and in recordSignedContract.
+    if (flags.hasContractSigningAppointment) {
       actions = [{ id: "upload-contract", label: "Deploy applicant", kind: "primary" }, ...rest];
     } else {
       // Not deployable yet: scheduling is the next step until a signing is booked.
