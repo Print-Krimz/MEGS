@@ -467,9 +467,16 @@ export interface DeploymentListOptions extends PageRequest {
   search?: string;
 }
 
-const DEPLOYMENT_LIST_INCLUDE = {
+// Only the columns the Deployments list, client page and dashboard read. Notes, contract terms and the
+// worker/application heavy columns stay out; the detail endpoint still returns them.
+const DEPLOYMENT_LIST_SELECT = {
+  id: true, employeeId: true, applicationId: true, clientId: true, mrfId: true, status: true, site: true,
+  contractStart: true, contractEnd: true, actualStart: true, actualEnd: true,
+  contractStatus: true, workerSigned: true, workerSignedAt: true, clientSigned: true, clientSignedAt: true,
+  createdById: true, createdAt: true, updatedAt: true,
   employee: {
-    include: {
+    select: {
+      id: true, userId: true, employeeNumber: true, status: true, hireDate: true, department: true, position: true,
       user: {
         select: {
           id: true,
@@ -479,15 +486,11 @@ const DEPLOYMENT_LIST_INCLUDE = {
       },
     },
   },
-  application: {
-    include: {
-      jobPosting: { select: { id: true, title: true } },
-    },
-  },
+  application: { select: { id: true, jobPosting: { select: { id: true, title: true } } } },
   client: { select: { id: true, name: true, industry: true } },
   mrf: { select: { id: true, title: true } },
   createdBy: { select: { id: true, email: true } },
-} satisfies Prisma.DeploymentInclude;
+} satisfies Prisma.DeploymentSelect;
 
 // Same fields the Deployments screen has always searched: worker name, email, number, site, client, and role.
 const deploymentSearchClause = (search: string): Prisma.DeploymentWhereInput => {
@@ -534,13 +537,13 @@ export const listDeployments = async (clientId?: number, status?: string, actor?
   if (isPageRequested(options)) {
     const { page, pageSize, skip, take } = resolvePage(options);
     const [items, total] = await Promise.all([
-      prisma.deployment.findMany({ where, include: DEPLOYMENT_LIST_INCLUDE, orderBy, skip, take }),
+      prisma.deployment.findMany({ where, select: DEPLOYMENT_LIST_SELECT, orderBy, skip, take }),
       prisma.deployment.count({ where }),
     ]);
     return pageEnvelope(items, total, page, pageSize);
   }
 
-  return await prisma.deployment.findMany({ where, include: DEPLOYMENT_LIST_INCLUDE, orderBy });
+  return await prisma.deployment.findMany({ where, select: DEPLOYMENT_LIST_SELECT, orderBy });
 };
 
 export const getDeploymentDetails = async (id: number) => {

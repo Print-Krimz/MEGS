@@ -623,7 +623,18 @@ const countRedeploymentStages = (index: Array<{ stage: RedeploymentStageName }>)
 };
 
 /** Authoritative stage counts for the whole shared queue (workforce badge, stage filter tiles). */
-export const getRedeploymentQueueSummary = async (actor?: Actor) => countRedeploymentStages(await loadRedeploymentIndex(actor));
+export const getRedeploymentQueueSummary = async (actor?: Actor) => {
+  const inProgress: Prisma.EmployeeWhereInput = { user: { is: { applications: { some: redeploymentApplicationWhere(actor) } } } };
+  const [total, inProgressCount, waiting] = await Promise.all([
+    prisma.employee.count({ where: REDEPLOYMENT_POOL_WHERE }),
+    prisma.employee.count({ where: { AND: [REDEPLOYMENT_POOL_WHERE, inProgress] } }),
+    // Same precedence as redeploymentStageOf: an open application outranks a pending invitation.
+    prisma.employee.count({
+      where: { AND: [REDEPLOYMENT_POOL_WHERE, { NOT: inProgress }, { user: { is: { applicantProfile: { is: { invitations: { some: { status: "PENDING" } } } } } } }] },
+    }),
+  ]);
+  return { total, stages: { NEEDS_PLACEMENT: total - inProgressCount - waiting, WAITING_FOR_REPLY: waiting, IN_PROGRESS: inProgressCount } };
+};
 
 const listRedeploymentQueuePage = async (actor: Actor | undefined, options: RedeploymentQueueOptions) => {
   const [index, staff] = await Promise.all([loadRedeploymentIndex(actor), loadRedeploymentStaff()]);

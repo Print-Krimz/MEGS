@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 // Fully mocked: no database access.
 const m = vi.hoisted(() => ({
   employeeFindMany: vi.fn(),
+  employeeCount: vi.fn(),
   userFindMany: vi.fn(),
   deploymentFindMany: vi.fn(),
   deploymentCount: vi.fn(),
@@ -13,7 +14,7 @@ const m = vi.hoisted(() => ({
 
 vi.mock("../utils/prisma.js", () => ({
   default: {
-    employee: { findMany: m.employeeFindMany },
+    employee: { findMany: m.employeeFindMany, count: m.employeeCount },
     user: { findMany: m.userFindMany },
     deployment: { findMany: m.deploymentFindMany, count: m.deploymentCount },
     manpowerRequest: { findMany: m.mrfFindMany },
@@ -182,11 +183,21 @@ describe("redeployment queue pagination", () => {
     expect(JSON.stringify(indexCall.select.user.select.applications.where)).toContain("ta-1");
   });
 
-  it("summary endpoint returns stage counts without loading full rows or placements", async () => {
-    const summary = await getRedeploymentQueueSummary();
+  it("redeployment summary uses count, not findMany, with the same pool where and ownership filter", async () => {
+    // total, in progress (owned open application), waiting for reply (pending invitation, no application).
+    m.employeeCount.mockImplementation(async (args: any) => {
+      const text = JSON.stringify(args.where);
+      if (text.includes("invitations")) return 1;
+      if (text.includes("applications")) return 1;
+      return 5;
+    });
+    const summary = await getRedeploymentQueueSummary({ id: "ta-1", role: "TALENT_ACQUISITION" });
     expect(summary).toEqual({ total: 5, stages: { NEEDS_PLACEMENT: 3, WAITING_FOR_REPLY: 1, IN_PROGRESS: 1 } });
-    expect(m.employeeFindMany.mock.calls.every(([args]: any) => args.select && !args.include)).toBe(true);
+    expect(m.employeeFindMany).not.toHaveBeenCalled();
     expect(m.deploymentFindMany).not.toHaveBeenCalled();
+    expect(m.employeeCount).toHaveBeenCalledTimes(3);
+    for (const [args] of m.employeeCount.mock.calls) expect(JSON.stringify(args.where)).toContain("AVAILABLE_FOR_REDEPLOYMENT");
+    expect(m.employeeCount.mock.calls.some(([args]: any) => JSON.stringify(args.where).includes("ta-1"))).toBe(true);
   });
 
   it("keeps the legacy response (no pagination envelope) when no page is requested", async () => {
