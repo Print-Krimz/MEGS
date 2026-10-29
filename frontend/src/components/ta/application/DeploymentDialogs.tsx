@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Building2 } from "lucide-react";
 import { Button, ComboBox, Dialog, Textarea } from "../../ui";
 import { DateField } from "../../common/DateField";
-import { documentsApi } from "../../../lib/api/documents.api";
 import { notify } from "../../../lib/feedback";
 import { addManilaCalendarDays, getManilaToday } from "../../../lib/field-limits";
 import { formatDate } from "../../../lib/utils";
@@ -183,10 +182,6 @@ export const ActivateDeploymentDialog: React.FC<ActivateDeploymentDialogProps> =
   );
 };
 
-// Signed contract scans: the types and size the service accepts.
-const CONTRACT_SCAN_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-const CONTRACT_SCAN_MAX_BYTES = 10 * 1024 * 1024;
-
 // Contract start dates: back-dated up to 30 days, at most 2 years ahead (Manila calendar days, as the service checks).
 const contractStartBounds = () => {
   const today = getManilaToday();
@@ -205,11 +200,9 @@ export interface SignedContractDialogProps {
   linkedClientName: string;
   site: string;
   initialStartDate: string;
-  /** A signed copy is already on file. */
-  currentCopyDocumentId?: number | null;
   onDownloadTemplate: (startDate: string) => void;
   isDownloading?: boolean;
-  onSubmit: (values: { file: File; startDate: string }) => void;
+  onSubmit: (values: { startDate: string }) => void;
   isSubmitting?: boolean;
 }
 
@@ -221,20 +214,16 @@ export const SignedContractDialog: React.FC<SignedContractDialogProps> = ({
   linkedClientName,
   site,
   initialStartDate,
-  currentCopyDocumentId,
   onDownloadTemplate,
   isDownloading = false,
   onSubmit,
   isSubmitting = false,
 }) => {
   const [startDate, setStartDate] = useState(initialStartDate);
-  const [file, setFile] = useState<File | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     setStartDate(initialStartDate);
-    setFile(null);
     // Only reopening resets the form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -245,8 +234,8 @@ export const SignedContractDialog: React.FC<SignedContractDialogProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      title="Employment contract"
-      description={`Upload the signed contract of ${candidateName}. Saving it deploys the candidate.`}
+      title="Deploy applicant"
+      description={`Confirm that ${candidateName} signed the contract. Saving it deploys the candidate.`}
     >
       <div className="space-y-5">
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
@@ -258,45 +247,6 @@ export const SignedContractDialog: React.FC<SignedContractDialogProps> = ({
           <dd className="font-medium text-slate-900">{startDate ? formatDate(startDate) : "Not set"}</dd>
         </dl>
         {!linkedClientId && <p className="text-xs text-amber-800">Send the candidate to a client before deploying.</p>}
-        <div className="space-y-3">
-          <p className="text-sm text-slate-600">
-            Take a clear photo or scan of the signed contract (with the employee&apos;s signature and right thumbmark). Only you and the admin can open it.
-          </p>
-          {currentCopyDocumentId ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(documentsApi.getDownloadUrl(currentCopyDocumentId), "_blank")}
-            >
-              View current signed copy
-            </Button>
-          ) : null}
-          <input
-            ref={inputRef}
-            type="file"
-            accept="application/pdf,image/jpeg,image/png,image/webp"
-            capture="environment"
-            className="hidden"
-            onChange={(e) => {
-              const picked = e.target.files?.[0] ?? null;
-              if (picked && (!CONTRACT_SCAN_TYPES.includes(picked.type) || picked.size > CONTRACT_SCAN_MAX_BYTES)) {
-                e.target.value = "";
-                setFile(null);
-                notify.error("Contract scan not accepted", "Contract scan must be a PDF or image under 10 MB.");
-                return;
-              }
-              setFile(picked);
-            }}
-          />
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
-              {file ? "Choose a different file" : "Take photo or choose file"}
-            </Button>
-            <span className="break-all text-xs text-slate-600">
-              {file ? file.name : "No file chosen (PDF, JPG, PNG or WEBP, up to 10 MB)"}
-            </span>
-          </div>
-        </div>
 
         <DateField
           label="Work assignment effective date"
@@ -321,10 +271,10 @@ export const SignedContractDialog: React.FC<SignedContractDialogProps> = ({
             variant="primary"
             size="sm"
             loading={isSubmitting}
-            disabled={!file || !startDate || !linkedClientId}
-            onClick={() => file && onSubmit({ file, startDate })}
+            disabled={!startDate || !linkedClientId}
+            onClick={() => onSubmit({ startDate })}
           >
-            Upload &amp; deploy
+            Deploy applicant
           </Button>
         </div>
       </div>

@@ -5,7 +5,7 @@ import prisma from "../utils/prisma.js";
 import type { RequestHandler } from "express";
 import { createHash } from "node:crypto";
 import { publicMessages, CHECK_IN_BIODATA_MESSAGE } from "../security/public-messages.js";
-import { validateDocumentBytes, MAX_DOCUMENT_BYTES, MAX_CONTRACT_SCAN_BYTES, sanitizeUploadFileName } from "../security/file-validation.js";
+import { validateDocumentBytes, MAX_DOCUMENT_BYTES, sanitizeUploadFileName } from "../security/file-validation.js";
 
 // In-memory storage allows direct buffer streaming to Supabase Storage. Max 5MB.
 const storage = multer.memoryStorage();
@@ -90,9 +90,6 @@ const guardedUpload = (maxBytes: number, fileFilter: multer.Options["fileFilter"
 };
 
 export const upload = guardedUpload(MAX_DOCUMENT_BYTES);
-
-// Signed contract scans are often phone photos of a full page, so they get a larger limit (10MB).
-export const uploadContractScan = guardedUpload(MAX_CONTRACT_SCAN_BYTES);
 
 // Profile photos accept only JPEG, PNG and WEBP, so a PDF or Word file cannot be stored as a photo.
 export const uploadImage = guardedUpload(MAX_DOCUMENT_BYTES, imageFileFilter);

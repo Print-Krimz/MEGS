@@ -720,7 +720,6 @@ export const ApplicationDetailPage: React.FC = () => {
                         reason: "All mandatory clearances approved. Moving to contract signing.",
                       });
                     }}
-                    onRecordContract={() => setDialog({ kind: "contract" })}
                     onDeployCandidate={() => setDialog({ kind: "deploy" })}
                   />
                 }
@@ -1015,11 +1014,10 @@ export const ApplicationDetailPage: React.FC = () => {
         linkedClientName={linkedClientName}
         site={defaultSite}
         initialStartDate={app.contractStartDate ? String(app.contractStartDate).slice(0, 10) : addManilaCalendarDays(getManilaToday(), 1)}
-        currentCopyDocumentId={app.contractDocumentId}
         onDownloadTemplate={(startDate) => m.downloadContract.mutate(startDate)}
         isDownloading={m.downloadContract.isPending}
-        isSubmitting={m.uploadSignedContract.isPending}
-        onSubmit={(values) => m.uploadSignedContract.mutate(values, { onSuccess: closeDialog })}
+        isSubmitting={m.deployAfterContractSigning.isPending}
+        onSubmit={(values) => m.deployAfterContractSigning.mutate(values, { onSuccess: closeDialog })}
       />
     </div>
   );

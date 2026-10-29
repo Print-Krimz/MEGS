@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "@tanstack/react-router";
-import { FileSignature, Truck, CheckCircle2, Lock, ExternalLink, Building2, IdCard, ShieldCheck } from "lucide-react";
+import { Truck, CheckCircle2, Lock, ExternalLink, Building2, IdCard, ShieldCheck } from "lucide-react";
 import { Button } from "../ui/Button";
 import type { Application } from "../../lib/types";
 import { ApplicationStatus } from "../../lib/types";
@@ -30,7 +30,6 @@ export interface OnboardingDeploymentStepperProps {
   linkedClientName?: string;
   onOpenComplianceTab: () => void;
   onAdvanceToContractSigning: () => void;
-  onRecordContract: () => void;
   onDeployCandidate: () => void;
 }
 
@@ -86,7 +85,6 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
   linkedClientName,
   onOpenComplianceTab,
   onAdvanceToContractSigning: _onAdvanceToContractSigning,
-  onRecordContract,
   onDeployCandidate,
 }) => {
   const isDeployed = app.status === ApplicationStatus.DEPLOYED;
@@ -114,7 +112,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
     nextActionLabel = "Move to contract signing";
   } else if (!isStep2Complete) {
     blockingStepNumber = 2;
-    nextActionLabel = "Upload signed contract";
+    nextActionLabel = "Deploy applicant";
   } else if (hasOpenDeployment) {
     nextActionLabel = isOpenDeploymentForThisApplication
       ? "Confirm the start date on the deployment record"
@@ -318,7 +316,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                         {app.contractSigningLocation ? ` at ${app.contractSigningLocation}` : ""}
                       </span>
                     )}
-                    <span className="text-amber-900">Waiting for the signed copy. Saving it deploys the candidate.</span>
+                    <span className="text-amber-900">Deploy the applicant after the contract signing.</span>
                   </>
                 )}
               </p>
@@ -326,11 +324,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2.5 md:justify-end">
             <StepStatus state={step2State} label={isStep2Complete ? "Complete" : blockingStepNumber === 2 ? "Action needed" : "Locked"} />
-            {isStep2Complete ? (
-              <Button variant="ghost" size="sm" leftIcon={<FileSignature className="h-3.5 w-3.5" />} onClick={onRecordContract}>
-                Update contract
-              </Button>
-            ) : isContractSigningStage && isStep1Complete ? (
+            {isStep2Complete ? null : isContractSigningStage && isStep1Complete ? (
               <span className="px-1 text-sm text-slate-600">Use the button in the bar above</span>
             ) : (
               <span className="px-1 text-sm text-slate-600">Not available yet</span>
@@ -352,9 +346,9 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                       : `This worker already has open deployment #${openDeployment!.id} (${openDeployment!.status.replace(/_/g, " ").toLowerCase()}). End or cancel it before deploying again.`}
                   </span>
                 ) : isStep4Ready || effectiveCanDeploy ? (
-                  <span className="font-medium text-emerald-900">Requirements and the signed contract are complete. The employee can be assigned to a site.</span>
+                  <span className="font-medium text-emerald-900">Requirements and the contract signing are complete. The employee can be assigned to a site.</span>
                 ) : (
-                  <span>Waiting for {!isStep1Complete ? "requirements" : "the signed contract"} before deployment activation</span>
+                  <span>Waiting for {!isStep1Complete ? "requirements" : "the contract signing"} before deployment activation</span>
                 )}
               </p>
             </div>

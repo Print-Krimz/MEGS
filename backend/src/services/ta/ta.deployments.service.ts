@@ -97,8 +97,8 @@ export const createDeployment = async (
     }
 
     // Signed contract check
-    if (!application.contractSigned || !application.contractDocumentId) {
-      throw new Error("Cannot deploy candidate. Upload the signed employment contract first.");
+    if (!application.contractSigned) {
+      throw new Error("Cannot deploy candidate. Confirm the contract signing first.");
     }
 
     if (!empId) {

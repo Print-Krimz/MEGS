@@ -478,7 +478,6 @@ const APPLICANT_HIDDEN_CONTRACT_FIELDS = {
   contractNotes: true,
   contractStartDate: true,
   contractSignedById: true,
-  contractDocumentId: true,
 } as const;
 
 export const fetchApplicationDetails = async (applicationId: number, userId: string) => {

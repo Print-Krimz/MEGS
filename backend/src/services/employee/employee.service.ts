@@ -258,7 +258,6 @@ const CONTRACT_APPLICATION_FIELDS = [
   "contractNotes",
   "contractStartDate",
   "contractSignedById",
-  "contractDocumentId",
 ];
 const CONTRACT_DEPLOYMENT_FIELDS = [
   "contractDocumentUrl",

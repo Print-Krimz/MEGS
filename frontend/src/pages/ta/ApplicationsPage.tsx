@@ -116,7 +116,7 @@ const nextStepFor = (app: TAApplicationSummary): string => {
       return "Review documents";
     case ApplicationStatus.ONBOARDING:
     case ApplicationStatus.CONTRACT_SIGNING:
-      return "Upload signed contract";
+      return "Deploy applicant";
     default:
       return "None";
   }

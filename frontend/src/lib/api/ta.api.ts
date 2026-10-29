@@ -345,8 +345,8 @@ export const taApi = {
   downloadContractPdf: (id: number | string, startDate: string) =>
     api.blob(`/api/ta/applications/${id}/contract/pdf?startDate=${encodeURIComponent(startDate)}`),
 
-  uploadSignedContract: (id: number | string, formData: FormData) =>
-    api.upload<Application>(`/api/ta/applications/${id}/contract/signed`, formData),
+  deployAfterContractSigning: (id: number | string, data: { startDate: string }) =>
+    api.post<Application>(`/api/ta/applications/${id}/contract/signed`, data),
 
   updateCandidateProfile: (id: number | string, data: UpdateCandidateProfileDto) =>
     api.patch<ApplicantProfile & { warnings?: string[] }>(`/api/ta/candidates/${id}`, data),

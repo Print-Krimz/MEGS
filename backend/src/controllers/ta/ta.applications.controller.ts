@@ -236,7 +236,7 @@ export const downloadContractPdfHandler = async (req: Request, res: Response): P
   }
 };
 
-// POST /api/ta/applications/:id/contract/signed - Upload the signed scan and deploy
+// POST /api/ta/applications/:id/contract/signed - Confirm the contract is signed and deploy
 export const uploadSignedContractHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
@@ -244,13 +244,9 @@ export const uploadSignedContractHandler = async (req: Request, res: Response): 
       sendError(res, "Invalid application ID", 400);
       return;
     }
-    if (!req.file) {
-      sendError(res, "No signed contract file provided", 400);
-      return;
-    }
     const { startDate } = req.body || {};
-    const updated = await recordSignedContract(id, req.file, { startDate }, req.user!.id);
-    sendSuccess(res, "Signed contract recorded and candidate deployed", updated);
+    const updated = await recordSignedContract(id, { startDate }, req.user!.id);
+    sendSuccess(res, "Contract signed and candidate deployed", updated);
   } catch (error: any) {
     sendError(res, error.message, contractStatusCode(error.message));
   }

@@ -282,7 +282,6 @@ export interface Application {
   contractNotes?: string | null;
   contractStartDate?: string | null;
   contractSignedById?: string | null;
-  contractDocumentId?: number | null;
   /** Scheduled contract-signing appointment, and where it happens. */
   contractSigningAt?: string | null;
   contractSigningLocation?: string | null;

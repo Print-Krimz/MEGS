@@ -180,7 +180,7 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
             {isDeployed
               ? "Deployment record."
               : showReadiness
-              ? "Prepare the MEGS contract, upload the signed copy, and confirm the employee’s first day on site."
+              ? "Prepare the MEGS contract, deploy the applicant once it is signed, and confirm the employee’s first day on site."
               : "Contract signing opens after requirements are approved."}
           </p>
         </div>

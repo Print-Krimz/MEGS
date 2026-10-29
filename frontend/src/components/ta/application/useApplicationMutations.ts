@@ -100,25 +100,20 @@ export function useApplicationMutations({ applicationId, status, candidateName }
     },
   });
 
-  // Uploading the signed scan records the contract and deploys the candidate.
-  const uploadSignedContract = useMutation({
-    mutationFn: (data: { file: File; startDate: string }) => {
-      const formData = new FormData();
-      formData.append("file", data.file);
-      formData.append("startDate", data.startDate);
-      return taApi.uploadSignedContract(applicationId, formData);
-    },
+  // Confirming the signed contract records it and deploys the candidate (no file is sent).
+  const deployAfterContractSigning = useMutation({
+    mutationFn: (data: { startDate: string }) => taApi.deployAfterContractSigning(applicationId, data),
     onSuccess: () => {
       refreshApplicationQueries();
       setFeedback({
         type: "success",
-        message: "The signed contract was saved and the candidate is deployed. Confirm the first day on the deployment record.",
+        message: "The candidate is deployed. Confirm the first day on the deployment record.",
       });
-      notify.success("Contract saved", "The signed contract was saved and the candidate is deployed.");
+      notify.success("Applicant deployed", "The contract is confirmed and the candidate is deployed.");
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to save the signed contract. " + formatErrorMessage(err) });
-      notify.error("Unable to save signed contract", err);
+      setFeedback({ type: "error", message: "Unable to deploy the applicant. " + formatErrorMessage(err) });
+      notify.error("Unable to deploy applicant", err);
     },
   });
 
@@ -419,7 +414,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
     updateStatus,
     close,
     downloadContract,
-    uploadSignedContract,
+    deployAfterContractSigning,
     updateInterviewStatus,
     analyze,
     analysis: { runId: analysisRunId, open: analysisDialogOpen, setOpen: setAnalysisDialogOpen, onFinished: handleAnalysisFinished },

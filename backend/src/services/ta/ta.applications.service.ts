@@ -6,7 +6,7 @@ import { scoringFlags } from '../../utils/scoring-flags.js';
 import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.service.js";
 import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
 import { logAudit } from '../../utils/audit.js';
-import { resolveDocumentSignedUrl, resolveDocumentSignedUrls, uploadAndStoreDocument } from '../document/document.service.js';
+import { resolveDocumentSignedUrl, resolveDocumentSignedUrls } from '../document/document.service.js';
 import { buildContractPdfBuffer } from './contract-pdf-builder.js';
 import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
 import { formatManilaDateTime, isFutureDateTime, isValidDateOnly, isWorkingHours, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
@@ -973,7 +973,7 @@ export const updateTAApplicationStatus = async (
 
   // Pre-transition rule: CONTRACT_SIGNING -> DEPLOYED requires:
   // 1. All mandatory compliance APPROVED
-  // 2. The signed contract scan uploaded and recorded
+  // 2. The contract signing confirmed (contractSigned)
   if (status === "DEPLOYED") {
     const compliant = await isFullyCompliant(id);
     if (!compliant) {
@@ -983,13 +983,12 @@ export const updateTAApplicationStatus = async (
       where: { id },
       select: {
         contractSigned: true,
-        contractDocumentId: true,
         jobPosting: { select: { mrf: { select: { clientId: true } } } },
         clientEndorsements: { orderBy: { createdAt: "desc" }, select: { clientId: true } },
       },
     });
-    if (!appRecord?.contractSigned || !appRecord.contractDocumentId) {
-      throw new Error("Cannot deploy candidate. Upload the signed employment contract first.");
+    if (!appRecord?.contractSigned) {
+      throw new Error("Cannot deploy candidate. Confirm the contract signing first.");
     }
     // Resolved before the status is written so a missing client never leaves a DEPLOYED application without a deployment.
     if (!resolveDeploymentClientId(appRecord)) {
@@ -1245,8 +1244,6 @@ export const updateTAApplicationStatus = async (
   return updated;
 };
 
-const CONTRACT_SCAN_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-
 const parseContractStartDate = (value: string | undefined) => {
   const startDate = value ? toManilaDateOnly(value) : undefined;
   if (!startDate || !isValidDateOnly(startDate)) throw new Error("A valid start date is required.");
@@ -1362,10 +1359,9 @@ export const scheduleContractSigning = async (
   return updated;
 };
 
-// The TA photographs or scans the signed paper contract. Saving it records the start date and deploys the candidate.
+// The TA confirms the contract was signed, after the scheduled signing time. Saving it records the start date and deploys the candidate.
 export const recordSignedContract = async (
   applicationId: number,
-  file: Express.Multer.File,
   data: { startDate: string },
   actorId: string
 ) => {
@@ -1379,18 +1375,21 @@ export const recordSignedContract = async (
       contractSignedAt: true,
       contractSignedById: true,
       contractStartDate: true,
-      contractDocumentId: true,
+      contractSigningAt: true,
     },
   });
   if (!application) throw new Error("Application not found");
   if (application.status !== "CONTRACT_SIGNING") {
-    throw new Error("The signed contract can only be uploaded while the application is in the Contract Signing stage.");
+    throw new Error("The candidate can only be deployed from the contract signing step while the application is in the Contract Signing stage.");
   }
   if (application.isArchived) {
     throw new Error("Cannot change status of an archived application. Restore it first.");
   }
-  if (!CONTRACT_SCAN_MIME_TYPES.includes(file.mimetype)) {
-    throw new Error("The signed contract must be a PDF or an image (JPEG, PNG, WEBP).");
+  if (!application.contractSigningAt) {
+    throw new Error("Schedule the contract signing before deploying the candidate.");
+  }
+  if (application.contractSigningAt > new Date()) {
+    throw new Error("The scheduled contract signing has not happened yet. Deploy the candidate after it.");
   }
   const contractStartDate = parseContractStartDate(data.startDate);
   const startDay = toManilaDateOnly(contractStartDate);
@@ -1401,51 +1400,32 @@ export const recordSignedContract = async (
   ) {
     throw new Error("Start date is outside the allowed range.");
   }
-  // Deploy prerequisites are checked before anything is stored or written (the DEPLOYED transition enforces the same rules).
+  // Deploy prerequisites are checked before anything is written (the DEPLOYED transition enforces the same rules).
   if (!(await isFullyCompliant(applicationId))) {
     throw new Error("Cannot deploy candidate. All required compliance documents must be APPROVED and valid.");
   }
 
-  const stored = await uploadAndStoreDocument(actorId, "CONTRACT", file, applicationId);
   const now = new Date();
   let updated: Awaited<ReturnType<typeof updateTAApplicationStatus>>;
   try {
-    await prisma.$transaction(async (tx) => {
-      if (application.contractDocumentId) {
-        await tx.storedDocument.updateMany({ where: { id: application.contractDocumentId }, data: { deletedAt: now } });
-      }
-      await tx.application.update({
-        where: { id: applicationId },
-        data: {
-          contractSigned: true,
-          contractSignedAt: now,
-          contractSignedById: actorId,
-          contractDocumentId: stored.id,
-          contractStartDate,
-        },
-      });
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: { contractSigned: true, contractSignedAt: now, contractSignedById: actorId, contractStartDate },
     });
-    updated = await updateTAApplicationStatus(applicationId, "DEPLOYED", actorId, "Signed employment contract uploaded");
+    updated = await updateTAApplicationStatus(applicationId, "DEPLOYED", actorId, "Contract signed, candidate deployed");
   } catch (error) {
-    // The candidate was not deployed: put the previous contract record back and retire the new scan.
+    // The candidate was not deployed: put the previous contract record back.
     // Skipped once the status has moved on, because the candidate is then deployed with this contract.
     const current = await prisma.application.findUnique({ where: { id: applicationId }, select: { status: true } }).catch(() => null);
     if (current?.status === "CONTRACT_SIGNING") {
-      await prisma.$transaction(async (tx) => {
-        if (application.contractDocumentId) {
-          await tx.storedDocument.updateMany({ where: { id: application.contractDocumentId }, data: { deletedAt: null } });
-        }
-        await tx.storedDocument.updateMany({ where: { id: stored.id }, data: { deletedAt: now } });
-        await tx.application.update({
-          where: { id: applicationId },
-          data: {
-            contractSigned: application.contractSigned,
-            contractSignedAt: application.contractSignedAt,
-            contractSignedById: application.contractSignedById,
-            contractDocumentId: application.contractDocumentId,
-            contractStartDate: application.contractStartDate,
-          },
-        });
+      await prisma.application.update({
+        where: { id: applicationId },
+        data: {
+          contractSigned: application.contractSigned,
+          contractSignedAt: application.contractSignedAt,
+          contractSignedById: application.contractSignedById,
+          contractStartDate: application.contractStartDate,
+        },
       }).catch(() => {});
     }
     throw error;
@@ -1454,7 +1434,6 @@ export const recordSignedContract = async (
   void logAudit(actorId, "CONTRACT_SIGNED", "Application", applicationId, {
     applicationId,
     contractSignedAt: now,
-    documentId: stored.id,
   });
 
   return updated;
