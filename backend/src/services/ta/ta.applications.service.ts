@@ -430,6 +430,7 @@ export const listTAApplications = async (
           JOIN "Application" AS application ON application."id" = score."applicationId"
           WHERE application."id" IN (${Prisma.join(applications.map((application) => application.id))})
             AND score."jobPostingId" = application."jobPostingId"
+            AND score."status" IN ('CALCULATED', 'STALE')
           ORDER BY score."applicationId",
             CASE WHEN score."configurationId" = ${configuration?.id ?? -1} AND score."status" = 'CALCULATED' THEN 0 ELSE 1 END,
             score."calculatedAt" DESC, score."id" DESC
