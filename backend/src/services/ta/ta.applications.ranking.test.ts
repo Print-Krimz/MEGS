@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   prisma: {
-    application: { count: vi.fn(), findMany: vi.fn(), groupBy: vi.fn() },
+    application: { count: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), groupBy: vi.fn() },
     recruiterDecision: { groupBy: vi.fn() },
     deployment: { findMany: vi.fn() },
     $queryRaw: vi.fn(),
@@ -23,7 +23,8 @@ vi.mock("../../utils/notification.js", () => ({ notifyJobOwner: vi.fn(), notifyO
 vi.mock("../../utils/audit.js", () => ({ logAudit: vi.fn() }));
 vi.mock("../scoring/talent-pool-knn.service.js", () => ({ rebuildCandidateFeatureProfile: vi.fn() }));
 
-import { listTAApplications } from "./ta.applications.service.js";
+import { listTAApplications, getTAApplication } from "./ta.applications.service.js";
+import { resolveDocumentSignedUrl, resolveDocumentSignedUrls } from "../document/document.service.js";
 
 const row = (id: number) => ({
   id,
@@ -157,5 +158,64 @@ describe("best match ranks across all candidates before paging", () => {
     const result: any = await listTAApplications({ page: 1, limit: 2 });
     expect(result.data.map((item: any) => item.id)).toEqual([1, 2]);
     expect(rankingCall().values.slice(-2)).toEqual([2, 0]);
+  });
+});
+
+describe("candidate detail signs its documents in one batch", () => {
+  const detailRow = (overrides: Record<string, unknown> = {}) => ({
+    id: 7,
+    status: "SUBMITTED",
+    resumeUrl: "/api/documents/11/download",
+    trackingTokenHash: "hash",
+    complianceRequirements: [],
+    candidateScores: [],
+    user: {
+      id: "u7",
+      email: "u7@x.test",
+      accountStatus: "ACTIVE",
+      employee: null,
+      applicantProfile: { photoUrl: "/api/documents/10/download", resumeUrl: "/api/documents/12/download", skills: [] },
+    },
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("detail signs all document urls in one resolveDocumentSignedUrls call", async () => {
+    mocks.prisma.application.findUnique.mockResolvedValue(detailRow());
+    vi.mocked(resolveDocumentSignedUrls).mockResolvedValueOnce(["signed-photo", "signed-app-resume", "signed-profile-resume"]);
+    const result: any = await getTAApplication(7);
+    expect(resolveDocumentSignedUrls).toHaveBeenCalledTimes(1);
+    expect(resolveDocumentSignedUrls).toHaveBeenCalledWith([
+      { ref: "/api/documents/10/download", requesterId: "u7", requesterRole: "TALENT_ACQUISITION" },
+      { ref: "/api/documents/11/download", requesterId: "u7", requesterRole: "TALENT_ACQUISITION" },
+      { ref: "/api/documents/12/download", requesterId: "u7", requesterRole: "TALENT_ACQUISITION" },
+    ]);
+    expect(resolveDocumentSignedUrl).not.toHaveBeenCalled();
+    expect(result.resumeUrl).toBe("signed-app-resume");
+    expect(result.user.applicantProfile.photoUrl).toBe("signed-photo");
+    expect(result.user.applicantProfile.resumeUrl).toBe("signed-profile-resume");
+  });
+
+  it("maps an unsignable document to null and skips empty references", async () => {
+    mocks.prisma.application.findUnique.mockResolvedValue(
+      detailRow({ resumeUrl: null, user: { ...detailRow().user, applicantProfile: { photoUrl: "/api/documents/10/download", resumeUrl: null, skills: [] } } }),
+    );
+    vi.mocked(resolveDocumentSignedUrls).mockResolvedValueOnce([null]);
+    const result: any = await getTAApplication(7);
+    expect(vi.mocked(resolveDocumentSignedUrls).mock.calls[0][0]).toHaveLength(1);
+    expect(result.user.applicantProfile.photoUrl).toBeNull();
+    expect(result.resumeUrl).toBeNull();
+    expect(result.user.applicantProfile.resumeUrl).toBeNull();
+  });
+
+  it("makes no signing call when the candidate has no documents", async () => {
+    mocks.prisma.application.findUnique.mockResolvedValue(
+      detailRow({ resumeUrl: null, user: { ...detailRow().user, applicantProfile: { photoUrl: null, resumeUrl: null, skills: [] } } }),
+    );
+    await getTAApplication(7);
+    expect(resolveDocumentSignedUrls).not.toHaveBeenCalled();
   });
 });

@@ -27,6 +27,7 @@ vi.mock("../../../utils/audit.js", () => ({ logAudit: vi.fn() }));
 vi.mock("../../scoring/talent-pool-knn.service.js", () => ({ rebuildCandidateFeatureProfile: vi.fn() }));
 
 import { listTAApplications } from "../ta.applications.service.js";
+import { stageEnteredAt } from "../../analytics/metric-definitions.js";
 
 const day = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * day - 60_000);
@@ -149,5 +150,50 @@ describe("TA application list sorting and needs-action filter", () => {
     await listTAApplications({ summary: true });
     const conditions = mocks.prisma.application.findMany.mock.calls[0][0].where.AND;
     expect(conditions.some((c: any) => Array.isArray(c.OR) && c.status)).toBe(false);
+  });
+});
+
+describe("waiting sort scales without per-row filtering", () => {
+  // Previous implementation, kept as the oracle: filters the whole entries array once per row.
+  type Entry = { applicationId: number; toStatus: string; createdAt: Date };
+  const oldEntryFor = (entries: Entry[], applicationId: number, status: string, createdAt: Date): Date =>
+    stageEnteredAt(
+      entries.filter((e) => e.applicationId === applicationId).map((e) => ({ fromStatus: "", toStatus: e.toStatus, createdAt: e.createdAt, isReverted: false })),
+      status,
+      createdAt,
+    );
+
+  it("waiting sort output identical to previous implementation for 200 rows x 1000 entries", async () => {
+    const statuses = ["SUBMITTED", "INITIAL_SCREENING", "INTERVIEW", "COMPLIANCE"];
+    const base = Date.UTC(2026, 0, 1);
+    let seed = 42;
+    const rand = (n: number) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+    // Few distinct dates so ties are common and the id tie-break is exercised.
+    const candidates = Array.from({ length: 200 }, (_, i) => ({
+      id: i + 1,
+      status: statuses[rand(statuses.length)],
+      createdAt: new Date(base + rand(8) * day),
+    }));
+    const entries: Entry[] = [];
+    for (const c of candidates) {
+      for (let k = 0; k < 5; k++) {
+        entries.push({ applicationId: c.id, toStatus: k === 0 ? c.status : statuses[rand(statuses.length)], createdAt: new Date(base + rand(8) * day) });
+      }
+    }
+    expect(entries).toHaveLength(1000);
+    const expected = candidates
+      .map((c) => ({ id: c.id, at: oldEntryFor(entries, c.id, c.status, c.createdAt) }))
+      .sort((a, b) => a.at.getTime() - b.at.getTime() || a.id - b.id)
+      .map((c) => c.id);
+
+    mocks.prisma.application.count.mockResolvedValue(200);
+    mocks.prisma.recruiterDecision.groupBy.mockResolvedValue(
+      entries.map((e) => ({ applicationId: e.applicationId, toStatus: e.toStatus, _max: { createdAt: e.createdAt } })),
+    );
+    mocks.prisma.application.findMany
+      .mockResolvedValueOnce(candidates)
+      .mockImplementationOnce(async (args: any) => args.where.id.in.map((id: number) => row(id, new Date(base))));
+    const result = await listTAApplications({ summary: true, sort: "waiting", page: 1, limit: 200 });
+    expect(result.items.map((i: any) => i.id)).toEqual(expected);
   });
 });
