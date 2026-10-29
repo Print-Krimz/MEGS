@@ -40,9 +40,8 @@ import { CheckInsPanel, useCheckIns } from "../../components/ta/walk-in/CheckIns
 import { ReviewQueue } from "../../components/ta/recruitment/ReviewQueue";
 import { TA_COPY } from "../../lib/ta-copy";
 import {
-  APPLICATION_IDLE_POLL_MS,
+  getApplicationListPollInterval,
   normalizeServerSearch,
-  pollInterval,
   REFERENCE_QUERY_STALE_TIME_MS,
   SERVER_SEARCH_DEBOUNCE_MS,
 } from "../../lib/query-policies";
@@ -340,7 +339,7 @@ export const ApplicationsPage: React.FC = () => {
       }, { signal }),
     placeholderData: keepPreviousData,
     // Safety net for a change the live stream missed; the stage counts below poll the same way.
-    refetchInterval: pollInterval(APPLICATION_IDLE_POLL_MS, streamConnected),
+    refetchInterval: (query) => getApplicationListPollInterval(query.state.data, streamConnected),
   });
 
   const jobsQuery = useQuery({
@@ -388,7 +387,8 @@ export const ApplicationsPage: React.FC = () => {
       }, { signal }),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
-    refetchInterval: pollInterval(APPLICATION_IDLE_POLL_MS, streamConnected),
+    // Counts carry no processing info, so follow the list data from the same page.
+    refetchInterval: getApplicationListPollInterval(applicationsQuery.data, streamConnected),
   });
   const stageStripItems: StageStripItem[] = stageStripValues.map((stage) => ({
     value: stage,
