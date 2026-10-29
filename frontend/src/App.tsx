@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { RouterProvider } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "./routes";
@@ -11,10 +11,29 @@ export const AppContent: React.FC = () => {
   const auth = useAuth();
   const queryClient = useQueryClient();
 
-  // Public pages (tracking slip, offer link) never need the session, so skip the staff loader.
-  const isPublicPath = /^\/(t\/|offer\/|check-in(\/|$))/.test(window.location.pathname);
+  // Public pages (landing, auth, tracking slip, offer link) never need the session, so skip the staff loader.
+  const isPublicPath =
+    /^\/($|t\/|offer\/|check-in(\/|$)|login|register|forgot-password|reset-password)/.test(window.location.pathname);
+  const showLoader = auth.isLoading && !isPublicPath;
 
-  if (auth.isLoading && !isPublicPath) {
+  // The login/register guards ran with a loading session; re-run them with the real one.
+  useEffect(() => {
+    if (!auth.isLoading) void router.invalidate();
+  }, [auth.isLoading]);
+
+  // While the spinner waits for /api/me, fetch the page's code. loadRouteChunk skips beforeLoad and loaders.
+  useEffect(() => {
+    if (!showLoader) return;
+    try {
+      for (const route of router.getMatchedRoutes(window.location.pathname)[0]) {
+        void router.loadRouteChunk(route)?.catch(() => undefined);
+      }
+    } catch {
+      // Prefetch is best effort; the router loads the chunk itself after sign-in.
+    }
+  }, [showLoader]);
+
+  if (showLoader) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-slate-300">
         <div className="flex items-center gap-3">
