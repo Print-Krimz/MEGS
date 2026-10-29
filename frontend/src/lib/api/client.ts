@@ -1,3 +1,4 @@
+import { bumpSessionGeneration, getSessionGeneration } from "../auth/session-generation";
 import type { ApiResponse, ApiErrorDetail } from "../types/api.types";
 
 export class ApiError extends Error {
@@ -26,7 +27,17 @@ const API_BASE = resolveApiBase(import.meta.env.VITE_API_URL);
 /** Absolute URL for an API path, built the same way apiRequest builds it. */
 export const apiUrl = (path: string): string => `${API_BASE}${path}`;
 
-let refreshInFlight: Promise<boolean> | null = null;
+let refreshInFlight: { generation: number; promise: Promise<boolean> } | null = null;
+
+/**
+ * Drops the credentials. Starts a new session generation only when a token was actually sent:
+ * a tokenless 401 has no session to end, and bumping would reset queries into a refetch loop.
+ */
+function endSession(hadToken: boolean): void {
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
+  if (hadToken) bumpSessionGeneration();
+}
 
 /**
  * Exchanges the stored refresh token for a new access token. One call is shared by all
@@ -40,8 +51,9 @@ export function refreshAccessToken(staleToken: string | null): Promise<boolean> 
   const refreshToken = localStorage.getItem("refresh_token");
   if (!refreshToken) return Promise.resolve(false);
 
-  if (!refreshInFlight) {
-    refreshInFlight = (async () => {
+  const generation = getSessionGeneration();
+  if (!refreshInFlight || refreshInFlight.generation !== generation) {
+    const promise = (async () => {
       try {
         const res = await fetch(`${API_BASE}/api/auth/refresh`, {
           method: "POST",
@@ -52,6 +64,8 @@ export function refreshAccessToken(staleToken: string | null): Promise<boolean> 
         const json = (await res.json()) as ApiResponse<{ access_token?: string; refresh_token?: string }>;
         const data = json?.data;
         if (!json?.success || !data?.access_token) return false;
+        // The session ended or changed while refreshing: never write its tokens.
+        if (generation !== getSessionGeneration()) return false;
         localStorage.setItem("access_token", data.access_token);
         if (data.refresh_token) localStorage.setItem("refresh_token", data.refresh_token);
         window.dispatchEvent(new Event("auth-token-changed"));
@@ -59,11 +73,12 @@ export function refreshAccessToken(staleToken: string | null): Promise<boolean> 
       } catch {
         return false;
       } finally {
-        refreshInFlight = null;
+        if (refreshInFlight?.generation === generation) refreshInFlight = null;
       }
     })();
+    refreshInFlight = { generation, promise };
   }
-  return refreshInFlight;
+  return refreshInFlight.promise;
 }
 
 export async function apiRequest<T>(
@@ -71,6 +86,7 @@ export async function apiRequest<T>(
   options?: RequestInit,
   _retried = false
 ): Promise<T> {
+  const generation = getSessionGeneration();
   const token = localStorage.getItem("access_token");
 
   const headers: Record<string, string> = {
@@ -107,6 +123,10 @@ export async function apiRequest<T>(
       headers,
     });
 
+    if (injectedToken && generation !== getSessionGeneration()) {
+      throw new DOMException("Session changed", "AbortError");
+    }
+
     // Handle empty 204 response
     if (res.status === 204) {
       return null as unknown as T;
@@ -126,13 +146,14 @@ export async function apiRequest<T>(
         injectedToken &&
         !_retried &&
         !path.startsWith("/api/auth/logout") &&
-        (await refreshAccessToken(token))
+        (await refreshAccessToken(token)) &&
+        generation === getSessionGeneration()
       ) {
         return apiRequest<T>(path, options, true);
       }
-      if (!isPublicAuthPath) {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
+      // A 401 for an older session must not clear or redirect the current one.
+      if (!isPublicAuthPath && generation === getSessionGeneration()) {
+        endSession(injectedToken);
         if (!window.location.pathname.startsWith("/login")) {
           const currentPath = window.location.pathname;
           const redirectParam =
@@ -174,6 +195,7 @@ export async function apiRequestBlob(
   options?: RequestInit,
   _retried = false
 ): Promise<Blob> {
+  const generation = getSessionGeneration();
   const token = localStorage.getItem("access_token");
 
   const headers: Record<string, string> = {
@@ -190,12 +212,18 @@ export async function apiRequestBlob(
       headers,
     });
 
+    if (token && generation !== getSessionGeneration()) {
+      throw new DOMException("Session changed", "AbortError");
+    }
+
     if (res.status === 401) {
-      if (token && !_retried && (await refreshAccessToken(token))) {
+      if (token && !_retried && (await refreshAccessToken(token)) && generation === getSessionGeneration()) {
         return apiRequestBlob(path, options, true);
       }
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
+      if (generation !== getSessionGeneration()) {
+        throw new ApiError(401, "Session expired. Please log in again.");
+      }
+      endSession(!!token);
       if (!window.location.pathname.startsWith("/login")) {
         const currentPath = window.location.pathname;
         const redirectParam =

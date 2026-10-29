@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import type { User, LoginResponse } from "../lib/types/auth.types";
 import { authApi } from "../lib/api/auth.api";
 import { ApiError } from "../lib/api/client";
+import { bumpSessionGeneration, getSessionGeneration, onSessionGenerationChange, tokenSubject } from "../lib/auth/session-generation";
 import { AuthContext, type AuthContextType } from "../context/AuthContext";
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -9,6 +10,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const fetchSession = useCallback(async () => {
+    const generation = getSessionGeneration();
     const token = localStorage.getItem("access_token");
     if (!token) {
       setUser(null);
@@ -16,48 +18,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    // A newer session generation settles loading itself; this one must not.
+    let stale = false;
     try {
       const currentUser = await authApi.getMe();
-      if (localStorage.getItem("access_token") !== token) return;
+      if (generation !== getSessionGeneration()) {
+        stale = true;
+        return;
+      }
       setUser(currentUser);
     } catch (error) {
-      if (localStorage.getItem("access_token") !== token) return;
+      if (generation !== getSessionGeneration()) {
+        stale = true;
+        return;
+      }
       // Temporary API/network outages do not invalidate credentials. An initial
       // failed check still leaves user null, so it cannot grant authenticated access.
       if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
+        bumpSessionGeneration();
         setUser(null);
       }
     } finally {
-      if (localStorage.getItem("access_token") === token || !localStorage.getItem("access_token")) {
-        setIsLoading(false);
-      }
+      if (!stale) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    // Credentials cleared elsewhere (e.g. a failed refresh in the API client) end
+    // the session: settle startup loading instead of waiting for a /me that was dropped.
+    const offGeneration = onSessionGenerationChange(() => {
+      if (!localStorage.getItem("access_token")) {
+        setUser(null);
+        setIsLoading(false);
+      }
+    });
     fetchSession();
     const syncSession = (event: StorageEvent) => {
       if (!event.key || event.key === "access_token") {
+        // Another tab refreshing the same account's token is not a new session.
+        const oldSub = event.key ? tokenSubject(event.oldValue) : null;
+        if (oldSub && event.newValue && oldSub === tokenSubject(event.newValue)) return;
+        bumpSessionGeneration();
         setUser(null);
         setIsLoading(true);
         void fetchSession();
       }
     };
     window.addEventListener("storage", syncSession);
-    return () => window.removeEventListener("storage", syncSession);
+    return () => {
+      offGeneration();
+      window.removeEventListener("storage", syncSession);
+    };
   }, [fetchSession]);
 
   const login = useCallback((data: LoginResponse) => {
     if (data.access_token) {
       localStorage.setItem("access_token", data.access_token);
-      window.dispatchEvent(new Event("auth-token-changed"));
     }
     if (data.refresh_token) {
       localStorage.setItem("refresh_token", data.refresh_token);
     }
+    // New login: drop the previous session's caches and in-flight work before rendering it.
+    bumpSessionGeneration();
+    if (data.access_token) {
+      window.dispatchEvent(new Event("auth-token-changed"));
+    }
     setUser(data.user);
+    setIsLoading(false);
   }, []);
 
 
@@ -69,15 +98,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
+      bumpSessionGeneration();
       setUser(null);
       window.location.href = "/login";
     }
   }, []);
 
   const refreshUser = useCallback(async () => {
+    const generation = getSessionGeneration();
     try {
       const updatedUser = await authApi.getMe();
-      setUser(updatedUser);
+      if (generation === getSessionGeneration()) setUser(updatedUser);
     } catch {
       // Ignored
     }

@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ApiError } from "../lib/api/client";
+import { onSessionGenerationChange } from "../lib/auth/session-generation";
 import { OPERATIONAL_QUERY_STALE_TIME_MS } from "../lib/query-policies";
 
 interface QueryProviderProps {
@@ -48,6 +49,18 @@ export const QueryProvider: React.FC<QueryProviderProps> = ({ children }) => {
           },
         },
       })
+  );
+
+  // A new session must never see the previous session's data or in-flight requests.
+  useEffect(
+    () =>
+      onSessionGenerationChange(() => {
+        void queryClient.cancelQueries();
+        // reset (not clear) so mounted observers drop A's data and refetch under the new session.
+        void queryClient.resetQueries();
+        queryClient.getMutationCache().clear();
+      }),
+    [queryClient]
   );
 
   return (
