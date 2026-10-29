@@ -47,7 +47,7 @@ const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.doc
 const legacyFile = (mimeType: string, originalName: string) =>
   mocks.legacyDownload.mockResolvedValueOnce({ buffer: Buffer.from("resume-bytes"), mimeType, originalName });
 
-import { processResumeJob, detectDocumentFormat } from "./resume.worker.js";
+import { processResumeJob, detectDocumentFormat, enqueueResumeAnalysis, waitForResumeQueue } from "./resume.worker.js";
 
 beforeEach(() => {
   // Reset (not just clear) so unused one-time values never leak between tests.
@@ -548,5 +548,30 @@ describe("Resume Worker AI Routing Policy & Multi-Format OCR", () => {
       expect(detectDocumentFormat(undefined, "document.pdf").isPdf).toBe(true);
       expect(detectDocumentFormat(undefined, "unknown-file").isPdf).toBe(true);
     });
+  });
+});
+
+describe("resume queue admission", () => {
+  const admitted = (promise: Promise<void>) =>
+    Promise.race([promise.then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 30))]);
+
+  it("admits submissions without waiting for the running analysis, and stays bounded past the pending limit", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    let release!: () => void;
+    // The first analysis holds the single slot until released.
+    mocks.prisma.application.findUnique.mockReturnValue(new Promise((resolve) => { release = () => resolve(null); }));
+
+    // One running + 25 waiting are admitted straight away (ids 9001..9026).
+    const results = await Promise.all(Array.from({ length: 26 }, (_, i) => admitted(enqueueResumeAnalysis(9001 + i))));
+    expect(results.every(Boolean)).toBe(true);
+
+    // The next one waits for room instead of growing the queue.
+    const overflow = enqueueResumeAnalysis(9027);
+    expect(await admitted(overflow)).toBe(false);
+
+    release();
+    await overflow;
+    await waitForResumeQueue();
+    vi.restoreAllMocks();
   });
 });

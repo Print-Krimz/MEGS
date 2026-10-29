@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
 import { safeLogError } from "../../security/errors.js";
@@ -65,20 +66,37 @@ const buildCandidateFeatureInput = (profile: {
 export const rebuildCandidateFeatureProfile = async (applicantProfileId: number) => {
   const profile = await prisma.applicantProfile.findUnique({
     where: { id: applicantProfileId },
-    include: { skills: { include: { skill: true } }, workExperiences: true, educations: true, trainings: true, assets: true },
+    include: { skills: { include: { skill: true } }, workExperiences: true, educations: true, trainings: true, assets: true, candidateFeatureProfile: { select: { id: true, rawFeatures: true } } },
   });
   if (!profile) return null;
   const features = buildCandidateFeatureInput(profile);
   const text = featureDocument(features);
 
+  // Unchanged features with a stored vector need no new Gemini call. The comparison goes through
+  // JSON so the stored jsonb (key order, null for undefined) and the fresh features compare alike.
+  const stored = profile.candidateFeatureProfile;
+  let reuseEmbedding = false;
+  if (stored && isDeepStrictEqual(stored.rawFeatures, JSON.parse(JSON.stringify(features)))) {
+    try {
+      const [row] = await prisma.$queryRaw<Array<{ hasEmbedding: boolean }>>`
+        SELECT embedding IS NOT NULL AS "hasEmbedding" FROM "CandidateFeatureProfile" WHERE id = ${stored.id}
+      `;
+      reuseEmbedding = row?.hasEmbedding === true;
+    } catch {
+      // Without a readable vector the profile is embedded as before.
+    }
+  }
+
   let vectorStr: string | null = null;
-  try {
-    const embedding = await generateEmbedding(text, { taskType: "RETRIEVAL_DOCUMENT" });
-    vectorStr = `[${embedding.join(",")}]`;
-  } catch (error) {
-    // Graceful fallback for mock or offline environments without active Gemini API.
-    // Logged so a missing embedding (skills scored on exact words only) is visible.
-    safeLogError(`Scoring: embed candidate profile #${applicantProfileId}`, error);
+  if (!reuseEmbedding) {
+    try {
+      const embedding = await generateEmbedding(text, { taskType: "RETRIEVAL_DOCUMENT" });
+      vectorStr = `[${embedding.join(",")}]`;
+    } catch (error) {
+      // Graceful fallback for mock or offline environments without active Gemini API.
+      // Logged so a missing embedding (skills scored on exact words only) is visible.
+      safeLogError(`Scoring: embed candidate profile #${applicantProfileId}`, error);
+    }
   }
 
   try {

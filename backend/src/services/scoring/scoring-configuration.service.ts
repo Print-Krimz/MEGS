@@ -241,7 +241,8 @@ import { safeLogError } from "../../security/errors.js";
 import { calculateAndPersistCandidateScore } from "./candidate-scoring.service.js";
 import { rebuildCandidateFeatureProfile } from "./talent-pool-knn.service.js";
 
-const revalidationQueue = new BoundedWorkQueue(15, 100);
+// 4 at a time leaves most of the database pool free for requests.
+const revalidationQueue = new BoundedWorkQueue(4, 100);
 const activeOperations = new Set<Promise<any>>();
 
 export const trackOperation = (promise: Promise<any>) => {

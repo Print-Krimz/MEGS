@@ -13,8 +13,9 @@ import { safeLogError } from "../security/errors.js";
 import { checkResumeIdentity } from "../services/ta/resume-identity.js";
 
 // Concurrency 1 prevents rate limit exhaustion against Gemini API
-// One active job; other producers wait for admission, never a total-count rejection.
-const queue = new BoundedWorkQueue(1, 1);
+// One active job; up to 25 more wait as small closures, so a few submissions never block a request
+// behind a 10-60 s analysis. Past that, producers wait for admission, never a total-count rejection.
+const queue = new BoundedWorkQueue(1, 25);
 
 // In-memory progress so the TA screen can show each analysis step live.
 // Entries for finished runs expire after a few minutes.
