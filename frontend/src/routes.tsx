@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import type { AuthContextType } from "./context/AuthContext";
+import { parseAdminReportSearch, type AdminReportSearch } from "./lib/admin-report-search";
 import { ApplicationStatus, PIPELINE_FILTER_STAGES, Role } from "./lib/types/enums";
 
 // TanStack preloads every matched route component after synchronous guards run.
@@ -599,6 +600,7 @@ export const adminDashboardRoute = createRoute({
 export const adminAnalyticsRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/admin/analytics",
+  validateSearch: (search: Record<string, unknown>): AdminReportSearch => parseAdminReportSearch(search),
   component: AdminAnalyticsPage,
 });
 

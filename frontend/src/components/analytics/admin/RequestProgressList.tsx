@@ -7,6 +7,7 @@ import { AnalyticsPanel } from "./AnalyticsPanel";
 import { HEALTH_CHIP, OUTCOME, TEXT_AMBER, TEXT_LOSS } from "../../../lib/chart-palette";
 import { PaginationBar } from "../PaginationBar";
 import { BarMark } from "./chart-primitives";
+import { matchesRequestHealth, type RequestHealthFilter } from "../../../lib/admin-report-search";
 
 interface RequestProgressListProps {
   rows: RequestRow[];
@@ -21,9 +22,11 @@ interface RequestProgressListProps {
   bare?: boolean;
   /** Applies a filter from outside, e.g. a click on the attention strip. A new nonce re-applies it. */
   focus?: { health: RequestHealthFilter; nonce: number };
+  /** History state added to each request link, so the detail page can return to the same report. */
+  linkState?: Record<string, unknown>;
 }
 
-export type RequestHealthFilter = "ALL" | "NONE" | "UNOWNED" | RequestRow["health"];
+export type { RequestHealthFilter };
 
 const HEALTH: Record<RequestRow["health"], { label: string; badge: string; bar: string }> = {
   OVERDUE: { ...HEALTH_CHIP.overdue, badge: HEALTH_CHIP.overdue.className, bar: OUTCOME.backedOut },
@@ -32,14 +35,11 @@ const HEALTH: Record<RequestRow["health"], { label: string; badge: string; bar: 
   FILLED: { ...HEALTH_CHIP.filled, badge: HEALTH_CHIP.filled.className, bar: OUTCOME.movedOn },
 };
 
-const ATTENTION: Record<Exclude<RequestRow["attention"], null>, { label: string; badge: string }> = {
-  NO_OPENING: { label: "No opening posted", badge: HEALTH_CHIP.atRisk.className },
-  NO_APPLICANTS: { label: "No applicants yet", badge: HEALTH_CHIP.atRisk.className },
-  FIRST_STAGE_ONLY: { label: "Nobody past first review", badge: "bg-slate-100 text-slate-800 border-slate-300" },
+const ATTENTION: Record<Exclude<RequestRow["attention"], null>, { label: string; title: string; text: string }> = {
+  NO_OPENING: { label: "No opening", title: "No job opening is posted for this request.", text: TEXT_AMBER },
+  NO_APPLICANTS: { label: "No applicants", title: "Nobody has applied yet.", text: TEXT_AMBER },
+  FIRST_STAGE_ONLY: { label: "None past review", title: "Every applicant is still in first review.", text: "text-slate-700" },
 };
-
-const hasNoCandidates = (r: RequestRow) => r.attention === "NO_OPENING" || r.attention === "NO_APPLICANTS";
-const isUnowned = (r: RequestRow) => r.ownerId === null && r.health !== "FILLED";
 
 /** The short "how late or how soon" text. The target date is in the tooltip. */
 const slaText = (row: RequestRow): string => {
@@ -58,6 +58,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
   pageSize = 10,
   bare = false,
   focus,
+  linkState,
 }: RequestProgressListProps) {
   const [health, setHealth] = useState<RequestHealthFilter>("ALL");
   const [query, setQuery] = useState("");
@@ -72,11 +73,9 @@ export const RequestProgressList = React.memo(function RequestProgressList({
   }, [focus?.nonce]);
 
   const counts = useMemo(() => {
-    const c: Record<RequestHealthFilter, number> = { ALL: rows.length, NONE: 0, UNOWNED: 0, OVERDUE: 0, AT_RISK: 0, ON_TRACK: 0, FILLED: 0 };
+    const c: Record<RequestHealthFilter, number> = { ALL: rows.length, NONE: 0, LATE: 0, NO_OPENING: 0, OVERDUE: 0, AT_RISK: 0, ON_TRACK: 0, FILLED: 0 };
     for (const r of rows) {
-      c[r.health]++;
-      if (hasNoCandidates(r)) c.NONE++;
-      if (isUnowned(r)) c.UNOWNED++;
+      for (const key of Object.keys(c) as RequestHealthFilter[]) if (key !== "ALL" && matchesRequestHealth(r, key)) c[key]++;
     }
     return c;
   }, [rows]);
@@ -88,17 +87,15 @@ export const RequestProgressList = React.memo(function RequestProgressList({
     { key: "ON_TRACK", label: "On track" },
     { key: "FILLED", label: "Filled" },
     { key: "NONE", label: "No candidates" },
-    // Only an Admin sees requests with no owner, and only when there are some.
-    ...(showOwner && counts.UNOWNED > 0 ? [{ key: "UNOWNED" as const, label: "No owner" }] : []),
+    // Reached from a tile above the list. Shown only while active, so the chip row stays short.
+    ...(health === "LATE" ? [{ key: "LATE" as const, label: "Overdue or at risk" }] : []),
+    ...(health === "NO_OPENING" ? [{ key: "NO_OPENING" as const, label: "No opening" }] : []),
   ];
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return rows.filter((r) => {
-      const matchesHealth =
-        health === "ALL" ||
-        (health === "NONE" ? hasNoCandidates(r) : health === "UNOWNED" ? isUnowned(r) : r.health === health);
-      return matchesHealth && (!needle || `${r.title} ${r.clientName} ${r.ownerName} ${formatRecruiterName(r.ownerName).label}`.toLowerCase().includes(needle));
+      return matchesRequestHealth(r, health) && (!needle || `${r.title} ${r.clientName} ${r.ownerName} ${formatRecruiterName(r.ownerName).label}`.toLowerCase().includes(needle));
     });
   }, [rows, health, query]);
 
@@ -167,41 +164,50 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                     <Link
                       to={linkTo}
                       params={{ mrfId: String(row.mrfId) }}
+                      {...(linkState ? { state: linkState as never } : {})}
                       className="truncate text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
                       {row.title}
                     </Link>
-                    <span className="hidden truncate text-xs font-sans text-slate-600 sm:inline">{row.clientName}</span>
+                    <span className="truncate text-xs font-sans text-slate-600">{row.clientName}</span>
                   </div>
                   <div className="flex shrink-0 items-center gap-2 text-xs font-sans" title={due}>
-                    <span className={`tabular-nums ${row.health === "OVERDUE" ? `${TEXT_LOSS} font-semibold` : "text-slate-600"}`}>{slaText(row)}</span>
-                    <span className={`border px-1.5 py-0.5 font-semibold ${style.badge}`}>{style.label}</span>
+                    {row.health === "OVERDUE" ? (
+                      <span className={`tabular-nums font-semibold ${TEXT_LOSS}`}>
+                        <span className="sr-only">Overdue: </span>
+                        {slaText(row)}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="tabular-nums text-slate-600">{slaText(row)}</span>
+                        <span className={`border px-1.5 py-0.5 font-semibold ${style.badge}`}>{style.label}</span>
+                      </>
+                    )}
                   </div>
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-sans text-slate-700">
-                  <span className="sm:hidden truncate text-slate-600">{row.clientName}</span>
-                  <span className="flex items-center gap-2 tabular-nums">
-                    <span className="w-24">
-                      <BarMark label={`${row.title} seats filled`} value={Math.min(row.filled, row.headcount)} max={row.headcount} color={style.bar} heightClass="h-2" />
-                    </span>
-                    <span>
-                      <strong>{row.filled}</strong> of <strong>{row.headcount}</strong> seats
-                    </span>
+                <div className="mt-1 grid grid-cols-[6rem_auto_minmax(0,1fr)] items-center gap-x-3 text-xs font-sans text-slate-700">
+                  <BarMark label={`${row.title} seats filled`} value={Math.min(row.filled, row.headcount)} max={row.headcount} color={style.bar} heightClass="h-2" />
+                  <span className="whitespace-nowrap tabular-nums">
+                    <strong>{row.filled}</strong>/{row.headcount} seats
                   </span>
-                  {showOwner && (
-                    <span title={owner.full} className={row.ownerId === null ? `font-semibold ${TEXT_AMBER}` : undefined}>
-                      {row.ownerId === null ? "No owner" : owner.label}
-                    </span>
-                  )}
-                  {row.attention ? (
-                    <span className={`border px-1.5 py-0.5 font-semibold ${ATTENTION[row.attention].badge}`}>{ATTENTION[row.attention].label}</span>
-                  ) : (
-                    <span className="tabular-nums" title={`${row.applicantCount} ${row.applicantCount === 1 ? "applicant" : "applicants"} in all`}>
-                      <strong>{row.pipeline}</strong> in pipeline, {row.openSeats} open
-                    </span>
-                  )}
-                  {row.overdueCandidates > 0 && <span className={`${TEXT_LOSS} tabular-nums`}>{row.overdueCandidates} overdue</span>}
-                  {row.backoutsInPeriod > 0 && <span className={`${TEXT_LOSS} tabular-nums`}>{row.backoutsInPeriod} backed out</span>}
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
+                    {showOwner && row.ownerId !== null && (
+                      <span title={owner.full} className="truncate text-slate-600">
+                        {owner.label}
+                      </span>
+                    )}
+                    {row.attention ? (
+                      <span title={ATTENTION[row.attention].title} className={`font-semibold ${ATTENTION[row.attention].text}`}>
+                        {ATTENTION[row.attention].label}
+                      </span>
+                    ) : (
+                      <span className="tabular-nums" title={`${row.applicantCount} ${row.applicantCount === 1 ? "applicant" : "applicants"} in all`}>
+                        {row.pipeline} in pipeline
+                      </span>
+                    )}
+                    {row.overdueCandidates > 0 && <span className={`${TEXT_LOSS} tabular-nums`}>{row.overdueCandidates} overdue</span>}
+                    {row.backoutsInPeriod > 0 && <span className={`${TEXT_LOSS} tabular-nums`}>{row.backoutsInPeriod} backed out</span>}
+                  </span>
                 </div>
               </li>
             );

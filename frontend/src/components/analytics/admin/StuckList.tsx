@@ -3,8 +3,9 @@ import { Link } from "@tanstack/react-router";
 import type { StuckCandidate } from "../../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
-import { HEALTH_CHIP, TEXT_AMBER, TEXT_LOSS } from "../../../lib/chart-palette";
+import { HEALTH_CHIP, OUTCOME, TEXT_AMBER, TEXT_LOSS, WORKLOAD } from "../../../lib/chart-palette";
 import { PaginationBar } from "../PaginationBar";
+import { BarMark } from "./chart-primitives";
 
 interface StuckListProps {
   rows: StuckCandidate[];
@@ -22,6 +23,8 @@ interface StuckListProps {
   bare?: boolean;
   /** Applies a filter from outside, e.g. a click on the attention strip. A new nonce re-applies it. */
   focus?: { urgency?: "ALL" | "critical"; stage?: string; nonce: number };
+  /** History state added to the Admin links, so the detail page can return to the same report. */
+  linkState?: Record<string, unknown>;
 }
 
 const URGENCY = {
@@ -31,6 +34,22 @@ const URGENCY = {
 
 const SELECT =
   "min-h-9 border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+
+/** Days in the stage as a bar, with a tick where the limit sits. Anything past the tick is overdue. */
+const WaitBar: React.FC<{ row: number; r: StuckCandidate; color: string; index: number }> = ({ row: scale, r, color, index }) => (
+  <div className="relative">
+    <BarMark
+      label={`${r.stageLabel}, days in stage`}
+      value={r.daysInStage}
+      max={scale}
+      pct={`limit ${r.slaDays} ${r.slaDays === 1 ? "day" : "days"}`}
+      color={color}
+      heightClass="h-2"
+      index={index}
+    />
+    <span aria-hidden="true" className="absolute -top-0.5 -bottom-0.5 w-px bg-slate-900" style={{ left: `${(r.slaDays / scale) * 100}%` }} />
+  </div>
+);
 
 /** Candidates past their stage limit, longest wait first, so a team leader can see who is holding them up. */
 export const StuckList = React.memo(function StuckList({
@@ -44,6 +63,7 @@ export const StuckList = React.memo(function StuckList({
   subtitle = "Past the stage limit, longest wait first. Critical is twice the limit or more.",
   bare = false,
   focus,
+  linkState,
 }: StuckListProps) {
   const admin = viewer === "admin";
   const [urgency, setUrgency] = useState<"ALL" | "critical">("ALL");
@@ -76,6 +96,8 @@ export const StuckList = React.memo(function StuckList({
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  // One scale for the page so the bars compare, wide enough to show every limit mark.
+  const scale = Math.max(1, ...pageRows.map((r) => Math.max(r.daysInStage, r.slaDays)));
   const reset = (apply: () => void) => {
     apply();
     setPage(1);
@@ -133,7 +155,7 @@ export const StuckList = React.memo(function StuckList({
         <p className="p-6 text-center text-xs text-slate-500 font-sans">No match. Change the filters.</p>
       ) : (
         <ul className="divide-y divide-slate-200">
-          {pageRows.map((r) => {
+          {pageRows.map((r, i) => {
             const style = URGENCY[r.urgency];
             return (
               <li key={r.applicationId} className="px-3 py-2.5">
@@ -144,6 +166,7 @@ export const StuckList = React.memo(function StuckList({
                       <Link
                         to="/admin/applications/$applicationId"
                         params={{ applicationId: String(r.applicationId) }}
+                        {...(linkState ? { state: linkState as never } : {})}
                         className="truncate text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {r.candidateName}
@@ -162,34 +185,33 @@ export const StuckList = React.memo(function StuckList({
                     {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over
                   </span>
                 </div>
-                <p className="mt-0.5 text-xs text-slate-600 font-sans tabular-nums">
-                  {r.stageLabel} · {r.daysInStage} {r.daysInStage === 1 ? "day" : "days"} (limit {r.slaDays})
-                  {r.estimated && (
-                    <>
-                      {" "}
-                      <abbr title="Counted from the application date. No stage change was recorded." className="no-underline cursor-help">
+                <div className="mt-1 grid grid-cols-[7rem_minmax(0,1fr)_auto] items-center gap-x-3 text-xs font-sans text-slate-700 sm:grid-cols-[9rem_minmax(0,1fr)_auto]">
+                  <span className="truncate font-semibold text-slate-900">{r.stageLabel}</span>
+                  <WaitBar row={scale} index={i} r={r} color={r.urgency === "critical" ? WORKLOAD.overdue : OUTCOME.notSelected} />
+                  <span className="whitespace-nowrap tabular-nums">
+                    <strong>{r.daysInStage}</strong> of {r.slaDays} days
+                    {r.estimated && (
+                      <abbr title="Counted from the application date. No stage change was recorded." className="ml-1 no-underline cursor-help">
                         est.<span className="sr-only"> Counted from the application date. No stage change was recorded.</span>
                       </abbr>
-                    </>
+                    )}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-xs text-slate-600 font-sans">
+                  {r.mrfId !== null ? (
+                    <Link
+                      to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
+                      params={{ mrfId: String(r.mrfId) }}
+                      {...(admin && linkState ? { state: linkState as never } : {})}
+                      className="text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                    >
+                      {r.jobTitle}
+                    </Link>
+                  ) : (
+                    r.jobTitle
                   )}
-                  {" · "}
-                  {r.jobTitle}
                   {r.clientName ? ` · ${r.clientName}` : ""}
-                  {admin && (
-                    <span title={formatRecruiterName(r.recruiterName).full}> · {formatRecruiterName(r.recruiterName).label}</span>
-                  )}
-                  {r.mrfId !== null && (
-                    <>
-                      {" · "}
-                      <Link
-                        to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
-                        params={{ mrfId: String(r.mrfId) }}
-                        className="text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                      >
-                        View request
-                      </Link>
-                    </>
-                  )}
+                  {admin && <span title={formatRecruiterName(r.recruiterName).full}> · {formatRecruiterName(r.recruiterName).label}</span>}
                 </p>
               </li>
             );

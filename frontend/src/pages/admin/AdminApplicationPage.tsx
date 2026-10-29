@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useLocation, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { adminApi } from "../../lib/api/admin.api";
@@ -8,6 +8,7 @@ import { Button } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { formatAdminPipelineStage } from "../../lib/admin-copy";
 import { AnalyticsPanel } from "../../components/analytics";
+import { readReportReturnState } from "../../lib/admin-report-search";
 
 const titleCase = (value?: string | null) =>
   (value ?? "").replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
@@ -39,6 +40,9 @@ const Section: React.FC<{ title: string; empty: string; items: React.ReactNode[]
 export const AdminApplicationPage: React.FC = () => {
   const { applicationId } = useParams({ strict: false }) as { applicationId: string };
 
+  // The report search this page was opened from. Anything that is not a valid report search returns to the default report.
+  const reportSearch = readReportReturnState(useLocation().state);
+
   const query = useQuery({
     queryKey: ["admin", "application", applicationId],
     queryFn: () => adminApi.getApplication(applicationId),
@@ -47,7 +51,7 @@ export const AdminApplicationPage: React.FC = () => {
 
   const back = (
     <Button asChild variant="outline" size="sm">
-      <Link to="/admin/analytics">
+      <Link to="/admin/analytics" search={reportSearch as never}>
         <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
         Back to reports
       </Link>

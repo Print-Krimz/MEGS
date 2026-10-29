@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useLocation, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import { getManilaToday, toManilaDateInput, salaryTextError, salaryRangeError, SALARY_RANGE_MESSAGE } from "../../lib/field-limits";
@@ -36,6 +36,7 @@ import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 import { RequirementClarityNotice } from "../../components/ta/RequirementClarityNotice";
 import { FieldWarning } from "../../components/ta/FieldWarning";
 import { plural } from "../../lib/plural";
+import { ADMIN_REPORT_STATE_KEY, readReportReturnState } from "../../lib/admin-report-search";
 import {
   LOCATION_HINT,
   LOCATION_UNCLEAR_WARNING,
@@ -79,6 +80,10 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
 }) => {
   const queryClient = useQueryClient();
   const { mrfId } = useParams({ strict: false }) as { mrfId: string };
+  const locationState: unknown = useLocation().state;
+  // Opened from Admin reports: return to the same report view instead of notifications.
+  const fromReport = readOnly && typeof locationState === "object" && locationState !== null && ADMIN_REPORT_STATE_KEY in locationState;
+  const reportSearch = readReportReturnState(locationState);
 
   // null until the TA picks a tab; then the default depends on whether anyone is deployed yet.
   const [selectedTab, setActiveTab] = useState<MRFDetailTab | null>(null);
@@ -606,10 +611,17 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           <>
             {readOnly && (
               <Button asChild variant="outline" size="sm">
-                <Link to={baseBackPath}>
-                  <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                  Back to notifications
-                </Link>
+                {fromReport ? (
+                  <Link to="/admin/analytics" search={reportSearch as never}>
+                    <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                    Back to reports
+                  </Link>
+                ) : (
+                  <Link to={baseBackPath}>
+                    <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                    Back to notifications
+                  </Link>
+                )}
               </Button>
             )}
             {!readOnly && (
