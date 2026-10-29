@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { Button } from "../../ui";
-import { ConfirmDialog } from "../../common";
+import { ConfirmDialog, LoadingState } from "../../common";
 import { ResumeReviewDialog } from "../../applicant/ResumeReviewDialog";
-import { ProfileEditForm, type ProfileEditFormHandle, type ProfileFormValues } from "./ProfileEditForm";
+import type { ProfileEditFormHandle, ProfileFormValues } from "./ProfileEditForm";
 import { ResumeSwitcher } from "./ResumeSwitcher";
 import type { AtsRequirement } from "./StandardAtsResume";
 import {
@@ -27,6 +27,9 @@ import { countActionable, countUndatedWork } from "../../../lib/resume-autofill"
 import { notify } from "../../../lib/feedback";
 import { plural } from "../../../lib/plural";
 import type { ResumeAccept } from "../../../lib/types/applicant.types";
+
+// Only the edit panel needs the personal form, so it loads when the panel opens.
+const ProfileEditForm = lazy(() => import("./ProfileEditForm").then((m) => ({ default: m.ProfileEditForm })));
 
 export interface BioDataReviewPanelProps {
   applicationId: number | string;
@@ -286,12 +289,14 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
             </div>
           )}
 
-          <ProfileEditForm
-            key={`personal-${reloadKey}`}
-            formRef={formRef}
-            profile={profile}
-            onValuesChange={setPersonal}
-          />
+          <Suspense fallback={<LoadingState variant="spinner" message="Loading the form…" className="py-6" />}>
+            <ProfileEditForm
+              key={`personal-${reloadKey}`}
+              formRef={formRef}
+              profile={profile}
+              onValuesChange={setPersonal}
+            />
+          </Suspense>
           <SummaryEditor value={summary} onChange={setSummary} />
           <WorkExperienceEditor rows={work} errors={errors} onChange={setWork} />
           <EducationEditor rows={education} errors={errors} onChange={setEducation} />

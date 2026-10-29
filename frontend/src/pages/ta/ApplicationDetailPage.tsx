@@ -1,7 +1,9 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
+import { taApplicationDecisionsQuery, taApplicationDetailQuery, taClientsQuery } from "../../lib/api/ta.queries";
+import { useLiveStreamConnected } from "../../lib/live-stream-status";
 import { PageHeader, LoadingState, ErrorState, DocumentPreviewModal, Tabs, ConfirmDialog, DetailLayout } from "../../components/common";
 import type { ActionMenuItem } from "../../components/common";
 import { Button, manilaIsoToDateTimeLocal } from "../../components/ui";
@@ -42,13 +44,11 @@ import { useApplicationMutations } from "../../components/ta/application/useAppl
 import type { RequirementRowData } from "../../components/ta/application/RequirementRow";
 import { CLOSURE_DISPOSITION_LABELS, CLOSURE_OUTCOME_LABELS, closureReasonLabel, type ClosureOutcome } from "../../lib/backout";
 import { formatDate, extractDocumentId, displayEmail } from "../../lib/utils";
-import { REFERENCE_QUERY_STALE_TIME_MS, getApplicationRefetchInterval } from "../../lib/query-policies";
 import { ApplicationStatus, InterviewType } from "../../lib/types/enums";
 import type { Interview, RescheduleRequest } from "../../lib/types/application.types";
 import type { ReviewComplianceDto } from "../../lib/types/ta.types";
 import { notify } from "../../lib/feedback";
 import { SourceChip } from "../../components/ta/walk-in/SourceChip";
-import { WalkInSlipDialog } from "../../components/ta/walk-in/WalkInSlipDialog";
 import type { WalkInSlip } from "../../lib/types/application.types";
 import type { TAApplicationSearch } from "../../routes";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
@@ -86,6 +86,9 @@ type DialogState =
   | { kind: "deploy" }
   | { kind: "contract" }
   | { kind: "close"; outcome: ClosureOutcome };
+
+const WalkInSlipDialog = lazy(() =>
+  import("../../components/ta/walk-in/WalkInSlipDialog").then((m) => ({ default: m.WalkInSlipDialog })));
 
 const getRouteSearch = (): TAApplicationSearch => {
   const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
@@ -176,18 +179,9 @@ export const ApplicationDetailPage: React.FC = () => {
   };
 
   // Queries
-  const applicationQuery = useQuery({
-    queryKey: ["ta", "application", applicationId],
-    queryFn: () => taApi.getApplication(applicationId),
-    enabled: Boolean(applicationId),
-    // Safety net for a change the live stream missed (applicant upload, another recruiter).
-    refetchInterval: (query) => getApplicationRefetchInterval(query.state.data),
-  });
-  const decisionsQuery = useQuery({
-    queryKey: ["ta", "application", applicationId, "decisions"],
-    queryFn: () => taApi.getRecruiterDecisions(applicationId),
-    enabled: Boolean(applicationId),
-  });
+  const connected = useLiveStreamConnected();
+  const applicationQuery = useQuery(taApplicationDetailQuery(applicationId, connected));
+  const decisionsQuery = useQuery(taApplicationDecisionsQuery(applicationId));
   const parseProfileId = applicationQuery.data?.user?.applicantProfile?.id;
   const hasUploadedResume = Boolean((applicationQuery.data?.user?.applicantProfile?.resumeUrl || applicationQuery.data?.resumeUrl)?.trim());
   const parseState = useResumeParseState(parseProfileId, hasUploadedResume ? applicationQuery.data?.createdAt : null);
@@ -198,11 +192,7 @@ export const ApplicationDetailPage: React.FC = () => {
     },
     onError: (err: unknown) => notify.error("Could not read the resume", err),
   });
-  const clientsQuery = useQuery({
-    queryKey: ["ta", "clients"],
-    queryFn: ({ signal }) => taApi.listClients({ signal }),
-    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
-  });
+  const clientsQuery = useQuery(taClientsQuery());
 
   const appData = applicationQuery.data;
   const parsedAiAssessment = useMemo(() => parseCandidateAssessment(appData?.aiSummary), [appData?.aiSummary]);
@@ -959,7 +949,11 @@ export const ApplicationDetailPage: React.FC = () => {
         variant="warning"
         loading={reissueMutation.isPending}
       />
-      <WalkInSlipDialog slip={reissuedSlip} onClose={() => setReissuedSlip(null)} />
+      {reissuedSlip && (
+        <Suspense fallback={null}>
+          <WalkInSlipDialog slip={reissuedSlip} onClose={() => setReissuedSlip(null)} />
+        </Suspense>
+      )}
 
       <ConfirmDialog
         open={dlg?.kind === "removeRequirement"}

@@ -797,6 +797,26 @@ endpoint("GET", /^\/api\/ta\/applications$/, (_m, url, ctx) => {
   const items = Array.from({ length: ctx.scale.taApplications }, (_, index) => makeTaApplication(index, jobs));
   return pageOrList(items, url);
 });
+/** One candidate record for the TA detail page; the page reads the list fields plus these empty collections. */
+function makeTaApplicationDetail(id: number, ctx: FixtureContext) {
+  const clients = makeClients(ctx.scale.clients);
+  const jobs = Array.from({ length: ctx.scale.jobs }, (_, index) => makeJob(index, clients));
+  const base = makeTaApplication(id - 1, jobs);
+  return {
+    ...base,
+    resumeUrl: null,
+    trackingCode: null,
+    user: {
+      ...base.user,
+      applicantProfile: { ...base.user.applicantProfile, id: 1000 + id, photoUrl: null, resumeUrl: null, skills: [], workExperiences: [], educations: [] },
+    },
+    candidateScores: [],
+    interviews: [],
+    complianceRequirements: [],
+    clientEndorsements: [],
+  };
+}
+
 endpoint("GET", /^\/api\/ta\/applications\/counts$/, (_m, _u, ctx) => {
   const clients = makeClients(ctx.scale.clients);
   const jobs = Array.from({ length: ctx.scale.jobs }, (_, index) => makeJob(index, clients));
@@ -806,6 +826,9 @@ endpoint("GET", /^\/api\/ta\/applications\/counts$/, (_m, _u, ctx) => {
   return { total: items.length, byStatus };
 });
 endpoint("GET", /^\/api\/ta\/jobs$/, (_m, url, ctx) => pageOrList(makeListJobs(ctx), url));
+endpoint("GET", /^\/api\/ta\/applications\/(\d+)$/, (match, _u, ctx) => makeTaApplicationDetail(Number(match[1]), ctx));
+endpoint("GET", /^\/api\/ta\/applications\/\d+\/decisions$/, () => []);
+endpoint("GET", /^\/api\/ta\/candidates\/\d+\/resume-proposal$/, () => ({ parse: null, pending: null }));
 endpoint("GET", /^\/api\/ta\/clients$/, (_m, _u, ctx) => makeClients(ctx.scale.clients));
 endpoint("GET", /^\/api\/ta\/mrfs$/, (_m, url, ctx) => {
   const clients = makeClients(ctx.scale.clients);

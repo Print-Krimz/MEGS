@@ -690,6 +690,90 @@ test.describe.serial("production-preview performance baseline", () => {
     });
   });
 
+  test("detail hover prefetch", async ({ browser }) => {
+    test.setTimeout(3 * 60_000);
+    await required("detail-hover-prefetch", async () => {
+      // A held-open SSE stream: the finite fixture body drops every second and each reconnect refetches the open page.
+      const open = new Set<import("node:net").Socket>();
+      const server: Server = createServer((req, res) => {
+        res.writeHead(200, {
+          "content-type": "text/event-stream",
+          "cache-control": "no-cache",
+          "access-control-allow-origin": req.headers.origin ?? "*",
+          "access-control-allow-headers": "*",
+        });
+        res.write(": open\n\n");
+      });
+      server.on("connection", (socket) => { open.add(socket); socket.on("close", () => open.delete(socket)); });
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const port = (server.address() as { port: number }).port;
+      const session = await openSession(browser, {
+        identity: "TALENT_ACQUISITION",
+        scale: SMALL_SCALE,
+        streamUrl: `http://127.0.0.1:${port}/stream`,
+      });
+      const page = session.page;
+      try {
+        await gotoAndSettle(page, "/ta/applications", 1500);
+        const link = page.locator("a[href^='/ta/applications/']").filter({ has: page.locator("svg") }).first();
+        await link.waitFor({ state: "visible", timeout: 30_000 });
+        const id = /^\/ta\/applications\/(\d+)/.exec((await link.getAttribute("href")) ?? "")?.[1];
+        if (!id) throw new Error("first candidate row link has no application id");
+        const keys = {
+          application: `GET /api/ta/applications/${id}`,
+          decisions: `GET /api/ta/applications/${id}/decisions`,
+          clients: "GET /api/ta/clients",
+        };
+        const jsEntries = () =>
+          page.evaluate(() =>
+            (performance.getEntriesByType("resource") as PerformanceResourceTiming[])
+              .filter((e) => /\.m?js$/i.test(new URL(e.name).pathname))
+              .map((e) => ({ name: e.name, transfer: e.transferSize, raw: e.decodedBodySize })),
+          );
+        const jsBefore = new Set((await jsEntries()).map((e) => e.name));
+        const countsBefore = { ...session.net.apiCounts };
+
+        await link.hover();
+        await page.waitForTimeout(300);
+        const clickAt = Date.now();
+        const completedBeforeClick = Object.fromEntries(
+          Object.entries(keys).map(([name, key]) => {
+            // Clients may already be cached from the list page; either way the click must not wait for it.
+            const at = session.net.apiFulfilledAt[key];
+            return [name, at !== undefined && at <= clickAt];
+          }),
+        );
+        const resumeKey = Object.keys(session.net.apiCounts).find((key) => /^GET \/api\/ta\/candidates\/\d+\/resume-proposal$/.test(key));
+        await link.click();
+        await page.getByRole("region", { name: "Stage and next step" }).waitFor({ state: "visible", timeout: 30_000 });
+        await page.waitForTimeout(1000);
+
+        const jsAfter = await jsEntries();
+        const detailJs = jsAfter.filter((e) => !jsBefore.has(e.name));
+        const countOf = (key: string) => (session.net.apiCounts[key] ?? 0) - (countsBefore[key] ?? 0);
+        assertCleanSession(session, "detail-hover-prefetch");
+        persist("detail-hover-prefetch", {
+          scenario: `/ta/applications, hover first row link 300 ms, click through to /ta/applications/${id} (SMALL fixtures, CPU 4x)`,
+          completedBeforeClick,
+          resumeParseStateRequested: resumeKey !== undefined,
+          requestsDuringHoverAndDetail: Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, countOf(key)])),
+          detailRouteJs: {
+            files: detailJs.length,
+            transferBytes: detailJs.reduce((n, e) => n + e.transfer, 0),
+            rawBytes: detailJs.reduce((n, e) => n + e.raw, 0),
+          },
+        });
+        const missing = Object.entries(completedBeforeClick).filter(([, done]) => !done).map(([name]) => name);
+        if (missing.length) throw new Error(`detail data requests not complete before the click: ${missing.join(", ")}`);
+        if (countOf(keys.application) !== 1) throw new Error(`application fetched ${countOf(keys.application)} times; expected 1 (prefetch reused)`);
+      } finally {
+        await session.close();
+        for (const socket of open) socket.destroy();
+        server.close();
+      }
+    });
+  });
+
   test("network profile: landing and /app/jobs at 150 ms / 1.6 Mbps / 750 Kbps (PERF_NETWORK=slow)", async ({ browser }) => {
     test.setTimeout(20 * 60_000);
     if (!SLOW_NETWORK) {
