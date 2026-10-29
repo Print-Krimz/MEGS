@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
-import { MotionConfig, motion } from "motion/react";
+import { LazyMotion, MotionConfig, domAnimation, m } from "motion/react";
 import { Button } from "../../ui";
 import { cn } from "../../../lib/utils";
 import { formatTaStatus } from "../../../lib/ta-copy";
@@ -58,6 +58,7 @@ export const StageBar: React.FC<StageBarProps> = ({
   const label = stageLabel ?? formatTaStatus(status);
 
   return (
+    <LazyMotion features={domAnimation} strict>
     <MotionConfig reducedMotion="user">
       <section
         ref={ref}
@@ -69,7 +70,7 @@ export const StageBar: React.FC<StageBarProps> = ({
             <span className="sr-only">Current stage: {label}</span>
             <div aria-live="polite" className="min-w-0">
               {next.text && (
-                <motion.p
+                <m.p
                   key={next.text}
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -77,7 +78,7 @@ export const StageBar: React.FC<StageBarProps> = ({
                   className={cn("min-w-0 text-sm", next.needsTa ? "font-medium text-slate-950" : "text-slate-700")}
                 >
                   {next.text}
-                </motion.p>
+                </m.p>
               )}
             </div>
           </div>
@@ -112,5 +113,6 @@ export const StageBar: React.FC<StageBarProps> = ({
         </div>
       </section>
     </MotionConfig>
+    </LazyMotion>
   );
 };

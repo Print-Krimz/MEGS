@@ -1,22 +1,50 @@
-import React, { useState } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import { LandingHeader } from "../../components/public/LandingHeader";
 import { LandingHero } from "../../components/public/LandingHero";
 import { LandingAffiliates } from "../../components/public/LandingAffiliates";
 import { LandingAbout } from "../../components/public/LandingAbout";
-import { LandingServices } from "../../components/public/LandingServices";
-import { LandingWhyMegs } from "../../components/public/LandingWhyMegs";
-import { LandingIndustries } from "../../components/public/LandingIndustries";
-import { LandingActivities } from "../../components/public/LandingActivities";
-import { LandingBranches } from "../../components/public/LandingBranches";
-import { LandingJobListings } from "../../components/public/LandingJobListings";
-import { LandingFeaturedCompanies } from "../../components/public/LandingFeaturedCompanies";
-import { LandingContact } from "../../components/public/LandingContact";
 import { LandingFooter } from "../../components/public/LandingFooter";
 import { MotionRoot } from "../../components/public/motion";
+
+// Sections below the fold load after the first paint; the hero and first section stay in the entry chunk.
+const loadServices = () => import("../../components/public/LandingServices");
+const loadWhyMegs = () => import("../../components/public/LandingWhyMegs");
+const loadIndustries = () => import("../../components/public/LandingIndustries");
+const loadActivities = () => import("../../components/public/LandingActivities");
+const loadJobs = () => import("../../components/public/LandingJobListings");
+const loadFeatured = () => import("../../components/public/LandingFeaturedCompanies");
+const loadBranches = () => import("../../components/public/LandingBranches");
+const loadContact = () => import("../../components/public/LandingContact");
+
+const LandingServices = lazy(() => loadServices().then((m) => ({ default: m.LandingServices })));
+const LandingWhyMegs = lazy(() => loadWhyMegs().then((m) => ({ default: m.LandingWhyMegs })));
+const LandingIndustries = lazy(() => loadIndustries().then((m) => ({ default: m.LandingIndustries })));
+const LandingActivities = lazy(() => loadActivities().then((m) => ({ default: m.LandingActivities })));
+const LandingJobListings = lazy(() => loadJobs().then((m) => ({ default: m.LandingJobListings })));
+const LandingFeaturedCompanies = lazy(() => loadFeatured().then((m) => ({ default: m.LandingFeaturedCompanies })));
+const LandingBranches = lazy(() => loadBranches().then((m) => ({ default: m.LandingBranches })));
+const LandingContact = lazy(() => loadContact().then((m) => ({ default: m.LandingContact })));
+
+/** Holds a lazy section's place, and its anchor id, so nav links and layout stay put until it loads. */
+const SectionFallback: React.FC<{ id: string; minHeight: number }> = ({ id, minHeight }) => (
+  <section id={id} aria-hidden="true" className="scroll-mt-20" style={{ minHeight }} />
+);
 
 export const LandingPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
+
+  // Fetch the remaining sections once the browser is idle so in-page links rarely wait.
+  useEffect(() => {
+    const loaders = [loadServices, loadWhyMegs, loadIndustries, loadActivities, loadJobs, loadFeatured, loadBranches, loadContact];
+    const run = () => loaders.forEach((load) => void load());
+    if (typeof window.requestIdleCallback === "function") {
+      const handle = window.requestIdleCallback(run, { timeout: 3000 });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const timer = window.setTimeout(run, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const handleFindJobs = () => {
     const jobsEl = document.getElementById("jobs");
@@ -49,21 +77,37 @@ export const LandingPage: React.FC = () => {
           <LandingHero onFindJobs={handleFindJobs} />
           <LandingAffiliates />
           <LandingAbout />
-          <LandingServices />
-          <LandingWhyMegs />
-          <LandingIndustries />
-          <LandingActivities />
-          <LandingJobListings
-            searchQuery={searchQuery}
-            locationQuery={locationQuery}
-            onSearchChange={setSearchQuery}
-            onLocationChange={setLocationQuery}
-            onClearSearch={handleClearSearch}
-          >
-            <LandingFeaturedCompanies selectedCompany={searchQuery} onSelectCompany={setSearchQuery} />
-          </LandingJobListings>
-          <LandingBranches />
-          <LandingContact />
+          <Suspense fallback={<SectionFallback id="services" minHeight={720} />}>
+            <LandingServices />
+          </Suspense>
+          <Suspense fallback={<SectionFallback id="why-megs" minHeight={640} />}>
+            <LandingWhyMegs />
+          </Suspense>
+          <Suspense fallback={<SectionFallback id="industries" minHeight={720} />}>
+            <LandingIndustries />
+          </Suspense>
+          <Suspense fallback={<SectionFallback id="activities" minHeight={640} />}>
+            <LandingActivities />
+          </Suspense>
+          <Suspense fallback={<SectionFallback id="jobs" minHeight={900} />}>
+            <LandingJobListings
+              searchQuery={searchQuery}
+              locationQuery={locationQuery}
+              onSearchChange={setSearchQuery}
+              onLocationChange={setLocationQuery}
+              onClearSearch={handleClearSearch}
+            >
+              <Suspense fallback={null}>
+                <LandingFeaturedCompanies selectedCompany={searchQuery} onSelectCompany={setSearchQuery} />
+              </Suspense>
+            </LandingJobListings>
+          </Suspense>
+          <Suspense fallback={<SectionFallback id="branches" minHeight={760} />}>
+            <LandingBranches />
+          </Suspense>
+          <Suspense fallback={<SectionFallback id="contact" minHeight={900} />}>
+            <LandingContact />
+          </Suspense>
         </main>
 
         <LandingFooter />

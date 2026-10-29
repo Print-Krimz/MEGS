@@ -87,7 +87,10 @@ export const AuthLayout: React.FC = () => {
               to={portalHome}
               className="flex w-fit items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
-              <img src="/images/canva-ref/megs-logo-480.jpg" alt="" width={480} height={348} className="h-14 w-auto rounded-md bg-white p-1" />
+              <picture>
+                <source srcSet="/images/canva-ref/megs-logo-352.webp" type="image/webp" />
+                <img src="/images/canva-ref/megs-logo-480.jpg" alt="" width={480} height={348} className="h-14 w-auto rounded-md bg-white p-1" />
+              </picture>
               <span className="flex flex-col leading-none">
                 <span className="font-display text-2xl text-white">MEGS Inc.</span>
                 <span className="mt-1 text-xs font-medium text-white/80">MAR Employment for Good Services</span>
@@ -190,7 +193,10 @@ export const AuthLayout: React.FC = () => {
               to={portalHome}
               className="mb-8 flex min-h-11 w-fit items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
             >
-              <img src="/images/canva-ref/megs-logo-480.jpg" alt="" width={480} height={348} className="h-12 w-auto shrink-0 object-contain" />
+              <picture>
+                <source srcSet="/images/canva-ref/megs-logo-352.webp" type="image/webp" />
+                <img src="/images/canva-ref/megs-logo-480.jpg" alt="" width={480} height={348} className="h-12 w-auto shrink-0 object-contain" />
+              </picture>
               <span className="flex flex-col leading-none">
                 <span className="font-display text-xl text-primary">MEGS Inc.</span>
                 <span className="mt-1 text-xs font-medium text-muted-foreground">MAR Employment for Good Services</span>

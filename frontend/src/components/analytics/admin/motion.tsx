@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { animate, motion, useReducedMotion } from "motion/react";
+import { LazyMotion, animate, domAnimation, m, useReducedMotion } from "motion/react";
 
 /**
  * Reports motion: one first-load moment (numbers count up while bars grow from zero) and quick
@@ -59,7 +59,8 @@ export const GrowFill: React.FC<GrowProps> = ({ axis = "x", index = 0, className
   const reduce = useReducedMotion();
   const scale = axis === "x" ? "scaleX" : "scaleY";
   return (
-    <motion.div
+    <LazyMotion features={domAnimation} strict>
+    <m.div
       className={className}
       style={{ ...style, transformOrigin: axis === "x" ? "left center" : "center bottom" }}
       initial={reduce ? false : { [scale]: 0 }}
@@ -67,6 +68,7 @@ export const GrowFill: React.FC<GrowProps> = ({ axis = "x", index = 0, className
       transition={{ duration: FIRST_LOAD_MS / 1000, ease: REPORT_EASE, delay: Math.min(index, 8) * 0.04 }}
     >
       {children}
-    </motion.div>
+    </m.div>
+    </LazyMotion>
   );
 };
