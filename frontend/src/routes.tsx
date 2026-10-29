@@ -8,7 +8,6 @@ import {
 } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import type { AuthContextType } from "./context/AuthContext";
-import { resumeParseStateQuery, taApplicationDecisionsQuery, taApplicationDetailQuery, taClientsQuery } from "./lib/api/ta.queries";
 import { parseAdminReportSearch, type AdminReportSearch } from "./lib/admin-report-search";
 import { ApplicationStatus, PIPELINE_FILTER_STAGES, Role } from "./lib/types/enums";
 
@@ -429,15 +428,21 @@ export const taApplicationDetailRoute = createRoute({
   // Starts the page's data requests on hover or navigation instead of after its code renders.
   // Failures are swallowed here: the page's own queries show the error state.
   loader: async ({ context, params }) => {
-    const { queryClient } = context;
-    const id = params.applicationId;
-    const [application] = await Promise.all([
-      queryClient.ensureQueryData(taApplicationDetailQuery(id)).catch(() => undefined),
-      queryClient.ensureQueryData(taApplicationDecisionsQuery(id)).catch(() => undefined),
-      queryClient.ensureQueryData(taClientsQuery()).catch(() => undefined),
-    ]);
-    const profile = application?.user?.applicantProfile;
-    if (profile?.id) void queryClient.prefetchQuery(resumeParseStateQuery(profile.id));
+    try {
+      // Imported here so the entry bundle stays small; the detail page shares this chunk.
+      const q = await import("./lib/api/ta.queries");
+      const { queryClient } = context;
+      const id = params.applicationId;
+      const [application] = await Promise.all([
+        queryClient.ensureQueryData(q.taApplicationDetailQuery(id)).catch(() => undefined),
+        queryClient.ensureQueryData(q.taApplicationDecisionsQuery(id)).catch(() => undefined),
+        queryClient.ensureQueryData(q.taClientsQuery()).catch(() => undefined),
+      ]);
+      const profile = application?.user?.applicantProfile;
+      if (profile?.id) void queryClient.prefetchQuery(q.resumeParseStateQuery(profile.id));
+    } catch {
+      // The page's own queries show the error state.
+    }
   },
   component: TAApplicationDetailPage,
 });
