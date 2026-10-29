@@ -32,6 +32,27 @@ const password = (message: string) =>
   z.string().min(8, message).refine(withinNewPasswordBytes, NEW_PASSWORD_BYTES_MESSAGE);
 const token = z.string().min(1).max(FIELD_LIMITS.authToken);
 
+/**
+ * Single canonical account identifier for a request body, shared by validation, the per-account
+ * rate limiters and authentication. `email` and `identifier` are aliases: they may both be sent only
+ * if they normalize to the same value. Anything malformed, oversized or conflicting yields no value
+ * (limiters then fall back to the IP budget; validation rejects it).
+ */
+export const resolveAuthIdentifier = (body: unknown): { value: string | null; conflict: boolean } => {
+  const raw = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const candidates = [raw.email, raw.identifier].filter(
+    (v): v is string => typeof v === "string" && v.trim() !== ""
+  );
+  const normalized = new Set<string>();
+  for (const candidate of candidates) {
+    const trimmed = candidate.trim();
+    if (trimmed.length > FIELD_LIMITS.email || !isValidAuthIdentifier(trimmed)) return { value: null, conflict: false };
+    normalized.add(normalizeAuthIdentifier(trimmed));
+  }
+  if (normalized.size > 1) return { value: null, conflict: true };
+  return { value: normalized.size === 1 ? [...normalized][0] : null, conflict: false };
+};
+
 const withIdentifierFallback = <T extends z.ZodRawShape>(shape: T) =>
   z.preprocess((input: any) => {
     if (input && typeof input === "object") {
@@ -42,7 +63,13 @@ const withIdentifierFallback = <T extends z.ZodRawShape>(shape: T) =>
       return copy;
     }
     return input;
-  }, z.object(shape));
+  }, z.object(shape).superRefine((data: any, ctx) => {
+    // Reject two different accounts sent under the two alias names.
+    if (typeof data.identifier === "string" && data.identifier.trim() !== "" &&
+        (!isValidAuthIdentifier(data.identifier) || normalizeAuthIdentifier(data.identifier) !== data.email)) {
+      ctx.addIssue({ code: "custom", path: ["identifier"], message: "identifier and email must refer to the same account" });
+    }
+  }).transform((data: any) => (data.email ? { ...data, identifier: data.email } : data)));
 
 export const authSchema = {
   register: z.object({

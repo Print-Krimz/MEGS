@@ -2,6 +2,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request, Response } from "express";
 import { createHash } from "node:crypto";
 import { PostgresRateLimitStore } from "../security/shared-store.js";
+import { resolveAuthIdentifier } from "../schemas/auth.schema.js";
 // Same developer switch as main MEGS. It applies in hosted production/Heroku.
 const skipDisabled = () => process.env.DISABLE_RATE_LIMIT === "true";
 const securityStore = (name: string) => new PostgresRateLimitStore(name);
@@ -39,7 +40,7 @@ export const rateLimitHandler = (message: string, defaultRetrySeconds: number = 
  * while preventing single-IP collateral blocking when multiple users share an office gateway.
  */
 export const authKeyGenerator = (req: Request): string => {
-  const email = req.body?.email ? String(req.body.email).toLowerCase().trim() : "";
+  const email = resolveAuthIdentifier(req.body).value ?? "";
   const rawIp = req.ip || req.socket?.remoteAddress || "127.0.0.1";
   const ip = ipKeyGenerator(rawIp);
   return email ? `${ip}_${email}` : ip;
@@ -49,7 +50,7 @@ export const authKeyGenerator = (req: Request): string => {
  * Key generator strictly keyed by normalized email (fallback to IP) for sensitive mail triggers.
  */
 export const emailKeyGenerator = (req: Request): string => {
-  const email = req.body?.email ? String(req.body.email).toLowerCase().trim() : "";
+  const email = resolveAuthIdentifier(req.body).value ?? "";
   if (email) {
     return `mail_${email}`;
   }
@@ -91,7 +92,7 @@ export const forgotPasswordLimiter = rateLimit({
 // Separate budgets prevent changing an email/IP from resetting every counter.
 export const authIpLimiter = limiter("auth-ip", 100, 15 * 60 * 1000, clientIp);
 export const authAccountLimiter = limiter("auth-account", 30, 15 * 60 * 1000,
-  req => hashIdentity(String(req.body?.email || req.user?.id || clientIp(req)).toLowerCase().trim()));
+  req => hashIdentity(resolveAuthIdentifier(req.body).value || String(req.user?.id || clientIp(req)).toLowerCase().trim()));
 
 export const operationLimiters = (name: string, perUser: number, global: number, windowMs = 60 * 60 * 1000) => [
   limiter(`${name}-user`, perUser, windowMs, req => hashIdentity(req.user?.id || clientIp(req))),
