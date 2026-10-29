@@ -58,6 +58,8 @@ export interface SessionOptions {
   delays?: Record<string, number>;
   /** Default true. False skips the PerformanceObserver store (used by the memory investigation, which must not accumulate harness arrays). */
   observers?: boolean;
+  /** A real SSE server to forward the notification stream to, so the stream stays open instead of the finite fixture body. */
+  streamUrl?: string;
 }
 
 export interface Session {
@@ -159,6 +161,7 @@ async function installRouting(
   scale: FixtureScale,
   delays: Record<string, number>,
   net: NetLog,
+  streamUrl?: string,
 ) {
   const fixtureCtx = { identity, scale };
   await context.route("**/*", async (route) => {
@@ -180,6 +183,10 @@ async function installRouting(
       net.apiCounts[shapeKey] = (net.apiCounts[shapeKey] ?? 0) + 1;
 
       if (SSE_PATH.test(url.pathname)) {
+        if (streamUrl) {
+          await route.continue({ url: streamUrl });
+          return;
+        }
         await route.fulfill({
           status: 200,
           contentType: "text/event-stream",
@@ -235,7 +242,7 @@ export async function openSession(browser: Browser, options: SessionOptions = {}
     role: options.identity ?? null,
     observers: options.observers ?? true,
   });
-  await installRouting(context, identity, scale, options.delays ?? {}, net);
+  await installRouting(context, identity, scale, options.delays ?? {}, net, options.streamUrl);
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));

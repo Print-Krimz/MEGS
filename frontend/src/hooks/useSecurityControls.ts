@@ -14,6 +14,6 @@ export const useSecurityControls = (enabled = true) => useQuery({
   queryKey: ["security-controls"],
   queryFn: () => api.get<SecurityControls>("/api/config/security"),
   enabled,
-  refetchInterval: enabled ? 5000 : false,
-  staleTime: 0,
+  // Focus refetch picks up an admin toggle; no timer.
+  staleTime: 60_000,
 });

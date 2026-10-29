@@ -6,7 +6,13 @@ export const APPLICATION_PROCESSING_POLL_MS = 5 * 1000;
 export const APPLICATION_IDLE_POLL_MS = 30 * 1000;
 export const INVITATION_POLL_MS = 60 * 1000;
 export const NOTIFICATION_COUNT_POLL_MS = 30 * 1000;
+export const LIVE_CONNECTED_POLL_MS = 120 * 1000;
 export const SERVER_SEARCH_DEBOUNCE_MS = 300;
+
+/** While the notification stream is open it reports changes, so a safety-net poll can slow down. */
+export function pollInterval(baseMs: number, connected: boolean): number {
+  return connected ? Math.max(baseMs, LIVE_CONNECTED_POLL_MS) : baseMs;
+}
 
 export function normalizeServerSearch(value: string): string {
   return value.trim();
@@ -41,8 +47,9 @@ export function hasApplicationProcessingWork(data: unknown): boolean {
   });
 }
 
-export function getApplicationRefetchInterval(data: unknown): number {
+/** Parse progress is not a stream event, so the processing poll stays fast even while connected. */
+export function getApplicationRefetchInterval(data: unknown, connected = false): number {
   return hasApplicationProcessingWork(data)
     ? APPLICATION_PROCESSING_POLL_MS
-    : APPLICATION_IDLE_POLL_MS;
+    : pollInterval(APPLICATION_IDLE_POLL_MS, connected);
 }

@@ -11,6 +11,8 @@ export function connectNotificationStream(options: {
   subscribeSession: (restart: () => void) => () => void;
   /** Runs when the stream opens again after a drop; events sent while it was down are lost, so refetch. */
   onReconnect?: () => void;
+  /** True once the stream is open, false when it drops or stops. */
+  onStatus?: (connected: boolean) => void;
   transport?: typeof fetchEventSource;
 }): () => void {
   let disposed = false;
@@ -34,12 +36,15 @@ export function connectNotificationStream(options: {
         await transport(options.url, {
           headers: { Authorization: `Bearer ${token}` },
           signal: currentController.signal,
+          // Keep the stream across tab hides; reopening on every show would refetch the whole role cache.
+          openWhenHidden: true,
           onopen: async (response) => {
             if (response.status === 401 || response.status === 403) throw new StopStream();
             if (!response.ok || !response.headers.get("content-type")?.startsWith("text/event-stream")) {
               throw new Error("Notification stream unavailable");
             }
             opened = true;
+            options.onStatus?.(true);
             if (hasOpened) options.onReconnect?.();
             hasOpened = true;
           },
@@ -50,6 +55,7 @@ export function connectNotificationStream(options: {
       } catch (error) {
         // A stream that opened was healthy, so its eventual close starts a fresh retry budget.
         // Without this reset the budget is spent over the page's lifetime and the stream stays dead.
+        if (opened) options.onStatus?.(false);
         const failures = opened ? 0 : failureCount;
         if (error instanceof StopStream || disposed || currentController.signal.aborted ||
           currentGeneration !== generation || failures >= 4) return;
@@ -65,6 +71,7 @@ export function connectNotificationStream(options: {
     generation += 1;
     clearTimeout(retryTimer);
     controller?.abort();
+    options.onStatus?.(false);
     unsubscribe();
   };
 }

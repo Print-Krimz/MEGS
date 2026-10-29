@@ -13,6 +13,8 @@ import {
 } from "../../common";
 import { useRowSelection } from "../../../hooks/useRowSelection";
 import { notify } from "../../../lib/feedback";
+import { pollInterval } from "../../../lib/query-policies";
+import { useLiveStreamConnected } from "../../../lib/live-stream-status";
 import { EncodeWalkInDialog } from "./EncodeWalkInDialog";
 import type { BulkSummary, CheckInDetail, CheckInSummary, WalkInSlip } from "../../../lib/types/application.types";
 
@@ -20,12 +22,14 @@ const REFRESH_MS = 30_000;
 const REASON_MAX = 300;
 
 /** Shared list query so the tab count and the panel stay in step. */
-export const useCheckIns = () =>
-  useQuery({
+export const useCheckIns = () => {
+  const streamConnected = useLiveStreamConnected();
+  return useQuery({
     queryKey: ["ta", "check-ins"],
     queryFn: ({ signal }) => taApi.listCheckIns({ signal }),
-    refetchInterval: REFRESH_MS,
+    refetchInterval: pollInterval(REFRESH_MS, streamConnected),
   });
+};
 
 /** "just now", "12 min", "1 h 5 min". */
 export const formatWaiting = (createdAt: string, now: number = Date.now()): string => {

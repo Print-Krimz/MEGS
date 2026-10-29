@@ -6,7 +6,8 @@ import { notificationApi } from "../lib/api/notification.api";
 import { resolveApiBase } from "../lib/api/client";
 import { resolveNotificationLink } from "../lib/utils";
 import { getNotificationInvalidationKeys, getRoleRoot } from "../lib/notification-invalidation";
-import { NOTIFICATION_COUNT_POLL_MS } from "../lib/query-policies";
+import { NOTIFICATION_COUNT_POLL_MS, pollInterval } from "../lib/query-policies";
+import { setLiveStreamConnected, useLiveStreamConnected } from "../lib/live-stream-status";
 import { useAuth } from "./useAuth";
 
 export interface RealtimeToast {
@@ -26,6 +27,7 @@ export function useRealtimeNotifications() {
   const queryClient = useQueryClient();
   const [activeToasts, setActiveToasts] = useState<RealtimeToast[]>([]);
   const toastTimeouts = useRef(new Map<number, number>());
+  const streamConnected = useLiveStreamConnected();
 
   useEffect(() => () => {
     toastTimeouts.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
@@ -40,7 +42,7 @@ export function useRealtimeNotifications() {
       return res.count;
     },
     enabled: isAuthenticated,
-    refetchInterval: NOTIFICATION_COUNT_POLL_MS, // Process-local SSE needs cross-process reconciliation.
+    refetchInterval: pollInterval(NOTIFICATION_COUNT_POLL_MS, streamConnected), // Process-local SSE needs cross-process reconciliation.
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
@@ -69,6 +71,7 @@ export function useRealtimeNotifications() {
     return connectNotificationStream({
       url: `${API_BASE}/api/notifications/stream`,
       getToken: () => localStorage.getItem("access_token"),
+      onStatus: setLiveStreamConnected,
       // Anything sent while the stream was down is gone, so refresh what this role shows.
       onReconnect() {
         void queryClient.invalidateQueries({ queryKey: ["notifications"] });

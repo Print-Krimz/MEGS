@@ -12,6 +12,7 @@
  */
 import { test, type Page } from "@playwright/test";
 import { writeFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
 import path from "node:path";
 import { fixtureBytes, LARGE_SCALE, SMALL_SCALE, type IdentityKey } from "./fixtures";
 import {
@@ -623,6 +624,69 @@ test.describe.serial("production-preview performance baseline", () => {
         },
       };
       persist("workforce", { scenario: "/ta/workforce variants and TA list endpoints at 1,000 rows (CPU 4x)", variants: output, payloads });
+    });
+  });
+
+  test("tab hide/show refetch count", async ({ browser }) => {
+    test.setTimeout(5 * 60_000);
+    await required("tab-hide-show", async () => {
+      // A real SSE server that never ends: the harness fixture body is finite and would drop the stream every second.
+      const open = new Set<import("node:net").Socket>();
+      const server: Server = createServer((req, res) => {
+        res.writeHead(200, {
+          "content-type": "text/event-stream",
+          "cache-control": "no-cache",
+          "access-control-allow-origin": req.headers.origin ?? "*",
+          "access-control-allow-headers": "*",
+        });
+        res.write(": open\n\n");
+      });
+      server.on("connection", (socket) => { open.add(socket); socket.on("close", () => open.delete(socket)); });
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const port = (server.address() as { port: number }).port;
+      const session = await openSession(browser, {
+        identity: "TALENT_ACQUISITION",
+        scale: SMALL_SCALE,
+        streamUrl: `http://127.0.0.1:${port}/stream`,
+      });
+      const page = session.page;
+      try {
+        await gotoAndSettle(page, "/ta", 3000);
+        const total = () => Object.entries(session.net.apiCounts).filter(([key]) => key.split(" ").length === 2).reduce((sum, [, n]) => sum + n, 0);
+        const before = total();
+        const countsBefore = { ...session.net.apiCounts };
+        for (let i = 0; i < 3; i += 1) {
+          await page.evaluate(() => {
+            const set = (state: string) => {
+              Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+              Object.defineProperty(document, "hidden", { configurable: true, get: () => state === "hidden" });
+              document.dispatchEvent(new Event("visibilitychange"));
+            };
+            set("hidden");
+            set("visible");
+          });
+          await page.waitForTimeout(1500);
+        }
+        await page.waitForTimeout(2000);
+        const after = total();
+        const extra: Record<string, number> = {};
+        for (const [key, n] of Object.entries(session.net.apiCounts)) {
+          const delta = n - (countsBefore[key] ?? 0);
+          if (delta > 0 && key.split(" ").length === 2) extra[key] = delta;
+        }
+        assertCleanSession(session, "tab-hide-show");
+        persist("tab-hide-show", {
+          scenario: "/ta with a held-open SSE stream; 3 hide/show cycles via visibilitychange; /api/ requests after settle",
+          requestsAfterThreeCycles: after - before,
+          requestsPerCycle: (after - before) / 3,
+          extraRequests: extra,
+        });
+        if (after - before > 4) throw new Error(`tab hide/show caused ${after - before} /api/ requests (limit 4)`);
+      } finally {
+        await session.close();
+        for (const socket of open) socket.destroy();
+        server.close();
+      }
     });
   });
 

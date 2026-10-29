@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ChevronRight, X } from "lucide-react";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -36,18 +36,25 @@ import {
 import { useRowSelection } from "../../hooks/useRowSelection";
 import type { ApplicationSourceFilter, TAApplicationSearch } from "../../routes";
 import { SourceChip, APPLICATION_SOURCE_LABELS } from "../../components/ta/walk-in/SourceChip";
-import { EncodeSeveralWalkInsDialog } from "../../components/ta/walk-in/EncodeSeveralWalkInsDialog";
-import { WalkInSlipDialog } from "../../components/ta/walk-in/WalkInSlipDialog";
 import { CheckInsPanel, useCheckIns } from "../../components/ta/walk-in/CheckInsPanel";
-import { CheckInPosterDialog } from "../../components/ta/walk-in/CheckInPoster";
 import { ReviewQueue } from "../../components/ta/recruitment/ReviewQueue";
 import { TA_COPY } from "../../lib/ta-copy";
 import {
   APPLICATION_IDLE_POLL_MS,
   normalizeServerSearch,
+  pollInterval,
   REFERENCE_QUERY_STALE_TIME_MS,
   SERVER_SEARCH_DEBOUNCE_MS,
 } from "../../lib/query-policies";
+import { useLiveStreamConnected } from "../../lib/live-stream-status";
+
+// Walk-in dialogs mount only while open, so their code loads on first use.
+const EncodeSeveralWalkInsDialog = lazy(() =>
+  import("../../components/ta/walk-in/EncodeSeveralWalkInsDialog").then((m) => ({ default: m.EncodeSeveralWalkInsDialog })));
+const WalkInSlipDialog = lazy(() =>
+  import("../../components/ta/walk-in/WalkInSlipDialog").then((m) => ({ default: m.WalkInSlipDialog })));
+const CheckInPosterDialog = lazy(() =>
+  import("../../components/ta/walk-in/CheckInPoster").then((m) => ({ default: m.CheckInPosterDialog })));
 
 const EMPTY_LIST: any[] = [];
 
@@ -264,6 +271,7 @@ export const ApplicationsPage: React.FC = () => {
   const [walkInSlip, setWalkInSlip] = useState<WalkInSlip | null>(null);
   const [posterOpen, setPosterOpen] = useState(false);
   const [view, setView] = useState<"applications" | "check-ins">("applications");
+  const streamConnected = useLiveStreamConnected();
   const checkInCount = useCheckIns().data?.items.length ?? 0;
   const [layout, setLayoutState] = useState<ListLayout>(readLayout);
   const queueRef = React.useRef<HTMLDivElement>(null);
@@ -332,7 +340,7 @@ export const ApplicationsPage: React.FC = () => {
       }, { signal }),
     placeholderData: keepPreviousData,
     // Safety net for a change the live stream missed; the stage counts below poll the same way.
-    refetchInterval: APPLICATION_IDLE_POLL_MS,
+    refetchInterval: pollInterval(APPLICATION_IDLE_POLL_MS, streamConnected),
   });
 
   const jobsQuery = useQuery({
@@ -380,7 +388,7 @@ export const ApplicationsPage: React.FC = () => {
       }, { signal }),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
-    refetchInterval: APPLICATION_IDLE_POLL_MS,
+    refetchInterval: pollInterval(APPLICATION_IDLE_POLL_MS, streamConnected),
   });
   const stageStripItems: StageStripItem[] = stageStripValues.map((stage) => ({
     value: stage,
@@ -838,9 +846,11 @@ export const ApplicationsPage: React.FC = () => {
       />
 
       {/* Mounted only while open: the encode form's unsaved-changes guard should not run on every page view. */}
-      {encodeOpen && <EncodeSeveralWalkInsDialog open onClose={() => setEncodeOpen(false)} />}
-      {walkInSlip && <WalkInSlipDialog slip={walkInSlip} onClose={() => setWalkInSlip(null)} />}
-      {posterOpen && <CheckInPosterDialog open onClose={() => setPosterOpen(false)} />}
+      <Suspense fallback={null}>
+        {encodeOpen && <EncodeSeveralWalkInsDialog open onClose={() => setEncodeOpen(false)} />}
+        {walkInSlip && <WalkInSlipDialog slip={walkInSlip} onClose={() => setWalkInSlip(null)} />}
+        {posterOpen && <CheckInPosterDialog open onClose={() => setPosterOpen(false)} />}
+      </Suspense>
 
       {feedback && (
         <div

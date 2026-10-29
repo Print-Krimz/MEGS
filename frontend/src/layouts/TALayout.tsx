@@ -28,6 +28,7 @@ import { getInitials } from "../lib/utils";
 import { Role } from "../lib/types/enums";
 import { TA_COPY } from "../lib/ta-copy";
 import { taApi } from "../lib/api/ta.api";
+import { REFERENCE_QUERY_STALE_TIME_MS } from "../lib/query-policies";
 import { employeesApi } from "../lib/api/employees.api";
 import { TAGlobalSearch } from "./TAGlobalSearch";
 
@@ -284,13 +285,13 @@ export const TALayout: React.FC = () => {
     // Same key and fetcher as the dashboard interview SLA card, so the cache is shared.
     queryKey: ["ta", "compliance", "interviews", "summary"],
     queryFn: ({ signal }) => taApi.listInterviewCompliancePage({ page: 1, pageSize: 1 }, { signal }),
-    staleTime: 60_000,
+    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   }).data?.summary?.breached ?? 0;
   const documentsToReview = useQuery({
     // Same key and fetcher the requirements queue used for its totals, so the cache is shared.
     queryKey: ["ta", "analytics", "compliance", "COMPLIANCE"],
     queryFn: () => taApi.getComplianceOverview({ stage: "COMPLIANCE" }),
-    staleTime: 60_000,
+    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   }).data?.statusBreakdown?.SUBMITTED ?? 0;
   const needsPlacement = useQuery({
     // Same key and fetcher as the Workforce page summary.
