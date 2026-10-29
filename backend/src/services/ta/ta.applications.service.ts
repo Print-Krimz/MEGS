@@ -182,22 +182,9 @@ const findReturningApplicationIds = async (actor?: Actor, jobPostingId?: number)
   return rows.map((row) => row.id);
 };
 
-export const listTAApplications = async (
-  statusOrOptions?: string | ListTAApplicationsOptions,
-  legacyJobPostingId?: string
-) => {
-  const options: ListTAApplicationsOptions =
-    typeof statusOrOptions === "object" && statusOrOptions !== null
-      ? statusOrOptions
-      : {
-          status: statusOrOptions,
-          jobPostingId: legacyJobPostingId,
-        };
-
-  const { status, jobPostingId, clientId, search, isArchived, page, limit, mineOnly, returningOnly, currentUserId, postedById, summary, actor, sort, needsAction, openOnly, source } = options;
-  const dynamicScoring = scoringFlags.dynamicCandidateScoringEnabled();
-  const configuration = dynamicScoring ? await getActiveScoringConfiguration() : null;
-
+/** One construction path for the list and the stage counts, so the two always describe the same records. */
+const buildApplicationWhere = async (options: ListTAApplicationsOptions): Promise<any> => {
+  const { status, jobPostingId, clientId, search, isArchived, mineOnly, returningOnly, currentUserId, postedById, actor, needsAction, openOnly, source } = options;
   const andConditions: any[] = [];
   if (actor) andConditions.push(ownedWhere.application(actor));
 
@@ -283,7 +270,78 @@ export const listTAApplications = async (
     }
   }
 
-  const where: any = andConditions.length > 0 ? { AND: andConditions } : {};
+  return andConditions.length > 0 ? { AND: andConditions } : {};
+};
+
+export interface ApplicationCounts {
+  total: number;
+  byStatus: Record<string, number>;
+}
+
+/** Stage counts for the Applications strip: every list filter except the stage itself. */
+export const countTAApplications = async (options: ListTAApplicationsOptions): Promise<ApplicationCounts> => {
+  const where = await buildApplicationWhere({ ...options, status: undefined });
+  const grouped = await prisma.application.groupBy({ by: ["status"], where, _count: { _all: true } });
+  const byStatus: Record<string, number> = {};
+  let total = 0;
+  for (const row of grouped) {
+    byStatus[String(row.status)] = row._count._all;
+    total += row._count._all;
+  }
+  return { total, byStatus };
+};
+
+/**
+ * Ids for one page, ordered in SQL by the effective preferred score (the same current-over-stale pick the
+ * scorecards use), then newest, then id. The filtered id set comes from the shared where clause; ranking,
+ * ties and the page cut all happen in the database so an old high score is never lost behind a newer page.
+ */
+const rankApplicationIds = async (
+  where: any,
+  opts: { configurationId: number | null; dynamicScoring: boolean; skip: number; take?: number },
+): Promise<number[]> => {
+  const ids = (await prisma.application.findMany({ where, select: { id: true } })).map((row) => row.id);
+  if (ids.length === 0) return [];
+  const fallback = opts.dynamicScoring ? Prisma.sql`-1` : Prisma.sql`COALESCE(application."aiScore", -1)`;
+  const limit = opts.take === undefined ? Prisma.empty : Prisma.sql`LIMIT ${opts.take}`;
+  const rows = await prisma.$queryRaw<Array<{ id: number }>>`
+    SELECT application."id"
+    FROM "Application" AS application
+    LEFT JOIN LATERAL (
+      SELECT score."finalFitScore"
+      FROM "CandidateScore" AS score
+      WHERE score."applicationId" = application."id"
+        AND score."jobPostingId" = application."jobPostingId"
+        AND score."status" IN ('CALCULATED', 'STALE')
+      ORDER BY
+        CASE WHEN score."configurationId" = ${opts.configurationId ?? -1} AND score."status" = 'CALCULATED' THEN 0 ELSE 1 END,
+        score."calculatedAt" DESC, score."id" DESC
+      LIMIT 1
+    ) AS preferred ON TRUE
+    WHERE application."id" = ANY(${ids}::int[])
+    ORDER BY COALESCE(preferred."finalFitScore", ${fallback}) DESC, application."createdAt" DESC, application."id" DESC
+    ${limit} OFFSET ${opts.skip}
+  `;
+  return rows.map((row) => row.id);
+};
+
+export const listTAApplications = async (
+  statusOrOptions?: string | ListTAApplicationsOptions,
+  legacyJobPostingId?: string
+) => {
+  const options: ListTAApplicationsOptions =
+    typeof statusOrOptions === "object" && statusOrOptions !== null
+      ? statusOrOptions
+      : {
+          status: statusOrOptions,
+          jobPostingId: legacyJobPostingId,
+        };
+
+  const { page, limit, summary, sort } = options;
+  const dynamicScoring = scoringFlags.dynamicCandidateScoringEnabled();
+  const configuration = dynamicScoring ? await getActiveScoringConfiguration() : null;
+
+  const where: any = await buildApplicationWhere(options);
 
   if (summary) {
     const resolvedPage = page ?? 1;
@@ -321,11 +379,7 @@ export const listTAApplications = async (
       ? [{ createdAt: "desc" }, { id: "desc" }]
       : sortMode === "oldest"
         ? [{ createdAt: "asc" }, { id: "asc" }]
-        : dynamicScoring ? [{ createdAt: "desc" }, { id: "desc" }] : [
-            { aiScore: { sort: "desc", nulls: "last" } },
-            { createdAt: "desc" },
-            { id: "desc" },
-          ];
+        : undefined;
 
     const total = await prisma.application.count({ where });
     let applications: Awaited<ReturnType<typeof prisma.application.findMany<{ select: typeof summarySelect }>>>;
@@ -345,6 +399,14 @@ export const listTAApplications = async (
         .map((c) => c.id)
         .sort((a, b) => entryByApplication!.get(a)!.getTime() - entryByApplication!.get(b)!.getTime() || a - b)
         .slice(skip, skip + resolvedLimit);
+      const rows = rankedIds.length === 0
+        ? []
+        : await prisma.application.findMany({ where: { id: { in: rankedIds } }, select: summarySelect });
+      const rowById = new Map(rows.map((row) => [row.id, row]));
+      applications = rankedIds.map((id) => rowById.get(id)).filter((row): row is NonNullable<typeof row> => Boolean(row));
+    } else if (sortMode === "match") {
+      // Best match ranks the whole filtered set by effective score in SQL, then loads only the page rows.
+      const rankedIds = await rankApplicationIds(where, { configurationId: configuration?.id ?? null, dynamicScoring, skip, take: resolvedLimit });
       const rows = rankedIds.length === 0
         ? []
         : await prisma.application.findMany({ where: { id: { in: rankedIds } }, select: summarySelect });
@@ -391,16 +453,6 @@ export const listTAApplications = async (
           recruiterDecisionCount: _count.recruiterDecisions,
         };
       });
-    // Other sorts already come back in the requested order; only "match" re-ranks by score.
-    if (sortMode === "match") items.sort((left, right) => {
-        if (dynamicScoring) {
-          return (right.candidateFitScore ?? -1) - (left.candidateFitScore ?? -1)
-            || right.createdAt.getTime() - left.createdAt.getTime();
-        }
-        return (right.candidateFitScore ?? right.aiScore ?? -1) - (left.candidateFitScore ?? left.aiScore ?? -1)
-          || right.createdAt.getTime() - left.createdAt.getTime();
-      });
-
     return {
       items,
       total,
@@ -413,18 +465,12 @@ export const listTAApplications = async (
   const take = limit ? Math.max(1, limit) : undefined;
   const skip = page && limit ? Math.max(0, (page - 1) * limit) : undefined;
 
-  const [total, applications] = await Promise.all([
+  // Same SQL ranking as the summary list, applied before the page is cut.
+  const rankedIds = await rankApplicationIds(where, { configurationId: configuration?.id ?? null, dynamicScoring, skip: skip ?? 0, take });
+  const [total, loaded] = await Promise.all([
     prisma.application.count({ where }),
-    prisma.application.findMany({
-      where,
-      ...(take ? { take } : {}),
-      ...(skip ? { skip } : {}),
-      // id breaks createdAt ties so rows never repeat or vanish between pages.
-      orderBy: dynamicScoring ? [{ createdAt: "desc" }, { id: "desc" }] : [
-        { aiScore: { sort: "desc", nulls: "last" } },
-        { createdAt: "desc" },
-        { id: "desc" },
-      ],
+    rankedIds.length === 0 ? Promise.resolve([]) : prisma.application.findMany({
+      where: { id: { in: rankedIds } },
       select: {
         id: true,
         status: true,
@@ -483,7 +529,8 @@ export const listTAApplications = async (
       },
     }),
   ]);
-
+  const loadedById = new Map(loaded.map((row) => [row.id, row]));
+  const applications = rankedIds.map((id) => loadedById.get(id)).filter((row): row is NonNullable<typeof row> => Boolean(row));
 
   const formatted = (await attachReturningInfo(applications))
     .map((application) => {
@@ -503,12 +550,6 @@ export const listTAApplications = async (
         candidateScoringConfigurationVersion: configuration?.version ?? null,
         candidateScores: latestScore ? [{ finalFitScore: candidateFitScore, calculatedAt: candidateFitScoreCalculatedAt }] : [],
       };
-    })
-    .sort((left, right) => {
-      if (dynamicScoring) {
-        return (right.candidateFitScore ?? -1) - (left.candidateFitScore ?? -1) || right.createdAt.getTime() - left.createdAt.getTime();
-      }
-      return (right.candidateFitScore ?? right.aiScore ?? -1) - (left.candidateFitScore ?? left.aiScore ?? -1) || right.createdAt.getTime() - left.createdAt.getTime();
     });
 
   const photoUrls = await resolveDocumentSignedUrls(

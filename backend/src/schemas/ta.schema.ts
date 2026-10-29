@@ -139,6 +139,21 @@ export const taSchema = {
       summary: z.enum(["true", "false"]).optional(),
     }).strict(),
   }),
+  // Stage counts take the list's filters except the stage itself, sort and paging.
+  countApplications: z.object({
+    query: z.object({
+      jobPostingId: idValue.optional(),
+      jobId: idValue.optional(),
+      clientId: idValue.optional(),
+      search: boundedText(FIELD_LIMITS.search).optional(),
+      isArchived: z.enum(["true", "false"]).optional(),
+      mineOnly: z.enum(["true", "false"]).optional(),
+      returning: z.enum(["true", "false"]).optional(),
+      source: z.enum(["ONLINE", "WALK_IN"]).optional(),
+      needsAction: z.enum(["true", "false", "1", "0"]).optional(),
+      openOnly: z.enum(["true", "false", "1", "0"]).optional(),
+    }).strict(),
+  }),
   walkInCheckDuplicate: z.object({
     query: z.object({
       phone: boundedText(30).optional(),
@@ -190,8 +205,11 @@ export const taSchema = {
       position: boundedText(FIELD_LIMITS.search).optional(),
       sortField: z.enum(["candidate", "position", "scheduledAt", "deadline"]).optional(),
       sortDirection: z.enum(["asc", "desc"]).optional(),
+      scheduledOnly: z.enum(["true", "false"]).optional(),
+      from: dateOnly.optional(),
+      to: dateOnly.optional(),
       ...pageQueryFields,
-    }).strict(),
+    }).strict().refine((query) => !query.from || !query.to || query.from <= query.to, { path: ["to"], message: "End date must be on or after the start date" }),
   }),
   recordBackout: z.object({
     params: z.object({ id: boundedIdText }),

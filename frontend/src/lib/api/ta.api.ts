@@ -104,6 +104,11 @@ export interface ApplicationQueryFilters {
   summary?: boolean;
 }
 
+export interface ApplicationCounts {
+  total: number;
+  byStatus: Partial<Record<string, number>>;
+}
+
 export interface TAJobDetail extends JobPosting {
   applications?: Array<{
     id: number;
@@ -172,6 +177,22 @@ export const taApi = {
       `/api/ta/applications${qs ? `?${qs}` : ""}`,
       options,
     );
+  },
+
+  /** Stage counts for the list's filters (the stage itself, sort and paging are ignored). */
+  countApplications: (filters: Omit<ApplicationQueryFilters, "status" | "sort" | "page" | "limit" | "summary">, options?: RequestInit) => {
+    const params = new URLSearchParams();
+    if (filters.jobId) params.append("jobId", String(filters.jobId));
+    if (filters.clientId) params.append("clientId", String(filters.clientId));
+    const search = filters.search?.trim();
+    if (search) params.append("search", search);
+    if (filters.isArchived !== undefined) params.append("isArchived", String(filters.isArchived));
+    if (filters.returning) params.append("returning", "true");
+    if (filters.needsAction) params.append("needsAction", "true");
+    if (filters.openOnly) params.append("openOnly", "true");
+    if (filters.source) params.append("source", filters.source);
+    const qs = params.toString();
+    return api.get<ApplicationCounts>(`/api/ta/applications/counts${qs ? `?${qs}` : ""}`, options);
   },
 
   listApplicationsPage: (filters: ApplicationQueryFilters & { page: number; limit: number }, options?: RequestInit) => {
@@ -632,12 +653,19 @@ export const taApi = {
     position?: string;
     sortField?: string;
     sortDirection?: string;
+    /** Only interviews with a scheduled time; `from`/`to` are inclusive Manila dates (YYYY-MM-DD). */
+    scheduledOnly?: boolean;
+    from?: string;
+    to?: string;
   }, options?: RequestInit) => {
     const params = new URLSearchParams();
     const search = filters.search?.trim();
     if (search) params.append("search", search);
     if (filters.status) params.append("status", filters.status);
     if (filters.stage) params.append("stage", filters.stage);
+    if (filters.scheduledOnly) params.append("scheduledOnly", "true");
+    if (filters.from) params.append("from", filters.from);
+    if (filters.to) params.append("to", filters.to);
     if (filters.position) params.append("position", filters.position);
     if (filters.sortField) params.append("sortField", filters.sortField);
     if (filters.sortDirection) params.append("sortDirection", filters.sortDirection);

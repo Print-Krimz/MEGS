@@ -6,7 +6,6 @@ import { taApi } from "../../../lib/api/ta.api";
 import { employeesApi } from "../../../lib/api/employees.api";
 import { addManilaCalendarDays, getManilaToday, toManilaDateInput } from "../../../lib/field-limits";
 import { formatDate } from "../../../lib/utils";
-import { plural } from "../../../lib/plural";
 import { Button } from "../../ui";
 import type { Deployment } from "../../../lib/types/employee.types";
 
@@ -100,14 +99,18 @@ const SectionBlock: React.FC<{ section: Section }> = ({ section }) => {
 /** What is scheduled soon, so the recruiter can plan the week. Each section is hidden when it has nothing. */
 export const ComingUp: React.FC<{ deploymentsQuery: UseQueryResult<Deployment[]> }> = ({ deploymentsQuery }) => {
   const today = getManilaToday();
-  const weekEnd = addManilaCalendarDays(today, 7);
+  // Today plus the next six Manila days: seven calendar days, both ends inclusive.
+  const weekEnd = addManilaCalendarDays(today, 6);
   const monthEnd = addManilaCalendarDays(today, 30);
 
   const interviewsQuery = useQuery({
-    queryKey: ["ta", "compliance", "interviews", "upcoming"],
-    // Open interviews oldest first. A page of 50 covers the coming week.
+    queryKey: ["ta", "compliance", "interviews", "upcoming", today, weekEnd],
+    // The server keeps only interviews scheduled inside the window, so older or unscheduled rows cannot crowd them out.
     queryFn: ({ signal }) =>
-      taApi.listInterviewCompliancePage({ page: 1, pageSize: 50, sortField: "scheduledAt", sortDirection: "asc" }, { signal }),
+      taApi.listInterviewCompliancePage(
+        { page: 1, pageSize: 50, scheduledOnly: true, from: today, to: weekEnd, sortField: "scheduledAt", sortDirection: "asc" },
+        { signal },
+      ),
     staleTime: 60_000,
     ...QUERY,
   });
@@ -134,7 +137,7 @@ export const ComingUp: React.FC<{ deploymentsQuery: UseQueryResult<Deployment[]>
     .sort((a, b) => a.row.scheduledAt.localeCompare(b.row.scheduledAt));
   sections.push({
     key: "interviews",
-    label: "Interviews this week",
+    label: "Interviews in the next 7 days",
     seeAll: { to: "/ta/interviews" },
     items: interviews.map(({ row }) => ({
       key: `i-${row.interviewId}`,
@@ -208,7 +211,7 @@ export const ComingUp: React.FC<{ deploymentsQuery: UseQueryResult<Deployment[]>
           )}
           {visible.length === 0 && failed.length === 0 && (
             <p className="px-3.5 py-4 text-sm text-slate-600">
-              Nothing scheduled in the next {plural(30, "day")}.
+              No upcoming items in the periods shown.
             </p>
           )}
         </>

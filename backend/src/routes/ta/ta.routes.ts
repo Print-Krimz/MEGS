@@ -21,6 +21,7 @@ import {
 
 import {
   listApplications,
+  countApplications,
   getApplication,
   updateApplicationStatus,
   recordBackoutHandler,
@@ -225,6 +226,7 @@ router.post("/walk-ins/:id/slip", validate(taSchema.walkInSlip), requireOwned("a
 
 // Application Pipeline & Recruiter Decisions
 router.get("/applications", validate(taSchema.listApplications), listApplications);
+router.get("/applications/counts", validate(taSchema.countApplications), countApplications);
 router.get("/applications/:id", validate(taSchema.idParams), requireOwned("application"), getApplication);
 router.patch("/applications/:id/status", validate(taSchema.updateApplicationStatus), requireOwned("application"), updateApplicationStatus);
 router.post("/applications/:id/backout", validate(taSchema.recordBackout), requireOwned("application"), recordBackoutHandler);

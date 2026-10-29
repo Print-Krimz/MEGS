@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ChevronRight, X } from "lucide-react";
-import { keepPreviousData, useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
   PageHeader,
@@ -354,44 +354,38 @@ export const ApplicationsPage: React.FC = () => {
     const stages = openOnly ? STAGE_STRIP_STAGES.filter((stage) => stage !== ApplicationStatus.DEPLOYED) : STAGE_STRIP_STAGES;
     return ["", ...stages, ...(current && !known ? [current] : [])];
   }, [filterValues.status, openOnly]);
-  const stageCountQueries = useQueries({
-    queries: stageStripValues.map((stage) => ({
-      queryKey: ["ta", "applications", "stage-count", {
-        stage,
-        search: debouncedSearch,
-        clientId: filterValues.clientId || "",
-        jobId: filterValues.jobId || "",
-        source: filterValues.source || "",
-        returningOnly,
-        needsAction,
-        openOnly,
-      }],
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        taApi
-          .listApplicationsPage({
-            page: 1,
-            limit: 1,
-            search: debouncedSearch || undefined,
-            status: (stage as ApplicationStatus) || undefined,
-            jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
-            clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
-            source: (filterValues.source as ApplicationSourceFilter) || undefined,
-            isArchived: stage === ApplicationStatus.ARCHIVED,
-            returning: returningOnly || undefined,
-            needsAction: needsAction || undefined,
-            openOnly: openOnly || undefined,
-            summary: true,
-          }, { signal })
-          .then((result) => result.total),
-      placeholderData: keepPreviousData,
-      staleTime: 30_000,
-      refetchInterval: APPLICATION_IDLE_POLL_MS,
-    })),
+  // One aggregate request for the whole strip. Its key carries every filter, archived view included,
+  // and sits under ["ta", "applications"] so it refreshes wherever the list does.
+  const stageCountsQuery = useQuery({
+    queryKey: ["ta", "applications", "counts", {
+      search: debouncedSearch,
+      clientId: filterValues.clientId || "",
+      jobId: filterValues.jobId || "",
+      source: filterValues.source || "",
+      showArchived: archivedRows,
+      returningOnly,
+      needsAction,
+      openOnly,
+    }],
+    queryFn: ({ signal }) =>
+      taApi.countApplications({
+        search: debouncedSearch || undefined,
+        jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
+        clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
+        source: (filterValues.source as ApplicationSourceFilter) || undefined,
+        isArchived: archivedRows,
+        returning: returningOnly || undefined,
+        needsAction: needsAction || undefined,
+        openOnly: openOnly || undefined,
+      }, { signal }),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+    refetchInterval: APPLICATION_IDLE_POLL_MS,
   });
-  const stageStripItems: StageStripItem[] = stageStripValues.map((stage, index) => ({
+  const stageStripItems: StageStripItem[] = stageStripValues.map((stage) => ({
     value: stage,
     label: stage ? getApplicationStatusMeta(stage).label : "All",
-    count: stageCountQueries[index]?.data,
+    count: stageCountsQuery.data ? (stage ? stageCountsQuery.data.byStatus[stage] ?? 0 : stageCountsQuery.data.total) : undefined,
   }));
 
   // Mutations

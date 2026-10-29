@@ -8,6 +8,7 @@ import { validateStructuredAddress } from '../../utils/address-validation.js';
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly } from '../../schemas/field-limits.js';
 import {
   listTAApplications,
+  countTAApplications,
   getTAApplication,
   updateTAApplicationStatus,
   archiveTAApplication,
@@ -54,6 +55,29 @@ export const listApplications = async (req: Request, res: Response): Promise<voi
       actor: req.user,
     });
     sendSuccess(res, "Applications retrieved", result);
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+// GET /api/ta/applications/counts - Stage counts for the list's non-stage filters, scoped to the caller
+export const countApplications = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { jobPostingId, jobId, clientId, search, isArchived, mineOnly, returning, needsAction, openOnly, source } = req.query;
+    const counts = await countTAApplications({
+      jobPostingId: (jobPostingId || jobId) as string,
+      clientId: clientId ? parseInt(clientId as string, 10) : undefined,
+      search: search as string,
+      isArchived: isArchived !== undefined ? isArchived === "true" : undefined,
+      mineOnly: mineOnly === "true",
+      returningOnly: returning === "true",
+      needsAction: needsAction === "true" || needsAction === "1",
+      openOnly: openOnly === "true" || openOnly === "1",
+      source: typeof source === "string" && ["ONLINE", "WALK_IN"].includes(source) ? (source as "ONLINE" | "WALK_IN") : undefined,
+      currentUserId: req.user?.id,
+      actor: req.user,
+    });
+    sendSuccess(res, "Application counts retrieved", counts);
   } catch (error: any) {
     sendError(res, error.message, 500);
   }

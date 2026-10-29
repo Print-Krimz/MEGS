@@ -4,7 +4,7 @@ import { logAudit } from '../../utils/audit.js';
 import { recordBackout } from './backout.service.js';
 import { OFFICE_HOURS_MESSAGE } from "../../config/business-hours.js";
 import { resolvePendingRescheduleRequest } from "../scheduling/reschedule.service.js";
-import { formatManilaDateTime, isFutureDateTime, isWorkingHours } from "../../schemas/field-limits.js";
+import { formatManilaDateTime, isFutureDateTime, isWorkingHours, parseManilaDateOnly } from "../../schemas/field-limits.js";
 import { JOB_OWNER_SELECT, ownedWhere, type Actor } from "./ownership.js";
 import { isPageRequested, paginateArray, type PageRequest } from "../../utils/pagination.js";
 
@@ -620,14 +620,33 @@ export interface InterviewComplianceOptions extends PageRequest {
   position?: string;
   sortField?: "candidate" | "position" | "scheduledAt" | "deadline";
   sortDirection?: "asc" | "desc";
+  /** Only applications whose open interview for the current stage has a scheduled time. */
+  scheduledOnly?: boolean | "true" | "false";
+  /** Manila calendar dates (YYYY-MM-DD), both inclusive; they bound the scheduled time of that interview. */
+  from?: string;
+  to?: string;
 }
 
+const OPEN_INTERVIEW_RESULT = [{ result: null }, { result: { in: ["PENDING", "SCHEDULED"] } }];
+
 export const getInterviewComplianceReport = async (actor?: Actor, options: InterviewComplianceOptions = {}) => {
+  const scheduledOnly = options.scheduledOnly === true || options.scheduledOnly === "true";
+  // A bound on the scheduled time implies scheduledOnly: an unscheduled row has no time to compare.
+  const scheduledWindow = options.from || options.to
+    ? {
+        ...(options.from ? { gte: parseManilaDateOnly(options.from) } : {}),
+        ...(options.to ? { lt: new Date(parseManilaDateOnly(options.to).getTime() + 24 * 60 * 60 * 1000) } : {}),
+      }
+    : null;
+  const scheduleFilter = scheduledOnly || scheduledWindow ? { scheduledAt: scheduledWindow ?? { not: null } } : null;
+
   const applications = await prisma.application.findMany({
     where: {
       status: { in: ["INITIAL_SCREENING", "FINAL_INTERVIEW"] },
       isArchived: false,
       ...(actor ? ownedWhere.application(actor) : {}),
+      // Filtered in the database, before any paging, so older or unscheduled rows can never hide these.
+      ...(scheduleFilter ? { interviews: { some: { isActive: true, OR: OPEN_INTERVIEW_RESULT, ...scheduleFilter } } } : {}),
     },
     select: {
       id: true,
@@ -639,7 +658,8 @@ export const getInterviewComplianceReport = async (actor?: Actor, options: Inter
       interviews: {
         where: {
           isActive: true,
-          OR: [{ result: null }, { result: { in: ["PENDING", "SCHEDULED"] } }],
+          OR: OPEN_INTERVIEW_RESULT,
+          ...(scheduleFilter ?? {}),
         },
         select: { id: true, type: true, scheduledAt: true },
         orderBy: { scheduledAt: "desc" },
@@ -651,7 +671,10 @@ export const getInterviewComplianceReport = async (actor?: Actor, options: Inter
   const now = new Date();
   const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
-  const complianceReport = applications.map(app => {
+  const complianceReport = applications
+    // The interview filter above matches any open interview; the report row must have one for its own stage.
+    .filter((app) => !scheduleFilter || app.interviews.some((interview) => interview.type === app.status))
+    .map(app => {
     const daysInStage = Math.floor((now.getTime() - app.updatedAt.getTime()) / ONE_DAY_MS);
     
     let slaStatus = "HEALTHY";
