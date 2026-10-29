@@ -66,7 +66,7 @@ const buildCandidateFeatureInput = (profile: {
 export const rebuildCandidateFeatureProfile = async (applicantProfileId: number) => {
   const profile = await prisma.applicantProfile.findUnique({
     where: { id: applicantProfileId },
-    include: { skills: { include: { skill: true } }, workExperiences: true, educations: true, trainings: true, assets: true, candidateFeatureProfile: { select: { id: true, rawFeatures: true } } },
+    include: { skills: { include: { skill: true } }, workExperiences: true, educations: true, trainings: true, assets: true, candidateFeatureProfile: { select: { id: true, rawFeatures: true, vocabularyVersion: true, featureSchemaVersion: true, extractionVersion: true } } },
   });
   if (!profile) return null;
   const features = buildCandidateFeatureInput(profile);
@@ -76,7 +76,14 @@ export const rebuildCandidateFeatureProfile = async (applicantProfileId: number)
   // JSON so the stored jsonb (key order, null for undefined) and the fresh features compare alike.
   const stored = profile.candidateFeatureProfile;
   let reuseEmbedding = false;
-  if (stored && isDeepStrictEqual(stored.rawFeatures, JSON.parse(JSON.stringify(features)))) {
+  // A vector built under other versions is not reused either.
+  if (
+    stored &&
+    stored.vocabularyVersion === VOCABULARY_VERSION &&
+    stored.featureSchemaVersion === FEATURE_SCHEMA_VERSION &&
+    stored.extractionVersion === EXTRACTION_VERSION &&
+    isDeepStrictEqual(stored.rawFeatures, JSON.parse(JSON.stringify(features)))
+  ) {
     try {
       const [row] = await prisma.$queryRaw<Array<{ hasEmbedding: boolean }>>`
         SELECT embedding IS NOT NULL AS "hasEmbedding" FROM "CandidateFeatureProfile" WHERE id = ${stored.id}
@@ -123,8 +130,6 @@ export const rebuildCandidateFeatureProfile = async (applicantProfileId: number)
       },
     });
 
-    // On a failed re-embed the previous vector is kept: a slightly older vector keeps the
-    // member searchable, while clearing it would hide them after a temporary Gemini outage.
     // Profiles with no vector at all are picked up by scripts/backfill-embeddings.ts.
     if (vectorStr) {
       try {
@@ -133,6 +138,14 @@ export const rebuildCandidateFeatureProfile = async (applicantProfileId: number)
           SET embedding = ${vectorStr}::vector
           WHERE id = ${record.id}
         `;
+      } catch {
+        // Graceful bypass in environments without pgvector
+      }
+    } else if (!reuseEmbedding && stored) {
+      // The new features are saved but their embedding failed: drop the old vector so the next
+      // rebuild re-embeds (it would otherwise see equal features plus a vector and reuse stale data).
+      try {
+        await prisma.$executeRaw`UPDATE "CandidateFeatureProfile" SET embedding = NULL WHERE id = ${record.id}`;
       } catch {
         // Graceful bypass in environments without pgvector
       }
