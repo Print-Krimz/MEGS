@@ -1,7 +1,7 @@
 import prisma from '../../utils/prisma.js';
 import { revalidateApplicantProfile } from "../scoring/scoring-configuration.service.js";
 import { normalizeComplianceDocumentType } from "../scoring/scoring.dimensions.js";
-import { resolveDocumentSignedUrl } from "../document/document.service.js";
+import { resolveDocumentSignedUrl, resolveDocumentSignedUrls } from "../document/document.service.js";
 import { extractDocumentText, isUsableResumeText } from "../../security/document-parser.js";
 import { validateDocumentBytes } from "../../security/file-validation.js";
 import { detectDocumentFormat } from "../../workers/resume.worker.js";
@@ -95,24 +95,20 @@ export const getApplicantProfile = async (userId: string, requesterRole: string 
 
   if (!profile) return null;
 
+  // Photo and resume sign in one batch; an unsignable reference becomes null.
   let photoUrl = profile.photoUrl;
-  if (profile.photoUrl) {
-    try {
-      const resolved = await resolveDocumentSignedUrl(profile.photoUrl, userId, requesterRole);
-      if (resolved) photoUrl = resolved;
-    } catch {
-      photoUrl = null;
-    }
-  }
-
   let resumeUrl = profile.resumeUrl;
-  if (profile.resumeUrl) {
+  const refs = [profile.photoUrl, profile.resumeUrl].filter((ref): ref is string => Boolean(ref));
+  if (refs.length > 0) {
+    let signed: Array<string | null> = [];
     try {
-      const resolved = await resolveDocumentSignedUrl(profile.resumeUrl, userId, requesterRole);
-      if (resolved) resumeUrl = resolved;
+      signed = await resolveDocumentSignedUrls(refs.map((ref) => ({ ref, requesterId: userId, requesterRole })));
     } catch {
-      resumeUrl = null;
+      // Whole batch failed: every reference falls back to null.
     }
+    let next = 0;
+    if (profile.photoUrl) photoUrl = signed[next++] ?? null;
+    if (profile.resumeUrl) resumeUrl = signed[next++] ?? null;
   }
 
   return {

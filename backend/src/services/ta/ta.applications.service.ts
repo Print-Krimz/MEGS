@@ -80,9 +80,19 @@ const loadStageEntries = async (ids: number[]): Promise<StageEntryRow[]> => {
   );
 };
 
-const entryFor = (entries: StageEntryRow[], applicationId: number, status: string, createdAt: Date): Date =>
+const groupEntriesByApplication = (entries: StageEntryRow[]): Map<number, StageEntryRow[]> => {
+  const byApplication = new Map<number, StageEntryRow[]>();
+  for (const entry of entries) {
+    const list = byApplication.get(entry.applicationId);
+    if (list) list.push(entry);
+    else byApplication.set(entry.applicationId, [entry]);
+  }
+  return byApplication;
+};
+
+const entryFor = (byApplication: Map<number, StageEntryRow[]>, applicationId: number, status: string, createdAt: Date): Date =>
   stageEnteredAt(
-    entries.filter((entry) => entry.applicationId === applicationId).map((entry) => ({ fromStatus: "", toStatus: entry.toStatus, createdAt: entry.createdAt, isReverted: false })),
+    (byApplication.get(applicationId) ?? []).map((entry) => ({ fromStatus: "", toStatus: entry.toStatus, createdAt: entry.createdAt, isReverted: false })),
     status,
     createdAt
   );
@@ -381,7 +391,9 @@ export const listTAApplications = async (
         ? [{ createdAt: "asc" }, { id: "asc" }]
         : undefined;
 
-    const total = await prisma.application.count({ where });
+    // The count does not depend on the ranking, so it runs alongside it.
+    const totalPromise = prisma.application.count({ where });
+    totalPromise.catch(() => undefined); // surfaced by the await below; avoids an unhandled rejection if a branch throws first
     let applications: Awaited<ReturnType<typeof prisma.application.findMany<{ select: typeof summarySelect }>>>;
     let entryByApplication: Map<number, Date> | null = null;
 
@@ -393,7 +405,7 @@ export const listTAApplications = async (
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: { id: true, status: true, createdAt: true },
       });
-      const entries = await loadStageEntries(candidates.map((c) => c.id));
+      const entries = groupEntriesByApplication(await loadStageEntries(candidates.map((c) => c.id)));
       entryByApplication = new Map(candidates.map((c) => [c.id, entryFor(entries, c.id, c.status, c.createdAt)]));
       const rankedIds = candidates
         .map((c) => c.id)
@@ -406,7 +418,10 @@ export const listTAApplications = async (
       applications = rankedIds.map((id) => rowById.get(id)).filter((row): row is NonNullable<typeof row> => Boolean(row));
     } else if (sortMode === "match") {
       // Best match ranks the whole filtered set by effective score in SQL, then loads only the page rows.
-      const rankedIds = await rankApplicationIds(where, { configurationId: configuration?.id ?? null, dynamicScoring, skip, take: resolvedLimit });
+      const [rankedIds] = await Promise.all([
+        rankApplicationIds(where, { configurationId: configuration?.id ?? null, dynamicScoring, skip, take: resolvedLimit }),
+        totalPromise,
+      ]);
       const rows = rankedIds.length === 0
         ? []
         : await prisma.application.findMany({ where: { id: { in: rankedIds } }, select: summarySelect });
@@ -416,15 +431,12 @@ export const listTAApplications = async (
       applications = await prisma.application.findMany({ where, skip, take: resolvedLimit, orderBy, select: summarySelect });
     }
 
-    const pageEntries = entryByApplication
-      ? null
-      : await loadStageEntries(applications.map((application) => application.id));
-    const stageEntryOf = (application: { id: number; status: string; createdAt: Date }) =>
-      entryByApplication?.get(application.id) ?? entryFor(pageEntries ?? [], application.id, application.status, application.createdAt);
+    const total = await totalPromise;
 
-    const scoreRows = applications.length === 0
-      ? []
-      : await prisma.$queryRaw<Array<{ applicationId: number; finalFitScore: number; calculatedAt: Date }>>`
+    // Page ids are known: stage entries, scores and returning info are independent of each other.
+    const scoreRowsPromise = applications.length === 0
+      ? Promise.resolve([] as Array<{ applicationId: number; finalFitScore: number; calculatedAt: Date }>)
+      : prisma.$queryRaw<Array<{ applicationId: number; finalFitScore: number; calculatedAt: Date }>>`
           SELECT DISTINCT ON (score."applicationId") score."applicationId", score."finalFitScore", score."calculatedAt"
           FROM "CandidateScore" AS score
           JOIN "Application" AS application ON application."id" = score."applicationId"
@@ -435,9 +447,17 @@ export const listTAApplications = async (
             CASE WHEN score."configurationId" = ${configuration?.id ?? -1} AND score."status" = 'CALCULATED' THEN 0 ELSE 1 END,
             score."calculatedAt" DESC, score."id" DESC
         `;
+    const [pageEntries, scoreRows, withReturning] = await Promise.all([
+      entryByApplication ? Promise.resolve(null) : loadStageEntries(applications.map((application) => application.id)),
+      scoreRowsPromise,
+      attachReturningInfo(applications),
+    ]);
+    const pageEntriesByApplication = groupEntriesByApplication(pageEntries ?? []);
+    const stageEntryOf = (application: { id: number; status: string; createdAt: Date }) =>
+      entryByApplication?.get(application.id) ?? entryFor(pageEntriesByApplication, application.id, application.status, application.createdAt);
     const scoresByApplication = new Map(scoreRows.map((row) => [row.applicationId, row]));
 
-    const items = (await attachReturningInfo(applications)).map((application) => {
+    const items = withReturning.map((application) => {
         const score = scoresByApplication.get(application.id);
         const { _count, ...row } = application;
         const enteredAt = stageEntryOf(application);
@@ -721,45 +741,27 @@ export const getTAApplication = async (id: number, options: { generateRequiremen
     explanation: score.explanation,
   }));
 
+  // Photo, application resume and profile resume sign in one batch; an unsignable reference becomes null.
   let photoUrl = application.user?.applicantProfile?.photoUrl ?? null;
-  if (photoUrl && application.user) {
-    try {
-      const resolved = await resolveDocumentSignedUrl(
-        photoUrl,
-        application.user.id,
-        "TALENT_ACQUISITION"
-      );
-      if (resolved) photoUrl = resolved;
-    } catch {
-      photoUrl = null;
-    }
-  }
-
   let resolvedAppResumeUrl = application.resumeUrl;
-  if (resolvedAppResumeUrl && application.user) {
-    try {
-      const resolved = await resolveDocumentSignedUrl(
-        resolvedAppResumeUrl,
-        application.user.id,
-        "TALENT_ACQUISITION"
-      );
-      if (resolved) resolvedAppResumeUrl = resolved;
-    } catch {
-      resolvedAppResumeUrl = null;
-    }
-  }
-
   let resolvedProfileResumeUrl = application.user?.applicantProfile?.resumeUrl ?? null;
-  if (resolvedProfileResumeUrl && application.user) {
-    try {
-      const resolved = await resolveDocumentSignedUrl(
-        resolvedProfileResumeUrl,
-        application.user.id,
-        "TALENT_ACQUISITION"
-      );
-      if (resolved) resolvedProfileResumeUrl = resolved;
-    } catch {
-      resolvedProfileResumeUrl = null;
+  if (application.user) {
+    const requesterId = application.user.id;
+    const slots = [
+      { ref: photoUrl, set: (value: string | null) => { photoUrl = value; } },
+      { ref: resolvedAppResumeUrl, set: (value: string | null) => { resolvedAppResumeUrl = value; } },
+      { ref: resolvedProfileResumeUrl, set: (value: string | null) => { resolvedProfileResumeUrl = value; } },
+    ].filter((slot) => slot.ref);
+    if (slots.length > 0) {
+      let signed: Array<string | null> = [];
+      try {
+        signed = await resolveDocumentSignedUrls(
+          slots.map((slot) => ({ ref: slot.ref, requesterId, requesterRole: "TALENT_ACQUISITION" }))
+        );
+      } catch {
+        // Whole batch failed: every reference falls back to null, as a failed single sign did.
+      }
+      slots.forEach((slot, index) => slot.set(signed[index] ?? null));
     }
   }
 
