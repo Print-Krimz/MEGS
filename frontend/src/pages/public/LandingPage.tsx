@@ -37,7 +37,7 @@ export const LandingPage: React.FC = () => {
   // Fetch the remaining sections once the browser is idle so in-page links rarely wait.
   useEffect(() => {
     const loaders = [loadServices, loadWhyMegs, loadIndustries, loadActivities, loadJobs, loadFeatured, loadBranches, loadContact];
-    const run = () => loaders.forEach((load) => void load());
+    const run = () => loaders.forEach((load) => void load().catch(() => undefined));
     if (typeof window.requestIdleCallback === "function") {
       const handle = window.requestIdleCallback(run, { timeout: 3000 });
       return () => window.cancelIdleCallback(handle);

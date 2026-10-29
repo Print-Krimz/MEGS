@@ -13,8 +13,6 @@ import {
 } from "../../common";
 import { useRowSelection } from "../../../hooks/useRowSelection";
 import { notify } from "../../../lib/feedback";
-import { pollInterval } from "../../../lib/query-policies";
-import { useLiveStreamConnected } from "../../../lib/live-stream-status";
 import { EncodeWalkInDialog } from "./EncodeWalkInDialog";
 import type { BulkSummary, CheckInDetail, CheckInSummary, WalkInSlip } from "../../../lib/types/application.types";
 
@@ -23,11 +21,11 @@ const REASON_MAX = 300;
 
 /** Shared list query so the tab count and the panel stay in step. */
 export const useCheckIns = () => {
-  const streamConnected = useLiveStreamConnected();
   return useQuery({
     queryKey: ["ta", "check-ins"],
     queryFn: ({ signal }) => taApi.listCheckIns({ signal }),
-    refetchInterval: pollInterval(REFRESH_MS, streamConnected),
+    // Always polls: a walk-in check-in sends no stream event.
+    refetchInterval: REFRESH_MS,
   });
 };
 

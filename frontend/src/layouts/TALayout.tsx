@@ -285,7 +285,7 @@ export const TALayout: React.FC = () => {
     // Same key and fetcher as the dashboard interview SLA card, so the cache is shared.
     queryKey: ["ta", "compliance", "interviews", "summary"],
     queryFn: ({ signal }) => taApi.listInterviewCompliancePage({ page: 1, pageSize: 1 }, { signal }),
-    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
+    staleTime: 60_000, // an SLA breach is time-driven; no event refreshes it
   }).data?.summary?.breached ?? 0;
   const documentsToReview = useQuery({
     // Same key and fetcher the requirements queue used for its totals, so the cache is shared.

@@ -47,7 +47,6 @@ export function hasApplicationProcessingWork(data: unknown): boolean {
   });
 }
 
-/** Parse progress is not a stream event, so the processing poll stays fast even while connected. */
 /** List and stage-count polls: a list with resumes still parsing keeps the normal 30 s poll even while connected. */
 export function getApplicationListPollInterval(listData: unknown, connected: boolean): number {
   return hasApplicationProcessingWork(listData)
@@ -55,6 +54,7 @@ export function getApplicationListPollInterval(listData: unknown, connected: boo
     : pollInterval(APPLICATION_IDLE_POLL_MS, connected);
 }
 
+/** Parse progress is not a stream event, so the processing poll stays fast even while connected. */
 export function getApplicationRefetchInterval(data: unknown, connected = false): number {
   return hasApplicationProcessingWork(data)
     ? APPLICATION_PROCESSING_POLL_MS
