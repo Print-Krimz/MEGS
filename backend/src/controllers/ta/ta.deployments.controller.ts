@@ -9,6 +9,7 @@ import {
   signDeploymentContract,
   updateDeploymentContract,
   fastTrackRedeployment,
+  DeploymentConflictError,
 } from "../../services/ta/ta.deployments.service.js";
 
 export const createDeploymentHandler = async (req: Request, res: Response): Promise<void> => {
@@ -92,7 +93,7 @@ export const updateDeploymentStatusHandler = async (req: Request, res: Response)
     const updated = await updateDeploymentStatus(id, status, notes, req.user?.id, actualStart);
     sendSuccess(res, "Deployment status updated successfully", updated);
   } catch (error: any) {
-    const statusCode = error.message.includes("not found") ? 404 : 400;
+    const statusCode = error instanceof DeploymentConflictError ? 409 : error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, statusCode);
   }
 };

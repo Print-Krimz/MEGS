@@ -21,6 +21,11 @@ const ALLOWED_DEPLOYMENT_TRANSITIONS: Record<string, string[]> = {
   CANCELLED:            [],
 };
 
+/** A concurrent change got there first (HTTP 409). */
+export class DeploymentConflictError extends Error {
+  readonly status = 409;
+}
+
 export const createDeployment = async (
   createdById: string,
   data: {
@@ -306,15 +311,24 @@ export const updateDeploymentStatus = async (
       ? deployment.applicationId
       : null;
 
-  // One transaction: a cancelled deployment can never be retried, so it must not be left half done.
+  // One transaction: every write for this transition lands together or not at all. A cancelled
+  // deployment can never be retried, and a half-confirmed start would leave the worker inconsistent.
   const updated = await prisma.$transaction(async (tx) => {
-    const row = await tx.deployment.update({
-      where: { id },
+    // Guarded on the status we validated, so a concurrent confirm/cancel cannot apply a second transition.
+    const claimed = await tx.deployment.updateMany({
+      where: { id, status: currentStatus },
       data: {
         status,
         ...(startDate ? { actualStart: startDate } : {}),
         ...(notes ? { notes } : {}),
       },
+    });
+    if (claimed.count === 0) {
+      throw new DeploymentConflictError("This deployment was already updated by someone else. Refresh and try again.");
+    }
+
+    const row = await tx.deployment.findUnique({
+      where: { id },
       include: {
         employee: {
           select: {
@@ -347,19 +361,11 @@ export const updateDeploymentStatus = async (
         });
       }
     }
-    return row;
-  });
 
-  // Recomputed from the deployments, so it can safely run after the commit.
-  if (deployment.mrfId && status === "CANCELLED") {
-    await syncMRFFulfillmentStatus(deployment.mrfId, actorId);
-  }
-
-  if (status === "ACTIVE" && deployment.applicationId) {
-    if (deployment.application?.status !== "DEPLOYED") {
-      await prisma.application.update({ where: { id: deployment.applicationId }, data: { status: "DEPLOYED" } });
+    if (status === "ACTIVE" && deployment.applicationId && deployment.application?.status !== "DEPLOYED") {
+      await tx.application.update({ where: { id: deployment.applicationId }, data: { status: "DEPLOYED" } });
       if (actorId) {
-        await prisma.recruiterDecision.create({
+        await tx.recruiterDecision.create({
           data: {
             applicationId: deployment.applicationId,
             actorId,
@@ -370,29 +376,27 @@ export const updateDeploymentStatus = async (
         });
       }
     }
-  }
 
-  // Record DeploymentStatusHistory audit trail
-  if (actorId) {
-    await prisma.deploymentStatusHistory.create({
-      data: {
-        deploymentId: id,
-        fromStatus: currentStatus,
-        toStatus: status,
-        changedById: actorId,
-        reason: notes || `Status changed to ${status}`,
-      },
-    }).catch(() => {});
-  }
+    // Record DeploymentStatusHistory audit trail
+    if (actorId) {
+      await tx.deploymentStatusHistory.create({
+        data: {
+          deploymentId: id,
+          fromStatus: currentStatus,
+          toStatus: status,
+          changedById: actorId,
+          reason: notes || `Status changed to ${status}`,
+        },
+      });
+    }
 
-  // Synchronize Employee Status & Career Timeline Event
-  if (deployment.employeeId) {
-    if (status === "ACTIVE") {
-      await prisma.employee.update({
+    // Synchronize Employee Status & Career Timeline Event
+    if (status === "ACTIVE" && deployment.employeeId) {
+      await tx.employee.update({
         where: { id: deployment.employeeId },
         data: { status: "ACTIVE" },
       });
-      await prisma.employmentEvent.create({
+      await tx.employmentEvent.create({
         data: {
           employeeId: deployment.employeeId,
           eventType: "DEPLOYED",
@@ -403,15 +407,21 @@ export const updateDeploymentStatus = async (
         },
       });
       if (deployment.employee.userId) {
-        const profile = await prisma.applicantProfile.findUnique({ where: { userId: deployment.employee.userId }, select: { id: true } });
+        const profile = await tx.applicantProfile.findUnique({ where: { userId: deployment.employee.userId }, select: { id: true } });
         if (profile) {
-          await prisma.talentPoolMembership.updateMany({
+          await tx.talentPoolMembership.updateMany({
             where: { applicantProfileId: profile.id },
             data: { status: "PLACED", availability: "UNAVAILABLE" },
           });
         }
       }
     }
+    return row;
+  }).catch(rethrowPlacementConflict);
+
+  // Recomputed from the deployments, so it can safely run after the commit.
+  if (deployment.mrfId && status === "CANCELLED") {
+    await syncMRFFulfillmentStatus(deployment.mrfId, actorId);
   }
 
   void logAudit(actorId || null, "DEPLOYMENT_STATUS_UPDATED", "Deployment", id, {

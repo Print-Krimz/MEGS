@@ -10,7 +10,7 @@ import { dismissCheckIn } from "./walk-in-check-in.service.js";
 import { WalkInConflictError } from "./walk-in.service.js";
 import { cancelTalentPoolInvitation } from "./talent-pool-invitation.service.js";
 import { InvalidKnnRequestError } from "../scoring/talent-pool-knn.service.js";
-import { updateDeploymentStatus } from "./ta.deployments.service.js";
+import { DeploymentConflictError, updateDeploymentStatus } from "./ta.deployments.service.js";
 import { endEmployeeDeployment } from "../employee/employee.service.js";
 
 export interface BulkRowResult {
@@ -32,7 +32,7 @@ const GENERIC_REASON = "Could not process this record. Open it and try again.";
  * through (redacted). Anything else (database, network, programming errors) becomes a generic line.
  */
 export const bulkReason = (error: unknown): string => {
-  if (error instanceof BackoutConflictError || error instanceof WalkInConflictError || error instanceof InvalidKnnRequestError) return redactSensitiveText(error.message).slice(0, 200);
+  if (error instanceof BackoutConflictError || error instanceof DeploymentConflictError || error instanceof WalkInConflictError || error instanceof InvalidKnnRequestError) return redactSensitiveText(error.message).slice(0, 200);
   if (error instanceof Error && error.constructor === Error && error.message) {
     return redactSensitiveText(error.message).slice(0, 200);
   }
