@@ -276,7 +276,15 @@ export const approveRescheduleRequest = async (
       (body.location ? ` Location: ${body.location}.` : ""),
     "SUCCESS",
     `/app/applications/${applicationId}`,
-    { sendEmail: true, ctaText: "View Details" }
+    {
+      sendEmail: true,
+      ctaText: "View Details",
+      dedupeKey: `reschedule-approved:${requestId}:${application.userId}`,
+      sms: {
+        always: true,
+        text: `Your ${ACTIVITY_LABEL[activity]} was moved to ${formatManilaDateTime(new Date(body.scheduledAt))}.${body.location ? ` Location: ${body.location}.` : ""} Log in to MEGS for details.`,
+      },
+    }
   );
 
   return prisma.rescheduleRequest.findUnique({ where: { id: requestId } });
@@ -307,7 +315,14 @@ export const rejectRescheduleRequest = async (
         ` Your current schedule still stands: ${formatManilaDateTime(request.previousScheduledAt)}.`,
       "WARNING",
       `/app/applications/${applicationId}`,
-      { sendEmail: true, ctaText: "View Details" }
+      {
+        dedupeKey: `reschedule-declined:${request.id}:${application.userId}`,
+        sendEmail: true,
+        ctaText: "View Details",
+        sms: {
+          text: `Your request to move the ${ACTIVITY_LABEL[request.activity as ScheduleActivityName]} was declined. Your schedule still stands: ${formatManilaDateTime(request.previousScheduledAt)}.`,
+        },
+      }
     );
   }
 

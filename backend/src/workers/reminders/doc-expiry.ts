@@ -11,6 +11,7 @@ import {
   newResult,
   notifyApplicant,
   reminderKey,
+  smsFor,
   withinEmailCatchup,
   type ReminderResult,
 } from "./rules.js";
@@ -70,7 +71,17 @@ export const sendDocExpiryReminders = async (now: Date = new Date()): Promise<Re
             : `Your ${row.documentLabel} expires on ${dueText}. Please upload a new copy before then.`,
           "WARNING",
           `/app/applications/${applicationId}`,
-          { dedupeKey: key, sendEmail: withinEmailCatchup(days), ctaText: "Open application" }
+          {
+            dedupeKey: key,
+            sendEmail: withinEmailCatchup(days),
+            ctaText: "Open application",
+            sms: smsFor(
+              milestone,
+              expired
+                ? `Your ${row.documentLabel} expired on ${dueText}. Please upload a new copy. Log in to MEGS for details.`
+                : `Your ${row.documentLabel} expires on ${dueText}. Please upload a new copy. Log in to MEGS for details.`
+            ),
+          }
         )
       );
       addTally(

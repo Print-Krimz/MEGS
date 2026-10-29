@@ -3,6 +3,7 @@ import { safeLogError } from "../security/errors.js";
 import { checkReviewSLABreaches } from "./review-sla.worker.js";
 import { purgeExpiredAuthTokens } from "./auth-token-purge.js";
 import { REMINDER_JOBS } from "./reminders/index.js";
+import { sendSmsOutbox } from "./sms-outbox.js";
 
 export interface ScheduledJob {
   name: string;
@@ -50,6 +51,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: "stale-resume-analysis", run: () => reconcileStaleResumeAnalysis() },
   { name: "auth-token-purge", run: () => purgeExpiredAuthTokens() },
   ...REMINDER_JOBS,
+  { name: "sms-outbox", run: () => sendSmsOutbox() },
 ];
 
 export interface ScheduledRunResult {

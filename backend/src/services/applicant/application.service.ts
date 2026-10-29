@@ -340,7 +340,8 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     "Application Received",
     `Your application for "${job.title}" has been submitted successfully.`,
     "SUCCESS",
-    `/app/applications/${application.id}`
+    `/app/applications/${application.id}`,
+    { sms: { text: `We received your application for ${job.title || "a role"}. Log in to MEGS for details.` } }
   );
 
   void notifyJobOwner(

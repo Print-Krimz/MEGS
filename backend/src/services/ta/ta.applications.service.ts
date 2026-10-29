@@ -1236,6 +1236,7 @@ export const updateTAApplicationStatus = async (
         {
           sendEmail: true,
           ctaText: "View Application",
+          sms: { text: `${notificationMessage} Log in to MEGS for details.` },
         }
       );
     }
@@ -1345,7 +1346,15 @@ export const scheduleContractSigning = async (
         : `Your contract signing is set for ${formatManilaDateTime(when)}. Location: ${place}.`,
       "INFO",
       `/app/applications/${applicationId}`,
-      { sendEmail: true, ctaText: "View Details" }
+      {
+        sendEmail: true,
+        ctaText: "View Details",
+        dedupeKey: `contract-signing-scheduled:${applicationId}:${when.toISOString()}:${application.userId}`,
+        sms: {
+          always: true,
+          text: `Your contract signing is ${isReschedule ? "moved to" : "set for"} ${formatManilaDateTime(when)}. Location: ${place}. Log in to MEGS for details.`,
+        },
+      }
     );
   }
 

@@ -87,6 +87,10 @@ export const formatDue = (due: Date): string => dateFormat.format(due);
 
 export const isOverdue = (milestone: string): boolean => milestone.startsWith("overdue-");
 
+/** Only these milestones are worth an SMS; repeated overdue and early expiry reminders stay in-app/email. */
+const SMS_MILESTONES = new Set(["soon", "today", "overdue-0", "expiring-7", "expired"]);
+export const smsFor = (milestone: string, text: string): string | undefined => (SMS_MILESTONES.has(milestone) ? text : undefined);
+
 /** Sends to one applicant with a per-user dedupe key. Never throws. */
 export const notifyApplicant = async (
   userId: string,
@@ -94,7 +98,7 @@ export const notifyApplicant = async (
   message: string,
   type: "INFO" | "WARNING",
   link: string,
-  options: { dedupeKey: string; sendEmail: boolean; ctaText?: string }
+  options: { dedupeKey: string; sendEmail: boolean; ctaText?: string; sms?: string }
 ): Promise<NotificationTally> => {
   const tally: NotificationTally = { sent: 0, duplicate: 0, failed: 0, skipped: 0 };
   tally[
@@ -102,6 +106,7 @@ export const notifyApplicant = async (
       dedupeKey: `${options.dedupeKey}:${userId}`,
       sendEmail: options.sendEmail,
       ctaText: options.ctaText,
+      ...(options.sms ? { sms: { text: options.sms } } : {}),
     })
   ]++;
   return tally;

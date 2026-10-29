@@ -191,6 +191,7 @@ export const sendTalentPoolJobInvitation = async (input: SendInvitationInput) =>
     {
       sendEmail: true,
       ctaText: "View Job Opportunity",
+      sms: { text: `You have a new job invitation for ${job.title || "a role"}. Log in to MEGS to reply.` },
     }
   );
 

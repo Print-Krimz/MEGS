@@ -220,6 +220,7 @@ async function notifyBackout(args: {
       ? `Your application for ${jobTitle} was closed because you were unable to continue with the process.`
       : `Your application for ${jobTitle} was closed because the placement did not go ahead.`,
     "INFO",
-    `/app/applications/${applicationId}`
+    `/app/applications/${applicationId}`,
+    { sms: { text: `Your application for ${jobTitle} was closed. Log in to MEGS for details.` } }
   );
 }

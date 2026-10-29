@@ -33,7 +33,9 @@ export const requestComplianceDocumentUpdate = async (requirementId: number, act
     data: { reviewStatus: "PENDING", updateRequestedAt: new Date(), updateRequestReason: reason.trim(), updateRequestDeadline: parseManilaDateOnly(deadline), updateRequestCompletedAt: null },
   });
   await logAudit(actorId, "DOCUMENT_UPDATE_REQUESTED", "Application", requirement.applicationId, { requirementId, reason: reason.trim(), deadline });
-  void sendNotification(requirement.application.userId, "Updated Document Requested", `Please upload an updated ${requirement.documentLabel} by ${deadline}: ${reason.trim()}`, "INFO", "/app/documents");
+  void sendNotification(requirement.application.userId, "Updated Document Requested", `Please upload an updated ${requirement.documentLabel} by ${deadline}: ${reason.trim()}`, "INFO", "/app/documents", {
+    sms: { text: `Please upload an updated ${requirement.documentLabel} by ${deadline}. Log in to MEGS for details.` },
+  });
   return updated;
 };
 
@@ -104,7 +106,8 @@ export const createComplianceRequirement = async (
       "New Compliance Requirement",
       `A new document requirement '${trimmedLabel}' has been added to your application.`,
       "INFO",
-      `/app/applications/${applicationId}`
+      `/app/applications/${applicationId}`,
+      { sms: { text: `A new document is required: ${trimmedLabel}. Log in to MEGS for details.` } }
     );
   }
 
@@ -424,6 +427,13 @@ export const reviewComplianceRequirement = async (
     ? `Please upload an updated ${requirement.documentLabel}${reviewNotes ? `: ${reviewNotes}` : "."}`
     : `Your document '${requirement.documentLabel}' for "${jobTitle}" was rejected: ${reviewNotes || "Please review requirements and re-upload."}`;
   const notifType = isApproved ? "SUCCESS" : isToFollow || isUpdateRequested ? "INFO" : "WARNING";
+  const smsText = isApproved
+    ? `Your ${requirement.documentLabel} was approved. Log in to MEGS for details.`
+    : isToFollow
+    ? `Your ${requirement.documentLabel} was marked to follow. Log in to MEGS for details.`
+    : isUpdateRequested
+    ? `Please upload an updated ${requirement.documentLabel}. Log in to MEGS for details.`
+    : `Your ${requirement.documentLabel} needs to be re-uploaded. Log in to MEGS for details.`;
 
   if (requirement.application?.userId) {
     void sendNotification(
@@ -435,6 +445,7 @@ export const reviewComplianceRequirement = async (
       {
         sendEmail: true,
         ctaText: isApproved || isToFollow ? "View Application" : "Upload Document",
+        sms: { text: smsText },
       }
     );
   }
@@ -463,6 +474,7 @@ export const reviewComplianceRequirement = async (
           {
             sendEmail: true,
             ctaText: "View Application",
+            sms: { text: "All your pre-employment requirements are complete. Log in to MEGS for details." },
           }
         );
       }
@@ -727,7 +739,8 @@ export const generateComplianceRequirementsFromMRF = async (
       "Pre-Employment Checklist Available",
       `${created.length} pre-employment ${created.length === 1 ? "requirement was" : "requirements were"} added to your application.`,
       "INFO",
-      '/app/applications/' + applicationId
+      '/app/applications/' + applicationId,
+      { sms: { text: `${created.length} pre-employment ${created.length === 1 ? "requirement was" : "requirements were"} added to your application. Log in to MEGS for details.` } }
     );
   }
 

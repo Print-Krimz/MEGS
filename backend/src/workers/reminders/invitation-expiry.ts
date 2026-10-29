@@ -66,6 +66,7 @@ export const sendInvitationExpiryReminders = async (now: Date = new Date()): Pro
             dedupeKey: reminderKey("invitation-expiry", invitation.id, invitation.expiresAt, "soon"),
             sendEmail: true,
             ctaText: "View job offer",
+            sms: `Your job offer ends on ${formatDue(invitation.expiresAt)}. Reply before then. Log in to MEGS for details.`,
           }
         )
       );

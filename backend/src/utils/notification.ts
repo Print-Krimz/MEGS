@@ -1,7 +1,7 @@
 import prisma from "./prisma.js";
 import { EventEmitter } from "events";
 import * as mailer from "./mailer.js";
-import { isSyntheticEmail } from "./sms.js";
+import { isPhilippinePhone, isSyntheticEmail, maskPhoneNumber, sendSmsViaTextBee } from "./sms.js";
 import { jobOwnerTaId, type JobOwnerFields } from "../services/ta/ownership.js";
 
 const ROLE_BROADCAST_CONCURRENCY = 8;
@@ -18,11 +18,138 @@ export interface NotificationEmailOptions {
   ctaUrl?: string;
   // Unique per alert. A second send with the same key is dropped as a duplicate.
   dedupeKey?: string;
+  // Workflow SMS. always = send even when the applicant has a real email; otherwise only phone-only/walk-in applicants.
+  sms?: { text: string; always?: boolean };
 }
 
 export type NotificationResult = "sent" | "duplicate" | "failed" | "skipped";
 
 const isUniqueViolation = (error: unknown) => (error as { code?: string } | null)?.code === "P2002";
+
+const SMS_MAX_LENGTH = 160;
+
+// "MEGS: " prefix, ASCII only (keeps it GSM-7 friendly), at most 160 characters.
+export const formatSms = (text: string): string => {
+  const ascii = text
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[–—]/g, "-")
+    .replace(/…/g, "...")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^\x20-\x7E]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const full = `MEGS: ${ascii}`;
+  return full.length <= SMS_MAX_LENGTH ? full : `${full.slice(0, SMS_MAX_LENGTH - 3).trimEnd()}...`;
+};
+
+const SMS_QUIET_START_HOUR = 21;
+const SMS_QUIET_END_HOUR = 7;
+const SMS_DUPLICATE_WINDOW_MS = 10 * 60_000;
+
+const manilaHourFormat = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", hourCycle: "h23" });
+
+// No texts from 9 PM to 7 AM Manila time. They stay QUEUED and the outbox sends them after 7 AM.
+export const isSmsQuietHours = (now: Date = new Date()): boolean => {
+  const hour = Number(manilaHourFormat.formatToParts(now).find((p) => p.type === "hour")?.value ?? 0) % 24;
+  return hour >= SMS_QUIET_START_HOUR || hour < SMS_QUIET_END_HOUR;
+};
+
+// First valid Philippine mobile number on the user (account phone, then applicant profile), or null.
+export const findSmsPhone = async (userId: string): Promise<string | null> => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { phoneNumber: true, applicantProfile: { select: { mobileNumber: true } } },
+  });
+  return (
+    [user?.phoneNumber, user?.applicantProfile?.mobileNumber].find(
+      (value): value is string => !!value && isPhilippinePhone(value)
+    ) ?? null
+  );
+};
+
+// Sends one text and records the result on the notification. Throws only if a DB update fails.
+export const deliverNotificationSms = async (
+  notificationId: number,
+  phone: string,
+  text: string
+): Promise<{ success: boolean }> => {
+  // Claim the row first: if the result write below fails, it stays SENDING and the outbox never resends it.
+  await prisma.notification.update({
+    where: { id: notificationId },
+    data: { smsStatus: "SENDING", smsText: text, smsAt: new Date(), smsAttempts: { increment: 1 } },
+  });
+  const result = await sendSmsViaTextBee(phone, text);
+  await prisma.notification.update({
+    where: { id: notificationId },
+    data: result.success
+      ? { smsStatus: "SENT", smsProviderId: result.smsBatchId ?? null, smsAt: new Date() }
+      : { smsStatus: "FAILED", smsError: (result.error || "SMS failed").slice(0, 200), smsAt: new Date() },
+  });
+  return { success: result.success };
+};
+
+// Sends the workflow SMS for a saved notification and records the result on it. Never throws.
+export const dispatchNotificationSms = async (
+  notificationId: number,
+  userId: string,
+  sms: { text: string; always?: boolean }
+): Promise<void> => {
+  if (process.env.SMS_NOTIFICATIONS_ENABLED !== "true") return;
+  let maskedPhone = "";
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (!user) return;
+    if (!sms.always && user.email && !isSyntheticEmail(user.email)) return;
+
+    const phone = await findSmsPhone(userId);
+    if (!phone) {
+      await prisma.notification.update({
+        where: { id: notificationId },
+        data: { smsStatus: "NO_PHONE", smsAt: new Date() },
+      });
+      return;
+    }
+
+    maskedPhone = maskPhoneNumber(phone);
+    const text = formatSms(sms.text);
+    const now = new Date();
+
+    const duplicate = await prisma.notification.findFirst({
+      where: {
+        userId,
+        id: { not: notificationId },
+        smsText: text,
+        smsStatus: { in: ["SENT", "QUEUED"] },
+        smsAt: { gte: new Date(now.getTime() - SMS_DUPLICATE_WINDOW_MS) },
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      await prisma.notification.update({
+        where: { id: notificationId },
+        data: { smsStatus: "DUPLICATE", smsText: text, smsAt: now },
+      });
+      return;
+    }
+
+    if (isSmsQuietHours(now)) {
+      await prisma.notification.update({
+        where: { id: notificationId },
+        data: { smsStatus: "QUEUED", smsText: text, smsAt: now },
+      });
+      return;
+    }
+
+    await deliverNotificationSms(notificationId, phone, text);
+  } catch (err: any) {
+    console.error("[NOTIFICATION SMS ERROR]", err?.message || err, { userId, phone: maskedPhone });
+  }
+};
 
 // Persists notification and emits real-time event to SSE subscribers (fire-and-forget).
 export const sendNotification = async (
@@ -47,6 +174,7 @@ export const sendNotification = async (
     });
 
     notificationEmitter.emit(`notification:${userId}`, notification);
+    if (emailOptions?.sms) void dispatchNotificationSms(notification.id, userId, emailOptions.sms);
   } catch (error) {
     if (isUniqueViolation(error)) return "duplicate";
     console.error("[NOTIFICATION FAILED]", error, { userId, title });
@@ -101,7 +229,7 @@ const broadcastToRole = async (
 ): Promise<NotificationTally> => {
   const tally = emptyTally();
   if (!prisma?.user?.findMany) return tally;
-  const { dedupeKey, recipientEmail: _recipientEmail, ...emailOptions } = options;
+  const { dedupeKey, recipientEmail: _recipientEmail, sms: _sms, ...emailOptions } = options;
   try {
     const users = await prisma.user.findMany({
       where: {

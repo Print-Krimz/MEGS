@@ -104,11 +104,18 @@ model Notification {
   isRead    Boolean  @default(false)
   link      String?  // Optional URL to redirect to when clicked
   dedupeKey String?  @unique // Set by scheduled reminders so a repeat run cannot send the same alert twice
+  smsStatus     String?   // Workflow SMS result: SENDING, SENT, FAILED, NO_PHONE, QUEUED or DUPLICATE. Null when no SMS was attempted
+  smsProviderId String?
+  smsError      String?
+  smsAt         DateTime?
+  smsText       String?   // Formatted text, kept so the outbox can send or retry it
+  smsAttempts   Int       @default(0)
 
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, isRead, createdAt(sort: Desc)])
+  @@index([smsStatus, createdAt])
 }
 
 // ─────────────────────────────────────────────

@@ -135,7 +135,11 @@ export const rejectApplication = async (input: CloseApplicationInput) => {
       : "Your application consideration has concluded.",
     "INFO",
     `/app/applications/${applicationId}`,
-    { sendEmail: true, ctaText: "View Application" }
+    {
+      sendEmail: true,
+      ctaText: "View Application",
+      sms: { text: "There is an update on your application. Log in to MEGS for details." },
+    }
   ).catch(() => {});
 
   return closure;

@@ -141,7 +141,8 @@ export const recordClientEndorsement = async (
     notifTitle,
     notifMessage,
     notifType,
-    `/app/applications/${applicationId}`
+    `/app/applications/${applicationId}`,
+    { sms: { text: "There is an update on your application. Log in to MEGS for details." } }
   );
 
   void logAudit(endorsedById || null, "CLIENT_ENDORSEMENT_RECORDED", "Application", applicationId, {
@@ -280,7 +281,8 @@ export const updateClientEndorsement = async (
       notifTitle,
       notifMessage,
       notifType,
-      `/app/applications/${applicationId}`
+      `/app/applications/${applicationId}`,
+      { sms: { text: "There is an update on your application. Log in to MEGS for details." } }
     );
 
     // If recorded by another team member/coordinator, notify requisition owner

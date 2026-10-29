@@ -37,6 +37,10 @@ const remind = async (
           sendEmail: true,
           ctaText: "View Details",
           dedupeKey: appointmentReminderKey(activity, recordId, scheduledAt),
+          sms: {
+            always: true,
+            text: `Reminder: your ${label} is on ${formatManilaDateTime(scheduledAt)}.${location ? ` Location: ${location}.` : ""} Log in to MEGS for details.`,
+          },
         }
       )
     );

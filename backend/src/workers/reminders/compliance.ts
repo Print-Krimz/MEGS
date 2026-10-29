@@ -13,6 +13,7 @@ import {
   newResult,
   notifyApplicant,
   reminderKey,
+  smsFor,
   type MilestoneRule,
   type ReminderResult,
 } from "./rules.js";
@@ -71,6 +72,12 @@ const runRows = async (spec: SweepSpec, now: Date): Promise<ReminderResult> => {
               dedupeKey: reminderKey(spec.kind, row.id, row.due, forApplicant),
               sendEmail: spec.emailFor(forApplicant) && withinEmailCatchup(days),
               ctaText: "Open application",
+              sms: smsFor(
+                forApplicant,
+                isOverdue(forApplicant)
+                  ? `Your ${row.documentLabel} was due ${dueText}. Please upload it. Log in to MEGS for details.`
+                  : `Your ${row.documentLabel} is due ${dueText}. Please upload it. Log in to MEGS for details.`
+              ),
             }
           )
         );

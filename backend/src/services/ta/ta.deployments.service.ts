@@ -246,7 +246,14 @@ export const createDeployment = async (
       "Deployment Scheduled",
       `Your deployment record has been created for site: ${resolvedSite || "Main Site"}.`,
       "SUCCESS",
-      candidateLink
+      candidateLink,
+      {
+        dedupeKey: `deployment-scheduled:${deployment.id}:${candidateUserId}`,
+        sms: {
+          always: true,
+          text: `Your deployment is scheduled at ${resolvedSite || "Main Site"}. Log in to MEGS for details.`,
+        },
+      }
     );
   }
 
@@ -442,7 +449,8 @@ export const updateDeploymentStatus = async (
       "Deployment Update",
       `Your deployment status has been updated to ${status.replace(/_/g, " ")}.`,
       "INFO",
-      candidateLink
+      candidateLink,
+      { sms: { text: `Your deployment status is now ${status.replace(/_/g, " ")}. Log in to MEGS for details.` } }
     );
   }
 
@@ -671,7 +679,8 @@ export const signDeploymentContract = async (
       "Contract Signed",
       `Deployment contract has been signed by ${party === "WORKER" ? "Candidate" : "Client Partner"}. Status: ${contractStatus}`,
       "SUCCESS",
-      candidateLink
+      candidateLink,
+      { sms: { text: "Your deployment contract has been signed. Log in to MEGS for details." } }
     );
   }
 
@@ -1089,7 +1098,8 @@ export const fastTrackRedeployment = async (
       "Redeployment Fast-Tracked",
       `Your application for ${application.jobPosting?.title || "the role"} has been fast-tracked to ${targetStage}. ${carriedOver.length} valid clearances have been carried over.`,
       "SUCCESS",
-      `/app/applications/${applicationId}`
+      `/app/applications/${applicationId}`,
+      { sms: { text: `Your application for ${application.jobPosting?.title || "the role"} was fast-tracked. Log in to MEGS for details.` } }
     );
   }
 

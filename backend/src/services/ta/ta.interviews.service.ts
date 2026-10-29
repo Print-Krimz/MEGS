@@ -195,6 +195,11 @@ export const scheduleNewInterview = async (
         {
           sendEmail: true,
           ctaText: "View Interview Details",
+          dedupeKey: `interview-rescheduled:${interview.id}:${new Date(scheduledAt).toISOString()}:${application.userId}`,
+          sms: {
+            always: true,
+            text: `${interviewLabel(type)} rescheduled to ${formatManilaDateTime(new Date(scheduledAt))}.${interview.location ? ` Location: ${interview.location}.` : ""} Log in to MEGS for details.`,
+          },
         }
       );
     }
@@ -230,6 +235,11 @@ export const scheduleNewInterview = async (
       {
         sendEmail: true,
         ctaText: "View Interview Details",
+        dedupeKey: `interview-scheduled:${interview.id}:${new Date(scheduledAt).toISOString()}:${application.userId}`,
+        sms: {
+          always: true,
+          text: `${interviewLabel(type)} scheduled for ${formatManilaDateTime(new Date(scheduledAt))}.${place ? ` Location: ${place}.` : ""} Log in to MEGS for details.`,
+        },
       }
     );
 
@@ -424,6 +434,7 @@ export const recordDirectInterviewResult = async (
       {
         sendEmail: true,
         ctaText: "Check Application Status",
+        sms: { text: `${interviewResultMessage(type, result)} Log in to MEGS for details.` },
       }
     );
   }
@@ -587,6 +598,7 @@ export const updateInterviewResult = async (
       {
         sendEmail: true,
         ctaText: "Check Application Status",
+        sms: { text: `${interviewResultMessage(interview.type, result)} Log in to MEGS for details.` },
       }
     );
   }
@@ -763,7 +775,7 @@ export const correctInterviewResult = async (
 
   const interview = await prisma.interview.findUnique({
     where: { id: interviewId },
-    include: { application: { select: { id: true, status: true } } },
+    include: { application: { select: { id: true, status: true, userId: true } } },
   });
   if (!interview) throw new Error("Interview not found");
   if (!isInterviewResultFinal(interview.result)) {
@@ -786,6 +798,23 @@ export const correctInterviewResult = async (
     reason: reason.trim(),
     applicationStatus: interview.application?.status,
   });
+
+  // Only a corrected pass/fail means something to the applicant.
+  if (interview.application?.userId && ["PASS", "PASSED", "FAIL", "FAILED"].includes(newResult)) {
+    void sendNotification(
+      interview.application.userId,
+      "Interview Update",
+      interviewResultMessage(interview.type, newResult),
+      ["PASS", "PASSED"].includes(newResult) ? "SUCCESS" : "WARNING",
+      `/app/applications/${interview.applicationId}`,
+      {
+        sendEmail: true,
+        ctaText: "Check Application Status",
+        sms: { text: `${interviewResultMessage(interview.type, newResult)} Log in to MEGS for details.` },
+        dedupeKey: `interview-corrected:${interviewId}:${newResult}:${interview.application.userId}`,
+      }
+    );
+  }
 
   const stageWarning =
     interview.application &&
