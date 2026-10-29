@@ -16,12 +16,15 @@ const app = express();
 installSafeErrorLogging();
 validateRuntimeSecurity();
 app.set("trust proxy", proxyTrust());
+// Every /api response is no-store, so ETags are never reused.
+app.set("etag", false);
 const trustedOrigins = allowedOrigins();
 
 app.use(
   cors({
     origin: (origin, callback) => callback(null, !origin || trustedOrigins.has(origin)),
     credentials: true,
+    maxAge: 7200, // Chrome caps preflight caching at 2 hours
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",

@@ -60,6 +60,7 @@ jobs:
           tests/security/turnstile-binding.test.ts
           tests/security/document-parser-limits.test.ts
           tests/security/key-compatibility.test.ts
+          tests/security/cors-preflight.test.ts
 
   deploy:
     name: Deploy Backend Subtree
