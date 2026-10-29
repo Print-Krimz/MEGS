@@ -52,7 +52,7 @@ Files go to `frontend/test-results/perf/<label>/` (ignored by git):
 | `workforce.json` | Redeployment-queue requests per Workforce tab, and payload bytes at 1,000 rows |
 | `summary.json` | Concise roll-up of the above |
 
-A scenario that cannot run is written as `{"skipped": "<reason>"}`.
+Required scenarios fail the run on any exception, unexpected `/api/` request (no fixture), page or console error, missing metric, or a stale readiness check, and are recorded as `{"failed": "<reason>"}`. The bundle scenario also fails when initial JS (HTML-listed entry and preloads plus every statically imported chunk, recursively) exceeds 200,000 gzip bytes; `PERF_JS_GZIP_BUDGET` overrides the budget for gate checks. Readiness is the route's own visible h1 (`ROUTE_READY` in `harness.ts`). The only optional probe is the network profile, recorded as `{"optional": true, "skipped": "<reason>"}` when `PERF_NETWORK` is not set. A full run ends with a check that every required scenario produced evidence.
 
 ## How it measures
 

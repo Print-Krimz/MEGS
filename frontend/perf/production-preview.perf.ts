@@ -5,13 +5,19 @@
  *   PERF_DIST=<dist> PERF_LABEL=baseline npx playwright test -c perf/perf.config.ts
  *
  * Writes frontend/test-results/perf/<label>/*.json and summary.json.
- * A scenario that cannot run is written as {"skipped": "<reason>"}; no values are invented.
+ * Required scenarios fail the run (and are recorded as {"failed": "<reason>"}) on any exception,
+ * unexpected API request, page or console error, missing metric, or initial JS over budget.
+ * Only probes registered with `optional()` may be skipped, and they are recorded as
+ * {"optional": true, "skipped": "<reason>"} so they stay distinguishable. No values are invented.
  */
 import { test, type Page } from "@playwright/test";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { fixtureBytes, LARGE_SCALE, SMALL_SCALE, type IdentityKey } from "./fixtures";
 import {
+  assertBundleBudget,
+  assertCleanSession,
+  assertMetrics,
   bundleFacts,
   CLICK_EVENTS,
   CPU_RATE,
@@ -23,6 +29,7 @@ import {
   outputDir,
   rangeOf,
   readInteraction,
+  readyHeadingFor,
   requiredEnv,
   SLOW_NETWORK,
   SLOW_NETWORK_PROFILE,
@@ -64,18 +71,27 @@ function summarizeForSummary(name: string, value: unknown) {
   return value;
 }
 
-function skipped(name: string, error: unknown) {
-  const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
-  console.error(`[perf] ${name} skipped: ${reason}`);
-  persist(name, { skipped: reason });
-}
+/** Scenarios that must produce evidence. Optional probes are tracked separately. */
+const requiredRan = new Set<string>();
+const optionalSkipped = new Set<string>();
 
-async function runOrSkip(name: string, body: () => Promise<void>) {
+/** Runs a required scenario. Any error is recorded as {"failed": ...} and rethrown so the test fails. */
+async function required(name: string, body: () => Promise<void>) {
+  requiredRan.add(name);
   try {
     await body();
   } catch (error) {
-    skipped(name, error);
+    const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
+    console.error(`[perf] ${name} FAILED: ${reason}`);
+    persist(name, { failed: reason });
+    throw error;
   }
+}
+
+/** Marks an explicitly optional probe as not run. It never counts as a pass of a required check. */
+function optional(name: string, reason: string) {
+  optionalSkipped.add(name);
+  summary[name] = { optional: true, skipped: reason };
 }
 
 function writeSummary() {
@@ -112,8 +128,11 @@ function runSummary(runs: PageMetrics[]) {
 test.describe.serial("production-preview performance baseline", () => {
   test("bundle facts from dist index.html", async () => {
     test.setTimeout(60_000);
-    const facts = bundleFacts(DIST);
-    persist("bundle", facts);
+    await required("bundle", async () => {
+      const facts = bundleFacts(DIST);
+      persist("bundle", facts);
+      assertBundleBudget(facts);
+    });
   });
 
   test("route baseline: 10 routes, 5 fresh contexts each", async ({ browser }) => {
@@ -131,9 +150,12 @@ test.describe.serial("production-preview performance baseline", () => {
       { path: "/admin/users", identity: "ADMINISTRATOR" },
     ];
     const results: Array<Record<string, unknown>> = [];
+    const failures: string[] = [];
     // PERF_ROUTES=/ta,/app limits the route baseline to a subset (used for targeted re-checks).
     const only = process.env.PERF_ROUTES?.split(",").map((p) => p.trim()).filter(Boolean);
     const selected = only ? routes.filter((route) => only.includes(route.path)) : routes;
+    if (!selected.length) throw new Error(`PERF_ROUTES=${process.env.PERF_ROUTES} matches no probed route.`);
+    requiredRan.add("routes");
     for (const route of selected) {
       const runs: PageMetrics[] = [];
       const perRun: Array<Record<string, unknown>> = [];
@@ -142,6 +164,12 @@ test.describe.serial("production-preview performance baseline", () => {
         try {
           const headingMs = await gotoAndSettle(session.page, route.path, 1200);
           const metrics = await collectMetrics(session.page);
+          try {
+            assertMetrics(metrics, `${route.path} run ${run}`);
+            assertCleanSession(session, `${route.path} run ${run}`);
+          } catch (error) {
+            failures.push(error instanceof Error ? error.message : String(error));
+          }
           runs.push(metrics);
           perRun.push({
             run,
@@ -166,14 +194,16 @@ test.describe.serial("production-preview performance baseline", () => {
       console.log(`[perf] ${route.path} done`);
     }
     persist("routes", {
-      scenario: "route baseline; 1,200 ms observation window after first visible heading; SMALL fixtures",
+      scenario: "route baseline; 1,200 ms observation window after the route's own visible h1; SMALL fixtures",
       routes: results,
+      failures,
     });
+    if (failures.length) throw new Error(`route baseline: ${failures.length} failing run(s); first: ${failures[0]}`);
   });
 
   test("landing: deferred and lazy assets after settling", async ({ browser }) => {
     test.setTimeout(20 * 60_000);
-    await runOrSkip("landing", async () => {
+    await required("landing", async () => {
       const variants = [
         { name: "settled10s", scroll: false, settleMs: 10_000 },
         { name: "scrolledThenSettled", scroll: true, settleMs: 2_000 },
@@ -196,6 +226,8 @@ test.describe.serial("production-preview performance baseline", () => {
             const iconHref = await session.page.evaluate(() => (document.querySelector('link[rel~="icon"]') as HTMLLinkElement | null)?.href ?? null);
             const favicon = iconHref ? await session.page.request.get(iconHref).then(async (r) => (await r.body()).byteLength) : 0;
             const metrics = await collectMetrics(session.page);
+            assertMetrics(metrics, `landing ${variant.name} run ${run}`);
+            assertCleanSession(session, `landing ${variant.name} run ${run}`);
             runs.push({
               run,
               ...metrics,
@@ -220,23 +252,23 @@ test.describe.serial("production-preview performance baseline", () => {
         };
       }
       persist("landing", { scenario: "anonymous landing at 1440x900, CPU 4x", variants: output });
-    }).catch((error) => skipped("landing", error));
+    });
   });
 
   test("applicant address picker: Manila barangay ComboBox", async ({ browser }) => {
     test.setTimeout(20 * 60_000);
-    await runOrSkip("address-picker", async () => {
+    await required("address-picker", async () => {
       const session = await openSession(browser, { identity: "APPLICANT", scale: SMALL_SCALE });
       const page = session.page;
       try {
         await gotoAndSettle(page, "/app/profile", 800);
-        // Personal Info is a separate profile tab; the address disclosure lives inside it.
+        // Personal Info is a separate profile tab; the address fields live in its "Contact and address" disclosure.
         await page.getByRole("tab", { name: "Personal Info" }).click();
-        // The disclosure body (and its id) renders only while open, so open it via its toggle first.
-        const toggle = page.locator('button[aria-controls="profile-personal-address"]');
+        // The disclosure body (and its id) renders only while open, so open it via its toggle if it is collapsed.
+        const toggle = page.locator('button[aria-controls="profile-personal-contact"]');
         await toggle.waitFor({ state: "visible", timeout: 30_000 });
         if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
-        const section = page.locator("#profile-personal-address");
+        const section = page.locator("#profile-personal-contact");
         await section.waitFor({ state: "attached", timeout: 15_000 });
         const province = section.getByRole("combobox", { name: /Province or region/i });
         await province.waitFor({ state: "visible", timeout: 15_000 });
@@ -280,6 +312,8 @@ test.describe.serial("production-preview performance baseline", () => {
           typedSamples.push((await readInteraction(page, KEY_EVENTS, 200)).ms);
         }
         const typedValue = await barangay.inputValue();
+        if (!mounted.some((count) => count > 0)) throw new Error("barangay listbox never mounted an option");
+        if (!expanded.every(Boolean)) throw new Error("barangay ComboBox did not expand after every click");
 
         const arrowSamples: Array<number | null> = [];
         for (let i = 0; i < 12; i += 1) {
@@ -288,6 +322,7 @@ test.describe.serial("production-preview performance baseline", () => {
           arrowSamples.push((await readInteraction(page, KEY_EVENTS, 200)).ms);
         }
         await page.keyboard.press("Escape");
+        assertCleanSession(session, "address-picker");
 
         persist("address-picker", {
           scenario: "Applicant profile, Metro Manila > Manila, barangay ComboBox (CPU 4x)",
@@ -310,17 +345,17 @@ test.describe.serial("production-preview performance baseline", () => {
       } finally {
         await session.close();
       }
-    }).catch((error) => skipped("address-picker", error));
+    });
   });
 
   test("MRF search keystrokes with 1,000 requests", async ({ browser }) => {
     test.setTimeout(20 * 60_000);
-    await runOrSkip("mrf-search", async () => {
+    await required("mrf-search", async () => {
       const session = await openSession(browser, { identity: "TALENT_ACQUISITION", scale: LARGE_SCALE });
       const page = session.page;
       try {
         await gotoAndSettle(page, "/ta/mrfs", 1500);
-        const search = page.getByPlaceholder("Search requests by title or client name...");
+        const search = page.getByPlaceholder("Search by title or client");
         await search.click();
         const text = "Sales Associate Request 04";
         const keySamples: Array<number | null> = [];
@@ -330,6 +365,8 @@ test.describe.serial("production-preview performance baseline", () => {
           keySamples.push((await readInteraction(page, KEY_EVENTS, 200)).ms);
         }
         const typed = await search.inputValue();
+        if (typed !== text) throw new Error(`MRF search typed "${typed}", expected "${text}"`);
+        assertCleanSession(session, "mrf-search");
         persist("mrf-search", {
           scenario: "/ta/mrfs, 1,000 MRF records, typing into the search box (CPU 4x)",
           keystrokes: text.length,
@@ -341,17 +378,17 @@ test.describe.serial("production-preview performance baseline", () => {
       } finally {
         await session.close();
       }
-    }).catch((error) => skipped("mrf-search", error));
+    });
   });
 
   test("admin analytics tab switches with 1,000 rows and 24 recruiters", async ({ browser }) => {
     test.setTimeout(20 * 60_000);
-    await runOrSkip("admin-analytics", async () => {
+    await required("admin-analytics", async () => {
       const session = await openSession(browser, { identity: "ADMINISTRATOR", scale: LARGE_SCALE });
       const page = session.page;
       try {
         await gotoAndSettle(page, "/admin/analytics", 1500);
-        const labels = ["Client requests", "All recruiters", "Critical and waiting candidates"];
+        const labels = ["Waiting", "Client requests", "Recruiters"];
         const tab = (label: string) => page.getByRole("tab", { name: new RegExp(`^${label}`) });
         const samples: Array<number | null> = [];
         const clickSamples: Array<number | null> = [];
@@ -365,6 +402,8 @@ test.describe.serial("production-preview performance baseline", () => {
           clickSamples.push(sample.clickMs);
           selectedOk.push((await tab(label).getAttribute("aria-selected")) === "true");
         }
+        if (!selectedOk.every(Boolean)) throw new Error("an Admin Reports tab was not selected after its click");
+        assertCleanSession(session, "admin-analytics");
         persist("admin-analytics", {
           scenario: "/admin/analytics with 1,000 request rows and 24 recruiters; 20 tab clicks (CPU 4x)",
           tabCount: labels.length,
@@ -379,12 +418,12 @@ test.describe.serial("production-preview performance baseline", () => {
       } finally {
         await session.close();
       }
-    }).catch((error) => skipped("admin-analytics", error));
+    });
   });
 
   test("TA dashboard: delayed interview-compliance endpoint", async ({ browser }) => {
     test.setTimeout(20 * 60_000);
-    await runOrSkip("ta-dashboard-delay", async () => {
+    await required("ta-dashboard-delay", async () => {
       const runs: Array<Record<string, unknown>> = [];
       for (let run = 1; run <= ROUTE_RUNS; run += 1) {
         const session = await openSession(browser, {
@@ -396,15 +435,19 @@ test.describe.serial("production-preview performance baseline", () => {
         try {
           const t0 = Date.now();
           await page.goto("/ta", { waitUntil: "load" });
-          const headingAt = await waitForTextAt(page, "Recruitment overview", t0);
-          const pipelineAt = await waitForTextAt(page, "Still moving through the pipeline", t0);
-          const openingsAt = await waitForTextAt(page, "Active client job openings", t0);
-          const complianceBannerAt = await waitForTextAt(page, "7-day interview deadline", t0);
+          await page.locator("h1").filter({ hasText: readyHeadingFor("/ta") }).first().waitFor({ state: "visible", timeout: 30_000 });
+          const headingAt = Date.now() - t0;
+          const pipelineAt = await waitForTextAt(page, "Hiring pipeline", t0);
+          const openingsAt = await waitForTextAt(page, "Active job openings", t0);
+          const complianceBannerAt = await waitForTextAt(page, "7 days after the interview is scheduled", t0);
           await page.waitForTimeout(1500);
           // Read only after the delayed response has been fulfilled (fulfilment is stamped after the delay).
           for (let waited = 0; session.net.apiFulfilledAt["GET /api/ta/compliance/interviews"] === undefined && waited < 10_000; waited += 100) await page.waitForTimeout(100);
-          const complianceFulfilledAt = (session.net.apiFulfilledAt["GET /api/ta/compliance/interviews"] ?? 0) - t0;
+          if (session.net.apiFulfilledAt["GET /api/ta/compliance/interviews"] === undefined) throw new Error("delayed compliance endpoint was never fulfilled");
+          const complianceFulfilledAt = session.net.apiFulfilledAt["GET /api/ta/compliance/interviews"] - t0;
           const metrics = await collectMetrics(page);
+          assertMetrics(metrics, `ta-dashboard-delay run ${run}`);
+          assertCleanSession(session, `ta-dashboard-delay run ${run}`);
           runs.push({
             run,
             headingVisibleMs: headingAt,
@@ -418,7 +461,7 @@ test.describe.serial("production-preview performance baseline", () => {
             fulfilledMs: {
               pipeline: fulfilledAfter(session, "GET /api/ta/analytics/pipeline", t0),
               dashboardCounts: fulfilledAfter(session, "GET /api/ta/dashboard-counts", t0),
-              recentApplications: fulfilledAfter(session, "GET /api/ta/applications", t0),
+              analyticsDashboard: fulfilledAfter(session, "GET /api/ta/analytics/dashboard", t0),
               complianceInterviews: fulfilledAfter(session, "GET /api/ta/compliance/interviews", t0),
             },
             lcpMs: metrics.lcpMs,
@@ -435,12 +478,12 @@ test.describe.serial("production-preview performance baseline", () => {
         complianceResponseFulfilledMs: rangeOf(runs.map((r) => r.complianceResponseFulfilledMs as number)),
         cls: rangeOf(runs.map((r) => r.cls as number)),
       });
-    }).catch((error) => skipped("ta-dashboard-delay", error));
+    });
   });
 
   test("applicant dashboard: delayed endpoints", async ({ browser }) => {
     test.setTimeout(20 * 60_000);
-    await runOrSkip("applicant-dashboard-delay", async () => {
+    await required("applicant-dashboard-delay", async () => {
       const variants = [
         { name: "delayOpenJobsPreview", endpoint: "/api/applicant-jobs/jobs", note: "jobs preview query, not part of the page gate" },
         { name: "delayMyApplications", endpoint: "/api/applicant-jobs/my-applications", note: "applications query, part of the page gate" },
@@ -464,8 +507,11 @@ test.describe.serial("production-preview performance baseline", () => {
             await page.waitForTimeout(1500);
             // Read only after the delayed response has been fulfilled (fulfilment is stamped after the delay).
             for (let waited = 0; session.net.apiFulfilledAt[`GET ${variant.endpoint}`] === undefined && waited < 10_000; waited += 100) await page.waitForTimeout(100);
-            const delayedFulfilledAt = (session.net.apiFulfilledAt[`GET ${variant.endpoint}`] ?? 0) - t0;
+            if (session.net.apiFulfilledAt[`GET ${variant.endpoint}`] === undefined) throw new Error(`delayed endpoint ${variant.endpoint} was never fulfilled`);
+            const delayedFulfilledAt = session.net.apiFulfilledAt[`GET ${variant.endpoint}`] - t0;
             const metrics = await collectMetrics(page);
+            assertMetrics(metrics, `applicant-dashboard-delay ${variant.name} run ${run}`);
+            assertCleanSession(session, `applicant-dashboard-delay ${variant.name} run ${run}`);
             runs.push({
               run,
               headingVisibleMs: headingAt,
@@ -496,17 +542,16 @@ test.describe.serial("production-preview performance baseline", () => {
         };
       }
       persist("applicant-dashboard-delay", { scenario: "/app, one endpoint delayed 2,000 ms (CPU 4x)", variants: output });
-    }).catch((error) => skipped("applicant-dashboard-delay", error));
+    });
   });
 
   test("workforce: redeployment queue requests and TA list payloads", async ({ browser }) => {
     test.setTimeout(20 * 60_000);
-    await runOrSkip("workforce", async () => {
+    await required("workforce", async () => {
       const variants = [
         { name: "deploymentsTabDefault", path: "/ta/workforce" },
         { name: "employeesTab", path: "/ta/workforce?tab=employees" },
-        { name: "preEmploymentTab", path: "/ta/workforce?tab=clearances" },
-        { name: "postDeploymentTab", path: "/ta/workforce?tab=post_deployment" },
+        { name: "followUpsTab", path: "/ta/workforce?tab=follow-ups" },
         { name: "redeploymentTab", path: "/ta/workforce?tab=redeployment" },
       ];
       const queue = "GET /api/employees/redeployment-queue";
@@ -527,6 +572,8 @@ test.describe.serial("production-preview performance baseline", () => {
             await gotoAndSettle(session.page, variant.path, 2000);
             const net = session.net;
             const queueShape = shaped(net.apiCounts, queue);
+            assertCleanSession(session, `workforce ${variant.name} run ${run}`);
+            if (variant.name === "redeploymentTab" && queueShape.full + queueShape.paged === 0) throw new Error("redeployment tab never requested the queue");
             runs.push({
               run,
               redeploymentQueueFullRequests: queueShape.full,
@@ -576,13 +623,16 @@ test.describe.serial("production-preview performance baseline", () => {
         },
       };
       persist("workforce", { scenario: "/ta/workforce variants and TA list endpoints at 1,000 rows (CPU 4x)", variants: output, payloads });
-    }).catch((error) => skipped("workforce", error));
+    });
   });
 
   test("network profile: landing and /app/jobs at 150 ms / 1.6 Mbps / 750 Kbps (PERF_NETWORK=slow)", async ({ browser }) => {
     test.setTimeout(20 * 60_000);
-    test.skip(!SLOW_NETWORK, "set PERF_NETWORK=slow to run the network profile");
-    await runOrSkip("network", async () => {
+    if (!SLOW_NETWORK) {
+      optional("network", "set PERF_NETWORK=slow to run the network profile");
+      test.skip(true, "optional probe: set PERF_NETWORK=slow to run the network profile");
+    }
+    await required("network", async () => {
       const routes: Array<{ path: string; identity: IdentityKey | null }> = [
         { path: "/", identity: null },
         { path: "/app/jobs", identity: "APPLICANT" },
@@ -595,6 +645,8 @@ test.describe.serial("production-preview performance baseline", () => {
           await session.page.evaluate(() => document.fonts.ready.then(() => true));
           await session.page.waitForTimeout(10_000);
           const metrics = await collectMetrics(session.page);
+          assertMetrics(metrics, `network ${route.path}`);
+          assertCleanSession(session, `network ${route.path}`);
           // Validation that the profile reached real requests: every .js resource should take at least the latency.
           const jsDurations = await session.page.evaluate(() =>
             (performance.getEntriesByType("resource") as PerformanceResourceTiming[])
@@ -631,7 +683,20 @@ test.describe.serial("production-preview performance baseline", () => {
     });
   });
 
-  test("write summary", async () => {
+  test("required scenarios all produced evidence", async ({}, testInfo) => {
+    // Full runs must cover every required scenario; filtered runs (-g, PERF_ROUTES) only check what ran.
+    const filtered = String(testInfo.config.grep) !== String(/.*/) || !!process.env.PERF_ROUTES;
+    const expected = ["bundle", "routes", "landing", "address-picker", "mrf-search", "admin-analytics", "ta-dashboard-delay", "applicant-dashboard-delay", "workforce"];
+    const names = filtered ? [...requiredRan] : [...new Set([...expected, ...requiredRan])];
+    const bad = names.filter((name) => {
+      const value = summary[name] as { skipped?: unknown; failed?: unknown } | undefined;
+      return value === undefined || value === null || typeof value !== "object" || "skipped" in value || "failed" in value;
+    });
+    if (bad.length) throw new Error(`required scenarios without evidence: ${bad.join(", ")}`);
+  });
+
+  test.afterAll(() => {
+    if (optionalSkipped.size) console.log(`[perf] optional probes not run: ${[...optionalSkipped].join(", ")}`);
     writeSummary();
     console.log(`[perf] wrote ${path.join(OUT, "summary.json")}`);
   });

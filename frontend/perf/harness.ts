@@ -240,7 +240,8 @@ export async function openSession(browser: Browser, options: SessionOptions = {}
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
   page.on("console", (message) => {
-    if (message.type() === "error") errors.push(`console: ${message.text().slice(0, 240)}`);
+    // Requests this harness aborts on purpose (external hosts) are reported in net.blockedExternal, not as page errors.
+    if (message.type() === "error" && !message.text().includes("net::ERR_BLOCKED_BY_CLIENT")) errors.push(`console: ${message.text().slice(0, 240)}`);
   });
   const cdp = await context.newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU_RATE });
@@ -263,13 +264,60 @@ export async function openSession(browser: Browser, options: SessionOptions = {}
   };
 }
 
-/** Navigates, waits for the first visible heading, then holds the observation window. */
+/**
+ * The visible page title (h1) each probed route must show before it counts as ready.
+ * A hidden duplicate heading (for example a screen-reader-only h2) never satisfies this.
+ */
+const ROUTE_READY: Array<{ path: string; heading: RegExp }> = [
+  { path: "/", heading: /Better people/i },
+  { path: "/app", heading: /^Good (morning|afternoon|evening)/i },
+  { path: "/app/jobs", heading: /^Explore jobs$/i },
+  { path: "/app/profile", heading: /^Candidate Profile$/i },
+  { path: "/ta", heading: /^Overview$/i },
+  { path: "/ta/applications", heading: /^Applications$/i },
+  { path: "/ta/mrfs", heading: /^Manpower requests$/i },
+  { path: "/ta/workforce", heading: /^Workforce$/i },
+  { path: "/admin", heading: /^Overview$/i },
+  { path: "/admin/users", heading: /^Users$/i },
+  { path: "/admin/analytics", heading: /^Reports$/i },
+];
+
+export function readyHeadingFor(urlPath: string): RegExp {
+  const pathname = urlPath.split(/[?#]/)[0];
+  const entry = ROUTE_READY.find((route) => route.path === pathname);
+  if (!entry) throw new Error(`No route-specific readiness defined for ${pathname}; add it to ROUTE_READY in harness.ts.`);
+  return entry.heading;
+}
+
+/** Navigates, waits for the route's own visible h1, then holds the observation window. */
 export async function gotoAndSettle(page: Page, urlPath: string, settleMs: number) {
+  const heading = readyHeadingFor(urlPath);
   await page.goto(urlPath, { waitUntil: "load", timeout: 60_000 });
-  await page.locator("h1, h2").first().waitFor({ state: "visible", timeout: 30_000 });
+  await page.locator("h1").filter({ hasText: heading }).first().waitFor({ state: "visible", timeout: 30_000 });
   const headingAt = await page.evaluate(() => performance.now());
   await page.waitForTimeout(settleMs);
   return headingAt;
+}
+
+/**
+ * Required probes must not run on a degraded page: any `/api/` request without a fixture,
+ * any page error and any console error is a failure, not a footnote.
+ */
+export function assertCleanSession(session: Pick<Session, "net" | "errors">, label: string) {
+  const problems: string[] = [];
+  if (session.net.unexpectedApi.length) problems.push(`unexpected API requests: ${session.net.unexpectedApi.join(", ")}`);
+  if (session.errors.length) problems.push(`page/console errors: ${session.errors.slice(0, 3).join(" | ")}`);
+  if (problems.length) throw new Error(`${label}: ${problems.join("; ")}`);
+}
+
+/** A required metrics sample must actually contain measurements. */
+export function assertMetrics(metrics: PageMetrics, label: string) {
+  const missing: string[] = [];
+  if (metrics.lcpMs === null || !Number.isFinite(metrics.lcpMs)) missing.push("lcpMs");
+  if (!Number.isFinite(metrics.cls)) missing.push("cls");
+  if (!(metrics.jsCount > 0)) missing.push("jsCount");
+  if (!(metrics.domNodes > 0)) missing.push("domNodes");
+  if (missing.length) throw new Error(`${label}: missing metrics: ${missing.join(", ")}`);
 }
 
 /** `*Bytes` are transfer (encoded, possibly gzip) bytes; `*RawBytes` are uncompressed bytes. */
@@ -482,21 +530,45 @@ export function writeResult(dir: string, name: string, data: unknown) {
 
 /* ---------- Dist bundle facts (no rebuild) ---------- */
 
+export const INITIAL_JS_GZIP_BUDGET_BYTES = 200_000;
+
+/** Static `import ... from "x.js"` and `import "x.js"` (not dynamic `import("x.js")`), including re-exports. */
+const STATIC_IMPORT = /(?:\bimport|\bexport)\s*(?:[\w$*{}\s,]+?\s*from\s*)?["']([^"']+\.m?js)["']/g;
+
 /**
- * Initial JavaScript is the entry plus its modulepreload list in the built index.html.
+ * Initial JavaScript is the entry plus its modulepreload list in the built index.html,
+ * plus every chunk they import statically, recursively. Dynamic imports stay out.
  * Gzip uses Node's default level, matching frontend/scripts/measure-bundle.mjs.
  */
-export function bundleFacts(distDir: string) {
+export function bundleFacts(distDir: string, budgetBytes = Number(process.env.PERF_JS_GZIP_BUDGET) || INITIAL_JS_GZIP_BUDGET_BYTES) {
   const html = readFileSync(path.join(distDir, "index.html"), "utf8");
   const scriptRefs = [...html.matchAll(/<script[^>]+src="([^"]+\.js)"/g)].map((m) => m[1]);
   const preloadRefs = [...html.matchAll(/<link[^>]+rel="modulepreload"[^>]+href="([^"]+\.js)"/g)].map((m) => m[1]);
   const cssRefs = [...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+\.css)"/g)].map((m) => m[1]);
-  const initialJs = [...new Set([...scriptRefs, ...preloadRefs])];
-  const read = (ref: string) => readFileSync(path.join(distDir, ref.replace(/^\//, "")));
-  const jsRaw = initialJs.reduce((total, ref) => total + read(ref).byteLength, 0);
-  const jsGzip = initialJs.reduce((total, ref) => total + gzipSync(read(ref)).byteLength, 0);
-  const cssRaw = cssRefs.reduce((total, ref) => total + read(ref).byteLength, 0);
-  const cssGzip = cssRefs.reduce((total, ref) => total + gzipSync(read(ref)).byteLength, 0);
+  const toRel = (ref: string) => path.posix.normalize(ref.replace(/^\//, ""));
+  const read = (rel: string) => readFileSync(path.join(distDir, rel));
+
+  const queue = [...new Set([...scriptRefs, ...preloadRefs])].map(toRel);
+  if (!scriptRefs.length) throw new Error("dist/index.html has no entry <script> tag; initial JS cannot be measured.");
+  const seen = new Set<string>();
+  const htmlListed = new Set(queue);
+  while (queue.length) {
+    const rel = queue.shift() as string;
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    const source = read(rel).toString("utf8");
+    for (const match of source.matchAll(STATIC_IMPORT)) {
+      const spec = match[1];
+      if (!spec.startsWith(".") && !spec.startsWith("/")) continue;
+      const next = spec.startsWith("/") ? toRel(spec) : path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec));
+      if (!seen.has(next)) queue.push(next);
+    }
+  }
+  const initialJs = [...seen];
+  const jsRaw = initialJs.reduce((total, rel) => total + read(rel).byteLength, 0);
+  const jsGzip = initialJs.reduce((total, rel) => total + gzipSync(read(rel)).byteLength, 0);
+  const cssRaw = cssRefs.reduce((total, ref) => total + read(toRel(ref)).byteLength, 0);
+  const cssGzip = cssRefs.reduce((total, ref) => total + gzipSync(read(toRel(ref))).byteLength, 0);
   const assetsDir = path.join(distDir, "assets");
   const allJs = readdirSync(assetsDir).filter((f) => f.endsWith(".js"));
   return {
@@ -504,12 +576,21 @@ export function bundleFacts(distDir: string) {
     initialJsChunks: initialJs.length,
     initialJsRawBytes: jsRaw,
     initialJsGzipBytes: jsGzip,
-    initialJsGzipBudgetBytes: 200_000,
+    initialJsGzipBudgetBytes: budgetBytes,
+    withinBudget: jsGzip <= budgetBytes,
     initialJsFiles: initialJs,
+    /** Chunks reached only through static imports of the HTML-listed files. */
+    staticImportOnlyFiles: initialJs.filter((rel) => !htmlListed.has(rel)),
     mainCssRawBytes: cssRaw,
     mainCssGzipBytes: cssGzip,
     distJsFileCount: allJs.length,
   };
+}
+
+export function assertBundleBudget(facts: ReturnType<typeof bundleFacts>) {
+  if (!facts.withinBudget) {
+    throw new Error(`Initial JS is ${facts.initialJsGzipBytes} gzip bytes across ${facts.initialJsChunks} chunks; budget is ${facts.initialJsGzipBudgetBytes}.`);
+  }
 }
 
 export function requiredEnv(name: string): string {

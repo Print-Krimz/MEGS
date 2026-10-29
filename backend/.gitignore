@@ -11,6 +11,14 @@ __tests__/
 *.test.ts
 *.spec.ts
 tests/
+# Tracked regression infrastructure (mirrors the root .gitignore exceptions)
+!tests/
+tests/*
+!tests/security/
+!tests/security/**
+!src/__tests__/
+!src/__tests__/p4-bounded-lists.test.ts
+!src/workers/resume.worker.test.ts
 
 # Seed & Dev scripts
 prisma/seed.ts

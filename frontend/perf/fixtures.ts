@@ -797,6 +797,14 @@ endpoint("GET", /^\/api\/ta\/applications$/, (_m, url, ctx) => {
   const items = Array.from({ length: ctx.scale.taApplications }, (_, index) => makeTaApplication(index, jobs));
   return pageOrList(items, url);
 });
+endpoint("GET", /^\/api\/ta\/applications\/counts$/, (_m, _u, ctx) => {
+  const clients = makeClients(ctx.scale.clients);
+  const jobs = Array.from({ length: ctx.scale.jobs }, (_, index) => makeJob(index, clients));
+  const items = Array.from({ length: ctx.scale.taApplications }, (_, index) => makeTaApplication(index, jobs));
+  const byStatus: Record<string, number> = {};
+  for (const item of items) byStatus[item.status] = (byStatus[item.status] ?? 0) + 1;
+  return { total: items.length, byStatus };
+});
 endpoint("GET", /^\/api\/ta\/jobs$/, (_m, url, ctx) => pageOrList(makeListJobs(ctx), url));
 endpoint("GET", /^\/api\/ta\/clients$/, (_m, _u, ctx) => makeClients(ctx.scale.clients));
 endpoint("GET", /^\/api\/ta\/mrfs$/, (_m, url, ctx) => {
@@ -929,6 +937,32 @@ endpoint("GET", /^\/api\/admin\/audit-logs$/, () =>
     user: { id: IDENTITIES.ADMINISTRATOR.id as string, email: "admin.perf@example.test", role: "ADMINISTRATOR", applicantProfile: null },
   })),
 );
+/** TA delivery dashboard: the shared report model without the team-only parts. */
+function makeTaDashboard(scale: FixtureScale) {
+  const { dateRange, kpis, requests, stageTable, backouts, clientDecisions, stuck, stuckTotal, filterOptions } = makeAdminDashboard(scale);
+  const pendingActions = Array.from({ length: 5 }, (_, index) => ({
+    id: `perf-pending-${index + 1}`,
+    type: (["INITIAL_INTERVIEW", "CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE_REVIEW", "START_CONFIRMATION"] as const)[index],
+    title: "Next step due",
+    candidateName: `${FIRST_NAMES[index % FIRST_NAMES.length]} ${LAST_NAMES[index % LAST_NAMES.length]}`,
+    jobTitle: `${TITLES[index % TITLES.length]} Opening`,
+    applicationId: index + 1,
+    urgency: (["HIGH", "MEDIUM", "NORMAL"] as const)[index % 3],
+    agingDays: index + 1,
+    deadline: null,
+    targetUrl: `/ta/applications/${index + 1}`,
+    createdAt: iso(index),
+  }));
+  return { dateRange, kpis, requests, stageTable, dropOff: [], backouts, clientDecisions, stuck, stuckTotal, pendingActions, pendingActionsTotal: pendingActions.length, filterOptions };
+}
+
+endpoint("GET", /^\/api\/ta\/analytics\/dashboard$/, (_m, _u, ctx) => makeTaDashboard(ctx.scale));
+endpoint("GET", /^\/api\/ta\/analytics\/pending-actions$/, (_m, _u, ctx) => makeTaDashboard(ctx.scale).pendingActions);
+endpoint("GET", /^\/api\/ta\/analytics\/filters$/, (_m, _u, ctx) => makeAdminDashboard(ctx.scale).filterOptions);
+/** Applicant resume review: no unreviewed proposal. */
+endpoint("GET", /^\/api\/applicants\/profile\/resume\/proposal$/, () => null);
+/** TA walk-in check-in inbox: nothing waiting. */
+endpoint("GET", /^\/api\/ta\/walk-ins\/check-ins$/, () => ({ items: [] }));
 endpoint("GET", /^\/api\/admin\/analytics\/dashboard$/, (_m, _u, ctx) => makeAdminDashboard(ctx.scale));
 endpoint("GET", /^\/api\/admin\/analytics\/filters$/, (_m, _u, ctx) => makeAdminDashboard(ctx.scale).filterOptions);
 

@@ -10,8 +10,60 @@ on:
   workflow_dispatch:
 
 jobs:
+  validate:
+    name: Validate Backend
+    runs-on: ubuntu-latest
+    # No hosted database or provider secrets. The URLs below are unreachable placeholders so that any
+    # test that forgets to mock Prisma fails fast instead of touching a real database.
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:1/ci
+      DIRECT_URL: postgresql://ci:ci@127.0.0.1:1/ci
+      NODE_ENV: test
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      # Only named, mocked suites. Never `npm test`: other suites write to the hosted database.
+      - name: Run mocked regression suites
+        run: >
+          npx vitest run --fileParallelism=false --testTimeout=30000
+          tests/security/claim-phone-sync.test.ts
+          tests/security/public-check-in.test.ts
+          tests/security/public-live-streams-http.test.ts
+          tests/security/public-live-streams.test.ts
+          tests/security/public-walk-in-links.test.ts
+          tests/security/bounded-work-queue.test.ts
+          tests/security/file-processing.test.ts
+          tests/security/mailer.test.ts
+          tests/security/otp.test.ts
+          tests/security/provider-retry.test.ts
+          tests/security/turnstile-binding.test.ts
+          tests/security/document-parser-limits.test.ts
+          tests/security/key-compatibility.test.ts
+
   deploy:
     name: Deploy Backend Subtree
+    needs: validate
     runs-on: ubuntu-latest
 
     steps:

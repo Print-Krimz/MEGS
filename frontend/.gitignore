@@ -43,6 +43,13 @@ vitest.config.ts
 playwright.config.ts
 tests/
 
+# Tracked regression infrastructure (mirrors the root .gitignore exceptions)
+!vitest.config.ts
+!src/test/
+!src/test/setup.ts
+!src/components/analytics/admin/__tests__/
+!src/components/analytics/admin/__tests__/AdminAnalytics.test.tsx
+
 # Scripts & temporary tools
 scripts/
 .impeccable/

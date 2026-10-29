@@ -29,6 +29,9 @@ export default defineConfig({
   timeout: 15 * 60_000,
   use: {
     baseURL: "http://127.0.0.1:4173",
+    // Bound every action so a missing or stale element fails fast instead of hanging until the test timeout.
+    actionTimeout: 30_000,
+    navigationTimeout: 60_000,
     headless: true,
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 1,

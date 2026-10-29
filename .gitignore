@@ -61,6 +61,21 @@ setupTests.ts
 playwright/.cache/
 .github/workflows/performance.yml
 
+# 5b. Tracked regression infrastructure: narrow exceptions to section 5.
+# Everything else under tests stays local; force-add (git add -f) only reviewed mocked suites.
+!frontend/vitest.config.ts
+!frontend/src/test/
+!frontend/src/test/setup.ts
+!backend/tests/
+backend/tests/*
+!backend/tests/security/
+!backend/tests/security/**
+!backend/src/__tests__/
+!backend/src/__tests__/p4-bounded-lists.test.ts
+!backend/src/workers/resume.worker.test.ts
+!frontend/src/components/analytics/admin/__tests__/
+!frontend/src/components/analytics/admin/__tests__/AdminAnalytics.test.tsx
+
 # 6. Audit Suites, Dev Scripts, Backups & Screenshots
 scripts/
 frontend-audit/
