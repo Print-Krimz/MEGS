@@ -10,6 +10,8 @@ const pool = new pg.Pool({
   idleTimeoutMillis: 300_000,
   connectionTimeoutMillis: 10000,
   keepAlive: true,
+  // One-off processes (jobs:run, scripts) exit once idle clients are all that is left; the web server's listener keeps it alive.
+  allowExitOnIdle: true,
 });
 
 // Prevent unhandled errors from terminating the Node process when pooler/PgBouncer closes idle sockets
