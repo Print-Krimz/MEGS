@@ -182,8 +182,7 @@ export const SetupAccountPage: React.FC = () => {
   };
 
   const handleCopyRecoveryCodes = () => {
-    const text = `MEGS Recruitment - Emergency MFA Backup Codes\nGenerated: ${new Date().toISOString()}\n\n` +
-      recoveryCodes.map((c, i) => `${i + 1}. ${c}`).join("\n");
+    const text = recoveryCodes.join("\n");
     navigator.clipboard.writeText(text);
     setCopiedCodes(true);
     setTimeout(() => setCopiedCodes(false), 2000);
@@ -191,8 +190,7 @@ export const SetupAccountPage: React.FC = () => {
   };
 
   const handleDownloadRecoveryCodes = () => {
-    const text = `MEGS Recruitment - Emergency MFA Backup Codes\nGenerated: ${new Date().toISOString()}\n\n` +
-      recoveryCodes.map((c, i) => `${i + 1}. ${c}`).join("\n");
+    const text = recoveryCodes.join("\n");
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");

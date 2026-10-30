@@ -64,7 +64,6 @@ export const publicMessages = new Set<string>([
   "Access token is expired or missing an expiry",
   "Access token is missing a subject",
   "Account has already been activated or is not in a pending invitation status",
-  "Account has been deactivated",
   "Account is not active",
   "AI input exceeds the supported size",
   "AI response contains too many entries",

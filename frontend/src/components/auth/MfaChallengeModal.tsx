@@ -61,7 +61,6 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
         challengeId,
         code: code.trim(),
       });
-      notify.success("MFA verified", "Secure session initiated.");
       onSuccess(res);
     } catch (err: any) {
       const formatted = formatErrorMessage(err);

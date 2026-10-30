@@ -551,7 +551,7 @@ export const loginUser = async (emailOrPhone: string, password: string, ip?: str
       reason: "Account has been deactivated",
       ip,
     });
-    throw new Error("Account has been deactivated");
+    throw new Error("Invalid email or password");
   }
 
   if (dbUser.accountStatus === "PENDING" || dbUser.accountStatus === "INVITED") {
