@@ -5,7 +5,7 @@ import { LandingAffiliates } from "../../components/public/LandingAffiliates";
 import { LandingAbout } from "../../components/public/LandingAbout";
 import { LandingFooter } from "../../components/public/LandingFooter";
 import { MotionRoot } from "../../components/public/motion";
-import { BRANCHES } from "../../components/public/LandingBranches";
+import { BRANCHES } from "../../components/public/landing-branches";
 
 // Sections below the fold load after the first paint; the hero and first section stay in the entry chunk.
 const loadServices = () => import("../../components/public/LandingServices");
@@ -68,16 +68,26 @@ export const LandingPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
 
-  // Fetch the remaining sections once the browser is idle so in-page links rarely wait.
+  // Fetch the remaining sections once the page has loaded and the browser is idle, so they never compete with first paint.
   useEffect(() => {
     const loaders = [loadServices, loadWhyMegs, loadIndustries, loadActivities, loadJobs, loadFeatured, loadBranches, loadContact];
     const run = () => loaders.forEach((load) => void load().catch(() => undefined));
-    if (typeof window.requestIdleCallback === "function") {
-      const handle = window.requestIdleCallback(run, { timeout: 3000 });
-      return () => window.cancelIdleCallback(handle);
-    }
-    const timer = window.setTimeout(run, 1500);
-    return () => window.clearTimeout(timer);
+    let idleHandle: number | undefined;
+    let timer: number | undefined;
+    const schedule = () => {
+      if (typeof window.requestIdleCallback === "function") {
+        idleHandle = window.requestIdleCallback(run, { timeout: 3000 });
+      } else {
+        timer = window.setTimeout(run, 1500);
+      }
+    };
+    if (document.readyState === "complete") schedule();
+    else window.addEventListener("load", schedule, { once: true });
+    return () => {
+      window.removeEventListener("load", schedule);
+      if (idleHandle !== undefined) window.cancelIdleCallback(idleHandle);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, []);
 
   const handleFindJobs = () => {

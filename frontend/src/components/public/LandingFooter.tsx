@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "@tanstack/react-router";
 import { scrollToSection } from "../../lib/scrollToSection";
 import { cn } from "../../lib/shadcn-utils";
-import { BRANCHES } from "./LandingBranches";
+import { BRANCHES } from "./landing-branches";
 import { Reveal } from "./motion";
 
 /** Underline that draws in from the left on hover and focus. */
