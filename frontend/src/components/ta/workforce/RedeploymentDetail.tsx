@@ -5,12 +5,14 @@ import { applicationStatusLabel } from "../../../lib/labels";
 import type { RedeploymentJobSuggestion, RedeploymentStage } from "../../../lib/api/employees.api";
 import { formatDate } from "../../../lib/utils";
 import { TA_COPY } from "../../../lib/ta-copy";
+import { useMatchThreshold } from "../../common/ScoreBadge";
 import { OfferReplyActions } from "../OfferReplyActions";
 import { NoAccountChip } from "../walk-in/NoAccountChip";
 import { Avatar, ToneChip } from "./WorkforceRow";
 import {
   REDEPLOYMENT_STAGES,
   STAGE_TONE,
+  matchTagClass,
   suggestionReason,
   suggestionTag,
   waitingAge,
@@ -49,6 +51,7 @@ export const RedeploymentDetail: React.FC<RedeploymentDetailProps> = ({
   onRetrySuggestions,
   onFindJob,
 }) => {
+  const matchThreshold = useMatchThreshold();
   const wait = waitingAge(row.waitingSince);
   const inProgress = row.stage === "IN_PROGRESS";
   const newestApplication = row.applications[0];
@@ -173,7 +176,9 @@ export const RedeploymentDetail: React.FC<RedeploymentDetailProps> = ({
                   >
                     <span className="flex items-start justify-between gap-2">
                       <span className="text-sm font-medium text-slate-950">{suggestion.title}</span>
-                      <span className="shrink-0 text-xs font-medium text-slate-700">{suggestionTag(suggestion)}</span>
+                      <span className={`shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold ${matchTagClass(suggestion, matchThreshold)}`}>
+                        {suggestionTag(suggestion)}
+                      </span>
                     </span>
                     <span className="mt-0.5 block text-xs text-slate-600">
                       {[suggestion.clientName, suggestion.location].filter(Boolean).join(" · ")}

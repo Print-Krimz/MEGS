@@ -73,7 +73,7 @@ const CopyButton: React.FC<{ label: string; text: string }> = ({ label, text }) 
 };
 
 const FactValue: React.FC<{ fact: RecordSummaryFact }> = ({ fact }) => {
-  const linkClass = "inline-flex items-center rounded-sm font-medium text-navy underline-offset-2 hover:underline focus-ring pointer-coarse:min-h-11";
+  const linkClass = "inline-flex min-w-0 max-w-full items-center rounded-sm font-medium text-navy underline-offset-2 hover:underline focus-ring pointer-coarse:min-h-11";
   let content = fact.value;
   if (fact.href) {
     content = /^(\/|#)/.test(fact.href) ? (
@@ -88,7 +88,7 @@ const FactValue: React.FC<{ fact: RecordSummaryFact }> = ({ fact }) => {
   }
   return (
     <span className="flex min-w-0 items-center gap-1">
-      <span className="min-w-0 break-words">{content}</span>
+      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{content}</span>
       {fact.copyValue ? <CopyButton label={fact.label} text={fact.copyValue} /> : null}
     </span>
   );

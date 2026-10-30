@@ -5,6 +5,7 @@ import type {
 } from "../../../lib/api/employees.api";
 import type { TAStatusTone } from "../../../lib/ta-copy";
 import { plural } from "../../../lib/plural";
+import { scoreBand, type ScoreBand } from "../../common/ScoreBadge";
 
 export type RedeploymentRow = RedeploymentQueuePageResponse["items"][number];
 
@@ -40,6 +41,19 @@ export const suggestionTag = (suggestion: RedeploymentJobSuggestion) =>
     : suggestion.matchPercent !== null
       ? `${suggestion.matchPercent}% match`
       : "Related experience";
+
+/** Colour classes for a "% match" tag by band; neutral when the suggestion has no percentage or is a same-client tag. */
+export const matchTagClass = (suggestion: RedeploymentJobSuggestion, threshold: number) => {
+  const band: ScoreBand | null =
+    suggestion.sameClient || suggestion.matchPercent === null ? null : scoreBand(suggestion.matchPercent, threshold);
+  return band === "high"
+    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+    : band === "near"
+      ? "border-yellow-300 bg-yellow-50 text-yellow-800"
+      : band === "low"
+        ? "border-rose-300 bg-rose-50 text-rose-800"
+        : "border-slate-200 bg-slate-50 text-slate-700";
+};
 
 export const suggestionReason = (suggestion: RedeploymentJobSuggestion) => {
   if (suggestion.sameClient) return "Same client, skips screening";

@@ -10,6 +10,19 @@ export interface ScoreBadgeProps {
 }
 
 const NEAR_MARGIN = 25;
+const DEFAULT_THRESHOLD = 60;
+
+export type ScoreBand = "high" | "near" | "low";
+
+/** High meets the recommend threshold, near is within 25 points below it, low is further away. */
+export const scoreBand = (score: number, threshold: number): ScoreBand =>
+  score >= threshold ? "high" : score >= threshold - NEAR_MARGIN ? "near" : "low";
+
+/** The configured recommend threshold, the same one ScoreBadge uses. */
+export const useMatchThreshold = (threshold?: number) => {
+  const { data: config } = useGlobalConfig();
+  return threshold ?? config?.matchThreshold ?? config?.MATCH_THRESHOLD ?? DEFAULT_THRESHOLD;
+};
 
 export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
   score,
@@ -17,8 +30,7 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
   size = "md",
   className,
 }) => {
-  const { data: config } = useGlobalConfig();
-  const activeThreshold = threshold ?? config?.matchThreshold ?? config?.MATCH_THRESHOLD ?? 60;
+  const activeThreshold = useMatchThreshold(threshold);
 
   if (score === undefined || score === null || score === "") {
     return (
@@ -29,15 +41,11 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
   }
 
   const num = typeof score === "string" ? parseFloat(score) : score;
-  // Green meets the recommend threshold, orange is within 25 points below it, red is further away.
-  const isPassing = num >= activeThreshold;
-  const isNear = num >= activeThreshold - NEAR_MARGIN;
-
-  const colorStyles = isPassing
-    ? "bg-emerald-100 text-emerald-900 border-emerald-500"
-    : isNear
-    ? "bg-orange-100 text-orange-900 border-orange-500"
-    : "bg-rose-100 text-rose-900 border-rose-500";
+  const colorStyles = {
+    high: "bg-emerald-100 text-emerald-900 border-emerald-500",
+    near: "bg-orange-100 text-orange-900 border-orange-500",
+    low: "bg-rose-100 text-rose-900 border-rose-500",
+  }[scoreBand(num, activeThreshold)];
 
   const sizeStyles = {
     sm: "px-2 py-0.5 text-sm",

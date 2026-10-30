@@ -22,7 +22,7 @@ const stageLabel = (row: StageTableRow) => analyticsStageLabel(row.stage, row.la
 const limitText = (row: StageTableRow) =>
   row.stage === "DEPLOYED" ? "None" : row.stage === "CLIENT_ENDORSEMENT" ? "Set per client" : `${row.slaDays} days`;
 
-const ROW_GRID = "grid grid-cols-[7.5rem_minmax(0,1fr)_auto] items-center gap-x-3 sm:grid-cols-[9rem_minmax(0,1fr)_auto]";
+const ROW_GRID = "grid grid-cols-[7.5rem_minmax(0,1fr)_7.5rem] items-center gap-x-3 sm:grid-cols-[9rem_minmax(0,1fr)_7.5rem]";
 
 /**
  * The pipeline from application to start as one bar per stage. The bar is how many candidates are in the stage now;

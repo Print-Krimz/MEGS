@@ -17,6 +17,7 @@ import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
 import { TA_COPY } from "../../lib/ta-copy";
 import { employeesApi, type RedeploymentJobSuggestion, type RedeploymentStage } from "../../lib/api/employees.api";
 import { taApi } from "../../lib/api/ta.api";
+import { useMatchThreshold } from "../../components/common/ScoreBadge";
 import { cn, formatDate } from "../../lib/utils";
 import { notify } from "../../lib/feedback";
 import { REFERENCE_QUERY_STALE_TIME_MS, SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
@@ -32,6 +33,7 @@ import { RedeploymentDetail, StageChip } from "../../components/ta/workforce/Red
 import {
   REDEPLOYMENT_STAGES as STAGES,
   daysSince,
+  matchTagClass,
   suggestionReason,
   suggestionTag,
   waitingAge,
@@ -64,6 +66,7 @@ const useWideLayout = (): boolean => {
 };
 
 export const RedeploymentQueuePage: React.FC = () => {
+  const matchThreshold = useMatchThreshold();
   const cache = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -627,7 +630,7 @@ export const RedeploymentQueuePage: React.FC = () => {
                               {(sameClient || suggestion) && (
                                 <span
                                   className={`shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold ${
-                                    sameClient ? "border-amber-300 bg-amber-100 text-amber-900" : "border-slate-200 bg-slate-50 text-slate-700"
+                                    sameClient ? "border-amber-300 bg-amber-100 text-amber-900" : suggestion ? matchTagClass(suggestion, matchThreshold) : ""
                                   }`}
                                 >
                                   {sameClient ? "Same client" : suggestion ? suggestionTag(suggestion) : ""}

@@ -4,7 +4,7 @@ import { render } from "@testing-library/react";
 
 vi.mock("../../../lib/config", () => ({ useGlobalConfig: () => ({ data: { matchThreshold: 70 } }) }));
 
-import { ScoreBadge } from "../ScoreBadge";
+import { ScoreBadge, scoreBand } from "../ScoreBadge";
 
 const tone = (score: number) => render(<ScoreBadge score={score} />).container.firstElementChild!.className;
 
@@ -23,5 +23,13 @@ describe("ScoreBadge colour bands (threshold 70)", () => {
   it("is red further below", () => {
     expect(tone(44)).toContain("rose");
     expect(tone(25)).toContain("rose");
+  });
+});
+
+describe("scoreBand", () => {
+  it("splits at the threshold and 25 points below it", () => {
+    expect(scoreBand(70, 70)).toBe("high");
+    expect(scoreBand(45, 70)).toBe("near");
+    expect(scoreBand(44, 70)).toBe("low");
   });
 });
