@@ -109,6 +109,105 @@ describe("API Client - silent token refresh", () => {
     expect(localStorage.getItem("access_token")).toBe("b-access");
   });
 
+  describe("proactive refresh", () => {
+    const jwt = (exp?: number) => {
+      const b64 = (o: object) => btoa(JSON.stringify(o)).replace(/=+$/, "");
+      return `${b64({ alg: "none" })}.${b64({ sub: "u1", ...(exp === undefined ? {} : { exp }) })}.sig`;
+    };
+    const inSeconds = (s: number) => Math.floor(Date.now() / 1000) + s;
+    const refreshMock = (fresh: string) =>
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (url.endsWith("/api/auth/refresh")) {
+          await new Promise((r) => setTimeout(r, 5));
+          return ok({ access_token: fresh, refresh_token: "new-refresh" });
+        }
+        const auth = (init.headers as Record<string, string>).Authorization;
+        return auth === `Bearer ${fresh}` ? ok({ hello: "world" }) : unauthorized();
+      });
+
+    it("refreshes before sending when exp is within 30 s", async () => {
+      const fresh = jwt(inSeconds(3600));
+      localStorage.setItem("access_token", jwt(inSeconds(10)));
+      const fetchMock = refreshMock(fresh);
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      await expect(apiRequest("/api/me")).resolves.toEqual({ hello: "world" });
+
+      const urls = fetchMock.mock.calls.map(([u]) => String(u));
+      expect(urls).toHaveLength(2);
+      expect(urls[0]).toMatch(/\/api\/auth\/refresh$/);
+      expect(urls[1]).toMatch(/\/api\/me$/);
+      expect(localStorage.getItem("access_token")).toBe(fresh);
+    });
+
+    it("does not refresh a token that is valid for more than 30 s", async () => {
+      localStorage.setItem("access_token", jwt(inSeconds(300)));
+      const fetchMock = vi.fn(async () => ok({ n: 1 }));
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      await apiRequest("/api/me");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not refresh for public auth paths or logout", async () => {
+      localStorage.setItem("access_token", jwt(inSeconds(1)));
+      const fetchMock = vi.fn(async () => ok({ n: 1 }));
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      await apiRequest("/api/auth/login", { method: "POST" });
+      await apiRequest("/api/public/jobs");
+      await apiRequest("/api/auth/logout", { method: "POST" });
+      expect(fetchMock.mock.calls.map(([u]) => new URL(String(u)).pathname)).toEqual([
+        "/api/auth/login",
+        "/api/public/jobs",
+        "/api/auth/logout",
+      ]);
+    });
+
+    it("concurrent requests share one proactive refresh", async () => {
+      const fresh = jwt(inSeconds(3600));
+      localStorage.setItem("access_token", jwt(inSeconds(5)));
+      const fetchMock = refreshMock(fresh);
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      await Promise.all([apiRequest("/api/a"), apiRequest("/api/b"), apiRequest("/api/c")]);
+
+      const urls = fetchMock.mock.calls.map(([u]) => String(u));
+      expect(urls.filter((u) => u.endsWith("/api/auth/refresh"))).toHaveLength(1);
+      expect(urls).toHaveLength(4);
+      expect(urls[0]).toMatch(/\/api\/auth\/refresh$/);
+    });
+
+    it("token without exp or undecodable falls back to the 401 path without looping", async () => {
+      for (const token of [jwt(), "not-a-jwt"]) {
+        localStorage.setItem("access_token", token);
+        localStorage.setItem("refresh_token", "old-refresh");
+        const fetchMock = vi.fn(async (url: string) =>
+          url.endsWith("/api/auth/refresh") ? ok({ access_token: "new-access", refresh_token: "r2" }) : unauthorized()
+        );
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        await expect(apiRequest("/api/me")).rejects.toBeInstanceOf(ApiError);
+        // request, refresh after the 401, one retry: the first call is not a refresh
+        expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/api\/me$/);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+      }
+    });
+
+    it("a failed proactive refresh keeps the 401 path and does not loop", async () => {
+      localStorage.setItem("access_token", jwt(inSeconds(5)));
+      const fetchMock = vi.fn(async (url: string) =>
+        unauthorized()
+      );
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      await expect(apiRequest("/api/me")).rejects.toBeInstanceOf(ApiError);
+      expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(3);
+      expect(localStorage.getItem("access_token")).toBeNull();
+      expect(window.location.href).toContain("/login");
+    });
+  });
+
   it("a refresh that finishes after logout does not restore credentials", async () => {
     let release: (v: unknown) => void = () => {};
     globalThis.fetch = vi.fn(async (url: string) => {

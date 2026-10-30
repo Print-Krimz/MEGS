@@ -1,4 +1,4 @@
-import { bumpSessionGeneration, getSessionGeneration } from "../auth/session-generation";
+import { bumpSessionGeneration, getSessionGeneration, tokenExpiry } from "../auth/session-generation";
 import type { ApiResponse, ApiErrorDetail } from "../types/api.types";
 
 export class ApiError extends Error {
@@ -81,14 +81,23 @@ export function refreshAccessToken(staleToken: string | null): Promise<boolean> 
   return refreshInFlight.promise;
 }
 
+/**
+ * Refreshes a stored token that expires within 30 s, so the request goes out with a valid one
+ * instead of costing a 401 round trip. A failed refresh is ignored: the request is sent anyway
+ * and the 401 path handles it as before. Tokens without a readable `exp` are left alone.
+ * Returns undefined (not a promise) when nothing is due, so callers add no await tick then.
+ */
+function refreshIfExpiring(): Promise<boolean> | undefined {
+  const token = localStorage.getItem("access_token");
+  const exp = tokenExpiry(token);
+  return exp !== null && exp * 1000 - Date.now() < 30_000 ? refreshAccessToken(token) : undefined;
+}
+
 export async function apiRequest<T>(
   path: string,
   options?: RequestInit,
   _retried = false
 ): Promise<T> {
-  const generation = getSessionGeneration();
-  const token = localStorage.getItem("access_token");
-
   const headers: Record<string, string> = {
     ...(options?.headers as Record<string, string>),
   };
@@ -104,6 +113,14 @@ export async function apiRequest<T>(
     path.startsWith("/api/auth/invitation") ||
     path.startsWith("/api/auth/claim") ||
     path.startsWith("/api/public/");
+
+  if (!_retried && !isPublicAuthPath && !headers["Authorization"] && !path.startsWith("/api/auth/logout")) {
+    const refreshing = refreshIfExpiring();
+    if (refreshing) await refreshing;
+  }
+  // Read after the refresh so the generation and token describe the same session.
+  const generation = getSessionGeneration();
+  const token = localStorage.getItem("access_token");
 
   // Only inject localStorage token if NO explicit Authorization header was passed and path is not public/isolated auth
   let injectedToken = false;
@@ -195,6 +212,8 @@ export async function apiRequestBlob(
   options?: RequestInit,
   _retried = false
 ): Promise<Blob> {
+  const refreshing = _retried ? undefined : refreshIfExpiring();
+  if (refreshing) await refreshing;
   const generation = getSessionGeneration();
   const token = localStorage.getItem("access_token");
 

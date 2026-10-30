@@ -16,15 +16,25 @@ export function onSessionGenerationChange(listener: () => void): () => void {
   return () => void listeners.delete(listener);
 }
 
-/** JWT `sub` claim (unverified; used only to tell same-account refresh from account change). */
-export function tokenSubject(token: string | null | undefined): string | null {
+function tokenClaims(token: string | null | undefined): { sub?: unknown; exp?: unknown } | null {
   try {
     const payload = token?.split(".")[1];
     if (!payload) return null;
     const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-    const sub = (JSON.parse(json) as { sub?: unknown }).sub;
-    return typeof sub === "string" && sub ? sub : null;
+    return JSON.parse(json) as { sub?: unknown; exp?: unknown };
   } catch {
     return null;
   }
+}
+
+/** JWT `sub` claim (unverified; used only to tell same-account refresh from account change). */
+export function tokenSubject(token: string | null | undefined): string | null {
+  const sub = tokenClaims(token)?.sub;
+  return typeof sub === "string" && sub ? sub : null;
+}
+
+/** JWT `exp` claim in epoch seconds (unverified; only schedules a refresh), or null. */
+export function tokenExpiry(token: string | null | undefined): number | null {
+  const exp = tokenClaims(token)?.exp;
+  return typeof exp === "number" && Number.isFinite(exp) ? exp : null;
 }
