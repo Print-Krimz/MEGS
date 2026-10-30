@@ -23,6 +23,15 @@
           "value": "public, max-age=31536000, immutable"
         }
       ]
+    },
+    {
+      "source": "/(app|ta|admin|t|offer|check-in|login|register|forgot-password|reset-password|setup-account|claim|change-password|forbidden)(/.*)?",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ]
 }
