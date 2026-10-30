@@ -1,6 +1,6 @@
 import React from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
@@ -75,17 +75,7 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
   const visibleJobs = jobs.slice(0, pageSize);
   const remainingCount = Math.max(0, totalJobs - visibleJobs.length);
 
-  const handleApplyClick = (jobId: number) => {
-    if (isAuthenticated && user?.role === Role.APPLICANT) {
-      navigate({ to: `/app/jobs/${jobId}` });
-    } else {
-      const target = `/app/jobs/${jobId}`;
-      navigate({
-        to: "/login",
-        search: { redirect: target },
-      });
-    }
-  };
+  const isApplicant = isAuthenticated && user?.role === Role.APPLICANT;
 
   const handleViewAllJobs = () => {
     const params = new URLSearchParams();
@@ -266,6 +256,15 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
                   const salaryMin = job.mrf?.salaryRangeMin;
                   const salaryMax = job.mrf?.salaryRangeMax;
                   const hasSalary = Boolean(salaryMin || salaryMax);
+                  const applyContent = (
+                    <>
+                      <span>Apply</span>
+                      <ArrowRight
+                        aria-hidden="true"
+                        className="transition-transform duration-200 group-hover/card:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover/card:translate-x-0"
+                      />
+                    </>
+                  );
 
                   return (
                     <m.li key={job.id} {...staggerItem} className="flex">
@@ -317,17 +316,19 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
                           <div className="mt-3 flex items-center justify-between gap-4">
                             <span className="text-sm text-muted-foreground">Posted {formatDate(job.createdAt)}</span>
                             <Button
-                              type="button"
+                              asChild
                               variant="outline"
-                              aria-label={`Apply for ${job.title}`}
-                              onClick={() => handleApplyClick(job.id)}
                               className="transition-[background-color,border-color,color,transform] duration-200 after:absolute after:inset-0 after:rounded-lg after:content-[''] active:scale-[0.97] group-hover/card:border-primary group-hover/card:bg-primary group-hover/card:text-primary-foreground motion-reduce:active:scale-100"
                             >
-                              <span>Apply</span>
-                              <ArrowRight
-                                aria-hidden="true"
-                                className="transition-transform duration-200 group-hover/card:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover/card:translate-x-0"
-                              />
+                              {isApplicant ? (
+                                <Link to="/app/jobs/$jobId" params={{ jobId: String(job.id) }} aria-label={`Apply for ${job.title}`}>
+                                  {applyContent}
+                                </Link>
+                              ) : (
+                                <Link to="/login" search={{ redirect: `/app/jobs/${job.id}` }} aria-label={`Apply for ${job.title}`}>
+                                  {applyContent}
+                                </Link>
+                              )}
                             </Button>
                           </div>
                         </div>
