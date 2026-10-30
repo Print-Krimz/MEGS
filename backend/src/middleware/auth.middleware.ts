@@ -32,27 +32,33 @@ export const authenticateJWT = async (
     sendError(res, "Invalid or expired token", 401);
     return;
   }
-  try {
-    if (await isSessionRevoked(token)) {
-      sendError(res, "Invalid or expired token", 401);
-      return;
-    }
-  } catch {
+
+  // Run both lookups at once; allSettled keeps the checks below in their original order.
+  const [revocation, userLookup] = await Promise.allSettled([
+    isSessionRevoked(token),
+    prisma.user.findUnique({
+      where: { id: verifiedToken.sub },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        isActive: true,
+        accountStatus: true,
+        mustChangePassword: true,
+      },
+    }),
+  ]);
+
+  if (revocation.status === "rejected") {
     sendError(res, "Session verification is temporarily unavailable", 503);
     return;
   }
-
-  const dbUser = await prisma.user.findUnique({
-    where: { id: verifiedToken.sub },
-    select: {
-      id: true,
-      email: true,
-      role: true,
-      isActive: true,
-      accountStatus: true,
-      mustChangePassword: true,
-    },
-  });
+  if (revocation.value) {
+    sendError(res, "Invalid or expired token", 401);
+    return;
+  }
+  if (userLookup.status === "rejected") throw userLookup.reason;
+  const dbUser = userLookup.value;
 
   if (!dbUser) {
     sendError(res, "User account not found", 401);
