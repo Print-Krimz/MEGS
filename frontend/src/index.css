@@ -3,15 +3,15 @@
 @import "@fontsource-variable/archivo/wdth.css";
 
 /* Peso sign (U+20B1) is the only reason the 86 KB latin-ext file loads on most pages.
-   Serve it from a local system font instead; if none exists the browser falls back to
-   the latin-ext face above. Must stay after the fontsource faces (last-defined wins). */
+   This 2 KB Archivo subset (variable axes kept) holds just that glyph, so it keeps
+   its weight. Must stay after the fontsource faces (last-defined wins). */
 @font-face {
   font-family: "Archivo Variable";
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
   font-stretch: 62% 125%;
-  src: local("Segoe UI"), local("Roboto"), local("Arial"), local("Helvetica Neue");
+  src: url("./assets/fonts/archivo-peso-wdth.woff2") format("woff2-variations");
   unicode-range: U+20B1;
 }
 
