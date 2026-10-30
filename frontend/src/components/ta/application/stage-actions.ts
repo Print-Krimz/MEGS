@@ -205,6 +205,7 @@ export type StageActionId =
   | "move-to-requirements"
   | "move-to-contract-signing"
   | "confirm-contract-signed"
+  | "contract-not-signed"
   | "deploy-applicant"
   | "schedule-contract-signing"
   | "reschedule-contract-signing"
@@ -311,7 +312,9 @@ export function pickStageBarActions(
     if (flags.isContractSigned) {
       actions = [{ id: "deploy-applicant", label: "Deploy applicant", kind: "primary" }, ...rest];
     } else if (flags.hasContractSigningAppointment) {
-      actions = [{ id: "confirm-contract-signed", label: "Contract signed", kind: "primary" }, ...rest];
+      // One yes/no choice. Reschedule is less common, so it falls into the header menu.
+      const notSigned: StageAction[] = flags.canReject ? [{ id: "contract-not-signed", label: "Not signed", kind: "secondary" }] : [];
+      actions = [{ id: "confirm-contract-signed", label: "Contract signed", kind: "primary" }, ...notSigned, ...rest];
     } else {
       actions = rest.map((a) => (a.id === "schedule-contract-signing" ? { ...a, kind: "primary" as const } : a));
     }

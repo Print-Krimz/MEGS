@@ -366,6 +366,9 @@ export const ApplicationDetailPage: React.FC = () => {
         return m.updateStatus.mutate({ status: ApplicationStatus.CONTRACT_SIGNING, reason: "All mandatory clearances verified and approved." });
       case "confirm-contract-signed":
         return setDialog({ kind: "confirmSigned" });
+      case "contract-not-signed":
+        // The applicant did not sign: the TA rejects the application.
+        return setDialog({ kind: "close", outcome: "REJECTED" });
       case "deploy-applicant":
         return setDialog({ kind: "contract" });
       case "schedule-contract-signing":
@@ -385,9 +388,6 @@ export const ApplicationDetailPage: React.FC = () => {
       ? primary.id
       : null
     : null;
-  // The signing was booked but the applicant did not sign: the TA rejects the application.
-  const contractNotSigned =
-    app.status === ApplicationStatus.CONTRACT_SIGNING && !flags.isContractSigned && flags.hasContractSigningAppointment && flags.canReject;
 
   // ---- header menu -----------------------------------------------------------------------------
   const menuItems: ActionMenuItem[] = [
@@ -593,8 +593,6 @@ export const ApplicationDetailPage: React.FC = () => {
         extraAction={
           flags.isClientDeclined && flags.canReject
             ? { label: "Reject applicant", onClick: () => setDialog({ kind: "close", outcome: "REJECTED" }) }
-            : contractNotSigned
-            ? { label: "Contract not signed", onClick: () => setDialog({ kind: "close", outcome: "REJECTED" }) }
             : null
         }
         onHeightChange={setStageBarHeight}
@@ -950,7 +948,7 @@ export const ApplicationDetailPage: React.FC = () => {
         onClose={closeDialog}
         onConfirm={() => m.confirmContractSigned.mutate(undefined, { onSuccess: closeDialog })}
         title="Confirm the contract was signed?"
-        description={`Confirm that ${candidateName} signed the contract. This can't be undone. If they did not sign, choose Contract not signed to reject the application instead.`}
+        description={`Confirm that ${candidateName} signed the contract. This can't be undone. If they did not sign, choose Not signed to reject the application instead.`}
         confirmLabel="Yes, contract signed"
         cancelLabel="Cancel"
         variant="warning"
