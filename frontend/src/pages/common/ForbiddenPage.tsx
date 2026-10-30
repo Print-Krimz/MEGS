@@ -8,12 +8,16 @@ export const ForbiddenPage: React.FC = () => {
   const { user } = useAuth();
 
   return (
-    <StatusPage
-      icon={ShieldX}
-      eyebrow="Error 403"
-      title="You don't have permission to view this page"
-      body="Your account can't open this area. If you think this is a mistake, contact your recruitment administrator."
-      primary={{ label: user ? "Back to your workspace" : "Sign in", to: getHomePath(user) }}
-    />
+    <>
+      <title>Access denied | MEGS</title>
+      <meta name="robots" content="noindex" />
+      <StatusPage
+        icon={ShieldX}
+        eyebrow="Error 403"
+        title="You don't have permission to view this page"
+        body="Your account can't open this area. If you think this is a mistake, contact your recruitment administrator."
+        primary={{ label: user ? "Back to your workspace" : "Sign in", to: getHomePath(user) }}
+      />
+    </>
   );
 };

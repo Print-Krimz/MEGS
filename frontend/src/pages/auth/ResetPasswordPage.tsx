@@ -104,6 +104,7 @@ export const ResetPasswordPage: React.FC = () => {
   if (isSuccess) {
     return (
       <div className="flex flex-col gap-8">
+        <title>Reset password | MEGS</title>
         <div className="flex flex-col gap-4">
           <div className="flex size-12 items-center justify-center rounded-full bg-success/10 text-success">
             <CheckCircle2 className="size-6" aria-hidden="true" />
@@ -126,6 +127,7 @@ export const ResetPasswordPage: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-8">
+      <title>Reset password | MEGS</title>
       <AuthHeading title="Set a new password" description="Choose a password you have not used before." />
 
       <AuthError message={serverError} />

@@ -509,8 +509,11 @@ export const SetupAccountPage: React.FC = () => {
   }
 
   return (
-    <AuthStep stepKey={step} order={stepIndex}>
-      {content}
-    </AuthStep>
+    <>
+      <title>Set up account | MEGS</title>
+      <AuthStep stepKey={step} order={stepIndex}>
+        {content}
+      </AuthStep>
+    </>
   );
 };

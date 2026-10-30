@@ -505,8 +505,11 @@ export const ForgotPasswordPage: React.FC = () => {
   }
 
   return (
-    <AuthStep stepKey={step} order={stepIndex}>
-      {content}
-    </AuthStep>
+    <>
+      <title>Forgot password | MEGS</title>
+      <AuthStep stepKey={step} order={stepIndex}>
+        {content}
+      </AuthStep>
+    </>
   );
 };

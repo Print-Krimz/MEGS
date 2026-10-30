@@ -8,12 +8,16 @@ export const NotFoundPage: React.FC = () => {
   const { user } = useAuth();
 
   return (
-    <StatusPage
-      icon={Compass}
-      eyebrow="Error 404"
-      title="This page doesn't exist"
-      body="The link may be old or mistyped."
-      primary={{ label: user ? "Back to your workspace" : "Sign in", to: getHomePath(user) }}
-    />
+    <>
+      <title>Page not found | MEGS</title>
+      <meta name="robots" content="noindex" />
+      <StatusPage
+        icon={Compass}
+        eyebrow="Error 404"
+        title="This page doesn't exist"
+        body="The link may be old or mistyped."
+        primary={{ label: user ? "Back to your workspace" : "Sign in", to: getHomePath(user) }}
+      />
+    </>
   );
 };

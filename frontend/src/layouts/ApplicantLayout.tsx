@@ -125,6 +125,8 @@ export const ApplicantLayout: React.FC = () => {
 
   return (
     <div className="applicant-portal min-h-screen bg-ta-page text-slate-900 flex flex-col font-sans selection:bg-slate-900 selection:text-white">
+      <title>MEGS Applicant Portal</title>
+      <meta name="robots" content="noindex" />
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
 
       {/* Top Navigation Header */}

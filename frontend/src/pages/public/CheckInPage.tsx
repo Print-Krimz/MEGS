@@ -408,7 +408,7 @@ export const CheckInPage: React.FC = () => {
   const [already, setAlready] = useState<string | null>(null);
 
   return (
-    <PublicShell>
+    <PublicShell title="Check in">
       {already ? (
         <div className="space-y-5">
           <div>

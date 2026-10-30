@@ -398,6 +398,7 @@ export const ClaimAccountPage: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-8">
+      <title>Claim account | MEGS</title>
       <AuthStepper steps={STEPS} current={stepIndex} label="Account setup progress" />
       <AuthStep stepKey={step} order={stepIndex}>
         {content}

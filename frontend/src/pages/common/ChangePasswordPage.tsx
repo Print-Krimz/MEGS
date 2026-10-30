@@ -14,6 +14,7 @@ export const ChangePasswordPage: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-8">
+      <title>Change password | MEGS</title>
       <AuthHeading
         title="Update your password"
         description={

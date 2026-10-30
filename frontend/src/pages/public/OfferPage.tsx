@@ -47,14 +47,14 @@ export const OfferPage: React.FC = () => {
 
   if (token && query.isError && !isDeadLink(query.error)) {
     return (
-      <PublicShell>
+      <PublicShell title="Job offer">
         <ConnectionProblem onRetry={() => void query.refetch()} retrying={query.isFetching} />
       </PublicShell>
     );
   }
   if (!token || query.isError) {
     return (
-      <PublicShell>
+      <PublicShell title="Job offer">
         <LinkProblem
           title="Link not working"
           message="This link no longer works. Ask your MEGS recruiter to send a new one."
@@ -64,7 +64,7 @@ export const OfferPage: React.FC = () => {
   }
   if (query.isLoading || !offer) {
     return (
-      <PublicShell>
+      <PublicShell title="Job offer">
         <PublicSkeleton />
       </PublicShell>
     );
@@ -74,7 +74,7 @@ export const OfferPage: React.FC = () => {
     const result =
       outcome ?? (offer.status === "ACCEPTED" ? "ACCEPTED" : offer.status === "DECLINED" ? "DECLINED" : null);
     return (
-      <PublicShell>
+      <PublicShell title="Job offer">
         <div role="status" className="rounded-lg border border-border bg-background p-6">
           <CheckCircle2 className="mb-3 size-8 text-success" aria-hidden="true" />
           <h1 className="font-display text-2xl leading-tight text-secondary">
@@ -99,7 +99,7 @@ export const OfferPage: React.FC = () => {
   const busy = respond.isPending;
 
   return (
-    <PublicShell>
+    <PublicShell title="Job offer">
       <div className="space-y-5">
         <div>
           <span aria-hidden="true" className="mb-3 block h-1 w-10 rounded-full bg-primary" />

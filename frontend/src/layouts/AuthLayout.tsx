@@ -65,6 +65,7 @@ export const AuthLayout: React.FC = () => {
 
   return (
     <MotionRoot>
+      <meta name="robots" content="noindex" />
       <div className="theme-megs min-h-screen bg-background text-foreground md:grid md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <a
           href="#auth-main"

@@ -197,6 +197,7 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-8">
+      <title>Sign in | MEGS</title>
       <AuthHeading title="Welcome back" description="Sign in to your MEGS account." />
 
       <AuthError message={serverError} />

@@ -40,7 +40,7 @@ export const TrackPage: React.FC = () => {
   const data = query.data;
 
   return (
-    <PublicShell>
+    <PublicShell title="Application status">
       {broken ? (
         <LinkProblem
           title="Link not working"

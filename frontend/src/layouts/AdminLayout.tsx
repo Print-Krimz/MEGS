@@ -194,6 +194,8 @@ export const AdminLayout: React.FC = () => {
 
   return (
     <div className="admin-portal min-h-screen bg-ta-page flex flex-col lg:flex-row">
+      <title>MEGS Admin</title>
+      <meta name="robots" content="noindex" />
       <a href="#admin-main-content" className="admin-skip-link">Skip to content</a>
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
 

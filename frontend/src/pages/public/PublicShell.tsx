@@ -2,8 +2,10 @@ import React from "react";
 import { ApiError } from "../../lib/api/client";
 
 /** Plain mobile-first frame for the no-login pages (tracking slip, offer link). */
-export const PublicShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+export const PublicShell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="theme-megs min-h-screen bg-muted/40 text-foreground">
+    <title>{`${title} | MEGS`}</title>
+    <meta name="robots" content="noindex" />
     <header className="bg-megs-navy-900 text-white">
       <div className="mx-auto flex h-14 max-w-xl items-center px-4">
         <span className="font-display text-lg tracking-wide">MEGS</span>

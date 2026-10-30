@@ -355,6 +355,8 @@ export const TALayout: React.FC = () => {
 
   return (
     <div className="ta-portal min-h-screen bg-ta-page flex flex-col lg:flex-row overflow-x-hidden">
+      <title>MEGS Talent Acquisition</title>
+      <meta name="robots" content="noindex" />
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
 
       <a

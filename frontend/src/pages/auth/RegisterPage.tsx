@@ -435,8 +435,11 @@ export const RegisterPage: React.FC = () => {
   }
 
   return (
-    <AuthStep stepKey={step} order={stepIndex}>
-      {content}
-    </AuthStep>
+    <>
+      <title>Create account | MEGS</title>
+      <AuthStep stepKey={step} order={stepIndex}>
+        {content}
+      </AuthStep>
+    </>
   );
 };
