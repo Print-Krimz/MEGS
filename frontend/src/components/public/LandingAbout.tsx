@@ -59,7 +59,6 @@ const TimelineItem: React.FC<{ item: (typeof milestones)[number]; last: boolean 
   const { scrollYProgress: dotProgress } = useScroll({ target: ref, offset: ["start 72%", "start 62%"] });
   const { scrollYProgress: railProgress } = useScroll({ target: ref, offset: ["start 62%", "end 62%"] });
   const dotScale = useTransform(dotProgress, [0, 1], [0, 1]);
-  const textOpacity = useTransform(dotProgress, [0, 1], [0.45, 1]);
 
   return (
     <li ref={ref} className={`relative pl-10 ${last ? "" : "pb-12"}`}>
@@ -82,10 +81,11 @@ const TimelineItem: React.FC<{ item: (typeof milestones)[number]; last: boolean 
           className="block size-full rounded-full bg-primary"
         />
       </span>
-      <m.div style={reduceMotion ? undefined : { opacity: textOpacity }}>
+      {/* Text stays fully opaque: a scroll fade fails WCAG contrast while it is mid-fade */}
+      <div>
         <p className="font-display text-xl leading-tight text-secondary sm:text-2xl">{item.when}</p>
         <p className="mt-1.5 max-w-lg text-pretty text-base leading-relaxed text-muted-foreground">{item.text}</p>
-      </m.div>
+      </div>
     </li>
   );
 };

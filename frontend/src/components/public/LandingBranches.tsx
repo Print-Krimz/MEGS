@@ -277,6 +277,7 @@ export const LandingBranches: React.FC = () => {
                   ref={mapContainerRef}
                   className="h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   tabIndex={0}
+                  role="region"
                   aria-label="Interactive map of the Philippines showing MEGS branch offices"
                   aria-busy={!mapReady && !mapLoadFailed}
                 />

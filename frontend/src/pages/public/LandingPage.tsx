@@ -46,6 +46,7 @@ function buildStructuredData(): string {
     alternateName: "MEGS",
     url: SITE_URL,
     logo: `${SITE_URL}images/canva-ref/megs-logo-352.webp`,
+    image: `${SITE_URL}og-image.png`,
     foundingDate: "1997-05",
     ...(hq && {
       address: {
