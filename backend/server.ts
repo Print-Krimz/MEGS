@@ -166,9 +166,9 @@ if (process.env.NODE_ENV !== "test") {
           console.warn("⚠️ [Maintenance] Stale job sweep warning on startup:", err?.message || err);
         });
     });
-    // Outlive the Heroku router's 55s idle keep-alive so it never reuses a socket Node just closed.
-    server.keepAliveTimeout = 65_000;
-    server.headersTimeout = 66_000;
+    // Outlive the Heroku router's 90s idle keep-alive so it never reuses a socket Node just closed.
+    server.keepAliveTimeout = 95_000;
+    server.headersTimeout = 96_000;
   }).catch(error => {
     safeLogError("Security store startup", error);
     process.exitCode = 1;
