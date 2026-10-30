@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useState } from "react";
+import React, { Suspense, lazy, useState } from "react";
 import { LandingHeader } from "../../components/public/LandingHeader";
 import { LandingHero } from "../../components/public/LandingHero";
 import { LandingAffiliates } from "../../components/public/LandingAffiliates";
@@ -8,23 +8,14 @@ import { MotionRoot } from "../../components/public/motion";
 import { BRANCHES } from "../../components/public/landing-branches";
 
 // Sections below the fold load after the first paint; the hero and first section stay in the entry chunk.
-const loadServices = () => import("../../components/public/LandingServices");
-const loadWhyMegs = () => import("../../components/public/LandingWhyMegs");
-const loadIndustries = () => import("../../components/public/LandingIndustries");
-const loadActivities = () => import("../../components/public/LandingActivities");
-const loadJobs = () => import("../../components/public/LandingJobListings");
-const loadFeatured = () => import("../../components/public/LandingFeaturedCompanies");
-const loadBranches = () => import("../../components/public/LandingBranches");
-const loadContact = () => import("../../components/public/LandingContact");
-
-const LandingServices = lazy(() => loadServices().then((m) => ({ default: m.LandingServices })));
-const LandingWhyMegs = lazy(() => loadWhyMegs().then((m) => ({ default: m.LandingWhyMegs })));
-const LandingIndustries = lazy(() => loadIndustries().then((m) => ({ default: m.LandingIndustries })));
-const LandingActivities = lazy(() => loadActivities().then((m) => ({ default: m.LandingActivities })));
-const LandingJobListings = lazy(() => loadJobs().then((m) => ({ default: m.LandingJobListings })));
-const LandingFeaturedCompanies = lazy(() => loadFeatured().then((m) => ({ default: m.LandingFeaturedCompanies })));
-const LandingBranches = lazy(() => loadBranches().then((m) => ({ default: m.LandingBranches })));
-const LandingContact = lazy(() => loadContact().then((m) => ({ default: m.LandingContact })));
+const LandingServices = lazy(() => import("../../components/public/LandingServices").then((m) => ({ default: m.LandingServices })));
+const LandingWhyMegs = lazy(() => import("../../components/public/LandingWhyMegs").then((m) => ({ default: m.LandingWhyMegs })));
+const LandingIndustries = lazy(() => import("../../components/public/LandingIndustries").then((m) => ({ default: m.LandingIndustries })));
+const LandingActivities = lazy(() => import("../../components/public/LandingActivities").then((m) => ({ default: m.LandingActivities })));
+const LandingJobListings = lazy(() => import("../../components/public/LandingJobListings").then((m) => ({ default: m.LandingJobListings })));
+const LandingFeaturedCompanies = lazy(() => import("../../components/public/LandingFeaturedCompanies").then((m) => ({ default: m.LandingFeaturedCompanies })));
+const LandingBranches = lazy(() => import("../../components/public/LandingBranches").then((m) => ({ default: m.LandingBranches })));
+const LandingContact = lazy(() => import("../../components/public/LandingContact").then((m) => ({ default: m.LandingContact })));
 
 /** Holds a lazy section's place, and its anchor id, so nav links and layout stay put until it loads. */
 const SectionFallback: React.FC<{ id: string; minHeight: number }> = ({ id, minHeight }) => (
@@ -67,28 +58,6 @@ const STRUCTURED_DATA = buildStructuredData();
 export const LandingPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
-
-  // Fetch the remaining sections once the page has loaded and the browser is idle, so they never compete with first paint.
-  useEffect(() => {
-    const loaders = [loadServices, loadWhyMegs, loadIndustries, loadActivities, loadJobs, loadFeatured, loadBranches, loadContact];
-    const run = () => loaders.forEach((load) => void load().catch(() => undefined));
-    let idleHandle: number | undefined;
-    let timer: number | undefined;
-    const schedule = () => {
-      if (typeof window.requestIdleCallback === "function") {
-        idleHandle = window.requestIdleCallback(run, { timeout: 3000 });
-      } else {
-        timer = window.setTimeout(run, 1500);
-      }
-    };
-    if (document.readyState === "complete") schedule();
-    else window.addEventListener("load", schedule, { once: true });
-    return () => {
-      window.removeEventListener("load", schedule);
-      if (idleHandle !== undefined) window.cancelIdleCallback(idleHandle);
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, []);
 
   const handleFindJobs = () => {
     const jobsEl = document.getElementById("jobs");
