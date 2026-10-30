@@ -13,10 +13,15 @@ const weights = z.object({
   EDUCATION_CERTIFICATIONS: weight,
 }).strict();
 
+const K_MESSAGE = "Results shown must be a whole number from 1 to 100.";
+const MATCH_SCORE_MESSAGE = "Match score must be a whole number from 0 to 100.";
+const SIMILARITY_MESSAGE = "Lowest accepted similarity must be a number from 0 to 1.";
+const matchThreshold = z.number(MATCH_SCORE_MESSAGE).finite(MATCH_SCORE_MESSAGE).int(MATCH_SCORE_MESSAGE).min(0, MATCH_SCORE_MESSAGE).max(100, MATCH_SCORE_MESSAGE);
+
 const knnSettings = z.object({
-  defaultK: z.number().finite().int().min(1).max(100).optional(),
-  maximumK: z.number().finite().int().min(1).max(100).optional(),
-  minimumSimilarity: z.number().finite().min(0).max(1).refine((value) => Number(value.toFixed(4)) === value, "Similarity supports up to 4 decimal places").optional(),
+  defaultK: z.number(K_MESSAGE).finite(K_MESSAGE).int(K_MESSAGE).min(1, K_MESSAGE).max(100, K_MESSAGE).optional(),
+  maximumK: z.number("Maximum results must be a whole number from 1 to 100.").finite("Maximum results must be a whole number from 1 to 100.").int("Maximum results must be a whole number from 1 to 100.").min(1, "Maximum results must be a whole number from 1 to 100.").max(100, "Maximum results must be a whole number from 1 to 100.").optional(),
+  minimumSimilarity: z.number(SIMILARITY_MESSAGE).finite(SIMILARITY_MESSAGE).min(0, SIMILARITY_MESSAGE).max(1, SIMILARITY_MESSAGE).refine((value) => Number(value.toFixed(4)) === value, "Lowest accepted similarity can have at most 4 decimal places.").optional(),
   includeArchived: z.boolean().optional(),
   excludeRejected: z.boolean().optional(),
   excludeCurrentlyHired: z.boolean().optional(),
@@ -27,12 +32,12 @@ export const candidateScoringSchema = {
     expectedRevision: positiveId,
     weights,
     knnSettings: knnSettings.optional(),
-    matchThreshold: z.number().finite().int().min(0).max(100).optional(),
+    matchThreshold: matchThreshold.optional(),
   }).strict(),
   validateConfiguration: z.object({
     weights,
     knnSettings: knnSettings.optional(),
-    matchThreshold: z.number().finite().int().min(0).max(100).optional(),
+    matchThreshold: matchThreshold.optional(),
   }).strict(),
   restoreDefaults: z.object({ expectedRevision: positiveId }).strict(),
   cursorQuery: z.object({ cursor: positiveId.optional(), limit: z.union([z.number().finite().int().min(1).max(100), z.string().regex(/^[0-9]{1,3}$/).transform(Number).refine((value) => value >= 1 && value <= 100)]).default(25) }).strict(),

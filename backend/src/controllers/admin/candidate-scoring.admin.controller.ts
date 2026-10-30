@@ -15,7 +15,7 @@ import { getScoringQualityMetrics } from "../../services/scoring/scoring-quality
 import { sendError, sendSuccess } from '../../utils/response.js';
 
 const invalid = (res: Response, errors: Array<{ field: string; code: string; message: string }>) =>
-  res.status(422).json({ success: false, message: "Invalid candidate scoring configuration", code: "INVALID_CONFIGURATION", errors });
+  res.status(422).json({ success: false, message: "Invalid candidate scoring configuration", code: "INVALID_CONFIGURATION", error: { errors } });
 
 const handle = (res: Response, error: unknown) => {
   if (error instanceof InvalidScoringConfigurationError) return invalid(res, error.errors);

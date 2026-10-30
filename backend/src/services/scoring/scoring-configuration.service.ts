@@ -54,7 +54,7 @@ const validateScoringConfiguration = (
     const value = supplied?.[dimension as ScoringDimension];
     const basisPoints = typeof value === "number" ? decimalToBasisPoints(value) : null;
     if (basisPoints === null) {
-      errors.push({ field: `weights.${dimension}`, code: "INVALID_WEIGHT", message: "Weight must be a finite non-negative decimal with at most four decimal places." });
+      errors.push({ field: `weights.${dimension}`, code: "INVALID_WEIGHT", message: "Each scoring priority must be a number from 0 to 100." });
     } else {
       total += basisPoints;
     }
@@ -62,33 +62,33 @@ const validateScoringConfiguration = (
 
   for (const key of Object.keys(supplied ?? {})) {
     if (!SCORING_DIMENSIONS.includes(key as ScoringDimension)) {
-      errors.push({ field: `weights.${key}`, code: "UNKNOWN_DIMENSION", message: "Unknown scoring dimension." });
+      errors.push({ field: `weights.${key}`, code: "UNKNOWN_DIMENSION", message: "This scoring priority is not recognized." });
     }
   }
 
   if (total !== 1_000_000) {
-    errors.push({ field: "weights", code: "WEIGHTS_MUST_TOTAL_100", message: "Dimension weights must total exactly 100%." });
+    errors.push({ field: "weights", code: "WEIGHTS_MUST_TOTAL_100", message: "Scoring priorities must add up to 100%." });
   }
 
   const knnSettings: KnnSettings = { ...DEFAULT_KNN_SETTINGS, ...(input?.knnSettings ?? {}) };
   if (!Number.isInteger(knnSettings.defaultK) || knnSettings.defaultK < 1 || knnSettings.defaultK > knnSettings.maximumK) {
-    errors.push({ field: "knnSettings.defaultK", code: "INVALID_K", message: "defaultK must be an integer between 1 and maximumK." });
+    errors.push({ field: "knnSettings.defaultK", code: "INVALID_K", message: "Results shown by default must be a whole number from 1 up to the maximum results." });
   }
   if (!Number.isInteger(knnSettings.maximumK) || knnSettings.maximumK < 1 || knnSettings.maximumK > 100) {
-    errors.push({ field: "knnSettings.maximumK", code: "INVALID_MAXIMUM_K", message: "maximumK must be an integer between 1 and 100." });
+    errors.push({ field: "knnSettings.maximumK", code: "INVALID_MAXIMUM_K", message: "Maximum results must be a whole number from 1 to 100." });
   }
   if (!Number.isFinite(knnSettings.minimumSimilarity) || knnSettings.minimumSimilarity < 0 || knnSettings.minimumSimilarity > 1) {
-    errors.push({ field: "knnSettings.minimumSimilarity", code: "INVALID_MINIMUM_SIMILARITY", message: "minimumSimilarity must be between 0 and 1." });
+    errors.push({ field: "knnSettings.minimumSimilarity", code: "INVALID_MINIMUM_SIMILARITY", message: "Lowest accepted similarity must be between 0 and 1." });
   }
   for (const key of ["includeArchived", "excludeRejected", "excludeCurrentlyHired"] as const) {
     if (typeof knnSettings[key] !== "boolean") {
-      errors.push({ field: `knnSettings.${key}`, code: "INVALID_BOOLEAN", message: `${key} must be a boolean.` });
+      errors.push({ field: `knnSettings.${key}`, code: "INVALID_BOOLEAN", message: "This matching option must be on or off." });
     }
   }
 
   const matchThreshold = input?.matchThreshold !== undefined ? input.matchThreshold : DEFAULT_MATCH_THRESHOLD;
   if (!Number.isInteger(matchThreshold) || matchThreshold < 0 || matchThreshold > 100) {
-    errors.push({ field: "matchThreshold", code: "INVALID_MATCH_THRESHOLD", message: "matchThreshold must be an integer between 0 and 100." });
+    errors.push({ field: "matchThreshold", code: "INVALID_MATCH_THRESHOLD", message: "Match score must be a whole number from 0 to 100." });
   }
 
   if (errors.length) throw new InvalidScoringConfigurationError(errors);

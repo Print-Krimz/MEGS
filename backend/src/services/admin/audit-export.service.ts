@@ -61,24 +61,6 @@ const resolveActorName = (log: any): string => {
   return "System Administrator";
 };
 
-const resolveDetailsSummary = (log: any): string => {
-  if (!log.details) return "N/A";
-  try {
-    const parsed = typeof log.details === "string" ? JSON.parse(log.details) : log.details;
-    if (typeof parsed === "object") {
-      const parts: string[] = [];
-      if (parsed.ip) parts.push(`IP: ${parsed.ip}`);
-      if (parsed.target) parts.push(`Target: ${parsed.target}`);
-      if (parsed.reason) parts.push(`Reason: ${parsed.reason}`);
-      if (parsed.status) parts.push(`Status: ${parsed.status}`);
-      return parts.length > 0 ? parts.join(", ") : JSON.stringify(parsed).slice(0, 40);
-    }
-    return String(parsed).slice(0, 40);
-  } catch {
-    return String(log.details).slice(0, 40);
-  }
-};
-
 const buildAuditFilterSummary = (filters?: any): string => {
   if (!filters || Object.keys(filters).length === 0) return "All Audit Events (Unfiltered)";
   const parts: string[] = [];
@@ -127,24 +109,16 @@ export const generateAuditReportPDF = async (
 
   const columns: ColumnDef[] = [
     { header: "Log ID", width: 50, align: "center" },
-    { header: "Timestamp (UTC)", width: 105, align: "center" },
-    { header: "Action Taxonomy", width: 135, align: "left", badge: true },
-    { header: "Acting User", width: 130, align: "left" },
-    { header: "Actor Role", width: 90, align: "center" },
-    { header: "Target Entity", width: 100, align: "left" },
-    { header: "Client IP", width: 70, align: "center" },
-    { header: "Context Details", width: 90, align: "left" },
+    { header: "Timestamp (UTC)", width: 120, align: "center" },
+    { header: "Action Taxonomy", width: 170, align: "left", badge: true },
+    { header: "Acting User", width: 165, align: "left" },
+    { header: "Actor Role", width: 110, align: "center" },
+    { header: "Target Entity", width: 155, align: "left" },
   ];
 
   const rows = logs.map((log: any) => {
     const actor = resolveActorName(log);
     const target = log.entity ? `${log.entity}${log.entityId ? ` #${log.entityId}` : ""}` : "N/A";
-    let ip = "N/A";
-    try {
-      const details = typeof log.details === "string" ? JSON.parse(log.details) : log.details || {};
-      ip = details.ip || details.ipAddress || "N/A";
-    } catch {}
-
     return [
       `#${log.id}`,
       safeFormatDate(log.createdAt),
@@ -152,8 +126,6 @@ export const generateAuditReportPDF = async (
       actor,
       log.user?.role || "SYSTEM",
       target,
-      ip,
-      resolveDetailsSummary(log),
     ];
   });
 

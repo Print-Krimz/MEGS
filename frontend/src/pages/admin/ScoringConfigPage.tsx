@@ -13,7 +13,11 @@ import { AlertTriangle, ChevronDown, History, RotateCcw, Save } from "lucide-rea
 import { AnalyticsPanel } from "../../components/analytics";
 import { FeedbackBanner } from "./admin-ui";
 import { DEFAULT_SCORING_WEIGHTS, maxFor, normalizeScoringWeights, remainingWeight, setScoringWeight, type ScoringDimension } from "../../lib/scoring-weights";
-import { notify } from "../../lib/feedback";
+import { formatErrorMessage, notify } from "../../lib/feedback";
+import { ApiError } from "../../lib/api/client";
+
+const clampInt = (value: number, min: number, max: number) => Math.round(Math.max(min, Math.min(max, value)));
+const blockNonDigits = (e: React.KeyboardEvent<HTMLInputElement>) => { if (["-", ".", "e", "E", "+", ","].includes(e.key)) e.preventDefault(); };
 
 const METRICS: { key: ScoringDimension; id: string; label: string; description: string }[] = [
   { key: "SKILLS", id: "skills", label: "Skills", description: "How closely a candidate's skills match the job." },
@@ -85,8 +89,11 @@ export const ScoringConfigPage: React.FC = () => {
       notify.success("Matching settings saved", msg);
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "We couldn't save the matching settings. Please try again." });
-      notify.error("Couldn't save matching settings", err);
+      const message = err instanceof ApiError && err.status === 409
+        ? "Someone else changed these settings. Reload the page and try again."
+        : formatErrorMessage(err) || "We couldn't save the matching settings. Please try again.";
+      setFeedback({ type: "error", message });
+      notify.error("Couldn't save matching settings", message);
     },
   });
 
@@ -316,7 +323,8 @@ export const ScoringConfigPage: React.FC = () => {
                     step={1}
                     value={matchThreshold}
                     required
-                    onChange={(e) => { if (e.target.value !== "") setMatchThreshold(Number(e.target.value)); }}
+                    onKeyDown={blockNonDigits}
+                    onChange={(e) => { if (e.target.value !== "") setMatchThreshold(clampInt(Number(e.target.value), 0, 100)); }}
                     aria-label="Recommended match score"
                     className="w-16 px-2 py-1 text-right"
                   />
@@ -363,7 +371,8 @@ export const ScoringConfigPage: React.FC = () => {
                   step={1}
                   value={defaultK}
                   required
-                  onChange={(e) => { if (e.target.value !== "") setDefaultK(Number(e.target.value)); }}
+                  onKeyDown={blockNonDigits}
+                  onChange={(e) => { if (e.target.value !== "") setDefaultK(clampInt(Number(e.target.value), 1, 100)); }}
                 />
                 <Input
                    label="Maximum results"
@@ -374,7 +383,8 @@ export const ScoringConfigPage: React.FC = () => {
                   value={maximumK}
                   error={defaultK > maximumK ? "Maximum results must be at least the default count." : undefined}
                   required
-                  onChange={(e) => { if (e.target.value !== "") setMaximumK(Number(e.target.value)); }}
+                  onKeyDown={blockNonDigits}
+                  onChange={(e) => { if (e.target.value !== "") setMaximumK(clampInt(Number(e.target.value), 1, 100)); }}
                 />
                 <Input
                    label="Lowest accepted similarity (0–1)"
@@ -384,7 +394,7 @@ export const ScoringConfigPage: React.FC = () => {
                   max={1}
                   value={minSimilarity}
                   required
-                  onChange={(e) => { if (e.target.value !== "") setMinSimilarity(Number(e.target.value)); }}
+                  onChange={(e) => { if (e.target.value !== "") setMinSimilarity(Math.max(0, Math.min(1, Number(e.target.value)))); }}
                 />
               </div>
             </details>
