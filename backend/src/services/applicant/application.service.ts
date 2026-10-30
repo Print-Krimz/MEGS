@@ -47,7 +47,6 @@ export const fetchOpenJobs = async (filters?: ApplicantJobFilters & { page?: num
       imageUrl: true,
       status: true,
       createdAt: true,
-      _count: { select: { applications: true } },
       mrf: {
         select: {
           location: true,

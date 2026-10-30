@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
 import { validate } from '../../middleware/validate.middleware.js';
 import { upload } from '../../middleware/upload.middleware.js';
@@ -32,9 +32,17 @@ import {
 
 const router = Router();
 
+// Same for every caller, so the browser may reuse it briefly. Overrides the global /api no-store header.
+// No s-maxage: a shared cache would have to key on Origin for the CORS headers.
+const publicShortCache: RequestHandler = (_req, res, next) => {
+  res.setHeader("Cache-Control", "public, max-age=30");
+  res.removeHeader("Pragma");
+  next();
+};
+
 // Publicly browse open job listings
-router.get("/jobs", validate(applicantApplicationSchema.listJobs), getOpenJobs);
-router.get("/employers/summary", validate(applicantApplicationSchema.employerSummary), getOpenEmployerSummary);
+router.get("/jobs", publicShortCache, validate(applicantApplicationSchema.listJobs), getOpenJobs);
+router.get("/employers/summary", publicShortCache, validate(applicantApplicationSchema.employerSummary), getOpenEmployerSummary);
 
 router.use(authenticateJWT);
 router.use(requireRole("APPLICANT"));
