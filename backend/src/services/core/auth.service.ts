@@ -532,6 +532,15 @@ export const loginUser = async (emailOrPhone: string, password: string, ip?: str
     throw new Error("User account not found in database");
   }
 
+  if (!dbUser.isActive || dbUser.accountStatus === "DEACTIVATED") {
+    logAudit(dbUser.id, "FAILED_LOGIN_ATTEMPT", "User", dbUser.id, {
+      attemptedEmail: targetEmail,
+      reason: "Account has been deactivated",
+      ip,
+    });
+    throw new Error("Invalid email or password");
+  }
+
   if (dbUser.accountStatus === "PENDING_VERIFICATION") {
     logAudit(dbUser.id, "FAILED_LOGIN_ATTEMPT", "User", dbUser.id, {
       attemptedEmail: targetEmail,
@@ -543,15 +552,6 @@ export const loginUser = async (emailOrPhone: string, password: string, ip?: str
         ? "Please verify your mobile number with the 6-digit code sent via SMS before signing in."
         : "Please verify your email address with the 6-digit code sent to your inbox before signing in."
     );
-  }
-
-  if (!dbUser.isActive || dbUser.accountStatus === "DEACTIVATED") {
-    logAudit(dbUser.id, "FAILED_LOGIN_ATTEMPT", "User", dbUser.id, {
-      attemptedEmail: targetEmail,
-      reason: "Account has been deactivated",
-      ip,
-    });
-    throw new Error("Invalid email or password");
   }
 
   if (dbUser.accountStatus === "PENDING" || dbUser.accountStatus === "INVITED") {
