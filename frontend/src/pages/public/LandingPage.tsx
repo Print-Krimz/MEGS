@@ -5,6 +5,7 @@ import { LandingAffiliates } from "../../components/public/LandingAffiliates";
 import { LandingAbout } from "../../components/public/LandingAbout";
 import { LandingFooter } from "../../components/public/LandingFooter";
 import { MotionRoot } from "../../components/public/motion";
+import { BRANCHES } from "../../components/public/LandingBranches";
 
 // Sections below the fold load after the first paint; the hero and first section stay in the entry chunk.
 const loadServices = () => import("../../components/public/LandingServices");
@@ -29,6 +30,38 @@ const LandingContact = lazy(() => loadContact().then((m) => ({ default: m.Landin
 const SectionFallback: React.FC<{ id: string; minHeight: number }> = ({ id, minHeight }) => (
   <section id={id} aria-hidden="true" className="scroll-mt-20" style={{ minHeight }} />
 );
+
+const SITE_URL = "https://megsinc.com/";
+
+/** Organization and site facts for search engines. Address and phone come from the head-office branch shown on the page. */
+function buildStructuredData(): string {
+  const hq = BRANCHES.find((b) => b.isHQ);
+  const streetParts = hq?.address.split(",").map((part) => part.trim()) ?? [];
+  const locality = streetParts.length > 1 ? streetParts.pop() : undefined;
+  const phone = hq?.landlines?.[0]?.tel;
+  const agency = {
+    "@context": "https://schema.org",
+    "@type": "EmploymentAgency",
+    name: "MAR EMPLOYMENT FOR GOOD SERVICES INC.",
+    alternateName: "MEGS",
+    url: SITE_URL,
+    logo: `${SITE_URL}images/canva-ref/megs-logo-352.webp`,
+    foundingDate: "1997-05",
+    ...(hq && {
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: streetParts.join(", "),
+        ...(locality && { addressLocality: locality }),
+        addressCountry: "PH",
+      },
+    }),
+    ...(phone && { telephone: phone }),
+  };
+  const website = { "@context": "https://schema.org", "@type": "WebSite", name: "MEGS", url: SITE_URL };
+  return JSON.stringify([agency, website]).replace(/</g, "\\u003c");
+}
+
+const STRUCTURED_DATA = buildStructuredData();
 
 export const LandingPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -64,6 +97,8 @@ export const LandingPage: React.FC = () => {
 
   return (
     <MotionRoot>
+      <link rel="canonical" href={SITE_URL} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: STRUCTURED_DATA }} />
       <div className="theme-megs flex min-h-screen flex-col bg-page text-foreground selection:bg-secondary selection:text-white">
         <a
           href="#main-content"
