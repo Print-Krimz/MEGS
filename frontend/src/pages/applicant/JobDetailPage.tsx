@@ -138,6 +138,7 @@ export const JobDetailPage: React.FC = () => {
     mutationFn: (body?: FormData | { resumeUrl?: string }) =>
       applicantJobsApi.applyToJob(jobId, body),
     onSuccess: () => {
+      queryClient.setQueryData(["applicant", "job-detail", jobId], (old: any) => (old ? { ...old, alreadyApplied: true } : old));
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
       setSubmissionSuccess(true);
       notify.success("Application Submitted", "Your candidacy has been received and is now being reviewed.");
@@ -185,6 +186,7 @@ export const JobDetailPage: React.FC = () => {
 
   const handleApply = (e: React.FormEvent) => {
     e.preventDefault();
+    if (applyMutation.isPending) return;
     if (customResume) {
       const formData = new FormData();
       formData.append("file", customResume);

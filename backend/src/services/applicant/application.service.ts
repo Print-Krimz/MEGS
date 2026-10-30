@@ -286,15 +286,22 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
   }
 
   const { status: initialStatus, attemptNumber, sameClientDeployment, sameClientDeployments } = await resolveInitialStatus(userId, job);
-  let application = await prisma.application.create({
-    data: {
-      userId,
-      jobPostingId: jobId,
-      attemptNumber,
-      resumeUrl: resolvedResumeUrl,
-      status: initialStatus,
-    },
-  });
+  let application: Awaited<ReturnType<typeof prisma.application.create>>;
+  try {
+    application = await prisma.application.create({
+      data: {
+        userId,
+        jobPostingId: jobId,
+        attemptNumber,
+        resumeUrl: resolvedResumeUrl,
+        status: initialStatus,
+      },
+    });
+  } catch (error) {
+    // A second request for the same job lands here when both read the same attempt number.
+    if ((error as { code?: string } | null)?.code === "P2002") throw new Error("You already have an active application for this job");
+    throw error;
+  }
 
   const queueScoring = () => {
     const revalidation = revalidateApplication(application.id, jobId);
