@@ -44,6 +44,12 @@ export const isMockTransporterOrNodemailer = (transporter?: any): boolean => {
   return isSendMailMocked || isNotRealMailInstance;
 };
 
+let cachedTransporter: nodemailer.Transporter | null = null;
+
+export const resetMailTransporter = (): void => {
+  cachedTransporter = null;
+};
+
 export const createMailTransporter = () => {
   const isTest = process.env.NODE_ENV === "test";
   const isLiveTest = Boolean(process.env.LIVE_EMAIL_TEST);
@@ -57,29 +63,40 @@ export const createMailTransporter = () => {
   const gmailUser = process.env.GMAIL_USER;
   const gmailPass = process.env.GMAIL_APP_PASSWORD;
 
+  // One pooled transporter is reused so each send skips a fresh TLS + AUTH handshake.
+  if (cachedTransporter) return cachedTransporter;
+
   if (gmailUser && gmailPass) {
-    return nodemailer.createTransport({
+    cachedTransporter = nodemailer.createTransport({
       service: "gmail",
+      pool: true,
+      maxConnections: 2,
+      maxMessages: 100,
       auth: {
         user: gmailUser.trim(),
         pass: gmailPass.replace(/\s+/g, ""),
       },
     });
+    return cachedTransporter;
   }
 
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
 
   if (smtpUser && smtpPass) {
-    return nodemailer.createTransport({
+    cachedTransporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || "smtp.gmail.com",
       port: Number(process.env.SMTP_PORT) || 587,
       secure: process.env.SMTP_SECURE === "true",
+      pool: true,
+      maxConnections: 2,
+      maxMessages: 100,
       auth: {
         user: smtpUser,
         pass: smtpPass,
       },
     });
+    return cachedTransporter;
   }
 
   return null;
