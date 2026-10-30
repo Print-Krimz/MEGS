@@ -54,6 +54,13 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 );
 
 /** The stored profile as a plain, single-column resume. Only stored data is shown. */
+function educationTitle(e: any): string {
+  const degree = (e.degree ?? "").trim();
+  const field = (e.fieldOfStudy ?? "").trim();
+  const skipField = !field || field.toLowerCase() === "general" || degree.toLowerCase().includes(field.toLowerCase());
+  return [degree, skipField ? "" : field].filter(Boolean).join(", ");
+}
+
 export const StandardAtsResume: React.FC<StandardAtsResumeProps> = ({ profile, email, reference, requirements = [], showContact, preparedOn }) => {
   const name = [profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ");
   const place = [profile?.city, profile?.province].filter(Boolean).join(", ");
@@ -102,10 +109,10 @@ export const StandardAtsResume: React.FC<StandardAtsResumeProps> = ({ profile, e
           {education.map((e: any, i: number) => (
             <div key={e.id ?? i} className="ats-entry text-sm">
               <div className="flex justify-between gap-4">
-                <span className="font-bold">{[e.degree, e.fieldOfStudy].filter(Boolean).join(", ") || e.school}</span>
+                <span className="font-bold">{educationTitle(e) || e.school}</span>
                 <span className="shrink-0">{range(e.startDate, e.endDate)}</span>
               </div>
-              {(e.degree || e.fieldOfStudy) && <div>{e.school}</div>}
+              {educationTitle(e) && <div>{e.school}</div>}
             </div>
           ))}
         </Section>
