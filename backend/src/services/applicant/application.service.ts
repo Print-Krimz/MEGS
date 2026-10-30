@@ -109,8 +109,8 @@ export interface ActiveDeploymentStatus {
   deploymentId?: number;
 }
 
-export const getActiveDeploymentStatus = async (userId: string): Promise<ActiveDeploymentStatus> => {
-  const deployment = await prisma.deployment.findFirst({
+export const getActiveDeploymentStatus = async (userId: string, db: Pick<typeof prisma, "deployment"> = prisma): Promise<ActiveDeploymentStatus> => {
+  const deployment = await db.deployment.findFirst({
     where: { employee: { userId }, status: { notIn: ["ENDED", "CANCELLED"] } },
     include: { client: { select: { name: true } }, application: { select: { jobPosting: { select: { title: true } } } }, mrf: { select: { title: true } } },
     orderBy: { createdAt: "desc" },
@@ -177,7 +177,7 @@ export const fetchJobDetails = async (jobId: number, userId: string) => {
 };
 
 /** Job must exist and be OPEN, with no unfinished attempt and no active deployment for the applicant. */
-export const assertCanApply = async (userId: string, jobPostingId: number, db: Pick<typeof prisma, "jobPosting" | "application"> = prisma) => {
+export const assertCanApply = async (userId: string, jobPostingId: number, db: Pick<typeof prisma, "jobPosting" | "application" | "deployment"> = prisma) => {
   const job = await db.jobPosting.findUnique({ where: { id: jobPostingId }, include: { mrf: { select: { clientId: true, assignedTaId: true } } } });
   if (!job) throw new Error("Job not found");
   if (job.status !== "OPEN") throw new Error("This job is no longer accepting applications");
@@ -192,7 +192,7 @@ export const assertCanApply = async (userId: string, jobPostingId: number, db: P
   );
   if (unfinishedApplication) throw new Error("You already have an active application for this job");
 
-  const deployment = await getActiveDeploymentStatus(userId);
+  const deployment = await getActiveDeploymentStatus(userId, db);
   if (deployment.isCurrentlyDeployed) {
     throw new Error(
       `You are currently deployed on an active assignment with ${deployment.clientName || "your client"}. Applications for new positions are restricted until your assignment concludes or you are cleared for redeployment.`
@@ -202,14 +202,14 @@ export const assertCanApply = async (userId: string, jobPostingId: number, db: P
 };
 
 /** COMPLIANCE for a prior same-client placement, else SUBMITTED, plus the next attempt number. */
-export const resolveInitialStatus = async (userId: string, job: { id: number; mrf?: { clientId: number | null } | null }, db: Pick<typeof prisma, "application"> = prisma) => {
+export const resolveInitialStatus = async (userId: string, job: { id: number; mrf?: { clientId: number | null } | null }, db: Pick<typeof prisma, "application" | "deployment"> = prisma) => {
   const last = await db.application.findFirst({
     where: { userId, jobPostingId: job.id },
     select: { attemptNumber: true },
     orderBy: { attemptNumber: "desc" },
   });
   const sameClientDeployments = job.mrf?.clientId
-    ? await prisma.deployment.findMany({
+    ? await db.deployment.findMany({
         where: {
           clientId: job.mrf.clientId,
           employee: { userId },

@@ -83,6 +83,14 @@ export interface JobDetailResponse extends JobPosting {
   salaryRange?: string;
   department?: string;
   activeDeployment?: ActiveDeploymentInfo;
+  client?: {
+    id: number;
+    name: string;
+    companyName: string;
+    tradeName?: string | null;
+    industry?: string | null;
+    address?: string | null;
+  } | null;
 }
 
 export type ApplicationDetailResponse = Application;

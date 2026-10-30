@@ -38,12 +38,16 @@ export interface ApplicationSummaryProps {
 /** Lets a long address wrap before the @ instead of in the middle of a word. */
 const EmailValue: React.FC<{ email: string }> = ({ email }) => {
   const at = email.indexOf("@");
-  return at < 1 ? <>{email}</> : (
-    <>
-      {email.slice(0, at)}
-      <wbr />
-      {email.slice(at)}
-    </>
+  return (
+    <span className="min-w-0 wrap-anywhere">
+      {at < 1 ? email : (
+        <>
+          {email.slice(0, at)}
+          <wbr />
+          {email.slice(at)}
+        </>
+      )}
+    </span>
   );
 };
 
