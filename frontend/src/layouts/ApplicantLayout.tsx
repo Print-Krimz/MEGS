@@ -35,14 +35,16 @@ export const ApplicantLayout: React.FC = () => {
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const menuItemsRef = useRef<(HTMLAnchorElement | HTMLButtonElement | null)[]>([]);
 
+  const [bellOpen, setBellOpen] = useState(false);
   const {
     unreadCount,
     notifications,
+    notificationsLoading,
     markAsRead,
     activeToasts,
     dismissToast,
     handleToastClick,
-  } = useRealtimeNotifications();
+  } = useRealtimeNotifications({ recentEnabled: bellOpen });
 
   const profileQuery = useQuery({
     queryKey: ["applicant", "profile"],
@@ -184,6 +186,9 @@ export const ApplicantLayout: React.FC = () => {
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
               <NotificationBell
                 notifications={notifications}
+                loading={notificationsLoading}
+                open={bellOpen}
+                onOpenChange={setBellOpen}
                 unreadCount={unreadCount}
                 onMarkAsRead={markAsRead}
                 viewAllLink="/app/notifications"

@@ -83,14 +83,16 @@ export const AdminLayout: React.FC = () => {
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLElement>(null);
 
+  const [bellOpen, setBellOpen] = useState(false);
   const {
     unreadCount,
     notifications,
+    notificationsLoading,
     markAsRead,
     activeToasts,
     dismissToast,
     handleToastClick,
-  } = useRealtimeNotifications();
+  } = useRealtimeNotifications({ recentEnabled: bellOpen });
 
   const profile = user?.applicantProfile;
   const hasProfileName = Boolean(profile?.firstName && profile?.lastName);
@@ -358,6 +360,9 @@ export const AdminLayout: React.FC = () => {
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <NotificationBell
               notifications={notifications}
+              loading={notificationsLoading}
+              open={bellOpen}
+              onOpenChange={setBellOpen}
               unreadCount={unreadCount}
               onMarkAsRead={markAsRead}
               viewAllLink="/admin/notifications"

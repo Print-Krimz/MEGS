@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, CheckCheck, ExternalLink, ArrowUpRight } from "lucide-react";
@@ -11,6 +11,11 @@ import { notificationApi } from "../../lib/api/notification.api";
 export interface NotificationBellProps {
   notifications?: Notification[];
   unreadCount?: number;
+  /** True while the first list is loading, so the empty message does not flash. */
+  loading?: boolean;
+  /** Optional control: lets the layout load the list only while the bell is open. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onMarkAsRead?: (id: number) => void;
   viewAllLink?: string;
 }
@@ -18,13 +23,24 @@ export interface NotificationBellProps {
 export const NotificationBell: React.FC<NotificationBellProps> = ({
   notifications = [],
   unreadCount = 0,
+  loading = false,
+  open: controlledOpen,
+  onOpenChange,
   onMarkAsRead,
   viewAllLink,
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = useCallback(
+    (next: boolean) => {
+      setUncontrolledOpen(next);
+      onOpenChange?.(next);
+    },
+    [onOpenChange],
+  );
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownId = "notifications-menu";
@@ -55,7 +71,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       document.addEventListener("mousedown", handleOutside);
     }
     return () => document.removeEventListener("mousedown", handleOutside);
-  }, [open]);
+  }, [open, setOpen]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -67,7 +83,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [open]);
+  }, [open, setOpen]);
 
   const handleItemClick = (n: Notification) => {
     setOpen(false);
@@ -147,7 +163,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
           {/* List */}
           <ul aria-label="Recent notifications" className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-            {notifications.length === 0 ? (
+            {notifications.length === 0 && loading ? (
+              <li className="p-6 text-center text-sm text-slate-500" role="status">
+                Loading notifications...
+              </li>
+            ) : notifications.length === 0 ? (
               <li className="p-6 text-center text-sm text-slate-500">
                 No recent notifications
               </li>

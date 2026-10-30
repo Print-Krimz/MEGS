@@ -19,7 +19,8 @@ export interface RealtimeToast {
   type?: string;
 }
 
-export function useRealtimeNotifications() {
+// The recent list is only needed once the bell is open; the unread count and stream stay always on.
+export function useRealtimeNotifications({ recentEnabled = false }: { recentEnabled?: boolean } = {}) {
   const { isAuthenticated, user } = useAuth();
   const role = user?.role;
   const userId = user?.id;
@@ -51,7 +52,7 @@ export function useRealtimeNotifications() {
   const recentNotificationsQuery = useQuery({
     queryKey: ["notifications", "recent"],
     queryFn: ({ signal }) => notificationApi.getNotifications({ limit: 10 }, { signal }),
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && recentEnabled,
   });
 
   // 3. Mark as read mutation
@@ -161,6 +162,8 @@ export function useRealtimeNotifications() {
 
   return {
     unreadCount: unreadCountQuery.data || 0,
+    // A disabled query is also pending, so only report loading while the list is wanted.
+    notificationsLoading: recentEnabled && recentNotificationsQuery.isPending,
     notifications: recentNotificationsQuery.data?.items || (Array.isArray(recentNotificationsQuery.data) ? recentNotificationsQuery.data : []),
     markAsRead: (id: number) => markAsReadMutation.mutate(id),
     activeToasts,
