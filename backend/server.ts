@@ -53,6 +53,12 @@ app.use(
 
 app.use(express.json());
 
+// Keep the API host out of search results
+app.use((_req, res, next) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  next();
+});
+
 // Public health check & browser auth forwarder
 app.get("/", (req, res) => {
   if (req.accepts("html") && !req.xhr && req.headers["sec-fetch-dest"] === "document") {
