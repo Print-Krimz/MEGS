@@ -1,16 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ queryRaw: vi.fn(), updateMany: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  queryRaw: vi.fn(),
+  updateMany: vi.fn(),
+  findMany: vi.fn(),
+  executeRaw: vi.fn(),
+  generate: vi.fn(),
+}));
 
 vi.mock("../utils/prisma.js", () => ({
   default: {
-    application: { updateMany: mocks.updateMany },
+    application: { updateMany: mocks.updateMany, findMany: mocks.findMany },
+    $executeRaw: mocks.executeRaw,
     $transaction: async (fn: (tx: unknown) => unknown) => fn({ $queryRaw: mocks.queryRaw }),
   },
 }));
 vi.mock("./review-sla.worker.js", () => ({ checkReviewSLABreaches: vi.fn() }));
+vi.mock("../services/ta/ta.compliance.service.js", () => ({ generateComplianceRequirementsFromMRF: mocks.generate }));
 
-import { reconcileStaleResumeAnalysis, runScheduledJobs, SCHEDULED_JOBS } from "./scheduled-jobs.js";
+import { ensureComplianceChecklists, reconcileStaleResumeAnalysis, runScheduledJobs, SCHEDULED_JOBS } from "./scheduled-jobs.js";
 
 describe("scheduled jobs runner", () => {
   beforeEach(() => {
@@ -67,5 +75,41 @@ describe("stale resume analysis reconciliation", () => {
     mocks.updateMany.mockResolvedValueOnce({ count: 2 }).mockResolvedValueOnce({ count: 0 });
     await reconcileStaleResumeAnalysis();
     await expect(reconcileStaleResumeAnalysis()).resolves.toEqual({ staleAnalysisMarked: 0 });
+  });
+});
+
+describe("compliance checklist sweep", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.findMany.mockResolvedValue([]);
+    mocks.executeRaw.mockResolvedValue(0);
+    mocks.generate.mockResolvedValue([]);
+  });
+
+  it("is registered with the hourly scheduled jobs", () => {
+    expect(SCHEDULED_JOBS.map((job) => job.name)).toContain("compliance-checklists");
+  });
+
+  it("compliance-checklists creates checklists for COMPLIANCE apps with none", async () => {
+    mocks.findMany.mockResolvedValue([{ id: 5 }]);
+    mocks.generate.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+    const result = await ensureComplianceChecklists();
+    expect(mocks.findMany).toHaveBeenCalledWith({
+      where: { status: "COMPLIANCE", isArchived: false, complianceRequirements: { none: {} } },
+      select: { id: true },
+      take: 50,
+    });
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+    expect(mocks.generate).toHaveBeenCalledWith(5);
+    expect(result).toMatchObject({ checklistsCreated: 1 });
+  });
+
+  it("compliance-checklists backfills null deadlines", async () => {
+    mocks.executeRaw.mockResolvedValue(4);
+    const result = await ensureComplianceChecklists();
+    expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
+    const [strings] = mocks.executeRaw.mock.calls[0];
+    expect(strings.join("")).toContain('"deadline" IS NULL');
+    expect(result).toMatchObject({ deadlinesBackfilled: 4 });
   });
 });

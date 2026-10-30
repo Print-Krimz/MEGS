@@ -5,8 +5,10 @@ const mocks = vi.hoisted(() => ({
     application: { count: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), groupBy: vi.fn() },
     recruiterDecision: { groupBy: vi.fn() },
     deployment: { findMany: vi.fn() },
+    complianceRequirement: { create: vi.fn() },
     $queryRaw: vi.fn(),
   },
+  generateCompliance: vi.fn(),
   dynamicScoring: vi.fn(),
   activeConfig: vi.fn(),
 }));
@@ -22,6 +24,10 @@ vi.mock("../document/document.service.js", () => ({
 vi.mock("../../utils/notification.js", () => ({ notifyJobOwner: vi.fn(), notifyOwner: vi.fn(), sendNotification: vi.fn(), sendRoleNotification: vi.fn() }));
 vi.mock("../../utils/audit.js", () => ({ logAudit: vi.fn() }));
 vi.mock("../scoring/talent-pool-knn.service.js", () => ({ rebuildCandidateFeatureProfile: vi.fn() }));
+vi.mock("./ta.compliance.service.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./ta.compliance.service.js")>()),
+  generateComplianceRequirementsFromMRF: mocks.generateCompliance,
+}));
 
 import { listTAApplications, getTAApplication } from "./ta.applications.service.js";
 import { resolveDocumentSignedUrl, resolveDocumentSignedUrls } from "../document/document.service.js";
@@ -217,5 +223,14 @@ describe("candidate detail signs its documents in one batch", () => {
     );
     await getTAApplication(7);
     expect(resolveDocumentSignedUrls).not.toHaveBeenCalled();
+  });
+
+  it("getTAApplication never writes compliance requirements", async () => {
+    mocks.prisma.application.findUnique.mockResolvedValue(detailRow({ status: "COMPLIANCE", complianceRequirements: [] }));
+    mocks.generateCompliance.mockResolvedValue([{ id: 1 }]);
+    const result: any = await getTAApplication(7);
+    expect(mocks.generateCompliance).not.toHaveBeenCalled();
+    expect(mocks.prisma.complianceRequirement.create).not.toHaveBeenCalled();
+    expect(result.complianceRequirements).toEqual([]);
   });
 });
