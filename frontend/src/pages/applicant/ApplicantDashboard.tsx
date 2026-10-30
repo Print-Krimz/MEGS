@@ -25,7 +25,9 @@ import { computeProfileHealth } from "../../lib/profile-health";
 import {
   getApplicationRefetchInterval,
   INVITATION_POLL_MS,
+  pollInterval,
 } from "../../lib/query-policies";
+import { useLiveStreamConnected } from "../../lib/live-stream-status";
 
 function SectionData<T>({
   query,
@@ -89,6 +91,7 @@ function summarizeApplications(applicationData: unknown) {
 }
 
 export const ApplicantDashboard: React.FC = () => {
+  const streamConnected = useLiveStreamConnected();
   const profileQuery = useQuery({
     queryKey: ["applicant", "profile"],
     queryFn: applicantApi.getProfile,
@@ -98,14 +101,14 @@ export const ApplicantDashboard: React.FC = () => {
   const applicationsQuery = useQuery({
     queryKey: ["applicant", "my-applications"],
     queryFn: ({ signal }) => applicantJobsApi.getMyApplicationSummaries({ summary: true }, { signal }),
-    refetchInterval: (query) => getApplicationRefetchInterval(query.state.data),
+    refetchInterval: (query) => getApplicationRefetchInterval(query.state.data, streamConnected),
     refetchOnWindowFocus: true,
   });
 
   const invitationsQuery = useQuery({
     queryKey: ["applicant", "invitations"],
     queryFn: ({ signal }) => applicantJobsApi.getMyInvitations({ signal }),
-    refetchInterval: INVITATION_POLL_MS,
+    refetchInterval: pollInterval(INVITATION_POLL_MS, streamConnected),
   });
 
   const jobsQuery = useQuery({

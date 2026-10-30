@@ -11,7 +11,8 @@ import {
 import { Button, Dialog, Select, Textarea } from "../../components/ui";
 import { formatDate } from "../../lib/utils";
 import { notify } from "../../lib/feedback";
-import { INVITATION_POLL_MS } from "../../lib/query-policies";
+import { INVITATION_POLL_MS, pollInterval } from "../../lib/query-policies";
+import { useLiveStreamConnected } from "../../lib/live-stream-status";
 import { ApplicantJobInvitation } from "../../lib/types/applicant.types";
 import {
   Mail,
@@ -37,10 +38,11 @@ export const JobInvitationsPage: React.FC = () => {
   const [notes, setNotes] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
+  const streamConnected = useLiveStreamConnected();
   const invitationsQuery = useQuery({
     queryKey: ["applicant", "invitations"],
     queryFn: ({ signal }) => applicantJobsApi.getMyInvitations({ signal }),
-    refetchInterval: INVITATION_POLL_MS,
+    refetchInterval: pollInterval(INVITATION_POLL_MS, streamConnected),
   });
 
   const respondMutation = useMutation({

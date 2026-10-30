@@ -38,6 +38,7 @@ import { RescheduleControl, RescheduleRequestDialog } from "../../components/app
 import { RequirementStatusBadge } from "../../components/applicant/RequirementStatusBadge";
 import { notify } from "../../lib/feedback";
 import { getApplicationRefetchInterval } from "../../lib/query-policies";
+import { useLiveStreamConnected } from "../../lib/live-stream-status";
 import { addManilaCalendarDays, getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 
 const normalizeDocumentLabel = (value: string) => value.trim().toLowerCase();
@@ -79,11 +80,12 @@ export const ApplicationDetailPage: React.FC = () => {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [rescheduleActivity, setRescheduleActivity] = useState<RescheduleActivity | null>(null);
 
+  const streamConnected = useLiveStreamConnected();
   const applicationQuery = useQuery({
     queryKey: ["applicant", "application", applicationId],
     queryFn: ({ signal }) => applicantJobsApi.getApplicationDetail(applicationId, { signal }),
     enabled: Boolean(applicationId),
-    refetchInterval: (query) => getApplicationRefetchInterval(query.state.data),
+    refetchInterval: (query) => getApplicationRefetchInterval(query.state.data, streamConnected),
     refetchOnWindowFocus: true,
   });
 

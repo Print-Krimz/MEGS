@@ -19,7 +19,9 @@ import { ApplicantJobInvitation } from "../../lib/types/applicant.types";
 import {
   getApplicationRefetchInterval,
   INVITATION_POLL_MS,
+  pollInterval,
 } from "../../lib/query-policies";
+import { useLiveStreamConnected } from "../../lib/live-stream-status";
 import {
   Briefcase,
   Calendar,
@@ -63,17 +65,18 @@ export const MyApplicationsPage: React.FC = () => {
     }
   }, [search.tab]);
 
+  const streamConnected = useLiveStreamConnected();
   const applicationsQuery = useQuery({
     queryKey: ["applicant", "my-applications"],
     queryFn: ({ signal }) => applicantJobsApi.getMyApplicationSummaries({ summary: true }, { signal }),
-    refetchInterval: (query) => getApplicationRefetchInterval(query.state.data),
+    refetchInterval: (query) => getApplicationRefetchInterval(query.state.data, streamConnected),
     refetchOnWindowFocus: true,
   });
 
   const invitationsQuery = useQuery({
     queryKey: ["applicant", "invitations"],
     queryFn: ({ signal }) => applicantJobsApi.getMyInvitations({ signal }),
-    refetchInterval: INVITATION_POLL_MS,
+    refetchInterval: pollInterval(INVITATION_POLL_MS, streamConnected),
   });
 
   const respondMutation = useMutation({
