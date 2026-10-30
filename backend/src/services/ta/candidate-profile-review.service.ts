@@ -130,13 +130,22 @@ export const replaceSkills = async (tx: Tx, profileId: number, names: string[]):
     await tx.applicantSkill.deleteMany({ where: { applicantProfileId: profileId, skillId: { in: removeSkillIds } } });
   }
 
-  let added = 0;
-  for (const [key, name] of wantedByKey) {
-    if (currentKeys.has(key)) continue;
-    let skill = await tx.skill.findFirst({ where: { name: { equals: name, mode: "insensitive" } } });
-    if (!skill) skill = await tx.skill.create({ data: { name } });
-    await tx.applicantSkill.create({ data: { applicantProfileId: profileId, skillId: skill.id } });
-    added += 1;
+  const toAdd = [...wantedByKey].filter(([key]) => !currentKeys.has(key));
+  if (toAdd.length) {
+    const typed = toAdd.map(([, name]) => name);
+    const findExisting = () => tx.skill.findMany({ where: { name: { in: typed, mode: "insensitive" } } });
+    let skills = await findExisting();
+    const knownKeys = new Set(skills.map((skill) => skill.name.toLowerCase()));
+    const missing = toAdd.filter(([key]) => !knownKeys.has(key)).map(([, name]) => ({ name }));
+    if (missing.length) {
+      await tx.skill.createMany({ data: missing, skipDuplicates: true });
+      skills = await findExisting();
+    }
+    const skillIdByKey = new Map<string, number>();
+    for (const skill of skills) if (!skillIdByKey.has(skill.name.toLowerCase())) skillIdByKey.set(skill.name.toLowerCase(), skill.id);
+    await tx.applicantSkill.createMany({
+      data: toAdd.map(([key]) => ({ applicantProfileId: profileId, skillId: skillIdByKey.get(key)! })),
+    });
   }
-  return { added, updated: 0, removed: removeSkillIds.length };
+  return { added: toAdd.length, updated: 0, removed: removeSkillIds.length };
 };

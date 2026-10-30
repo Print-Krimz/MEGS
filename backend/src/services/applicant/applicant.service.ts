@@ -268,21 +268,18 @@ export const deleteEducationService = async (userId: string, id: number) => {
 export const updateSkillsService = async (userId: string, skillNames: string[]) => {
   const profile = await ensureApplicantProfile(userId);
 
+  const names = [...new Set(skillNames.map((name) => name.trim().toLowerCase()))];
+
   await prisma.$transaction(async (tx) => {
     await tx.applicantSkill.deleteMany({ where: { applicantProfileId: profile.id } });
+    if (!names.length) return;
 
-    for (const name of skillNames) {
-      const normalized = name.trim().toLowerCase();
-      let skill = await tx.skill.findUnique({ where: { name: normalized } });
-      if (!skill) {
-        skill = await tx.skill.create({
-          data: { name: normalized },
-        });
-      }
-      await tx.applicantSkill.create({
-        data: { applicantProfileId: profile.id, skillId: skill.id },
-      });
-    }
+    // Three queries however many skills: add the missing names (the unique name skips existing ones), read the ids, link.
+    await tx.skill.createMany({ data: names.map((name) => ({ name })), skipDuplicates: true });
+    const skills = await tx.skill.findMany({ where: { name: { in: names } }, select: { id: true } });
+    await tx.applicantSkill.createMany({
+      data: skills.map((skill) => ({ applicantProfileId: profile.id, skillId: skill.id })),
+    });
   });
 
   queueProfileRevalidation(profile.id);
