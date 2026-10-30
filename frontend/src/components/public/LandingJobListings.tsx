@@ -83,7 +83,7 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
     if (locationQuery.trim()) params.set("location", locationQuery.trim());
     const qs = params.toString();
 
-    if (isAuthenticated && user?.role === Role.APPLICANT) {
+    if (isApplicant) {
       navigate({
         to: "/app/jobs",
         search: Object.fromEntries(params) as any,
