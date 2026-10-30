@@ -248,6 +248,14 @@ async function readableDocumentIds(
   return allowed;
 }
 
+// Signed URLs are reused for 10 minutes. They are signed for 15 minutes, so a served URL always has 5 minutes left.
+// The cache only replaces the createSignedUrls call: authorization runs on every call before any lookup.
+const SIGNED_URL_TTL_MS = 600_000;
+const SIGNED_URL_CACHE_MAX = 1000;
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+
+export const clearSignedUrlCache = (): void => signedUrlCache.clear();
+
 // Batch form of resolveDocumentSignedUrl for lists. Result is index-aligned with the requests; anything the single
 // resolver would throw for (malformed, missing, unauthorized, storage failure, bad legacy URL) becomes null.
 // One metadata query, at most two authorization queries per requester, and one createSignedUrls call per bucket.
@@ -312,15 +320,24 @@ export const resolveDocumentSignedUrls = async (
     }
   }
 
-  // Sign each distinct bucket/path once.
+  // Sign each distinct bucket/path once. Only readable documents get here; cached URLs (900 s expiry only) skip signing.
   const expiry = Math.min(900, Math.max(1, Math.trunc(expiresInSeconds) || 60));
+  const useCache = expiry === 900;
+  const now = Date.now();
+  const signed = new Map<string, string>();
   const pathsByBucket = new Map<string, Set<string>>();
   for (const { doc, key } of targets) {
     if (!readable.get(key)?.has(doc.id)) continue;
+    const cacheKey = `${doc.storageBucket}\u0000${doc.storagePath}`;
+    const hit = useCache ? signedUrlCache.get(cacheKey) : undefined;
+    if (hit && now < hit.expiresAt) {
+      signed.set(cacheKey, hit.url);
+      continue;
+    }
+    if (hit) signedUrlCache.delete(cacheKey);
     if (!pathsByBucket.has(doc.storageBucket)) pathsByBucket.set(doc.storageBucket, new Set());
     pathsByBucket.get(doc.storageBucket)!.add(doc.storagePath);
   }
-  const signed = new Map<string, string>();
   for (const [bucket, bucketPaths] of pathsByBucket) {
     const list = [...bucketPaths];
     try {
@@ -329,7 +346,13 @@ export const resolveDocumentSignedUrls = async (
       if (error || !data) continue;
       data.forEach((entry, i) => {
         const path = entry.path ?? list[i];
-        if (!entry.error && entry.signedUrl && path) signed.set(`${bucket}\u0000${path}`, entry.signedUrl);
+        if (entry.error || !entry.signedUrl || !path) return;
+        const cacheKey = `${bucket}\u0000${path}`;
+        signed.set(cacheKey, entry.signedUrl);
+        if (!useCache) return;
+        signedUrlCache.delete(cacheKey);
+        signedUrlCache.set(cacheKey, { url: entry.signedUrl, expiresAt: Date.now() + SIGNED_URL_TTL_MS });
+        if (signedUrlCache.size > SIGNED_URL_CACHE_MAX) signedUrlCache.delete(signedUrlCache.keys().next().value as string);
       });
     } catch {
       // Whole bucket failed: its rows stay null.
