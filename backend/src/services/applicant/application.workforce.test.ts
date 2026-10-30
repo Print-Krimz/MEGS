@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(), parse: vi.fn(), fill: vi.fn(), parseCount: vi.fn(), revalidate: vi.fn(), updateResume: vi.fn(),
 }));
 vi.mock("../../utils/supabase.js", () => ({ default: { storage: { from: () => ({}) } } }));
-vi.mock("../../utils/prisma.js", () => ({ default: { jobPosting: mocks.jobPosting, deployment: mocks.deployment, application: mocks.application, complianceRequirement: mocks.complianceRequirement, resumeParseResult: { count: mocks.parseCount } } }));
+vi.mock("../../utils/prisma.js", () => ({ default: { jobPosting: mocks.jobPosting, deployment: mocks.deployment, application: mocks.application, complianceRequirement: mocks.complianceRequirement, resumeParseResult: { count: mocks.parseCount }, $executeRaw: vi.fn(), $transaction: async (fn: any) => fn({ jobPosting: mocks.jobPosting, application: mocks.application, $executeRaw: vi.fn() }) } }));
 vi.mock("../../middleware/upload.middleware.js", () => ({ uploadFileToSupabase: vi.fn(), uploadFileToSupabaseWithInfo: mocks.upload }));
 vi.mock("../../utils/audit.js", () => ({ logAudit: vi.fn() }));
 vi.mock("../../utils/notification.js", () => ({ notifyJobOwner: vi.fn(async () => 0), notifyOwner: vi.fn(async () => 0), sendNotification: vi.fn(), sendRoleNotification: vi.fn() }));
