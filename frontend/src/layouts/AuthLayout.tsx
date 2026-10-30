@@ -142,6 +142,7 @@ export const AuthLayout: React.FC = () => {
                       alt={photo.alt}
                       width={480}
                       height={320}
+                      loading="lazy"
                       decoding="async"
                       className={`aspect-[4/3] w-full object-cover ${photo.pos}`}
                     />
