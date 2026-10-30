@@ -50,6 +50,29 @@ export const resetMailTransporter = (): void => {
   cachedTransporter = null;
 };
 
+// Sends handed to the pool that have not settled yet. closeMailTransporter waits on these.
+const pendingSends = new Set<Promise<unknown>>();
+
+// Short-lived processes (jobs:run) call this before exit: a pooled SMTP socket stays open for
+// minutes and would keep the process alive. pool.close() lets in-flight sends finish but fails
+// queued ones (nodemailer smtp-pool close(), "Connection pool was closed"), so wait for them first.
+export const closeMailTransporter = async (timeoutMs = 15_000): Promise<void> => {
+  const transporter = cachedTransporter;
+  if (!transporter) return;
+  if (pendingSends.size > 0) {
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([
+      Promise.allSettled([...pendingSends]),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+    clearTimeout(timer);
+  }
+  cachedTransporter = null;
+  transporter.close?.();
+};
+
 export const createMailTransporter = () => {
   const isTest = process.env.NODE_ENV === "test";
   const isLiveTest = Boolean(process.env.LIVE_EMAIL_TEST);
@@ -301,7 +324,7 @@ export const sendMail = async (
   const logo = finalHtml.includes(`cid:${LOGO_CID}`) ? getEmailLogo() : null;
 
   try {
-    const info = await transporter.sendMail({
+    const sending = Promise.resolve(transporter.sendMail({
       from,
       to,
       subject,
@@ -314,7 +337,9 @@ export const sendMail = async (
             ],
           }
         : {}),
-    });
+    }));
+    pendingSends.add(sending);
+    const info = await sending.finally(() => pendingSends.delete(sending));
 
     return { success: true, messageId: info.messageId };
   } catch (error: any) {
