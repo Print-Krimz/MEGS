@@ -125,16 +125,9 @@ export const listComplianceRequirements = async (applicationId: number) => {
     orderBy: { createdAt: "asc" },
   });
 
-  // Auto-backfill 7-day deadline for any legacy requirements that lacked one
+  // Show a 7-day deadline for legacy requirements that lack one. Read-only: the hourly compliance-checklists job persists it.
   for (const r of reqs) {
-    if (!r.deadline) {
-      const autoDeadline = new Date(r.createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
-      r.deadline = autoDeadline;
-      void prisma.complianceRequirement.update({
-        where: { id: r.id },
-        data: { deadline: autoDeadline },
-      }).catch(() => {});
-    }
+    if (!r.deadline) r.deadline = new Date(r.createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
   }
 
   return reqs;

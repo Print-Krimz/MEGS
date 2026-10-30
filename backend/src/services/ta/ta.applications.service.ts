@@ -600,7 +600,7 @@ export const listTAApplications = async (
   };
 };
 
-export const getTAApplication = async (id: number, options: { generateRequirements?: boolean } = {}) => {
+export const getTAApplication = async (id: number) => {
   const application = await prisma.application.findUnique({
     where: { id },
     include: {
@@ -698,22 +698,6 @@ export const getTAApplication = async (id: number, options: { generateRequiremen
   });
 
   if (!application) throw new Error("Application not found");
-
-  // Opening an application normally fills in its requirements checklist. Read-only callers (Admin) skip that write.
-  if (
-    options.generateRequirements !== false &&
-    application.status === "COMPLIANCE" &&
-    (!application.complianceRequirements || application.complianceRequirements.length === 0)
-  ) {
-    try {
-      const generated = await generateComplianceRequirementsFromMRF(application.id);
-      if (generated?.length) {
-        application.complianceRequirements = generated as any;
-      }
-    } catch {
-      // Safe fallback
-    }
-  }
 
   // Compute fallback 7-day SLA deadline in-memory for any legacy requirements lacking one
   if (application.complianceRequirements?.length) {

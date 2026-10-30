@@ -8,7 +8,7 @@ const fail = (res: Response, error: any) => sendError(res, error.message, error.
 // GET /api/admin/applications/:id - read-only application detail for oversight links
 export const getAdminApplicationHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    sendSuccess(res, "Application retrieved", await getTAApplication(Number(req.params.id), { generateRequirements: false }));
+    sendSuccess(res, "Application retrieved", await getTAApplication(Number(req.params.id)));
   } catch (error: any) {
     fail(res, error);
   }
