@@ -10,6 +10,7 @@ import { plural } from "../../../lib/plural";
 import type { Application } from "../../../lib/types";
 import type { WorkExperience, Education } from "../../../lib/types/applicant.types";
 import type { TAApplicationSearch } from "../../../routes";
+import { educationTitle } from "../application/StandardAtsResume";
 import type { ApplicationFlags } from "../application/stage-actions";
 
 const MONTH_MS = 1000 * 60 * 60 * 24 * 30.44;
@@ -48,8 +49,10 @@ const jobLine = (job: WorkExperience) => {
   return `${job.roleTitle} · ${job.company} · ${monthYear(job.startDate)} to ${end}`;
 };
 
-const educationLine = (education: Education) =>
-  [education.degree, education.fieldOfStudy].filter(Boolean).join(", ") + (education.degree || education.fieldOfStudy ? " · " : "") + education.school;
+const educationLine = (education: Education) => {
+  const title = educationTitle(education);
+  return title ? `${title} · ${education.school}` : education.school;
+};
 
 const Fact: React.FC<{ label: string; children: React.ReactNode; wide?: boolean }> = ({ label, children, wide }) => (
   <div className={cn("min-w-0", wide && "col-span-2")}>

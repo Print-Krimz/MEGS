@@ -53,14 +53,15 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
   </section>
 );
 
-/** The stored profile as a plain, single-column resume. Only stored data is shown. */
-function educationTitle(e: any): string {
+/** Degree plus field of study, skipping an empty, "General" or already-contained field. */
+export function educationTitle(e: { degree?: string | null; fieldOfStudy?: string | null }): string {
   const degree = (e.degree ?? "").trim();
   const field = (e.fieldOfStudy ?? "").trim();
   const skipField = !field || field.toLowerCase() === "general" || degree.toLowerCase().includes(field.toLowerCase());
   return [degree, skipField ? "" : field].filter(Boolean).join(", ");
 }
 
+/** The stored profile as a plain, single-column resume. Only stored data is shown. */
 export const StandardAtsResume: React.FC<StandardAtsResumeProps> = ({ profile, email, reference, requirements = [], showContact, preparedOn }) => {
   const name = [profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ");
   const place = [profile?.city, profile?.province].filter(Boolean).join(", ");
