@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi, type MRFFileField, type MRFFileReading } from "../../lib/api/ta.api";
@@ -714,11 +715,18 @@ export const MRFCreatePage: React.FC = () => {
                 type="file"
                 accept={MRF_FILE_ACCEPT}
                 aria-describedby="mrf-file-help"
+                disabled={fileState === "reading"}
+                aria-busy={fileState === "reading"}
                 onChange={(e) => handleMRFFileChange(e.target.files?.[0] ?? null)}
                 className="block w-full min-h-11 md:min-h-10 rounded-md border border-slate-300 bg-white text-sm text-slate-900 transition-colors hover:border-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 file:mr-3 file:h-full file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-800"
               />
               <p id="mrf-file-help" role="status" className="text-xs text-slate-600">
-                {fileState === "reading" && "Reading the file…"}
+                {fileState === "reading" && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                    Reading the file…
+                  </span>
+                )}
                 {fileState === "filled" && "Filled from the file. Check every field before creating the request."}
                 {fileState === "nothing" && "Nothing new to fill in."}
                 {fileState === "unreadable" && "Couldn't read this file. Enter the details manually."}

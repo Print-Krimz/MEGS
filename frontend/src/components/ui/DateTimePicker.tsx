@@ -198,6 +198,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   const [isOpen, setIsOpen] = useState(false);
   const [clockNow, setClockNow] = useState(() => new Date());
@@ -208,6 +209,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
     refreshClock();
     const interval = window.setInterval(refreshClock, 1_000);
     return () => window.clearInterval(interval);
+  }, [isOpen]);
+
+  // Bring the popover into view when it opens inside a scrolling dialog body.
+  useEffect(() => {
+    if (isOpen) popoverRef.current?.scrollIntoView?.({ block: "nearest" });
   }, [isOpen]);
 
   // Normalize minDate start of day for strict past date disabling
@@ -628,6 +634,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       {isOpen && !disabled && (
         <div
           id={popoverId}
+          ref={popoverRef}
           role="dialog"
           aria-label="Date and time picker"
           className="absolute z-[70] left-0 mt-1 w-full max-w-[460px] bg-white border border-slate-300 shadow-xl rounded-md font-sans text-xs animate-fade-in overflow-hidden"

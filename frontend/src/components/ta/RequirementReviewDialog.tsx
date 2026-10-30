@@ -100,7 +100,7 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
   const loadFrom = (req?: ReviewableRequirement | null) => {
     setSelectedId(req?.id ?? null);
     setDecision(initialDecision(req));
-    setNotes(req?.reviewNotes || "");
+    setNotes(initialDecision(req) ? req?.reviewNotes || "" : "");
     setIssuedAt(req?.issuedAt?.slice(0, 10) || "");
     setExpiresAt(req?.expiresAt?.slice(0, 10) || "");
     setValidity(req?.validityStatus || "UNKNOWN");
