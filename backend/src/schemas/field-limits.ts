@@ -156,6 +156,16 @@ export const optionalSafeText = (label = "Field", max: number = FIELD_LIMITS.sho
       return !/[\r\n]/.test(val) && !/[{}<>;=`~$^*|\\]/.test(val) && !isCodeOrScriptText(val);
     }, `${label} contains invalid characters or code`);
 
+const hasLetter = (val: string) => /\p{L}/u.test(val);
+const LETTERS_MESSAGE = "Use letters, not only numbers.";
+
+// Safe text that must also contain at least one letter (rejects entries like "123123").
+export const safeLetterTextSchema = (label = "Field", max: number = FIELD_LIMITS.shortText) =>
+  safeTextSchema(label, max).refine(hasLetter, LETTERS_MESSAGE);
+
+export const optionalSafeLetterText = (label = "Field", max: number = FIELD_LIMITS.shortText) =>
+  optionalSafeText(label, max).refine((val) => !val || hasLetter(val), LETTERS_MESSAGE);
+
 export const safeAddressSchema = (label = "Address") =>
   z
     .string()

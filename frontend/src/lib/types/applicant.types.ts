@@ -155,7 +155,7 @@ export interface AddWorkExperienceDto {
 export interface AddEducationDto {
   school: string;
   degree: string;
-  fieldOfStudy: string;
+  fieldOfStudy?: string;
   startDate: string;
   endDate?: string | null;
   notes?: string;

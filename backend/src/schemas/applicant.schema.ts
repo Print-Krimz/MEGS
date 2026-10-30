@@ -14,6 +14,8 @@ import {
   optionalPersonNameSchema,
   safeTextSchema,
   optionalSafeText,
+  safeLetterTextSchema,
+  optionalSafeLetterText,
   safeAddressSchema,
   optionalSafeAddress,
   safeProseSchema,
@@ -126,8 +128,8 @@ export const applicantSchema = {
   }),
   addWorkExperience: z.object({
     body: z.object({
-      company: safeTextSchema("Company", FIELD_LIMITS.shortText),
-      title: safeTextSchema("Title", FIELD_LIMITS.shortText),
+      company: safeLetterTextSchema("Company", FIELD_LIMITS.shortText),
+      title: safeLetterTextSchema("Title", FIELD_LIMITS.shortText),
       location: optionalSafeText("Location", FIELD_LIMITS.shortText),
       startDate: nonFutureDate,
       endDate: nonFutureDate.optional().nullable(),
@@ -142,10 +144,10 @@ export const applicantSchema = {
   }),
   addEducation: z.object({
     body: z.object({
-      school: safeTextSchema("School", FIELD_LIMITS.shortText),
-      institution: optionalSafeText("Institution", FIELD_LIMITS.shortText),
-      degree: safeTextSchema("Degree", FIELD_LIMITS.shortText),
-      field: safeTextSchema("Field of study", FIELD_LIMITS.shortText),
+      school: safeLetterTextSchema("School", FIELD_LIMITS.shortText),
+      institution: optionalSafeLetterText("Institution", FIELD_LIMITS.shortText),
+      degree: safeLetterTextSchema("Degree", FIELD_LIMITS.shortText),
+      field: optionalSafeLetterText("Field of study", FIELD_LIMITS.shortText),
       startDate: nonFutureDate,
       endDate: dateOnly.optional().nullable(),
       notes: optionalSafeProse("Notes", FIELD_LIMITS.notes),
@@ -159,8 +161,8 @@ export const applicantSchema = {
   }),
   addTraining: z.object({
     body: z.object({
-      title: safeTextSchema("Title", FIELD_LIMITS.shortText),
-      provider: safeTextSchema("Provider", FIELD_LIMITS.shortText),
+      title: safeLetterTextSchema("Title", FIELD_LIMITS.shortText),
+      provider: safeLetterTextSchema("Provider", FIELD_LIMITS.shortText),
       completionDate: nonFutureDate.optional().nullable(),
       certificateNo: optionalSafeText("Certificate Number", FIELD_LIMITS.label),
       notes: optionalSafeProse("Notes", FIELD_LIMITS.notes),

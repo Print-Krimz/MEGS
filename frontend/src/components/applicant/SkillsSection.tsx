@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { formatSkillName } from "../../lib/profile-health";
+import { parseSkillsArray } from "../../lib/mrf-presets";
 import { Button, Input } from "../ui";
 import { Plus, X } from "lucide-react";
 
 interface SkillsSectionProps {
   skills: string[];
-  onAddSkill: (skill: string) => void;
+  onAddSkill: (skills: string[]) => void;
   onRemoveSkill: (skill: string) => void;
   isUpdating?: boolean;
   showHeader?: boolean;
@@ -36,11 +37,16 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
   const [inputValue, setInputValue] = useState("");
 
   const handleAdd = () => {
-    if (!inputValue.trim()) return;
-    const formatted = formatSkillName(inputValue.trim());
-    if (!skills.some((s) => s.toLowerCase() === formatted.toLowerCase())) {
-      onAddSkill(formatted);
-    }
+    const seen = new Set(skills.map((s) => s.toLowerCase()));
+    const fresh = parseSkillsArray(inputValue)
+      .map(formatSkillName)
+      .filter((skill) => {
+        const key = skill.toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    if (fresh.length > 0) onAddSkill(fresh);
     setInputValue("");
   };
 
@@ -95,7 +101,7 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
               <button
                 key={suggestion}
                 type="button"
-                onClick={() => onAddSkill(suggestion)}
+                onClick={() => onAddSkill([suggestion])}
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-sans bg-[#F7F9FC] hover:bg-[#EAF0F7] border border-[#D9E2EC] hover:border-[#0B315D]/40 text-[#102A43] hover:text-[#0B315D] rounded-md transition-colors cursor-pointer"
               >
                 <span>+ {suggestion}</span>

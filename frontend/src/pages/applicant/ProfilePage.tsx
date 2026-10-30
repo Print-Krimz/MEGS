@@ -139,6 +139,16 @@ export function formatTINNumber(raw: string): string {
   return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 9)}-${digits.slice(9, 12)}`;
 }
 
+// Non-empty text with no letter (e.g. "12345") is rejected; empty values are left to each field's own required check.
+const lettersOnlyErrors = (values: Record<string, FormDataEntryValue | null>): Record<string, string> => {
+  const errors: Record<string, string> = {};
+  for (const [key, value] of Object.entries(values)) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (text && !/\p{L}/u.test(text)) errors[key] = "Use letters, not only numbers.";
+  }
+  return errors;
+};
+
 const withoutKey = (errors: Record<string, string>, key: string): Record<string, string> => {
   if (!(key in errors)) return errors;
   const next = { ...errors };
@@ -609,7 +619,7 @@ export const ProfilePage: React.FC = () => {
   });
 
   const addEduMutation = useMutation({
-    mutationFn: async (payload: { school: string; degree: string; fieldOfStudy: string; startDate: string; endDate?: string; notes?: string; previousId?: number | string }) => {
+    mutationFn: async (payload: { school: string; degree: string; fieldOfStudy?: string; startDate: string; endDate?: string; notes?: string; previousId?: number | string }) => {
       const saved = await applicantApi.addEducation(payload);
       if (payload.previousId) {
         await applicantApi.deleteEducation(payload.previousId);
@@ -798,6 +808,11 @@ export const ProfilePage: React.FC = () => {
     const isCurrent = formData.get("isCurrent") === "on";
     // A current role has no end date, so any end date is ignored and not sent
     const endDate = isCurrent ? "" : (formData.get("endDate") as string);
+    const expLetterErrors = lettersOnlyErrors({ title: formData.get("jobTitle"), company: formData.get("companyName") });
+    if (Object.keys(expLetterErrors).length > 0) {
+      setExpErrors(expLetterErrors);
+      return;
+    }
     if (startDate && endDate && endDate < startDate) {
       setExpErrors({ endDate: "End date can't be before the start date." });
       return;
@@ -820,6 +835,15 @@ export const ProfilePage: React.FC = () => {
     const formData = new FormData(e.currentTarget);
     const startDate = formData.get("startDate") as string;
     const endDate = formData.get("endDate") as string;
+    const eduLetterErrors = lettersOnlyErrors({
+      school: formData.get("schoolName"),
+      degree: formData.get("degree"),
+      field: formData.get("fieldOfStudy"),
+    });
+    if (Object.keys(eduLetterErrors).length > 0) {
+      setEduErrors(eduLetterErrors);
+      return;
+    }
     if (!startDate) {
       setEduErrors({ startDate: "Start date is required." });
       return;
@@ -832,7 +856,7 @@ export const ProfilePage: React.FC = () => {
     addEduMutation.mutate({
       school: formData.get("schoolName") as string,
       degree: formData.get("degree") as string,
-      fieldOfStudy: (formData.get("fieldOfStudy") as string) || "General",
+      fieldOfStudy: (formData.get("fieldOfStudy") as string) || undefined,
       startDate,
       endDate: endDate || undefined,
       notes: (formData.get("notes") as string) || undefined,
@@ -844,6 +868,12 @@ export const ProfilePage: React.FC = () => {
   const handleSaveTraining = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const trainingLetterErrors = lettersOnlyErrors({ title: formData.get("title"), provider: formData.get("issuer") });
+    if (Object.keys(trainingLetterErrors).length > 0) {
+      setTrainingErrors(trainingLetterErrors);
+      return;
+    }
+    setTrainingErrors({});
     addTrainingMutation.mutate({
       title: formData.get("title") as string,
       provider: formData.get("issuer") as string,
@@ -867,10 +897,9 @@ export const ProfilePage: React.FC = () => {
   };
 
   // Skills add / remove
-  const handleAddSkill = (newSkill: string) => {
-    if (!newSkill.trim()) return;
-    if (skillsList.some((s) => s.toLowerCase() === newSkill.trim().toLowerCase())) return;
-    const updated = [...skillsList, newSkill.trim()];
+  const handleAddSkill = (newSkills: string[]) => {
+    if (newSkills.length === 0) return;
+    const updated = [...skillsList, ...newSkills];
     setSkillsList(updated);
     updateSkillsMutation.mutate(updated);
   };

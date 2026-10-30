@@ -44,7 +44,7 @@ export const applicantApi = {
     api.post<Education>("/api/applicants/profile/education", {
       school: data.school,
       degree: data.degree,
-      field: data.fieldOfStudy || "General",
+      field: data.fieldOfStudy || undefined,
       startDate: data.startDate,
       endDate: data.endDate,
       notes: data.notes,
