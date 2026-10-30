@@ -88,7 +88,7 @@ const FactValue: React.FC<{ fact: RecordSummaryFact }> = ({ fact }) => {
   }
   return (
     <span className="flex min-w-0 items-center gap-1">
-      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{content}</span>
+      <span className="min-w-0 wrap-anywhere">{content}</span>
       {fact.copyValue ? <CopyButton label={fact.label} text={fact.copyValue} /> : null}
     </span>
   );

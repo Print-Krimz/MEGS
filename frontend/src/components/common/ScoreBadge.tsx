@@ -15,10 +15,12 @@ const DEFAULT_THRESHOLD = 60;
 export type ScoreBand = "high" | "near" | "low";
 
 /** High meets the recommend threshold, near is within 25 points below it, low is further away. */
+// oxlint-disable-next-line react/only-export-components -- pure helper shared with the redeployment tags
 export const scoreBand = (score: number, threshold: number): ScoreBand =>
   score >= threshold ? "high" : score >= threshold - NEAR_MARGIN ? "near" : "low";
 
 /** The configured recommend threshold, the same one ScoreBadge uses. */
+// oxlint-disable-next-line react/only-export-components -- hook shares the badge threshold lookup
 export const useMatchThreshold = (threshold?: number) => {
   const { data: config } = useGlobalConfig();
   return threshold ?? config?.matchThreshold ?? config?.MATCH_THRESHOLD ?? DEFAULT_THRESHOLD;
