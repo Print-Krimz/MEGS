@@ -12,26 +12,6 @@ export interface ScheduledJob {
 }
 
 // Fixed key for pg_try_advisory_xact_lock. Any number works as long as nothing else uses it.
-/**
- * Candidate detail is read-only, so this job fills in what opening it used to write: a requirements checklist
- * for COMPLIANCE applications that have none (notifying the applicant, as that first creation always did), and
- * the 7-day deadline on legacy requirements that lack one.
- */
-export const ensureComplianceChecklists = async (): Promise<Record<string, unknown>> => {
-  const pending = await prisma.application.findMany({
-    where: { status: "COMPLIANCE", isArchived: false, complianceRequirements: { none: {} } },
-    select: { id: true },
-    take: 50,
-  });
-  let checklistsCreated = 0;
-  for (const { id } of pending) {
-    const created = await generateComplianceRequirementsFromMRF(id);
-    if (created?.length) checklistsCreated += 1;
-  }
-  const deadlinesBackfilled = await prisma.$executeRaw`UPDATE "ComplianceRequirement" SET "deadline" = "createdAt" + interval '7 days' WHERE "deadline" IS NULL`;
-  return { checklistsCreated, deadlinesBackfilled };
-};
-
 export const SCHEDULED_JOBS_LOCK_KEY = 48_120_001;
 
 export const STALE_ANALYSIS_MINUTES = 30;
@@ -59,6 +39,34 @@ export const reconcileStaleResumeAnalysis = async (now: Date = new Date()): Prom
     },
   });
   return { staleAnalysisMarked: count };
+};
+
+/**
+ * Candidate detail is read-only, so this job fills in what opening it used to write: a requirements checklist
+ * for COMPLIANCE applications that have none (notifying the applicant, as that first creation always did), and
+ * the 7-day deadline on legacy requirements that lack one. One failing application is logged and counted so it
+ * cannot fail the whole job or skip the deadline backfill.
+ */
+export const ensureComplianceChecklists = async (): Promise<Record<string, unknown>> => {
+  const pending = await prisma.application.findMany({
+    where: { status: "COMPLIANCE", isArchived: false, complianceRequirements: { none: {} } },
+    select: { id: true },
+    orderBy: { id: "asc" },
+    take: 50,
+  });
+  let checklistsCreated = 0;
+  let failures = 0;
+  for (const { id } of pending) {
+    try {
+      const created = await generateComplianceRequirementsFromMRF(id);
+      if (created?.length) checklistsCreated += 1;
+    } catch (error) {
+      failures += 1;
+      safeLogError(`Compliance checklist for application ${id}`, error);
+    }
+  }
+  const deadlinesBackfilled = await prisma.$executeRaw`UPDATE "ComplianceRequirement" SET "deadline" = "createdAt" + interval '7 days' WHERE "deadline" IS NULL`;
+  return { checklistsCreated, failures, deadlinesBackfilled };
 };
 
 export const SCHEDULED_JOBS: ScheduledJob[] = [

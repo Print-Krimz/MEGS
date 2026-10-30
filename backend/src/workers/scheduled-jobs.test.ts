@@ -97,11 +97,23 @@ describe("compliance checklist sweep", () => {
     expect(mocks.findMany).toHaveBeenCalledWith({
       where: { status: "COMPLIANCE", isArchived: false, complianceRequirements: { none: {} } },
       select: { id: true },
+      orderBy: { id: "asc" },
       take: 50,
     });
     expect(mocks.generate).toHaveBeenCalledTimes(1);
     expect(mocks.generate).toHaveBeenCalledWith(5);
     expect(result).toMatchObject({ checklistsCreated: 1 });
+  });
+
+  it("compliance-checklists continues past a failing application and still backfills deadlines", async () => {
+    mocks.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+    mocks.generate.mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce([{ id: 9 }]);
+    const result = await ensureComplianceChecklists();
+    expect(mocks.generate).toHaveBeenCalledTimes(2);
+    expect(mocks.generate).toHaveBeenNthCalledWith(1, 1);
+    expect(mocks.generate).toHaveBeenNthCalledWith(2, 2);
+    expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ checklistsCreated: 1, failures: 1 });
   });
 
   it("compliance-checklists backfills null deadlines", async () => {
