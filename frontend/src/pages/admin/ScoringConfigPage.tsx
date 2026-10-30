@@ -91,7 +91,7 @@ export const ScoringConfigPage: React.FC = () => {
     onError: (err: any) => {
       const message = err instanceof ApiError && err.status === 409
         ? "Someone else changed these settings. Reload the page and try again."
-        : formatErrorMessage(err) || "We couldn't save the matching settings. Please try again.";
+        : formatErrorMessage(err);
       setFeedback({ type: "error", message });
       notify.error("Couldn't save matching settings", message);
     },
@@ -270,7 +270,7 @@ export const ScoringConfigPage: React.FC = () => {
                       id={`${metric.id}-weight-number`}
                       aria-describedby="scoring-weight-help"
                       value={drafts[metric.key] ?? String(weights[metric.key])}
-                      onKeyDown={(e) => { if (["-", ".", "e", "E", "+", ","].includes(e.key)) e.preventDefault(); }}
+                      onKeyDown={blockNonDigits}
                       onChange={(e) => {
                         if (e.target.value === "") {
                           setDrafts((current) => ({ ...current, [metric.key]: "" }));
@@ -367,24 +367,24 @@ export const ScoringConfigPage: React.FC = () => {
                    label="Results shown by default"
                   type="number"
                   min={1}
-                  max={50}
+                  max={100}
                   step={1}
                   value={defaultK}
                   required
                   onKeyDown={blockNonDigits}
-                  onChange={(e) => { if (e.target.value !== "") setDefaultK(clampInt(Number(e.target.value), 1, 100)); }}
+                  onChange={(e) => { if (e.target.value !== "") setDefaultK(Math.min(100, Math.round(Number(e.target.value)))); }}
                 />
                 <Input
                    label="Maximum results"
                   type="number"
-                  min={10}
+                  min={1}
                   max={100}
                   step={1}
                   value={maximumK}
                   error={defaultK > maximumK ? "Maximum results must be at least the default count." : undefined}
                   required
                   onKeyDown={blockNonDigits}
-                  onChange={(e) => { if (e.target.value !== "") setMaximumK(clampInt(Number(e.target.value), 1, 100)); }}
+                  onChange={(e) => { if (e.target.value !== "") setMaximumK(Math.min(100, Math.round(Number(e.target.value)))); }}
                 />
                 <Input
                    label="Lowest accepted similarity (0–1)"

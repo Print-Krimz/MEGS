@@ -68,6 +68,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         setNonNumericTyped(false);
       }
     }, [numericPropValue]);
+    // When the parent caps the value at max, drop typed digits above it so the box matches the stored value.
+    useEffect(() => {
+      if (!isNumber || numericDraft === null || max === undefined || numericDraft === "") return;
+      if (Number(numericDraft) > Number(max) && numericPropValue !== "" && Number(numericPropValue) === Number(max)) {
+        setNumericDraft(null);
+      }
+    }, [isNumber, numericDraft, numericPropValue, max]);
     const rawNumber = numericDraft ?? numericPropValue;
     const stepText = String(step ?? "1");
     const decimalPlaces = stepText === "any" ? 6 : (stepText.split(".")[1]?.length ?? 0);
