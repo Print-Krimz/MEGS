@@ -6,7 +6,11 @@ import { Role } from "../../lib/types/enums";
 import { scrollToSection } from "../../lib/scrollToSection";
 import { Button } from "@/components/shadcn/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger, SheetClose } from "@/components/shadcn/sheet";
+import { warmTurnstile } from "../common/turnstile-script";
 import { EASE_OUT, m, useReducedMotion } from "./motion";
+
+// Start loading the Turnstile script as soon as a visitor heads for the auth pages.
+const warmAuth = { onPointerEnter: warmTurnstile, onFocus: warmTurnstile, onTouchStart: warmTurnstile };
 
 export const LandingHeader: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -181,10 +185,10 @@ export const LandingHeader: React.FC = () => {
             ) : (
               <>
                 <Button asChild variant="ghost" className={buttonMotion}>
-                  <Link to="/login">Log in</Link>
+                  <Link to="/login" {...warmAuth}>Log in</Link>
                 </Button>
                 <Button asChild className={`hover:shadow-md ${buttonMotion}`}>
-                  <Link to="/register">Create account</Link>
+                  <Link to="/register" {...warmAuth}>Create account</Link>
                 </Button>
               </>
             )}
@@ -193,7 +197,7 @@ export const LandingHeader: React.FC = () => {
           <div className="flex shrink-0 items-center gap-1 sm:gap-2 min-[1140px]:hidden">
             {!isAuthenticated && (
               <Button asChild variant="ghost" className={`px-3 sm:hidden ${buttonMotion}`}>
-                <Link to="/login">Log in</Link>
+                <Link to="/login" {...warmAuth}>Log in</Link>
               </Button>
             )}
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
@@ -252,10 +256,10 @@ export const LandingHeader: React.FC = () => {
                   ) : (
                     <>
                       <Button asChild size="lg" className={buttonMotion}>
-                        <Link to="/register" onClick={() => setIsMobileMenuOpen(false)}>Create account</Link>
+                        <Link to="/register" {...warmAuth} onClick={() => setIsMobileMenuOpen(false)}>Create account</Link>
                       </Button>
                       <Button asChild size="lg" variant="outline" className={buttonMotion}>
-                        <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>Log in</Link>
+                        <Link to="/login" {...warmAuth} onClick={() => setIsMobileMenuOpen(false)}>Log in</Link>
                       </Button>
                     </>
                   )}
