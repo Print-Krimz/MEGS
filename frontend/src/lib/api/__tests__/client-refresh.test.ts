@@ -194,11 +194,32 @@ describe("API Client - silent token refresh", () => {
       }
     });
 
+    it("never sends a request under a session that changed during the refresh", async () => {
+      localStorage.setItem("access_token", jwt(inSeconds(5)));
+      let release: (v: unknown) => void = () => {};
+      const sent: string[] = [];
+      const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+        if (url.endsWith("/api/auth/refresh")) return new Promise((r) => { release = r; });
+        sent.push((init.headers as Record<string, string>).Authorization);
+        return ok({ n: 1 });
+      });
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      const pending = Promise.allSettled([apiRequest("/api/a"), apiRequestBlob("/api/b")]);
+      await new Promise((r) => setTimeout(r, 5));
+      localStorage.setItem("access_token", "b-access");
+      bumpSessionGeneration();
+      release(ok({ access_token: "late", refresh_token: "late" }));
+
+      const results = await pending;
+      expect(results.map((r) => r.status)).toEqual(["rejected", "rejected"]);
+      expect(sent).toEqual([]);
+      expect(localStorage.getItem("access_token")).toBe("b-access");
+    });
+
     it("a failed proactive refresh keeps the 401 path and does not loop", async () => {
       localStorage.setItem("access_token", jwt(inSeconds(5)));
-      const fetchMock = vi.fn(async (url: string) =>
-        unauthorized()
-      );
+      const fetchMock = vi.fn(async () => unauthorized());
       globalThis.fetch = fetchMock as unknown as typeof fetch;
 
       await expect(apiRequest("/api/me")).rejects.toBeInstanceOf(ApiError);

@@ -98,6 +98,7 @@ export async function apiRequest<T>(
   options?: RequestInit,
   _retried = false
 ): Promise<T> {
+  const generation = getSessionGeneration();
   const headers: Record<string, string> = {
     ...(options?.headers as Record<string, string>),
   };
@@ -118,8 +119,8 @@ export async function apiRequest<T>(
     const refreshing = refreshIfExpiring();
     if (refreshing) await refreshing;
   }
-  // Read after the refresh so the generation and token describe the same session.
-  const generation = getSessionGeneration();
+  // A session that changed during the refresh must not send this request under the new one.
+  if (generation !== getSessionGeneration()) throw new DOMException("Session changed", "AbortError");
   const token = localStorage.getItem("access_token");
 
   // Only inject localStorage token if NO explicit Authorization header was passed and path is not public/isolated auth
@@ -212,9 +213,10 @@ export async function apiRequestBlob(
   options?: RequestInit,
   _retried = false
 ): Promise<Blob> {
+  const generation = getSessionGeneration();
   const refreshing = _retried ? undefined : refreshIfExpiring();
   if (refreshing) await refreshing;
-  const generation = getSessionGeneration();
+  if (generation !== getSessionGeneration()) throw new DOMException("Session changed", "AbortError");
   const token = localStorage.getItem("access_token");
 
   const headers: Record<string, string> = {
