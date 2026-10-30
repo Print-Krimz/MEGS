@@ -200,8 +200,6 @@ export interface SignedContractDialogProps {
   linkedClientName: string;
   site: string;
   initialStartDate: string;
-  onDownloadTemplate: (startDate: string) => void;
-  isDownloading?: boolean;
   onSubmit: (values: { startDate: string }) => void;
   isSubmitting?: boolean;
 }
@@ -214,8 +212,6 @@ export const SignedContractDialog: React.FC<SignedContractDialogProps> = ({
   linkedClientName,
   site,
   initialStartDate,
-  onDownloadTemplate,
-  isDownloading = false,
   onSubmit,
   isSubmitting = false,
 }) => {
@@ -235,7 +231,7 @@ export const SignedContractDialog: React.FC<SignedContractDialogProps> = ({
       open={open}
       onClose={onClose}
       title="Deploy applicant"
-      description={`Confirm that ${candidateName} signed the contract. Saving it deploys the candidate.`}
+      description={`Set the first working date of ${candidateName}. Saving it deploys the applicant.`}
     >
       <div className="space-y-5">
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
@@ -256,12 +252,6 @@ export const SignedContractDialog: React.FC<SignedContractDialogProps> = ({
           onChange={(e) => setStartDate(e.target.value)}
           required
         />
-
-        <div className="border-t border-slate-100 pt-3">
-          <Button variant="outline" size="sm" disabled={!startDate} loading={isDownloading} onClick={() => onDownloadTemplate(startDate)}>
-            Download contract to print (rate left blank)
-          </Button>
-        </div>
 
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
           <Button variant="outline" size="sm" onClick={onClose}>

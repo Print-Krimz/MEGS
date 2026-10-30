@@ -392,7 +392,7 @@ export const taSchema = {
     params: z.object({ id: boundedIdText }),
     query: z.object({ startDate: dateOnly.optional() }).strict(),
   }),
-  uploadSignedContract: z.object({
+  deployApplicant: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({ startDate: dateOnly }),
   }),

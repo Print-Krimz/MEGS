@@ -15,7 +15,8 @@ import {
   restoreTAApplication,
   getRecruiterDecisionsService,
   getContractPdf,
-  recordSignedContract,
+  confirmContractSigned,
+  deploySignedApplicant,
 } from '../../services/ta/ta.applications.service.js';
 import { isPhilippinePhone, normalizeToE164, normalizeToLocal, phoneVariants, toSyntheticEmail } from '../../utils/sms.js';
 import { findDuplicateIdentifierWarnings } from '../../services/ta/duplicate-identifiers.js';
@@ -236,8 +237,23 @@ export const downloadContractPdfHandler = async (req: Request, res: Response): P
   }
 };
 
-// POST /api/ta/applications/:id/contract/signed - Confirm the contract is signed and deploy
-export const uploadSignedContractHandler = async (req: Request, res: Response): Promise<void> => {
+// POST /api/ta/applications/:id/contract/signed - The applicant signed the contract (deploying is the next step)
+export const confirmContractSignedHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) {
+      sendError(res, "Invalid application ID", 400);
+      return;
+    }
+    const updated = await confirmContractSigned(id, req.user!.id);
+    sendSuccess(res, "Contract signing confirmed", updated);
+  } catch (error: any) {
+    sendError(res, error.message, contractStatusCode(error.message));
+  }
+};
+
+// POST /api/ta/applications/:id/contract/deploy - Deploy an applicant whose contract signing was confirmed
+export const deployApplicantHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
     if (isNaN(id)) {
@@ -245,8 +261,8 @@ export const uploadSignedContractHandler = async (req: Request, res: Response): 
       return;
     }
     const { startDate } = req.body || {};
-    const updated = await recordSignedContract(id, { startDate }, req.user!.id);
-    sendSuccess(res, "Contract signed and candidate deployed", updated);
+    const updated = await deploySignedApplicant(id, { startDate }, req.user!.id);
+    sendSuccess(res, "Candidate deployed", updated);
   } catch (error: any) {
     sendError(res, error.message, contractStatusCode(error.message));
   }

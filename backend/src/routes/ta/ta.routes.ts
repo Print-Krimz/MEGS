@@ -30,7 +30,8 @@ import {
   restoreApplication,
   getRecruiterDecisionsHandler,
   downloadContractPdfHandler,
-  uploadSignedContractHandler,
+  confirmContractSignedHandler,
+  deployApplicantHandler,
   updateCandidateProfileHandler,
 } from '../../controllers/ta/ta.applications.controller.js';
 import {
@@ -245,7 +246,8 @@ router.post("/bulk/invitations/cancel", validate(taSchema.bulkCancelInvitations)
 router.post("/bulk/deployments/confirm-start", validate(taSchema.bulkConfirmDeploymentStart), bulkConfirmDeploymentStartHandler);
 router.post("/bulk/deployments/end", validate(taSchema.bulkEndDeployments), bulkEndDeploymentsHandler);
 router.get("/applications/:id/contract/pdf", validate(taSchema.downloadContractPdf), requireOwned("application"), downloadContractPdfHandler);
-router.post("/applications/:id/contract/signed", validate(taSchema.uploadSignedContract), requireOwned("application"), uploadSignedContractHandler);
+router.post("/applications/:id/contract/signed", validate(taSchema.idParams), requireOwned("application"), confirmContractSignedHandler);
+router.post("/applications/:id/contract/deploy", validate(taSchema.deployApplicant), requireOwned("application"), deployApplicantHandler);
 
 // Client Endorsement
 router.post("/applications/:id/endorse", validate(taSchema.endorseCandidate), requireOwned("application"), recordEndorsementHandler);

@@ -13,14 +13,13 @@ export type RecordFeedback = { type: "success" | "error"; message: string } | nu
 interface Options {
   applicationId: string;
   status?: ApplicationStatus;
-  candidateName: string;
 }
 
 /**
  * Every write the application record can make, with the same payloads, cache updates and messages
  * the page used before it was split. Dialogs close themselves through the per-call `onSuccess` option.
  */
-export function useApplicationMutations({ applicationId, status, candidateName }: Options) {
+export function useApplicationMutations({ applicationId, status }: Options) {
   const queryClient = useQueryClient();
   const [feedback, setFeedback] = useState<RecordFeedback>(null);
 
@@ -81,26 +80,21 @@ export function useApplicationMutations({ applicationId, status, candidateName }
     },
   });
 
-  // Optional printable copy with the name, position and start date filled in; the rate is written by hand.
-  const downloadContract = useMutation({
-    mutationFn: (startDate: string) => taApi.downloadContractPdf(applicationId, startDate),
-    onSuccess: (blob: Blob) => {
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `MEGS-Contract-${candidateName.replace(/\s+/g, "-")}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(link);
+  // The applicant signed the contract. Deploying is the next step.
+  const confirmContractSigned = useMutation({
+    mutationFn: () => taApi.confirmContractSigned(applicationId),
+    onSuccess: () => {
+      refreshApplicationQueries();
+      setFeedback({ type: "success", message: "The contract signing is confirmed. You can now deploy the applicant." });
+      notify.success("Contract signed", "The contract signing is confirmed. You can now deploy the applicant.");
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to prepare the printable contract. " + formatErrorMessage(err) });
-      notify.error("Unable to prepare contract", err);
+      setFeedback({ type: "error", message: "Unable to confirm the contract signing. " + formatErrorMessage(err) });
+      notify.error("Unable to confirm contract signing", err);
     },
   });
 
-  // Confirming the signed contract records it and deploys the candidate (no file is sent).
+  // Deploying records the start date and moves the applicant to Deployed.
   const deployAfterContractSigning = useMutation({
     mutationFn: (data: { startDate: string }) => taApi.deployAfterContractSigning(applicationId, data),
     onSuccess: () => {
@@ -109,7 +103,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
         type: "success",
         message: "The candidate is deployed. Confirm the first day on the deployment record.",
       });
-      notify.success("Applicant deployed", "The contract is confirmed and the candidate is deployed.");
+      notify.success("Applicant deployed", "The candidate is deployed.");
     },
     onError: (err: any) => {
       setFeedback({ type: "error", message: "Unable to deploy the applicant. " + formatErrorMessage(err) });
@@ -413,7 +407,7 @@ export function useApplicationMutations({ applicationId, status, candidateName }
     setFeedback,
     updateStatus,
     close,
-    downloadContract,
+    confirmContractSigned,
     deployAfterContractSigning,
     updateInterviewStatus,
     analyze,

@@ -113,7 +113,7 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) =>
   const profile = app?.user?.applicantProfile;
   const candidateName =
     (profile ? `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim() : "") || displayEmail(app?.user?.email) || "Candidate";
-  const m = useApplicationMutations({ applicationId: id, status: app?.status, candidateName });
+  const m = useApplicationMutations({ applicationId: id, status: app?.status });
   const [schedule, setSchedule] = useState<ScheduleKind | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [outcomeOpen, setOutcomeOpen] = useState(false);

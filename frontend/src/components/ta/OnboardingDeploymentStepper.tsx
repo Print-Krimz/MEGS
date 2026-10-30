@@ -112,13 +112,13 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
     nextActionLabel = "Move to contract signing";
   } else if (!isStep2Complete) {
     blockingStepNumber = 2;
-    nextActionLabel = "Deploy applicant";
+    nextActionLabel = "Confirm the contract signing";
   } else if (hasOpenDeployment) {
     nextActionLabel = isOpenDeploymentForThisApplication
       ? "Confirm the start date on the deployment record"
       : "Close the worker's other open deployment first";
   } else {
-    nextActionLabel = "Activate deployment";
+    nextActionLabel = app.status === "CONTRACT_SIGNING" ? "Deploy applicant" : "Activate deployment";
   }
 
   const completedMilestonesCount = (isStep1Complete ? 1 : 0) + (isStep2Complete ? 1 : 0) + (isDeployed ? 1 : 0);
@@ -316,7 +316,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                         {app.contractSigningLocation ? ` at ${app.contractSigningLocation}` : ""}
                       </span>
                     )}
-                    <span className="text-amber-900">Deploy the applicant after the contract signing.</span>
+                    <span className="text-amber-900">Confirm in the bar above whether the applicant signed.</span>
                   </>
                 )}
               </p>
@@ -364,7 +364,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               </Button>
             ) : isStep4Ready ? (
               <Button variant="ghost" size="sm" leftIcon={<Truck className="h-3.5 w-3.5" />} onClick={onDeployCandidate}>
-                Activate deployment
+                {app.status === "CONTRACT_SIGNING" ? "Deploy applicant" : "Activate deployment"}
               </Button>
             ) : (
               <span className="px-1 text-sm text-slate-600">Available after steps 1–2 are complete</span>

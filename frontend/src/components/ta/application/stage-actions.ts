@@ -204,7 +204,8 @@ export type StageActionId =
   | "reschedule-final"
   | "move-to-requirements"
   | "move-to-contract-signing"
-  | "upload-contract"
+  | "confirm-contract-signed"
+  | "deploy-applicant"
   | "schedule-contract-signing"
   | "reschedule-contract-signing"
   | "activate-deployment"
@@ -294,8 +295,8 @@ export function getStageActions(
 /**
  * What the sticky stage bar shows: exactly one primary and at most one secondary; the rest go to the More menu.
  * Extra rules over getStageActions:
- *  - Contract signing with a signing booked: "Deploy applicant" is the primary (the old header only offered
- *    "Manage contract signing", while the real action sat on the second tab).
+ *  - Contract signing: schedule it first; once booked, "Contract signed" confirms the applicant signed (if they did
+ *    not, the TA rejects the application); once signed, "Deploy applicant" is the primary.
  *  - Client review approved: "Schedule final interview" is the primary (it used to live only in the interview list).
  */
 export function pickStageBarActions(
@@ -304,13 +305,14 @@ export function pickStageBarActions(
 ): { primary: StageAction | null; secondary: StageAction | null; overflow: StageAction[] } {
   let actions = getStageActions(app, flags, { onRequirementsTab: false }).filter((a) => a.kind !== "status");
 
-  if (flags.isContractSigningStage && !flags.isContractSigned && !flags.hasUnapprovedMandatoryCompliance && !flags.isTerminal) {
-    const rest = actions.filter((a) => a.id !== "manage-contract-signing");
-    // shortcut: capstone demo, deploying only needs a booked signing, not a past one; to restore the wait, require the booked time to have passed here and in recordSignedContract.
-    if (flags.hasContractSigningAppointment) {
-      actions = [{ id: "upload-contract", label: "Deploy applicant", kind: "primary" }, ...rest];
+  if (app.status === ApplicationStatus.CONTRACT_SIGNING && !flags.hasUnapprovedMandatoryCompliance && !flags.isTerminal) {
+    const rest = actions.filter((a) => a.id !== "manage-contract-signing" && a.id !== "activate-deployment");
+    // shortcut: capstone demo, the booked time is not enforced; to require it, check it here and in confirmContractSigned.
+    if (flags.isContractSigned) {
+      actions = [{ id: "deploy-applicant", label: "Deploy applicant", kind: "primary" }, ...rest];
+    } else if (flags.hasContractSigningAppointment) {
+      actions = [{ id: "confirm-contract-signed", label: "Contract signed", kind: "primary" }, ...rest];
     } else {
-      // Not deployable yet: scheduling is the next step until a signing is booked.
       actions = rest.map((a) => (a.id === "schedule-contract-signing" ? { ...a, kind: "primary" as const } : a));
     }
   }

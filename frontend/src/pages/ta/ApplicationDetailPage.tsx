@@ -85,6 +85,7 @@ type DialogState =
   | { kind: "fastTrack" }
   | { kind: "deploy" }
   | { kind: "contract" }
+  | { kind: "confirmSigned" }
   | { kind: "close"; outcome: ClosureOutcome };
 
 const WalkInSlipDialog = lazy(() =>
@@ -201,7 +202,7 @@ export const ApplicationDetailPage: React.FC = () => {
     ? `${profileForName.firstName} ${profileForName.lastName}`
     : displayEmail(appData?.user?.email) || "Candidate";
 
-  const m = useApplicationMutations({ applicationId, status: appData?.status, candidateName });
+  const m = useApplicationMutations({ applicationId, status: appData?.status });
 
   const backToList = (
     <Button asChild variant="outline" size="sm">
@@ -363,7 +364,9 @@ export const ApplicationDetailPage: React.FC = () => {
         return m.updateStatus.mutate({ status: ApplicationStatus.COMPLIANCE, reason: "Client accepted candidate for employment" });
       case "move-to-contract-signing":
         return m.updateStatus.mutate({ status: ApplicationStatus.CONTRACT_SIGNING, reason: "All mandatory clearances verified and approved." });
-      case "upload-contract":
+      case "confirm-contract-signed":
+        return setDialog({ kind: "confirmSigned" });
+      case "deploy-applicant":
         return setDialog({ kind: "contract" });
       case "schedule-contract-signing":
       case "reschedule-contract-signing":
@@ -382,6 +385,9 @@ export const ApplicationDetailPage: React.FC = () => {
       ? primary.id
       : null
     : null;
+  // The signing was booked but the applicant did not sign: the TA rejects the application.
+  const contractNotSigned =
+    app.status === ApplicationStatus.CONTRACT_SIGNING && !flags.isContractSigned && flags.hasContractSigningAppointment && flags.canReject;
 
   // ---- header menu -----------------------------------------------------------------------------
   const menuItems: ActionMenuItem[] = [
@@ -587,6 +593,8 @@ export const ApplicationDetailPage: React.FC = () => {
         extraAction={
           flags.isClientDeclined && flags.canReject
             ? { label: "Reject applicant", onClick: () => setDialog({ kind: "close", outcome: "REJECTED" }) }
+            : contractNotSigned
+            ? { label: "Contract not signed", onClick: () => setDialog({ kind: "close", outcome: "REJECTED" }) }
             : null
         }
         onHeightChange={setStageBarHeight}
@@ -720,7 +728,7 @@ export const ApplicationDetailPage: React.FC = () => {
                         reason: "All mandatory clearances approved. Moving to contract signing.",
                       });
                     }}
-                    onDeployCandidate={() => setDialog({ kind: "deploy" })}
+                    onDeployCandidate={() => setDialog({ kind: app.status === ApplicationStatus.CONTRACT_SIGNING ? "contract" : "deploy" })}
                   />
                 }
               />
@@ -938,6 +946,18 @@ export const ApplicationDetailPage: React.FC = () => {
       />
 
       <ConfirmDialog
+        open={dlg?.kind === "confirmSigned"}
+        onClose={closeDialog}
+        onConfirm={() => m.confirmContractSigned.mutate(undefined, { onSuccess: closeDialog })}
+        title="Confirm the contract was signed?"
+        description={`Confirm that ${candidateName} signed the contract. This can't be undone. If they did not sign, choose Contract not signed to reject the application instead.`}
+        confirmLabel="Yes, contract signed"
+        cancelLabel="Cancel"
+        variant="warning"
+        loading={m.confirmContractSigned.isPending}
+      />
+
+      <ConfirmDialog
         open={reissueOpen}
         onClose={() => setReissueOpen(false)}
         onConfirm={() => reissueMutation.mutate()}
@@ -1014,8 +1034,6 @@ export const ApplicationDetailPage: React.FC = () => {
         linkedClientName={linkedClientName}
         site={defaultSite}
         initialStartDate={app.contractStartDate ? String(app.contractStartDate).slice(0, 10) : addManilaCalendarDays(getManilaToday(), 1)}
-        onDownloadTemplate={(startDate) => m.downloadContract.mutate(startDate)}
-        isDownloading={m.downloadContract.isPending}
         isSubmitting={m.deployAfterContractSigning.isPending}
         onSubmit={(values) => m.deployAfterContractSigning.mutate(values, { onSuccess: closeDialog })}
       />

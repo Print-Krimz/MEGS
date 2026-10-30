@@ -1368,8 +1368,37 @@ export const scheduleContractSigning = async (
   return updated;
 };
 
-// The TA confirms the contract was signed. A signing must be booked; its time is not enforced yet (capstone demo). Saving it records the start date and deploys the candidate.
-export const recordSignedContract = async (
+// The TA confirms the applicant signed the contract. A signing must be booked; its time is not enforced yet (capstone demo).
+// Deploying is the next, separate step. If the applicant did not sign, the TA rejects the application instead.
+export const confirmContractSigned = async (applicationId: number, actorId: string) => {
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { id: true, status: true, isArchived: true, contractSigned: true, contractSigningAt: true },
+  });
+  if (!application) throw new Error("Application not found");
+  if (application.status !== "CONTRACT_SIGNING") {
+    throw new Error("Contract signing can only be confirmed while the application is in the Contract Signing stage.");
+  }
+  if (application.isArchived) {
+    throw new Error("Cannot change status of an archived application. Restore it first.");
+  }
+  if (application.contractSigned) throw new Error("The contract is already signed.");
+  if (!application.contractSigningAt) {
+    throw new Error("Schedule the contract signing before confirming it.");
+  }
+
+  const now = new Date();
+  const updated = await prisma.application.update({
+    where: { id: applicationId },
+    data: { contractSigned: true, contractSignedAt: now, contractSignedById: actorId },
+    select: { id: true, status: true, contractSigned: true, contractSignedAt: true },
+  });
+  void logAudit(actorId, "CONTRACT_SIGNED", "Application", applicationId, { applicationId, contractSignedAt: now });
+  return updated;
+};
+
+// Deploys an applicant whose contract signing was confirmed: records the start date and moves the application to DEPLOYED.
+export const deploySignedApplicant = async (
   applicationId: number,
   data: { startDate: string },
   actorId: string
@@ -1381,10 +1410,7 @@ export const recordSignedContract = async (
       status: true,
       isArchived: true,
       contractSigned: true,
-      contractSignedAt: true,
-      contractSignedById: true,
       contractStartDate: true,
-      contractSigningAt: true,
     },
   });
   if (!application) throw new Error("Application not found");
@@ -1394,8 +1420,8 @@ export const recordSignedContract = async (
   if (application.isArchived) {
     throw new Error("Cannot change status of an archived application. Restore it first.");
   }
-  if (!application.contractSigningAt) {
-    throw new Error("Schedule the contract signing before deploying the candidate.");
+  if (!application.contractSigned) {
+    throw new Error("Cannot deploy candidate. Confirm the contract signing first.");
   }
   const contractStartDate = parseContractStartDate(data.startDate);
   const startDay = toManilaDateOnly(contractStartDate);
@@ -1411,36 +1437,24 @@ export const recordSignedContract = async (
     throw new Error("Cannot deploy candidate. All required compliance documents must be APPROVED and valid.");
   }
 
-  const now = new Date();
   let updated: Awaited<ReturnType<typeof updateTAApplicationStatus>>;
   try {
-    await prisma.application.update({
-      where: { id: applicationId },
-      data: { contractSigned: true, contractSignedAt: now, contractSignedById: actorId, contractStartDate },
-    });
+    await prisma.application.update({ where: { id: applicationId }, data: { contractStartDate } });
     updated = await updateTAApplicationStatus(applicationId, "DEPLOYED", actorId, "Contract signed, candidate deployed");
   } catch (error) {
-    // The candidate was not deployed: put the previous contract record back.
-    // Skipped once the status has moved on, because the candidate is then deployed with this contract.
+    // The candidate was not deployed: put the previous start date back.
+    // Skipped once the status has moved on, because the candidate is then deployed with this start date.
     const current = await prisma.application.findUnique({ where: { id: applicationId }, select: { status: true } }).catch(() => null);
     if (current?.status === "CONTRACT_SIGNING") {
       await prisma.application.update({
         where: { id: applicationId },
-        data: {
-          contractSigned: application.contractSigned,
-          contractSignedAt: application.contractSignedAt,
-          contractSignedById: application.contractSignedById,
-          contractStartDate: application.contractStartDate,
-        },
+        data: { contractStartDate: application.contractStartDate },
       }).catch(() => {});
     }
     throw error;
   }
 
-  void logAudit(actorId, "CONTRACT_SIGNED", "Application", applicationId, {
-    applicationId,
-    contractSignedAt: now,
-  });
+  void logAudit(actorId, "CANDIDATE_DEPLOYED", "Application", applicationId, { applicationId, contractStartDate });
 
   return updated;
 };
