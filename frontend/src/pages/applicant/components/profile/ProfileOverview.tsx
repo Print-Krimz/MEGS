@@ -156,9 +156,20 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
                 event.target.value = "";
               }}
             />
+            {resumeUploadPending && (
+              <span aria-hidden="true" className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white motion-reduce:animate-none" />
+            )}
             {resumeUploadPending ? "Reading your resume…" : profile?.resumeUrl ? "Replace resume" : "Upload resume"}
           </label>
         </div>
+        {resumeUploadPending && (
+          <div role="status" aria-live="polite" className="mt-4 border-t border-[#D9E2EC] pt-4">
+            <p className="text-sm font-semibold text-[#102A43]">Reading your resume. This can take a minute. Keep this page open.</p>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#D9E2EC]">
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-[#0B315D] motion-reduce:animate-none" />
+            </div>
+          </div>
+        )}
       {pendingResumeCount > 0 && (
         <div role="status" aria-live="polite" className="mt-4 border-t border-[#D9E2EC] pt-4">
           <p className="text-sm font-semibold text-[#102A43]">
