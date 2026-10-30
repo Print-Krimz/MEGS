@@ -177,12 +177,12 @@ export const fetchJobDetails = async (jobId: number, userId: string) => {
 };
 
 /** Job must exist and be OPEN, with no unfinished attempt and no active deployment for the applicant. */
-export const assertCanApply = async (userId: string, jobPostingId: number) => {
-  const job = await prisma.jobPosting.findUnique({ where: { id: jobPostingId }, include: { mrf: { select: { clientId: true, assignedTaId: true } } } });
+export const assertCanApply = async (userId: string, jobPostingId: number, db: Pick<typeof prisma, "jobPosting" | "application"> = prisma) => {
+  const job = await db.jobPosting.findUnique({ where: { id: jobPostingId }, include: { mrf: { select: { clientId: true, assignedTaId: true } } } });
   if (!job) throw new Error("Job not found");
   if (job.status !== "OPEN") throw new Error("This job is no longer accepting applications");
 
-  const priorApplications = await prisma.application.findMany({
+  const priorApplications = await db.application.findMany({
     where: { userId, jobPostingId },
     select: { id: true, attemptNumber: true, status: true, isArchived: true },
     orderBy: { attemptNumber: "desc" },
@@ -202,8 +202,8 @@ export const assertCanApply = async (userId: string, jobPostingId: number) => {
 };
 
 /** COMPLIANCE for a prior same-client placement, else SUBMITTED, plus the next attempt number. */
-export const resolveInitialStatus = async (userId: string, job: { id: number; mrf?: { clientId: number | null } | null }) => {
-  const last = await prisma.application.findFirst({
+export const resolveInitialStatus = async (userId: string, job: { id: number; mrf?: { clientId: number | null } | null }, db: Pick<typeof prisma, "application"> = prisma) => {
+  const last = await db.application.findFirst({
     where: { userId, jobPostingId: job.id },
     select: { attemptNumber: true },
     orderBy: { attemptNumber: "desc" },
@@ -238,6 +238,7 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
   const job = await assertCanApply(userId, jobId);
 
   let resolvedResumeUrl: string | null = null;
+  let uploadedResumeUrl: string | null = null;
   // Set when a file was uploaded: reads the resume into the profile before the application is scored.
   let optionalReadAndScore: (() => Promise<void>) | undefined;
 
@@ -272,11 +273,7 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
       }
     };
 
-    try {
-      await updateProfileResumeService(userId, uploaded.url);
-    } catch (err: any) {
-      throw new Error(`File upload failed: ${err.message}`);
-    }
+    uploadedResumeUrl = uploaded.url;
   } else {
     const profile = await ensureApplicantProfile(userId);
     if (!profile?.resumeUrl) {
@@ -285,22 +282,31 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
     resolvedResumeUrl = profile.resumeUrl;
   }
 
-  const { status: initialStatus, attemptNumber, sameClientDeployment, sameClientDeployments } = await resolveInitialStatus(userId, job);
-  let application: Awaited<ReturnType<typeof prisma.application.create>>;
+  const duplicateMessage = "You already have an active application for this job";
+  let created: { application: Awaited<ReturnType<typeof prisma.application.create>>; initial: Awaited<ReturnType<typeof resolveInitialStatus>> };
   try {
-    application = await prisma.application.create({
-      data: {
-        userId,
-        jobPostingId: jobId,
-        attemptNumber,
-        resumeUrl: resolvedResumeUrl,
-        status: initialStatus,
-      },
+    // The lock makes concurrent submits for one user and job take turns, so the re-check and attempt number are never stale.
+    created = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${userId}:${jobId}`}))`;
+      await assertCanApply(userId, jobId, tx);
+      const initial = await resolveInitialStatus(userId, job, tx);
+      const row = await tx.application.create({
+        data: { userId, jobPostingId: jobId, attemptNumber: initial.attemptNumber, resumeUrl: resolvedResumeUrl, status: initial.status },
+      });
+      return { application: row, initial };
     });
   } catch (error) {
-    // A second request for the same job lands here when both read the same attempt number.
-    if ((error as { code?: string } | null)?.code === "P2002") throw new Error("You already have an active application for this job");
+    // Backstop: the unique key on user, job and attempt also catches a race the lock missed.
+    if ((error as { code?: string } | null)?.code === "P2002") throw new Error(duplicateMessage, { cause: error });
     throw error;
+  }
+  let application = created.application;
+  const { sameClientDeployment, sameClientDeployments } = created.initial;
+
+  if (uploadedResumeUrl) {
+    // Saving the profile default is secondary; the application is already stored, so a failure must not report one.
+    try { await updateProfileResumeService(userId, uploadedResumeUrl); }
+    catch (err: any) { console.warn("[Application Submission] Profile resume update failed:", err.message); }
   }
 
   const queueScoring = () => {

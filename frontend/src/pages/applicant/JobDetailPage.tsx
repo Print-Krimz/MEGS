@@ -145,6 +145,10 @@ export const JobDetailPage: React.FC = () => {
     },
     onError: (err: any) => {
       const errorMsg = formatErrorMessage(err);
+      if (err?.status === 409 || errorMsg.toLowerCase().includes("already have an active application")) {
+        queryClient.setQueryData(["applicant", "job-detail", jobId], (old: any) => (old ? { ...old, alreadyApplied: true } : old));
+        queryClient.invalidateQueries({ queryKey: ["applicant"] });
+      }
       if (
         err?.status === 403 ||
         errorMsg.toLowerCase().includes("deployed") ||
