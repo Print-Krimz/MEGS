@@ -155,10 +155,9 @@ GEMINI_API_KEY="your-google-gemini-api-key"
 GEMINI_MODEL="gemini-2.5-flash"
 GEMINI_EMBEDDING_MODEL="gemini-embedding-001"
 
-# Email Configuration (Nodemailer / Gmail SMTP)
-GMAIL_USER="your-email@gmail.com"
-GMAIL_APP_PASSWORD="your-16-character-app-password"
-EMAIL_FROM="MEGS Recruitment <your-email@gmail.com>"
+# Email Configuration (Brevo API)
+BREVO_API_KEY="your-brevo-api-key"
+EMAIL_FROM="\"MEGS Inc.\" <noreply@megsinc.com>"
 
 # Optional Feature Flags
 DYNAMIC_CANDIDATE_SCORING_ENABLED="true"
@@ -168,15 +167,22 @@ CANDIDATE_SCORE_REVALIDATION_ENABLED="true"
 
 ---
 
-## 📧 Email Service (Gmail SMTP) Setup
+## 📧 Email Service (Brevo) Setup
 
-MEGS uses **Nodemailer** with Gmail SMTP for transactional notifications, including:
+MEGS sends transactional email through the **Brevo HTTPS API** from `noreply@megsinc.com`, including:
 - ✉️ **Administrator & TA Invitation Links** (Account setup emails)
 - 🔑 **Password Reset Requests** (Secure tokenized reset links)
 - 📢 **Applicant Status Changes & Screening Results**
 - 📅 **Interview Scheduling & Deployment Alerts**
 
-### How to Generate a Google App Password:
+### Brevo setup:
+1. In Brevo, authenticate the `megsinc.com` domain (brevo-code TXT, two `brevo*._domainkey` CNAMEs and a DMARC TXT in Cloudflare DNS) and add `noreply@megsinc.com` as a sender.
+2. Under **Security → Authorised IPs**, turn IP blocking off. Heroku dynos have rotating IPs, and Brevo rejects API calls from unlisted IPs.
+3. Create an API key and set it as `BREVO_API_KEY` (backend `.env` and Heroku config vars). Set `EMAIL_FROM` to `"MEGS Inc." <noreply@megsinc.com>`.
+
+### Legacy Gmail fallback (used only when `BREVO_API_KEY` is empty)
+
+#### How to Generate a Google App Password:
 1. Go to your **[Google Account Security Settings](https://myaccount.google.com/security)**.
 2. Under "How you sign in to Google", ensure **2-Step Verification** is turned **ON**.
 3. Go to **[App Passwords](https://myaccount.google.com/apppasswords)** (or search "App Passwords" in your account).

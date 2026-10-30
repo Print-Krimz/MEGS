@@ -1,5 +1,3 @@
-import fs from "fs";
-import path from "path";
 import nodemailer from "nodemailer";
 import { redactSensitiveText } from "../security/errors.js";
 import { isSyntheticEmail } from "./sms.js";
@@ -12,10 +10,18 @@ export const getFromAddress = (): string => {
   if (user) {
     return `"MEGS Inc." <${user}>`;
   }
-  return '"MEGS Inc." <no-reply@megs.com>';
+  return '"MEGS Inc." <noreply@megsinc.com>';
 };
 
 export const fromAddress = getFromAddress();
+
+// Splits `"Name" <a@b.c>` into the sender object Brevo expects. A bare address has no name.
+export const parseFromAddress = (from: string): { name?: string; email: string } => {
+  const match = from.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+  if (!match) return { email: from.trim() };
+  const name = match[1].trim();
+  return name ? { name, email: match[2].trim() } : { email: match[2].trim() };
+};
 
 export const redactAuthenticationSecrets = (value: string): string =>
   redactSensitiveText(value)
@@ -58,7 +64,7 @@ const pendingSends = new Set<Promise<unknown>>();
 // queued ones (nodemailer smtp-pool close(), "Connection pool was closed"), so wait for them first.
 export const closeMailTransporter = async (timeoutMs = 15_000): Promise<void> => {
   const transporter = cachedTransporter;
-  if (!transporter) return;
+  if (!transporter && pendingSends.size === 0) return;
   if (pendingSends.size > 0) {
     let timer: NodeJS.Timeout | undefined;
     await Promise.race([
@@ -70,7 +76,7 @@ export const closeMailTransporter = async (timeoutMs = 15_000): Promise<void> =>
     clearTimeout(timer);
   }
   cachedTransporter = null;
-  transporter.close?.();
+  transporter?.close?.();
 };
 
 export const createMailTransporter = () => {
@@ -150,26 +156,15 @@ const COMPANY = {
   compliance: "DOLE D.O. 174-17 & D.O. 40-03 Compliant",
 };
 
-const LOGO_CID = "megs-logo";
-const LOGO_PATH = path.resolve(process.cwd(), "assets", "megs-logo-email.jpg");
-
-let logoCache: Buffer | null | undefined;
-
-// Read once. A missing file falls back to a text wordmark so mail still goes out.
-const getEmailLogo = (): Buffer | null => {
-  if (logoCache === undefined) {
-    try {
-      logoCache = fs.readFileSync(LOGO_PATH);
-    } catch {
-      console.warn("[Mailer] Email logo not found, using text wordmark:", LOGO_PATH);
-      logoCache = null;
-    }
-  }
-  return logoCache;
-};
-
 const getAppBaseUrl = (): string =>
   (process.env.APP_URL || process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+
+// The logo is a public frontend asset. Brevo's API has no inline (CID) images, and a
+// localhost URL would show a broken image, so non-https bases get the text wordmark.
+const getEmailLogoUrl = (): string | null => {
+  const base = getAppBaseUrl();
+  return base.startsWith("https://") ? `${base}/images/canva-ref/megs-logo-480.jpg` : null;
+};
 
 export const escapeHtml = (value: string): string =>
   value
@@ -206,8 +201,9 @@ export const renderBrandedEmail = (params: BrandedEmailParams): string => {
   const baseUrl = getAppBaseUrl();
   const siteLabel = baseUrl.replace(/^https?:\/\//, "");
 
-  const logoHtml = getEmailLogo()
-    ? `<img src="cid:${LOGO_CID}" alt="MEGS Inc." width="110" height="80" style="display: block; border: 0; width: 110px; height: auto;" />`
+  const logoUrl = getEmailLogoUrl();
+  const logoHtml = logoUrl
+    ? `<img src="${escapeHtml(logoUrl)}" alt="MEGS Inc." width="110" height="80" style="display: block; border: 0; width: 110px; height: auto;" />`
     : `<span style="font-family: ${BRAND.font}; font-size: 24px; font-weight: 800; color: ${BRAND.red}; letter-spacing: 0.02em;">MEGS Inc.</span>`;
 
   const eyebrowHtml = params.eyebrow
@@ -284,6 +280,46 @@ export const renderBrandedEmail = (params: BrandedEmailParams): string => {
 </html>`;
 };
 
+const BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email";
+
+const isFetchMocked = (): boolean => {
+  const f: any = globalThis.fetch;
+  return Boolean(f?._isMockFunction || f?.mock);
+};
+
+const sendViaBrevo = async (
+  apiKey: string,
+  from: string,
+  to: string,
+  subject: string,
+  text: string,
+  html: string
+): Promise<{ success: boolean; messageId?: string }> => {
+  try {
+    const res = await fetch(BREVO_SEND_URL, {
+      method: "POST",
+      headers: { "api-key": apiKey, "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        sender: parseFromAddress(from),
+        to: [{ email: to }],
+        subject,
+        textContent: text,
+        htmlContent: html,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Brevo ${res.status}: ${body.slice(0, 300)}`);
+    }
+    const data: any = await res.json().catch(() => ({}));
+    return { success: true, messageId: data?.messageId };
+  } catch (error: any) {
+    console.error("[Mailer] Email delivery error:", redactAuthenticationSecrets(String(error?.message || error)));
+    throw new Error("Email delivery is temporarily unavailable. Please try again later.");
+  }
+};
+
 export const sendMail = async (
   to: string,
   subject: string,
@@ -296,10 +332,19 @@ export const sendMail = async (
     return { success: true };
   }
   const from = getFromAddress();
-  const transporter = createMailTransporter();
-
   const isTest = process.env.NODE_ENV === "test";
   const isLiveTest = Boolean(process.env.LIVE_EMAIL_TEST);
+
+  // Brevo wins when configured. Tests never hit it unless fetch is mocked or LIVE_EMAIL_TEST is set.
+  const brevoKey = process.env.BREVO_API_KEY?.trim();
+  if (brevoKey && (!isTest || isLiveTest || isFetchMocked())) {
+    const brevoHtml = html || renderBrandedEmail({ heading: subject, bodyHtml: textToHtml(text) });
+    const sending = sendViaBrevo(brevoKey, from, to, subject, `${text}\n\n${plainTextFooter()}`, brevoHtml);
+    pendingSends.add(sending);
+    return sending.finally(() => pendingSends.delete(sending));
+  }
+
+  const transporter = createMailTransporter();
   const isMocked = isMockTransporterOrNodemailer(transporter);
 
   if (!transporter || (isTest && !isLiveTest && !isMocked)) {
@@ -321,7 +366,6 @@ export const sendMail = async (
 
   // Plain-text callers (the outbox worker) still get the branded layout.
   const finalHtml = html || renderBrandedEmail({ heading: subject, bodyHtml: textToHtml(text) });
-  const logo = finalHtml.includes(`cid:${LOGO_CID}`) ? getEmailLogo() : null;
 
   try {
     const sending = Promise.resolve(transporter.sendMail({
@@ -330,13 +374,6 @@ export const sendMail = async (
       subject,
       text: `${text}\n\n${plainTextFooter()}`,
       html: finalHtml,
-      ...(logo
-        ? {
-            attachments: [
-              { filename: "megs-logo.jpg", content: logo, cid: LOGO_CID, contentDisposition: "inline" as const },
-            ],
-          }
-        : {}),
     }));
     pendingSends.add(sending);
     const info = await sending.finally(() => pendingSends.delete(sending));

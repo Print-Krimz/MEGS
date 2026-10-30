@@ -46,7 +46,7 @@ backend/
 | **AI Assessment** | Google Gemini (gemini-2.5-flash) | Structured resume parsing & advisory requirement matching |
 | **AI Embeddings** | Gemini (gemini-embedding-001) | 768-dimensional profile & requirement vector embeddings |
 | **Authentication & Storage** | Supabase Service Role | Server-side token validation & private document vaults |
-| **Email Service** | Nodemailer (Gmail SMTP) | Transactional notifications, invitations, and password resets |
+| **Email Service** | Brevo API (Nodemailer Gmail SMTP fallback) | Transactional notifications, invitations, and password resets |
 | **Validation** | Zod | Strict request DTO validation middleware |
 
 ---
