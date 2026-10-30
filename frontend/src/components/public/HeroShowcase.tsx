@@ -67,6 +67,7 @@ const buildPhotos = (): ShowcasePhoto[] => {
       objectPosition: "4% 50%",
       reveal: REVEAL_START.bottom,
       delay: 0.22,
+      eager: true,
       sizes: "(min-width: 1024px) 220px, (min-width: 768px) 18vw, 44vw",
     },
     {
