@@ -16,7 +16,7 @@ import {
 import type { DataTableColumn } from "../../components/common";
 import { Button, Dialog, Input, Textarea, ComboBox } from "../../components/ui";
 import { FieldWarning } from "../../components/ta/FieldWarning";
-import { LOCATION_HINT, LOCATION_UNCLEAR_WARNING, locationLooksUnclear } from "../../lib/requirement-hints";
+import { LOCATION_HINT, LOCATION_UNCLEAR_WARNING, locationLooksUnclear, useKnownPlaceName } from "../../lib/requirement-hints";
 import { formatDate, cn } from "../../lib/utils";
 import { JobStatus } from "../../lib/types/enums";
 import { Plus } from "lucide-react";
@@ -70,6 +70,7 @@ export const JobPostingsPage: React.FC = () => {
   const [selectedMrfId, setSelectedMrfId] = useState<number | null>(null);
   const [formTitle, setFormTitle] = useState("");
   const [formLocation, setFormLocation] = useState("");
+  const isKnownPlaceName = useKnownPlaceName(Boolean(formLocation.trim()));
   const [formImageUrl, setFormImageUrl] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formRequirements, setFormRequirements] = useState("");
@@ -597,7 +598,7 @@ export const JobPostingsPage: React.FC = () => {
                       clearServerFieldError("location");
                     }}
                   />
-                  <FieldWarning show={locationLooksUnclear(formLocation)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
+                  <FieldWarning show={locationLooksUnclear(formLocation, isKnownPlaceName)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
                 </div>
                 <Input
                   label="Image web address (optional)"

@@ -3,7 +3,40 @@
  * The backend decides for scoring (assessRequirementClarity in
  * backend/src/services/scoring/scoring.dimensions.ts); keep these lists in step with it.
  */
-import { isKnownPlaceName } from "./ph-address";
+import { useEffect, useState } from "react";
+
+type PlaceNameCheck = (name: string) => boolean;
+
+// The place list is large, so it loads on first use and one load is shared by every form.
+let placeNameCheck: PlaceNameCheck | undefined;
+let placeNameLoad: Promise<void> | undefined;
+
+const loadPlaceNameCheck = (): Promise<void> => {
+  placeNameLoad ??= import("./ph-address")
+    .then((module) => {
+      placeNameCheck = module.isKnownPlaceName;
+    })
+    .catch(() => {
+      placeNameLoad = undefined; // the warning stays off; the next form to open tries again
+    });
+  return placeNameLoad;
+};
+
+/** The place-name check once its data has loaded, undefined until then. Pass enabled=false to skip loading. */
+export const useKnownPlaceName = (enabled = true): PlaceNameCheck | undefined => {
+  const [check, setCheck] = useState<PlaceNameCheck | undefined>(() => placeNameCheck);
+  useEffect(() => {
+    if (!enabled || check) return;
+    let active = true;
+    void loadPlaceNameCheck().then(() => {
+      if (active && placeNameCheck) setCheck(() => placeNameCheck);
+    });
+    return () => {
+      active = false;
+    };
+  }, [enabled, check]);
+  return check;
+};
 
 // Personal qualities, English and Filipino. Useful to know, but not job skills.
 const TRAIT_WORDS = new Set([
@@ -29,10 +62,13 @@ export const skillsLookLikeTraits = (skillsText: string): boolean => {
   return items.filter(isTraitItem).length * 2 >= items.length;
 };
 
-/** True when a location is filled in but names no city, municipality or province (e.g. a street). */
-export const locationLooksUnclear = (location: string): boolean => {
+/**
+ * True when a location is filled in but names no city, municipality or province (e.g. a street).
+ * Without isKnownPlaceName (data not loaded yet) it can't tell, so it returns false.
+ */
+export const locationLooksUnclear = (location: string, isKnownPlaceName?: PlaceNameCheck): boolean => {
   const value = location.trim();
-  if (!value || ANYWHERE.has(value.toLowerCase())) return false;
+  if (!isKnownPlaceName || !value || ANYWHERE.has(value.toLowerCase())) return false;
   return !value.split(/[,/;|]/).some((part) => isKnownPlaceName(part.trim()));
 };
 

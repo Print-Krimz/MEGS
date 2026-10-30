@@ -38,6 +38,7 @@ import {
   clientWorkLocation,
   locationLooksUnclear,
   skillsLookLikeTraits,
+  useKnownPlaceName,
 } from "../../lib/requirement-hints";
 import type { ManpowerRequest } from "../../lib/types/ta.types";
 
@@ -109,6 +110,7 @@ export const MRFCreatePage: React.FC = () => {
   const [headcount, setHeadcount] = useState<number | string>(1);
   const [priority, setPriority] = useState<"LOW" | "NORMAL" | "HIGH" | "URGENT">("NORMAL");
   const [location, setLocation] = useState("");
+  const isKnownPlaceName = useKnownPlaceName(Boolean(location.trim()));
   const [targetFillDate, setTargetFillDate] = useState("");
   const [requiredSkills, setRequiredSkills] = useState("");
   const [requiredExperience, setRequiredExperience] = useState("");
@@ -821,7 +823,7 @@ export const MRFCreatePage: React.FC = () => {
                   clearServerFieldError("location");
                 }}
               />
-              <FieldWarning show={locationLooksUnclear(location)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
+              <FieldWarning show={locationLooksUnclear(location, isKnownPlaceName)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
               {fileNote("location")}
             </div>
 

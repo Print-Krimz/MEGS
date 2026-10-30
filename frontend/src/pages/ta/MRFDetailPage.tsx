@@ -44,6 +44,7 @@ import {
   SKILLS_TRAITS_WARNING,
   locationLooksUnclear,
   skillsLookLikeTraits,
+  useKnownPlaceName,
 } from "../../lib/requirement-hints";
 import {
   validateStandardText,
@@ -104,6 +105,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const [editPriority, setEditPriority] = useState<any>("NORMAL");
   const [editTargetFillDate, setEditTargetFillDate] = useState("");
   const [editLocation, setEditLocation] = useState("");
+  const isKnownPlaceName = useKnownPlaceName(Boolean(editLocation.trim()));
   const [editRequiresClientReview, setEditRequiresClientReview] = useState(true);
   const [editEmploymentType, setEditEmploymentType] = useState("Contractual");
   const [editWorkArrangement, setEditWorkArrangement] = useState("On-site");
@@ -1070,7 +1072,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                         clearServerFieldError("location");
                       }}
                     />
-                    <FieldWarning show={locationLooksUnclear(editLocation)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
+                    <FieldWarning show={locationLooksUnclear(editLocation, isKnownPlaceName)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
                   </div>
                   <ComboBox
                     label="Employment Type"
