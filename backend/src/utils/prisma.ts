@@ -6,7 +6,8 @@ import "./env.js";
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   max: 20,
-  idleTimeoutMillis: 30000,
+  // Keep pooled connections warm through quiet spells; Supavisor closes them server-side anyway.
+  idleTimeoutMillis: 300_000,
   connectionTimeoutMillis: 10000,
   keepAlive: true,
 });

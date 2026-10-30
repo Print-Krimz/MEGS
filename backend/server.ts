@@ -157,7 +157,7 @@ if (process.env.NODE_ENV !== "test") {
   connectSharedStore().then(() => {
     const cleanup = setInterval(() => { void cleanupSecurityState().catch(error => safeLogError("Security state cleanup", error)); }, 60_000);
     cleanup.unref();
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`✅ Server listening on port ${PORT}`);
       // Clean up any stale maintenance jobs that were interrupted by previous server restart
       import("./src/services/admin/backup.service.js")
@@ -166,6 +166,9 @@ if (process.env.NODE_ENV !== "test") {
           console.warn("⚠️ [Maintenance] Stale job sweep warning on startup:", err?.message || err);
         });
     });
+    // Outlive the Heroku router's 55s idle keep-alive so it never reuses a socket Node just closed.
+    server.keepAliveTimeout = 65_000;
+    server.headersTimeout = 66_000;
   }).catch(error => {
     safeLogError("Security store startup", error);
     process.exitCode = 1;
