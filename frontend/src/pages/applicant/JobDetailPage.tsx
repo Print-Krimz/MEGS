@@ -220,6 +220,7 @@ export const JobDetailPage: React.FC = () => {
 
   const job = jobQuery.data;
   const isDeploymentLocked = Boolean(job.activeDeployment?.isCurrentlyDeployed && !job.alreadyApplied);
+  const companyName = job.client?.name ?? job.mrf?.client?.name ?? null;
   const salaryDisplay = formatSalaryRange(job.mrf?.salaryRangeMin, job.mrf?.salaryRangeMax);
   const employmentTypeDisplay = formatEmploymentType(job.mrf?.employmentType);
   const workArrangementDisplay = formatWorkArrangement(job.mrf?.workArrangement);
@@ -347,6 +348,16 @@ export const JobDetailPage: React.FC = () => {
             </div>
 
             <div className="space-y-3.5 text-xs">
+              {companyName && (
+                <div className="flex items-start gap-3">
+                  <Building2 className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[#627D98] text-[11px] font-medium">Company</div>
+                    <div className="text-[#102A43] font-medium text-xs mt-0.5">{companyName}</div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-start gap-3">
                 <Banknote className="w-4 h-4 text-[#0B315D] shrink-0 mt-0.5" />
                 <div>

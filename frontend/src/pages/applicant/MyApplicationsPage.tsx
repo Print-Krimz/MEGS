@@ -555,6 +555,12 @@ export const MyApplicationsPage: React.FC = () => {
                     </div>
                     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs sm:text-sm text-slate-500 font-mono">
                       <span className="whitespace-nowrap font-medium text-slate-700">App #{app.id}</span>
+                      {app.jobPosting?.mrf?.client?.name && (
+                        <>
+                          <span className="text-slate-300 select-none" aria-hidden="true">•</span>
+                          <span className="font-sans font-medium text-slate-700">{app.jobPosting.mrf.client.name}</span>
+                        </>
+                      )}
                       <span className="text-slate-300 select-none" aria-hidden="true">•</span>
                       <span className="whitespace-nowrap">Applied {formatDate(app.createdAt)}</span>
                       {app.jobPosting?.location && (
@@ -580,7 +586,12 @@ export const MyApplicationsPage: React.FC = () => {
 
                 {/* Pipeline Stepper */}
                 <div className="pt-2 border-t border-slate-200">
-                  <PipelineIndicator currentStatus={app.status} audience="applicant" hideTerminalAlert />
+                  <PipelineIndicator
+                    currentStatus={app.status}
+                    audience="applicant"
+                    hideTerminalAlert
+                    skipClientReview={app.jobPosting?.mrf?.requiresClientReview === false}
+                  />
                 </div>
 
                 {/* Contextual Status Alerts */}

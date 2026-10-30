@@ -17,6 +17,7 @@ import { canApplicantWithdraw } from "../../lib/backout";
 import { formatDate, formatDateTime } from "../../lib/utils";
 import {
   Briefcase,
+  Building2,
   Calendar,
   MapPin,
   FileCheck2,
@@ -398,7 +399,12 @@ export const ApplicationDetailPage: React.FC = () => {
 
         {/* Pipeline Stepper */}
         <div className="py-1">
-          <PipelineIndicator currentStatus={application.status} audience="applicant" hideTerminalAlert />
+          <PipelineIndicator
+            currentStatus={application.status}
+            audience="applicant"
+            hideTerminalAlert
+            skipClientReview={application.jobPosting?.mrf?.requiresClientReview === false}
+          />
         </div>
       </div>
 
@@ -426,7 +432,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   const isNoShow = interview.result === "NO_SHOW";
 
                   return (
-                    <div key={interview.id} className="pt-2 space-y-1.5 font-mono">
+                    <div key={interview.id} className="py-3 space-y-1.5 font-mono">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-[#102A43] uppercase">
                           {interview.type.replace(/_/g, " ")}
@@ -815,6 +821,16 @@ export const ApplicationDetailPage: React.FC = () => {
                   <div className="text-[#102A43] font-semibold text-xs mt-0.5">{job?.title || "N/A"}</div>
                 </div>
               </div>
+
+              {job?.mrf?.client?.name && (
+                <div className="flex items-start gap-2.5">
+                  <Building2 className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[11px] font-medium text-[#627D98]">Company</div>
+                    <div className="text-[#102A43] font-medium text-xs mt-0.5">{job.mrf.client.name}</div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-start gap-2.5">
                 <MapPin className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />

@@ -401,7 +401,7 @@ export const fetchMyApplications = async (
             take: 1,
             select: { id: true },
           },
-          jobPosting: { select: { id: true, title: true, location: true } },
+          jobPosting: { select: { id: true, title: true, location: true, mrf: APPLICANT_MRF_SELECT } },
           // A scheduled or running placement marks the worker's current assignment, so it is not filed as history.
           deployments: {
             where: { status: { in: ["READY_FOR_DEPLOYMENT", "ACTIVE"] } },
@@ -436,6 +436,7 @@ export const fetchMyApplications = async (
           id: true,
           title: true,
           location: true,
+          mrf: APPLICANT_MRF_SELECT,
           description: true,
           requirements: true,
           status: true,
@@ -485,6 +486,9 @@ export const fetchMyApplications = async (
   });
 };
 
+// Company name and whether a client review step exists, for the applicant's stepper and headings.
+const APPLICANT_MRF_SELECT = { select: { requiresClientReview: true, client: { select: { name: true } } } } as const;
+
 // The contract is a TA-only record: applicants must not see its terms, rate or scan reference.
 const APPLICANT_HIDDEN_CONTRACT_FIELDS = {
   contractSigned: true,
@@ -504,6 +508,7 @@ export const fetchApplicationDetails = async (applicationId: number, userId: str
           id: true,
           title: true,
           location: true,
+          mrf: APPLICANT_MRF_SELECT,
           description: true,
           requirements: true,
           status: true,

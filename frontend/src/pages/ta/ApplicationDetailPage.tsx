@@ -533,6 +533,7 @@ export const ApplicationDetailPage: React.FC = () => {
             hideTerminalAlert
             currentLabel={formatTaStatus(app.status)}
             skippedStages={skippedStages}
+            skipClientReview={!flags.requiresClientReview}
           />
         }
       />

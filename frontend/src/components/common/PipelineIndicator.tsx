@@ -19,9 +19,11 @@ export interface PipelineIndicatorProps {
   variant?: "default" | "compact";
   /** Compact only: replaces the label of the current step, so it matches the stage chip next to it. */
   currentLabel?: string;
+  /** Hides the "Client review" step for jobs whose MRF does not require client review. */
+  skipClientReview?: boolean;
 }
 
-const CANONICAL_STAGES = [
+const ALL_STAGES = [
   { id: ApplicationStatus.SUBMITTED, label: TA_COPY.pipeline.submitted },
   { id: ApplicationStatus.INITIAL_SCREENING, label: "Initial review" },
   { id: ApplicationStatus.CLIENT_ENDORSEMENT, label: "Client review" },
@@ -46,10 +48,20 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
   skippedStages = [],
   variant = "default",
   currentLabel,
+  skipClientReview = false,
 }) => {
   const isTerminal = TERMINAL_STATUSES.includes(currentStatus);
 
-  const activeIndex = getPipelineStageIndex(currentStatus);
+  const CANONICAL_STAGES = skipClientReview ? ALL_STAGES.filter((s) => s.id !== ApplicationStatus.CLIENT_ENDORSEMENT) : ALL_STAGES;
+  // Position by stage id, so stages after the hidden one still line up. A stray client-review status shows as the step before it.
+  const fullIndex = getPipelineStageIndex(currentStatus);
+  const fullId = fullIndex >= 0 ? ALL_STAGES[fullIndex].id : null;
+  const activeIndex =
+    fullId === null
+      ? -1
+      : fullId === ApplicationStatus.CLIENT_ENDORSEMENT && skipClientReview
+      ? CANONICAL_STAGES.findIndex((s) => s.id === ApplicationStatus.INITIAL_SCREENING)
+      : CANONICAL_STAGES.findIndex((s) => s.id === fullId);
 
   if (variant === "compact") {
     const total = CANONICAL_STAGES.length;
