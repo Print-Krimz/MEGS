@@ -657,11 +657,14 @@ export const ProfilePage: React.FC = () => {
 
   const updateSkillsMutation = useMutation({
     mutationFn: applicantApi.updateSkills,
+    // The list is updated optimistically; keep the last saved one to restore if the save fails.
+    onMutate: () => ({ previousSkills: skillsList }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] });
       setFeedback({ type: "success", message: "Skills updated successfully." });
     },
-    onError: (err: any) => {
+    onError: (err: any, _skills, context) => {
+      if (context) setSkillsList(context.previousSkills);
       setFeedback({ type: "error", message: err?.message || "Failed to update skills." });
     },
   });
@@ -899,6 +902,10 @@ export const ProfilePage: React.FC = () => {
   // Skills add / remove
   const handleAddSkill = (newSkills: string[]) => {
     if (newSkills.length === 0) return;
+    if (skillsList.length + newSkills.length > FIELD_LIMITS.skills) {
+      setFeedback({ type: "error", message: `You can list up to ${FIELD_LIMITS.skills} skills. Remove some before adding more.` });
+      return;
+    }
     const updated = [...skillsList, ...newSkills];
     setSkillsList(updated);
     updateSkillsMutation.mutate(updated);
