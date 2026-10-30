@@ -95,6 +95,8 @@ export function loadTurnstileScript(): Promise<void> {
     const onScriptError = () => {
       clearInterval(checkInterval);
       scriptLoadingPromise = null;
+      // Drop the dead tag so the next call injects a fresh one and gets its own error at once.
+      (script ?? document.getElementById(SCRIPT_ID))?.remove();
       reject(new Error("Failed to load Cloudflare Turnstile script. Please check your network or ad-blocker."));
     };
 
