@@ -37,8 +37,8 @@ const HERO_POSITIONS = [
 ];
 
 /*
- * Entrance sequence (all EASE_OUT): headline lines rise from 0.10s, copy and actions follow at 0.35 to
- * 0.55s, positions at 0.65s. HeroShowcase reveals three photos at 0.12, 0.22 and 0.32s, then the hiring card at 0.60s.
+ * Entrance sequence (all EASE_OUT): headline lines rise from 0.10s, actions follow at 0.45 to 0.55s,
+ * positions at 0.65s. The intro paragraph does not animate (it is the mobile LCP element). HeroShowcase reveals three photos at 0.12, 0.22 and 0.32s, then the hiring card at 0.60s.
  */
 const buttonMotion =
   "transition-[transform,background-color,box-shadow] duration-200 active:scale-[0.98] focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:active:scale-100";
@@ -93,10 +93,11 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onFindJobs }) => {
             </HeroLine>
           </h1>
 
-          <m.p {...rise(0.35)} className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-foreground">
+          {/* No entrance fade: this paragraph is the mobile LCP element, and a fade from opacity 0 delays it */}
+          <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-foreground">
             MEGS recruits, employs and supervises trained workers for Philippine companies, so your team can focus on
             the work. We have done it from Valenzuela City since May 1997.
-          </m.p>
+          </p>
 
           <m.div {...rise(0.45)} className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button asChild size="lg" className={`group hover:shadow-md ${buttonMotion}`}>

@@ -15,11 +15,38 @@ function apiPreconnect(apiUrl: string | undefined): Plugin {
   };
 }
 
+// On "/" only, fetches the lazy landing chunk and its imports alongside the entry bundle instead of after it.
+// Without this the landing page waits for the entry to run before its own chunk is requested (mobile LCP).
+function landingPreload(): Plugin {
+  return {
+    name: "landing-preload",
+    apply: "build",
+    transformIndexHtml: {
+      order: "post",
+      handler(_html, ctx) {
+        const chunks = Object.values(ctx.bundle ?? {}).filter((c) => c.type === "chunk");
+        const landing = chunks.find((c) => c.facadeModuleId?.endsWith("/pages/public/LandingPage.tsx"));
+        if (!landing) return [];
+        const files = new Set<string>();
+        const visit = (fileName: string) => {
+          if (files.has(fileName)) return;
+          files.add(fileName);
+          chunks.find((c) => c.fileName === fileName)?.imports.forEach(visit);
+        };
+        visit(landing.fileName);
+        const script = `if(location.pathname==="/")for(const f of ${JSON.stringify([...files])}){const l=document.createElement("link");l.rel="modulepreload";l.href="/"+f;document.head.appendChild(l)}`;
+        return [{ tag: "script", children: script, injectTo: "head" }];
+      },
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     tailwindcss(),
     apiPreconnect(loadEnv(mode, process.cwd(), "").VITE_API_URL),
+    landingPreload(),
   ],
   resolve: {
     alias: {
