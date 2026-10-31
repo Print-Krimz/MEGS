@@ -37,7 +37,7 @@ import {
 import { ApplicationStatus } from "../../lib/types/enums";
 import type { ComplianceRequirement, RescheduleActivity } from "../../lib/types/application.types";
 import { RescheduleControl, RescheduleRequestDialog } from "../../components/applicant/RescheduleRequest";
-import { RequirementStatusBadge } from "../../components/applicant/RequirementStatusBadge";
+import { RequirementStatusBadge, REQUIREMENT_STATUS_LABEL } from "../../components/applicant/RequirementStatusBadge";
 import { notify } from "../../lib/feedback";
 import { isTouchDevice, shrinkImage } from "../../lib/camera-capture";
 import { getApplicationRefetchInterval } from "../../lib/query-policies";
@@ -48,14 +48,13 @@ const normalizeDocumentLabel = (value: string) => value.trim().toLowerCase();
 
 type RequirementRef = Pick<ComplianceRequirement, "id" | "documentId" | "documentLabel" | "reviewStatus">;
 
-const libraryStatusLabel: Record<string, string> = {
-  APPROVED: "Verified",
-  SUBMITTED: "Pending review",
-  REJECTED: "Rejected",
-  EXPIRED: "Expired",
-  PENDING: "Not submitted",
-  TO_FOLLOW: "To follow",
+const sentenceCase = (value: string) => {
+  const text = value.replace(/_/g, " ").trim().toLowerCase();
+  return text.charAt(0).toUpperCase() + text.slice(1);
 };
+
+// Interview result chip: same shape and colours as the other applicant badges.
+const RESULT_CHIP = "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium";
 
 // Same document types the backend accepts (upload.middleware.ts), so the file picker and the check agree.
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -77,7 +76,6 @@ export const ApplicationDetailPage: React.FC = () => {
   const [activeUploadReqId, setActiveUploadReqId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [previewDocState, setPreviewDocState] = useState<{
     open: boolean;
     documentId?: number | null;
@@ -118,22 +116,13 @@ export const ApplicationDetailPage: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
-      const successMsg = "Document uploaded successfully and submitted for recruiter verification.";
-      setFeedback({
-        type: "success",
-        message: successMsg,
-      });
-      notify.success("Document Uploaded", successMsg);
+      notify.success("Document Uploaded", "Document uploaded successfully and submitted for recruiter verification.");
       setActiveUploadReqId(null);
     },
     onError: (err: any) => {
       if (err instanceof FileTooLargeError) {
         notify.error("File Too Large", err.message);
       } else {
-        setFeedback({
-          type: "error",
-          message: "Failed to upload document: " + (err?.message || "An error occurred"),
-        });
         notify.error("Upload Failed", err);
       }
       setActiveUploadReqId(null);
@@ -168,16 +157,10 @@ export const ApplicationDetailPage: React.FC = () => {
       applicantJobsApi.reuseComplianceDocument(requirementId, documentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
-      const successMsg = "Document added to this requirement and submitted for recruiter verification.";
-      setFeedback({ type: "success", message: successMsg });
-      notify.success("Document Reused", successMsg);
+      notify.success("Document Reused", "Document added to this requirement and submitted for recruiter verification.");
       setReuseTarget(null);
     },
     onError: (err: any) => {
-      setFeedback({
-        type: "error",
-        message: "Failed to use document: " + (err?.message || "An error occurred"),
-      });
       notify.error("Unable to Use Document", err);
       setReuseTarget(null);
     },
@@ -291,13 +274,13 @@ export const ApplicationDetailPage: React.FC = () => {
         ) : offline ? (
           <ErrorState subject="application" onRetry={() => applicationQuery.refetch()} />
         ) : (
-          <div className="bg-white rounded-xl border border-[#D9E2EC] p-8 text-center space-y-4 shadow-xs">
-            <p className="text-xs text-[#627D98]">
+          <div className="bg-white rounded-lg border border-[#D9E2EC] p-8 text-center space-y-4 shadow-xs">
+            <p className="text-sm text-[#486581]">
               This application does not exist or you do not have permission to view it.
             </p>
-            <Link to="/app/applications" className="inline-flex min-h-[44px] items-center rounded-md border border-[#D9E2EC] bg-white px-4 text-sm font-medium text-[#102A43] hover:bg-[#F7F9FC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors">
-              Back to applications
-            </Link>
+            <Button asChild variant="outline">
+              <Link to="/app/applications">Back to applications</Link>
+            </Button>
           </div>
         )}
       </div>
@@ -330,21 +313,21 @@ export const ApplicationDetailPage: React.FC = () => {
       <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
-            <span className="block break-words text-xs font-bold text-[#102A43] font-mono uppercase">
+            <span className="block break-words text-sm font-semibold text-[#102A43]">
               {req.documentLabel}
             </span>
             {isDeployed ? (
               !isApproved &&
               targetDate && (
-                <div className="text-[10px] text-[#627D98] font-mono">Target date: {formatDate(targetDate)}</div>
+                <div className="text-xs text-[#486581]">Target date: {formatDate(targetDate)}</div>
               )
             ) : (
               <>
                 {req.deadline && (
-                  <div className="text-[10px] text-[#627D98] font-mono">Deadline: {formatDate(req.deadline)}</div>
+                  <div className="text-xs text-[#486581]">Deadline: {formatDate(req.deadline)}</div>
                 )}
                 {req.reviewStatus === "TO_FOLLOW" && req.toFollowExpectedAt && (
-                  <div className="text-[10px] text-[#627D98] font-mono">
+                  <div className="text-xs text-[#486581]">
                     Expected by {formatDate(req.toFollowExpectedAt)}
                   </div>
                 )}
@@ -380,17 +363,17 @@ export const ApplicationDetailPage: React.FC = () => {
         </div>
 
         {isRejected && rejectionNote && (
-          <div className="p-2.5 bg-[#FEF2F2] border border-[#FECACA] rounded text-xs text-[#DC2626] space-y-0.5">
-            <div className="flex items-center gap-1.5 font-bold font-mono text-[11px]">
-              <AlertCircle className="w-3.5 h-3.5 text-[#DC2626]" />
+          <div className="p-2.5 bg-[#FEF2F2] border border-[#FECACA] rounded-md text-sm text-[#B91C1C] space-y-0.5">
+            <div className="flex items-center gap-1.5 font-semibold">
+              <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
               Document Rejected by Recruiter
             </div>
-            <p className="text-[#DC2626] pl-5 text-[11px]">{rejectionNote}</p>
+            <p className="pl-5">{rejectionNote}</p>
           </div>
         )}
 
         {isApproved && req.expiresAt && (
-          <div className={`text-[11px] font-mono ${expired ? "text-[#B91C1C]" : expiresSoon ? "text-[#B45309]" : "text-[#627D98]"}`}>
+          <div className={`text-xs ${expired ? "text-[#B91C1C]" : expiresSoon ? "text-[#B45309]" : "text-[#486581]"}`}>
             {expired ? "Expired · " : expiresSoon ? "Expiring soon · " : ""}Expires {formatDate(req.expiresAt)}
           </div>
         )}
@@ -408,7 +391,7 @@ export const ApplicationDetailPage: React.FC = () => {
       </div>
 
       {interviews.length === 0 ? (
-        <div className="p-6 text-center text-xs font-mono text-[#627D98]">
+        <div className="p-6 text-center text-sm text-[#486581]">
           No interviews scheduled yet. Once our recruitment team reviews your application, interview details will appear here.
         </div>
       ) : (
@@ -419,38 +402,36 @@ export const ApplicationDetailPage: React.FC = () => {
             const isNoShow = interview.result === "NO_SHOW";
 
             return (
-              <div key={interview.id} className="py-3 space-y-1.5 font-mono">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#102A43] uppercase">
-                    {interview.type.replace(/_/g, " ")}
+              <div key={interview.id} className="py-3 space-y-1.5">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="min-w-0 text-sm font-semibold text-[#102A43]">
+                    {sentenceCase(interview.type)}
                   </span>
                   {isPassed ? (
-                    <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
-                      <Check className="w-3 h-3 text-emerald-700" /> PASS
+                    <span className={`${RESULT_CHIP} bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]`}>
+                      <Check className="w-3.5 h-3.5" aria-hidden="true" /> Pass
                     </span>
                   ) : isFailed ? (
-                    <span className="bg-rose-100 text-rose-900 border border-rose-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
-                      <X className="w-3 h-3 text-rose-700" /> NOT PASSED
+                    <span className={`${RESULT_CHIP} bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]`}>
+                      <X className="w-3.5 h-3.5" aria-hidden="true" /> Not passed
                     </span>
                   ) : isNoShow ? (
-                    <span className="bg-slate-100 text-slate-900 border border-slate-300 font-bold px-2.5 py-1 text-xs rounded-full">
-                      NO SHOW
-                    </span>
+                    <span className={`${RESULT_CHIP} bg-[#F7F9FC] text-[#486581] border-[#D9E2EC]`}>No show</span>
                   ) : (
-                    <span className="bg-blue-100 text-blue-900 border border-blue-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
-                      <Clock className="w-3 h-3 text-blue-700" /> SCHEDULED
+                    <span className={`${RESULT_CHIP} bg-[#EAF0F7] text-[#0B315D] border-[#D9E2EC]`}>
+                      <Clock className="w-3.5 h-3.5" aria-hidden="true" /> Scheduled
                     </span>
                   )}
                 </div>
 
-                <div className="text-[11px] text-[#627D98] flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-[#627D98]" />
+                <div className="text-xs text-[#486581] flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-[#486581]" aria-hidden="true" />
                   <span>{formatDateTime(interview.scheduledAt || interview.createdAt)}</span>
                 </div>
 
                 {interview.location && (
-                  <div className="text-[11px] text-[#627D98] flex items-start gap-2">
-                    <MapPin className="w-3.5 h-3.5 text-[#627D98] shrink-0" />
+                  <div className="text-xs text-[#486581] flex items-start gap-2">
+                    <MapPin className="w-3.5 h-3.5 text-[#486581] shrink-0" aria-hidden="true" />
                     <span className="break-words">{interview.location}</span>
                   </div>
                 )}
@@ -468,11 +449,11 @@ export const ApplicationDetailPage: React.FC = () => {
 
                 {interview.notes && (
                   <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200/90 rounded-md space-y-1">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-700">
-                      <FileText className="w-3.5 h-3.5 text-slate-500" />
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                      <FileText className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
                       <span>Evaluation &amp; Interview Notes</span>
                     </div>
-                    <p className="text-xs text-slate-900 font-sans font-medium leading-relaxed pl-2.5 border-l-2 border-slate-400">
+                    <p className="text-sm text-slate-900 font-medium leading-relaxed pl-2.5 border-l-2 border-slate-400">
                       {interview.notes}
                     </p>
                   </div>
@@ -497,7 +478,7 @@ export const ApplicationDetailPage: React.FC = () => {
               </h3>
             </div>
           </div>
-          <div className="p-6 text-center text-xs font-mono text-[#627D98]">
+          <div className="p-6 text-center text-sm text-[#486581]">
             No active document requirements are assigned yet.
           </div>
         </div>
@@ -513,7 +494,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 Requirements to follow up (Action needed)
               </h3>
             </div>
-            <span className="text-xs font-mono font-medium text-[#B45309]">
+            <span className="text-xs font-medium text-[#B45309]">
               {pendingFollowUps.length} pending
             </span>
           </div>
@@ -532,7 +513,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 Verified 201 clearances
               </h3>
             </div>
-            <span className="text-xs font-mono font-medium text-[#047857]">
+            <span className="text-xs font-medium text-[#047857]">
               {approvedClearances.length} verified
             </span>
           </div>
@@ -550,13 +531,13 @@ export const ApplicationDetailPage: React.FC = () => {
             Requirements
           </h3>
         </div>
-        <span className="text-xs font-mono text-[#627D98]">
+        <span className="text-xs text-[#486581]">
           {approvedClearances.length} / {compliance.length} Approved
         </span>
       </div>
 
       {compliance.length === 0 ? (
-        <div className="p-6 text-center text-xs font-mono text-[#627D98]">
+        <div className="p-6 text-center text-sm text-[#486581]">
           {(application.status === ApplicationStatus.CONTRACT_SIGNING || application.status === ApplicationStatus.ONBOARDING)
             ? "No additional requirements are pending. Contract signing is the next step."
             : "No active document requirements are assigned yet. We’ll show them here when they are ready."}
@@ -596,41 +577,23 @@ export const ApplicationDetailPage: React.FC = () => {
           { label: "Applications", href: "/app/applications" },
         ]}
         actions={
-          <Link to="/app/applications" className="inline-flex min-h-11 items-center rounded-md border border-[#D9E2EC] md:min-h-10 applicant-touch:min-h-11 bg-white px-4 text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors">
-            Back to applications
-          </Link>
+          <Button asChild variant="outline">
+            <Link to="/app/applications">Back to applications</Link>
+          </Button>
         }
       />
-
-      {feedback && (
-        <div
-          className={`p-3 rounded-lg border text-xs flex items-center justify-between gap-2 ${
-            feedback.type === "success"
-              ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#047857]"
-              : "bg-[#FEF2F2] border-[#FECACA] text-[#DC2626]"
-          }`}
-        >
-          <span>{feedback.message}</span>
-          <button
-            onClick={() => setFeedback(null)}
-            className="text-[11px] font-bold underline hover:opacity-75"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
 
       {/* Progress Card */}
       <div className="bg-white border border-[#D9E2EC] rounded-lg p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#D9E2EC] pb-3">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2.5">
-              <span className="text-sm font-medium text-[#627D98]">
+              <span className="text-sm font-medium text-[#486581]">
                 Current status
               </span>
               <StatusBadge status={application.status} audience="applicant" size="sm" />
             </div>
-            <div className="text-sm text-[#627D98]">
+            <div className="text-sm text-[#486581]">
               Submitted on {formatDate(application.createdAt)}
             </div>
           </div>
@@ -638,25 +601,25 @@ export const ApplicationDetailPage: React.FC = () => {
 
         {/* Supporting message for Future Opportunities */}
         {application.status === ApplicationStatus.TALENT_POOL && (
-          <div className="p-4 bg-[#F7F9FC] border-l-4 border-[#0B315D] border border-[#D9E2EC] rounded-lg space-y-1">
+          <div className="p-4 bg-[#F7F9FC] border border-[#D9E2EC] rounded-lg space-y-1">
             <div className="flex items-center gap-2">
               <Bookmark className="w-4 h-4 text-[#0B315D] shrink-0" />
               <h4 className="text-sm font-semibold text-[#102A43]">
                 Future opportunities
               </h4>
             </div>
-            <p className="text-xs sm:text-sm text-[#627D98] leading-relaxed">
+            <p className="text-sm text-[#486581] leading-relaxed">
               You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications.
             </p>
           </div>
         )}
 
         {(application.status === ApplicationStatus.CONTRACT_SIGNING || application.status === ApplicationStatus.ONBOARDING) && (
-          <div className="p-4 bg-[#F8FAFC] border-l-4 border-[#6D4FD3] border border-[#D9E2EC] rounded-lg space-y-1">
+          <div className="p-4 bg-[#EAF0F7] border border-[#D9E2EC] rounded-lg space-y-1">
             <h4 className="text-sm font-semibold text-[#102A43]">Pre-employment documents approved</h4>
             {application.contractSigningAt ? (
               <>
-                <p className="text-xs sm:text-sm text-[#102A43] leading-relaxed">
+                <p className="text-sm text-[#102A43] leading-relaxed">
                   Contract signing: <span className="font-semibold">{formatDateTime(application.contractSigningAt)}</span>
                   {application.contractSigningLocation ? ` at ${application.contractSigningLocation}` : ""}
                 </p>
@@ -673,7 +636,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 )}
               </>
             ) : (
-              <p className="text-xs sm:text-sm text-[#627D98] leading-relaxed">
+              <p className="text-sm text-[#486581] leading-relaxed">
                 Your TA will contact you to sign your employment contract. Check your email for updates.
               </p>
             )}
@@ -682,7 +645,7 @@ export const ApplicationDetailPage: React.FC = () => {
 
         {isDeployed && (
           pendingFollowUps.length > 0 ? (
-            <div className="p-4 bg-[#FFFBEB] border-l-4 border-[#D97706] border border-[#FDE68A] rounded-lg space-y-2">
+            <div className="p-4 bg-[#FFF7ED] border border-[#FED7AA] rounded-lg space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-[#D97706] shrink-0" />
@@ -690,23 +653,23 @@ export const ApplicationDetailPage: React.FC = () => {
                     Deployed to work site - Follow-up requirements pending
                   </h4>
                 </div>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] self-start sm:self-auto font-mono">
+                <span className="inline-flex items-center rounded-md border border-[#FED7AA] bg-white px-2 py-0.5 text-xs font-medium text-[#B45309] self-start sm:self-auto">
                   {pendingFollowUps.length} requirement(s) pending follow-up
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-[#78350F] leading-relaxed">
+              <p className="text-sm text-[#78350F] leading-relaxed">
                 You are actively deployed. Upload your remaining requirements once available.
               </p>
             </div>
           ) : (
-            <div className="p-4 bg-[#ECFDF5] border-l-4 border-[#047857] border border-[#A7F3D0] rounded-lg space-y-1">
+            <div className="p-4 bg-[#ECFDF5] border border-[#A7F3D0] rounded-lg space-y-1">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#047857] shrink-0" />
                 <h4 className="text-sm font-semibold text-[#047857]">
                   Deployed to work site - 100% Compliant
                 </h4>
               </div>
-              <p className="text-xs sm:text-sm text-[#102A43] leading-relaxed">
+              <p className="text-sm text-[#102A43] leading-relaxed">
                 All pre-employment and post-deployment requirements are verified. Your 201 file is complete.
               </p>
             </div>
@@ -757,46 +720,46 @@ export const ApplicationDetailPage: React.FC = () => {
 
         {/* Right Column: Requisition Information */}
         <div className="space-y-4">
-          <div className="bg-white border border-[#D9E2EC] rounded-lg p-5 space-y-4 shadow-xs sticky top-6">
+          <div className="bg-white border border-[#D9E2EC] rounded-lg p-5 space-y-4 shadow-xs sticky top-24">
             <h3 className="text-sm font-semibold text-[#102A43] border-b border-[#D9E2EC] pb-3 flex items-center gap-2">
               <Briefcase className="w-4 h-4 text-[#0B315D]" />
               <span>Position Details</span>
             </h3>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3 text-sm">
               <div className="flex items-start gap-2.5">
-                <Briefcase className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
+                <Briefcase className="w-4 h-4 text-[#486581] shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-[11px] font-medium text-[#627D98]">Position Title</div>
-                  <div className="text-[#102A43] font-semibold text-xs mt-0.5">{job?.title || "N/A"}</div>
+                  <div className="text-xs font-medium text-[#486581]">Position Title</div>
+                  <div className="text-[#102A43] font-semibold text-sm mt-0.5">{job?.title || "N/A"}</div>
                 </div>
               </div>
 
               {job?.mrf?.client?.name && (
                 <div className="flex items-start gap-2.5">
-                  <Building2 className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
+                  <Building2 className="w-4 h-4 text-[#486581] shrink-0 mt-0.5" />
                   <div>
-                    <div className="text-[11px] font-medium text-[#627D98]">Company</div>
-                    <div className="text-[#102A43] font-medium text-xs mt-0.5">{job.mrf.client.name}</div>
+                    <div className="text-xs font-medium text-[#486581]">Company</div>
+                    <div className="text-[#102A43] font-medium text-sm mt-0.5">{job.mrf.client.name}</div>
                   </div>
                 </div>
               )}
 
               <div className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
+                <MapPin className="w-4 h-4 text-[#486581] shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-[11px] font-medium text-[#627D98]">Deployment Location</div>
-                  <div className="text-[#102A43] font-medium text-xs mt-0.5">{job?.location || "Philippines"}</div>
+                  <div className="text-xs font-medium text-[#486581]">Deployment Location</div>
+                  <div className="text-[#102A43] font-medium text-sm mt-0.5">{job?.location || "Philippines"}</div>
                 </div>
               </div>
             </div>
 
             {job?.description && (
               <div className="pt-3 border-t border-[#D9E2EC]">
-                <span className="text-[11px] font-medium text-[#627D98]">
+                <span className="text-xs font-medium text-[#486581]">
                   Role Description:
                 </span>
-                <p className="text-xs text-[#627D98] line-clamp-4 mt-1 leading-relaxed">
+                <p className="text-sm text-[#486581] line-clamp-4 mt-1 leading-relaxed">
                   {job.description}
                 </p>
               </div>
@@ -835,7 +798,7 @@ export const ApplicationDetailPage: React.FC = () => {
           {reuseTarget && (
             <p className="text-sm font-semibold text-[#102A43]">For {reuseTarget.documentLabel}</p>
           )}
-          <p className="text-sm text-[#627D98]">Your recruiter will still review this document for this application.</p>
+          <p className="text-sm text-[#486581]">Your recruiter will still review this document for this application.</p>
           <ul className="divide-y divide-[#D9E2EC] rounded-md border border-[#D9E2EC]">
             {(reuseTarget ? libraryMatchesFor(reuseTarget) : []).map((entry) => (
               <li key={entry.documentId} className="flex flex-wrap items-center justify-between gap-3 p-3">
@@ -843,8 +806,8 @@ export const ApplicationDetailPage: React.FC = () => {
                   <p className="truncate text-sm font-semibold text-[#102A43]" title={entry.originalName}>
                     {entry.originalName}
                   </p>
-                  <p className="text-xs text-[#627D98]">
-                    {libraryStatusLabel[entry.reviewStatus] ?? entry.reviewStatus}
+                  <p className="text-xs text-[#486581]">
+                    {REQUIREMENT_STATUS_LABEL[entry.reviewStatus] ?? entry.reviewStatus}
                     {" · "}
                     {entry.expiresAt
                       ? `Expires ${formatDate(entry.expiresAt)}${entry.isExpiringSoon ? " (expiring soon)" : ""}`
