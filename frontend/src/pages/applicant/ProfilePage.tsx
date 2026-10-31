@@ -158,6 +158,18 @@ const requiredErrors = (fields: Array<[key: string, value: FormDataEntryValue | 
   return errors;
 };
 
+// noValidate also drops the browser's max=today and type=email checks, so repeat them inline.
+const futureDateErrors = (fields: Array<[key: string, value: FormDataEntryValue | null, message: string]>): Record<string, string> => {
+  const today = getManilaToday();
+  const errors: Record<string, string> = {};
+  for (const [key, value, message] of fields) {
+    if (typeof value === "string" && value > today) errors[key] = message;
+  }
+  return errors;
+};
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const withoutKey = (errors: Record<string, string>, key: string): Record<string, string> => {
   if (!(key in errors)) return errors;
   const next = { ...errors };
@@ -621,6 +633,7 @@ export const ProfilePage: React.FC = () => {
       const fieldErrors = fieldErrorsFrom(err);
       const firstMessage = firstFieldError(fieldErrors);
       setExpErrors(fieldErrors);
+      focusFirstInvalidField('[role="dialog"]');
       setFeedback({
         type: "error",
         message: firstMessage ? "Failed to save work experience: " + firstMessage : (err?.message || "Failed to save work experience."),
@@ -658,6 +671,7 @@ export const ProfilePage: React.FC = () => {
       const fieldErrors = fieldErrorsFrom(err);
       const firstMessage = firstFieldError(fieldErrors);
       setEduErrors(fieldErrors);
+      focusFirstInvalidField('[role="dialog"]');
       setFeedback({
         type: "error",
         message: firstMessage ? "Failed to save education record: " + firstMessage : (err?.message || "Failed to save education record."),
@@ -709,6 +723,7 @@ export const ProfilePage: React.FC = () => {
       const fieldErrors = fieldErrorsFrom(err);
       const firstMessage = firstFieldError(fieldErrors);
       setTrainingErrors(fieldErrors);
+      focusFirstInvalidField('[role="dialog"]');
       setFeedback({
         type: "error",
         message: firstMessage ? "Failed to save training certification: " + firstMessage : (err?.message || "Failed to save training certification."),
@@ -746,6 +761,7 @@ export const ProfilePage: React.FC = () => {
       const fieldErrors = fieldErrorsFrom(err);
       const firstMessage = firstFieldError(fieldErrors);
       setRefErrors(fieldErrors);
+      focusFirstInvalidField('[role="dialog"]');
       setFeedback({
         type: "error",
         message: firstMessage ? "Failed to save character reference: " + firstMessage : (err?.message || "Failed to save character reference."),
@@ -825,6 +841,10 @@ export const ProfilePage: React.FC = () => {
         ["company", formData.get("companyName"), "Company name is required."],
         ["startDate", startDate, "Start date is required."],
       ]),
+      ...futureDateErrors([
+        ["startDate", startDate, "Start date can't be in the future."],
+        ["endDate", endDate, "End date can't be in the future."],
+      ]),
       ...lettersOnlyErrors({ title: formData.get("jobTitle"), company: formData.get("companyName") }),
     };
     if (Object.keys(expInputErrors).length > 0) {
@@ -865,6 +885,7 @@ export const ProfilePage: React.FC = () => {
         degree: formData.get("degree"),
         field: formData.get("fieldOfStudy"),
       }),
+      ...futureDateErrors([["startDate", startDate, "Start date can't be in the future."]]),
       ...(startDate ? {} : { startDate: "Start date is required." }),
     };
     if (Object.keys(eduInputErrors).length > 0) {
@@ -898,6 +919,7 @@ export const ProfilePage: React.FC = () => {
         ["title", formData.get("title"), "Certificate or course title is required."],
         ["provider", formData.get("issuer"), "Issuing organization is required."],
       ]),
+      ...futureDateErrors([["completionDate", formData.get("issueDate"), "Completion date can't be in the future."]]),
       ...lettersOnlyErrors({ title: formData.get("title"), provider: formData.get("issuer") }),
     };
     if (Object.keys(trainingInputErrors).length > 0) {
@@ -918,11 +940,15 @@ export const ProfilePage: React.FC = () => {
   const handleSaveRef = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const refInputErrors = requiredErrors([
-      ["name", formData.get("name"), "Contact name is required."],
-      ["relationship", formData.get("relationship"), "Relationship is required."],
-      ["phone", refPhone, "Contact phone number is required."],
-    ]);
+    const refEmail = formData.get("email");
+    const refInputErrors = {
+      ...requiredErrors([
+        ["name", formData.get("name"), "Contact name is required."],
+        ["relationship", formData.get("relationship"), "Relationship is required."],
+        ["phone", refPhone, "Contact phone number is required."],
+      ]),
+      ...(typeof refEmail === "string" && refEmail.trim() && !EMAIL_PATTERN.test(refEmail.trim()) ? { email: "Enter a valid email address." } : {}),
+    };
     if (Object.keys(refInputErrors).length > 0) {
       setRefErrors(refInputErrors);
       focusFirstInvalidField('[role="dialog"]');

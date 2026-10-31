@@ -216,7 +216,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
       </div>
       <dl className="grid grid-cols-1 divide-y divide-[#D9E2EC] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
         <div className="py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Current experience</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.workExperiences?.find((item) => item.isCurrent)?.roleTitle || profile?.workExperiences?.[0]?.roleTitle || "Add your work history"}</dd></div>
-        <div className="py-3 sm:pl-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Education</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.educations?.[0]?.degree || "Add your education"}</dd></div>
+        <div className="py-3 sm:pl-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Education</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.educations?.[0]?.degree || profile?.educations?.[0]?.school || "Add your education"}</dd></div>
         <div className="border-t border-[#D9E2EC] py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Skills</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{skills.length ? `${skills.slice(0, 6).join(", ")}${skills.length > 6 ? ` +${skills.length - 6} more` : ""}` : "Add skills"}</dd></div>
         <div className="border-t border-[#D9E2EC] py-3 sm:pl-5">
           <dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Supporting details</dt>

@@ -23,25 +23,27 @@ export interface ResumeReviewDialogProps {
   staff?: boolean;
 }
 
-// Applicant sizing only (`in-[.applicant-portal]`): 20 px boxes in 44 px rows. The staff review keeps its denser rows.
-const checkboxClass = "mt-0.5 shrink-0 rounded text-[#0B315D] focus:ring-[#0B315D] in-[.applicant-portal]:mt-0 in-[.applicant-portal]:size-5";
-const rowClass = "flex cursor-pointer items-start gap-3 py-2 in-[.applicant-portal]:min-h-11 in-[.applicant-portal]:items-center";
+// The staff (Talent Acquisition) review keeps its original look: every visual choice below has a staff branch.
+// Applicant: 20 px boxes in 44 px label rows, darker secondary text, dates like "Apr 12, 1995".
+const checkboxClass = (staff: boolean) =>
+  staff ? "mt-0.5 rounded text-[#0B315D] focus:ring-[#0B315D]" : "size-5 shrink-0 rounded text-[#0B315D] focus:ring-[#0B315D]";
+const mutedText = (staff: boolean) => (staff ? "text-[#627D98]" : "text-[#486581]");
 
-const range = (start?: string, end?: string, isCurrent?: boolean) => {
-  const from = start ? formatDate(start) : undefined;
-  const to = isCurrent ? "Present" : end ? formatDate(end) : undefined;
+const range = (staff: boolean, start?: string, end?: string, isCurrent?: boolean) => {
+  const from = staff ? start?.substring(0, 10) : start ? formatDate(start) : undefined;
+  const to = isCurrent ? "Present" : staff ? end?.substring(0, 10) : end ? formatDate(end) : undefined;
   if (!from && !to) return "";
   return [from, to].filter(Boolean).join(" to ");
 };
 
-// Dates read as "Apr 12, 1995", like the rest of the app; other values are shown as they are.
-const resumeValue = (field: string, value: string | number | null | undefined) =>
-  field === "dateOfBirth" && typeof value === "string" && value ? formatDate(value) : formatResumeValue(value);
+const resumeValue = (staff: boolean, field: string, value: string | number | null | undefined) =>
+  !staff && field === "dateOfBirth" && typeof value === "string" && value ? formatDate(value) : formatResumeValue(value);
 
 const joinParts = (...parts: Array<string | undefined | null | false>) =>
   parts.filter(Boolean).join(" · ");
 
 interface ItemRowProps {
+  staff: boolean;
   id: string;
   title: string;
   detail?: string;
@@ -49,23 +51,38 @@ interface ItemRowProps {
   onChange: (checked: boolean) => void;
 }
 
-const ItemRow: React.FC<ItemRowProps> = ({ id, title, detail, checked, onChange }) => (
-  <li>
-    <label htmlFor={id} className={rowClass}>
+const ItemRow: React.FC<ItemRowProps> = ({ staff, id, title, detail, checked, onChange }) =>
+  staff ? (
+    <li className="flex items-start gap-3 py-2">
       <input
         id={id}
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className={checkboxClass}
+        className={checkboxClass(true)}
       />
-      <span className="min-w-0 text-sm text-[#102A43]">
+      <label htmlFor={id} className="min-w-0 text-sm text-[#102A43]">
         <span className="font-medium">{title}</span>
-        {detail ? <span className="block text-xs text-[#486581]">{detail}</span> : null}
-      </span>
-    </label>
-  </li>
-);
+        {detail ? <span className={`block text-xs ${mutedText(true)}`}>{detail}</span> : null}
+      </label>
+    </li>
+  ) : (
+    <li>
+      <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center gap-3 py-2">
+        <input
+          id={id}
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          className={checkboxClass(false)}
+        />
+        <span className="min-w-0 text-sm text-[#102A43]">
+          <span className="font-medium">{title}</span>
+          {detail ? <span className={`block text-xs ${mutedText(false)}`}>{detail}</span> : null}
+        </span>
+      </label>
+    </li>
+  );
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <section className="border-t border-[#D9E2EC] pt-3 first:border-t-0 first:pt-0">
@@ -116,8 +133,9 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
       open={open}
       onClose={onClose}
       size="lg"
-      // Phones: the header wraps to several lines, so leave more room and keep the Save button on screen.
-      bodyClassName="max-h-[calc(100dvh-13rem)] sm:max-h-[calc(100dvh-8rem)]"
+      // Applicant phones: the header wraps to several lines, so leave more room and keep Save on screen.
+      // `!` because `cn` does not merge Tailwind classes and the Dialog body sets its own max-h.
+      bodyClassName={staff ? undefined : "max-h-[calc(100dvh-13rem)]! sm:max-h-[calc(100dvh-8rem)]!"}
       title={staff ? "Review details from the resume" : "Review details from your resume"}
       description={
         staff
@@ -135,10 +153,11 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
                 if (row.status === "suggested") {
                   return (
                     <ItemRow
+                      staff={staff}
                       key={row.field}
                       id={id}
                       title={label}
-                      detail={`${source}: ${resumeValue(row.field, row.proposed)}`}
+                      detail={`${source}: ${resumeValue(staff, row.field, row.proposed)}`}
                       checked={selection.personal.has(row.field)}
                       onChange={(on) => update({ personal: toggle(selection.personal, row.field, on) })}
                     />
@@ -147,21 +166,36 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
                 return (
                   <li key={row.field} className="py-2">
                     <p className="text-sm font-medium text-[#102A43]">{label}</p>
-                    <p className="text-xs text-[#486581]">Saved: {resumeValue(row.field, row.current)}</p>
-                    <p className="text-xs text-[#486581]">{source}: {resumeValue(row.field, row.proposed)}</p>
+                    <p className={`text-xs ${mutedText(staff)}`}>Saved: {resumeValue(staff, row.field, row.current)}</p>
+                    <p className={`text-xs ${mutedText(staff)}`}>{source}: {resumeValue(staff, row.field, row.proposed)}</p>
                     {row.locked && !staff ? (
-                      <p className="mt-1 text-xs text-[#486581]">Verified by MEGS staff. This value can't be changed here.</p>
+                      <p className={`mt-1 text-xs ${mutedText(staff)}`}>Verified by MEGS staff. This value can't be changed here.</p>
                     ) : (
-                      <label htmlFor={id} className={`${rowClass} mt-1 items-center py-0 text-xs text-[#102A43] in-[.applicant-portal]:text-sm`}>
-                        <input
-                          id={id}
-                          type="checkbox"
-                          checked={selection.overwrite.has(row.field)}
-                          onChange={(e) => update({ overwrite: toggle(selection.overwrite, row.field, e.target.checked) })}
-                          className={checkboxClass}
-                        />
-                        Use the resume value for {label}
-                      </label>
+                      staff ? (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <input
+                            id={id}
+                            type="checkbox"
+                            checked={selection.overwrite.has(row.field)}
+                            onChange={(e) => update({ overwrite: toggle(selection.overwrite, row.field, e.target.checked) })}
+                            className="rounded text-[#0B315D] focus:ring-[#0B315D]"
+                          />
+                          <label htmlFor={id} className="text-xs text-[#102A43]">
+                            Use the resume value for {label}
+                          </label>
+                        </div>
+                      ) : (
+                        <label htmlFor={id} className="mt-1 flex min-h-11 cursor-pointer items-center gap-3 text-sm text-[#102A43]">
+                          <input
+                            id={id}
+                            type="checkbox"
+                            checked={selection.overwrite.has(row.field)}
+                            onChange={(e) => update({ overwrite: toggle(selection.overwrite, row.field, e.target.checked) })}
+                            className={checkboxClass(false)}
+                          />
+                          Use the resume value for {label}
+                        </label>
+                      )
                     )}
                   </li>
                 );
@@ -179,16 +213,17 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
                   return (
                     <li key={row.index} className="py-2">
                       <p className="text-sm font-medium text-[#102A43]">{title}</p>
-                      <p className="text-xs text-[#486581]">Not added: no start date found. Add it manually.</p>
+                      <p className={`text-xs ${mutedText(staff)}`}>Not added: no start date found. Add it manually.</p>
                     </li>
                   );
                 }
                 return (
                   <ItemRow
+                      staff={staff}
                     key={row.index}
                     id={`resume-work-${row.index}`}
                     title={title}
-                    detail={joinParts(range(row.item.startDate, row.item.endDate, row.item.isCurrent), row.item.location)}
+                    detail={joinParts(range(staff, row.item.startDate, row.item.endDate, row.item.isCurrent), row.item.location)}
                     checked={selection.workExperiences.has(row.index)}
                     onChange={(on) => update({ workExperiences: toggle(selection.workExperiences, row.index, on) })}
                   />
@@ -203,10 +238,11 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
             <ul className="divide-y divide-[#D9E2EC]">
               {educations.map((row) => (
                 <ItemRow
+                      staff={staff}
                   key={row.index}
                   id={`resume-education-${row.index}`}
                   title={joinParts(row.item.degree, row.item.school)}
-                  detail={joinParts(row.item.fieldOfStudy, range(row.item.startDate, row.item.endDate))}
+                  detail={joinParts(row.item.fieldOfStudy, range(staff, row.item.startDate, row.item.endDate))}
                   checked={selection.educations.has(row.index)}
                   onChange={(on) => update({ educations: toggle(selection.educations, row.index, on) })}
                 />
@@ -220,8 +256,9 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
             <ul className="divide-y divide-[#D9E2EC]">
               {skills.map((row, index) => (
                 <ItemRow
+                      staff={staff}
                   key={row.name}
-                  id={`resume-skill-${index}`}
+                  id={staff ? `resume-skill-${row.name}` : `resume-skill-${index}`}
                   title={row.name}
                   checked={selection.skills.has(row.name)}
                   onChange={(on) => update({ skills: toggle(selection.skills, row.name, on) })}
@@ -236,10 +273,11 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
             <ul className="divide-y divide-[#D9E2EC]">
               {trainings.map((row) => (
                 <ItemRow
+                      staff={staff}
                   key={row.index}
                   id={`resume-training-${row.index}`}
                   title={row.item.title}
-                  detail={joinParts(row.item.provider, row.item.completionDate ? formatDate(row.item.completionDate) : undefined)}
+                  detail={joinParts(row.item.provider, staff ? row.item.completionDate?.substring(0, 10) : row.item.completionDate ? formatDate(row.item.completionDate) : undefined)}
                   checked={selection.trainings.has(row.index)}
                   onChange={(on) => update({ trainings: toggle(selection.trainings, row.index, on) })}
                 />
@@ -253,6 +291,7 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
             <ul className="divide-y divide-[#D9E2EC]">
               {references.map((row) => (
                 <ItemRow
+                      staff={staff}
                   key={row.index}
                   id={`resume-reference-${row.index}`}
                   title={row.item.name}
