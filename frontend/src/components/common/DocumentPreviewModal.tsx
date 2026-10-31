@@ -72,7 +72,8 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     onClose();
   };
 
-  useModalBehavior(open, handleClose, panelRef);
+  // Escape in notes mode steps back to the preview and keeps the typed notes.
+  useModalBehavior(open, rejectMode ? () => setRejectMode(false) : handleClose, panelRef);
 
   if (!open) return null;
 
@@ -122,9 +123,24 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 <h2 id={titleId} className="text-base font-semibold text-slate-950 truncate">
                   {title}
                 </h2>
-                {requirementStatus && <RequirementStatusBadge status={requirementStatus} />}
+                {requirementStatus &&
+                  (isStaff ? (
+                    <span
+                      className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                        requirementStatus === "APPROVED"
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                          : requirementStatus === "REJECTED"
+                          ? "bg-rose-100 text-rose-800 border border-rose-300"
+                          : "bg-amber-100 text-amber-800 border border-amber-300"
+                      }`}
+                    >
+                      {requirementStatus}
+                    </span>
+                  ) : (
+                    <RequirementStatusBadge status={requirementStatus} />
+                  ))}
               </div>
-              <p className="text-[11px] sm:text-xs text-slate-600 font-sans truncate">
+              <p className={cn("text-slate-600 font-sans truncate", isStaff ? "text-[11px] sm:text-xs" : "text-xs")}>
                 {preview?.originalName || "Uploaded document"}
               </p>
             </div>
@@ -157,7 +173,10 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         </div>
 
         {/* Metadata sub-bar */}
-        <div className="px-4 py-2 sm:px-5 bg-slate-50 border-b border-slate-200 text-[11px] sm:text-xs text-slate-600 flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div className={cn(
+          "px-4 py-2 sm:px-5 bg-slate-50 border-b border-slate-200 text-slate-600 flex flex-wrap items-center justify-between gap-2 shrink-0",
+          isStaff ? "text-[11px] sm:text-xs" : "text-xs"
+        )}>
           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             {(applicantName || preview?.applicantName) && (
               <div className="flex items-center gap-1.5">
