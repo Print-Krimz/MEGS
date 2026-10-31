@@ -75,7 +75,7 @@ export const JobFilters: React.FC<JobFiltersProps> = ({ values, onChange, salary
           aria-describedby={salaryError ? salaryErrorId : undefined}
           className={salaryError ? "border-red-600" : undefined}
           onChange={(event) => onChange({ salaryMin: event.target.value })}
-          leftIcon={<span aria-hidden="true">₱</span>}
+          leftIcon={<span aria-hidden="true" className="text-[#486581]">₱</span>}
         />
 
         <Input
@@ -90,7 +90,7 @@ export const JobFilters: React.FC<JobFiltersProps> = ({ values, onChange, salary
           aria-describedby={salaryError ? salaryErrorId : undefined}
           className={salaryError ? "border-red-600" : undefined}
           onChange={(event) => onChange({ salaryMax: event.target.value })}
-          leftIcon={<span aria-hidden="true">₱</span>}
+          leftIcon={<span aria-hidden="true" className="text-[#486581]">₱</span>}
         />
       </div>
 
