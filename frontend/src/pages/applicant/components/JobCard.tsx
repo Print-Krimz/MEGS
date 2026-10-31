@@ -69,7 +69,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = fal
               <Link
                 to="/app/jobs/$jobId"
                 params={{ jobId: String(job.id) }}
-                className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+                className="rounded-sm applicant-touch:inline-flex applicant-touch:min-h-11 applicant-touch:items-center hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
               >
                 {job.title}
               </Link>
