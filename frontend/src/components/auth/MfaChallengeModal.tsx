@@ -84,7 +84,7 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
         token: tempToken,
         recoveryCode: recoveryCode.trim(),
       });
-      notify.success("Recovery code accepted", "Logged in using single-use backup code.");
+      notify.success("Backup code accepted", "Your authenticator was reset. Set up a new one to continue.");
       onSuccess(res);
     } catch (err: any) {
       const formatted = formatErrorMessage(err);
@@ -160,7 +160,7 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
               <AuthTextField
                 id="mfa-recovery-code"
                 label="Emergency recovery code"
-                hint="Use one of the 8-character codes you saved during setup. Each code works once."
+                hint="Enter one of the 8-character codes you saved during setup. This resets your authenticator: you will scan a new QR code and get new backup codes."
                 type="text"
                 placeholder="XXXX-XXXX"
                 autoComplete="off"

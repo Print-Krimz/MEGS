@@ -267,7 +267,7 @@ export const SetupAccountPage: React.FC = () => {
         <AuthHeading
           focusOnMount
           title="Save your backup codes"
-          description="Each code works once. Use one to sign in if you lose access to your authenticator."
+          description="Each code works once. If you lose your authenticator, enter one at sign-in. It resets your authenticator, so you will scan a new QR code and get new backup codes."
         />
 
         <AuthError message={serverError} />

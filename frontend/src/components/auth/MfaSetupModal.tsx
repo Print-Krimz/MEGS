@@ -185,7 +185,7 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
           <DialogDescription className="text-base leading-relaxed">
             {step === "ENROLL"
               ? `Scan the QR code with an authenticator app to protect ${email}.`
-              : `Each of these ${recoveryCodes.length} codes signs you in once if you lose your authenticator app.`}
+              : `Each of these ${recoveryCodes.length} codes works once. If you lose your authenticator app, enter one at sign-in. It resets your authenticator, so you will scan a new QR code and get new backup codes.`}
           </DialogDescription>
         </DialogHeader>
 
