@@ -207,15 +207,9 @@ export const ApplicantDashboard: React.FC = () => {
         description="See where each application stands and discover verified job opportunities."
         breadcrumbs={[{ label: "Candidate Portal" }]}
         actions={
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline">
-              <Link to="/app/jobs">Browse Jobs</Link>
-            </Button>
-            {/* One primary action per area: the invitation banner owns it while it shows. */}
-            <Button asChild variant={pendingInvitations.length > 0 ? "outline" : "primary"}>
-              <Link to="/app/profile">Update Profile</Link>
-            </Button>
-          </div>
+          <Button asChild variant="outline">
+            <Link to="/app/jobs">Browse Jobs</Link>
+          </Button>
         }
       />
 

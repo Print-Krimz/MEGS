@@ -32,7 +32,6 @@ import {
   Bookmark,
   MapPin,
   Mail,
-  ArrowRight,
   XCircle,
   MessageSquare,
   AlertCircle,
@@ -353,14 +352,6 @@ export const MyApplicationsPage: React.FC = () => {
               icon={<Mail className="w-8 h-8 text-slate-400" />}
               title="No job invitations right now"
               description="When recruiters match your profile to open positions, direct invitations will appear here for you to accept or decline."
-              action={
-                <Button asChild variant="primary" size="sm">
-                  <Link to="/app/jobs">
-                    Explore Open Jobs
-                    <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                  </Link>
-                </Button>
-              }
             />
           </div>
         ) : (
@@ -475,11 +466,6 @@ export const MyApplicationsPage: React.FC = () => {
               icon={<Briefcase className="w-5 h-5 text-slate-400" />}
               title="No applications yet"
               description="Explore current jobs and apply when a role suits you."
-              action={
-                <Button asChild variant="primary" size="sm">
-                  <Link to="/app/jobs">Explore jobs</Link>
-                </Button>
-              }
             />
           </div>
         ) : filteredApplications.length === 0 ? (
