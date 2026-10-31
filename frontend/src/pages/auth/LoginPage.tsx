@@ -10,6 +10,7 @@ import { AuthError, AuthHeading } from "../../components/auth/AuthChrome";
 import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
+import { canOpenPath } from "../../lib/home-path";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { MfaChallengeModal } from "../../components/auth/MfaChallengeModal";
 import { MfaSetupModal } from "../../components/auth/MfaSetupModal";
@@ -88,7 +89,9 @@ export const LoginPage: React.FC = () => {
       search.redirect.startsWith("/") &&
       !search.redirect.startsWith("//") &&
       search.redirect !== "/login" &&
-      search.redirect !== "/"
+      search.redirect !== "/" &&
+      // A redirect saved for another role's area (an expired TA session, now signing in as Admin) would only end on the 403 page.
+      canOpenPath(data.user, search.redirect.split(/[?#]/)[0])
     ) {
       navigate({ to: search.redirect as any });
       return;

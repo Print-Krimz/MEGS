@@ -4,18 +4,19 @@ import { authApi } from "../lib/api/auth.api";
 import { ApiError } from "../lib/api/client";
 import { bumpSessionGeneration, getSessionGeneration, onSessionGenerationChange, tokenSubject } from "../lib/auth/session-generation";
 import { AuthContext, type AuthContextType } from "../context/AuthContext";
+import { canOpenPath, getHomePath } from "../lib/home-path";
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const fetchSession = useCallback(async () => {
+  const fetchSession = useCallback(async (): Promise<User | null> => {
     const generation = getSessionGeneration();
     const token = localStorage.getItem("access_token");
     if (!token) {
       setUser(null);
       setIsLoading(false);
-      return;
+      return null;
     }
 
     // A newer session generation settles loading itself; this one must not.
@@ -24,13 +25,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const currentUser = await authApi.getMe();
       if (generation !== getSessionGeneration()) {
         stale = true;
-        return;
+        return null;
       }
       setUser(currentUser);
+      return currentUser;
     } catch (error) {
       if (generation !== getSessionGeneration()) {
         stale = true;
-        return;
+        return null;
       }
       // Temporary API/network outages do not invalidate credentials. An initial
       // failed check still leaves user null, so it cannot grant authenticated access.
@@ -43,6 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       if (!stale) setIsLoading(false);
     }
+    return null;
   }, []);
 
   useEffect(() => {
@@ -63,7 +66,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         bumpSessionGeneration();
         setUser(null);
         setIsLoading(true);
-        void fetchSession();
+        // Another tab signed in as a different role: this tab's page now belongs to the old role, so go home.
+        void fetchSession().then((next) => {
+          if (next && !canOpenPath(next, window.location.pathname)) window.location.replace(getHomePath(next));
+        });
       }
     };
     window.addEventListener("storage", syncSession);
