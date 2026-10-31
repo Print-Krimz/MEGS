@@ -66,7 +66,7 @@ export function getTaStatusTone(status?: string | null): TAStatusTone {
     "AVAILABLE_FOR_REDEPLOYMENT",
   ].includes(key)) return "brand";
 
-  if (["DRAFT", "ON_HOLD", "PENDING", "REQUIREMENTS", "NEEDS_ATTENTION", "HIGH", "ASAP"].includes(key)) return "warning";
+  if (["DRAFT", "ON_HOLD", "PENDING", "REQUIREMENTS", "NEEDS_ATTENTION", "HIGH", "ASAP", "EXPIRING_SOON"].includes(key)) return "warning";
 
   if (["CANCELLED", "WITHDRAWN", "BACKOUT", "EXPIRED", "SEPARATED", "REJECTED", "URGENT"].includes(key)) return "danger";
 

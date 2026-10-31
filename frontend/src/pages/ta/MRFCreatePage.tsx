@@ -909,14 +909,14 @@ export const MRFCreatePage: React.FC = () => {
             </div>
 
             <details
-              className="group border-t border-slate-200 pt-4"
+              className="group/more border-t border-slate-200 pt-4"
               open={moreDetailsOpen}
               onToggle={(e) => setMoreDetailsOpen((e.currentTarget as HTMLDetailsElement).open)}
             >
               <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-slate-900 focus-ring md:min-h-0 [&::-webkit-details-marker]:hidden">
                 <span>More details</span>
-                <span className="text-sm font-medium text-navy group-open:hidden">Show</span>
-                <span className="hidden text-sm font-medium text-navy group-open:inline">Hide</span>
+                <span className="text-sm font-medium text-navy group-open/more:hidden">Show</span>
+                <span className="hidden text-sm font-medium text-navy group-open/more:inline">Hide</span>
               </summary>
               <div className="mt-3 space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -969,14 +969,14 @@ export const MRFCreatePage: React.FC = () => {
 
             {/* Internal-only client requirements */}
             <details
-              className="group border-t border-slate-200 pt-4"
+              className="group/client border-t border-slate-200 pt-4"
               open={clientRequirementsOpen}
               onToggle={(e) => setClientRequirementsOpen((e.currentTarget as HTMLDetailsElement).open)}
             >
               <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-slate-900 focus-ring md:min-h-0 [&::-webkit-details-marker]:hidden">
                 <span>Client requirements (internal only)</span>
-                <span className="text-sm font-medium text-navy group-open:hidden">Show</span>
-                <span className="hidden text-sm font-medium text-navy group-open:inline">Hide</span>
+                <span className="text-sm font-medium text-navy group-open/client:hidden">Show</span>
+                <span className="hidden text-sm font-medium text-navy group-open/client:inline">Hide</span>
               </summary>
               <div className="mt-3 space-y-4">
                 <p className="text-sm text-slate-600">These preferences are for your team only and are never shown on job postings.</p>

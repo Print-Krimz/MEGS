@@ -109,6 +109,8 @@ export const JobPostingDetailPage: React.FC = () => {
 
   const { rankedCandidatesQuery, talentPoolQuery } = useJobCandidateQueries(jobId, activeTab);
 
+  const isDraft = jobQuery.data?.status === JobStatus.DRAFT;
+
   const rankCandidatesMutation = useMutation({
     mutationFn: () => taApi.rankCandidates(jobId),
     onSuccess: (data) => {
@@ -404,6 +406,8 @@ export const JobPostingDetailPage: React.FC = () => {
               variant="outline"
               size="sm"
               loading={rankCandidatesMutation.isPending}
+              disabled={isDraft}
+              title={isDraft ? "Available once the opening is published." : undefined}
               onClick={() => rankCandidatesMutation.mutate()}
             >
               Recalculate match scores
@@ -491,9 +495,13 @@ export const JobPostingDetailPage: React.FC = () => {
               <EmptyState
                 bare
                 title="No applicant matches yet"
-                description="Recalculate match scores to compare applicants with this opening's requirements."
+                description={
+                  isDraft
+                    ? "Applicants appear here once the opening is published."
+                    : "Recalculate match scores to compare applicants with this opening's requirements."
+                }
                 action={
-                  <Button
+                  isDraft ? undefined : <Button
                     variant="primary"
                     size="sm"
                     loading={rankCandidatesMutation.isPending}

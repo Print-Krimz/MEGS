@@ -16,6 +16,7 @@ import {
 import { sendError, sendSuccess } from '../../utils/response.js';
 import { scoringFlags } from '../../utils/scoring-flags.js';
 import { logAudit } from '../../utils/audit.js';
+import prisma from '../../utils/prisma.js';
 
 const handle = (res: Response, error: unknown) => {
   if (error instanceof ZodError) {
@@ -51,6 +52,8 @@ export const rankCandidates = async (req: Request, res: Response) => {
   try {
     if (!requireDynamicScoring(res)) return;
     const { jobId } = candidateScoringSchema.rankJobParams.parse(req.params);
+    const job = await prisma.jobPosting.findUnique({ where: { id: jobId }, select: { status: true } });
+    if (job?.status === "DRAFT") return sendError(res, "Match scores are available once the opening is published.", 409);
     const rankedCount = await revalidateJobScoring(jobId);
     return sendSuccess(res, "Job candidate pool re-scoring completed successfully", { rankedCount: rankedCount ?? 0 }, 200);
   } catch (error) { handle(res, error); }

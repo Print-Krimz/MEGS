@@ -160,9 +160,6 @@ export const Dialog: React.FC<DialogProps> = ({
   return (
     <div
       className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 flex items-center justify-center p-3 sm:p-4 md:p-6"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? titleId : ariaLabelledBy}
@@ -207,7 +204,7 @@ export const Dialog: React.FC<DialogProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-2 right-2 z-10 min-h-11 min-w-11 inline-flex items-center justify-center rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="absolute top-3 right-3 z-10 min-h-11 min-w-11 inline-flex items-center justify-center rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             aria-label="Close dialog"
             title="Close dialog"
           >

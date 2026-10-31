@@ -53,7 +53,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <div className={`p-2 ${bgMap[variant]} border border-slate-300 rounded-md shrink-0`}>
           {iconMap[variant]}
         </div>
-        <div className="space-y-1 flex-1">
+        <div className="space-y-1 flex-1 pr-9">
           <h3 id={titleId} className="text-base font-semibold text-slate-950">{title}</h3>
           {description && (
             <p id={descriptionId} className="text-sm text-slate-600 leading-normal">{description}</p>

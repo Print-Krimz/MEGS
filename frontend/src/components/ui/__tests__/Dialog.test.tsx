@@ -27,6 +27,18 @@ describe("Dialog", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("stays open when the dimmed area outside it is clicked", () => {
+    const onClose = vi.fn();
+    render(
+      <Dialog open onClose={onClose} title="Add client">
+        <p>Form</p>
+      </Dialog>
+    );
+
+    fireEvent.click(screen.getByRole("dialog"));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("keeps keyboard focus inside an open dialog", () => {
     render(
       <Dialog open onClose={vi.fn()} title="Confirm action">

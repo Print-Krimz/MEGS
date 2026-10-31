@@ -419,6 +419,10 @@ export const ClientsPage: React.FC = () => {
               notify.error("Check the highlighted fields", "Enter the province, city, barangay, and postal code.");
               return;
             }
+            if (postalCode.trim() && !/^\d{4}$/.test(postalCode.trim())) {
+              notify.error("Check the highlighted fields", "Postal code must be exactly 4 digits.");
+              return;
+            }
             const combinedName = [contactFirstName.trim(), contactLastName.trim()].filter(Boolean).join(" ");
             createClientMutation.mutate({
               name: name.trim(),

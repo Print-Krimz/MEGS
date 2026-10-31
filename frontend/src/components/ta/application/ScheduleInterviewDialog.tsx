@@ -20,6 +20,8 @@ export interface ScheduleInterviewDialogProps {
   isReschedule: boolean;
   /** Manila "datetime-local" value to start from. Empty for a new appointment. */
   initialDate?: string;
+  /** The schedule being replaced, shown on the calendar. Same format as initialDate. */
+  currentDate?: string;
   /** Meeting place or link to start from. Contract signing falls back to the company address. */
   initialLocation?: string;
   onSubmit: (values: { type: ScheduleActivity; scheduledAt: string; location?: string }) => void;
@@ -37,6 +39,7 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
   type,
   isReschedule,
   initialDate = "",
+  currentDate,
   initialLocation = "",
   onSubmit,
   isSubmitting = false,
@@ -120,6 +123,7 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
           value={date}
           onChange={(val) => setDate(val)}
           minDate={new Date()}
+          highlightDate={isReschedule ? currentDate : undefined}
           required
           workingHoursOnly
           helperText={OFFICE_HOURS_SHORT}

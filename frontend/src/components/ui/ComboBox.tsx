@@ -53,6 +53,8 @@ export interface ComboBoxProps {
   clearable?: boolean;
   allowCustom?: boolean;
   maxLength?: number;
+  /** Typed text keeps digits only, for codes such as a postal code. */
+  digitsOnly?: boolean;
   emptyText?: string;
   className?: string;
   id?: string;
@@ -112,6 +114,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
   clearable = true,
   allowCustom = false,
   maxLength,
+  digitsOnly = false,
   emptyText = "No matching options found",
   className,
   id: customId,
@@ -512,7 +515,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
+    const val = digitsOnly ? e.target.value.replace(/\D/g, "") : e.target.value;
     setSearchQuery(val);
     setHighlightedIndex(0);
     if (!isOpen) setIsOpen(true);
@@ -574,6 +577,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
           value={searchQuery}
           maxLength={maxLength ?? getInputTextLimit(label, "text", FIELD_LIMITS.shortText)}
           onChange={handleInputChange}
+          inputMode={digitsOnly ? "numeric" : undefined}
           onFocus={handleInputFocus}
           onClick={handleInputClick}
           onKeyDown={handleKeyDown}

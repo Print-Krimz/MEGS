@@ -18,6 +18,8 @@ export interface DateTimePickerProps {
   placeholder?: string;
   id?: string;
   workingHoursOnly?: boolean;
+  /** Same format as value. Marks the schedule being replaced and opens the calendar on its month. */
+  highlightDate?: string;
 }
 
 function formatMinutes(total: number): string {
@@ -189,6 +191,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   placeholder = "Select date and time...",
   id: customId,
   workingHoursOnly = false,
+  highlightDate,
 }) => {
   const generatedId = useId();
   const inputId = customId || generatedId;
@@ -236,13 +239,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
   // Current selected parsed date
   const parsedValue = useMemo(() => parseDateTimeValue(value), [value]);
+  const parsedHighlight = useMemo(() => (highlightDate ? parseDateTimeValue(highlightDate) : null), [highlightDate]);
 
   // Calendar month/year navigation state
   const [viewYear, setViewYear] = useState<number>(() => {
-    return parsedValue ? parsedValue.getFullYear() : effectiveMinDate.getFullYear();
+    return (parsedValue ?? parsedHighlight)?.getFullYear() ?? effectiveMinDate.getFullYear();
   });
   const [viewMonth, setViewMonth] = useState<number>(() => {
-    return parsedValue ? parsedValue.getMonth() : effectiveMinDate.getMonth();
+    return (parsedValue ?? parsedHighlight)?.getMonth() ?? effectiveMinDate.getMonth();
   });
 
   // Sync calendar view when value updates or popover opens
@@ -329,6 +333,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       isDisabled: boolean;
       isToday: boolean;
       isSelected: boolean;
+      isCurrent: boolean;
     }> = [];
 
     for (let day = 1; day <= daysInMonth; day++) {
@@ -340,6 +345,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
         isClosedDay(date) ||
         (isToday && isTodayPastWorkingHours);
       const isSelected = parsedValue ? isSameDay(date, parsedValue) : false;
+      const isCurrent = parsedHighlight ? isSameDay(date, parsedHighlight) : false;
 
       days.push({
         dayNumber: day,
@@ -347,6 +353,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
         isDisabled,
         isToday,
         isSelected,
+        isCurrent,
       });
     }
 
@@ -355,7 +362,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       days,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewYear, viewMonth, minDateMidnight, maxDateEnd, now, parsedValue, isTodayPastWorkingHours, workingHoursOnly]);
+  }, [viewYear, viewMonth, minDateMidnight, maxDateEnd, now, parsedValue, parsedHighlight, isTodayPastWorkingHours, workingHoursOnly]);
 
   // Helper to apply or update date while preserving or defaulting time
   const handleSelectDate = (date: Date) => {
@@ -718,8 +725,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                       type="button"
                       disabled={item.isDisabled}
                       onClick={() => handleSelectDate(item.date)}
+                      title={item.isCurrent ? "Current schedule" : undefined}
+                      aria-label={item.isCurrent ? `${item.dayNumber}, current schedule` : undefined}
                       className={cn(
                         "h-7 w-7 mx-auto rounded text-xs flex items-center justify-center transition-colors font-medium",
+                        item.isCurrent && !item.isSelected && "ring-2 ring-amber-500 bg-amber-50 !text-amber-900 font-bold",
                         item.isDisabled
                           ? "text-slate-300 bg-slate-50/50 cursor-not-allowed pointer-events-none"
                           : item.isSelected
@@ -734,6 +744,12 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                   );
                 })}
               </div>
+              {parsedHighlight && (
+                <p className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-amber-50 ring-2 ring-amber-500" aria-hidden="true" />
+                  Current schedule
+                </p>
+              )}
             </div>
 
             {/* Time Section */}

@@ -61,6 +61,8 @@ type DialogState =
       type: ScheduleActivity;
       isReschedule: boolean;
       initialDate: string;
+      /** The schedule being replaced, marked on the calendar. */
+      currentDate?: string;
       initialLocation: string;
       /** Set when the recruiter is answering an applicant's reschedule request. */
       requestId?: number;
@@ -293,6 +295,7 @@ export const ApplicationDetailPage: React.FC = () => {
       type,
       isReschedule: Boolean(existing),
       initialDate: existing ? manilaIsoToDateTimeLocal(existing.scheduledAt) : "",
+      currentDate: existing ? manilaIsoToDateTimeLocal(existing.scheduledAt) : undefined,
       initialLocation: existing?.location || "",
     });
   const openContractSigningSchedule = () =>
@@ -301,6 +304,7 @@ export const ApplicationDetailPage: React.FC = () => {
       type: "CONTRACT_SIGNING",
       isReschedule: Boolean(app.contractSigningAt),
       initialDate: manilaIsoToDateTimeLocal(app.contractSigningAt),
+      currentDate: manilaIsoToDateTimeLocal(app.contractSigningAt),
       initialLocation: app.contractSigningLocation || "",
     });
   const pendingReschedules = (app.rescheduleRequests || []).filter((r) => r.status === "PENDING");
@@ -315,6 +319,7 @@ export const ApplicationDetailPage: React.FC = () => {
       type: request.activity,
       isReschedule: true,
       initialDate: "",
+      currentDate: manilaIsoToDateTimeLocal(rescheduleCurrentTime(request)),
       initialLocation:
         (request.activity === "CONTRACT_SIGNING"
           ? app.contractSigningLocation
@@ -779,6 +784,7 @@ export const ApplicationDetailPage: React.FC = () => {
         type={dlg?.kind === "schedule" ? dlg.type : InterviewType.INITIAL_SCREENING}
         isReschedule={dlg?.kind === "schedule" ? dlg.isReschedule : false}
         initialDate={dlg?.kind === "schedule" ? dlg.initialDate : ""}
+        currentDate={dlg?.kind === "schedule" ? dlg.currentDate : undefined}
         initialLocation={dlg?.kind === "schedule" ? dlg.initialLocation : ""}
         isSubmitting={m.scheduleInterview.isPending || m.scheduleContractSigning.isPending || m.approveReschedule.isPending}
         onSubmit={(values) => {

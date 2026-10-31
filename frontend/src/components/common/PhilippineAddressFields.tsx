@@ -235,6 +235,7 @@ export const PhilippineAddressFields: React.FC<PhilippineAddressFieldsProps> = (
             placeholder={cityPostalCodes.length ? "Select postal code..." : "4 digits"}
             value={postalCode}
             maxLength={4}
+            digitsOnly
             onChange={(value) => onChange({ postalCode: value.replace(/\D/g, "").slice(0, 4) })}
             options={cityPostalCodes}
             allowCustom
