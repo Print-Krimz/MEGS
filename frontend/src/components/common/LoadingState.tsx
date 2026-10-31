@@ -25,7 +25,9 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
 
   if (variant === "cards") {
     return (
-      <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 my-3", className)}>
+      // `className` overrides the grid (for example `lg:grid-cols-2`) so the skeleton matches the real list.
+      <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 my-3", className)} role="status" aria-live="polite">
+        <span className="sr-only">{message}</span>
         {Array.from({ length: rows }).map((_, idx) => (
           <div
             key={idx}
@@ -49,7 +51,8 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
 
   if (variant === "detail") {
     return (
-      <div className={cn("space-y-4 my-3 animate-pulse", className)}>
+      <div className={cn("space-y-4 my-3 animate-pulse", className)} role="status" aria-live="polite">
+        <span className="sr-only">{message}</span>
         {/* Header Skeleton */}
         <div className="bg-white p-5 border border-slate-300 rounded-md space-y-3">
           <div className="flex justify-between items-start">

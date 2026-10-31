@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { connectNotificationStream } from "../lib/notification-stream";
@@ -17,7 +17,13 @@ export interface RealtimeToast {
   createdAt: string;
   link?: string | null;
   type?: string;
+  /** Added by the hook: hold the auto-dismiss timer while the pointer or focus is on the toast. */
+  pause?: () => void;
+  /** Added by the hook: restart the auto-dismiss timer. */
+  resume?: () => void;
 }
+
+const TOAST_DISMISS_MS = 6000;
 
 // The recent list is only needed once the bell is open; the unread count and stream stay always on.
 export function useRealtimeNotifications({ recentEnabled = false }: { recentEnabled?: boolean } = {}) {
@@ -33,6 +39,23 @@ export function useRealtimeNotifications({ recentEnabled = false }: { recentEnab
   useEffect(() => () => {
     toastTimeouts.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
     toastTimeouts.current.clear();
+  }, []);
+
+  const dismissToastLater = useCallback((id: number) => {
+    const priorTimeout = toastTimeouts.current.get(id);
+    if (priorTimeout !== undefined) window.clearTimeout(priorTimeout);
+    const timeoutId = window.setTimeout(() => {
+      toastTimeouts.current.delete(id);
+      setActiveToasts((prev) => prev.filter((t) => t.id !== id));
+    }, TOAST_DISMISS_MS);
+    toastTimeouts.current.set(id, timeoutId);
+  }, []);
+
+  const pauseToast = useCallback((id: number) => {
+    const timeoutId = toastTimeouts.current.get(id);
+    if (timeoutId === undefined) return;
+    window.clearTimeout(timeoutId);
+    toastTimeouts.current.delete(id);
   }, []);
 
   // 1. Unread count query
@@ -115,20 +138,14 @@ export function useRealtimeNotifications({ recentEnabled = false }: { recentEnab
 
           setActiveToasts((prev) => [newToast, ...prev.filter((t) => t.id !== newToast.id).slice(0, 2)]);
 
-          // Auto-dismiss toast after 6 seconds
-          const priorTimeout = toastTimeouts.current.get(newToast.id);
-          if (priorTimeout !== undefined) window.clearTimeout(priorTimeout);
-          const timeoutId = window.setTimeout(() => {
-            toastTimeouts.current.delete(newToast.id);
-            setActiveToasts((prev) => prev.filter((t) => t.id !== newToast.id));
-          }, 6000);
-          toastTimeouts.current.set(newToast.id, timeoutId);
+          // Auto-dismiss toast after 6 seconds (paused while hovered or focused)
+          dismissToastLater(newToast.id);
         } catch {
           // Ignore parse errors (e.g. heartbeat)
         }
       },
     });
-  }, [isAuthenticated, userId, role, queryClient]);
+  }, [isAuthenticated, userId, role, queryClient, dismissToastLater]);
 
   const dismissToast = (id: number) => {
     const timeoutId = toastTimeouts.current.get(id);
@@ -138,6 +155,11 @@ export function useRealtimeNotifications({ recentEnabled = false }: { recentEnab
     }
     setActiveToasts((prev) => prev.filter((t) => t.id !== id));
   };
+
+  const toastsWithPause = useMemo(
+    () => activeToasts.map((t) => ({ ...t, pause: () => pauseToast(t.id), resume: () => dismissToastLater(t.id) })),
+    [activeToasts, pauseToast, dismissToastLater]
+  );
 
   const handleToastClick = (toast: RealtimeToast) => {
     dismissToast(toast.id);
@@ -166,7 +188,7 @@ export function useRealtimeNotifications({ recentEnabled = false }: { recentEnab
     notificationsLoading: recentEnabled && recentNotificationsQuery.isPending,
     notifications: recentNotificationsQuery.data?.items || (Array.isArray(recentNotificationsQuery.data) ? recentNotificationsQuery.data : []),
     markAsRead: (id: number) => markAsReadMutation.mutate(id),
-    activeToasts,
+    activeToasts: toastsWithPause,
     dismissToast,
     handleToastClick,
   };

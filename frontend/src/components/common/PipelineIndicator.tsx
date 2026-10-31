@@ -141,7 +141,7 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
     <div className={cn("w-full py-2 space-y-2", className)}>
       {/* Visual Checkpoints Stepper (Fluid and 100% visible on all screen sizes) */}
       <div className="w-full pt-1">
-        <div className="flex items-start w-full">
+        <ol className="flex items-start w-full" aria-label="Hiring stages">
           {CANONICAL_STAGES.map((stage, idx) => {
             const skipped = skippedStages.find((entry) => entry.stage === stage.id);
             const isSkipped = Boolean(skipped) && activeIndex > idx;
@@ -166,7 +166,7 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
               : "text-slate-500";
 
             return (
-              <div key={stage.id} className="relative flex-1 flex flex-col items-center group min-w-0">
+              <li key={stage.id} className="relative flex-1 flex flex-col items-center group min-w-0">
                 {/* Connector line to next step */}
                 {idx < CANONICAL_STAGES.length - 1 && (
                   <div
@@ -196,7 +196,7 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
                   {isSkipped ? (
                     <span aria-hidden="true">-</span>
                   ) : isCompleted || isFinalDeployed ? (
-                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
+                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" aria-hidden="true" />
                   ) : (
                     <span>{idx + 1}</span>
                   )}
@@ -209,10 +209,11 @@ export const PipelineIndicator: React.FC<PipelineIndicatorProps> = ({
                   </span>
                   {isSkipped && <span className="block text-xs text-amber-700">Skipped</span>}
                 </div>
-              </div>
+                {!isSkipped && <span className="sr-only">{isCompleted || isFinalDeployed ? "completed" : isCurrent ? "current step" : "upcoming"}</span>}
+              </li>
             );
           })}
-        </div>
+        </ol>
       </div>
 
       {/* Terminal Status Alert banner if in non-linear state */}
