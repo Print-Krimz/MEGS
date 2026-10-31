@@ -56,11 +56,11 @@ const sentenceCase = (value: string) => {
 // Interview result chip: same shape and colours as the other applicant badges.
 const RESULT_CHIP = "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium";
 
-// Same document types the backend accepts (upload.middleware.ts), so the file picker and the check agree.
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 class FileTooLargeError extends Error {}
 
+// Same document types the backend accepts (upload.middleware.ts), so the file picker and the check agree.
 const COMPLIANCE_UPLOAD_TYPES = [
   "application/pdf",
   "image/jpeg",
@@ -305,6 +305,8 @@ export const ApplicationDetailPage: React.FC = () => {
     const expiryDay = req.expiresAt ? toManilaDateInput(req.expiresAt) : null;
     const expired = expiryDay !== null && expiryDay < getManilaToday();
     const expiresSoon = isApproved && expiryDay !== null && expiryDay <= addManilaCalendarDays(getManilaToday(), 30);
+    // The backend only replaces an approved document while a TA update request is open (deployed placements), so the replace actions are deployed-only.
+    const canReplaceApproved = isDeployed && expiresSoon;
     const targetDate = req.updateRequestDeadline || req.toFollowExpectedAt || req.deadline;
     const rejectionNote =
       req.reviewNotes || (isDeployed ? null : "Please review document requirements and re-upload a clear and valid copy.");
@@ -342,7 +344,7 @@ export const ApplicationDetailPage: React.FC = () => {
         <div className="grid grid-cols-2 gap-2 empty:hidden sm:flex sm:flex-wrap sm:items-center">
           {renderViewButton(req)}
 
-          {(!isApproved || expiresSoon) && (
+          {(!isApproved || canReplaceApproved) && (
             <Button
               variant={isRejected ? "primary" : "outline"}
               size="sm"
@@ -358,7 +360,7 @@ export const ApplicationDetailPage: React.FC = () => {
             </Button>
           )}
 
-          {renderCameraAction(req, expiresSoon)}
+          {renderCameraAction(req, canReplaceApproved)}
           {renderLibraryAction(req)}
         </div>
 
@@ -685,6 +687,7 @@ export const ApplicationDetailPage: React.FC = () => {
             audience="applicant"
             hideTerminalAlert
             skipClientReview={application.jobPosting?.mrf?.requiresClientReview === false}
+            // Depends on the compact variant markup in PipelineIndicator: its root has a direct div ("Step N of 7" block) and an ol (the steps).
             className="[&>div]:block! [&>ol]:hidden"
           />
         </div>

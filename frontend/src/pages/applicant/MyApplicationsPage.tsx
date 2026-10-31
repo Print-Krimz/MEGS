@@ -548,6 +548,7 @@ export const MyApplicationsPage: React.FC = () => {
                     audience="applicant"
                     hideTerminalAlert
                     skipClientReview={app.jobPosting?.mrf?.requiresClientReview === false}
+                    // Depends on the compact variant markup in PipelineIndicator: its root has a direct div ("Step N of 7" block) and an ol (the steps).
                     className="border-t border-slate-200 pt-3 [&>div]:block! [&>ol]:hidden"
                   />
                 )}
