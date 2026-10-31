@@ -35,23 +35,16 @@ const unlockBodyScroll = () => {
   if (scrollLocks === 0) document.body.style.overflow = "";
 };
 
-export const Dialog: React.FC<DialogProps> = ({
-  open,
-  onClose,
-  title,
-  description,
-  children,
-  size = "md",
-  className,
-  bodyClassName,
-  overflowVisible,
-  ariaLabelledBy,
-  ariaDescribedBy,
-}) => {
-  const dialogRef = useRef<HTMLDivElement>(null);
+/**
+ * Modal behaviour shared by Dialog and other hand-built overlays: Escape closes the topmost one,
+ * Tab stays inside `dialogRef`, body scroll is locked and focus returns to the opener on close.
+ */
+export const useModalBehavior = (
+  open: boolean,
+  onClose: () => void,
+  dialogRef: React.RefObject<HTMLElement | null>,
+) => {
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const titleId = useId();
-  const descriptionId = useId();
   const modalId = useId();
 
   const onCloseRef = useRef(onClose);
@@ -147,6 +140,25 @@ export const Dialog: React.FC<DialogProps> = ({
       if (wasOpen.current) restoreFocus(previousFocus.current);
     };
   }, []);
+};
+
+export const Dialog: React.FC<DialogProps> = ({
+  open,
+  onClose,
+  title,
+  description,
+  children,
+  size = "md",
+  className,
+  bodyClassName,
+  overflowVisible,
+  ariaLabelledBy,
+  ariaDescribedBy,
+}) => {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  useModalBehavior(open, onClose, dialogRef);
 
   if (!open) return null;
 

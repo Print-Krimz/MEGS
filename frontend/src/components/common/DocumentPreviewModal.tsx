@@ -1,4 +1,4 @@
-import React, { useId, useState } from "react";
+import React, { useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   X,
@@ -14,7 +14,9 @@ import {
 import { documentsApi } from "../../lib/api/documents.api";
 import { Button } from "../ui/Button";
 import { Textarea } from "../ui/Textarea";
-import { formatDate } from "../../lib/utils";
+import { useModalBehavior } from "../ui/Dialog";
+import { RequirementStatusBadge } from "../applicant/RequirementStatusBadge";
+import { cn, formatDate } from "../../lib/utils";
 import { DocumentViewer } from "../ta/InlineResumeViewer";
 
 export interface DocumentPreviewModalProps {
@@ -41,6 +43,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   isActionLoading = false,
 }) => {
   const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Recruiters (who can reject) get the review wording; everyone else gets plain wording.
+  const isStaff = Boolean(onReject);
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectNotes, setRejectNotes] = useState("");
 
@@ -60,13 +65,15 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     retry: 1,
   });
 
-  if (!open) return null;
-
   const handleClose = () => {
     setRejectMode(false);
     setRejectNotes("");
     onClose();
   };
+
+  useModalBehavior(open, handleClose, panelRef);
+
+  if (!open) return null;
 
   const handleRejectSubmit = () => {
     if (onReject) {
@@ -98,7 +105,11 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         if (e.target === e.currentTarget) handleClose();
       }}
     >
-      <div className="relative w-full max-w-4xl max-w-[calc(100vw-1rem)] bg-white border border-slate-400 overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative w-full max-w-4xl max-w-[calc(100vw-1rem)] bg-white border border-slate-400 overflow-hidden shadow-2xl flex flex-col max-h-[92vh] focus:outline-none"
+      >
         {/* Header */}
         <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-300 flex items-center justify-between bg-slate-100 shrink-0 gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -110,19 +121,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 <h2 id={titleId} className="text-base font-semibold text-slate-950 truncate">
                   {title}
                 </h2>
-                {requirementStatus && (
-                  <span
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-                      requirementStatus === "APPROVED"
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                        : requirementStatus === "REJECTED"
-                        ? "bg-rose-100 text-rose-800 border border-rose-300"
-                        : "bg-amber-100 text-amber-800 border border-amber-300"
-                    }`}
-                  >
-                    {requirementStatus}
-                  </span>
-                )}
+                {requirementStatus && <RequirementStatusBadge status={requirementStatus} />}
               </div>
               <p className="text-[11px] sm:text-xs text-slate-600 font-sans truncate">
                 {preview?.originalName || "Uploaded document"}
@@ -182,7 +181,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         </div>
 
         {/* Content Viewer Body */}
-        <div className="p-3 sm:p-4 overflow-y-auto flex-1 bg-slate-100 flex items-center justify-center min-h-[300px] sm:min-h-[360px]">
+        <div className="p-3 sm:p-4 overflow-y-auto flex-1 bg-slate-100 flex items-center justify-center min-h-0 [@media(min-height:640px)]:min-h-[300px] sm:[@media(min-height:640px)]:min-h-[360px]">
           {!hasDocId && !fileUrl ? (
             <div className="text-center p-6 sm:p-8 bg-white border border-dashed border-slate-300 rounded-lg max-w-sm">
               <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
@@ -190,14 +189,14 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 No Document Uploaded
               </h3>
               <p className="text-xs text-slate-500">
-                The applicant has not uploaded a file for this requirement yet.
+                {isStaff ? "The applicant has not uploaded a file for this requirement yet." : "No file has been uploaded yet."}
               </p>
             </div>
           ) : isLoading && !fileUrl ? (
             <div className="text-center p-8 space-y-3">
               <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
               <p className="text-xs text-slate-600">
-                Fetching secure document preview...
+                {isStaff ? "Fetching secure document preview..." : "Loading document..."}
               </p>
             </div>
           ) : isError && !fileUrl ? (
@@ -208,7 +207,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
               </h3>
               <p className="text-xs text-slate-600">
                 {(error as Error)?.message ||
-                  "The signed URL could not be generated or access is restricted."}
+                  (isStaff
+                    ? "The signed URL could not be generated or access is restricted."
+                    : "The document could not be loaded. Please try again.")}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                 <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -219,7 +220,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                     href={documentsApi.getDownloadUrl(documentId)}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 [.applicant-portal_&]:text-navy [.applicant-portal_&]:hover:text-navy-hover applicant-touch:min-h-11"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     Try Direct Download
@@ -235,7 +236,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
               title={preview?.originalName || title}
               showDownload={false}
               className="w-full"
-              bodyClassName="h-[56vh] flex-none"
+              bodyClassName="h-[56vh] flex-none [@media(max-height:639px)]:h-[calc(92vh-14rem)] [@media(max-height:639px)]:min-h-24"
             />
           ) : resolvedUrl ? (
             <div className="text-center p-6 sm:p-8 bg-white border border-slate-300 rounded-lg max-w-md space-y-3">
@@ -245,7 +246,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                   {preview?.originalName || title}
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Preview is not supported inline for this file type ({preview?.mimeType || "unknown"}).
+                  {isStaff
+                    ? `Preview is not supported inline for this file type (${preview?.mimeType || "unknown"}).`
+                    : "Preview is not available for this file. Download it to view."}
                 </p>
               </div>
               <div className="pt-2">
@@ -254,7 +257,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                   target="_blank"
                   rel="noreferrer"
                   download={preview?.originalName || "document"}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-sm"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-sm [.applicant-portal_&]:bg-navy [.applicant-portal_&]:hover:bg-navy-hover applicant-touch:min-h-11"
                 >
                   <Download className="w-4 h-4" />
                   Download to View
@@ -319,12 +322,14 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             </div>
           ) : (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="text-[11px] sm:text-xs text-slate-500">
-                {documentId
-                  ? "Previewing only. Viewing a document never changes its review status."
-                  : "No action available."}
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
+              {isStaff && (
+                <div className="text-[11px] sm:text-xs text-slate-500">
+                  {documentId
+                    ? "Previewing only. Viewing a document never changes its review status."
+                    : "No action available."}
+                </div>
+              )}
+              <div className={cn("flex flex-wrap items-center justify-end gap-2", !isStaff && "sm:ml-auto")}>
                 <Button variant="outline" size="sm" onClick={handleClose}>
                   Close
                 </Button>
