@@ -358,7 +358,7 @@ export const MyApplicationsPage: React.FC = () => {
                 setStatusFilter(tab.key);
                 setPage(1);
               }}
-              className={`min-h-10 px-3.5 py-2 text-sm font-medium transition-colors flex items-center gap-2 rounded-md border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 ${
+              className={`min-h-11 md:min-h-9 applicant-touch:min-h-11 px-3.5 py-2 text-sm font-medium transition-colors flex items-center gap-2 rounded-md border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 ${
                 isActive
                   ? "bg-slate-900 text-white border-slate-900"
                   : "bg-white text-slate-900 border-slate-200 hover:bg-slate-100 hover:text-slate-950"
@@ -582,7 +582,7 @@ export const MyApplicationsPage: React.FC = () => {
                   <Link
                     to="/app/applications/$applicationId"
                     params={{ applicationId: String(app.id) }}
-                    className="inline-flex min-h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3.5 text-xs sm:text-sm font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 shrink-0 transition-colors"
+                    className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-200 md:min-h-9 applicant-touch:min-h-11 bg-white px-3.5 text-xs sm:text-sm font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 shrink-0 transition-colors"
                   >
                     View application progress
                   </Link>
