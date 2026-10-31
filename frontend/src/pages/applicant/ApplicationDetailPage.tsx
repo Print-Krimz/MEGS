@@ -14,6 +14,7 @@ import {
 import { Button, Dialog } from "../../components/ui";
 import { BackoutDialog } from "../../components/ta/BackoutDialog";
 import { canApplicantWithdraw } from "../../lib/backout";
+import { getPipelineStageIndex } from "../../lib/pipeline-stages";
 import { formatDate, formatDateTime, getApplicationStatusPresentation } from "../../lib/utils";
 import {
   Briefcase,
@@ -57,6 +58,10 @@ const libraryStatusLabel: Record<string, string> = {
 };
 
 // Same document types the backend accepts (upload.middleware.ts), so the file picker and the check agree.
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+class FileTooLargeError extends Error {}
+
 const COMPLIANCE_UPLOAD_TYPES = [
   "application/pdf",
   "image/jpeg",
@@ -103,8 +108,14 @@ export const ApplicationDetailPage: React.FC = () => {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: ({ requirementId, file }: { requirementId: number; file: File }) =>
-      applicantJobsApi.uploadComplianceDocument(requirementId, file),
+    mutationFn: async ({ requirementId, file }: { requirementId: number; file: File }) => {
+      // Resizing a phone photo takes a moment; doing it here keeps the button in its pending state meanwhile.
+      const prepared = await shrinkImage(file);
+      if (prepared.size > MAX_UPLOAD_BYTES) {
+        throw new FileTooLargeError("Maximum upload size is 5 MB. Please select a smaller file.");
+      }
+      return applicantJobsApi.uploadComplianceDocument(requirementId, prepared);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
       const successMsg = "Document uploaded successfully and submitted for recruiter verification.";
@@ -116,11 +127,15 @@ export const ApplicationDetailPage: React.FC = () => {
       setActiveUploadReqId(null);
     },
     onError: (err: any) => {
-      setFeedback({
-        type: "error",
-        message: "Failed to upload document: " + (err?.message || "An error occurred"),
-      });
-      notify.error("Upload Failed", err);
+      if (err instanceof FileTooLargeError) {
+        notify.error("File Too Large", err.message);
+      } else {
+        setFeedback({
+          type: "error",
+          message: "Failed to upload document: " + (err?.message || "An error occurred"),
+        });
+        notify.error("Upload Failed", err);
+      }
       setActiveUploadReqId(null);
     },
   });
@@ -168,7 +183,7 @@ export const ApplicationDetailPage: React.FC = () => {
     },
   });
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = e.target.files?.[0];
     // reset input so the same file or a new photo can be chosen again
     e.target.value = "";
@@ -177,12 +192,7 @@ export const ApplicationDetailPage: React.FC = () => {
       notify.error("Unsupported File Type", "Upload a PDF, DOC, DOCX, JPG, PNG, or WEBP file.");
       return;
     }
-    const file = await shrinkImage(picked);
-    if (file.size > 5 * 1024 * 1024) {
-      notify.error("File Too Large", "Maximum upload size is 5 MB. Please select a smaller file.");
-      return;
-    }
-    uploadMutation.mutate({ requirementId: activeUploadReqId, file });
+    uploadMutation.mutate({ requirementId: activeUploadReqId, file: picked });
   };
 
   // Library entries for the same document type, from a different requirement, that have not expired.
@@ -262,17 +272,24 @@ export const ApplicationDetailPage: React.FC = () => {
   }
 
   if (applicationQuery.isError || !applicationQuery.data) {
+    // A 404 means this application is not here (or not yours); retrying cannot help.
+    const notFound = (applicationQuery.error as { status?: number } | null)?.status === 404;
+    // Offline, TanStack pauses the fetch and the query stays pending: say so instead of "not found".
+    const offline = applicationQuery.fetchStatus === "paused" && !applicationQuery.isError && !applicationQuery.data;
     return (
       <div className="space-y-6">
         <PageHeader
           title="Application details"
           description="Application progress"
         />
-        {applicationQuery.isError ? (
+        {applicationQuery.isError && !notFound ? (
           <ErrorState
+            subject="application"
             error={applicationQuery.error}
             onRetry={() => applicationQuery.refetch()}
           />
+        ) : offline ? (
+          <ErrorState subject="application" onRetry={() => applicationQuery.refetch()} />
         ) : (
           <div className="bg-white rounded-xl border border-[#D9E2EC] p-8 text-center space-y-4 shadow-xs">
             <p className="text-xs text-[#627D98]">
@@ -294,6 +311,262 @@ export const ApplicationDetailPage: React.FC = () => {
   const isDeployed = application.status === ApplicationStatus.DEPLOYED;
   const pendingFollowUps = compliance.filter((c) => c.reviewStatus !== "APPROVED");
   const approvedClearances = compliance.filter((c) => c.reviewStatus === "APPROVED");
+  const stageIndex = getPipelineStageIndex(application.status);
+  const requirementsFirst = application.status === ApplicationStatus.COMPLIANCE;
+  // Once the requirements stage starts, an empty interviews card only adds a dead-end message.
+  const hideInterviews = interviews.length === 0 && stageIndex >= getPipelineStageIndex(ApplicationStatus.COMPLIANCE);
+
+  const renderRequirementRow = (req: ComplianceRequirement) => {
+    const isApproved = req.reviewStatus === "APPROVED";
+    const isRejected = req.reviewStatus === "REJECTED";
+    const expiryDay = req.expiresAt ? toManilaDateInput(req.expiresAt) : null;
+    const expired = expiryDay !== null && expiryDay < getManilaToday();
+    const expiresSoon = isApproved && expiryDay !== null && expiryDay <= addManilaCalendarDays(getManilaToday(), 30);
+    const targetDate = req.updateRequestDeadline || req.toFollowExpectedAt || req.deadline;
+    const rejectionNote =
+      req.reviewNotes || (isDeployed ? null : "Please review document requirements and re-upload a clear and valid copy.");
+
+    return (
+      <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <span className="block break-words text-xs font-bold text-[#102A43] font-mono uppercase">
+              {req.documentLabel}
+            </span>
+            {isDeployed ? (
+              !isApproved &&
+              targetDate && (
+                <div className="text-[10px] text-[#627D98] font-mono">Target date: {formatDate(targetDate)}</div>
+              )
+            ) : (
+              <>
+                {req.deadline && (
+                  <div className="text-[10px] text-[#627D98] font-mono">Deadline: {formatDate(req.deadline)}</div>
+                )}
+                {req.reviewStatus === "TO_FOLLOW" && req.toFollowExpectedAt && (
+                  <div className="text-[10px] text-[#627D98] font-mono">
+                    Expected by {formatDate(req.toFollowExpectedAt)}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <div className="shrink-0">
+            <RequirementStatusBadge status={req.reviewStatus} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 empty:hidden sm:flex sm:flex-wrap sm:items-center">
+          {renderViewButton(req)}
+
+          {(!isApproved || expiresSoon) && (
+            <Button
+              variant={isRejected ? "primary" : "outline"}
+              size="sm"
+              disabled={uploadMutation.isPending}
+              loading={uploadMutation.isPending && activeUploadReqId === req.id}
+              leftIcon={<Upload className="w-3.5 h-3.5" />}
+              onClick={() => {
+                setActiveUploadReqId(req.id);
+                fileInputRef.current?.click();
+              }}
+            >
+              {isApproved ? "Upload updated copy" : req.documentId ? "Replace File" : "Upload File"}
+            </Button>
+          )}
+
+          {renderCameraAction(req, expiresSoon)}
+          {renderLibraryAction(req)}
+        </div>
+
+        {isRejected && rejectionNote && (
+          <div className="p-2.5 bg-[#FEF2F2] border border-[#FECACA] rounded text-xs text-[#DC2626] space-y-0.5">
+            <div className="flex items-center gap-1.5 font-bold font-mono text-[11px]">
+              <AlertCircle className="w-3.5 h-3.5 text-[#DC2626]" />
+              Document Rejected by Recruiter
+            </div>
+            <p className="text-[#DC2626] pl-5 text-[11px]">{rejectionNote}</p>
+          </div>
+        )}
+
+        {isApproved && req.expiresAt && (
+          <div className={`text-[11px] font-mono ${expired ? "text-[#B91C1C]" : expiresSoon ? "text-[#B45309]" : "text-[#627D98]"}`}>
+            {expired ? "Expired · " : expiresSoon ? "Expiring soon · " : ""}Expires {formatDate(req.expiresAt)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const interviewsCard = hideInterviews ? null : (
+    <div className="bg-white border border-[#D9E2EC] rounded-lg overflow-hidden">
+      <div className="p-3.5 border-b border-[#D9E2EC] flex items-center gap-2 bg-[#F7F9FC]">
+        <Calendar className="w-4 h-4 text-[#0B315D]" />
+        <h3 className="text-sm font-semibold text-[#102A43]">
+          Interviews and assessments
+        </h3>
+      </div>
+
+      {interviews.length === 0 ? (
+        <div className="p-6 text-center text-xs font-mono text-[#627D98]">
+          No interviews scheduled yet. Once our recruitment team reviews your application, interview details will appear here.
+        </div>
+      ) : (
+        <div className="divide-y divide-[#D9E2EC] p-4 space-y-3">
+          {interviews.map((interview) => {
+            const isPassed = interview.result === "PASS" || interview.result === "PASSED";
+            const isFailed = interview.result === "FAIL" || interview.result === "FAILED";
+            const isNoShow = interview.result === "NO_SHOW";
+
+            return (
+              <div key={interview.id} className="py-3 space-y-1.5 font-mono">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#102A43] uppercase">
+                    {interview.type.replace(/_/g, " ")}
+                  </span>
+                  {isPassed ? (
+                    <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
+                      <Check className="w-3 h-3 text-emerald-700" /> PASS
+                    </span>
+                  ) : isFailed ? (
+                    <span className="bg-rose-100 text-rose-900 border border-rose-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
+                      <X className="w-3 h-3 text-rose-700" /> NOT PASSED
+                    </span>
+                  ) : isNoShow ? (
+                    <span className="bg-slate-100 text-slate-900 border border-slate-300 font-bold px-2.5 py-1 text-xs rounded-full">
+                      NO SHOW
+                    </span>
+                  ) : (
+                    <span className="bg-blue-100 text-blue-900 border border-blue-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
+                      <Clock className="w-3 h-3 text-blue-700" /> SCHEDULED
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-[11px] text-[#627D98] flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-[#627D98]" />
+                  <span>{formatDateTime(interview.scheduledAt || interview.createdAt)}</span>
+                </div>
+
+                {interview.location && (
+                  <div className="text-[11px] text-[#627D98] flex items-start gap-2">
+                    <MapPin className="w-3.5 h-3.5 text-[#627D98] shrink-0" />
+                    <span className="break-words">{interview.location}</span>
+                  </div>
+                )}
+
+                {application.source !== "WALK_IN" &&
+                  (!interview.result || interview.result === "PENDING" || interview.result === "SCHEDULED") && (
+                  <RescheduleControl
+                    activity={interview.type}
+                    interviewId={interview.id}
+                    scheduledAt={interview.scheduledAt}
+                    requests={application.rescheduleRequests}
+                    onRequest={setRescheduleActivity}
+                  />
+                )}
+
+                {interview.notes && (
+                  <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200/90 rounded-md space-y-1">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                      <FileText className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Evaluation &amp; Interview Notes</span>
+                    </div>
+                    <p className="text-xs text-slate-900 font-sans font-medium leading-relaxed pl-2.5 border-l-2 border-slate-400">
+                      {interview.notes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const requirementsCard = isDeployed ? (
+    <div className="space-y-6">
+      {compliance.length === 0 && (
+        <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
+          <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
+            <div className="flex items-center gap-2">
+              <FileCheck2 className="w-4 h-4 text-[#0B315D]" />
+              <h3 className="text-sm font-semibold text-[#102A43]">
+                Requirements
+              </h3>
+            </div>
+          </div>
+          <div className="p-6 text-center text-xs font-mono text-[#627D98]">
+            No active document requirements are assigned yet.
+          </div>
+        </div>
+      )}
+
+      {/* Requirements to follow up (Action needed) */}
+      {pendingFollowUps.length > 0 && (
+        <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
+          <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#FFFBEB]">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-[#D97706]" />
+              <h3 className="text-sm font-semibold text-[#92400E]">
+                Requirements to follow up (Action needed)
+              </h3>
+            </div>
+            <span className="text-xs font-mono font-medium text-[#B45309]">
+              {pendingFollowUps.length} pending
+            </span>
+          </div>
+
+          <div className="divide-y divide-[#D9E2EC]">{pendingFollowUps.map(renderRequirementRow)}</div>
+        </div>
+      )}
+
+      {/* Verified 201 clearances */}
+      {approvedClearances.length > 0 && (
+        <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
+          <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-[#047857]" />
+              <h3 className="text-sm font-semibold text-[#102A43]">
+                Verified 201 clearances
+              </h3>
+            </div>
+            <span className="text-xs font-mono font-medium text-[#047857]">
+              {approvedClearances.length} verified
+            </span>
+          </div>
+
+          <div className="divide-y divide-[#D9E2EC]">{approvedClearances.map(renderRequirementRow)}</div>
+        </div>
+      )}
+    </div>
+  ) : (
+    <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
+      <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
+        <div className="flex items-center gap-2">
+          <FileCheck2 className="w-4 h-4 text-[#0B315D]" />
+          <h3 className="text-sm font-semibold text-[#102A43]">
+            Requirements
+          </h3>
+        </div>
+        <span className="text-xs font-mono text-[#627D98]">
+          {approvedClearances.length} / {compliance.length} Approved
+        </span>
+      </div>
+
+      {compliance.length === 0 ? (
+        <div className="p-6 text-center text-xs font-mono text-[#627D98]">
+          {(application.status === ApplicationStatus.CONTRACT_SIGNING || application.status === ApplicationStatus.ONBOARDING)
+            ? "No additional requirements are pending. Contract signing is the next step."
+            : "No active document requirements are assigned yet. We’ll show them here when they are ready."}
+        </div>
+      ) : (
+        <div className="divide-y divide-[#D9E2EC]">{compliance.map(renderRequirementRow)}</div>
+      )}
+    </div>
+  );
+
 
   return (
     <div className="space-y-6">
@@ -321,19 +594,11 @@ export const ApplicationDetailPage: React.FC = () => {
         breadcrumbs={[
           { label: "My career", href: "/app" },
           { label: "Applications", href: "/app/applications" },
-          { label: job?.title || "Application Details" },
         ]}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {application && !application.isArchived && canApplicantWithdraw(application.status) && (
-              <Button variant="outline" size="sm" onClick={() => setWithdrawOpen(true)}>
-                Withdraw application
-              </Button>
-            )}
           <Link to="/app/applications" className="inline-flex min-h-11 items-center rounded-md border border-[#D9E2EC] md:min-h-10 applicant-touch:min-h-11 bg-white px-4 text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors">
             Back to applications
           </Link>
-          </div>
         }
       />
 
@@ -468,356 +733,26 @@ export const ApplicationDetailPage: React.FC = () => {
             skipClientReview={application.jobPosting?.mrf?.requiresClientReview === false}
           />
         </div>
+
+        {!application.isArchived && canApplicantWithdraw(application.status) && (
+          <div className="border-t border-[#D9E2EC] pt-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-[#B91C1C]! hover:bg-[#FEF2F2] hover:text-[#991B1B]!"
+              onClick={() => setWithdrawOpen(true)}
+            >
+              Withdraw application
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Scheduled Interviews & Compliance Requirements */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Scheduled Interviews Card */}
-          <div className="bg-white border border-[#D9E2EC] rounded-lg overflow-hidden">
-            <div className="p-3.5 border-b border-[#D9E2EC] flex items-center gap-2 bg-[#F7F9FC]">
-              <Calendar className="w-4 h-4 text-[#0B315D]" />
-              <h3 className="text-sm font-semibold text-[#102A43]">
-                Interviews and assessments
-              </h3>
-            </div>
-
-            {interviews.length === 0 ? (
-              <div className="p-6 text-center text-xs font-mono text-[#627D98]">
-                No interviews scheduled yet. Once our recruitment team reviews your application, interview details will appear here.
-              </div>
-            ) : (
-              <div className="divide-y divide-[#D9E2EC] p-4 space-y-3">
-                {interviews.map((interview) => {
-                  const isPassed = interview.result === "PASS" || interview.result === "PASSED";
-                  const isFailed = interview.result === "FAIL" || interview.result === "FAILED";
-                  const isNoShow = interview.result === "NO_SHOW";
-
-                  return (
-                    <div key={interview.id} className="py-3 space-y-1.5 font-mono">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#102A43] uppercase">
-                          {interview.type.replace(/_/g, " ")}
-                        </span>
-                        {isPassed ? (
-                          <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
-                            <Check className="w-3 h-3 text-emerald-700" /> PASS
-                          </span>
-                        ) : isFailed ? (
-                          <span className="bg-rose-100 text-rose-900 border border-rose-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
-                            <X className="w-3 h-3 text-rose-700" /> NOT PASSED
-                          </span>
-                        ) : isNoShow ? (
-                          <span className="bg-slate-100 text-slate-900 border border-slate-300 font-bold px-2.5 py-1 text-xs rounded-full">
-                            NO SHOW
-                          </span>
-                        ) : (
-                          <span className="bg-blue-100 text-blue-900 border border-blue-300 font-bold px-2.5 py-1 text-xs rounded-full inline-flex items-center gap-1.5">
-                            <Clock className="w-3 h-3 text-blue-700" /> SCHEDULED
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="text-[11px] text-[#627D98] flex items-center gap-2">
-                        <Clock className="w-3.5 h-3.5 text-[#627D98]" />
-                        <span>{formatDateTime(interview.scheduledAt || interview.createdAt)}</span>
-                      </div>
-
-                      {interview.location && (
-                        <div className="text-[11px] text-[#627D98] flex items-start gap-2">
-                          <MapPin className="w-3.5 h-3.5 text-[#627D98] shrink-0" />
-                          <span className="break-words">{interview.location}</span>
-                        </div>
-                      )}
-
-                      {application.source !== "WALK_IN" &&
-                        (!interview.result || interview.result === "PENDING" || interview.result === "SCHEDULED") && (
-                        <RescheduleControl
-                          activity={interview.type}
-                          interviewId={interview.id}
-                          scheduledAt={interview.scheduledAt}
-                          requests={application.rescheduleRequests}
-                          onRequest={setRescheduleActivity}
-                        />
-                      )}
-
-                      {interview.notes && (
-                        <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200/90 rounded-md space-y-1">
-                          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-700">
-                            <FileText className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Evaluation &amp; Interview Notes</span>
-                          </div>
-                          <p className="text-xs text-slate-900 font-sans font-medium leading-relaxed pl-2.5 border-l-2 border-slate-400">
-                            {interview.notes}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Compliance Requirements Checklist */}
-          {isDeployed ? (
-            <div className="space-y-6">
-              {compliance.length === 0 && (
-                <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
-                  <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
-                    <div className="flex items-center gap-2">
-                      <FileCheck2 className="w-4 h-4 text-[#0B315D]" />
-                      <h3 className="text-sm font-semibold text-[#102A43]">
-                        Requirements
-                      </h3>
-                    </div>
-                  </div>
-                  <div className="p-6 text-center text-xs font-mono text-[#627D98]">
-                    No active document requirements are assigned yet.
-                  </div>
-                </div>
-              )}
-
-              {/* Requirements to follow up (Action needed) */}
-              {pendingFollowUps.length > 0 && (
-                <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
-                  <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#FFFBEB]">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 text-[#D97706]" />
-                      <h3 className="text-sm font-semibold text-[#92400E]">
-                        Requirements to follow up (Action needed)
-                      </h3>
-                    </div>
-                    <span className="text-xs font-mono font-medium text-[#B45309]">
-                      {pendingFollowUps.length} pending
-                    </span>
-                  </div>
-
-                  <div className="divide-y divide-[#D9E2EC]">
-                    {pendingFollowUps.map((req) => {
-                      const isRejected = req.reviewStatus === "REJECTED";
-                      const targetDate = req.updateRequestDeadline || req.toFollowExpectedAt || req.deadline;
-
-                      return (
-                        <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 space-y-1">
-                              <span className="block break-words text-xs font-bold text-[#102A43] font-mono uppercase">
-                                {req.documentLabel}
-                              </span>
-                              {targetDate && (
-                                <div className="text-[10px] text-[#627D98] font-mono">
-                                  Target date: {formatDate(targetDate)}
-                                </div>
-                              )}
-                            </div>
-                            <div className="shrink-0">
-                              <RequirementStatusBadge status={req.reviewStatus} />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2 empty:hidden sm:flex sm:flex-wrap sm:items-center">
-                            {renderViewButton(req)}
-
-                            <Button
-                              variant={isRejected ? "primary" : "outline"}
-                              size="sm"
-                              disabled={uploadMutation.isPending}
-                              loading={uploadMutation.isPending && activeUploadReqId === req.id}
-                              leftIcon={<Upload className="w-3.5 h-3.5" />}
-                              onClick={() => {
-                                setActiveUploadReqId(req.id);
-                                fileInputRef.current?.click();
-                              }}
-                            >
-                              {req.documentId ? "Replace File" : "Upload File"}
-                            </Button>
-
-                            {renderCameraAction(req)}
-                            {renderLibraryAction(req)}
-                          </div>
-
-                          {isRejected && req.reviewNotes && (
-                            <div className="p-2.5 bg-[#FEF2F2] border border-[#FECACA] rounded text-xs text-[#DC2626] space-y-0.5">
-                              <div className="flex items-center gap-1.5 font-bold font-mono text-[11px]">
-                                <AlertCircle className="w-3.5 h-3.5 text-[#DC2626]" />
-                                Document Rejected by Recruiter
-                              </div>
-                              <p className="text-[#DC2626] pl-5 text-[11px]">
-                                {req.reviewNotes}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Verified 201 clearances */}
-              {approvedClearances.length > 0 && (
-                <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
-                  <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-[#047857]" />
-                      <h3 className="text-sm font-semibold text-[#102A43]">
-                        Verified 201 clearances
-                      </h3>
-                    </div>
-                    <span className="text-xs font-mono font-medium text-[#047857]">
-                      {approvedClearances.length} verified
-                    </span>
-                  </div>
-
-                  <div className="divide-y divide-[#D9E2EC]">
-                    {approvedClearances.map((req) => (
-                      <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <span className="block break-words text-xs font-bold text-[#102A43] font-mono uppercase">
-                              {req.documentLabel}
-                            </span>
-                          </div>
-                          <div className="shrink-0">
-                            <RequirementStatusBadge status="APPROVED" />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 empty:hidden sm:flex sm:flex-wrap sm:items-center">
-                          {renderViewButton(req)}
-                          {req.expiresAt && toManilaDateInput(req.expiresAt) <= addManilaCalendarDays(getManilaToday(), 30) && (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={uploadMutation.isPending}
-                                loading={uploadMutation.isPending && activeUploadReqId === req.id}
-                                leftIcon={<Upload className="w-3.5 h-3.5" />}
-                                onClick={() => {
-                                  setActiveUploadReqId(req.id);
-                                  fileInputRef.current?.click();
-                                }}
-                              >
-                                Upload updated copy
-                              </Button>
-                              {renderCameraAction(req, true)}
-                            </>
-                          )}
-                        </div>
-
-                        {req.expiresAt && (
-                          <div className={`text-[11px] font-mono ${toManilaDateInput(req.expiresAt) < getManilaToday() ? "text-rose-700" : "text-amber-700"}`}>
-                            {toManilaDateInput(req.expiresAt) < getManilaToday() ? "Expired" : "Expiring soon"} · Expires {formatDate(req.expiresAt)}
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-1 text-[10px] text-[#047857] font-mono">
-                          <CheckCircle2 className="w-3 h-3" /> Verified by recruitment team
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
-              <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
-                <div className="flex items-center gap-2">
-                  <FileCheck2 className="w-4 h-4 text-[#0B315D]" />
-                  <h3 className="text-sm font-semibold text-[#102A43]">
-                    Requirements
-                  </h3>
-                </div>
-                <span className="text-xs font-mono text-[#627D98]">
-                  {compliance.filter((c) => c.reviewStatus === "APPROVED").length} / {compliance.length} Approved
-                </span>
-              </div>
-
-              {compliance.length === 0 ? (
-                <div className="p-6 text-center text-xs font-mono text-[#627D98]">
-                  {(application.status === ApplicationStatus.CONTRACT_SIGNING || application.status === ApplicationStatus.ONBOARDING)
-                    ? "No additional requirements are pending. Contract signing is the next step."
-                    : "No active document requirements are assigned yet. We’ll show them here when they are ready."}
-                </div>
-              ) : (
-                <div className="divide-y divide-[#D9E2EC]">
-                  {compliance.map((req) => {
-                    const isApproved = req.reviewStatus === "APPROVED";
-                    const isRejected = req.reviewStatus === "REJECTED";
-
-                    return (
-                      <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 space-y-1">
-                            <span className="block break-words text-xs font-bold text-[#102A43] font-mono uppercase">
-                              {req.documentLabel}
-                            </span>
-                            {req.deadline && (
-                              <div className="text-[10px] text-[#627D98] font-mono">
-                                Deadline: {formatDate(req.deadline)}
-                              </div>
-                            )}
-                            {req.reviewStatus === "TO_FOLLOW" && req.toFollowExpectedAt && (
-                              <div className="text-[10px] text-[#627D98] font-mono">
-                                Expected by {formatDate(req.toFollowExpectedAt)}
-                              </div>
-                            )}
-                          </div>
-                          <div className="shrink-0">
-                            <RequirementStatusBadge status={req.reviewStatus} />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 empty:hidden sm:flex sm:flex-wrap sm:items-center">
-                          {renderViewButton(req)}
-
-                          {!isApproved && (
-                            <Button
-                              variant={isRejected ? "primary" : "outline"}
-                              size="sm"
-                              disabled={uploadMutation.isPending}
-                              loading={uploadMutation.isPending && activeUploadReqId === req.id}
-                              leftIcon={<Upload className="w-3.5 h-3.5" />}
-                              onClick={() => {
-                                setActiveUploadReqId(req.id);
-                                fileInputRef.current?.click();
-                              }}
-                            >
-                              {req.documentId ? "Replace File" : "Upload File"}
-                            </Button>
-                          )}
-
-                          {renderCameraAction(req)}
-                          {renderLibraryAction(req)}
-                        </div>
-
-                        {/* Rejection / Review Feedback */}
-                        {isRejected && (
-                          <div className="p-2.5 bg-[#FEF2F2] border border-[#FECACA] rounded text-xs text-[#DC2626] space-y-0.5">
-                            <div className="flex items-center gap-1.5 font-bold font-mono text-[11px]">
-                              <AlertCircle className="w-3.5 h-3.5 text-[#DC2626]" />
-                              Document Rejected by Recruiter
-                            </div>
-                            <p className="text-[#DC2626] pl-5 text-[11px]">
-                              {req.reviewNotes || "Please review document requirements and re-upload a clear and valid copy."}
-                            </p>
-                          </div>
-                        )}
-
-                        {isApproved && (
-                          <div className="flex items-center gap-1 text-[10px] text-[#047857] font-mono">
-                            <CheckCircle2 className="w-3 h-3" /> Verified by recruitment team
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+          {requirementsFirst ? requirementsCard : interviewsCard}
+          {requirementsFirst ? interviewsCard : requirementsCard}
         </div>
 
         {/* Right Column: Requisition Information */}
