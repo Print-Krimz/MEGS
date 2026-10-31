@@ -42,7 +42,7 @@ export const JobFilters: React.FC<JobFiltersProps> = ({ values, onChange, salary
                   type="button"
                   onClick={() => onChange({ search: "" })}
                   aria-label="Clear search"
-                  className="p-1 text-slate-600 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                  className="-mr-2.5 inline-flex size-11 items-center justify-center rounded-md text-slate-600 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                 >
                   <X className="size-4" aria-hidden="true" />
                 </button>
@@ -73,7 +73,7 @@ export const JobFilters: React.FC<JobFiltersProps> = ({ values, onChange, salary
           value={values.salaryMin}
           aria-invalid={salaryError ? true : undefined}
           aria-describedby={salaryError ? salaryErrorId : undefined}
-          className={salaryError ? "border-rose-400" : undefined}
+          className={salaryError ? "border-red-600" : undefined}
           onChange={(event) => onChange({ salaryMin: event.target.value })}
           leftIcon={<span aria-hidden="true">₱</span>}
         />
@@ -88,14 +88,14 @@ export const JobFilters: React.FC<JobFiltersProps> = ({ values, onChange, salary
           value={values.salaryMax}
           aria-invalid={salaryError ? true : undefined}
           aria-describedby={salaryError ? salaryErrorId : undefined}
-          className={salaryError ? "border-rose-400" : undefined}
+          className={salaryError ? "border-red-600" : undefined}
           onChange={(event) => onChange({ salaryMax: event.target.value })}
           leftIcon={<span aria-hidden="true">₱</span>}
         />
       </div>
 
       {salaryError && (
-        <p id={salaryErrorId} role="alert" className="mt-2 text-sm font-medium text-rose-700">
+        <p id={salaryErrorId} role="alert" className="mt-2 text-sm font-medium text-red-700">
           {salaryError}
         </p>
       )}

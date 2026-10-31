@@ -231,8 +231,8 @@ export const JobDetailPage: React.FC = () => {
   if (jobQuery.isError || !jobQuery.data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Job details" description="Position details" />
-        <ErrorState error={jobQuery.error} onRetry={() => jobQuery.refetch()} />
+        <PageHeader title="Job details" description="Position details" breadcrumbs={jobBreadcrumbs("Job details")} />
+        <ErrorState subject="job details" error={jobQuery.error} onRetry={() => jobQuery.refetch()} />
       </div>
     );
   }
@@ -321,7 +321,7 @@ export const JobDetailPage: React.FC = () => {
             <h4 className="text-sm font-semibold text-[#102A43]">
               Active Deployment in Progress
             </h4>
-            <p className="text-xs text-[#486581] leading-relaxed">
+            <p className="text-sm text-[#486581] leading-relaxed">
               You are currently deployed with{" "}
               <strong className="text-[#102A43]">
                 {job.activeDeployment?.clientName || "our client partner"}
@@ -364,44 +364,44 @@ export const JobDetailPage: React.FC = () => {
                   Role Summary
                 </h3>
                 {job.department && (
-                  <div className="text-xs text-[#627D98]">{job.department}</div>
+                  <div className="text-xs text-[#486581]">{job.department}</div>
                 )}
               </div>
             </div>
 
-            <div className="space-y-3.5 text-xs">
+            <div className="space-y-3.5 text-sm">
               {companyName && (
                 <div className="max-lg:hidden">
-                  <div className="text-[#627D98] text-[11px] font-medium">Company</div>
-                  <div className="text-[#102A43] font-medium text-xs mt-0.5">{companyName}</div>
+                  <div className="text-[#486581] text-xs font-medium">Company</div>
+                  <div className="text-[#102A43] font-medium text-sm mt-0.5">{companyName}</div>
                 </div>
               )}
 
               <div className="max-lg:hidden">
-                <div className="text-[#627D98] text-[11px] font-medium">Monthly Compensation</div>
-                <div className="text-[#0B315D] font-bold text-sm mt-0.5 font-mono">
+                <div className="text-[#486581] text-xs font-medium">Monthly Compensation</div>
+                <div className="text-[#0B315D] font-bold text-sm mt-0.5">
                   {salaryDisplay}
                 </div>
               </div>
 
               <div className="max-lg:hidden">
-                <div className="text-[#627D98] text-[11px] font-medium">Employment Type</div>
-                <div className="text-[#102A43] font-medium text-xs mt-0.5">{employmentTypeDisplay}</div>
+                <div className="text-[#486581] text-xs font-medium">Employment Type</div>
+                <div className="text-[#102A43] font-medium text-sm mt-0.5">{employmentTypeDisplay}</div>
               </div>
 
               <div>
-                <div className="text-[#627D98] text-[11px] font-medium">Work Arrangement</div>
-                <div className="text-[#102A43] font-medium text-xs mt-0.5">{workArrangementDisplay}</div>
+                <div className="text-[#486581] text-xs font-medium">Work Arrangement</div>
+                <div className="text-[#102A43] font-medium text-sm mt-0.5">{workArrangementDisplay}</div>
               </div>
 
               <div className="max-lg:hidden">
-                <div className="text-[#627D98] text-[11px] font-medium">Job Location</div>
-                <div className="text-[#102A43] font-medium text-xs mt-0.5">{job.location || "Nationwide"}</div>
+                <div className="text-[#486581] text-xs font-medium">Job Location</div>
+                <div className="text-[#102A43] font-medium text-sm mt-0.5">{job.location || "Nationwide"}</div>
               </div>
 
               <div>
-                <div className="text-[#627D98] text-[11px] font-medium">Posted Date</div>
-                <div className="text-[#102A43] font-medium text-xs mt-0.5">{formatDate(job.createdAt)}</div>
+                <div className="text-[#486581] text-xs font-medium">Posted Date</div>
+                <div className="text-[#102A43] font-medium text-sm mt-0.5">{formatDate(job.createdAt)}</div>
               </div>
             </div>
 
@@ -416,11 +416,11 @@ export const JobDetailPage: React.FC = () => {
                 </Button>
               ) : isDeploymentLocked ? (
                 <div className="space-y-2">
-                  <div className="rounded-md border border-[#BCCCDC] bg-[#F0F4F8] p-2.5 text-xs text-[#486581] space-y-1">
+                  <div className="rounded-md border border-[#BCCCDC] bg-[#F0F4F8] p-2.5 text-sm text-[#486581] space-y-1">
                     <div className="font-semibold text-[#102A43]">
                       Active Assignment
                     </div>
-                    <p className="text-[11px] leading-tight">
+                    <p className="leading-snug">
                       Applications locked while placed with {job.activeDeployment?.clientName || "client"}.
                     </p>
                   </div>
@@ -463,7 +463,7 @@ export const JobDetailPage: React.FC = () => {
             </div>
             <div className="space-y-1">
               <h4 className="text-base font-bold text-[#102A43]">Application Submitted</h4>
-              <p className="text-xs text-[#627D98] leading-relaxed max-w-sm mx-auto">
+              <p className="text-sm text-[#486581] leading-relaxed max-w-sm mx-auto">
                 Your application has been received and is now being reviewed by our recruitment team.
               </p>
             </div>
@@ -488,7 +488,7 @@ export const JobDetailPage: React.FC = () => {
           </div>
         ) : (
           <form onSubmit={handleApply} className="space-y-4">
-            <div className="p-3 bg-[#F7F9FC] border border-[#D9E2EC] rounded-lg text-xs text-[#102A43] space-y-1">
+            <div className="p-3 bg-[#F7F9FC] border border-[#D9E2EC] rounded-lg text-sm text-[#102A43] space-y-1">
               <div className="font-semibold text-[#102A43]">Applicant Profile Information:</div>
               <p>
                 Your saved education, work experience, and character references will automatically be attached to this job application.
@@ -496,9 +496,9 @@ export const JobDetailPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-[#102A43]">
+              <p id="custom-resume-label" className="block text-sm font-semibold text-[#102A43]">
                 Custom Resume for this Role (Optional)
-              </label>
+              </p>
 
               <input
                 id="custom-resume-input"
@@ -535,6 +535,8 @@ export const JobDetailPage: React.FC = () => {
                 <label
                   htmlFor="custom-resume-input"
                   data-testid="resume-dropzone"
+                  role="button"
+                  aria-labelledby="custom-resume-label custom-resume-prompt"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -566,10 +568,10 @@ export const JobDetailPage: React.FC = () => {
                     <div className="w-8 h-8 rounded-full bg-white border border-[#D9E2EC] flex items-center justify-center text-[#0B315D] shadow-xs">
                       <Upload className="w-4 h-4" />
                     </div>
-                    <div className="text-xs font-semibold text-[#102A43]">
+                    <div id="custom-resume-prompt" className="text-sm font-semibold text-[#102A43]">
                       Drag &amp; drop your resume here, or <span className="text-[#0B315D] underline">browse</span>
                     </div>
-                    <p className="text-[11px] text-[#627D98]">
+                    <p className="text-xs text-[#486581]">
                       Supports PDF, Word (.docx), or Images (.png, .jpg, .webp) up to 5 MB
                     </p>
                   </div>
@@ -598,10 +600,10 @@ export const JobDetailPage: React.FC = () => {
                       {getResumeFileIcon(customResume.name)}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-[#102A43] truncate">
+                      <p className="text-sm font-semibold text-[#102A43] truncate">
                         {customResume.name}
                       </p>
-                      <p className="text-[11px] text-[#627D98]">
+                      <p className="text-xs text-[#486581]">
                         {formatResumeFileSize(customResume.size)}
                       </p>
                     </div>
@@ -609,14 +611,14 @@ export const JobDetailPage: React.FC = () => {
                   <div className="flex items-center gap-2 shrink-0">
                     <label
                       htmlFor="custom-resume-input"
-                      className="cursor-pointer text-xs font-semibold text-[#0B315D] hover:underline px-2 py-1 rounded hover:bg-[#F0F4F8] transition-colors"
+                      className="inline-flex min-h-11 cursor-pointer items-center rounded px-3 text-sm font-semibold text-[#0B315D] hover:underline hover:bg-[#F0F4F8] transition-colors"
                     >
                       Change
                     </label>
                     <button
                       type="button"
                       onClick={() => setCustomResume(null)}
-                      className="text-xs font-semibold text-[#DC2626] hover:underline px-2 py-1 rounded hover:bg-[#FEF2F2] transition-colors cursor-pointer"
+                      className="inline-flex min-h-11 cursor-pointer items-center rounded px-3 text-sm font-semibold text-[#B91C1C] hover:underline hover:bg-[#FEF2F2] transition-colors"
                       aria-label="Remove resume"
                     >
                       Remove
@@ -628,21 +630,21 @@ export const JobDetailPage: React.FC = () => {
               {isTouchDevice() && (
                 <label
                   htmlFor="custom-resume-camera-input"
-                  className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-[#D9E2EC] bg-white px-4 text-xs font-medium text-[#0B315D] hover:bg-[#EAF0F7] transition-colors"
+                  className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-[#D9E2EC] bg-white px-4 text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] transition-colors"
                 >
                   <Camera className="h-4 w-4" aria-hidden="true" />
                   Take photo of resume
                 </label>
               )}
 
-              <p className="text-[11px] text-[#627D98]">
+              <p className="text-xs text-[#486581]">
                 If omitted, your active profile resume on file will be used.
               </p>
             </div>
 
             {applyMutation.isError && (
-              <div role="alert" className="p-3 bg-[#FEF2F2] border border-[#DC2626]/30 rounded-lg flex items-center gap-2 text-xs text-[#DC2626]">
-                <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
+              <div role="alert" className="p-3 bg-[#FEF2F2] border border-[#B91C1C]/30 rounded-lg flex items-center gap-2 text-sm text-[#B91C1C]">
+                <AlertCircle className="w-4 h-4 text-[#B91C1C] shrink-0" aria-hidden="true" />
                 <span>
                   {applyErrorMessage(applyMutation.error)}
                 </span>

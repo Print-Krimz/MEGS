@@ -26,8 +26,29 @@ export const jobWorksite = (job: JobPosting): string | null =>
 const hasSalary = (job: JobPosting): boolean =>
   Boolean((job.mrf?.salaryRangeMin ?? 0) > 0 || (job.mrf?.salaryRangeMax ?? 0) > 0);
 
+const BULLET = /^([-*•–—]|\d+[.)])\s+/;
+const LABEL_VALUE = /^[A-Za-z][A-Za-z &/]{1,28}:\s+\S/;
+const isHeadingLine = (line: string) =>
+  /^#{1,6}\s/.test(line) ||
+  /^\*\*[^*]+\*\*:?$/.test(line) ||
+  line.endsWith(":") ||
+  (line.length <= 40 && line.split(/\s+/).length <= 5 && !/[.!?]$/.test(line));
+
+/** The opening paragraph of a posting, without its section heading, bullets or "Label: value" lines. */
+export const firstParagraph = (description?: string | null): string => {
+  const paragraph: string[] = [];
+  for (const raw of (description ?? "").split(/\r?\n/)) {
+    const line = raw.trim();
+    const isProse = line !== "" && !BULLET.test(line) && !LABEL_VALUE.test(line) && !isHeadingLine(line);
+    if (isProse) paragraph.push(line);
+    else if (paragraph.length > 0) break;
+  }
+  return paragraph.join(" ");
+};
+
 export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = false, onToggleSave }) => {
   const worksite = jobWorksite(job);
+  const summary = firstParagraph(job.description);
   const client = job.mrf?.client;
   const terms = [
     job.mrf?.employmentType ? formatEmploymentType(job.mrf.employmentType) : null,
@@ -37,22 +58,28 @@ export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = fal
   return (
     <article className="flex h-full flex-col rounded-lg border border-slate-300 bg-white p-5 transition-colors hover:border-navy/50">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          {job.imageUrl && (
-            <div className="mb-2">
-              <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="md" />
-            </div>
-          )}
-          <h3 className="text-lg font-bold leading-snug tracking-tight text-navy">{job.title}</h3>
-          {client?.name && (
-            <p className="flex items-center gap-1.5 text-sm text-slate-600">
-              <Building2 className="size-4 shrink-0" aria-hidden="true" />
-              <span className="min-w-0">
-                <span className="font-medium text-slate-900">{client.name}</span>
-                {client.industry && <span> · {client.industry}</span>}
-              </span>
-            </p>
-          )}
+        <div className="flex min-w-0 items-start gap-3">
+          {job.imageUrl && <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="md" />}
+          <div className="min-w-0 space-y-1">
+            <h3 className="text-lg font-bold leading-snug tracking-tight text-navy">
+              <Link
+                to="/app/jobs/$jobId"
+                params={{ jobId: String(job.id) }}
+                className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+              >
+                {job.title}
+              </Link>
+            </h3>
+            {client?.name && (
+              <p className="flex items-center gap-1.5 text-sm text-slate-600">
+                <Building2 className="size-4 shrink-0" aria-hidden="true" />
+                <span className="min-w-0">
+                  <span className="font-medium text-slate-900">{client.name}</span>
+                  {client.industry && <span> · {client.industry}</span>}
+                </span>
+              </p>
+            )}
+          </div>
         </div>
         <button
           type="button"
@@ -98,9 +125,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = fal
 
       {terms.length > 0 && <p className="mt-3 text-sm text-slate-600">{terms.join(" · ")}</p>}
 
-      {job.description && (
-        <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-600">{job.description}</p>
-      )}
+      {summary && <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-600">{summary}</p>}
 
       <div className="mt-auto pt-5">
         <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-4">

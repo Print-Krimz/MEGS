@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { applicantJobsApi, type JobPosting } from "../../lib/api/applicant-jobs.api";
@@ -59,6 +59,15 @@ export const JobsPage: React.FC = () => {
   }, [routeSearch.q, routeSearch.location]);
 
   const [allOpeningsCount, setAllOpeningsCount] = useState<number>(0);
+
+  // After a page change keyboard and screen-reader focus would stay on the pager button while the page scrolls away.
+  const resultsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const focusResultsAfterPageChange = useRef(false);
+  useEffect(() => {
+    if (!focusResultsAfterPageChange.current) return;
+    focusResultsAfterPageChange.current = false;
+    resultsHeadingRef.current?.focus({ preventScroll: true });
+  }, [page]);
 
   const jobsQuery = useQuery<PaginatedListResponse<JobPosting>>({
     queryKey: [
@@ -219,8 +228,10 @@ export const JobsPage: React.FC = () => {
   const hasActiveFilters = Object.values(filters).some((value) => value.trim() !== "");
 
   const formatPeso = (amount: number) => `₱${amount.toLocaleString("en-PH")}`;
-  const salarySummary =
-    salaryMin && salaryMax
+  // A rejected range is not applied, so it must not be described as if it were.
+  const salarySummary = salaryError
+    ? null
+    : salaryMin && salaryMax
       ? `${formatPeso(salaryMin)} – ${formatPeso(salaryMax)} per month`
       : salaryMin
         ? `From ${formatPeso(salaryMin)} per month`
@@ -242,7 +253,7 @@ export const JobsPage: React.FC = () => {
         }
         breadcrumbs={[
           { label: "My career", href: "/app" },
-          { label: scope === "all" ? "Explore jobs" : "Saved Jobs" },
+          { label: scope === "all" ? "Explore jobs" : "Saved jobs" },
         ]}
         actions={
           <div className="flex items-center rounded-lg border border-slate-300 bg-white p-1 text-sm">
@@ -281,29 +292,26 @@ export const JobsPage: React.FC = () => {
       />
 
       {isDeployed && (
-        <div className="rounded-lg border border-slate-300 border-l-4 border-l-navy bg-white p-4">
+        <div className="rounded-lg border border-navy-line bg-navy-soft p-4">
           <p className="text-sm text-slate-700">
             <strong className="text-slate-950">Notice:</strong> You are currently on an active assignment{deploymentQuery.data?.clientName ? ` with ${deploymentQuery.data.clientName}` : ""}. You can browse and bookmark positions for your records, but applications remain locked until your contract reaches redeployment.
           </p>
         </div>
       )}
 
-      {scope === "saved" && (
+      {scope === "saved" && savedCount > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2" role="status">
-          <p className={cn("text-sm", atSaveLimit ? "font-medium text-megs-red" : "text-slate-700")}>
-            <span className="font-semibold">{savedCount}/{MAX_SAVED_JOBS}</span> saved jobs
-            {atSaveLimit && " · Limit reached. Remove one to save another."}
-          </p>
-          {savedCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setConfirmClearSaved(true)}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-megs-red hover:bg-megs-red-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-megs-red"
-            >
-              <Trash2 className="size-4" aria-hidden="true" />
-              Clear all saved jobs
-            </button>
+          {atSaveLimit && (
+            <p className="text-sm font-medium text-[#B45309]">Limit reached. Remove one to save another.</p>
           )}
+          <button
+            type="button"
+            onClick={() => setConfirmClearSaved(true)}
+            className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-megs-red hover:bg-megs-red-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-megs-red"
+          >
+            <Trash2 className="size-4" aria-hidden="true" />
+            Clear all saved jobs
+          </button>
         </div>
       )}
 
@@ -320,17 +328,19 @@ export const JobsPage: React.FC = () => {
         <div className="rounded-lg border border-slate-300 bg-white p-8">
           {hasActiveFilters ? (
             <EmptyState
+              bare
               icon={<SearchX className="size-5 text-slate-600" aria-hidden="true" />}
               title="No jobs match these filters"
               description="Try a wider salary range, a nearby city or fewer keywords."
               action={
-                <Button variant="outline" size="md" className="border-megs-red/40 text-megs-red hover:bg-megs-red-tint hover:text-megs-red" onClick={handleReset}>
+                <Button variant="outline" size="md" onClick={handleReset}>
                   Clear filters
                 </Button>
               }
             />
           ) : scope === "saved" ? (
             <EmptyState
+              bare
               icon={<Bookmark className="size-5 text-navy" aria-hidden="true" />}
               title="No saved jobs yet"
               description="Bookmark job openings while exploring careers so you can review and apply when ready."
@@ -342,6 +352,7 @@ export const JobsPage: React.FC = () => {
             />
           ) : (
             <EmptyState
+              bare
               icon={<Briefcase className="size-5 text-slate-600" aria-hidden="true" />}
               title="No openings right now"
               description="New positions are posted regularly. Check back soon."
@@ -350,23 +361,26 @@ export const JobsPage: React.FC = () => {
         </div>
       ) : (
         <div className={cn("space-y-4 transition-opacity", resultsAreStale && "opacity-60")} aria-busy={resultsAreStale}>
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1" role="status">
-            <p className="text-sm text-slate-700">
-              <span className="font-semibold text-slate-950">
-                {totalItems} {totalItems === 1 ? "job" : "jobs"}
-              </span>
-              {activeSummary && <span> · {activeSummary}</span>}
-            </p>
-            {hasActiveFilters && (
+          {/* The pager below owns the visible count; this heading is where focus lands after a page change. */}
+          <h2 ref={resultsHeadingRef} tabIndex={-1} className="sr-only focus:outline-none">
+            Jobs, page {page} of {totalPages}
+          </h2>
+
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              <p role="status" className="text-sm text-slate-700">
+                <span className="sr-only">{totalItems} {totalItems === 1 ? "job" : "jobs"} found. </span>
+                {activeSummary}
+              </p>
               <button
                 type="button"
                 onClick={handleReset}
-                className="min-h-11 rounded-md px-2 text-sm font-medium text-megs-red underline-offset-4 hover:bg-megs-red-tint hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-megs-red"
+                className="ml-auto min-h-11 rounded-md px-2 text-sm font-medium text-navy underline-offset-4 hover:bg-navy-soft hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 Clear filters
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
             {paginatedJobs.map((job) => (
@@ -382,7 +396,10 @@ export const JobsPage: React.FC = () => {
               pageSize={pageSize}
               onPageChange={(nextPage) => {
                 setPage(nextPage);
-                window.scrollTo({ top: 0, behavior: "smooth" });
+                focusResultsAfterPageChange.current = true;
+                const reduceMotion =
+                  typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
               }}
               itemLabel="jobs"
             />
