@@ -82,6 +82,7 @@ const MRF_FILE_MAX_BYTES = 5 * 1024 * 1024;
 /** Page defaults count as empty: a file may replace them without asking. */
 const FIELD_DEFAULTS: Partial<Record<MRFFileField, string>> = {
   headcount: "1",
+  priority: "NORMAL",
   employmentType: "Contractual",
   workArrangement: "On-site",
   genderPreference: "ANY",
@@ -393,7 +394,7 @@ export const MRFCreatePage: React.FC = () => {
 
   // Latest typed values, so a file that finishes reading later never works from stale state.
   const currentValues: Record<MRFFileField, string> = {
-    title, description, headcount: String(headcount), location, targetFillDate, employmentType, workArrangement,
+    title, description, headcount: String(headcount), location, targetFillDate, priority, employmentType, workArrangement,
     requiredSkills, requiredExperience, requiredEducation, requiredCertifications,
     salaryRangeMin: salaryMin, salaryRangeMax: salaryMax, ageMin, ageMax, genderPreference, tattooPolicy,
   };
@@ -402,7 +403,7 @@ export const MRFCreatePage: React.FC = () => {
 
   const fileSetters: Record<MRFFileField, (value: string) => void> = {
     title: setTitle, description: setDescription, headcount: setHeadcount, location: setLocation,
-    targetFillDate: setTargetFillDate, employmentType: setEmploymentType, workArrangement: setWorkArrangement,
+    targetFillDate: setTargetFillDate, priority: (value) => setPriority(value as typeof priority), employmentType: setEmploymentType, workArrangement: setWorkArrangement,
     requiredSkills: setRequiredSkills, requiredExperience: setRequiredExperience, requiredEducation: setRequiredEducation,
     requiredCertifications: setRequiredCertifications, salaryRangeMin: setSalaryMin, salaryRangeMax: setSalaryMax,
     ageMin: setAgeMin, ageMax: setAgeMax, genderPreference: setGenderPreference, tattooPolicy: setTattooPolicy,

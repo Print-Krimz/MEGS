@@ -27,6 +27,7 @@ export interface MRFReadFields {
   headcount?: number;
   location?: string;
   targetFillDate?: string;
+  priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT";
   employmentType?: string;
   workArrangement?: string;
   requiredSkills?: string;
@@ -49,6 +50,7 @@ export interface MRFReadResult {
 
 const EMPLOYMENT_TYPES = ["Full-Time", "Contractual", "Project-Based", "Part-Time", "Casual / Temporary", "Seasonal", "Probationary"];
 const WORK_ARRANGEMENTS = ["On-site", "Remote", "Hybrid"];
+const PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 const GENDERS = ["ANY", "MALE", "FEMALE"] as const;
 const TATTOOS = ["ALLOWED", "NO_VISIBLE", "NONE"] as const;
 const UNCERTAIN_BELOW = 0.6;
@@ -110,6 +112,7 @@ const checkValue = (key: MRFFieldKey, value: unknown, today: string): unknown =>
       const text = asText(value)?.trim();
       return text && isValidDateOnly(text) && text >= today ? text : undefined;
     }
+    case "priority": return listed(PRIORITIES, value)?.toUpperCase();
     case "employmentType": return listed(EMPLOYMENT_TYPES, value);
     case "workArrangement": return listed(WORK_ARRANGEMENTS, value);
     case "salaryRangeMin": case "salaryRangeMax": return salary(value);

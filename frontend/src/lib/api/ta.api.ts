@@ -136,7 +136,7 @@ const toTalentPoolSearchResult = (
 };
 
 export type MRFFileField =
-  | "title" | "description" | "headcount" | "location" | "targetFillDate" | "employmentType" | "workArrangement"
+  | "title" | "description" | "headcount" | "location" | "targetFillDate" | "priority" | "employmentType" | "workArrangement"
   | "requiredSkills" | "requiredExperience" | "requiredEducation" | "requiredCertifications"
   | "salaryRangeMin" | "salaryRangeMax" | "ageMin" | "ageMax" | "genderPreference" | "tattooPolicy";
 
@@ -145,7 +145,7 @@ export interface MRFFileReading {
   status: "SUCCESS" | "UNREADABLE";
   fields: Partial<{
     title: string; description: string; headcount: number; location: string; targetFillDate: string;
-    employmentType: string; workArrangement: string; requiredSkills: string; requiredExperience: string;
+    priority: "LOW" | "NORMAL" | "HIGH" | "URGENT"; employmentType: string; workArrangement: string; requiredSkills: string; requiredExperience: string;
     requiredEducation: string; requiredCertifications: string; salaryRangeMin: number; salaryRangeMax: number;
     ageMin: number; ageMax: number; genderPreference: "ANY" | "MALE" | "FEMALE";
     tattooPolicy: "ALLOWED" | "NO_VISIBLE" | "NONE";
