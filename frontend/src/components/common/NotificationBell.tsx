@@ -143,7 +143,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                 type="button"
                 onClick={() => markAllReadMutation.mutate()}
                 disabled={unreadCount === 0 || markAllReadMutation.isPending}
-                className="text-xs font-medium text-navy hover:text-navy-hover disabled:text-slate-400 disabled:cursor-not-allowed flex items-center gap-1 px-1.5 py-1 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus cursor-pointer"
+                className="text-xs font-medium applicant-touch:min-h-11 text-navy hover:text-navy-hover disabled:text-slate-400 disabled:cursor-not-allowed flex items-center gap-1 px-1.5 py-1 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus cursor-pointer"
                 aria-label="Mark all notifications as read"
                 title="Mark all as read"
               >
@@ -153,7 +153,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
               <Link
                 to={resolvedViewAllLink}
                 onClick={() => setOpen(false)}
-                className="text-xs text-navy hover:text-navy-hover font-medium flex items-center gap-1 px-1.5 py-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className="text-xs applicant-touch:min-h-11 text-navy hover:text-navy-hover font-medium flex items-center gap-1 px-1.5 py-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 <span>View all</span>
                 <ExternalLink className="w-3 h-3" />

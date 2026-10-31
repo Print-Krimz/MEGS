@@ -56,7 +56,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             aria-invalid={Boolean(error)}
             aria-describedby={error ? errorId : helperText ? helperId : undefined}
             className={cn(
-              "block w-full min-h-11 md:min-h-10 appearance-none rounded-md border text-sm text-slate-900 bg-white transition-colors cursor-pointer",
+              "block w-full min-h-11 md:min-h-10 applicant-touch:min-h-11 appearance-none rounded-md border text-sm text-slate-900 bg-white transition-colors cursor-pointer",
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus:border-focus",
               "pl-2.5 pr-8 py-1.5",
               error

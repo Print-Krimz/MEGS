@@ -29,7 +29,7 @@ export const FeedbackToaster: React.FC = () => {
           cancelButton:
             "px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium transition-colors",
           closeButton:
-            "text-slate-500 hover:text-slate-900 p-1 rounded-md transition-colors",
+            "text-slate-500 hover:text-slate-900 p-1 rounded-md transition-colors pointer-coarse:min-h-11 pointer-coarse:min-w-11",
           success: "border border-emerald-200 bg-emerald-50/40",
           error: "border border-rose-200 bg-rose-50/40",
           warning: "border border-amber-200 bg-amber-50/40",

@@ -77,7 +77,7 @@ export const Pagination: React.FC<PaginationProps> = ({
               id={sizeId}
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="min-h-11 md:min-h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-1"
+              className="min-h-11 md:min-h-9 applicant-touch:min-h-11 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-1"
             >
               {pageSizeOptions.map((n) => (
                 <option key={n} value={n}>
@@ -95,7 +95,7 @@ export const Pagination: React.FC<PaginationProps> = ({
             size="sm"
             disabled={currentPage <= 1}
             onClick={() => onPageChange(currentPage - 1)}
-            className="min-h-11 min-w-11 md:min-h-9 md:min-w-9 p-0"
+            className="min-h-11 min-w-11 md:min-h-9 md:min-w-9 applicant-touch:min-h-11 applicant-touch:min-w-11 p-0"
             aria-label="Previous page"
             title="Previous page"
           >
@@ -111,7 +111,7 @@ export const Pagination: React.FC<PaginationProps> = ({
             size="sm"
             disabled={currentPage >= totalPages}
             onClick={() => onPageChange(currentPage + 1)}
-            className="min-h-11 min-w-11 md:min-h-9 md:min-w-9 p-0"
+            className="min-h-11 min-w-11 md:min-h-9 md:min-w-9 applicant-touch:min-h-11 applicant-touch:min-w-11 p-0"
             aria-label="Next page"
             title="Next page"
           >

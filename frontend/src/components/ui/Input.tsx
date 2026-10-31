@@ -133,7 +133,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             pattern={isNumber ? "-?(0|[1-9][0-9]*)(\\.[0-9]+)?" : pattern}
             maxLength={maxLength ?? defaultMaxLength}
             className={cn(
-              "block w-full min-h-11 md:min-h-10 rounded-md border text-sm text-slate-900 bg-white placeholder-slate-400 transition-colors",
+              "block w-full min-h-11 md:min-h-10 applicant-touch:min-h-11 rounded-md border text-sm text-slate-900 bg-white placeholder-slate-400 transition-colors",
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus:border-focus",
               leftIcon ? "pl-8" : "pl-2.5",
               rightIcon ? "pr-8" : "pr-2.5",

@@ -39,7 +39,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
                 {item.href && !isLast ? (
                   <Link
                     to={item.href}
-                    className="inline-flex min-h-11 items-center shrink-0 whitespace-nowrap hover:text-slate-900 transition-colors max-w-[280px] md:min-h-0 md:py-0.5"
+                    className="inline-flex min-h-11 items-center shrink-0 whitespace-nowrap hover:text-slate-900 transition-colors max-w-[280px] md:min-h-0 md:py-0.5 applicant-touch:min-h-11"
                   >
                     {item.label}
                   </Link>

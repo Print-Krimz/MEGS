@@ -583,7 +583,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
           onKeyDown={handleKeyDown}
           autoComplete="off"
           className={cn(
-            "w-full min-h-11 md:min-h-10 rounded-md bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 font-sans focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus:border-focus transition-colors cursor-text text-left",
+            "w-full min-h-11 md:min-h-10 applicant-touch:min-h-11 rounded-md bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 font-sans focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus:border-focus transition-colors cursor-text text-left",
             size === "sm" ? "px-3 py-2 text-sm" : "px-3 py-2 text-sm",
             leftIcon ? "pl-8" : undefined,
             (clearable && hasValue) ? "pr-[5.5rem] md:pr-14" : "pr-12 md:pr-8",
@@ -605,7 +605,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
               type="button"
               onClick={handleClear}
               aria-label="Clear selection"
-              className="inline-flex min-h-11 min-w-11 md:min-h-8 md:min-w-8 items-center justify-center text-slate-500 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus rounded-md cursor-pointer pointer-events-auto"
+              className="inline-flex min-h-11 min-w-11 md:min-h-8 md:min-w-8 applicant-touch:min-h-11 applicant-touch:min-w-11 items-center justify-center text-slate-500 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus rounded-md cursor-pointer pointer-events-auto"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -628,7 +628,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                 }
               }}
               aria-label="Toggle options menu"
-              className="inline-flex min-h-11 min-w-11 md:min-h-8 md:min-w-6 items-center justify-center text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer pointer-events-auto"
+              className="inline-flex min-h-11 min-w-11 md:min-h-8 md:min-w-6 applicant-touch:min-h-11 applicant-touch:min-w-11 items-center justify-center text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer pointer-events-auto"
             >
               <ChevronDown
                 className={cn(
@@ -646,7 +646,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
         <div
           ref={scrollRef}
           onScroll={useWindow ? (e) => setWindowScrollTop(e.currentTarget.scrollTop) : undefined}
-          className="absolute z-[70] w-full mt-1 bg-white border border-slate-300 shadow-xl max-h-60 overflow-y-auto font-sans animate-fade-in text-xs"
+          className="absolute z-[70] w-full mt-1 bg-white border border-slate-300 shadow-xl max-h-60 overflow-y-auto font-sans animate-fade-in text-xs applicant-touch:text-sm"
         >
           <ul
             id={listId}
@@ -683,7 +683,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                   onClick={() => handleSelectOption(opt)}
                   className={cn(
                     "px-3 cursor-pointer flex items-center justify-between gap-2 transition-colors select-none",
-                    useWindow ? "box-border overflow-hidden" : "py-2.5",
+                    useWindow ? "box-border overflow-hidden" : "py-2.5 applicant-touch:py-3",
                     isHighlighted ? "bg-navy-soft text-navy-hover" : "text-slate-800 hover:bg-slate-50",
                     opt.disabled && "opacity-50 cursor-not-allowed pointer-events-none"
                   )}
