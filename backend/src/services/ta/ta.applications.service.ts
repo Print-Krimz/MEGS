@@ -1186,6 +1186,11 @@ export const updateTAApplicationStatus = async (
           },
         });
 
+        // A redeployed worker leaves the redeployment pool now and waits for the start date, like a first-time hire.
+        if (emp.status === "AVAILABLE_FOR_REDEPLOYMENT") {
+          await prisma.employee.update({ where: { id: emp.id }, data: { status: "AWAITING_START" } });
+        }
+
         // Keep the requisition's FILLED / OPEN status in step with the seat this deployment takes.
         if (deployment.mrfId) await syncMRFFulfillmentStatus(deployment.mrfId, resolvedActorId).catch(() => {});
 
