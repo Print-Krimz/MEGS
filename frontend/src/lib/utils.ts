@@ -137,30 +137,30 @@ export function getApplicationStatusPresentation(
       case ApplicationStatus.REVIEW:
         return { label: "Under Review", badgeClass: "bg-[#EAF0F7] text-[#0B315D] border-[#D9E2EC]" };
       case ApplicationStatus.INITIAL_SCREENING:
-        return { label: "Initial Screening", badgeClass: "bg-[#F3F0FF] text-[#6D4FD3] border-[#DDD6FE]" };
+        return { label: "Initial Screening", badgeClass: "bg-[#EAF0F7] text-[#0B315D] border-[#D9E2EC]" };
       case ApplicationStatus.CLIENT_ENDORSEMENT:
-        return { label: "Client Endorsement", badgeClass: "bg-[#F3F0FF] text-[#6D4FD3] border-[#DDD6FE]" };
+        return { label: "Client Endorsement", badgeClass: "bg-[#EAF0F7] text-[#0B315D] border-[#D9E2EC]" };
       case ApplicationStatus.FINAL_INTERVIEW:
-        return { label: "Final Interview", badgeClass: "bg-[#F3F0FF] text-[#6D4FD3] border-[#DDD6FE]" };
+        return { label: "Final Interview", badgeClass: "bg-[#EAF0F7] text-[#0B315D] border-[#D9E2EC]" };
       case ApplicationStatus.NEEDS_ATTENTION:
         return { label: "Action needed", badgeClass: "bg-[#FFF7ED] text-[#B45309] border-[#FED7AA]" };
       case ApplicationStatus.COMPLIANCE:
         return { label: "Requirements", badgeClass: "bg-[#FFF7ED] text-[#B45309] border-[#FED7AA]" };
       case ApplicationStatus.ONBOARDING:
       case ApplicationStatus.CONTRACT_SIGNING:
-        return { label: "Contract Signing", badgeClass: "bg-[#F3F0FF] text-[#6D4FD3] border-[#DDD6FE]" };
+        return { label: "Contract Signing", badgeClass: "bg-[#EAF0F7] text-[#0B315D] border-[#D9E2EC]" };
       case ApplicationStatus.DEPLOYED:
         return { label: "Deployed", badgeClass: "bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]" };
       case ApplicationStatus.TALENT_POOL:
-        return { label: "Future Opportunities", badgeClass: "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]" };
+        return { label: "Future Opportunities", badgeClass: "bg-[#F7F9FC] text-[#486581] border-[#D9E2EC]" };
       case ApplicationStatus.BACKOUT:
-        return { label: "Backed Out", badgeClass: "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]" };
+        return { label: "Backed Out", badgeClass: "bg-[#F7F9FC] text-[#486581] border-[#D9E2EC]" };
       case ApplicationStatus.REJECTED:
-        return { label: "Not Selected", badgeClass: "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]" };
+        return { label: "Not Selected", badgeClass: "bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]" };
       case ApplicationStatus.ARCHIVED:
-        return { label: "Archived", badgeClass: "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]" };
+        return { label: "Archived", badgeClass: "bg-[#F7F9FC] text-[#486581] border-[#D9E2EC]" };
       default:
-        return { label: status || "Unknown", badgeClass: "bg-[#F7F9FC] text-[#627D98] border-[#D9E2EC]" };
+        return { label: status || "Unknown", badgeClass: "bg-[#F7F9FC] text-[#486581] border-[#D9E2EC]" };
     }
   }
 
