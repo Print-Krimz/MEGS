@@ -42,7 +42,7 @@ const variantStyles = {
     skillChip: "inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-[#EAF0F7] text-[#0B315D] border border-[#D9E2EC]",
     metadataContainer: "flex flex-wrap gap-2 my-3",
     metadataChip: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs border bg-[#F0F4F8] border-[#D9E2EC] text-[#102A43]",
-    metadataKey: "font-medium text-[#627D98]",
+    metadataKey: "font-medium text-[#486581]",
     metadataValue: "font-semibold text-[#102A43]",
   },
 };
