@@ -167,6 +167,7 @@ export const JobDetailPage: React.FC = () => {
     setCustomResume(null);
     setIsDragging(false);
     setSubmissionSuccess(false);
+    applyMutation.reset();
   };
 
   const handleFileSelected = async (picked: File) => {
