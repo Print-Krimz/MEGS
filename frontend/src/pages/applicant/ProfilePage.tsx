@@ -349,6 +349,18 @@ export const ProfilePage: React.FC = () => {
       ? religionOtherDraft
       : religionParts.other;
 
+  // After a failed save the section with the error opens, but it may be off screen: move focus to the first invalid field.
+  const focusFirstInvalidField = (triesLeft = 2) => {
+    requestAnimationFrame(() => {
+      const field = document.querySelector<HTMLElement>('[role="tabpanel"] [aria-invalid="true"]');
+      if (!field) {
+        if (triesLeft > 0) focusFirstInvalidField(triesLeft - 1);
+        return;
+      }
+      field.focus({ preventScroll: true });
+      field.scrollIntoView({ block: "center" });
+    });
+  };
   const profileProgress = computeProfileProgress(personalForm, personalFieldErrors, personalSectionOf);
   const goToPersonalSection = (id: PersonalSectionId) => {
     setOpenPersonalSection(id);
@@ -495,7 +507,10 @@ export const ProfilePage: React.FC = () => {
       const firstMessage = firstFieldError(fieldErrors);
       setPersonalFieldErrors(fieldErrors);
       const errorSection = Object.keys(fieldErrors).map(personalSectionOf).find(Boolean);
-      if (errorSection) setOpenPersonalSection(errorSection);
+      if (errorSection) {
+        setOpenPersonalSection(errorSection);
+        focusFirstInvalidField();
+      }
       setFeedback({ type: "error", message: "Failed to save personal information: " + (firstMessage ?? err.message) });
     },
   });
@@ -1065,7 +1080,10 @@ export const ProfilePage: React.FC = () => {
                   const firstMessage = firstFieldError(clientErrors);
                   if (firstMessage) {
                     const errorSection = Object.keys(clientErrors).map(personalSectionOf).find(Boolean);
-                    if (errorSection) setOpenPersonalSection(errorSection);
+                    if (errorSection) {
+                      setOpenPersonalSection(errorSection);
+                      focusFirstInvalidField();
+                    }
                     setFeedback({ type: "error", message: "Failed to save personal information: " + firstMessage });
                     return;
                   }
