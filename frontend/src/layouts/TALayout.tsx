@@ -23,7 +23,8 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
-import { NotificationBell, RealtimeToastContainer, SignOutDialog } from "../components/common";
+import { useIdleSignOut } from "../hooks/useIdleSignOut";
+import { IdleWarningDialog, NotificationBell, RealtimeToastContainer, SignOutDialog } from "../components/common";
 import { getInitials } from "../lib/utils";
 import { Role } from "../lib/types/enums";
 import { TA_COPY } from "../lib/ta-copy";
@@ -119,7 +120,11 @@ const NavList: React.FC<{
 );
 
 export const TALayout: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const idle = useIdleSignOut();
+  useEffect(() => {
+    if (idle.expired) void logout({ reason: "idle" });
+  }, [idle.expired, logout]);
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -355,6 +360,9 @@ export const TALayout: React.FC = () => {
     navSections.flatMap((section) => section.items).find((item) => isNavItemActive(item.to))?.label ??
     (location.pathname.startsWith("/ta/notifications") ? "Notifications" : "Talent Acquisition");
 
+  // Past the idle limit: show no data while the sign-out request completes.
+  if (idle.expired) return null;
+
   return (
     <div className="ta-portal min-h-screen bg-ta-page flex flex-col lg:flex-row overflow-x-hidden">
       <title>MEGS Talent Acquisition</title>
@@ -433,6 +441,8 @@ export const TALayout: React.FC = () => {
         open={showSignOutConfirm}
         onClose={() => setShowSignOutConfirm(false)}
       />
+
+      <IdleWarningDialog open={idle.warning} secondsLeft={idle.secondsLeft ?? 0} onStay={idle.stay} />
 
       {/* Main Workspace Layout */}
       <div className={`flex-1 flex flex-col min-w-0 transition-all duration-150 ${collapsed ? "lg:pl-16" : "lg:pl-64"}`}>

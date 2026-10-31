@@ -18,7 +18,9 @@ import {
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
+import { useIdleSignOut } from "../hooks/useIdleSignOut";
 import {
+  IdleWarningDialog,
   NotificationBell,
   RealtimeToastContainer,
   SignOutDialog,
@@ -70,7 +72,11 @@ const adminNavSections: NavSection[] = [
 ];
 
 export const AdminLayout: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const idle = useIdleSignOut();
+  useEffect(() => {
+    if (idle.expired) void logout({ reason: "idle" });
+  }, [idle.expired, logout]);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
@@ -193,6 +199,9 @@ export const AdminLayout: React.FC = () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [accountMenuOpen]);
+
+  // Past the idle limit: show no data while the sign-out request completes.
+  if (idle.expired) return null;
 
   return (
     <div className="admin-portal min-h-screen bg-ta-page flex flex-col lg:flex-row">
@@ -338,6 +347,8 @@ export const AdminLayout: React.FC = () => {
         open={showSignOutConfirm}
         onClose={() => setShowSignOutConfirm(false)}
       />
+
+      <IdleWarningDialog open={idle.warning} secondsLeft={idle.secondsLeft ?? 0} onStay={idle.stay} />
 
       {/* Main Workspace Layout */}
       <div className={`flex-1 flex flex-col min-w-0 transition-all duration-150 ${collapsed ? "lg:pl-16" : "lg:pl-64"}`}>

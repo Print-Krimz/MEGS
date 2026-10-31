@@ -122,6 +122,7 @@ export const authLayoutRoute = createRoute({
 export interface LoginSearch {
   redirect?: string;
   email?: string;
+  reason?: "idle";
 }
 
 export const loginRoute = createRoute({
@@ -130,6 +131,7 @@ export const loginRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
     email: typeof search.email === "string" ? search.email : undefined,
+    reason: search.reason === "idle" ? "idle" : undefined,
   }),
   beforeLoad: ({ context }) => {
     if (context.auth.isAuthenticated && context.auth.user) {

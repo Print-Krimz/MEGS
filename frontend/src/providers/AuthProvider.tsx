@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { User, LoginResponse } from "../lib/types/auth.types";
 import { authApi } from "../lib/api/auth.api";
 import { ApiError } from "../lib/api/client";
 import { bumpSessionGeneration, getSessionGeneration, onSessionGenerationChange, tokenSubject } from "../lib/auth/session-generation";
 import { AuthContext, type AuthContextType } from "../context/AuthContext";
 import { canOpenPath, getHomePath, markLandingRedirected } from "../lib/home-path";
+import { clearLastActivity, writeLastActivity } from "../lib/auth/idle-activity";
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -93,22 +94,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     // Just signed in: the landing page is not a detour on the way back from the app.
     markLandingRedirected();
+    writeLastActivity();
     setUser(data.user);
     setIsLoading(false);
   }, []);
 
 
-  const logout = useCallback(async () => {
+  const signingOutRef = useRef(false);
+
+  const logout = useCallback(async (options?: { reason?: "idle" }) => {
+    // The page navigates away below, so a repeat call (StrictMode effects, a double click) must not
+    // send a second request whose 401 would overwrite the redirect.
+    if (signingOutRef.current) return;
+    signingOutRef.current = true;
+    const idle = options?.reason === "idle";
+    // Captured before the tokens go, so signing back in returns to the page the user left.
+    const { pathname, search } = window.location;
     try {
-      await authApi.logout();
+      await authApi.logout(idle ? "idle" : undefined);
     } catch {
       // Ignore errors on signout
     } finally {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
+      clearLastActivity();
       bumpSessionGeneration();
       setUser(null);
-      window.location.href = "/login";
+      const params = new URLSearchParams();
+      if (idle) {
+        params.set("reason", "idle");
+        if (pathname !== "/" && !pathname.startsWith("/login")) params.set("redirect", pathname + search);
+      }
+      const query = params.toString();
+      window.location.href = query ? `/login?${query}` : "/login";
     }
   }, []);
 

@@ -665,7 +665,9 @@ export const refreshUserSession = async (refreshToken: string) => {
   };
 };
 
-export const logoutUser = async (token?: string, userId?: string) => {
+// An idle sign-out ends only the idle browser's session, not the user's other devices.
+export const logoutUser = async (token?: string, userId?: string, reason?: "idle") => {
+  const reasonDetails = reason ? { reason } : {};
   if (token) {
     try {
       const { data } = await supabase.auth.getUser(token);
@@ -673,16 +675,21 @@ export const logoutUser = async (token?: string, userId?: string) => {
       if (effectiveUserId) {
         logAudit(effectiveUserId, "USER_LOGGED_OUT", "User", effectiveUserId, {
           email: data?.user?.email,
+          ...reasonDetails,
         });
       }
-      await supabase.auth.admin.signOut(token);
+      if (reason === "idle") {
+        await supabase.auth.admin.signOut(token, "local");
+      } else {
+        await supabase.auth.admin.signOut(token);
+      }
     } catch {
       if (userId) {
-        logAudit(userId, "USER_LOGGED_OUT", "User", userId, {});
+        logAudit(userId, "USER_LOGGED_OUT", "User", userId, reasonDetails);
       }
     }
   } else if (userId) {
-    logAudit(userId, "USER_LOGGED_OUT", "User", userId, {});
+    logAudit(userId, "USER_LOGGED_OUT", "User", userId, reasonDetails);
   }
 };
 

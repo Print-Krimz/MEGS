@@ -107,7 +107,9 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
       return;
     }
     await revokeSession(token, req.user!.tokenExpiresAt!);
-    await logoutUser(token, req.user?.id);
+    // Only "idle" is recognised; anything else is an ordinary sign-out.
+    if (req.body?.reason === "idle") await logoutUser(token, req.user?.id, "idle");
+    else await logoutUser(token, req.user?.id);
     if (req.user) notificationEmitter.emit(`session:closed:${req.user.id}`);
     sendSuccess(res, "Logged out successfully", null);
   } catch (error: any) {

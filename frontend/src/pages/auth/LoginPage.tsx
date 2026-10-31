@@ -39,7 +39,7 @@ const loginSchema = z.object({
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as { redirect?: string; email?: string };
+  const search = useSearch({ strict: false }) as { redirect?: string; email?: string; reason?: "idle" };
   const { login } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -201,7 +201,14 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="flex flex-col gap-8">
       <title>Sign in | MEGS</title>
-      <AuthHeading title="Welcome back" description="Sign in to your MEGS account." />
+      <AuthHeading
+        title="Welcome back"
+        description={
+          search?.reason === "idle"
+            ? "You were signed out after 1 hour of inactivity. Sign in to continue."
+            : "Sign in to your MEGS account."
+        }
+      />
 
       <AuthError message={serverError} />
 

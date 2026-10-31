@@ -7,6 +7,7 @@ export * from "./LoadingState";
 export * from "./ErrorState";
 export * from "./ConfirmDialog";
 export * from "./SignOutDialog";
+export * from "./IdleWarningDialog";
 export * from "./Pagination";
 export * from "./SearchFilters";
 export * from "./NotificationBell";

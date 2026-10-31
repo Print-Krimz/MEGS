@@ -7,7 +7,7 @@ export interface AuthContextType {
   isLoading: boolean;
   mustChangePassword: boolean;
   login: (data: LoginResponse) => void;
-  logout: () => Promise<void>;
+  logout: (options?: { reason?: "idle" }) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 

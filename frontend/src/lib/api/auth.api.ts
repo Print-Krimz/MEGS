@@ -93,7 +93,7 @@ export const authApi = {
 
     api.post<{ message: string }>(`/api/admin/users/${userId}/reset-mfa`, {}),
 
-  logout: () => api.post<null>("/api/auth/logout"),
+  logout: (reason?: "idle") => api.post<null>("/api/auth/logout", reason ? { reason } : undefined),
 
   getMe: () => api.get<{ user: User }>("/api/me").then((res) => res.user),
 };
