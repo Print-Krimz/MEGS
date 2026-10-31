@@ -33,6 +33,8 @@ export const ApplicantLayout: React.FC = () => {
 
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
   const menuItemsRef = useRef<(HTMLAnchorElement | HTMLButtonElement | null)[]>([]);
 
   const [bellOpen, setBellOpen] = useState(false);
@@ -87,6 +89,18 @@ export const ApplicantLayout: React.FC = () => {
     };
   }, [accountMenuOpen]);
 
+  // Escape closes the mobile drawer and hands focus back to its toggle
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setMobileMenuOpen(false);
+      menuToggleRef.current?.focus();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [mobileMenuOpen]);
+
   // Keyboard navigation for account menu
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -129,20 +143,32 @@ export const ApplicantLayout: React.FC = () => {
     <div className="applicant-portal min-h-screen bg-ta-page text-slate-900 flex flex-col font-sans selection:bg-slate-900 selection:text-white">
       <title>MEGS Applicant Portal</title>
       <meta name="robots" content="noindex" />
+      <a
+        href="#main"
+        onClick={(e) => {
+          e.preventDefault();
+          mainRef.current?.focus();
+        }}
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-md focus:border focus:border-slate-900 focus:bg-white focus:px-4 focus:text-sm focus:font-semibold focus:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+      >
+        Skip to main content
+      </a>
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
 
       {/* Top Navigation Header */}
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-2xs">
+      <header className="top-0 z-30 bg-white [@media(min-height:500px)]:sticky border-b border-slate-200 shadow-2xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo & Mobile Menu Button */}
             <div className="flex items-center gap-3 sm:gap-6 min-w-0">
               <button
+                ref={menuToggleRef}
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="xl:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 border border-slate-200 hover:bg-slate-100 transition-colors shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
                 aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
                 aria-expanded={mobileMenuOpen}
+                aria-controls="applicant-mobile-menu"
               >
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
@@ -271,6 +297,8 @@ export const ApplicantLayout: React.FC = () => {
                         tabIndex={0}
                         ref={(el) => { menuItemsRef.current[1] = el; }}
                         onClick={() => {
+                          // Focus the trigger first: the menu item unmounts, and the dialog returns focus to whatever was focused when it opened.
+                          accountButtonRef.current?.focus();
                           setAccountMenuOpen(false);
                           setShowChangePasswordModal(true);
                         }}
@@ -292,6 +320,7 @@ export const ApplicantLayout: React.FC = () => {
                         tabIndex={0}
                         ref={(el) => { menuItemsRef.current[2] = el; }}
                         onClick={() => {
+                          accountButtonRef.current?.focus();
                           setAccountMenuOpen(false);
                           setShowSignOutConfirm(true);
                         }}
@@ -313,7 +342,7 @@ export const ApplicantLayout: React.FC = () => {
 
         {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
-          <div className="xl:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-1 shadow-md animate-in slide-in-from-top-2 duration-150">
+          <div id="applicant-mobile-menu" className="xl:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-1 shadow-md animate-in slide-in-from-top-2 duration-150">
             {navLinks.map((item) => {
               const Icon = item.icon;
               return (
@@ -335,7 +364,7 @@ export const ApplicantLayout: React.FC = () => {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 min-w-0">
+      <main id="main" ref={mainRef} tabIndex={-1} className="flex-1 focus:outline-none max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 min-w-0">
         <Outlet />
       </main>
 
