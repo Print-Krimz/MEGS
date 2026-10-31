@@ -181,7 +181,7 @@ export const ApplicantLayout: React.FC = () => {
                 <span className="font-display text-xl text-megs-red leading-none">
                   MEGS
                 </span>
-                <span className="text-[10px] font-semibold text-slate-500 tracking-wider uppercase mt-1">
+                <span className="text-xs font-semibold text-slate-600 mt-0.5">
                   Candidate Portal
                 </span>
               </Link>
@@ -233,14 +233,14 @@ export const ApplicantLayout: React.FC = () => {
                   aria-expanded={accountMenuOpen}
                   aria-controls="applicant-account-menu"
                 >
-                  <div className="w-8 h-8 bg-slate-900 text-white rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0 shadow-2xs">
+                  <div className="w-8 h-8 bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center justify-center shrink-0 shadow-2xs">
                     {initials}
                   </div>
                   <div className="hidden lg:block text-left leading-tight">
                     <div className="text-xs font-bold text-slate-900 truncate max-w-[140px]">
                       {fullName}
                     </div>
-                    <div className="text-[11px] text-slate-500 font-medium">Candidate</div>
+                    <div className="text-xs text-slate-500 font-medium">Candidate</div>
                   </div>
                   <ChevronDown
                     className={`w-4 h-4 text-slate-500 group-hover:text-slate-900 transition-transform duration-150 shrink-0 ${
@@ -260,14 +260,14 @@ export const ApplicantLayout: React.FC = () => {
                     {/* User Identity Context Card */}
                     <div className="p-3.5 bg-slate-50 border-b border-slate-200">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 bg-slate-900 text-white rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center justify-center shrink-0">
                           {initials}
                         </div>
                         <div className="overflow-hidden min-w-0">
                           <div className="text-xs font-bold text-slate-900 truncate">
                             {fullName}
                           </div>
-                          <div className="text-[11px] text-slate-500 font-mono truncate">
+                          <div className="text-xs text-slate-500 truncate">
                             {user?.email}
                           </div>
                         </div>
@@ -287,7 +287,7 @@ export const ApplicantLayout: React.FC = () => {
                         <User className="w-4 h-4 text-slate-500 shrink-0" />
                         <div className="flex flex-col text-left">
                           <span className="font-semibold text-slate-900">Profile & Resume</span>
-                          <span className="text-[11px] text-slate-500 font-normal">Qualifications & clearances</span>
+                          <span className="text-xs text-slate-500 font-normal">Qualifications & clearances</span>
                         </div>
                       </Link>
 
@@ -307,7 +307,7 @@ export const ApplicantLayout: React.FC = () => {
                         <Shield className="w-4 h-4 text-slate-500 shrink-0" />
                         <div className="flex flex-col text-left">
                           <span className="font-semibold text-slate-900">Account Security</span>
-                          <span className="text-[11px] text-slate-500 font-normal">Password & login protection</span>
+                          <span className="text-xs text-slate-500 font-normal">Password & login protection</span>
                         </div>
                       </button>
                     </div>
@@ -329,7 +329,7 @@ export const ApplicantLayout: React.FC = () => {
                         <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
                         <div className="flex flex-col text-left">
                           <span className="font-semibold text-rose-900">Sign Out</span>
-                          <span className="text-[11px] text-rose-700/70 font-normal">End your current session</span>
+                          <span className="text-xs text-rose-700/70 font-normal">End your current session</span>
                         </div>
                       </button>
                     </div>
@@ -385,7 +385,7 @@ export const ApplicantLayout: React.FC = () => {
       <footer className="bg-white border-t border-slate-200 py-6 px-4 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>© {new Date().getFullYear()} MAR Employment for Good Services Inc. All rights reserved.</span>
-          <span className="text-[11px] text-slate-500">DOLE Licensed Private Employment Agency • Valenzuela City</span>
+          <span className="text-xs text-slate-500">DOLE Licensed Private Employment Agency • Valenzuela City</span>
         </div>
       </footer>
     </div>
