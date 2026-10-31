@@ -29,7 +29,9 @@ export const ProfileApplications: React.FC = () => {
         </Link>
       </div>
 
-      {applicationsQuery.isLoading ? (
+      {applicationsQuery.fetchStatus === "paused" && applicationData === undefined ? (
+        <ErrorState compact subject="your applications" onRetry={() => void applicationsQuery.refetch()} />
+      ) : applicationsQuery.isLoading ? (
         <LoadingState variant="table" rows={3} message="Loading applications…" />
       ) : applicationsQuery.isError ? (
         <ErrorState
