@@ -102,7 +102,7 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
                 key={suggestion}
                 type="button"
                 onClick={() => onAddSkill([suggestion])}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-sans bg-[#F7F9FC] hover:bg-[#EAF0F7] border border-[#D9E2EC] hover:border-[#0B315D]/40 text-[#102A43] hover:text-[#0B315D] rounded-md transition-colors cursor-pointer"
+                className="inline-flex min-h-11 items-center gap-1 px-2.5 py-1.5 text-xs font-sans md:min-h-8 applicant-touch:min-h-11 bg-[#F7F9FC] hover:bg-[#EAF0F7] border border-[#D9E2EC] hover:border-[#0B315D]/40 text-[#102A43] hover:text-[#0B315D] rounded-md transition-colors cursor-pointer"
               >
                 <span>+ {suggestion}</span>
               </button>
@@ -127,14 +127,14 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
               return (
                 <span
                   key={rawSkill}
-                  className="inline-flex max-w-full items-center gap-2 px-2.5 py-1 bg-white border border-[#D9E2EC] text-[#102A43] text-xs font-medium shadow-2xs hover:border-[#0B315D]/40 transition-colors"
+                  className="inline-flex max-w-full items-center gap-1 pl-2.5 pr-1 py-0 bg-white border border-[#D9E2EC] text-[#102A43] text-xs font-medium shadow-2xs hover:border-[#0B315D]/40 transition-colors"
                 >
                   <span className="min-w-0 break-all">{formatted}</span>
                   <button
                     type="button"
                     onClick={() => onRemoveSkill(rawSkill)}
                     aria-label={`Remove ${formatted}`}
-                    className="p-1 -mr-1 inline-flex items-center justify-center rounded text-[#627D98] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626]"
+                    className="inline-flex size-11 shrink-0 items-center justify-center rounded md:size-8 applicant-touch:size-11 text-[#627D98] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626]"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>

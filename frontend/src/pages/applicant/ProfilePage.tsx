@@ -149,6 +149,15 @@ const lettersOnlyErrors = (values: Record<string, FormDataEntryValue | null>): R
   return errors;
 };
 
+// The dialog forms use noValidate, so empty required fields get the same inline error as the personal form.
+const requiredErrors = (fields: Array<[key: string, value: FormDataEntryValue | null, message: string]>): Record<string, string> => {
+  const errors: Record<string, string> = {};
+  for (const [key, value, message] of fields) {
+    if (typeof value !== "string" || !value.trim()) errors[key] = message;
+  }
+  return errors;
+};
+
 const withoutKey = (errors: Record<string, string>, key: string): Record<string, string> => {
   if (!(key in errors)) return errors;
   const next = { ...errors };
@@ -350,11 +359,11 @@ export const ProfilePage: React.FC = () => {
       : religionParts.other;
 
   // After a failed save the section with the error opens, but it may be off screen: move focus to the first invalid field.
-  const focusFirstInvalidField = (triesLeft = 2) => {
+  const focusFirstInvalidField = (scope = '[role="tabpanel"]', triesLeft = 2) => {
     requestAnimationFrame(() => {
-      const field = document.querySelector<HTMLElement>('[role="tabpanel"] [aria-invalid="true"]');
+      const field = document.querySelector<HTMLElement>(`${scope} [aria-invalid="true"]`);
       if (!field) {
-        if (triesLeft > 0) focusFirstInvalidField(triesLeft - 1);
+        if (triesLeft > 0) focusFirstInvalidField(scope, triesLeft - 1);
         return;
       }
       field.focus({ preventScroll: true });
@@ -800,13 +809,22 @@ export const ProfilePage: React.FC = () => {
     const isCurrent = formData.get("isCurrent") === "on";
     // A current role has no end date, so any end date is ignored and not sent
     const endDate = isCurrent ? "" : (formData.get("endDate") as string);
-    const expLetterErrors = lettersOnlyErrors({ title: formData.get("jobTitle"), company: formData.get("companyName") });
-    if (Object.keys(expLetterErrors).length > 0) {
-      setExpErrors(expLetterErrors);
+    const expInputErrors = {
+      ...requiredErrors([
+        ["title", formData.get("jobTitle"), "Job title is required."],
+        ["company", formData.get("companyName"), "Company name is required."],
+        ["startDate", startDate, "Start date is required."],
+      ]),
+      ...lettersOnlyErrors({ title: formData.get("jobTitle"), company: formData.get("companyName") }),
+    };
+    if (Object.keys(expInputErrors).length > 0) {
+      setExpErrors(expInputErrors);
+      focusFirstInvalidField('[role="dialog"]');
       return;
     }
     if (startDate && endDate && endDate < startDate) {
       setExpErrors({ endDate: "End date can't be before the start date." });
+      focusFirstInvalidField('[role="dialog"]');
       return;
     }
     setExpErrors({});
@@ -827,21 +845,26 @@ export const ProfilePage: React.FC = () => {
     const formData = new FormData(e.currentTarget);
     const startDate = formData.get("startDate") as string;
     const endDate = formData.get("endDate") as string;
-    const eduLetterErrors = lettersOnlyErrors({
-      school: formData.get("schoolName"),
-      degree: formData.get("degree"),
-      field: formData.get("fieldOfStudy"),
-    });
-    if (Object.keys(eduLetterErrors).length > 0) {
-      setEduErrors(eduLetterErrors);
-      return;
-    }
-    if (!startDate) {
-      setEduErrors({ startDate: "Start date is required." });
+    const eduInputErrors = {
+      ...requiredErrors([
+        ["school", formData.get("schoolName"), "School name is required."],
+        ["degree", formData.get("degree"), "Degree or course level is required."],
+      ]),
+      ...lettersOnlyErrors({
+        school: formData.get("schoolName"),
+        degree: formData.get("degree"),
+        field: formData.get("fieldOfStudy"),
+      }),
+      ...(startDate ? {} : { startDate: "Start date is required." }),
+    };
+    if (Object.keys(eduInputErrors).length > 0) {
+      setEduErrors(eduInputErrors);
+      focusFirstInvalidField('[role="dialog"]');
       return;
     }
     if (endDate && endDate < startDate) {
       setEduErrors({ endDate: "End date can't be before the start date." });
+      focusFirstInvalidField('[role="dialog"]');
       return;
     }
     setEduErrors({});
@@ -860,9 +883,16 @@ export const ProfilePage: React.FC = () => {
   const handleSaveTraining = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const trainingLetterErrors = lettersOnlyErrors({ title: formData.get("title"), provider: formData.get("issuer") });
-    if (Object.keys(trainingLetterErrors).length > 0) {
-      setTrainingErrors(trainingLetterErrors);
+    const trainingInputErrors = {
+      ...requiredErrors([
+        ["title", formData.get("title"), "Certificate or course title is required."],
+        ["provider", formData.get("issuer"), "Issuing organization is required."],
+      ]),
+      ...lettersOnlyErrors({ title: formData.get("title"), provider: formData.get("issuer") }),
+    };
+    if (Object.keys(trainingInputErrors).length > 0) {
+      setTrainingErrors(trainingInputErrors);
+      focusFirstInvalidField('[role="dialog"]');
       return;
     }
     setTrainingErrors({});
@@ -878,6 +908,17 @@ export const ProfilePage: React.FC = () => {
   const handleSaveRef = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const refInputErrors = requiredErrors([
+      ["name", formData.get("name"), "Contact name is required."],
+      ["relationship", formData.get("relationship"), "Relationship is required."],
+      ["phone", refPhone, "Contact phone number is required."],
+    ]);
+    if (Object.keys(refInputErrors).length > 0) {
+      setRefErrors(refInputErrors);
+      focusFirstInvalidField('[role="dialog"]');
+      return;
+    }
+    setRefErrors({});
     addRefMutation.mutate({
       name: formData.get("name") as string,
       relationship: formData.get("relationship") as string,
@@ -1030,7 +1071,7 @@ export const ProfilePage: React.FC = () => {
         role="tabpanel"
         aria-labelledby={`profile-tab-${activeSection}`}
         tabIndex={0}
-        className="bg-white border border-[#D9E2EC] p-4 sm:p-6 shadow-2xs focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2"
+        className="focus-ring bg-white border border-[#D9E2EC] p-4 sm:p-6 shadow-2xs"
       >
           {activeSection === "overview" && (
             <ProfileOverview
@@ -1096,7 +1137,7 @@ export const ProfilePage: React.FC = () => {
                 className="space-y-6"
               >
                 <div className="space-y-1.5" role="group" aria-label="Profile completion">
-                  <div className="flex items-center justify-between text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 text-sm">
                     <span className="font-semibold text-slate-900">Profile {profileProgress.percent}% complete</span>
                     <span className="text-xs text-slate-600">
                       {profileProgress.filled} of {profileProgress.total} key fields filled
@@ -1128,6 +1169,7 @@ export const ProfilePage: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Input
                       label="First Name"
+                      autoComplete="given-name"
                       maxLength={100}
                       value={personalForm.firstName}
                       error={personalFieldErrors.firstName}
@@ -1141,6 +1183,7 @@ export const ProfilePage: React.FC = () => {
                     />
                     <Input
                       label="Middle Name"
+                      autoComplete="additional-name"
                       maxLength={100}
                       value={personalForm.middleName}
                       error={personalFieldErrors.middleName}
@@ -1153,6 +1196,7 @@ export const ProfilePage: React.FC = () => {
                     />
                     <Input
                       label="Last Name"
+                      autoComplete="family-name"
                       maxLength={100}
                       value={personalForm.lastName}
                       error={personalFieldErrors.lastName}
@@ -1169,6 +1213,7 @@ export const ProfilePage: React.FC = () => {
                     <Input
                       label="Date of Birth"
                       type="date"
+                      autoComplete="bday"
                       value={personalForm.dateOfBirth}
                       error={personalFieldErrors.dateOfBirth}
                       min={manilaDateYearsAgo(100)}
@@ -1308,6 +1353,7 @@ export const ProfilePage: React.FC = () => {
                   </div>
                   <Input
                     label="Complete Residential Address"
+                    autoComplete="street-address"
                     maxLength={500}
                     placeholder="House/Unit No., Street, Barangay"
                     value={personalForm.address}
@@ -1555,7 +1601,7 @@ export const ProfilePage: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex items-center gap-2 shrink-0">
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1565,7 +1611,7 @@ export const ProfilePage: React.FC = () => {
                                 setRefPhone(r.phone || "");
                                 setRefModalOpen(true);
                               }}
-                              className="text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7]"
+                              className="min-w-11 text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7] md:min-w-9 applicant-touch:min-w-11"
                             >
                               <Pencil className="w-4 h-4" />
                             </Button>
@@ -1580,7 +1626,7 @@ export const ProfilePage: React.FC = () => {
                                   label: r.name,
                                 })
                               }
-                              className="text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
+                              className="min-w-11 text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2] md:min-w-9 applicant-touch:min-w-11"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -1696,7 +1742,7 @@ export const ProfilePage: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1705,7 +1751,7 @@ export const ProfilePage: React.FC = () => {
                             setEditingExp(exp);
                             setExpModalOpen(true);
                           }}
-                          className="text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7]"
+                          className="min-w-11 text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7] md:min-w-9 applicant-touch:min-w-11"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -1720,7 +1766,7 @@ export const ProfilePage: React.FC = () => {
                               label: `${exp.roleTitle} at ${exp.company}`,
                             })
                           }
-                          className="text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
+                          className="min-w-11 text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2] md:min-w-9 applicant-touch:min-w-11"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -1777,7 +1823,7 @@ export const ProfilePage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1786,7 +1832,7 @@ export const ProfilePage: React.FC = () => {
                             setEditingEdu(edu);
                             setEduModalOpen(true);
                           }}
-                          className="text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7]"
+                          className="min-w-11 text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7] md:min-w-9 applicant-touch:min-w-11"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -1801,7 +1847,7 @@ export const ProfilePage: React.FC = () => {
                               label: `${edu.degree} from ${edu.school}`,
                             })
                           }
-                          className="text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
+                          className="min-w-11 text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2] md:min-w-9 applicant-touch:min-w-11"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -1873,7 +1919,7 @@ export const ProfilePage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1882,7 +1928,7 @@ export const ProfilePage: React.FC = () => {
                             setEditingTraining(t);
                             setTrainingModalOpen(true);
                           }}
-                          className="text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7]"
+                          className="min-w-11 text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7] md:min-w-9 applicant-touch:min-w-11"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -1897,7 +1943,7 @@ export const ProfilePage: React.FC = () => {
                               label: t.title,
                             })
                           }
-                          className="text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
+                          className="min-w-11 text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2] md:min-w-9 applicant-touch:min-w-11"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -1924,7 +1970,7 @@ export const ProfilePage: React.FC = () => {
         title={editingExp ? "Edit Work Experience" : "Add Work Experience"}
         description={editingExp ? "Update your employment details" : "Record a previous employment role"}
       >
-        <form onSubmit={handleSaveExp} className="space-y-4">
+        <form noValidate onSubmit={handleSaveExp} className="space-y-4">
           <Input
             label="Job Title / Position"
             name="jobTitle"
@@ -1943,7 +1989,7 @@ export const ProfilePage: React.FC = () => {
             onChange={() => clearExpError("company")}
             required
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
             <Input
               label="Start Date"
               type="date"
@@ -1964,18 +2010,16 @@ export const ProfilePage: React.FC = () => {
               max={getManilaToday()}
             />
           </div>
-          <div className="flex items-center gap-2">
+          <label htmlFor="isCurrent" className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-[#102A43]">
             <input
               type="checkbox"
               id="isCurrent"
               name="isCurrent"
               defaultChecked={Boolean(editingExp?.isCurrent)}
-              className="rounded text-[#0B315D] focus:ring-[#0B315D]"
+              className="size-5 shrink-0 rounded text-[#0B315D] focus:ring-[#0B315D]"
             />
-            <label htmlFor="isCurrent" className="text-xs text-[#102A43]">
-              I currently work in this position
-            </label>
-          </div>
+            I currently work in this position
+          </label>
           <Textarea
             label="Responsibilities & Duties"
             name="responsibilities"
@@ -2013,7 +2057,7 @@ export const ProfilePage: React.FC = () => {
         title={editingEdu ? "Edit Educational Background" : "Add Educational Background"}
         description={editingEdu ? "Update your degree or course details" : "Record a degree, diploma, or certificate"}
       >
-        <form onSubmit={handleSaveEdu} className="space-y-4">
+        <form noValidate onSubmit={handleSaveEdu} className="space-y-4">
           <Input
             label="School / Institution Name"
             name="schoolName"
@@ -2042,7 +2086,7 @@ export const ProfilePage: React.FC = () => {
             error={eduErrors.field}
             onChange={() => clearEduError("field")}
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
             <Input
               label="Start Date"
               type="date"
@@ -2090,7 +2134,7 @@ export const ProfilePage: React.FC = () => {
         title={editingTraining ? "Edit Training or Certification" : "Add Training or Certification"}
         description={editingTraining ? "Update credential records" : "Record industry credentials"}
       >
-        <form onSubmit={handleSaveTraining} className="space-y-4">
+        <form noValidate onSubmit={handleSaveTraining} className="space-y-4">
           <Input
             label="Certificate / Course Title"
             name="title"
@@ -2147,7 +2191,7 @@ export const ProfilePage: React.FC = () => {
         title={editingRef ? "Edit Character Reference" : "Add Character Reference"}
         description={editingRef ? "Update contact information" : "Record a professional or personal contact"}
       >
-        <form onSubmit={handleSaveRef} className="space-y-4">
+        <form noValidate onSubmit={handleSaveRef} className="space-y-4">
           <Input
             label="Contact Full Name"
             name="name"
@@ -2178,6 +2222,7 @@ export const ProfilePage: React.FC = () => {
           />
           <PhoneInput
             label="Contact Phone Number"
+            autoComplete="off"
             value={refPhone}
             error={refErrors.phone}
             onChange={(val) => {

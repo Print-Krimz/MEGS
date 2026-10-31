@@ -100,7 +100,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
             <span className="block font-semibold text-[#102A43]">Candidate photo</span>
             <span>PNG or JPG up to 5 MB</span>
           </div>
-          <label className="inline-flex min-h-9 cursor-pointer items-center rounded-md border border-[#D9E2EC] bg-white px-3 text-xs sm:text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] transition-colors focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2">
+          <label className="inline-flex min-h-11 applicant-touch:min-h-11 md:min-h-9 cursor-pointer items-center rounded-md border border-[#D9E2EC] bg-white px-3 text-xs sm:text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] transition-colors focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2">
             <input
               data-testid="photo-upload-input"
               type="file"
@@ -146,7 +146,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
             <p className="font-semibold">{profile?.resumeUrl ? "Resume on file" : "No resume uploaded yet"}</p>
             <p className="mt-1 text-xs text-[#627D98]">PDF, DOCX, or Image (PNG, JPG, WEBP) up to 5 MB. Existing profile details stay unchanged when MEGS fills empty fields.</p>
           </div>
-          <label className="inline-flex min-h-9 shrink-0 cursor-pointer items-center justify-center rounded-md bg-[#0B315D] px-4 text-xs sm:text-sm font-medium text-white hover:bg-[#082747] focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2 transition-colors">
+          <label className="inline-flex min-h-11 applicant-touch:min-h-11 md:min-h-9 shrink-0 cursor-pointer items-center justify-center rounded-md bg-[#0B315D] px-4 text-xs sm:text-sm font-medium text-white hover:bg-[#082747] focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2 transition-colors">
             <input
               data-testid="resume-autofill-upload-input"
               type="file"

@@ -31,7 +31,10 @@ export const ProfileDisclosure: React.FC<ProfileDisclosureProps> = ({
   onPrevious,
   onNext,
   children,
-}) => (
+}) => {
+  // The status column only exists when there is a pill to show.
+  const pill = status ? statusPill(status, missing, id.startsWith("profile-personal-")) : null;
+  return (
   <section className="border-b border-slate-200 last:border-b-0">
     <h3 className="m-0">
       <button
@@ -45,11 +48,7 @@ export const ProfileDisclosure: React.FC<ProfileDisclosureProps> = ({
           <span className="block text-sm font-semibold text-slate-900">{title}</span>
           {summary && <span className="mt-0.5 block text-xs text-slate-500">{summary}</span>}
         </span>
-        {status && (
-          <span className="flex w-28 shrink-0 justify-end">
-            <StatusPill status={status} missing={missing} hideOptional={id.startsWith("profile-personal-")} />
-          </span>
-        )}
+        {pill && <span className="flex w-28 shrink-0 justify-end">{pill}</span>}
         <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
     </h3>
@@ -80,10 +79,11 @@ export const ProfileDisclosure: React.FC<ProfileDisclosureProps> = ({
       </div>
     )}
   </section>
-);
+  );
+};
 
 // "Optional" is left off the Personal info sections only; elsewhere it tells optional sections apart from required ones.
-const StatusPill: React.FC<{ status: SectionStatus; missing: number; hideOptional?: boolean }> = ({ status, missing, hideOptional }) => {
+const statusPill = (status: SectionStatus, missing: number, hideOptional?: boolean): React.ReactNode => {
   if (status === "complete")
     return (
       <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-800">
