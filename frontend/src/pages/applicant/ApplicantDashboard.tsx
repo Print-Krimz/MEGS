@@ -59,7 +59,7 @@ function SectionData<T>({
   return <>{children(query.data)}</>;
 }
 
-function listSkeleton(rows: number, rowClass = "h-[88px]") {
+function listSkeleton(rows: number, rowClass = "h-[193px] sm:h-[137px] lg:h-[85px]") {
   return (
     <div className="divide-y divide-slate-200">
       {Array.from({ length: rows }).map((_, i) => (
@@ -71,6 +71,27 @@ function listSkeleton(rows: number, rowClass = "h-[88px]") {
     </div>
   );
 }
+
+const readinessSkeleton = (
+  <div className="space-y-3">
+    <div className="h-4 w-1/2 bg-slate-200" />
+    <div className="h-3 w-3/4 bg-slate-100" />
+    <div className="h-2 w-full bg-slate-100 rounded-full" />
+    <div className="h-3 w-1/3 bg-slate-100" />
+  </div>
+);
+
+const metricsSkeleton = (
+  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    {Array.from({ length: 4 }).map((_, i) => (
+      <div key={i} className="bg-white p-5 rounded-md border border-slate-200 h-[130px] sm:h-[118px] space-y-2">
+        <div className="h-3 w-1/2 bg-slate-200" />
+        <div className="h-8 w-12 bg-slate-200" />
+        <div className="h-3 w-3/4 bg-slate-100" />
+      </div>
+    ))}
+  </div>
+);
 
 function summarizeApplications(applicationData: unknown) {
   const data = applicationData as
@@ -129,6 +150,8 @@ export const ApplicantDashboard: React.FC = () => {
 
   const allInvitations = Array.isArray(invitationsQuery.data) ? invitationsQuery.data : [];
   const pendingInvitations = allInvitations.filter((inv) => inv.status === "PENDING");
+  // Offline queries are paused, not pending: let the sections show their own connection message.
+  const invitationsPending = invitationsQuery.isPending && invitationsQuery.fetchStatus !== "paused";
 
   return (
     <div className="space-y-6">
@@ -154,346 +177,346 @@ export const ApplicantDashboard: React.FC = () => {
         }
       />
 
-      {/* Pending Job Invitations Alert Banner */}
-      {pendingInvitations.length > 0 && (
-        <div className="bg-slate-100 border border-slate-200 p-5 rounded-md">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Mail className="w-5 h-5 text-slate-900 shrink-0" />
-                <h3 className="text-base font-bold text-slate-900">
-                  {pendingInvitations.length === 1
-                    ? `You received an invitation for ${pendingInvitations[0].title}!`
-                    : `You have ${pendingInvitations.length} pending job invitations!`}
-                </h3>
-              </div>
-              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
-                Talent Acquisition matched your qualifications to open positions. Review position details and submit your application with one click.
-              </p>
+      {/* Hold the page body until invitations are known: the banner then arrives with the content and nothing is pushed down. */}
+      {invitationsPending ? (
+        <div role="status" aria-label="Loading dashboard" className="space-y-6 motion-safe:animate-pulse">
+          <div className="min-h-[216px] sm:min-h-[148px] rounded-md border border-slate-200 bg-white p-5">{readinessSkeleton}</div>
+          {metricsSkeleton}
+          <div className="rounded-md border border-slate-200 bg-white">
+            <div className="h-[81px] border-b border-slate-200 p-5">
+              <div className="h-4 w-1/3 bg-slate-200" />
             </div>
-            <Link
-              to="/app/applications"
-              search={{ tab: "invitations" }}
-              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md bg-slate-900 hover:bg-slate-950 px-4 text-xs sm:text-sm font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
-            >
-              Review Invitations ({pendingInvitations.length})
-            </Link>
+            {listSkeleton(3)}
           </div>
+          <span className="sr-only">Loading dashboard</span>
         </div>
-      )}
-
-      {/* Digital Resume Readiness Card */}
-      <div className="bg-white border border-slate-200 p-5 rounded-md min-h-[148px]">
-        <SectionData
-          query={profileQuery}
-          subject="your profile"
-          skeleton={
-            <div className="space-y-3">
-              <div className="h-4 w-1/2 bg-slate-200" />
-              <div className="h-3 w-3/4 bg-slate-100" />
-              <div className="h-2 w-full bg-slate-100 rounded-full" />
-              <div className="h-3 w-1/3 bg-slate-100" />
-            </div>
-          }
-        >
-          {(profileData) => {
-            const profileHealth = computeProfileHealth(profileData || null);
-            const readinessPercent = profileHealth.score;
-            return (
-              <>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Digital Resume Readiness:
-                  </span>
-                  <span className="text-sm font-black font-mono text-slate-900">
-                    {readinessPercent}%
-                  </span>
-                  <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-900 border border-slate-200 text-[10px] font-mono font-bold uppercase rounded-md">
-                    {profileHealth.tier}
-                  </span>
+      ) : (
+        <>
+        {/* Pending Job Invitations Alert Banner */}
+        {pendingInvitations.length > 0 && (
+          <div className="bg-slate-100 border border-slate-200 p-5 rounded-md">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-slate-900 shrink-0" />
+                  <h3 className="text-base font-bold text-slate-900">
+                    {pendingInvitations.length === 1
+                      ? `You received an invitation for ${pendingInvitations[0].title}!`
+                      : `You have ${pendingInvitations.length} pending job invitations!`}
+                  </h3>
                 </div>
-                <p className="text-xs text-slate-500">
-                  Complete your profile to increase visibility to recruiters and partner employers.
+                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                  Talent Acquisition matched your qualifications to open positions. Review position details and submit your application with one click.
                 </p>
               </div>
               <Link
-                to="/app/profile"
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-900 hover:text-slate-950 hover:bg-slate-100 rounded-md transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+                to="/app/applications"
+                search={{ tab: "invitations" }}
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md bg-slate-900 hover:bg-slate-950 px-4 text-xs sm:text-sm font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
               >
-                <span>{readinessPercent >= 100 ? "View Profile" : "Complete Profile"}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                Review Invitations ({pendingInvitations.length})
               </Link>
             </div>
-
-            <div className="w-full bg-slate-100 h-2 border border-slate-200 overflow-hidden rounded-full my-3">
-              <div
-                className="h-full bg-slate-900 transition-all duration-300 rounded-full"
-                style={{ width: `${readinessPercent}%` }}
-                role="progressbar"
-                aria-valuenow={readinessPercent}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              />
-            </div>
-
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              {readinessPercent >= 100 ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-              )}
-              <span>{profileHealth.nextActionTip}</span>
-            </div>
-              </>
-            );
-          }}
-        </SectionData>
-      </div>
-
-      {/* 4-Segment Operational Metrics Cards */}
-      <SectionData
-        query={applicationsQuery}
-        subject="your applications"
-        skeleton={
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="bg-white p-5 rounded-md border border-slate-200 h-[116px] space-y-2">
-                <div className="h-3 w-1/2 bg-slate-200" />
-                <div className="h-8 w-12 bg-slate-200" />
-                <div className="h-3 w-3/4 bg-slate-100" />
-              </div>
-            ))}
           </div>
-        }
-      >
-        {(applicationData) => {
-          const { totalApps, activeApps, interviewApps, placedApps } = summarizeApplications(applicationData);
-          return (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-5 rounded-md border border-slate-200">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Applications
-              </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-1 tabular-nums">
-                {totalApps}
-              </div>
-              <div className="text-xs text-slate-500 mt-1">
-                Total submissions
-              </div>
-            </div>
-            <div className="bg-white p-5 rounded-md border border-slate-200">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                In Progress
-              </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-1 tabular-nums">
-                {activeApps}
-              </div>
-              <div className="text-xs text-slate-500 mt-1">
-                Under recruiter evaluation
-              </div>
-            </div>
-            <div className="bg-white p-5 rounded-md border border-slate-200">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Interviews
-              </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-purple-700 mt-1 tabular-nums">
-                {interviewApps}
-              </div>
-              <div className="text-xs text-slate-500 mt-1">
-                Screening & client sessions
-              </div>
-            </div>
-            <div className="bg-white p-5 rounded-md border border-slate-200">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Placed
-              </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 mt-1 tabular-nums">
-                {placedApps}
-              </div>
-              <div className="text-xs text-slate-500 mt-1">
-                Successfully deployed
-              </div>
-            </div>
-          </div>
-          );
-        }}
-      </SectionData>
+        )}
 
-      {/* Recent Applications Section */}
-      <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
-        <div className="p-5 border-b border-slate-200 flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-bold text-slate-900">
-              Recent Applications
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Track progress from submission to job placement.
-            </p>
-          </div>
-          <Link
-            to="/app/applications"
-            className="text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline"
+        {/* Digital Resume Readiness Card */}
+        <div className="bg-white border border-slate-200 p-5 rounded-md min-h-[216px] sm:min-h-[148px]">
+          <SectionData
+            query={profileQuery}
+            subject="your profile"
+            skeleton={readinessSkeleton}
           >
-            {applicationsQuery.data ? `View All (${summarizeApplications(applicationsQuery.data).applications.length})` : "View All"}
-          </Link>
-        </div>
+            {(profileData) => {
+              const profileHealth = computeProfileHealth(profileData || null);
+              const readinessPercent = profileHealth.score;
+              return (
+                <>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Digital Resume Readiness:
+                    </span>
+                    <span className="text-sm font-black font-mono text-slate-900">
+                      {readinessPercent}%
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-900 border border-slate-200 text-[10px] font-mono font-bold uppercase rounded-md">
+                      {profileHealth.tier}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Complete your profile to increase visibility to recruiters and partner employers.
+                  </p>
+                </div>
+                <Link
+                  to="/app/profile"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-900 hover:text-slate-950 hover:bg-slate-100 rounded-md transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+                >
+                  <span>{readinessPercent >= 100 ? "View Profile" : "Complete Profile"}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
 
-        <SectionData query={applicationsQuery} subject="your applications" skeleton={listSkeleton(3)}>
-          {(applicationData) => {
-            const { applications } = summarizeApplications(applicationData);
-            return (
-            applications.length === 0 ? (
-              <div className="p-8">
-                <EmptyState
-                  icon={<Briefcase className="w-6 h-6 text-slate-400" />}
-                  title="No applications yet"
-                  description="Explore current verified job requisitions and submit your application with one click."
-                  action={
-                    <Link
-                      to="/app/jobs"
-                      className="inline-flex min-h-10 items-center justify-center rounded-md bg-slate-900 hover:bg-slate-950 px-4 text-xs sm:text-sm font-medium text-white transition-colors"
-                    >
-                      Browse Open Jobs
-                    </Link>
-                  }
+              <div className="w-full bg-slate-100 h-2 border border-slate-200 overflow-hidden rounded-full my-3">
+                <div
+                  className="h-full bg-slate-900 transition-all duration-300 rounded-full"
+                  style={{ width: `${readinessPercent}%` }}
+                  role="progressbar"
+                  aria-valuenow={readinessPercent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
                 />
               </div>
-            ) : (
-              <div className="divide-y divide-slate-200">
-                {applications.slice(0, 5).map((app) => {
-                  const clientName = (app.jobPosting as any)?.mrf?.client?.name || "Verified Client";
-                  return (
-                    <div
-                      key={app.id}
-                      className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="space-y-1.5 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-semibold text-slate-900">
-                            {app.jobPosting?.title || "Job Opening"}
-                          </span>
-                          <StatusBadge status={app.status} audience="applicant" size="sm" />
-                        </div>
-                        <div className="text-xs text-slate-500 flex flex-wrap items-center gap-3">
-                          <span className="flex items-center gap-1 font-medium text-slate-900">
-                            <Building className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{clientName}</span>
-                          </span>
-                          {app.jobPosting?.location && (
-                            <span className="flex items-center gap-1 text-slate-500">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{app.jobPosting.location}</span>
-                            </span>
-                          )}
-                          <span className="flex items-center gap-1 text-slate-500">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Applied {formatDate(app.createdAt)}</span>
-                          </span>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center gap-3 shrink-0">
-                        <Link
-                          to="/app/applications"
-                          className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-950 px-3.5 text-xs font-medium text-slate-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
-                        >
-                          <span>Track Status</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                {readinessPercent >= 100 ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                )}
+                <span>{profileHealth.nextActionTip}</span>
               </div>
-            )
+                </>
+              );
+            }}
+          </SectionData>
+        </div>
+
+        {/* 4-Segment Operational Metrics Cards */}
+        <SectionData
+          query={applicationsQuery}
+          subject="your applications"
+          skeleton={metricsSkeleton}
+        >
+          {(applicationData) => {
+            const { totalApps, activeApps, interviewApps, placedApps } = summarizeApplications(applicationData);
+            return (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-md border border-slate-200">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Applications
+                </div>
+                <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-1 tabular-nums">
+                  {totalApps}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  Total submissions
+                </div>
+              </div>
+              <div className="bg-white p-5 rounded-md border border-slate-200">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  In Progress
+                </div>
+                <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-1 tabular-nums">
+                  {activeApps}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  Under recruiter evaluation
+                </div>
+              </div>
+              <div className="bg-white p-5 rounded-md border border-slate-200">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Interviews
+                </div>
+                <div className="text-2xl sm:text-3xl font-black font-mono text-purple-700 mt-1 tabular-nums">
+                  {interviewApps}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  Screening & client sessions
+                </div>
+              </div>
+              <div className="bg-white p-5 rounded-md border border-slate-200">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Placed
+                </div>
+                <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 mt-1 tabular-nums">
+                  {placedApps}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  Successfully deployed
+                </div>
+              </div>
+            </div>
             );
           }}
         </SectionData>
-      </div>
 
-      {/* Recommended Open Jobs Preview */}
-      {(jobsQuery.isPending || jobsQuery.isError || openJobs.length > 0) && (
+        {/* Recent Applications Section */}
         <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
           <div className="p-5 border-b border-slate-200 flex items-center justify-between">
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                Recommended Positions for You
+                Recent Applications
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Verified vacancies matching recruitment demands nationwide.
+                Track progress from submission to job placement.
               </p>
             </div>
             <Link
-              to="/app/jobs"
+              to="/app/applications"
               className="text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline"
             >
-              {jobsQuery.data ? `Browse All (${openJobsTotal})` : "Browse All"}
+              {applicationsQuery.data ? `View All (${summarizeApplications(applicationsQuery.data).applications.length})` : "View All"}
             </Link>
           </div>
 
-          <SectionData query={jobsQuery} subject="open jobs" skeleton={listSkeleton(2, "h-[120px]")}>
-            {() => (
-              <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200">
-                {openJobs.slice(0, 4).map((job) => {
-                  const clientName = (job as any)?.mrf?.client?.name || "Verified Client";
-                  return (
-                    <div
-                      key={job.id}
-                      className="p-5 flex flex-col justify-between hover:bg-slate-50 transition-colors space-y-3"
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="text-sm sm:text-base font-bold text-slate-900 hover:text-slate-700 transition-colors leading-snug">
-                            {job.title}
-                          </h4>
-                          <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                            Open
-                          </span>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          <span className="font-medium text-slate-900">{clientName}</span>
-                          <span className="text-slate-300">•</span>
-                          <span>{job.location || "Philippines"}</span>
-                          {((job as any)?.mrf?.salaryRangeMin || (job as any)?.mrf?.salaryRangeMax) ? (
-                            <>
-                              <span className="text-slate-300">•</span>
-                              <span className="font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md text-[11px] border border-emerald-200">
-                                {formatSalaryRange((job as any).mrf.salaryRangeMin, (job as any).mrf.salaryRangeMax)}
+          <SectionData query={applicationsQuery} subject="your applications" skeleton={listSkeleton(3)}>
+            {(applicationData) => {
+              const { applications } = summarizeApplications(applicationData);
+              return (
+              applications.length === 0 ? (
+                <div className="p-8">
+                  <EmptyState
+                    icon={<Briefcase className="w-6 h-6 text-slate-400" />}
+                    title="No applications yet"
+                    description="Explore current verified job requisitions and submit your application with one click."
+                    action={
+                      <Link
+                        to="/app/jobs"
+                        className="inline-flex min-h-10 items-center justify-center rounded-md bg-slate-900 hover:bg-slate-950 px-4 text-xs sm:text-sm font-medium text-white transition-colors"
+                      >
+                        Browse Open Jobs
+                      </Link>
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-200">
+                  {applications.slice(0, 5).map((app) => {
+                    const clientName = (app.jobPosting as any)?.mrf?.client?.name || "Verified Client";
+                    return (
+                      <div
+                        key={app.id}
+                        className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold text-slate-900">
+                              {app.jobPosting?.title || "Job Opening"}
+                            </span>
+                            <StatusBadge status={app.status} audience="applicant" size="sm" />
+                          </div>
+                          <div className="text-xs text-slate-500 flex flex-wrap items-center gap-3">
+                            <span className="flex items-center gap-1 font-medium text-slate-900">
+                              <Building className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{clientName}</span>
+                            </span>
+                            {app.jobPosting?.location && (
+                              <span className="flex items-center gap-1 text-slate-500">
+                                <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                <span>{app.jobPosting.location}</span>
                               </span>
-                            </>
-                          ) : null}
+                            )}
+                            <span className="flex items-center gap-1 text-slate-500">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Applied {formatDate(app.createdAt)}</span>
+                            </span>
+                          </div>
                         </div>
 
-                        {job.description && (
-                          <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                            {job.description}
-                          </p>
-                        )}
+                        <div className="flex items-center gap-3 shrink-0">
+                          <Link
+                            to="/app/applications"
+                            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-950 px-3.5 text-xs font-medium text-slate-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+                          >
+                            <span>Track Status</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                        </div>
                       </div>
-
-                      <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-                        <span className="text-[11px] text-slate-500">
-                          Posted {formatDate(job.createdAt)}
-                        </span>
-                        <Link
-                          to="/app/jobs/$jobId"
-                          params={{ jobId: String(job.id) }}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 rounded-md"
-                        >
-                          <span>View Details</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              )
+              );
+            }}
           </SectionData>
         </div>
+
+        {/* Recommended Open Jobs Preview */}
+        {(jobsQuery.isPending || jobsQuery.isError || openJobs.length > 0) && (
+          <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Recommended Positions for You
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Verified vacancies matching recruitment demands nationwide.
+                </p>
+              </div>
+              <Link
+                to="/app/jobs"
+                className="text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline"
+              >
+                {jobsQuery.data ? `Browse All (${openJobsTotal})` : "Browse All"}
+              </Link>
+            </div>
+
+            <SectionData query={jobsQuery} subject="open jobs" skeleton={listSkeleton(2, "h-[120px]")}>
+              {() => (
+                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200">
+                  {openJobs.slice(0, 4).map((job) => {
+                    const clientName = (job as any)?.mrf?.client?.name || "Verified Client";
+                    return (
+                      <div
+                        key={job.id}
+                        className="p-5 flex flex-col justify-between hover:bg-slate-50 transition-colors space-y-3"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-sm sm:text-base font-bold text-slate-900 hover:text-slate-700 transition-colors leading-snug">
+                              {job.title}
+                            </h4>
+                            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                              Open
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                            <span className="font-medium text-slate-900">{clientName}</span>
+                            <span className="text-slate-300">•</span>
+                            <span>{job.location || "Philippines"}</span>
+                            {((job as any)?.mrf?.salaryRangeMin || (job as any)?.mrf?.salaryRangeMax) ? (
+                              <>
+                                <span className="text-slate-300">•</span>
+                                <span className="font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md text-[11px] border border-emerald-200">
+                                  {formatSalaryRange((job as any).mrf.salaryRangeMin, (job as any).mrf.salaryRangeMax)}
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+
+                          {job.description && (
+                            <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                              {job.description}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+                          <span className="text-[11px] text-slate-500">
+                            Posted {formatDate(job.createdAt)}
+                          </span>
+                          <Link
+                            to="/app/jobs/$jobId"
+                            params={{ jobId: String(job.id) }}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 rounded-md"
+                          >
+                            <span>View Details</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </SectionData>
+          </div>
+        )}
+        </>
       )}
     </div>
   );
