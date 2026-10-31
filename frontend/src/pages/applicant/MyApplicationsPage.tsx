@@ -372,7 +372,7 @@ export const MyApplicationsPage: React.FC = () => {
               return (
                 <div
                   key={inv.id}
-                  className={`bg-white rounded-md border p-5 shadow-xs transition-all space-y-4 ${
+                  className={`bg-white rounded-md border p-5 shadow-xs transition-all space-y-4 [overflow-wrap:anywhere] ${
                     isPending ? "border-slate-900/40 ring-1 ring-slate-900/20" : "border-slate-200"
                   }`}
                 >
