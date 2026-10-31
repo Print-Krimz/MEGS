@@ -309,7 +309,7 @@ export const NotificationsPage: React.FC = () => {
         />
 
         {initialLoading ? (
-          <LoadingState variant="table" rows={4} />
+          <LoadingState variant="table" rows={pageSize} />
         ) : offline || notificationsQuery.isError ? (
           <ErrorState
             compact
