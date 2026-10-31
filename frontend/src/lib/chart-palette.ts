@@ -93,6 +93,13 @@ export const WORKLOAD = {
   estimated: "#9A5B00",
 } as const;
 
+/** Waiting bars: the time inside the limit is a plain pale baseline, only the time past it is coloured. */
+export const WAIT = {
+  withinLimit: "#CDD3DC",
+  late: "#B87A0A",
+  critical: "#C0392B",
+} as const;
+
 /** Starts are positive (blue family); people who left reuse the loss colours. */
 export const TREND = {
   newStarts: "#1A55C4",

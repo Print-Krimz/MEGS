@@ -3,9 +3,9 @@ import { Link } from "@tanstack/react-router";
 import type { StuckCandidate } from "../../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
-import { HEALTH_CHIP, OUTCOME, TEXT_AMBER, TEXT_LOSS, WORKLOAD } from "../../../lib/chart-palette";
+import { HEALTH_CHIP, TEXT_AMBER, TEXT_LOSS, WAIT } from "../../../lib/chart-palette";
 import { PaginationBar } from "../PaginationBar";
-import { BarMark } from "./chart-primitives";
+import { StackedBar } from "./chart-primitives";
 
 interface StuckListProps {
   rows: StuckCandidate[];
@@ -35,20 +35,18 @@ const URGENCY = {
 const SELECT =
   "min-h-9 border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
-/** Days in the stage as a bar, with a tick where the limit sits. Anything past the tick is overdue. */
+/** Days in the stage as a bar: a pale baseline up to the limit, then only the days past it in colour. */
 const WaitBar: React.FC<{ row: number; r: StuckCandidate; color: string; index: number }> = ({ row: scale, r, color, index }) => (
-  <div className="relative">
-    <BarMark
-      label={`${r.stageLabel}, days in stage`}
-      value={r.daysInStage}
-      max={scale}
-      pct={`limit ${r.slaDays} ${r.slaDays === 1 ? "day" : "days"}`}
-      color={color}
-      heightClass="h-2"
-      index={index}
-    />
-    <span aria-hidden="true" className="absolute -top-0.5 -bottom-0.5 w-px bg-slate-900" style={{ left: `${(r.slaDays / scale) * 100}%` }} />
-  </div>
+  <StackedBar
+    label={`${r.stageLabel}, days in stage, limit ${r.slaDays} ${r.slaDays === 1 ? "day" : "days"}`}
+    max={scale}
+    heightClass="h-2"
+    index={index}
+    segments={[
+      { key: "within", label: "Within limit", value: Math.min(r.daysInStage, r.slaDays), color: WAIT.withinLimit },
+      { key: "over", label: "Past limit", value: Math.max(0, r.daysInStage - r.slaDays), color },
+    ]}
+  />
 );
 
 /** Candidates past their stage limit, longest wait first, so a team leader can see who is holding them up. */
@@ -187,7 +185,7 @@ export const StuckList = React.memo(function StuckList({
                 </div>
                 <div className="mt-1 grid grid-cols-[7rem_minmax(0,1fr)_auto] items-center gap-x-3 text-xs font-sans text-slate-700 sm:grid-cols-[9rem_minmax(0,1fr)_auto]">
                   <span className="truncate font-semibold text-slate-900">{r.stageLabel}</span>
-                  <WaitBar row={scale} index={i} r={r} color={r.urgency === "critical" ? WORKLOAD.overdue : OUTCOME.notSelected} />
+                  <WaitBar row={scale} index={i} r={r} color={r.urgency === "critical" ? WAIT.critical : WAIT.late} />
                   <span className="whitespace-nowrap tabular-nums">
                     <strong>{r.daysInStage}</strong> of {r.slaDays} days
                     {r.estimated && (
